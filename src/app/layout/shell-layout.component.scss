@@ -1,0 +1,84 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+  block-size: 100dvh;
+}
+
+// Mobile-first: una colonna, topbar sopra, contenuto sotto.
+.shell {
+  display: grid;
+  block-size: 100dvh;
+  overflow: hidden; // garantisce che l'unico scroll sia in .shell__content
+  grid-template-columns: 1fr;
+  grid-template-rows: var(--topbar-height) 1fr;
+  grid-template-areas:
+    'topbar'
+    'content';
+  background-color: var(--color-bg);
+}
+
+.shell__topbar {
+  grid-area: topbar;
+  border-block-end: var(--border-width) solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+.shell__sidebar {
+  grid-area: sidebar;
+  background-color: var(--color-surface);
+  border-inline-end: var(--border-width) solid var(--color-border);
+  // Mobile: drawer off-canvas.
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: var(--sidebar-width);
+  transform: translateX(-100%);
+  visibility: hidden; // fuori dal tab order quando il drawer e' chiuso
+  transition:
+    transform var(--transition-base) var(--ease-standard),
+    visibility 0s linear var(--transition-base);
+  z-index: var(--z-modal);
+  overflow-y: auto;
+}
+
+.shell--drawer-open .shell__sidebar {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform var(--transition-base) var(--ease-standard);
+}
+
+.shell__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background-color: var(--color-backdrop);
+}
+
+.shell__content {
+  grid-area: content;
+  overflow-y: auto; // UNICA regione principale di scroll
+  padding: var(--space-4);
+}
+
+// Desktop: sidebar persistente nella griglia, niente drawer/hamburger.
+@include bp.media-up('lg') {
+  .shell {
+    grid-template-columns: var(--sidebar-width) 1fr;
+    grid-template-areas:
+      'sidebar topbar'
+      'sidebar content';
+  }
+
+  .shell__sidebar {
+    position: static;
+    transform: none;
+    visibility: visible;
+    z-index: auto;
+    inline-size: auto;
+  }
+
+  .shell__backdrop {
+    display: none;
+  }
+}

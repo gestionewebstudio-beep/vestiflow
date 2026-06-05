@@ -1,7 +1,6 @@
 import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular/core';
 
-export type ThemeMode = 'light' | 'dark' | 'system';
-export type ResolvedTheme = 'light' | 'dark';
+import type { ResolvedTheme, ThemeMode } from '@shared/models/theme.model';
 
 const STORAGE_KEY = 'vestiflow-theme';
 const THEME_MODES: readonly ThemeMode[] = ['light', 'dark', 'system'];

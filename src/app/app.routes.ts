@@ -1,3 +1,58 @@
 import { Routes } from '@angular/router';
 
-export const routes: Routes = [];
+import { authGuard, guestGuard } from '@core/auth';
+
+// Routing feature-based con lazy loading. Le route applicative vivono sotto /app,
+// protette da authGuard; /login e' riservata ai guest (guestGuard).
+export const routes: Routes = [
+  { path: '', pathMatch: 'full', redirectTo: 'app/dashboard' },
+  {
+    path: 'login',
+    title: 'VestiFlow · Accesso',
+    canActivate: [guestGuard],
+    loadComponent: () => import('@features/auth/login.component').then((m) => m.LoginComponent),
+  },
+  {
+    path: 'app',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./layout/shell-layout.component').then((m) => m.ShellLayoutComponent),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      {
+        path: 'dashboard',
+        loadChildren: () =>
+          import('@features/dashboard/dashboard.routes').then((m) => m.dashboardRoutes),
+      },
+      {
+        path: 'products',
+        loadChildren: () =>
+          import('@features/products/products.routes').then((m) => m.productsRoutes),
+      },
+      {
+        path: 'inventory',
+        loadChildren: () =>
+          import('@features/inventory/inventory.routes').then((m) => m.inventoryRoutes),
+      },
+      {
+        path: 'orders',
+        loadChildren: () => import('@features/orders/orders.routes').then((m) => m.ordersRoutes),
+      },
+      {
+        path: 'customers',
+        loadChildren: () =>
+          import('@features/customers/customers.routes').then((m) => m.customersRoutes),
+      },
+      {
+        path: 'reports',
+        loadChildren: () => import('@features/reports/reports.routes').then((m) => m.reportsRoutes),
+      },
+      {
+        path: 'settings',
+        loadChildren: () =>
+          import('@features/settings/settings.routes').then((m) => m.settingsRoutes),
+      },
+    ],
+  },
+  { path: '**', redirectTo: 'app/dashboard' },
+];

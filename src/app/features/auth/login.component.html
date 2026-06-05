@@ -1,0 +1,79 @@
+<main class="login">
+  <section class="login__card" aria-labelledby="login-title">
+    <header class="login__header">
+      <h1 id="login-title" class="login__title">Accesso</h1>
+      <p class="login__subtitle">Accedi al gestionale VestiFlow.</p>
+    </header>
+
+    @if (error(); as appError) {
+      <div class="login__alert" role="alert">{{ appError.message }}</div>
+    }
+
+    <form class="login__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="login__field">
+        <label class="login__label" for="login-email">Email</label>
+        <input
+          id="login-email"
+          class="login__input"
+          type="email"
+          formControlName="email"
+          autocomplete="username"
+          inputmode="email"
+          [attr.aria-invalid]="showError('email')"
+          [attr.aria-describedby]="showError('email') ? 'login-email-error' : null"
+        />
+        @if (showError('email')) {
+          <p id="login-email-error" class="login__field-error">
+            @if (form.controls.email.hasError('required')) {
+              Inserisci la tua email.
+            } @else {
+              Inserisci un'email valida.
+            }
+          </p>
+        }
+      </div>
+
+      <div class="login__field">
+        <label class="login__label" for="login-password">Password</label>
+        <input
+          id="login-password"
+          class="login__input"
+          type="password"
+          formControlName="password"
+          autocomplete="current-password"
+          [attr.aria-invalid]="showError('password')"
+          [attr.aria-describedby]="showError('password') ? 'login-password-error' : null"
+        />
+        @if (showError('password')) {
+          <p id="login-password-error" class="login__field-error">
+            @if (form.controls.password.hasError('required')) {
+              Inserisci la tua password.
+            } @else {
+              La password deve avere almeno {{ passwordMinLength }} caratteri.
+            }
+          </p>
+        }
+      </div>
+
+      <button
+        class="login__submit"
+        type="submit"
+        [disabled]="loading()"
+        [attr.aria-busy]="loading()"
+      >
+        {{ loading() ? 'Accesso in corso…' : 'Accedi' }}
+      </button>
+    </form>
+
+    @if (showDemoCredentials) {
+      <aside class="login__demo" aria-label="Credenziali demo">
+        <p class="login__demo-title">Credenziali demo (solo sviluppo)</p>
+        <ul class="login__demo-list">
+          <li><strong>owner&#64;vestiflow.test</strong> · owner123</li>
+          <li><strong>manager&#64;vestiflow.test</strong> · manager123</li>
+          <li><strong>clerk&#64;vestiflow.test</strong> · clerk123</li>
+        </ul>
+      </aside>
+    }
+  </section>
+</main>

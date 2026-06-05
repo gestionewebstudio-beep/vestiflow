@@ -10,9 +10,9 @@
 //   4. Spacing / Radius / Shadow / Z-index
 //   5. Typography (Inter)
 //   6. Layout primitives + breakpoint (SCSS) + mixin
+// Breakpoint e mixin responsive vivono in `_breakpoints.scss` (solo SCSS),
+// per non duplicare il blocco :root quando un componente importa quei tool.
 // =============================================================================
-
-@use 'sass:map';
 
 // -----------------------------------------------------------------------------
 // 1 + 2 + 3 + 4 + 5 + 6a (runtime tokens via CSS custom properties)
@@ -92,6 +92,9 @@
 
   --color-focus-ring: var(--blue-500);
   --color-link: var(--blue-600);
+
+  /** Sfondo semitrasparente per overlay/drawer (backdrop). */
+  --color-backdrop: rgb(15 23 42 / 0.45);
 
   // ── 3. STATO / STOCK (LIGHT) — coppie fg/bg pensate per i badge ────────────
   --status-ok-fg: var(--green-700);
@@ -199,6 +202,7 @@
   --numeric-tabular: tabular-nums;
 
   // ── 6a. LAYOUT PRIMITIVES ──────────────────────────────────────────────────
+  --content-form: 26rem; // 416px — form centrati (login, recupero password)
   --content-narrow: 40rem; // 640px
   --content-default: 72rem; // 1152px
   --content-wide: 90rem; // 1440px
@@ -253,6 +257,8 @@
   --color-focus-ring: var(--blue-400);
   --color-link: var(--blue-400);
 
+  --color-backdrop: rgb(0 0 0 / 0.6);
+
   // Stato/stock: testo piu' chiaro, fondo translucido sulle superfici scure.
   --status-ok-fg: var(--green-300);
   --status-ok-bg: rgb(16 185 129 / 0.14);
@@ -291,33 +297,4 @@
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
   --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.55), 0 2px 4px -2px rgb(0 0 0 / 0.45);
   --shadow-lg: 0 12px 20px -6px rgb(0 0 0 / 0.6), 0 4px 8px -4px rgb(0 0 0 / 0.5);
-}
-
-// -----------------------------------------------------------------------------
-// 6b. BREAKPOINT — variabili SCSS (le custom properties non valgono in @media)
-//     I componenti li consumano via il mixin `media-up`.
-// -----------------------------------------------------------------------------
-$breakpoint-sm: 30rem; // 480px
-$breakpoint-md: 48rem; // 768px
-$breakpoint-lg: 64rem; // 1024px
-$breakpoint-xl: 80rem; // 1280px
-$breakpoint-2xl: 96rem; // 1536px
-
-$breakpoints: (
-  'sm': $breakpoint-sm,
-  'md': $breakpoint-md,
-  'lg': $breakpoint-lg,
-  'xl': $breakpoint-xl,
-  '2xl': $breakpoint-2xl,
-);
-
-// Mobile-first: applica gli stili a partire dal breakpoint indicato.
-// Uso: `@include media-up('md') { ... }`
-@mixin media-up($name) {
-  @if not map.has-key($breakpoints, $name) {
-    @error "Breakpoint sconosciuto: #{$name}. Disponibili: #{map.keys($breakpoints)}.";
-  }
-  @media (min-width: map.get($breakpoints, $name)) {
-    @content;
-  }
 }

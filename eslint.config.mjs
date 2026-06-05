@@ -33,6 +33,9 @@ export default tseslint.config(
       // ── Non negoziabili (regole-qualita) ────────────────────────────
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-floating-promises': 'error',
+      // I validator statici di Angular (Validators.required, ...) sono riferimenti
+      // sicuri: ignoreStatic evita falsi positivi su questi passaggi.
+      '@typescript-eslint/unbound-method': ['error', { ignoreStatic: true }],
       '@angular-eslint/no-output-on-prefix': 'error',
       '@angular-eslint/component-class-suffix': 'error',
       '@angular-eslint/use-lifecycle-interface': 'error',

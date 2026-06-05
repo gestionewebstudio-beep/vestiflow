@@ -1,0 +1,32 @@
+<div class="shell" [class.shell--drawer-open]="drawerOpen()">
+  <!-- Topbar persistente: dumb, parla allo shell via output(). -->
+  <header class="shell__topbar">
+    <app-topbar
+      [themeMode]="themeMode()"
+      [user]="currentUser()"
+      (menuToggle)="toggleDrawer()"
+      (themeModeChange)="onThemeModeChange($event)"
+      (logout)="onLogout()"
+    />
+  </header>
+
+  <!-- Sidebar persistente (desktop) / drawer (mobile). -->
+  <aside id="shell-sidebar" class="shell__sidebar">
+    <app-sidebar [items]="navItems" [drawerOpen]="drawerOpen()" (closeRequested)="closeDrawer()" />
+  </aside>
+
+  <!-- Backdrop: solo mobile, quando il drawer e' aperto. -->
+  @if (drawerOpen()) {
+    <button
+      type="button"
+      class="shell__backdrop"
+      aria-label="Chiudi menu di navigazione"
+      (click)="closeDrawer()"
+    ></button>
+  }
+
+  <!-- Unica regione principale di scroll. -->
+  <main class="shell__content">
+    <router-outlet />
+  </main>
+</div>

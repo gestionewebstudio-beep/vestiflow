@@ -1,0 +1,143 @@
+// NOTE: gli stili del bottone primario sono locali in attesa della libreria
+// bottoni condivisa (shared/). Verranno migrati nello step UI condivisa.
+// REASON: nessun componente button condiviso ancora disponibile.
+
+:host {
+  display: block;
+}
+
+.login {
+  display: grid;
+  place-items: center;
+  min-block-size: 100dvh;
+  padding: var(--space-4);
+  background-color: var(--color-bg);
+}
+
+.login__card {
+  inline-size: 100%;
+  max-inline-size: var(--content-form);
+  padding: var(--space-6);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.login__header {
+  margin-block-end: var(--space-5);
+}
+
+.login__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.login__subtitle {
+  margin-block: var(--space-1) 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.login__alert {
+  margin-block-end: var(--space-4);
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+  border: var(--border-width) solid var(--status-error-border);
+  border-radius: var(--radius-md);
+}
+
+.login__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+}
+
+.login__label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.login__input {
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--transition-fast) var(--ease-standard),
+    box-shadow var(--transition-fast) var(--ease-standard);
+}
+
+.login__input:focus-visible {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-primary-subtle);
+}
+
+.login__input[aria-invalid='true'] {
+  border-color: var(--status-error-border);
+}
+
+.login__input:disabled {
+  background-color: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+}
+
+.login__field-error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.login__submit {
+  inline-size: 100%;
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-4);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-fg);
+  background-color: var(--color-primary);
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition-fast) var(--ease-standard);
+}
+
+.login__submit:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+
+.login__submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login__demo {
+  margin-block-start: var(--space-5);
+  padding: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-sunken);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.login__demo-title {
+  margin: 0 0 var(--space-2);
+  font-weight: var(--font-weight-semibold);
+}
+
+.login__demo-list {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
