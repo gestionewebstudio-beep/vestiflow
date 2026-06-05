@@ -1,0 +1,257 @@
+---
+description: Sicurezza per progetti Angular SSR/CSR e backend Node/Express. Provider-agnostico (Firebase, Vercel, AWS, Cloudflare, GCP). Universale.
+globs: "**/*.ts, **/*.html, **/*.json, **/server.ts, **/*.yaml, **/*.yml, **/*.env*"
+alwaysApply: true
+---
+
+# SCOPE
+
+Queste regole valgono per **qualsiasi progetto Angular** con un backend o accesso a API esterne. I tag `[scope: firebase]`, `[scope: vercel]`, `[scope: aws]` indicano dettagli specifici di un provider; per gli altri sostituisci con l'equivalente del tuo (Secret Manager → Vault, Firestore Rules → DynamoDB IAM Policy, ecc.).
+
+---
+
+# ⛔ REGOLA ZERO — Segreti e Credenziali
+
+- **VIETATO ASSOLUTO** hardcodare API key, token, password, connection string, certificati o qualsiasi segreto in qualsiasi file `.ts`, `.html`, `.json`, `.scss`, `.yml`, e committarli nel repository.
+- Il repository contiene SOLO `.env.example` con i nomi delle variabili (valori vuoti o placeholder). Aggiorna `.env.example` ogni volta che aggiungi una variabile.
+- I valori reali vivono in:
+  - **Locale**: `.env` (presente in `.gitignore`, mai committato).
+  - **Produzione**: variabili d'ambiente del provider che fanno riferimento a un secret manager:
+    - `[scope: firebase]` Firebase App Hosting / Cloud Run → variabili in `apphosting.yaml` con riferimenti a Google Cloud Secret Manager.
+    - `[scope: vercel]` Vercel → Environment Variables marcate `Sensitive` o riferimenti a Vercel Secrets.
+    - `[scope: aws]` AWS → AWS Secrets Manager o Parameter Store con encryption.
+- **VIETATO** esporre segreti in log, error message, response API, JSON-LD, meta tag.
+- Verifica che `.gitignore` contenga: `.env`, `.env.local`, `.env.*.local`, `.env.production`, `*.key`, `*.pem`, `*.p12`, `serviceAccountKey.json`, `*.crt`.
+- Rotazione segreti: programma una rotazione periodica (annuale minimo) per chiavi long-lived. Rotazione immediata su ogni sospetto leak.
+
+## In caso di leak accidentale
+1. **Revoca immediata** del segreto sul provider (non basta cancellarlo dal repo: la history Git lo conserva).
+2. Genera un nuovo valore.
+3. Riscrivi la history se possibile (`git filter-repo`) e force-push, ma considera il segreto compromesso permanentemente.
+4. Verifica i log per uso non autorizzato dal momento del commit in poi.
+
+---
+
+# VARIABILI D'AMBIENTE ANGULAR (Frontend)
+
+- Le variabili in `environment.ts` / `environment.prod.ts` sono **pubbliche per definizione** (incluse nel bundle JS). Non inserire mai dati sensibili.
+- `environment.ts` può contenere SOLO: URL pubblici, flag feature, ID pubblici non segreti (es. Google Maps public key con HTTP referrer restriction, Firebase project config — pubblico by design, Stripe **publishable** key).
+- Ogni variabile d'ambiente usata in `environment.ts` deve essere documentata in `.env.example` con commento sul significato.
+- Per chiavi pubbliche tipo Google Maps / reCAPTCHA: configura **HTTP referrer restriction** sul provider, in modo che la chiave funzioni solo dal tuo dominio.
+
+---
+
+# CHIAMATE HTTP E BACKEND
+
+- Le chiamate verso servizi esterni **con credenziali private** (API key privata, OAuth client secret, chiavi Stripe/Braintree, accesso DB, ecc.) DEVONO transitare esclusivamente dal **backend** (Cloud Functions, Cloud Run, route SSR server-side, API route Vercel, Lambda, ecc.).
+- Il client Angular chiama SOLO endpoint del proprio dominio o origine fidata configurata in CORS.
+- **VIETATO** esporre credenziali backend in risposte API al frontend. Il frontend riceve solo i dati elaborati, non le chiavi usate per ottenerli.
+- Usa `HttpClient` con un **interceptor** per aggiungere header di autenticazione. Non costruire header auth manualmente nelle chiamate component.
+- Implementa interceptor per la gestione centralizzata degli errori HTTP:
+  - `401` → tentativo di refresh token, poi redirect login.
+  - `403` → pagina/messaggio "accesso negato".
+  - `429` → backoff e messaggio "troppe richieste".
+  - `5xx` → notifica generica utente + log in observability.
+
+---
+
+# SANITIZZAZIONE INPUT E OUTPUT
+
+- **VIETATO** usare `innerHTML` con dati provenienti dall'utente o da API esterne senza sanitizzazione esplicita.
+- Se `innerHTML` è necessario per HTML interno fidato, usa `DomSanitizer.sanitize(SecurityContext.HTML, value)`. Mai `bypassSecurityTrust*` su input non fidato.
+- `bypassSecurityTrustHtml()`, `bypassSecurityTrustScript()`, `bypassSecurityTrustUrl()`, `bypassSecurityTrustResourceUrl()` sono **VIETATI** su qualsiasi dato proveniente da input utente o API esterna. Usabili SOLO su contenuto generato internamente, costante, e con commento `// REASON: ...` che giustifica l'uso.
+- Ogni input utente inviato al backend DEVE essere validato e sanitizzato **lato server**, indipendentemente dalla validazione frontend. La validazione frontend è UX, non sicurezza.
+- USA query parametrizzate o ORM per tutte le interazioni con database. **VIETATO** concatenare stringhe per costruire query SQL/NoSQL.
+- USA validatori schema-based lato server (Zod, Joi, class-validator, AJV) per ogni endpoint che riceve payload.
+
+---
+
+# CONTENT SECURITY POLICY (CSP)
+
+- Configura CSP tramite header HTTP nel middleware del server (`server.ts` Express, middleware Vercel, ecc.) o nei header del provider.
+- CSP minima per app Angular SSR (adatta `connect-src` alle API che usi):
+
+```
+default-src 'self';
+script-src 'self' 'nonce-{NONCE}';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data: https:;
+font-src 'self' https://fonts.gstatic.com;
+connect-src 'self' https://api.tuobrand.com;
+frame-ancestors 'none';
+base-uri 'self';
+form-action 'self';
+upgrade-insecure-requests;
+```
+
+- Genera un **nonce** crittografico per ogni request SSR e usalo sugli script inline necessari. Non usare `'unsafe-inline'` per gli script.
+- `style-src 'unsafe-inline'` è tollerato per Angular (style inline generati dal framework); valuta `'nonce-...'` se possibile.
+- Testa la CSP con [CSP Evaluator](https://csp-evaluator.withgoogle.com/) prima del deploy.
+- Modalità Report-Only durante il rollout: `Content-Security-Policy-Report-Only` con endpoint `/csp-report` per raccogliere violazioni senza bloccare.
+
+---
+
+# HEADER DI SICUREZZA HTTP — Obbligatori
+
+Configura TUTTI questi header nel middleware del server:
+
+```typescript
+app.use((_req, res, next) => {
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  next();
+});
+```
+
+- **HSTS** (`Strict-Transport-Security`): obbligatorio solo su HTTPS. `preload` solo dopo verifica su [hstspreload.org](https://hstspreload.org).
+- **X-Frame-Options: DENY**: previene clickjacking. Usa `SAMEORIGIN` solo se hai iframe legittimi dello stesso dominio. In alternativa CSP `frame-ancestors`.
+- **Referrer-Policy**: non esporre URL pieni di pagine interne a siti terzi.
+- **Permissions-Policy**: disabilita API browser non usate.
+- **COOP / CORP**: protezione contro side-channel attacks (Spectre).
+
+---
+
+# CORS
+
+- CORS configurato SOLO per gli endpoint API backend. Mai abilitare CORS su pagine HTML.
+- Lista bianca delle origini consentite: solo domini propri + origini terze strettamente necessarie. **MAI** wildcard `*` su endpoint che ricevono credenziali.
+- Non abilitare `credentials: true` (cookie/auth header) con `origin: '*'` (è proibito dalla spec stessa).
+- Per API pubbliche read-only (es. dati aperti): `origin: '*'` ammesso senza credenziali.
+
+---
+
+# AUTENTICAZIONE E SESSIONI
+
+- USA cookie `HttpOnly`, `Secure`, `SameSite=Lax` (o `Strict` per app sensibili) per i token di sessione.
+- **VIETATO** salvare token di autenticazione a vita lunga in `localStorage` o `sessionStorage`: vulnerabili a XSS.
+- Se devi usare token in storage (es. SPA + API stateless): usa access token a breve durata (15min–1h) + refresh token rotation, mai un solo long-lived token.
+- I controlli di autorizzazione (ruoli, permessi, tenant) si applicano **lato server** su ogni richiesta. Nascondere UI non è sicurezza.
+- Route guard Angular: utili per UX, **non** sostituiscono la verifica server-side.
+- Password storage (se gestisci tu l'autenticazione): bcrypt/argon2 con cost factor adeguato. Mai SHA1/MD5/SHA256 nudo.
+- MFA / 2FA per account sensibili (admin, owner di tenant).
+- Rate limit sul login: max 5 tentativi falliti consecutivi, poi lockout temporaneo + alert.
+
+## Protezione CSRF
+- Per API stateful con cookie: usa pattern double-submit cookie o sync token.
+- Per API stateless con `Authorization: Bearer`: CSRF non si applica (token non auto-inviato dal browser).
+- `SameSite=Lax` mitiga la maggior parte degli attacchi CSRF cross-site.
+
+---
+
+# AUTORIZZAZIONE — Modello a Permessi
+
+- Definisci il modello di autorizzazione PRIMA di scrivere endpoint: chi può vedere/modificare cosa.
+- Pattern raccomandato: **role-based + resource-ownership**.
+- Centralizza i check in middleware/guard server-side, non sparpagliati negli handler.
+- Log di ogni decisione "negato" per anomalia detection.
+
+---
+
+# `[scope: firebase]` FIREBASE SECURITY
+
+## Firebase Authentication
+- Verifica il token JWT Firebase **lato server** (Cloud Functions / Cloud Run) su ogni chiamata autenticata. Non fidarti della validazione client.
+- USA **Custom Claims** per ruoli e permessi. Non salvare ruoli in Firestore se devi usarli nelle Security Rules (sono già nel token).
+
+## Firestore / Realtime Database Security Rules
+- Le Security Rules sono codice di sicurezza, non documentazione. Ogni collection DEVE avere rules esplicite.
+- **VIETATO** deploy con `allow read, write: if true` in produzione.
+- Regola di default: `allow read, write: if false` — apri solo ciò che serve.
+- Valida la struttura dei documenti nelle rules (`request.resource.data`).
+- Testa le rules con l'**emulatore Firebase** prima del deploy. Le rules vanno nel CI con test automatici.
+
+## Firebase Storage Rules
+- Stesso principio: default deny, regole esplicite per ogni path.
+- Limita dimensione upload nelle rules: `request.resource.size < 5 * 1024 * 1024`.
+
+## Firebase App Hosting / Cloud Run
+- USA **Identity-Aware Proxy** (IAP) per proteggere ambienti di staging/preview non pubblici.
+- Le Cloud Functions che ricevono dati DEVONO validare input, verificare autenticazione e limitare le dimensioni del payload.
+
+---
+
+# UPLOAD DI FILE
+
+- Limita dimensione massima dei file (es. 5MB per immagini, 10MB per documenti). Configura i limiti sia lato client (UX) che lato server (sicurezza).
+- Valida il **tipo MIME reale** del file lato server (non fidarti dell'estensione o del `Content-Type` dichiarato dal client). USA librerie come `file-type` (Node) per ispezionare i magic bytes.
+- Lista bianca dei tipi di file accettati (es. `image/jpeg`, `image/png`, `image/webp`, `application/pdf`).
+- Salva i file su object storage (Cloud Storage, S3, R2), non sul filesystem del server. Genera URL firmati con scadenza per l'accesso.
+- Rinomina sempre il file salvato con un UUID: il nome originale è user-controlled e non sicuro come path.
+- Scansiona i file per malware se accetti documenti da utenti anonimi (Cloud Functions con ClamAV o servizio dedicato).
+- Per immagini caricate dall'utente: ri-encoda lato server (libreria `sharp`) per stripping di metadata EXIF e payload nascosti.
+
+---
+
+# RATE LIMITING E PROTEZIONE DOS
+
+- Implementa rate limiting sugli endpoint API backend (`express-rate-limit`, middleware Vercel/Cloudflare, Cloud Armor).
+- Soglie tipiche di partenza: 60 req/min per endpoint pubblici, 600 req/min per utenti autenticati, 5 req/min per login/signup.
+- Proteggi i form pubblici (contatti, newsletter, signup) con **reCAPTCHA v3** o **Cloudflare Turnstile**.
+- Non esporre informazioni sulla struttura interna dell'app in messaggi di errore API (niente stack trace in produzione).
+- Risposte di errore API: messaggi generici per l'utente, dettagli completi solo in observability/log.
+
+---
+
+# HTTPS E TRASPORTO
+
+- **HTTPS obbligatorio** in produzione. Nessuna risorsa caricata via HTTP su pagine HTTPS (mixed content).
+- Verifica che tutti i link interni, le chiamate API e le risorse esterne usino `https://`.
+- Precarica il sito su HSTS Preload List dopo verifica della configurazione.
+- TLS 1.2 minimo, TLS 1.3 preferito. Disabilita ciphers deboli.
+
+---
+
+# DEPENDENCY SECURITY
+
+- Esegui `npm audit` prima di ogni deploy in produzione. Risolvi le vulnerabilità critiche e alte prima del go-live.
+- Mantieni le dipendenze aggiornate. USA Dependabot / Renovate per aggiornamenti automatici con PR.
+- Non usare dipendenze abbandonate (ultimo commit > 2 anni e issue critiche aperte) o con CVE noti non risolti.
+- Lockfile (`package-lock.json` / `pnpm-lock.yaml`) SEMPRE committato.
+- USA `npm ci` (o equivalente) in CI per installazioni riproducibili dal lockfile.
+- Verifica integrità: `npm ci --audit-level=high`.
+- Per pacchetti critici (auth, crypto, framework di sicurezza): valuta `--save-exact` per pinnare versioni esatte.
+
+---
+
+# LOGGING E AUDIT
+
+- Non loggare mai dati personali (email plain, password, token, dati anagrafici sensibili) nei log del server.
+- USA un servizio centralizzato per i log di produzione (Cloud Logging, Datadog, CloudWatch, Logtail). I log su filesystem effimero del container vengono persi.
+- Implementa audit log per azioni sensibili: login (success/fail), cambio password, modifica dati utente, azioni amministrative, accesso a dati personali altrui.
+- I log di errore non devono esporre path del filesystem, variabili d'ambiente o configurazione interna.
+- Retention dei log: definisci una policy (es. 90 giorni operativi, 1 anno audit) e applicala.
+
+---
+
+# PRIVACY E DATI PERSONALI (GDPR)
+
+Se il progetto raccoglie o tratta dati personali di utenti UE:
+- Cookie banner conforme: nessun cookie/script di tracciamento prima del consenso esplicito (eccetto cookie tecnici strettamente necessari).
+- Privacy policy aggiornata che elenca: titolare, finalità, basi giuridiche, destinatari, tempi di conservazione, diritti dell'utente.
+- Pagina dedicata per esercizio dei diritti GDPR (accesso, rettifica, cancellazione, portabilità).
+- Data Processing Agreement (DPA) con tutti i fornitori che trattano dati per conto tuo (cloud, email, analytics, payment).
+- Pseudonimizza/anonimizza dati negli ambienti non-produzione.
+
+---
+
+# CHECKLIST SICUREZZA PRE-DEPLOY
+
+Prima di ogni deploy in produzione, verifica:
+- [ ] Nessun segreto in `.env` committato (`git log --all --full-history -- .env`)
+- [ ] `npm audit` senza vulnerabilità critiche/alte
+- [ ] CSP configurata e testata (no `'unsafe-inline'` su `script-src`)
+- [ ] Header di sicurezza presenti (`curl -I https://esempio.it` e verifica)
+- [ ] HTTPS forzato + HSTS attivo
+- [ ] Rate limiting attivo su tutti gli endpoint pubblici e su login/signup
+- [ ] reCAPTCHA/Turnstile su form pubblici
+- [ ] CORS configurato senza wildcard su endpoint con credenziali
+- [ ] Cookie sessione con `HttpOnly`, `Secure`, `SameSite`
+- [ ] Security Rules / IAM Policies deployate e testate
+- [ ] Messaggi di errore API generici, dettagli solo in log
+- [ ] Cookie banner e privacy policy aggiornati (se in scope GDPR)
+- [ ] Lockfile committato + `npm ci` in CI

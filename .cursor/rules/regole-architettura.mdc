@@ -1,0 +1,533 @@
+---
+description: Architettura Angular moderna (17+) — struttura componenti, signals, forms, state, HTTP, design system, performance. Universale, scope dichiarato per progetti SSR/CSR/library.
+globs: "**/*.ts, **/*.html, **/*.scss"
+alwaysApply: true
+---
+
+# SCOPE E PRINCIPI
+
+Queste regole valgono per **qualsiasi progetto Angular 17+** (vetrina, SaaS, dashboard, libreria di componenti). Le sezioni marcate `[scope: SSR]`, `[scope: SaaS]`, `[scope: lib]` si applicano solo allo scope indicato. Tutto il resto è universale.
+
+Principio guida: **regole strette per default, escape valves documentate**. Quando una regola dice "VIETATO salvo eccezione documentata", l'eccezione richiede un commento `// REASON: ...` nel codice.
+
+---
+
+# ⛔ REGOLA ZERO — File separati per componenti reali
+
+OGNI componente Angular non banale DEVE avere tre file separati:
+- `nome-componente.component.ts`     → solo logica TypeScript
+- `nome-componente.component.html`   → solo template HTML
+- `nome-componente.component.scss`   → solo stili del componente
+
+**Forma corretta OBBLIGATORIA:**
+```typescript
+@Component({
+  selector: 'app-hero',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './hero.component.html',
+  styleUrl: './hero.component.scss',
+})
+```
+
+**Eccezione ammessa (unica)**: micro-componenti puramente strutturali (es. wrapper di icona, separator, badge stateless) con **template ≤ 5 righe** *e* **nessuno stile o ≤ 3 selettori**. In questi casi `template: \`...\`` inline è tollerato. Mai `styles: [...]` se il componente ha stato visivo (hover/focus/variants): in quel caso file separati obbligatori.
+
+---
+
+# ARCHITETTURA GENERALE
+
+## Standalone Components — Unico Modello Consentito
+- USA ESCLUSIVAMENTE componenti standalone (default da Angular 19). I `NgModule` sono **VIETATI** nei nuovi componenti.
+- Ogni componente importa direttamente le sole dipendenze che usa nel proprio template.
+- Nessun barrel `NgModule` condiviso: la composizione avviene a livello di componente.
+- Eccezione: integrazione con librerie terze legacy che espongono solo `NgModule` — wrappa in un componente standalone.
+
+## Struttura delle Cartelle — Standard
+
+```
+src/
+  app/
+    core/          → singleton: interceptor, guard, config, http client, auth, error handler, observability
+    shared/        → componenti UI riutilizzabili, pipe, directive, design tokens, button library
+    features/      → una cartella per feature/area di dominio
+      nome-feature/
+        components/        → componenti locali della feature (dumb)
+        pages/             → componenti container (smart) di rotte (per feature ad alto numero di rotte)
+        services/          → service di feature (HTTP, business logic locale)
+        models/            → model e DTO di feature
+        nome-feature.routes.ts
+        nome-feature.component.ts (root smart)
+  assets/
+  styles/
+    _design-tokens.scss   → UNICA fonte di verità per i valori visivi
+    styles.scss
+```
+
+`pages/` è opzionale: usalo solo per feature con > 3 rotte. Per feature mono-rotta, il componente smart sta nella root della feature.
+
+Naming Angular standard: `kebab-case.tipo.ts`.
+
+## Naming Convention — Obbligatoria
+| Tipo              | Esempio file                     | Esempio classe         |
+|-------------------|----------------------------------|------------------------|
+| Component         | `user-card.component.ts`         | `UserCardComponent`    |
+| Service           | `auth.service.ts`                | `AuthService`          |
+| Guard             | `auth.guard.ts`                  | `authGuard`            |
+| Interceptor       | `jwt.interceptor.ts`             | `jwtInterceptor`       |
+| Resolver          | `user.resolver.ts`               | `userResolver`         |
+| Pipe              | `currency-it.pipe.ts`            | `CurrencyItPipe`       |
+| Directive         | `auto-focus.directive.ts`        | `AutoFocusDirective`   |
+| Model/Interface   | `user.model.ts`                  | `User`                 |
+| DTO API           | `user.dto.ts`                    | `UserDto`              |
+| Route file        | `home.routes.ts`                 | —                      |
+| Signal store      | `cart.store.ts`                  | `CartStore`            |
+| Test              | `user-card.component.spec.ts`    | —                      |
+
+## Path Aliases — Obbligatori per progetti > 30 file
+
+In `tsconfig.json` configura sempre alias per evitare import relativi profondi:
+```json
+{
+  "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "@core/*":     ["src/app/core/*"],
+      "@shared/*":   ["src/app/shared/*"],
+      "@features/*": ["src/app/features/*"],
+      "@env/*":      ["src/environments/*"]
+    }
+  }
+}
+```
+
+**VIETATO** scrivere `import { ... } from '../../../core/services/auth.service'` se l'alias è disponibile.
+
+## Import Type — Obbligatorio
+
+USA `import type` per import esclusivamente di tipi (interfacce, type, enum const). Riduce il bundle ed evita import circolari accidentali.
+
+```typescript
+import type { User } from '@core/models/user.model';
+import { AuthService } from '@core/services/auth.service';
+```
+
+---
+
+# ANATOMIA DEL FILE `.ts` — Ordine Obbligatorio
+
+```typescript
+// 1. Imports Angular core
+// 2. Imports Angular common / router / forms
+// 3. Imports librerie terze
+// 4. Imports interni (ordine: @core → @shared → @features → relativi)
+// 5. Imports di tipi (con `import type`) raggruppati alla fine
+
+@Component({ ... })
+export class NomeComponent {
+
+  // ── 1. INJECT (dipendenze via inject()) ───────────────────────────
+  private readonly nomeService = inject(NomeService);
+  private readonly router      = inject(Router);
+
+  // ── 2. INPUT SIGNALS ──────────────────────────────────────────────
+  readonly titolo = input.required<string>();
+  readonly variant = input<'primary' | 'ghost'>('primary');
+
+  // ── 3. OUTPUT SIGNALS ─────────────────────────────────────────────
+  readonly clicked = output<void>();
+
+  // ── 4. MODEL (two-way) ────────────────────────────────────────────
+  readonly value = model<string>('');
+
+  // ── 5. STATE SIGNALS (interni) ────────────────────────────────────
+  private readonly _count = signal(0);
+  readonly count = this._count.asReadonly();
+
+  // ── 6. COMPUTED ───────────────────────────────────────────────────
+  readonly label = computed(() => `Totale: ${this._count()}`);
+
+  // ── 7. LIFECYCLE / EFFECTS ────────────────────────────────────────
+  constructor() {
+    effect(() => { /* side effect reattivo */ });
+  }
+
+  // ── 8. METODI PUBBLICI (chiamati dal template) ────────────────────
+  onButtonClick(): void { ... }
+
+  // ── 9. METODI PRIVATI ─────────────────────────────────────────────
+  private formatData(data: RawData): FormattedData { ... }
+}
+```
+
+---
+
+# PATTERN SIGNALS — Default per Angular 17+
+
+- USA `input()` e `input.required()` invece del decoratore `@Input()`.
+- USA `output()` invece di `@Output() + EventEmitter`.
+- USA `model()` per two-way binding.
+- USA `signal()` per stato locale mutabile, `computed()` per derivati, `effect()` per side effect reattivi.
+- USA `viewChild()` / `viewChildren()` signal-based al posto di `@ViewChild` / `@ViewChildren`.
+- USA `toSignal()` per convertire Observable in Signal. Preferisci signals all'`async` pipe quando puoi.
+
+**Decoratori legacy (`@Input`, `@Output`, `@ViewChild`, `@ContentChild`)**: VIETATI nei nuovi componenti. Tollerati solo in:
+- componenti che estendono librerie terze che li richiedono,
+- migrazioni progressive di codebase pre-Angular 17 (con TODO esplicito).
+
+## ChangeDetection
+- TUTTI i componenti DEVONO avere `changeDetection: ChangeDetectionStrategy.OnPush`.
+- `Default` ChangeDetection è VIETATO nei nuovi componenti.
+
+## Dependency Injection
+- USA `inject()` nel body della classe come default.
+- Costruttore con parametri DI tollerato solo per:
+  - integrazione con classi base (es. `extends MatFormFieldControl<T>`),
+  - librerie terze che richiedono il pattern legacy.
+
+## Control Flow Template
+- USA `@if`, `@for`, `@switch`, `@defer` (Angular 17+).
+- USA `@let` per variabili locali nel template (Angular 18.1+).
+- `@for` richiede SEMPRE il `track`: `@for (item of items; track item.id)`.
+- `*ngIf`, `*ngFor`, `*ngSwitch`: VIETATI nei nuovi componenti. Tollerati in migrazioni progressive con TODO.
+
+---
+
+# SMART vs DUMB COMPONENT — Pattern Obbligatorio
+
+## Componenti Dumb (Presentazionali) — in `shared/` o `features/*/components/`
+- Ricevono dati SOLO tramite `input()`.
+- Comunicano verso l'esterno SOLO tramite `output()`.
+- NON iniettano service con stato globale, HTTP o routing.
+- Sono `OnPush` e completamente riutilizzabili.
+
+## Componenti Smart (Container) — `features/*/*.component.ts` o `features/*/pages/`
+- Sono gli unici autorizzati a iniettare service di stato, HTTP, routing.
+- Orchestrano i componenti dumb passando dati via `input()` e ascoltando `output()`.
+- Delegano la presentazione: nessun layout complesso nel template di uno smart.
+
+---
+
+# COMPONENTI RIUTILIZZABILI — Regola DRY (Don't Repeat Yourself)
+
+## Principio guida
+Il template e gli stili NON sono usa-e-getta. Ogni pattern di markup ricorrente DEVE diventare un componente riutilizzabile. **VIETATO** copia-incollare blocchi HTML/SCSS tra route, feature o componenti. La regola completa il pattern Smart/Dumb: i dumb non sono solo "disaccoppiati", devono anche essere **progettati per il riuso fin dal primo utilizzo**.
+
+## Soglia di estrazione — Regola "1 + 1"
+- **1 uso reale + 1 uso pianificato a breve** (entro la stessa milestone) ⇒ il componente va creato **subito**, non "alla seconda volta".
+- **2 usi reali già presenti** ⇒ estrazione **obbligatoria** prima di chiudere la PR che introduce il secondo.
+- Blocco di markup duplicato **> 15 righe** in 2+ posti ⇒ estrazione **obbligatoria** anche senza criterio funzionale chiaro.
+
+**VIETATO salvo eccezione documentata** lasciare duplicato un pattern che soddisfa una di queste tre condizioni. L'eccezione richiede un commento `// REASON: ...` con motivazione (es. "due varianti divergeranno entro lo sprint X" o "estrazione prematura: shape ancora instabile").
+
+## Verifica preventiva — Obbligatoria
+Prima di scrivere markup non banale in un componente smart o di feature, l'autore DEVE:
+1. Cercare in `shared/components/` un componente equivalente o adattabile via `input()`.
+2. Cercare nella stessa feature in `features/<x>/components/`.
+3. Solo se nulla esiste, decidere dove crearlo (vedi "Flusso decisionale" sotto).
+
+Cursor/IA che scrivono codice DEVONO eseguire questa ricerca esplicitamente prima di proporre nuovo markup.
+
+## Flusso decisionale — Dove creare il componente
+
+| Ambito di riuso atteso | Posizione | Esempi |
+|---|---|---|
+| Cross-feature, generico, presentazionale | `shared/components/` | `card`, `cta-button`, `section-header`, `tag`, `badge`, `breadcrumb`, `empty-state`, `loader`, `accordion-item`, `modal`, `toast` |
+| Pattern di layout primitivo riusabile ovunque | `shared/components/` o `shared/directives/` | `container`, `stack`, `cluster`, `grid`, `divider` |
+| Specifico di una feature, riusato 2+ volte dentro la stessa feature | `features/<x>/components/` | `pricing-card` in `features/pricing/components/` |
+| Singolo uso e legato a una sola pagina smart | inline nello smart, MA solo se < 15 righe e nessun rischio di replica | header inline di una landing one-shot |
+
+Se il componente nasce in `features/<x>/components/` e poi viene richiesto da una seconda feature, va **promosso** in `shared/components/` (move + rename + aggiornamento import). **VIETATO** importarlo cross-feature lasciandolo nella feature originale.
+
+## Catalogo dei pattern che DEVONO essere componenti — Mai inline duplicato
+
+I pattern qui sotto sono **sempre** componenti, già al primo uso. Mai HTML inline ripetuto in più route.
+
+- **Sezioni di pagina marketing** `[scope: SSR]`: `hero-section`, `features-section`, `testimonials-section`, `faq-section`, `cta-section`, `contact-section`, `pricing-table`.
+- **Header di sezione**: titolo + occhiello + paragrafo introduttivo (`section-header` con `input()` per kicker, title, subtitle).
+- **Card**: contenitori con padding/shadow/border-radius coerenti (`card`, `card-icon`, `card-image`, `card-quote`).
+- **CTA**: pulsanti d'azione composti (icona + label + microcopy) come `cta-button` o `cta-link`.
+- **Form di contatto / newsletter**: il form è un componente (`contact-form`, `newsletter-form`), non markup ripetuto in footer e pagina contatti.
+- **Footer e sezioni di footer**: ogni colonna ricorrente è un sotto-componente.
+- **Liste informative**: `info-list`, `feature-list`, `step-list` con `input()` tipizzato per gli item.
+- **Stati**: `empty-state`, `error-state`, `loading-skeleton`. **VIETATO** scrivere "Nessun risultato" con HTML inline in più punti.
+- **Microelementi UI**: `tag`, `badge`, `chip`, `avatar`, `divider`, `kbd`. Mai stili custom equivalenti dentro feature.
+
+## Layout primitives — Regola
+Spaziature, allineamenti e griglie ricorrenti vivono come **componenti o direttive** in `shared/`, non come classi CSS replicate. Esempi: `<app-stack [gap]="'lg'">`, `<app-cluster>`, `<app-container [width]="'narrow'">`. Le classi BEM dentro le feature compongono **contenuto**, non struttura ripetuta.
+
+## API del componente riutilizzabile — Standard
+
+Un componente in `shared/` DEVE:
+- esporre solo `input()` / `output()` / `model()` con tipi espliciti, mai `any`;
+- avere varianti tramite `input<'primary' | 'ghost'>('primary')`, NON tramite più componenti gemelli (`Button1`, `Button2`);
+- essere agnostico rispetto al dominio: nessun import da `features/*` o `core/services/*` con logica di business;
+- avere `selector` con prefisso di progetto (`app-`, oppure prefisso brand) — uniforme con il resto della codebase;
+- essere `OnPush` e standalone (vedi sezioni precedenti);
+- avere file separati `.ts` / `.html` / `.scss` (vedi REGOLA ZERO).
+
+```typescript
+@Component({
+  selector: 'app-section-header',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './section-header.component.html',
+  styleUrl: './section-header.component.scss',
+})
+export class SectionHeaderComponent {
+  readonly kicker = input<string>();
+  readonly title = input.required<string>();
+  readonly subtitle = input<string>();
+  readonly align = input<'left' | 'center'>('left');
+  readonly headingLevel = input<2 | 3>(2);
+}
+```
+
+## Quando NON estrarre — Anti-pattern di astrazione prematura
+
+Estrarre troppo presto o troppo astrattamente è un costo, non un risparmio. **Non** estrarre se:
+- il pattern compare **una sola volta** e non è in catalogo né nei "sempre componenti" sopra;
+- le 2 occorrenze divergono in modo significativo dopo poche settimane (segno che era una similitudine visiva, non un riuso);
+- la "deduplica" richiederebbe un'API a 8+ `input()` con flag che alterano il template (`@if (variantA)` ovunque): è un sintomo che si stanno fondendo due componenti diversi. Tienili separati.
+- il componente "riutilizzabile" finirebbe per importare service di feature: in quel caso non è dumb, va lasciato dentro la feature.
+
+## Stili — Coerenza con DRY a livello di template
+Estrarre un componente NON significa duplicare ogni volta gli stessi token in `_design-tokens.scss` o regole CSS analoghe. La gerarchia è:
+1. **Token** in `_design-tokens.scss` (valori).
+2. **Selettori globali** in `styles.scss` per elementi base (`h1..h6`, `a`, `button` reset).
+3. **Componenti shared** per blocchi UI (la presente sezione).
+4. **Componenti feature** che compongono i precedenti.
+
+Se durante un'estrazione emerge che servono nuovi token o stili globali, aggiornali **prima** in `_design-tokens.scss` / `styles.scss`, poi crea il componente shared.
+
+## Checklist pre-merge per nuovi componenti / nuovo markup
+
+- [ ] Ho cercato in `shared/components/` un equivalente prima di scrivere markup nuovo.
+- [ ] Se il pattern soddisfa la regola "1 + 1" o le 15 righe duplicate, ho estratto un componente.
+- [ ] Il componente shared non importa nulla da `features/*` o service di stato.
+- [ ] Le varianti sono `input()` tipizzati, non componenti gemelli copia-incollati.
+- [ ] Tre file separati (`.ts` / `.html` / `.scss`) — eccetto micro-componenti coperti dalla REGOLA ZERO.
+- [ ] Nessun valore visivo nudo: solo token da `_design-tokens.scss`.
+- [ ] Se il componente è promosso da feature → shared, gli import vecchi sono stati aggiornati e l'originale rimosso.
+
+---
+
+# SERVICES — Responsabilità
+
+- La **logica di business**, le **chiamate HTTP** e la **gestione dello stato** vivono nei Service. MAI nei componenti.
+- Single Responsibility: un Service ha un solo dominio (es. `AuthService` non fa anche analytics).
+- Service applicativi: `providedIn: 'root'`. Service di feature: `providedIn` = quel componente smart, oppure dichiarati negli `providers` della rotta.
+- `HttpClient` SOLO nei Service.
+
+---
+
+# HTTP LAYER — Pattern Obbligatorio
+
+## Interceptor centralizzati
+- **Auth interceptor**: aggiunge `Authorization` header (token da auth store), gestisce 401 con refresh se applicabile.
+- **Error interceptor**: mappa errori HTTP in errori di dominio (`AppError`), logga in observability, rimuove dettagli sensibili.
+- **Loading interceptor** (opzionale): incrementa/decrementa contatore globale per UI di loading.
+- **Retry interceptor** (opzionale): retry esponenziale solo su `GET` + status 5xx + network error. **VIETATO** retry su `POST`/`PUT`/`PATCH`/`DELETE` non idempotenti.
+
+## Service HTTP
+- Ogni service espone metodi che ritornano `Observable<T>` o `Promise<T>` di **modelli di dominio**, non DTO grezzi. Mappa il DTO in modello nel service.
+- Timeout esplicito su ogni chiamata (`timeout(15000)` o equivalente).
+- Cancellation: usa `takeUntilDestroyed()` o `switchMap` per chiamate user-driven.
+- Gestione errori HTTP: il service propaga `AppError`, il componente decide cosa mostrare (toast, banner, redirect).
+
+```typescript
+@Injectable({ providedIn: 'root' })
+export class UserService {
+  private readonly http = inject(HttpClient);
+
+  getUser(id: string): Observable<User> {
+    return this.http.get<UserDto>(`/api/users/${id}`).pipe(
+      timeout(15000),
+      map(dtoToUser),
+      catchError(err => throwError(() => mapHttpError(err)))
+    );
+  }
+}
+```
+
+---
+
+# FORMS — Reactive Forms Obbligatori
+
+- USA SEMPRE Reactive Forms (`FormControl` / `FormGroup` / `FormArray`). I Template-driven Forms sono VIETATI nei nuovi progetti.
+- USA `inject(NonNullableFormBuilder)` per garantire valori non-null e tipizzazione forte.
+- Tipizza esplicitamente tutti i form: niente `FormGroup<any>`.
+- Validators custom in file dedicato `*.validator.ts`, esportati come funzioni pure.
+- I messaggi di errore sono mappati in un dizionario centralizzato per i18n.
+- Usa `updateOn: 'blur'` o `'submit'` per i form lunghi: evita re-validazione ad ogni keystroke.
+- Mai logica di business nei validator: solo verifica strutturale del valore.
+
+```typescript
+private readonly fb = inject(NonNullableFormBuilder);
+
+readonly form = this.fb.group({
+  email: this.fb.control('', { validators: [Validators.required, Validators.email] }),
+  age:   this.fb.control(0,  { validators: [Validators.min(18)] }),
+});
+```
+
+---
+
+# STATE MANAGEMENT — Scala Progressiva
+
+Usa il livello più basso che risolve il problema. Salire di livello solo con motivazione documentata.
+
+1. **Stato di componente**: `signal()` + `computed()` privati nel componente.
+2. **Stato condiviso tra pochi componenti vicini**: `signal()` in un service `providedIn` la rotta o il componente padre.
+3. **Stato di feature**: Signal Store leggero (`@ngrx/signals` con `signalStore` + `withState` + `withComputed` + `withMethods`) nella feature.
+4. **Stato applicativo / cross-feature**: `@ngrx/signals` globale o `@ngrx/store` se si necessita di time-travel debugging, undo/redo, multi-source.
+
+VIETATO `BehaviorSubject` come stato applicativo nei nuovi service: usa `signal()` o `@ngrx/signals`.
+
+---
+
+# ERROR HANDLING GLOBALE
+
+- Implementa `ErrorHandler` custom in `core/handlers/global-error.handler.ts` registrato in `app.config.ts`.
+- Cattura errori non gestiti, li logga in observability (Sentry / Cloud Logging / Datadog), mostra un fallback UX (toast generico).
+- Errori HTTP vanno trasformati in `AppError` dall'interceptor (vedi sezione HTTP).
+- Pagine che possono fallire la fetch DEVONO avere uno stato `error` esplicito nel template (`@if (error())`), non un crash silenzioso.
+
+```typescript
+export class GlobalErrorHandler implements ErrorHandler {
+  private readonly observability = inject(ObservabilityService);
+  handleError(error: unknown): void {
+    this.observability.captureException(error);
+    console.error(error);
+  }
+}
+```
+
+---
+
+# OBSERVABILITY — Errori e UX
+
+- Almeno UNA integrazione observability in produzione: Sentry, Cloud Logging, Datadog, LogRocket o equivalente.
+- Strato wrapper in `core/services/observability.service.ts`: il resto del codice non importa il SDK direttamente.
+- Cosa tracciare di default: errori non gestiti, errori HTTP 5xx, eventi di business critici (signup, checkout, login fail).
+- Cosa NON tracciare: dati personali (email plain, password, token), interi payload di richiesta.
+
+---
+
+# INTERNAZIONALIZZAZIONE (i18n)
+
+Se il progetto è (o può diventare) multilingua:
+- USA `@angular/localize` con `$localize` per stringhe nel template e nel TS.
+- Tutte le stringhe utente DEVONO essere marcate per traduzione fin dall'inizio. Aggiungere i18n a posteriori è 5x più costoso.
+- File di traduzione in `src/locale/messages.<lang>.xlf`.
+- Date, numeri, valute via `formatDate` / `formatNumber` / `formatCurrency` con `LOCALE_ID` configurato.
+
+Se il progetto è single-language: salta questa sezione, ma definisci le stringhe utente in costanti raggruppate (`*.copy.ts`) per facilitare la migrazione futura.
+
+---
+
+# TYPESCRIPT — Standard Obbligatori
+
+- `strict: true` + `noUncheckedIndexedAccess: true` + `noImplicitOverride: true` in `tsconfig.json`. Non si disabilitano.
+- **Preferire `unknown` a `any`**. `any` è VIETATO salvo eccezione documentata con `// REASON: ...` (es. tipizzazione di libreria terza non tipizzata, type-narrowing intermedio).
+- Crea modelli in `*.model.ts` per entità di dominio, `*.dto.ts` per payload API.
+- Preferisci `readonly` su tutte le proprietà che non cambiano dopo l'assegnazione.
+- Preferisci `as const` per literal type, `satisfies` per validare la conformità di un oggetto a un tipo senza widening.
+- Niente `enum` numerici: usa `as const` object o `enum` string-based.
+
+---
+
+# DESIGN SYSTEM — Regole Assolute
+
+`_design-tokens.scss` è l'**UNICA fonte di verità** per tutti i valori visivi. Leggilo prima di scrivere qualsiasi stile.
+
+## Zero Magic Numbers — Regola Non Negoziabile
+**VIETATO** scrivere valori numerici nudi in qualsiasi file `.scss`.
+Ogni `margin`, `padding`, `gap`, `font-size`, `border-radius`, `min-height`, `max-width`, `box-shadow`, `z-index` DEVE usare una variabile CSS da `_design-tokens.scss`.
+
+Se il token mancante è necessario: aggiungilo **prima** a `_design-tokens.scss`, poi usalo. Mai scrivere un valore px diretto in un componente.
+
+## Breakpoint — Regola Assoluta
+I breakpoint nei media query usano SOLO i token definiti in `_design-tokens.scss`. Nessun valore px scritto direttamente in un `@media`.
+
+## Classi BEM — Obbligatorio
+Tutti i selettori custom seguono BEM: `blocco__elemento--modificatore`.
+**VIETATE** classi utility di framework CSS (`.py-5`, `.mt-3` ecc.) per definire ritmo e layout delle sezioni. Eccezione: utility minimali del design system progetto (`.sr-only`, `.visually-hidden`) definite localmente.
+
+---
+
+# SPAZIATURA `[scope: SSR/marketing]`
+
+Sezione orientata a siti vetrina/marketing dove il ritmo verticale è semantico:
+- `--space-*` per tutti i margin, padding e gap interni ai componenti.
+- `--section-y-*` per `padding-block` delle sezioni di pagina, declinato su mobile/tablet/desktop.
+- `--section-stack` per separare elementi all'interno di una sezione.
+- `--card-pad-*` e `--card-gap` per card e pannelli.
+- `max-width` dei contenitori: solo da token (`--content-narrow`, `--content-default`, `--content-wide`).
+
+Per app SaaS / dashboard: usa `--space-*` e `--card-pad-*`; il concetto di `--section-y-*` non si applica (layout a griglia di pagina, non a "sezioni di marketing").
+
+Mobile-first sempre: ogni layout a colonne parte da una colonna singola su mobile.
+
+---
+
+# TIPOGRAFIA
+
+- USA SEMPRE i token `--font-display` (titoli) e `--font-sans` (corpo/UI). Nomi di font hardcoded sono **VIETATI**.
+- `font-family` non va ridichiarato in un componente se l'elemento è già coperto dai selettori globali di `styles.scss`.
+- `font-size`: usa i token semantici. Se manca, aggiungilo a `_design-tokens.scss`.
+- `line-height` sui paragrafi: mai hardcoded.
+- **Gerarchia heading**: UN SOLO `<h1>` per pagina/route. Ordine rigoroso `h1 → h2 → h3`. Mai saltare livelli.
+
+---
+
+# BOTTONI E CONTROLLI INTERATTIVI
+
+- Touch target minimo: 44px (token `--btn-min-height`).
+- Stili dei bottoni (primary, secondary, ghost) centralizzati in `shared/`. **VIETATI** stili `.btn` o `button` custom nei componenti feature.
+- Ogni elemento interattivo ha uno stato `:focus-visible` definito globalmente.
+- `border-radius`: sempre da token. Valori numerici diretti **VIETATI**.
+
+---
+
+# ACCESSIBILITÀ (A11y) — Universale
+
+- Associa SEMPRE `<label>` agli `<input>` tramite `id`/`for` o `aria-labelledby`.
+- USA attributi ARIA solo dove l'HTML semantico non è sufficiente.
+- Ordine di tabulazione logico. `tabindex` con valore positivo è **VIETATO**.
+- Scroll orizzontale non intenzionale: **VIETATO**.
+- `alt` su ogni `<img>`: descrittivo per contenuto, `alt=""` per decorativo.
+- USA HTML5 semantico (`<main>`, `<header>`, `<footer>`, `<article>`, `<section>`, `<nav>`, `<aside>`). `<div>` e `<span>` solo quando nessun tag semantico è appropriato.
+- Contrast ratio testo: minimo 4.5:1 (AA), 7:1 (AAA) per testo piccolo.
+- Skip-to-content link in cima al `<body>` per app con header complesso.
+- Modali e overlay: focus trap obbligatorio + restore del focus alla chiusura.
+- Verifica con [axe DevTools](https://www.deque.com/axe/devtools/) o `axe-core` in CI (vedi `regole-qualita.mdc`).
+
+---
+
+# PERFORMANCE
+
+## Routing e bundle
+- **Default lazy loading** per le rotte di feature. Eager loading SOLO per:
+  - rotta root (home/landing),
+  - rotte critiche per UX dove un round-trip aggiuntivo è inaccettabile (es. `/login` di un'app frequentissima),
+  - in entrambi i casi documenta il motivo nel `routes.ts`.
+
+## Defer
+- USA `@defer` con `on viewport` per componenti pesanti non visibili al primo render.
+- USA `@defer` con `on interaction` per widget attivati da interazione.
+- Fornisci sempre `@placeholder` o `@loading` per evitare CLS visibile.
+
+## Immagini
+- USA `NgOptimizedImage` (`ngSrc`) per TUTTE le immagini bitmap. Attributi `width` e `height` SEMPRE presenti. Formato WebP/AVIF.
+- Immagini LCP: `priority` e `fetchpriority="high"` obbligatori.
+- Immagini non-LCP: `loading="lazy"` e `decoding="async"`.
+
+## Sottoscrizioni
+- USA `toSignal()` o `takeUntilDestroyed()`. Le sottoscrizioni manuali non chiuse sono un bug.
+- NON usare `setInterval` o `setTimeout` senza pulizia in `DestroyRef`.
+
+## Bundle budgets
+- Configura `budgets` in `angular.json` per `initial` e `anyComponentStyle`. Valori sensati di partenza:
+  - `initial`: warning 500kB, error 1MB (siti vetrina) / warning 800kB, error 1.5MB (SaaS).
+  - `anyComponentStyle`: warning 8kB, error 16kB.
+
+## Core Web Vitals (target produzione)
+- LCP < 2.5s, INP < 200ms, CLS < 0.1.
