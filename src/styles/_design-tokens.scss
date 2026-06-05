@@ -1,0 +1,323 @@
+// =============================================================================
+// VestiFlow — Design Tokens
+// UNICA fonte di verita' per valori visivi (regole-architettura).
+// I componenti usano SOLO `var(--token)`. Nessun valore numerico nudo altrove.
+//
+// Architettura a livelli:
+//   1. Primitive  -> scale colore grezze (uniche con valori hardcoded)
+//   2. Semantici  -> superfici/testo/primary (flippano in dark mode)
+//   3. Stato      -> stock/status (ok, low, empty, warning, error, success...)
+//   4. Spacing / Radius / Shadow / Z-index
+//   5. Typography (Inter)
+//   6. Layout primitives + breakpoint (SCSS) + mixin
+// =============================================================================
+
+@use 'sass:map';
+
+// -----------------------------------------------------------------------------
+// 1 + 2 + 3 + 4 + 5 + 6a (runtime tokens via CSS custom properties)
+// -----------------------------------------------------------------------------
+:root {
+  color-scheme: light;
+
+  // ── 1. PRIMITIVE — Blu (primary, professionale) ────────────────────────────
+  --blue-50: #eff5ff;
+  --blue-100: #dbe8fe;
+  --blue-200: #bfd5fe;
+  --blue-300: #93b6fd;
+  --blue-400: #6090fa;
+  --blue-500: #3b6cf6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --blue-800: #1e40af;
+  --blue-900: #1e3a8a;
+  --blue-950: #172554;
+
+  // ── 1. PRIMITIVE — Neutrali (slate) ────────────────────────────────────────
+  --gray-0: #ffffff;
+  --gray-50: #f8fafc;
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;
+  --gray-300: #cbd5e1;
+  --gray-400: #94a3b8;
+  --gray-500: #64748b;
+  --gray-600: #475569;
+  --gray-700: #334155;
+  --gray-800: #1e293b;
+  --gray-900: #0f172a;
+  --gray-950: #020617;
+
+  // ── 1. PRIMITIVE — Verde / Ambra / Rosso (stati) ───────────────────────────
+  --green-50: #ecfdf5;
+  --green-100: #d1fae5;
+  --green-300: #6ee7b7;
+  --green-500: #10b981;
+  --green-600: #059669;
+  --green-700: #047857;
+
+  --amber-50: #fffbeb;
+  --amber-100: #fef3c7;
+  --amber-300: #fcd34d;
+  --amber-500: #f59e0b;
+  --amber-600: #d97706;
+  --amber-700: #b45309;
+
+  --red-50: #fef2f2;
+  --red-100: #fee2e2;
+  --red-300: #fca5a5;
+  --red-500: #ef4444;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+
+  // ── 2. SEMANTICI — Superfici / testo / primary (LIGHT) ─────────────────────
+  --color-bg: var(--gray-50);
+  --color-surface: var(--gray-0);
+  --color-surface-raised: var(--gray-0);
+  --color-surface-sunken: var(--gray-100);
+  --color-surface-hover: var(--gray-100);
+
+  --color-border: var(--gray-200);
+  --color-border-strong: var(--gray-300);
+
+  --color-text: var(--gray-900);
+  --color-text-muted: var(--gray-500);
+  --color-text-subtle: var(--gray-400);
+  --color-text-inverse: var(--gray-0);
+
+  --color-primary: var(--blue-600);
+  --color-primary-hover: var(--blue-700);
+  --color-primary-active: var(--blue-800);
+  --color-primary-fg: var(--gray-0);
+  --color-primary-subtle: var(--blue-50);
+
+  --color-focus-ring: var(--blue-500);
+  --color-link: var(--blue-600);
+
+  // ── 3. STATO / STOCK (LIGHT) — coppie fg/bg pensate per i badge ────────────
+  --status-ok-fg: var(--green-700);
+  --status-ok-bg: var(--green-50);
+  --status-ok-border: var(--green-100);
+
+  --status-low-fg: var(--amber-700);
+  --status-low-bg: var(--amber-50);
+  --status-low-border: var(--amber-100);
+
+  --status-empty-fg: var(--red-700);
+  --status-empty-bg: var(--red-50);
+  --status-empty-border: var(--red-100);
+
+  --status-success-fg: var(--green-700);
+  --status-success-bg: var(--green-50);
+  --status-success-border: var(--green-100);
+
+  --status-warning-fg: var(--amber-700);
+  --status-warning-bg: var(--amber-50);
+  --status-warning-border: var(--amber-100);
+
+  --status-error-fg: var(--red-700);
+  --status-error-bg: var(--red-50);
+  --status-error-border: var(--red-100);
+
+  --status-info-fg: var(--blue-700);
+  --status-info-bg: var(--blue-50);
+  --status-info-border: var(--blue-100);
+
+  --status-neutral-fg: var(--gray-600);
+  --status-neutral-bg: var(--gray-100);
+  --status-neutral-border: var(--gray-200);
+
+  // ── 4. SPACING — scala base 4px ────────────────────────────────────────────
+  --space-0: 0;
+  --space-1: 0.25rem; // 4px
+  --space-2: 0.5rem; // 8px
+  --space-3: 0.75rem; // 12px
+  --space-4: 1rem; // 16px
+  --space-5: 1.25rem; // 20px
+  --space-6: 1.5rem; // 24px
+  --space-8: 2rem; // 32px
+  --space-10: 2.5rem; // 40px
+  --space-12: 3rem; // 48px
+  --space-16: 4rem; // 64px
+
+  // ── 4. RADIUS ──────────────────────────────────────────────────────────────
+  --radius-xs: 0.125rem; // 2px
+  --radius-sm: 0.25rem; // 4px
+  --radius-md: 0.375rem; // 6px
+  --radius-lg: 0.5rem; // 8px
+  --radius-xl: 0.75rem; // 12px
+  --radius-2xl: 1rem; // 16px
+  --radius-full: 9999px;
+
+  // ── 4. SHADOWS (sobrie, LIGHT) ─────────────────────────────────────────────
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 8px -2px rgb(15 23 42 / 0.1), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+  --shadow-lg: 0 12px 20px -6px rgb(15 23 42 / 0.12), 0 4px 8px -4px rgb(15 23 42 / 0.08);
+
+  // ── 4. Z-INDEX ─────────────────────────────────────────────────────────────
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-drawer: 1200;
+  --z-overlay: 1300;
+  --z-modal: 1400;
+  --z-toast: 1500;
+  --z-tooltip: 1600;
+
+  // ── 5. TYPOGRAPHY — Inter (no font display decorativo) ─────────────────────
+  // 'Inter Variable' = font self-hosted (@fontsource-variable/inter), poi fallback.
+  --font-sans:
+    'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --text-2xs: 0.6875rem; // 11px
+  --text-xs: 0.75rem; // 12px
+  --text-sm: 0.8125rem; // 13px
+  --text-base: 0.875rem; // 14px — base UI (densita')
+  --text-md: 0.9375rem; // 15px
+  --text-lg: 1.0625rem; // 17px
+  --text-xl: 1.25rem; // 20px
+  --text-2xl: 1.5rem; // 24px
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+
+  // Numeri allineati per tabelle/prezzi/quantita' (regole-gestionale).
+  --numeric-tabular: tabular-nums;
+
+  // ── 6a. LAYOUT PRIMITIVES ──────────────────────────────────────────────────
+  --content-narrow: 40rem; // 640px
+  --content-default: 72rem; // 1152px
+  --content-wide: 90rem; // 1440px
+
+  --sidebar-width: 16rem; // 256px
+  --sidebar-width-collapsed: 4rem; // 64px
+  --topbar-height: 3.5rem; // 56px
+
+  --btn-min-height: 2.75rem; // 44px — touch target minimo (a11y)
+  --field-height: 2.5rem; // 40px
+  --container-pad-inline: var(--space-4);
+
+  --border-width: 1px;
+  --border-width-strong: 2px;
+
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  // ── 6a. MOTION ─────────────────────────────────────────────────────────────
+  --transition-fast: 120ms;
+  --transition-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+// -----------------------------------------------------------------------------
+// DARK MODE — override SOLO dei token semantici (le primitive restano invariate)
+// Attivazione: <html data-theme="dark"> (gestita in seguito dal theme service).
+// -----------------------------------------------------------------------------
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: var(--gray-950);
+  --color-surface: var(--gray-900);
+  --color-surface-raised: var(--gray-800);
+  --color-surface-sunken: var(--gray-950);
+  --color-surface-hover: var(--gray-800);
+
+  --color-border: var(--gray-800);
+  --color-border-strong: var(--gray-700);
+
+  --color-text: var(--gray-100);
+  --color-text-muted: var(--gray-400);
+  --color-text-subtle: var(--gray-500);
+  --color-text-inverse: var(--gray-900);
+
+  --color-primary: var(--blue-500);
+  --color-primary-hover: var(--blue-400);
+  --color-primary-active: var(--blue-300);
+  --color-primary-fg: var(--gray-950);
+  --color-primary-subtle: rgb(37 99 235 / 0.16);
+
+  --color-focus-ring: var(--blue-400);
+  --color-link: var(--blue-400);
+
+  // Stato/stock: testo piu' chiaro, fondo translucido sulle superfici scure.
+  --status-ok-fg: var(--green-300);
+  --status-ok-bg: rgb(16 185 129 / 0.14);
+  --status-ok-border: rgb(16 185 129 / 0.28);
+
+  --status-low-fg: var(--amber-300);
+  --status-low-bg: rgb(245 158 11 / 0.14);
+  --status-low-border: rgb(245 158 11 / 0.28);
+
+  --status-empty-fg: var(--red-300);
+  --status-empty-bg: rgb(239 68 68 / 0.14);
+  --status-empty-border: rgb(239 68 68 / 0.28);
+
+  --status-success-fg: var(--green-300);
+  --status-success-bg: rgb(16 185 129 / 0.14);
+  --status-success-border: rgb(16 185 129 / 0.28);
+
+  --status-warning-fg: var(--amber-300);
+  --status-warning-bg: rgb(245 158 11 / 0.14);
+  --status-warning-border: rgb(245 158 11 / 0.28);
+
+  --status-error-fg: var(--red-300);
+  --status-error-bg: rgb(239 68 68 / 0.14);
+  --status-error-border: rgb(239 68 68 / 0.28);
+
+  --status-info-fg: var(--blue-300);
+  --status-info-bg: rgb(59 108 246 / 0.16);
+  --status-info-border: rgb(59 108 246 / 0.3);
+
+  --status-neutral-fg: var(--gray-300);
+  --status-neutral-bg: var(--gray-800);
+  --status-neutral-border: var(--gray-700);
+
+  // Ombre piu' profonde su fondo scuro.
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.55), 0 2px 4px -2px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 12px 20px -6px rgb(0 0 0 / 0.6), 0 4px 8px -4px rgb(0 0 0 / 0.5);
+}
+
+// -----------------------------------------------------------------------------
+// 6b. BREAKPOINT — variabili SCSS (le custom properties non valgono in @media)
+//     I componenti li consumano via il mixin `media-up`.
+// -----------------------------------------------------------------------------
+$breakpoint-sm: 30rem; // 480px
+$breakpoint-md: 48rem; // 768px
+$breakpoint-lg: 64rem; // 1024px
+$breakpoint-xl: 80rem; // 1280px
+$breakpoint-2xl: 96rem; // 1536px
+
+$breakpoints: (
+  'sm': $breakpoint-sm,
+  'md': $breakpoint-md,
+  'lg': $breakpoint-lg,
+  'xl': $breakpoint-xl,
+  '2xl': $breakpoint-2xl,
+);
+
+// Mobile-first: applica gli stili a partire dal breakpoint indicato.
+// Uso: `@include media-up('md') { ... }`
+@mixin media-up($name) {
+  @if not map.has-key($breakpoints, $name) {
+    @error "Breakpoint sconosciuto: #{$name}. Disponibili: #{map.keys($breakpoints)}.";
+  }
+  @media (min-width: map.get($breakpoints, $name)) {
+    @content;
+  }
+}
