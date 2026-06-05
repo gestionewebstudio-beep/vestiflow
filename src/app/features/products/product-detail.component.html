@@ -1,0 +1,94 @@
+<section class="product-detail">
+  <a class="product-detail__back" [routerLink]="listPath">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Prodotti
+  </a>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-search"
+      title="Prodotto non trovato"
+      description="Il prodotto richiesto non esiste o è stato rimosso."
+      ctaLabel="Torna ai prodotti"
+      (ctaClick)="goToList()"
+    />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (product(); as p) {
+    <header class="product-detail__header">
+      <div class="product-detail__heading">
+        <h1 class="product-detail__title">{{ p.name }}</h1>
+        <p class="product-detail__brand">{{ p.brand ?? 'Senza brand' }}</p>
+      </div>
+      <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
+    </header>
+
+    <section class="product-detail__panel" aria-labelledby="detail-general">
+      <h2 id="detail-general" class="product-detail__panel-title">Dati generali</h2>
+      <dl class="product-detail__facts">
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Brand</dt>
+          <dd class="product-detail__value">{{ p.brand ?? '—' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Categoria</dt>
+          <dd class="product-detail__value">{{ p.category ?? '—' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Stagione</dt>
+          <dd class="product-detail__value">{{ p.season ?? '—' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Stato</dt>
+          <dd class="product-detail__value">{{ statusLabel(p.status) }}</dd>
+        </div>
+        <div class="product-detail__fact product-detail__fact--wide">
+          <dt class="product-detail__term">Descrizione</dt>
+          <dd class="product-detail__value">{{ p.description ?? '—' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Creato il</dt>
+          <dd class="product-detail__value tabular-nums">{{ formatDate(p.createdAt) }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Aggiornato il</dt>
+          <dd class="product-detail__value tabular-nums">{{ formatDate(p.updatedAt) }}</dd>
+        </div>
+        @if (p.shopify; as shopify) {
+          <div class="product-detail__fact">
+            <dt class="product-detail__term">Shopify</dt>
+            <dd class="product-detail__value">
+              <app-badge [tone]="shopifyTone(shopify.status)">
+                {{ shopifyLabel(shopify.status) }}
+              </app-badge>
+            </dd>
+          </div>
+        }
+      </dl>
+    </section>
+
+    <section class="product-detail__panel" aria-labelledby="detail-variants">
+      <div class="product-detail__panel-head">
+        <h2 id="detail-variants" class="product-detail__panel-title">Varianti</h2>
+        <span class="product-detail__count tabular-nums">{{ variants().length }}</span>
+      </div>
+
+      @if (variants().length === 0) {
+        <app-empty-state
+          icon="pi-box"
+          title="Nessuna variante"
+          description="Questo prodotto non ha ancora varianti."
+        />
+      } @else {
+        <app-product-variant-table [variants]="variants()" />
+      }
+
+      <p class="product-detail__hint">
+        <i class="pi pi-info-circle" aria-hidden="true"></i>
+        La giacenza per negozio è gestita nella sezione Magazzino.
+      </p>
+    </section>
+  }
+</section>

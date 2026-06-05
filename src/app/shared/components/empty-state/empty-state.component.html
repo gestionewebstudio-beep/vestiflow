@@ -1,0 +1,12 @@
+<div class="empty-state">
+  <i class="empty-state__icon pi {{ icon() }}" aria-hidden="true"></i>
+  <p class="empty-state__title">{{ title() }}</p>
+  @if (description(); as desc) {
+    <p class="empty-state__description">{{ desc }}</p>
+  }
+  @if (ctaLabel(); as label) {
+    <div class="empty-state__action">
+      <app-button (click)="ctaClick.emit()">{{ label }}</app-button>
+    </div>
+  }
+</div>

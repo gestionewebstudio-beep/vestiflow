@@ -1,0 +1,33 @@
+<nav class="product-pagination" aria-label="Paginazione prodotti">
+  <div class="product-pagination__size">
+    <label class="product-pagination__label" for="page-size">Per pagina</label>
+    <select
+      id="page-size"
+      class="product-pagination__select"
+      [value]="meta().pageSize"
+      (change)="onPageSizeChange($event)"
+    >
+      @for (size of pageSizeOptions(); track size) {
+        <option [value]="size">{{ size }}</option>
+      }
+    </select>
+  </div>
+
+  <p class="product-pagination__info tabular-nums">
+    {{ rangeStart() }}–{{ rangeEnd() }} di {{ meta().total }}
+  </p>
+
+  <div class="product-pagination__controls">
+    <app-button variant="secondary" [disabled]="!canPrev()" (click)="prev()">
+      <i class="pi pi-chevron-left" aria-hidden="true"></i>
+      Precedente
+    </app-button>
+    <span class="product-pagination__page tabular-nums">
+      Pagina {{ meta().page }} di {{ meta().totalPages }}
+    </span>
+    <app-button variant="secondary" [disabled]="!canNext()" (click)="next()">
+      Successiva
+      <i class="pi pi-chevron-right" aria-hidden="true"></i>
+    </app-button>
+  </div>
+</nav>

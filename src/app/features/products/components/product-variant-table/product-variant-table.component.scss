@@ -1,0 +1,92 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+// ── Mobile-first: card impilate ──────────────────────────────────────────────
+.variant-table {
+  display: block;
+  inline-size: 100%;
+  font-size: var(--text-sm);
+}
+
+.variant-table__head {
+  display: none;
+}
+
+.variant-table__row {
+  display: block;
+  margin-block-end: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.variant-table__row td {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-1);
+  color: var(--color-text);
+}
+
+.variant-table__row td::before {
+  content: attr(data-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.variant-table__sku {
+  font-weight: var(--font-weight-semibold);
+}
+
+// ── Desktop: tabella vera ─────────────────────────────────────────────────────
+@include bp.media-up('lg') {
+  .variant-table {
+    display: table;
+    border-collapse: collapse;
+  }
+
+  .variant-table__head {
+    display: table-header-group;
+  }
+
+  .variant-table__head tr,
+  .variant-table__row {
+    display: table-row;
+  }
+
+  .variant-table__head th {
+    padding: var(--space-3) var(--space-4);
+    text-align: start;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .variant-table__row {
+    margin-block-end: 0;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+  }
+
+  .variant-table__row td {
+    display: table-cell;
+    padding: var(--space-3) var(--space-4);
+    border-block-end: var(--border-width) solid var(--color-border);
+    vertical-align: middle;
+  }
+
+  .variant-table__row td::before {
+    display: none;
+  }
+
+  .variant-table__cell--numeric {
+    text-align: end;
+  }
+}

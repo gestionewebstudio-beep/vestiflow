@@ -55,14 +55,9 @@
         }
       </div>
 
-      <button
-        class="login__submit"
-        type="submit"
-        [disabled]="loading()"
-        [attr.aria-busy]="loading()"
-      >
+      <app-button type="submit" [fullWidth]="true" [loading]="loading()">
         {{ loading() ? 'Accesso in corso…' : 'Accedi' }}
-      </button>
+      </app-button>
     </form>
 
     @if (showDemoCredentials) {

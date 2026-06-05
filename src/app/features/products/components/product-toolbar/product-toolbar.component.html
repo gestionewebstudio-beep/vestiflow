@@ -1,0 +1,81 @@
+<div class="product-toolbar">
+  <div class="product-toolbar__search">
+    <i class="pi pi-search product-toolbar__search-icon" aria-hidden="true"></i>
+    <input
+      id="product-search"
+      class="product-toolbar__input"
+      type="search"
+      [value]="search()"
+      placeholder="Cerca per nome o brand…"
+      aria-label="Cerca prodotti"
+      (input)="onSearchInput($event)"
+    />
+  </div>
+
+  <div class="product-toolbar__filters">
+    <div class="product-toolbar__field">
+      <label class="product-toolbar__label" for="filter-category">Categoria</label>
+      <select
+        id="filter-category"
+        class="product-toolbar__select"
+        [value]="filters().category ?? ''"
+        (change)="onFilterSelect('category', $event)"
+      >
+        <option value="">Tutte</option>
+        @for (category of categories(); track category) {
+          <option [value]="category">{{ category }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="product-toolbar__field">
+      <label class="product-toolbar__label" for="filter-brand">Brand</label>
+      <select
+        id="filter-brand"
+        class="product-toolbar__select"
+        [value]="filters().brand ?? ''"
+        (change)="onFilterSelect('brand', $event)"
+      >
+        <option value="">Tutti</option>
+        @for (brand of brands(); track brand) {
+          <option [value]="brand">{{ brand }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="product-toolbar__field">
+      <label class="product-toolbar__label" for="filter-season">Stagione</label>
+      <select
+        id="filter-season"
+        class="product-toolbar__select"
+        [value]="filters().season ?? ''"
+        (change)="onFilterSelect('season', $event)"
+      >
+        <option value="">Tutte</option>
+        @for (season of seasons(); track season) {
+          <option [value]="season">{{ season }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="product-toolbar__field">
+      <label class="product-toolbar__label" for="filter-status">Stato</label>
+      <select
+        id="filter-status"
+        class="product-toolbar__select"
+        [value]="filters().status ?? ''"
+        (change)="onFilterSelect('status', $event)"
+      >
+        <option value="">Tutti</option>
+        @for (option of statusOptions(); track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+
+    <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters.emit()">
+      <i class="pi pi-filter-slash" aria-hidden="true"></i>
+      Azzera filtri
+    </app-button>
+  </div>
+</div>

@@ -1,0 +1,48 @@
+<section class="product-list">
+  <header class="product-list__header">
+    <h1 class="product-list__title">Prodotti</h1>
+    <app-button>
+      <i class="pi pi-plus" aria-hidden="true"></i>
+      Aggiungi prodotto
+    </app-button>
+  </header>
+
+  <app-product-toolbar
+    [search]="searchDraft()"
+    [filters]="query()"
+    [categories]="filterOptions().categories"
+    [brands]="filterOptions().brands"
+    [seasons]="filterOptions().seasons"
+    [statusOptions]="statusOptions"
+    [hasActiveFilters]="hasActiveFilters()"
+    (searchChange)="onSearchInput($event)"
+    (filterChange)="onFilterChange($event)"
+    (resetFilters)="onResetFilters()"
+  />
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessun prodotto"
+      description="Nessun prodotto corrisponde ai filtri attuali. Modifica i criteri o azzera i filtri."
+      icon="pi-tags"
+    />
+  } @else {
+    <app-product-table
+      [products]="products()"
+      [sortField]="query().sort"
+      [sortOrder]="query().order"
+      (rowClick)="openProduct($event)"
+      (sortChange)="onSortChange($event)"
+    />
+    <app-product-pagination
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+</section>

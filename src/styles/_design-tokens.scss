@@ -224,6 +224,7 @@
   // ── 6a. MOTION ─────────────────────────────────────────────────────────────
   --transition-fast: 120ms;
   --transition-base: 200ms;
+  --transition-slow: 600ms; // loader/skeleton pulse
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 

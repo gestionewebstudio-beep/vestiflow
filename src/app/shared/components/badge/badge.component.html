@@ -1,0 +1,10 @@
+<span
+  class="app-badge"
+  [class.app-badge--neutral]="tone() === 'neutral'"
+  [class.app-badge--success]="tone() === 'success'"
+  [class.app-badge--warning]="tone() === 'warning'"
+  [class.app-badge--error]="tone() === 'error'"
+  [class.app-badge--info]="tone() === 'info'"
+>
+  <ng-content />
+</span>

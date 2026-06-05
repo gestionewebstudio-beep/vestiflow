@@ -1,0 +1,37 @@
+:host {
+  display: block;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding-block: var(--space-10);
+  padding-inline: var(--space-4);
+}
+
+.empty-state__icon {
+  font-size: var(--text-2xl);
+  color: var(--color-text-subtle);
+  margin-block-end: var(--space-1);
+}
+
+.empty-state__title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.empty-state__description {
+  margin: 0;
+  max-inline-size: var(--content-form);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.empty-state__action {
+  margin-block-start: var(--space-3);
+}

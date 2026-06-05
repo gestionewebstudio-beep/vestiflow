@@ -8,6 +8,7 @@ import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { ButtonComponent } from '@shared/components/button/button.component';
 
 const DEFAULT_REDIRECT = '/app/dashboard';
 const PASSWORD_MIN_LENGTH = 6;
@@ -19,7 +20,7 @@ const PASSWORD_MIN_LENGTH = 6;
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, ButtonComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
 })

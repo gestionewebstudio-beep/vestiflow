@@ -1,0 +1,12 @@
+<button
+  class="app-button"
+  [class.app-button--primary]="variant() === 'primary'"
+  [class.app-button--secondary]="variant() === 'secondary'"
+  [class.app-button--ghost]="variant() === 'ghost'"
+  [class.app-button--block]="fullWidth()"
+  [type]="type()"
+  [disabled]="disabled() || loading()"
+  [attr.aria-busy]="loading() ? true : null"
+>
+  <ng-content />
+</button>

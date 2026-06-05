@@ -1,0 +1,66 @@
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+
+import type { SortOrder } from '@core/models/api.model';
+import type { ProductStatus } from '@core/models/product.model';
+import type { Product } from '@core/models/product.model';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
+import type { BadgeTone } from '@shared/components/badge/badge.component';
+
+import { productStatusLabel, productStatusTone } from '../../models/product-status.util';
+import type { ProductSortField } from '../../models/product-list-query.model';
+
+/**
+ * Tabella prodotti (dumb puro). Mostra le righe, espone row click e richieste
+ * di sort. Responsive: tabella su desktop, card impilate su mobile.
+ */
+@Component({
+  selector: 'app-product-table',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [BadgeComponent],
+  templateUrl: './product-table.component.html',
+  styleUrl: './product-table.component.scss',
+})
+export class ProductTableComponent {
+  readonly products = input.required<readonly Product[]>();
+  readonly sortField = input<ProductSortField>();
+  readonly sortOrder = input<SortOrder>();
+
+  readonly rowClick = output<Product>();
+  readonly sortChange = output<ProductSortField>();
+
+  /** Numero di combinazioni di varianti derivato dalle opzioni del prodotto. */
+  protected variantCount(product: Product): number {
+    if (product.options.length === 0) {
+      return 0;
+    }
+    return product.options.reduce((total, option) => total * option.values.length, 1);
+  }
+
+  protected statusLabel(status: ProductStatus): string {
+    return productStatusLabel(status);
+  }
+
+  protected statusTone(status: ProductStatus): BadgeTone {
+    return productStatusTone(status);
+  }
+
+  /** Valore di aria-sort per l'header di una colonna ordinabile. */
+  protected ariaSort(field: ProductSortField): 'ascending' | 'descending' | 'none' {
+    if (this.sortField() !== field) {
+      return 'none';
+    }
+    return this.sortOrder() === 'desc' ? 'descending' : 'ascending';
+  }
+
+  /** Icona PrimeIcons che riflette lo stato di ordinamento della colonna. */
+  protected sortIcon(field: ProductSortField): string {
+    if (this.sortField() !== field) {
+      return 'pi-sort-alt';
+    }
+    return this.sortOrder() === 'desc' ? 'pi-sort-amount-down' : 'pi-sort-amount-up-alt';
+  }
+
+  protected rowLabel(product: Product): string {
+    return `${product.name}, apri dettaglio`;
+  }
+}

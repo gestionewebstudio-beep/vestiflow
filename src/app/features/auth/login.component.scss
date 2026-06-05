@@ -1,7 +1,3 @@
-// NOTE: gli stili del bottone primario sono locali in attesa della libreria
-// bottoni condivisa (shared/). Verranno migrati nello step UI condivisa.
-// REASON: nessun componente button condiviso ancora disponibile.
-
 :host {
   display: block;
 }
@@ -96,27 +92,6 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--status-error-fg);
-}
-
-.login__submit {
-  inline-size: 100%;
-  min-block-size: var(--btn-min-height);
-  padding-inline: var(--space-4);
-  font-size: var(--text-base);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-primary-fg);
-  background-color: var(--color-primary);
-  border-radius: var(--radius-md);
-  transition: background-color var(--transition-fast) var(--ease-standard);
-}
-
-.login__submit:hover:not(:disabled) {
-  background-color: var(--color-primary-hover);
-}
-
-.login__submit:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 .login__demo {

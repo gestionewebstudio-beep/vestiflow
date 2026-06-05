@@ -1,0 +1,12 @@
+<div class="error-state" role="alert">
+  <i class="error-state__icon pi {{ icon() }}" aria-hidden="true"></i>
+  <p class="error-state__title">{{ title() }}</p>
+  @if (description(); as desc) {
+    <p class="error-state__description">{{ desc }}</p>
+  }
+  @if (retryLabel(); as label) {
+    <div class="error-state__action">
+      <app-button variant="secondary" (click)="retry.emit()">{{ label }}</app-button>
+    </div>
+  }
+</div>

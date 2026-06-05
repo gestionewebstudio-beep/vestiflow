@@ -1,0 +1,19 @@
+<div
+  class="table-skeleton"
+  role="status"
+  aria-label="Caricamento in corso"
+  [style.--table-skeleton-cols]="columns()"
+>
+  <div class="table-skeleton__row table-skeleton__row--header" aria-hidden="true">
+    @for (col of columnList(); track col) {
+      <span class="table-skeleton__cell"></span>
+    }
+  </div>
+  @for (row of rowList(); track row) {
+    <div class="table-skeleton__row" aria-hidden="true">
+      @for (col of columnList(); track col) {
+        <span class="table-skeleton__cell"></span>
+      }
+    </div>
+  }
+</div>

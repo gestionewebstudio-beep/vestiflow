@@ -1,0 +1,65 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+.product-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block-start: var(--space-3);
+}
+
+.product-pagination__size {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.product-pagination__label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.product-pagination__select {
+  block-size: var(--field-height);
+  padding-inline: var(--space-2);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.product-pagination__select:focus-visible {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-primary-subtle);
+}
+
+.product-pagination__info {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.product-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.product-pagination__page {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+@include bp.media-up('md') {
+  .product-pagination__info {
+    order: -1;
+  }
+}

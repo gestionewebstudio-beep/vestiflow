@@ -1,0 +1,62 @@
+// Host trasparente: il <button> interno partecipa direttamente al layout del parent.
+:host {
+  display: contents;
+}
+
+.app-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-4);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid transparent;
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    border-color var(--transition-fast) var(--ease-standard),
+    color var(--transition-fast) var(--ease-standard);
+}
+
+.app-button--block {
+  inline-size: 100%;
+}
+
+.app-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+// ── Primary ───────────────────────────────────────────────────────────────
+.app-button--primary {
+  color: var(--color-primary-fg);
+  background-color: var(--color-primary);
+}
+
+.app-button--primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+
+// ── Secondary (bordo) ───────────────────────────────────────────────────────
+.app-button--secondary {
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border-color: var(--color-border-strong);
+}
+
+.app-button--secondary:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+}
+
+// ── Ghost (testo) ─────────────────────────────────────────────────────────
+.app-button--ghost {
+  color: var(--color-text);
+  background-color: transparent;
+  font-weight: var(--font-weight-medium);
+}
+
+.app-button--ghost:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+}
