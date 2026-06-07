@@ -57,9 +57,11 @@
           />
         }
         @case ('variants') {
-          <p class="product-form__placeholder">
-            Completamento varianti e SKU — disponibile nello step 8.6.
-          </p>
+          <app-product-variants-step
+            [variants]="draft().variants"
+            [takenSkus]="takenSkus()"
+            (variantsChange)="onVariantsChange($event)"
+          />
         }
         @case ('review') {
           <p class="product-form__placeholder">

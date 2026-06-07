@@ -1,7 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith, switchMap, tap } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  forkJoin,
+  map,
+  of,
+  startWith,
+  switchMap,
+  tap,
+} from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -12,6 +22,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { ProductGeneralStepComponent } from './components/product-general-step/product-general-step.component';
 import { ProductOptionsStepComponent } from './components/product-options-step/product-options-step.component';
+import { ProductVariantsStepComponent } from './components/product-variants-step/product-variants-step.component';
 import {
   emptyProductFormDraft,
   generateVariantDrafts,
@@ -21,7 +32,10 @@ import type {
   ProductFormDraft,
   ProductGeneralDraft,
   ProductOptionsDraft,
+  VariantDraft,
 } from './models/product-form.model';
+import type { SkuAvailabilityResult } from './models/product.dto';
+import { findDuplicateSkus, isBarcodeDistinct, isValidSku } from './models/product-form.validators';
 import type { ProductFilterOptions } from './models/product-list-query.model';
 import { ProductService } from './services/product.service';
 
@@ -65,6 +79,7 @@ type FormLoadState =
     TableSkeletonComponent,
     ProductGeneralStepComponent,
     ProductOptionsStepComponent,
+    ProductVariantsStepComponent,
   ],
   templateUrl: './product-form.component.html',
   styleUrl: './product-form.component.scss',
@@ -118,6 +133,31 @@ export class ProductFormComponent {
   protected readonly categories = computed(() => this.filterOptions()?.categories ?? []);
   protected readonly seasons = computed(() => this.filterOptions()?.seasons ?? []);
 
+  // SKU non vuoti delle varianti correnti, per la verifica di disponibilita'.
+  private readonly variantSkus = computed(() =>
+    this.draft()
+      .variants.map((variant) => variant.sku.trim())
+      .filter((sku) => sku.length > 0),
+  );
+
+  // Verifica unicita' SKU lato "server" (debounced). In edit esclude il prodotto
+  // corrente cosi' le sue varianti non si auto-segnalano come gia' in uso.
+  private readonly skuAvailability = toSignal(
+    toObservable(this.variantSkus).pipe(
+      debounceTime(400),
+      distinctUntilChanged((a, b) => a.length === b.length && a.every((sku, i) => sku === b[i])),
+      switchMap((skus) =>
+        skus.length === 0
+          ? of<SkuAvailabilityResult>({ available: true, taken: [] })
+          : this.service
+              .checkSkuAvailability(skus, this.productId() ?? undefined)
+              .pipe(catchError(() => of<SkuAvailabilityResult>({ available: true, taken: [] }))),
+      ),
+    ),
+    { initialValue: { available: true, taken: [] } },
+  );
+  protected readonly takenSkus = computed(() => this.skuAvailability().taken);
+
   protected readonly loading = computed(() => this.loadState().status === 'loading');
   protected readonly notFound = computed(() => this.loadState().status === 'notFound');
   protected readonly error = computed(() => {
@@ -144,6 +184,29 @@ export class ProductFormComponent {
   // Step "Opzioni" valido se esiste almeno una combinazione generata.
   private readonly optionsValid = computed(() => this.draft().variants.length > 0);
 
+  // Step "Varianti" valido: regole pure su ogni variante + nessun duplicato
+  // intra-form + nessuno SKU gia' in uso lato "server".
+  private readonly variantsValid = computed(() => {
+    const variants = this.draft().variants;
+    if (variants.length === 0) {
+      return false;
+    }
+    if (findDuplicateSkus(variants.map((variant) => variant.sku)).length > 0) {
+      return false;
+    }
+    if (this.takenSkus().length > 0) {
+      return false;
+    }
+    return variants.every(
+      (variant) =>
+        isValidSku(variant.sku) &&
+        variant.sellingPrice != null &&
+        variant.sellingPrice >= 0 &&
+        (variant.purchasePrice == null || variant.purchasePrice >= 0) &&
+        isBarcodeDistinct(variant.sku, variant.barcode),
+    );
+  });
+
   /** Lo step corrente è valido e consente l'avanzamento. */
   protected readonly canAdvance = computed(() => {
     switch (this.currentStepId()) {
@@ -151,6 +214,8 @@ export class ProductFormComponent {
         return this.generalValid();
       case 'options':
         return this.optionsValid();
+      case 'variants':
+        return this.variantsValid();
       default:
         return true;
     }
@@ -170,6 +235,10 @@ export class ProductFormComponent {
       options,
       variants: generateVariantDrafts(options, draft.general.name, draft.variants),
     }));
+  }
+
+  protected onVariantsChange(variants: readonly VariantDraft[]): void {
+    this.draft.update((draft) => ({ ...draft, variants }));
   }
 
   /** Tornare indietro è sempre consentito; avanzare solo allo step successivo se valido. */

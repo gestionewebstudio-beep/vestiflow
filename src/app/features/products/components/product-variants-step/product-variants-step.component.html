@@ -1,0 +1,127 @@
+<form [formGroup]="form" class="variants-step">
+  <p class="variants-step__intro">
+    Completa i dati di ogni variante. Lo SKU è precompilato ma modificabile; taglia e colore
+    derivano dalle opzioni.
+  </p>
+
+  @if (variantsArray.length > 0) {
+    <table class="variants-step__table" formArrayName="variants">
+      <thead class="variants-step__head">
+        <tr>
+          <th scope="col">Taglia</th>
+          <th scope="col">Colore</th>
+          <th scope="col">SKU</th>
+          <th scope="col" class="variants-step__col--numeric">Prezzo vendita</th>
+          <th scope="col" class="variants-step__col--numeric">Prezzo acquisto</th>
+          <th scope="col">Barcode</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (group of variantsArray.controls; track group; let i = $index) {
+          <tr class="variants-step__row" [formGroupName]="i">
+            <td class="variants-step__fixed" data-label="Taglia">{{ meta(i).size || '—' }}</td>
+            <td class="variants-step__fixed" data-label="Colore">{{ meta(i).color || '—' }}</td>
+            <td data-label="SKU">
+              <div class="variants-step__field">
+                <input
+                  class="variants-step__input variants-step__input--sku"
+                  type="text"
+                  formControlName="sku"
+                  autocomplete="off"
+                  [attr.aria-invalid]="
+                    isInvalid(group, 'sku') ||
+                    isDuplicateSku(group.controls.sku.value) ||
+                    isSkuTaken(group.controls.sku.value)
+                      ? true
+                      : null
+                  "
+                  [attr.aria-label]="
+                    'SKU per ' + (meta(i).size || '—') + ' ' + (meta(i).color || '—')
+                  "
+                />
+                @if (isInvalid(group, 'sku')) {
+                  <p class="variants-step__error" role="alert">
+                    @if (group.controls.sku.hasError('required')) {
+                      Inserisci uno SKU.
+                    } @else {
+                      Formato SKU non valido (lettere, numeri e trattini).
+                    }
+                  </p>
+                } @else if (isDuplicateSku(group.controls.sku.value)) {
+                  <p class="variants-step__error" role="alert">SKU duplicato tra le varianti.</p>
+                } @else if (isSkuTaken(group.controls.sku.value)) {
+                  <p class="variants-step__error" role="alert">
+                    SKU già in uso da un altro prodotto.
+                  </p>
+                }
+              </div>
+            </td>
+            <td data-label="Prezzo vendita">
+              <div class="variants-step__field">
+                <input
+                  class="variants-step__input variants-step__input--numeric"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  step="0.01"
+                  formControlName="sellingPrice"
+                  [attr.aria-invalid]="isInvalid(group, 'sellingPrice') ? true : null"
+                  [attr.aria-label]="'Prezzo di vendita per ' + (meta(i).size || '—')"
+                />
+                @if (isInvalid(group, 'sellingPrice')) {
+                  <p class="variants-step__error" role="alert">
+                    @if (group.controls.sellingPrice.hasError('required')) {
+                      Inserisci il prezzo di vendita.
+                    } @else {
+                      Il prezzo non può essere negativo.
+                    }
+                  </p>
+                }
+              </div>
+            </td>
+            <td data-label="Prezzo acquisto">
+              <div class="variants-step__field">
+                <input
+                  class="variants-step__input variants-step__input--numeric"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  step="0.01"
+                  formControlName="purchasePrice"
+                  [attr.aria-invalid]="isInvalid(group, 'purchasePrice') ? true : null"
+                  [attr.aria-label]="'Prezzo di acquisto per ' + (meta(i).size || '—')"
+                />
+                @if (isInvalid(group, 'purchasePrice')) {
+                  <p class="variants-step__error" role="alert">
+                    Il prezzo non può essere negativo.
+                  </p>
+                }
+              </div>
+            </td>
+            <td data-label="Barcode">
+              <div class="variants-step__field">
+                <input
+                  class="variants-step__input"
+                  type="text"
+                  formControlName="barcode"
+                  autocomplete="off"
+                  [attr.aria-invalid]="isBarcodeInvalid(group) ? true : null"
+                  [attr.aria-label]="'Barcode per ' + (meta(i).size || '—')"
+                />
+                @if (isBarcodeInvalid(group)) {
+                  <p class="variants-step__error" role="alert">
+                    Il barcode deve essere diverso dallo SKU.
+                  </p>
+                }
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <p class="variants-step__empty">
+      Nessuna variante da completare. Torna allo step Opzioni per aggiungere taglie o colori.
+    </p>
+  }
+</form>
