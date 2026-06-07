@@ -1,0 +1,45 @@
+<div class="option-list">
+  <label class="option-list__label" [for]="inputId">{{ label() }}</label>
+
+  <div class="option-list__row">
+    <input
+      #field
+      [id]="inputId"
+      class="option-list__input"
+      type="text"
+      autocomplete="off"
+      [value]="draftValue()"
+      [placeholder]="placeholder()"
+      [attr.aria-invalid]="errorMessage() ? true : null"
+      [attr.aria-describedby]="errorMessage() ? errorId : null"
+      (input)="onInput(field.value)"
+      (keydown.enter)="$event.preventDefault(); add()"
+    />
+    <app-button type="button" variant="secondary" (click)="add()">
+      <i class="pi pi-plus" aria-hidden="true"></i>
+      Aggiungi
+    </app-button>
+  </div>
+
+  @if (errorMessage(); as message) {
+    <p [id]="errorId" class="option-list__error" aria-live="polite">{{ message }}</p>
+  }
+
+  @if (values().length > 0) {
+    <ul class="option-list__chips">
+      @for (value of values(); track value) {
+        <li class="option-list__chip">
+          <span class="option-list__chip-label">{{ value }}</span>
+          <button
+            type="button"
+            class="option-list__chip-remove"
+            [attr.aria-label]="'Rimuovi ' + value"
+            (click)="remove(value)"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</div>

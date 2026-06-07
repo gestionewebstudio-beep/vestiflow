@@ -59,6 +59,11 @@
   border-color: var(--color-primary);
 }
 
+.product-form__step-btn:disabled {
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+}
+
 .product-form__step-index {
   display: inline-flex;
   align-items: center;

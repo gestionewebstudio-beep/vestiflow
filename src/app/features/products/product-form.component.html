@@ -8,7 +8,7 @@
     {{ mode() === 'edit' ? 'Modifica prodotto' : 'Nuovo prodotto' }}
   </h1>
 
-  @if (loading()) {
+  @if (loading() || !filtersReady()) {
     <app-table-skeleton [columns]="2" [rows]="5" />
   } @else if (notFound()) {
     <app-empty-state
@@ -29,6 +29,7 @@
             class="product-form__step-btn"
             [class.product-form__step-btn--active]="currentStep() === i"
             [attr.aria-current]="currentStep() === i ? 'step' : null"
+            [disabled]="!canReachStep(i)"
             (click)="goToStep(i)"
           >
             <span class="product-form__step-index tabular-nums">{{ i + 1 }}</span>
@@ -41,7 +42,12 @@
     <div class="product-form__body">
       @switch (currentStepId()) {
         @case ('general') {
-          <p class="product-form__placeholder">Dati generali — disponibile nello step 8.4.</p>
+          <app-product-general-step
+            [value]="draft().general"
+            [categories]="categories()"
+            [seasons]="seasons()"
+            (valueChange)="onGeneralChange($event)"
+          />
         }
         @case ('options') {
           <p class="product-form__placeholder">
@@ -74,7 +80,7 @@
         @if (isLastStep()) {
           <app-button [disabled]="true">Salva prodotto</app-button>
         } @else {
-          <app-button (click)="next()">
+          <app-button [disabled]="!canAdvance()" (click)="next()">
             Avanti
             <i class="pi pi-chevron-right" aria-hidden="true"></i>
           </app-button>

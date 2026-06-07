@@ -1,0 +1,85 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+.general-step__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+.general-step__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.general-step__label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.general-step__optional {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+.general-step__control {
+  inline-size: 100%;
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--transition-fast) var(--ease-standard),
+    box-shadow var(--transition-fast) var(--ease-standard);
+}
+
+.general-step__control:focus-visible {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-primary-subtle);
+}
+
+.general-step__control[aria-invalid='true'] {
+  border-color: var(--status-error-border);
+}
+
+.general-step__textarea {
+  block-size: auto;
+  min-block-size: var(--space-16);
+  padding-block: var(--space-2);
+  line-height: var(--leading-normal);
+  resize: vertical;
+}
+
+.general-step__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.general-step__fallback {
+  margin: 0;
+  min-block-size: var(--field-height);
+  display: flex;
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+@include bp.media-up('md') {
+  .general-step__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .general-step__field--full {
+    grid-column: 1 / -1;
+  }
+}

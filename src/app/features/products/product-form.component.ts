@@ -10,9 +10,13 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import { ProductGeneralStepComponent } from './components/product-general-step/product-general-step.component';
 import { emptyProductFormDraft, productToFormDraft } from './models/product-form.mapper';
-import type { ProductFormDraft } from './models/product-form.model';
+import type { ProductFormDraft, ProductGeneralDraft } from './models/product-form.model';
+import type { ProductFilterOptions } from './models/product-list-query.model';
 import { ProductService } from './services/product.service';
+
+const EMPTY_FILTER_OPTIONS: ProductFilterOptions = { categories: [], brands: [], seasons: [] };
 
 const PRODUCTS_LIST_PATH = '/app/products';
 
@@ -50,6 +54,7 @@ type FormLoadState =
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    ProductGeneralStepComponent,
   ],
   templateUrl: './product-form.component.html',
   styleUrl: './product-form.component.scss',
@@ -93,6 +98,16 @@ export class ProductFormComponent {
     { initialValue: this.initialLoadState() },
   );
 
+  // Facets per i select categoria/stagione. initialValue null = ancora in caricamento;
+  // su errore si degrada a opzioni vuote (il general step mostra il fallback esplicito).
+  private readonly filterOptions = toSignal<ProductFilterOptions | null>(
+    this.service.getFilterOptions().pipe(catchError(() => of(EMPTY_FILTER_OPTIONS))),
+    { initialValue: null },
+  );
+  protected readonly filtersReady = computed(() => this.filterOptions() !== null);
+  protected readonly categories = computed(() => this.filterOptions()?.categories ?? []);
+  protected readonly seasons = computed(() => this.filterOptions()?.seasons ?? []);
+
   protected readonly loading = computed(() => this.loadState().status === 'loading');
   protected readonly notFound = computed(() => this.loadState().status === 'notFound');
   protected readonly error = computed(() => {
@@ -107,8 +122,36 @@ export class ProductFormComponent {
   protected readonly isFirstStep = computed(() => this._currentStep() === 0);
   protected readonly isLastStep = computed(() => this._currentStep() === this.steps.length - 1);
 
+  // Validità "Dati generali": tutti i campi obbligatori valorizzati (trim).
+  // Gli step 8.5-8.7 aggiungeranno le proprie regole nella catena di gating.
+  private readonly generalValid = computed(() => {
+    const { name, brand, category, season } = this.draft().general;
+    return (
+      name.trim() !== '' && brand.trim() !== '' && category.trim() !== '' && season.trim() !== ''
+    );
+  });
+
+  /** Lo step corrente è valido e consente l'avanzamento. */
+  protected readonly canAdvance = computed(() => {
+    switch (this.currentStepId()) {
+      case 'general':
+        return this.generalValid();
+      default:
+        return true;
+    }
+  });
+
+  protected onGeneralChange(value: ProductGeneralDraft): void {
+    this.draft.update((draft) => ({ ...draft, general: value }));
+  }
+
+  /** Tornare indietro è sempre consentito; avanzare solo allo step successivo se valido. */
+  protected canReachStep(index: number): boolean {
+    return index <= this._currentStep() || (index === this._currentStep() + 1 && this.canAdvance());
+  }
+
   protected next(): void {
-    if (!this.isLastStep()) {
+    if (!this.isLastStep() && this.canAdvance()) {
       this._currentStep.update((index) => index + 1);
     }
   }
@@ -120,7 +163,9 @@ export class ProductFormComponent {
   }
 
   protected goToStep(index: number): void {
-    this._currentStep.set(index);
+    if (this.canReachStep(index)) {
+      this._currentStep.set(index);
+    }
   }
 
   protected reload(): void {
