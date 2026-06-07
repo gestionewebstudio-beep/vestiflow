@@ -1,0 +1,59 @@
+<div class="options-step">
+  <p class="options-step__intro">
+    Definisci le opzioni del prodotto: le varianti vengono generate automaticamente combinando
+    taglie e colori.
+  </p>
+
+  <div class="options-step__editors">
+    <app-option-list-editor
+      label="Taglie"
+      placeholder="Aggiungi taglia (es. M)"
+      [values]="options().sizes"
+      (valuesChange)="onSizesChange($event)"
+    />
+    <app-option-list-editor
+      label="Colori"
+      placeholder="Aggiungi colore (es. Rosso)"
+      [values]="options().colors"
+      (valuesChange)="onColorsChange($event)"
+    />
+  </div>
+
+  <section class="options-step__preview" aria-labelledby="variants-preview-title">
+    <h2 id="variants-preview-title" class="options-step__preview-title">
+      Varianti generate
+      @if (variants().length > 0) {
+        <span class="options-step__preview-count tabular-nums">({{ variants().length }})</span>
+      }
+    </h2>
+
+    @if (variants().length > 0) {
+      <p class="options-step__preview-hint">
+        SKU suggerito automaticamente: potrai modificarlo nel passo successivo.
+      </p>
+
+      <table class="options-step__table">
+        <thead class="options-step__table-head">
+          <tr>
+            <th scope="col">SKU suggerito</th>
+            <th scope="col">Taglia</th>
+            <th scope="col">Colore</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (variant of variants(); track variant.key) {
+            <tr class="options-step__table-row">
+              <td class="options-step__sku" data-label="SKU suggerito">{{ variant.sku || '—' }}</td>
+              <td data-label="Taglia">{{ variant.size || '—' }}</td>
+              <td data-label="Colore">{{ variant.color || '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    } @else {
+      <p class="options-step__preview-empty">
+        Aggiungi almeno una taglia o un colore per generare le varianti.
+      </p>
+    }
+  </section>
+</div>

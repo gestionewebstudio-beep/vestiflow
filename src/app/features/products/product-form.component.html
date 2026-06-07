@@ -50,9 +50,11 @@
           />
         }
         @case ('options') {
-          <p class="product-form__placeholder">
-            Opzioni e generazione varianti — disponibile nello step 8.5.
-          </p>
+          <app-product-options-step
+            [options]="draft().options"
+            [variants]="draft().variants"
+            (optionsChange)="onOptionsChange($event)"
+          />
         }
         @case ('variants') {
           <p class="product-form__placeholder">

@@ -11,8 +11,17 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { ProductGeneralStepComponent } from './components/product-general-step/product-general-step.component';
-import { emptyProductFormDraft, productToFormDraft } from './models/product-form.mapper';
-import type { ProductFormDraft, ProductGeneralDraft } from './models/product-form.model';
+import { ProductOptionsStepComponent } from './components/product-options-step/product-options-step.component';
+import {
+  emptyProductFormDraft,
+  generateVariantDrafts,
+  productToFormDraft,
+} from './models/product-form.mapper';
+import type {
+  ProductFormDraft,
+  ProductGeneralDraft,
+  ProductOptionsDraft,
+} from './models/product-form.model';
 import type { ProductFilterOptions } from './models/product-list-query.model';
 import { ProductService } from './services/product.service';
 
@@ -55,6 +64,7 @@ type FormLoadState =
     ErrorStateComponent,
     TableSkeletonComponent,
     ProductGeneralStepComponent,
+    ProductOptionsStepComponent,
   ],
   templateUrl: './product-form.component.html',
   styleUrl: './product-form.component.scss',
@@ -131,11 +141,16 @@ export class ProductFormComponent {
     );
   });
 
+  // Step "Opzioni" valido se esiste almeno una combinazione generata.
+  private readonly optionsValid = computed(() => this.draft().variants.length > 0);
+
   /** Lo step corrente è valido e consente l'avanzamento. */
   protected readonly canAdvance = computed(() => {
     switch (this.currentStepId()) {
       case 'general':
         return this.generalValid();
+      case 'options':
+        return this.optionsValid();
       default:
         return true;
     }
@@ -143,6 +158,18 @@ export class ProductFormComponent {
 
   protected onGeneralChange(value: ProductGeneralDraft): void {
     this.draft.update((draft) => ({ ...draft, general: value }));
+  }
+
+  /**
+   * Aggiorna le opzioni e rigenera le varianti per (taglia,colore), preservando
+   * i dati gia' inseriti e scartando le combinazioni non piu' esistenti.
+   */
+  protected onOptionsChange(options: ProductOptionsDraft): void {
+    this.draft.update((draft) => ({
+      ...draft,
+      options,
+      variants: generateVariantDrafts(options, draft.general.name, draft.variants),
+    }));
   }
 
   /** Tornare indietro è sempre consentito; avanzare solo allo step successivo se valido. */
