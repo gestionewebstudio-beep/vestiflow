@@ -1,0 +1,118 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+.product-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.product-form__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.product-form__back:hover {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.product-form__title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+// ── Stepper ─────────────────────────────────────────────────────────────────
+.product-form__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.product-form__step-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.product-form__step-btn--active {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+
+.product-form__step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-sunken);
+  border-radius: var(--radius-full);
+}
+
+.product-form__step-btn--active .product-form__step-index {
+  color: var(--color-primary-fg);
+  background-color: var(--color-primary);
+}
+
+// ── Corpo step ──────────────────────────────────────────────────────────────
+.product-form__body {
+  min-block-size: var(--space-16);
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.product-form__placeholder {
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+}
+
+.product-form__hint {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+// ── Footer navigazione ────────────────────────────────────────────────────
+.product-form__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.product-form__nav {
+  display: flex;
+  gap: var(--space-3);
+}
+
+@include bp.media-up('md') {
+  .product-form__footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}

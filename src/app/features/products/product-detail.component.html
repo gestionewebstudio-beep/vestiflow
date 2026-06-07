@@ -22,7 +22,13 @@
         <h1 class="product-detail__title">{{ p.name }}</h1>
         <p class="product-detail__brand">{{ p.brand ?? 'Senza brand' }}</p>
       </div>
-      <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
+      <div class="product-detail__actions">
+        <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
+        <app-button variant="secondary" (click)="goToEdit(p.id)">
+          <i class="pi pi-pencil" aria-hidden="true"></i>
+          Modifica
+        </app-button>
+      </div>
     </header>
 
     <section class="product-detail__panel" aria-labelledby="detail-general">

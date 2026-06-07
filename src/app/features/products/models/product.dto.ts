@@ -1,0 +1,64 @@
+import type { EntityId, Money } from '@core/models/common.model';
+import type { ProductStatus } from '@core/models/product.model';
+
+// DTO di scrittura prodotto. Pensati per un backend NestJS (class-validator) +
+// PostgreSQL relazionale (Supabase): prodotto e varianti restano separati.
+// Nessun token/segreto: per Shopify solo identificativi pubblici opzionali.
+
+/** Opzione prodotto inviata al backend (es. { name: 'Taglia', values: [...] }). */
+export interface ProductOptionDto {
+  readonly name: string;
+  readonly values: readonly string[];
+}
+
+/** Variante in creazione. Lo SKU e' obbligatorio e univoco (vincolo server). */
+export interface CreateProductVariantDto {
+  readonly sku: string;
+  readonly size: string;
+  readonly color: string;
+  readonly sellingPrice: Money;
+  readonly purchasePrice?: Money;
+  readonly barcode?: string;
+  // Mapping Shopify opzionale: solo ID pubblici, nessun token nel frontend.
+  readonly shopifyVariantId?: string;
+  readonly shopifyInventoryItemId?: string;
+}
+
+/**
+ * Payload di creazione prodotto. `tenantId` NON e' incluso: lo deriva il
+ * backend dal token (multi-tenant lato server, regole-sicurezza).
+ */
+export interface CreateProductDto {
+  readonly name: string;
+  readonly description?: string;
+  readonly brand?: string;
+  readonly category?: string;
+  readonly season?: string;
+  readonly status: ProductStatus;
+  readonly options: readonly ProductOptionDto[];
+  readonly variants: readonly CreateProductVariantDto[];
+}
+
+/** Variante in update: `id` presente = esistente, assente = nuova. */
+export interface UpdateProductVariantDto extends CreateProductVariantDto {
+  readonly id?: EntityId;
+}
+
+/** Payload di modifica prodotto: patch parziale dei campi generali + set varianti. */
+export interface UpdateProductDto {
+  readonly name?: string;
+  readonly description?: string;
+  readonly brand?: string;
+  readonly category?: string;
+  readonly season?: string;
+  readonly status?: ProductStatus;
+  readonly options?: readonly ProductOptionDto[];
+  readonly variants?: readonly UpdateProductVariantDto[];
+}
+
+/** Esito del controllo di disponibilita' SKU (unicita' lato "server"). */
+export interface SkuAvailabilityResult {
+  readonly available: boolean;
+  /** SKU gia' in uso (normalizzati). Vuoto se tutti disponibili. */
+  readonly taken: readonly string[];
+}

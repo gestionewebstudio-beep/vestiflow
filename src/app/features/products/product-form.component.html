@@ -1,0 +1,85 @@
+<section class="product-form">
+  <a class="product-form__back" [routerLink]="listPath">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Prodotti
+  </a>
+
+  <h1 class="product-form__title">
+    {{ mode() === 'edit' ? 'Modifica prodotto' : 'Nuovo prodotto' }}
+  </h1>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="5" />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-search"
+      title="Prodotto non trovato"
+      description="Il prodotto da modificare non esiste o è stato rimosso."
+      ctaLabel="Torna ai prodotti"
+      (ctaClick)="cancel()"
+    />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (ready()) {
+    <ol class="product-form__steps">
+      @for (step of steps; track step.id; let i = $index) {
+        <li class="product-form__step">
+          <button
+            type="button"
+            class="product-form__step-btn"
+            [class.product-form__step-btn--active]="currentStep() === i"
+            [attr.aria-current]="currentStep() === i ? 'step' : null"
+            (click)="goToStep(i)"
+          >
+            <span class="product-form__step-index tabular-nums">{{ i + 1 }}</span>
+            {{ step.label }}
+          </button>
+        </li>
+      }
+    </ol>
+
+    <div class="product-form__body">
+      @switch (currentStepId()) {
+        @case ('general') {
+          <p class="product-form__placeholder">Dati generali — disponibile nello step 8.4.</p>
+        }
+        @case ('options') {
+          <p class="product-form__placeholder">
+            Opzioni e generazione varianti — disponibile nello step 8.5.
+          </p>
+        }
+        @case ('variants') {
+          <p class="product-form__placeholder">
+            Completamento varianti e SKU — disponibile nello step 8.6.
+          </p>
+        }
+        @case ('review') {
+          <p class="product-form__placeholder">
+            Riepilogo e salvataggio — disponibile nello step 8.7.
+          </p>
+          <p class="product-form__hint">
+            Prodotto in lavorazione: <strong>{{ draft().general.name || '—' }}</strong>
+          </p>
+        }
+      }
+    </div>
+
+    <footer class="product-form__footer">
+      <app-button variant="ghost" (click)="cancel()">Annulla</app-button>
+      <div class="product-form__nav">
+        <app-button variant="secondary" [disabled]="isFirstStep()" (click)="prev()">
+          <i class="pi pi-chevron-left" aria-hidden="true"></i>
+          Indietro
+        </app-button>
+        @if (isLastStep()) {
+          <app-button [disabled]="true">Salva prodotto</app-button>
+        } @else {
+          <app-button (click)="next()">
+            Avanti
+            <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          </app-button>
+        }
+      </div>
+    </footer>
+  }
+</section>

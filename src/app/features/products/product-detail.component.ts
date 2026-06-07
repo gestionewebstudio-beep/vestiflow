@@ -11,6 +11,7 @@ import type { Product, ProductStatus } from '@core/models/product.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -60,6 +61,7 @@ type ProductDetailState =
   imports: [
     RouterLink,
     BadgeComponent,
+    ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
@@ -151,6 +153,10 @@ export class ProductDetailComponent {
 
   protected goToList(): void {
     void this.router.navigateByUrl(PRODUCTS_LIST_PATH);
+  }
+
+  protected goToEdit(productId: string): void {
+    void this.router.navigateByUrl(`${PRODUCTS_LIST_PATH}/${productId}/edit`);
   }
 
   private toErrorState(err: unknown): ProductDetailState {
