@@ -91,15 +91,17 @@
   border-radius: var(--radius-lg);
 }
 
-.product-form__placeholder {
-  font-size: var(--text-base);
-  color: var(--color-text-muted);
-}
-
-.product-form__hint {
-  margin-block-start: var(--space-3);
+.product-form__submit-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   font-size: var(--text-sm);
-  color: var(--color-text);
+  color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+  border: var(--border-width) solid var(--status-error-border);
+  border-radius: var(--radius-md);
 }
 
 // ── Footer navigazione ────────────────────────────────────────────────────

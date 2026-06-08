@@ -64,12 +64,17 @@
           />
         }
         @case ('review') {
-          <p class="product-form__placeholder">
-            Riepilogo e salvataggio — disponibile nello step 8.7.
-          </p>
-          <p class="product-form__hint">
-            Prodotto in lavorazione: <strong>{{ draft().general.name || '—' }}</strong>
-          </p>
+          <app-product-review-step
+            [general]="draft().general"
+            [options]="draft().options"
+            [variants]="draft().variants"
+          />
+          @if (submitError(); as err) {
+            <p class="product-form__submit-error" role="alert">
+              <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+              {{ err.message }}
+            </p>
+          }
         }
       }
     </div>
@@ -82,7 +87,15 @@
           Indietro
         </app-button>
         @if (isLastStep()) {
-          <app-button [disabled]="true">Salva prodotto</app-button>
+          <app-button [disabled]="!canSubmit()" (click)="onSubmit()">
+            {{
+              submitting()
+                ? 'Salvataggio…'
+                : mode() === 'edit'
+                  ? 'Salva modifiche'
+                  : 'Crea prodotto'
+            }}
+          </app-button>
         } @else {
           <app-button [disabled]="!canAdvance()" (click)="next()">
             Avanti

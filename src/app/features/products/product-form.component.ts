@@ -1,5 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   catchError,
@@ -12,6 +19,7 @@ import {
   switchMap,
   tap,
 } from 'rxjs';
+import type { Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -22,11 +30,14 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { ProductGeneralStepComponent } from './components/product-general-step/product-general-step.component';
 import { ProductOptionsStepComponent } from './components/product-options-step/product-options-step.component';
+import { ProductReviewStepComponent } from './components/product-review-step/product-review-step.component';
 import { ProductVariantsStepComponent } from './components/product-variants-step/product-variants-step.component';
 import {
   emptyProductFormDraft,
   generateVariantDrafts,
   productToFormDraft,
+  toCreateProductDto,
+  toUpdateProductDto,
 } from './models/product-form.mapper';
 import type {
   ProductFormDraft,
@@ -80,6 +91,7 @@ type FormLoadState =
     ProductGeneralStepComponent,
     ProductOptionsStepComponent,
     ProductVariantsStepComponent,
+    ProductReviewStepComponent,
   ],
   templateUrl: './product-form.component.html',
   styleUrl: './product-form.component.scss',
@@ -88,6 +100,7 @@ export class ProductFormComponent {
   private readonly service = inject(ProductService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly listPath = PRODUCTS_LIST_PATH;
   protected readonly steps = WIZARD_STEPS;
@@ -239,6 +252,43 @@ export class ProductFormComponent {
 
   protected onVariantsChange(variants: readonly VariantDraft[]): void {
     this.draft.update((draft) => ({ ...draft, variants }));
+  }
+
+  // ── Submit (create/update) ────────────────────────────────────────────────
+  private readonly _submitState = signal<'idle' | 'submitting' | 'error'>('idle');
+  protected readonly submitError = signal<AppError | null>(null);
+  protected readonly submitting = computed(() => this._submitState() === 'submitting');
+  // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
+  private submitSub?: Subscription;
+
+  // L'intero draft è valido: ogni step gating soddisfatto. Indipendente dallo
+  // step corrente, così il bottone Salva non dipende da dove ci si trova.
+  protected readonly canSubmit = computed(
+    () => !this.submitting() && this.generalValid() && this.optionsValid() && this.variantsValid(),
+  );
+
+  protected onSubmit(): void {
+    if (!this.canSubmit()) {
+      return;
+    }
+    const draft = this.draft();
+    const id = this.productId();
+    const request$ = id
+      ? this.service.updateProduct(id, toUpdateProductDto(draft))
+      : this.service.createProduct(toCreateProductDto(draft));
+
+    this._submitState.set('submitting');
+    this.submitError.set(null);
+
+    this.submitSub = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (product) => {
+        void this.router.navigateByUrl(`${PRODUCTS_LIST_PATH}/${product.id}`);
+      },
+      error: (err: unknown) => {
+        this._submitState.set('error');
+        this.submitError.set(this.toAppError(err));
+      },
+    });
   }
 
   /** Tornare indietro è sempre consentito; avanzare solo allo step successivo se valido. */
