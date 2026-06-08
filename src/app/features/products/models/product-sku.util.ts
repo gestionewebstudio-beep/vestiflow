@@ -32,12 +32,12 @@ export function productCodeFromName(name: string): string {
 }
 
 /**
- * SKU suggerito per una variante. Unisce con "-" i soli segmenti non vuoti, cosi'
- * un asse mancante (solo taglia o solo colore) non lascia trattini penzolanti.
- * Conforme a SKU_PATTERN.
+ * SKU suggerito per una variante (1–3 assi): codice prodotto + valori opzione
+ * slugificati, uniti con "-" saltando i segmenti vuoti (nessun trattino
+ * penzolante). Conforme a SKU_PATTERN.
  */
-export function suggestSku(productName: string, size: string, color: string): string {
-  return [productCodeFromName(productName), slugifySkuSegment(size), slugifySkuSegment(color)]
+export function suggestVariantSku(productName: string, values: readonly string[]): string {
+  return [productCodeFromName(productName), ...values.map(slugifySkuSegment)]
     .filter((segment) => segment.length > 0)
     .join('-');
 }

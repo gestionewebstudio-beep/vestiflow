@@ -1,5 +1,9 @@
 import type { EntityId } from '@core/models/common.model';
-import type { ProductStatus } from '@core/models/product.model';
+import type { ProductStatus, SelectedOption } from '@core/models/product.model';
+
+/** Nomi opzione di default della UX conservativa (Taglia + Colore). */
+export const OPTION_NAME_SIZE = 'Taglia';
+export const OPTION_NAME_COLOR = 'Colore';
 
 // Modelli locali del wizard prodotto (stato del form, non payload API).
 // Le stringhe vuote rappresentano i campi opzionali non valorizzati: il mapper
@@ -16,22 +20,30 @@ export interface ProductGeneralDraft {
 }
 
 /**
- * Opzioni a due assi (Taglia/Colore), coerenti col modello ProductVariant.
- * Combinazioni con piu' di due assi sono fuori scope in questa fase.
+ * Singolo asse opzione del wizard (es. { name: 'Taglia', values: [...] }).
+ * Modello generico allineato a Shopify: 1-3 assi per prodotto.
  */
-export interface ProductOptionsDraft {
-  readonly sizes: readonly string[];
-  readonly colors: readonly string[];
+export interface OptionAxisDraft {
+  readonly name: string;
+  readonly values: readonly string[];
 }
 
-/** Bozza di singola variante (combinazione taglia x colore). */
+/**
+ * Opzioni del prodotto come lista di assi (max 3). La UX di default presenta
+ * Taglia + Colore, ma la struttura è generica e Shopify-ready.
+ */
+export interface ProductOptionsDraft {
+  readonly axes: readonly OptionAxisDraft[];
+}
+
+/** Bozza di singola variante (una combinazione di valori opzione). */
 export interface VariantDraft {
-  /** Chiave stabile per il track (`id` esistente o combinazione size-color). */
+  /** Chiave stabile per il track (`id` esistente o combinazione dei valori). */
   readonly key: string;
   /** Valorizzato in edit per varianti gia' esistenti (assente = nuova). */
   readonly id?: EntityId;
-  readonly size: string;
-  readonly color: string;
+  /** Valori opzione della combinazione (1-3 assi), forma Shopify. */
+  readonly optionValues: readonly SelectedOption[];
   readonly sku: string;
   readonly sellingPrice: number;
   readonly purchasePrice: number | null;

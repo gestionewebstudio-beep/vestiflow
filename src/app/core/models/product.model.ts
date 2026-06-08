@@ -18,6 +18,15 @@ export interface ProductOption {
 }
 
 /**
+ * Coppia opzione→valore di una variante (forma Shopify `selectedOptions`,
+ * es. { name: 'Taglia', value: 'M' }). Una variante è definita da 1–3 di queste.
+ */
+export interface SelectedOption {
+  readonly name: string;
+  readonly value: string;
+}
+
+/**
  * Prodotto = entita' di catalogo. NON contiene stock ne' varianti incorporate:
  * le varianti (ProductVariant) e lo stock (InventoryLevel) sono separati.
  */

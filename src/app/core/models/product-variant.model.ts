@@ -1,15 +1,17 @@
 import type { EntityId, Money } from './common.model';
+import type { SelectedOption } from './product.model';
 
 /**
  * Variante = unita' minima di inventario (regole-gestionale).
- * Definita da combinazioni come taglia/colore, con SKU univoco.
+ * Definita da 1-3 opzioni (es. Taglia/Colore) via `optionValues`, con SKU
+ * univoco. La forma `optionValues` è allineata a `selectedOptions` di Shopify.
  */
 export interface ProductVariant {
   readonly id: EntityId;
   readonly productId: EntityId;
   readonly sku: string;
-  readonly size: string;
-  readonly color: string;
+  /** Valori opzione della variante (es. [{Taglia,M},{Colore,Rosso}]), 1-3 assi. */
+  readonly optionValues: readonly SelectedOption[];
   readonly sellingPrice: Money;
   // Opzionali ma raccomandati:
   readonly barcode?: string;

@@ -45,9 +45,9 @@
       <div class="review-step__row review-step__row--block">
         <dt>Taglie</dt>
         <dd>
-          @if (options().sizes.length > 0) {
+          @if (sizes().length > 0) {
             <ul class="review-step__chips">
-              @for (size of options().sizes; track size) {
+              @for (size of sizes(); track size) {
                 <li class="review-step__chip">{{ size }}</li>
               }
             </ul>
@@ -59,9 +59,9 @@
       <div class="review-step__row review-step__row--block">
         <dt>Colori</dt>
         <dd>
-          @if (options().colors.length > 0) {
+          @if (colors().length > 0) {
             <ul class="review-step__chips">
-              @for (color of options().colors; track color) {
+              @for (color of colors(); track color) {
                 <li class="review-step__chip">{{ color }}</li>
               }
             </ul>
@@ -94,8 +94,8 @@
         @for (variant of variants(); track variant.key) {
           <tr class="review-step__table-row">
             <td class="review-step__sku" data-label="SKU">{{ variant.sku || '—' }}</td>
-            <td data-label="Taglia">{{ variant.size || '—' }}</td>
-            <td data-label="Colore">{{ variant.color || '—' }}</td>
+            <td data-label="Taglia">{{ optionValue(variant, sizeName) || '—' }}</td>
+            <td data-label="Colore">{{ optionValue(variant, colorName) || '—' }}</td>
             <td class="review-step__numeric" data-label="Prezzo vendita">
               {{ formatPrice(variant.sellingPrice) }}
             </td>

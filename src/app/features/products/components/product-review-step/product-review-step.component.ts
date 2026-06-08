@@ -4,12 +4,14 @@ import type { ProductStatus } from '@core/models/product.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
+import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '../../models/product-form.model';
 import type {
   ProductGeneralDraft,
   ProductOptionsDraft,
   VariantDraft,
 } from '../../models/product-form.model';
 import { productStatusLabel, productStatusTone } from '../../models/product-status.util';
+import { axisValues, selectedOptionValue } from '../../models/product-variant.util';
 
 // Valuta fissa EUR finche' non arriva il contesto tenant/store (come variant-table).
 const PRICE_FORMAT = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' });
@@ -32,6 +34,17 @@ export class ProductReviewStepComponent {
   readonly variants = input.required<readonly VariantDraft[]>();
 
   protected readonly variantCount = computed(() => this.variants().length);
+
+  // UX conservativa: chip Taglia/Colore derivate dagli assi per nome.
+  protected readonly sizeName = OPTION_NAME_SIZE;
+  protected readonly colorName = OPTION_NAME_COLOR;
+  protected readonly sizes = computed(() => axisValues(this.options().axes, OPTION_NAME_SIZE));
+  protected readonly colors = computed(() => axisValues(this.options().axes, OPTION_NAME_COLOR));
+
+  /** Valore della variante per l'asse indicato (per la tabella di riepilogo). */
+  protected optionValue(variant: VariantDraft, name: string): string {
+    return selectedOptionValue(variant.optionValues, name);
+  }
 
   protected statusLabel(status: ProductStatus): string {
     return productStatusLabel(status);

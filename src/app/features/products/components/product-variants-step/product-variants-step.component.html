@@ -19,8 +19,8 @@
       <tbody>
         @for (group of variantsArray.controls; track group; let i = $index) {
           <tr class="variants-step__row" [formGroupName]="i">
-            <td class="variants-step__fixed" data-label="Taglia">{{ meta(i).size || '—' }}</td>
-            <td class="variants-step__fixed" data-label="Colore">{{ meta(i).color || '—' }}</td>
+            <td class="variants-step__fixed" data-label="Taglia">{{ metaSize(i) || '—' }}</td>
+            <td class="variants-step__fixed" data-label="Colore">{{ metaColor(i) || '—' }}</td>
             <td data-label="SKU">
               <div class="variants-step__field">
                 <input
@@ -36,7 +36,7 @@
                       : null
                   "
                   [attr.aria-label]="
-                    'SKU per ' + (meta(i).size || '—') + ' ' + (meta(i).color || '—')
+                    'SKU per ' + (metaSize(i) || '—') + ' ' + (metaColor(i) || '—')
                   "
                 />
                 @if (isInvalid(group, 'sku')) {
@@ -66,7 +66,7 @@
                   step="0.01"
                   formControlName="sellingPrice"
                   [attr.aria-invalid]="isInvalid(group, 'sellingPrice') ? true : null"
-                  [attr.aria-label]="'Prezzo di vendita per ' + (meta(i).size || '—')"
+                  [attr.aria-label]="'Prezzo di vendita per ' + (metaSize(i) || '—')"
                 />
                 @if (isInvalid(group, 'sellingPrice')) {
                   <p class="variants-step__error" role="alert">
@@ -89,7 +89,7 @@
                   step="0.01"
                   formControlName="purchasePrice"
                   [attr.aria-invalid]="isInvalid(group, 'purchasePrice') ? true : null"
-                  [attr.aria-label]="'Prezzo di acquisto per ' + (meta(i).size || '—')"
+                  [attr.aria-label]="'Prezzo di acquisto per ' + (metaSize(i) || '—')"
                 />
                 @if (isInvalid(group, 'purchasePrice')) {
                   <p class="variants-step__error" role="alert">
@@ -106,7 +106,7 @@
                   formControlName="barcode"
                   autocomplete="off"
                   [attr.aria-invalid]="isBarcodeInvalid(group) ? true : null"
-                  [attr.aria-label]="'Barcode per ' + (meta(i).size || '—')"
+                  [attr.aria-label]="'Barcode per ' + (metaSize(i) || '—')"
                 />
                 @if (isBarcodeInvalid(group)) {
                   <p class="variants-step__error" role="alert">

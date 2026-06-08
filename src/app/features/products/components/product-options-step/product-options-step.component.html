@@ -8,13 +8,13 @@
     <app-option-list-editor
       label="Taglie"
       placeholder="Aggiungi taglia (es. M)"
-      [values]="options().sizes"
+      [values]="sizes()"
       (valuesChange)="onSizesChange($event)"
     />
     <app-option-list-editor
       label="Colori"
       placeholder="Aggiungi colore (es. Rosso)"
-      [values]="options().colors"
+      [values]="colors()"
       (valuesChange)="onColorsChange($event)"
     />
   </div>
@@ -44,8 +44,8 @@
           @for (variant of variants(); track variant.key) {
             <tr class="options-step__table-row">
               <td class="options-step__sku" data-label="SKU suggerito">{{ variant.sku || '—' }}</td>
-              <td data-label="Taglia">{{ variant.size || '—' }}</td>
-              <td data-label="Colore">{{ variant.color || '—' }}</td>
+              <td data-label="Taglia">{{ optionValue(variant, sizeName) || '—' }}</td>
+              <td data-label="Colore">{{ optionValue(variant, colorName) || '—' }}</td>
             </tr>
           }
         </tbody>

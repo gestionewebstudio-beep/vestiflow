@@ -9,65 +9,30 @@ import type {
   UpdateProductDto,
   UpdateProductVariantDto,
 } from './product.dto';
+import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from './product-form.model';
 import type {
+  OptionAxisDraft,
   ProductFormDraft,
   ProductGeneralDraft,
   ProductOptionsDraft,
   VariantDraft,
 } from './product-form.model';
-import { suggestSku } from './product-sku.util';
+import { suggestVariantSku } from './product-sku.util';
+import { cartesianOptionValues, comboKey } from './product-variant.util';
 
-// Nomi opzione coerenti col catalogo mock e col modello a due assi (taglia/colore).
-export const OPTION_NAME_SIZE = 'Taglia';
-export const OPTION_NAME_COLOR = 'Colore';
-
-// Separatore non digitabile per la chiave d'identita' (taglia,colore).
-const COMBO_SEPARATOR = '\u0000';
-
-/** Chiave stabile di una combinazione: identifica la variante per (taglia,colore). */
-function variantComboKey(size: string, color: string): string {
-  return `${size}${COMBO_SEPARATOR}${color}`;
-}
-
-/** Dedup preservando l'ordine d'inserimento (generazione deterministica). */
-function distinctOrdered(values: readonly string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const value of values) {
-    if (!seen.has(value)) {
-      seen.add(value);
-      result.push(value);
-    }
-  }
-  return result;
+/** Assi di default per la creazione (UX conservativa: Taglia + Colore vuoti). */
+function defaultOptionAxes(): OptionAxisDraft[] {
+  return [
+    { name: OPTION_NAME_SIZE, values: [] },
+    { name: OPTION_NAME_COLOR, values: [] },
+  ];
 }
 
 /**
- * Combinazioni (prodotto cartesiano) degli assi non vuoti, in ordine stabile
- * (taglie esterne, colori interni). Un asse vuoto vale come singolo valore
- * neutro (''), cosi' un prodotto con sola taglia o solo colore genera comunque.
- * Nessun asse valorizzato -> nessuna combinazione.
- */
-function cartesianPairs(options: ProductOptionsDraft): readonly { size: string; color: string }[] {
-  if (options.sizes.length === 0 && options.colors.length === 0) {
-    return [];
-  }
-  const sizes = options.sizes.length > 0 ? distinctOrdered(options.sizes) : [''];
-  const colors = options.colors.length > 0 ? distinctOrdered(options.colors) : [''];
-  const pairs: { size: string; color: string }[] = [];
-  for (const size of sizes) {
-    for (const color of colors) {
-      pairs.push({ size, color });
-    }
-  }
-  return pairs;
-}
-
-/**
- * Rigenera le bozze variante dalle opzioni, preservando per (taglia,colore) i
- * dati gia' inseriti (id in edit, SKU/prezzi modificati a mano nell'8.6, flag
- * `included`). Le combinazioni nuove ricevono uno SKU suggerito non bloccante;
- * quelle non piu' presenti vengono scartate. Output deterministico e stabile.
+ * Rigenera le bozze variante dalle opzioni (prodotto cartesiano degli assi),
+ * preservando per combinazione i dati gia' inseriti (id in edit, SKU/prezzi
+ * modificati a mano, flag `included`). Le combinazioni nuove ricevono uno SKU
+ * suggerito non bloccante; quelle non piu' presenti vengono scartate.
  */
 export function generateVariantDrafts(
   options: ProductOptionsDraft,
@@ -76,21 +41,23 @@ export function generateVariantDrafts(
 ): VariantDraft[] {
   const existingByCombo = new Map<string, VariantDraft>();
   for (const variant of existing) {
-    existingByCombo.set(variantComboKey(variant.size, variant.color), variant);
+    existingByCombo.set(comboKey(variant.optionValues), variant);
   }
 
-  return cartesianPairs(options).map(({ size, color }) => {
-    const key = variantComboKey(size, color);
+  return cartesianOptionValues(options.axes).map((optionValues) => {
+    const key = comboKey(optionValues);
     const prev = existingByCombo.get(key);
     if (prev) {
       // Conserva i dati esistenti; la chiave resta agganciata alla combinazione.
-      return { ...prev, key, size, color };
+      return { ...prev, key, optionValues };
     }
     return {
       key,
-      size,
-      color,
-      sku: suggestSku(productName, size, color),
+      optionValues,
+      sku: suggestVariantSku(
+        productName,
+        optionValues.map((option) => option.value),
+      ),
       sellingPrice: 0,
       purchasePrice: null,
       barcode: '',
@@ -110,7 +77,7 @@ export function emptyProductFormDraft(): ProductFormDraft {
       season: '',
       status: ProductStatus.Draft,
     },
-    options: { sizes: [], colors: [] },
+    options: { axes: defaultOptionAxes() },
     variants: [],
   };
 }
@@ -121,21 +88,18 @@ function trimmedOrUndefined(value: string): string | undefined {
 }
 
 function buildOptionDtos(options: ProductOptionsDraft): ProductOptionDto[] {
-  const dtos: ProductOptionDto[] = [];
-  if (options.sizes.length > 0) {
-    dtos.push({ name: OPTION_NAME_SIZE, values: [...options.sizes] });
-  }
-  if (options.colors.length > 0) {
-    dtos.push({ name: OPTION_NAME_COLOR, values: [...options.colors] });
-  }
-  return dtos;
+  return options.axes
+    .filter((axis) => axis.values.length > 0)
+    .map((axis) => ({ name: axis.name, values: [...axis.values] }));
 }
 
 function toVariantBase(variant: VariantDraft): CreateProductVariantDto {
   return {
     sku: variant.sku.trim(),
-    size: variant.size,
-    color: variant.color,
+    optionValues: variant.optionValues.map((option) => ({
+      name: option.name,
+      value: option.value,
+    })),
     sellingPrice: variant.sellingPrice,
     purchasePrice: variant.purchasePrice ?? undefined,
     barcode: trimmedOrUndefined(variant.barcode),
@@ -181,13 +145,31 @@ export function toUpdateProductDto(draft: ProductFormDraft): UpdateProductDto {
   };
 }
 
-function distinct(values: readonly string[]): string[] {
-  return [...new Set(values)];
+/**
+ * Assi del draft derivati dalle opzioni del prodotto (autoritative). Fallback:
+ * se il prodotto non ha opzioni, li ricava dai valori presenti nelle varianti.
+ */
+function axesFromProduct(product: Product, variants: readonly ProductVariant[]): OptionAxisDraft[] {
+  if (product.options.length > 0) {
+    return product.options.map((option) => ({ name: option.name, values: [...option.values] }));
+  }
+  const byName = new Map<string, string[]>();
+  for (const variant of variants) {
+    for (const option of variant.optionValues) {
+      const values = byName.get(option.name) ?? [];
+      if (!values.includes(option.value)) {
+        values.push(option.value);
+      }
+      byName.set(option.name, values);
+    }
+  }
+  return [...byName].map(([name, values]) => ({ name, values }));
 }
 
 /**
- * Ricostruisce un draft dai dati esistenti (prefill in edit). Taglie e colori
- * sono derivati dalle varianti, cosi' il prefill non dipende dai nomi opzione.
+ * Ricostruisce un draft dai dati esistenti (prefill in edit). Gli assi derivano
+ * dalle opzioni del prodotto; ogni variante porta direttamente le sue
+ * `optionValues`, così il prefill è coerente col modello generico.
  */
 export function productToFormDraft(
   product: Product,
@@ -204,8 +186,10 @@ export function productToFormDraft(
   const variantDrafts: VariantDraft[] = variants.map((variant) => ({
     key: variant.id,
     id: variant.id,
-    size: variant.size,
-    color: variant.color,
+    optionValues: variant.optionValues.map((option) => ({
+      name: option.name,
+      value: option.value,
+    })),
     sku: variant.sku,
     sellingPrice: variant.sellingPrice,
     purchasePrice: variant.purchasePrice ?? null,
@@ -214,10 +198,7 @@ export function productToFormDraft(
   }));
   return {
     general,
-    options: {
-      sizes: distinct(variants.map((variant) => variant.size)),
-      colors: distinct(variants.map((variant) => variant.color)),
-    },
+    options: { axes: axesFromProduct(product, variants) },
     variants: variantDrafts,
   };
 }

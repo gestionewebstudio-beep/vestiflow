@@ -88,7 +88,7 @@
           description="Questo prodotto non ha ancora varianti."
         />
       } @else {
-        <app-product-variant-table [variants]="variants()" />
+        <app-product-variant-table [variants]="variants()" [options]="p.options" />
       }
 
       <p class="product-detail__hint">

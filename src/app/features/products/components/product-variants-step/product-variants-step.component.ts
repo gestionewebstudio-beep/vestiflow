@@ -20,9 +20,12 @@ import {
 import type { Subscription } from 'rxjs';
 
 import type { EntityId } from '@core/models/common.model';
+import type { SelectedOption } from '@core/models/product.model';
 
+import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '../../models/product-form.model';
 import type { VariantDraft } from '../../models/product-form.model';
 import { isBarcodeDistinct, normalizeSku, SKU_PATTERN } from '../../models/product-form.validators';
+import { selectedOptionValue } from '../../models/product-variant.util';
 
 interface VariantRowControls {
   sku: FormControl<string>;
@@ -36,11 +39,10 @@ interface VariantRowControls {
 interface VariantRowMeta {
   readonly key: string;
   readonly id?: EntityId;
-  readonly size: string;
-  readonly color: string;
+  readonly optionValues: readonly SelectedOption[];
 }
 
-const EMPTY_META: VariantRowMeta = { key: '', size: '', color: '' };
+const EMPTY_META: VariantRowMeta = { key: '', optionValues: [] };
 
 /**
  * Step "Varianti" del wizard (presentazionale con FormArray tipizzato). Espone
@@ -107,6 +109,16 @@ export class ProductVariantsStepComponent {
     return this.rowsMeta()[index] ?? EMPTY_META;
   }
 
+  /** Valore Taglia della riga (UX conservativa, derivato dalle optionValues). */
+  protected metaSize(index: number): string {
+    return selectedOptionValue(this.meta(index).optionValues, OPTION_NAME_SIZE);
+  }
+
+  /** Valore Colore della riga (UX conservativa, derivato dalle optionValues). */
+  protected metaColor(index: number): string {
+    return selectedOptionValue(this.meta(index).optionValues, OPTION_NAME_COLOR);
+  }
+
   /** True se lo SKU corrente risulta gia' in uso da un altro prodotto. */
   protected isSkuTaken(sku: string): boolean {
     const normalized = normalizeSku(sku);
@@ -119,7 +131,7 @@ export class ProductVariantsStepComponent {
     const meta: VariantRowMeta[] = [];
     for (const variant of variants) {
       this.variantsArray.push(this.buildRow(variant), { emitEvent: false });
-      meta.push({ key: variant.key, id: variant.id, size: variant.size, color: variant.color });
+      meta.push({ key: variant.key, id: variant.id, optionValues: variant.optionValues });
     }
     this.rowsMeta.set(meta);
     this.suppressEmit = false;
@@ -175,8 +187,7 @@ export class ProductVariantsStepComponent {
       result.push({
         key: rowMeta.key,
         id: rowMeta.id,
-        size: rowMeta.size,
-        color: rowMeta.color,
+        optionValues: rowMeta.optionValues,
         sku: raw.sku,
         sellingPrice: raw.sellingPrice,
         purchasePrice: raw.purchasePrice,

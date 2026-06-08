@@ -2,8 +2,9 @@
   <thead class="variant-table__head">
     <tr>
       <th scope="col">SKU</th>
-      <th scope="col">Taglia</th>
-      <th scope="col">Colore</th>
+      @for (name of optionNames(); track name) {
+        <th scope="col">{{ name }}</th>
+      }
       <th scope="col" class="variant-table__cell--numeric">Prezzo</th>
       <th scope="col">Barcode</th>
     </tr>
@@ -13,8 +14,9 @@
     @for (variant of variants(); track variant.id) {
       <tr class="variant-table__row">
         <td class="variant-table__sku" data-label="SKU">{{ variant.sku }}</td>
-        <td data-label="Taglia">{{ variant.size }}</td>
-        <td data-label="Colore">{{ variant.color }}</td>
+        @for (name of optionNames(); track name) {
+          <td [attr.data-label]="name">{{ optionValue(variant, name) }}</td>
+        }
         <td class="variant-table__cell--numeric tabular-nums" data-label="Prezzo">
           {{ formatPrice(variant.sellingPrice) }}
         </td>

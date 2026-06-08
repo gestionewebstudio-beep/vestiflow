@@ -11,11 +11,17 @@ export interface ProductOptionDto {
   readonly values: readonly string[];
 }
 
+/** Valore opzione di una variante (forma Shopify `selectedOptions`). */
+export interface SelectedOptionDto {
+  readonly name: string;
+  readonly value: string;
+}
+
 /** Variante in creazione. Lo SKU e' obbligatorio e univoco (vincolo server). */
 export interface CreateProductVariantDto {
   readonly sku: string;
-  readonly size: string;
-  readonly color: string;
+  /** Valori opzione (1-3 assi), es. [{Taglia,M},{Colore,Rosso}]. */
+  readonly optionValues: readonly SelectedOptionDto[];
   readonly sellingPrice: Money;
   readonly purchasePrice?: Money;
   readonly barcode?: string;

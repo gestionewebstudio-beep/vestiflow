@@ -3,6 +3,8 @@ import type { ProductVariant } from '@core/models/product-variant.model';
 import { ProductStatus } from '@core/models/product.model';
 import type { Product, ProductOption } from '@core/models/product.model';
 
+import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '../models/product-form.model';
+
 const TENANT_ID: EntityId = 'tenant-demo';
 const CREATED_AT: IsoDateString = '2025-09-01T08:00:00.000Z';
 
@@ -262,8 +264,8 @@ function colorCode(color: string): string {
 
 function buildOptions(seed: ProductSeed): readonly ProductOption[] {
   return [
-    { name: 'Taglia', values: seed.sizes },
-    { name: 'Colore', values: seed.colors },
+    { name: OPTION_NAME_SIZE, values: seed.sizes },
+    { name: OPTION_NAME_COLOR, values: seed.colors },
   ];
 }
 
@@ -275,8 +277,10 @@ function buildVariants(seed: ProductSeed): readonly ProductVariant[] {
         id: `${seed.id}-${size}-${colorCode(color)}`.toLowerCase(),
         productId: seed.id,
         sku: `${seed.id.toUpperCase()}-${size}-${colorCode(color)}`,
-        size,
-        color,
+        optionValues: [
+          { name: OPTION_NAME_SIZE, value: size },
+          { name: OPTION_NAME_COLOR, value: color },
+        ],
         sellingPrice: seed.price,
       });
     }
