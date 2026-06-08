@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  HostListener,
   inject,
   signal,
 } from '@angular/core';
@@ -112,6 +113,19 @@ export class ProductFormComponent {
   // Stato del form condiviso tra gli step. In edit viene prefillato al load.
   protected readonly draft = signal<ProductFormDraft>(emptyProductFormDraft());
 
+  // Baseline per il rilevamento modifiche non salvate: serializzazione del draft
+  // al momento del load (vuoto in create, prefill in edit).
+  private readonly pristine = signal<string>(this.serialize(emptyProductFormDraft()));
+  // Diventa true dopo un salvataggio riuscito: disattiva il guard di uscita.
+  protected readonly saved = signal(false);
+  protected readonly isDirty = computed(
+    () => !this.saved() && this.serialize(this.draft()) !== this.pristine(),
+  );
+
+  // Stato submit (dichiarati prima del pipe di load, che usa resetDraft in init).
+  private readonly _submitState = signal<'idle' | 'submitting' | 'error'>('idle');
+  protected readonly submitError = signal<AppError | null>(null);
+
   private readonly loadTick = signal(0);
   private readonly loadRequest = computed(() => ({ id: this.productId(), tick: this.loadTick() }));
 
@@ -119,14 +133,14 @@ export class ProductFormComponent {
     toObservable(this.loadRequest).pipe(
       switchMap(({ id }) => {
         if (!id) {
-          this.draft.set(emptyProductFormDraft());
+          this.resetDraft(emptyProductFormDraft());
           return of<FormLoadState>({ status: 'ready' });
         }
         return forkJoin({
           product: this.service.getProductById(id),
           variants: this.service.getProductVariants(id),
         }).pipe(
-          tap(({ product, variants }) => this.draft.set(productToFormDraft(product, variants))),
+          tap(({ product, variants }) => this.resetDraft(productToFormDraft(product, variants))),
           map((): FormLoadState => ({ status: 'ready' })),
           startWith<FormLoadState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.toErrorState(err))),
@@ -255,8 +269,6 @@ export class ProductFormComponent {
   }
 
   // ── Submit (create/update) ────────────────────────────────────────────────
-  private readonly _submitState = signal<'idle' | 'submitting' | 'error'>('idle');
-  protected readonly submitError = signal<AppError | null>(null);
   protected readonly submitting = computed(() => this._submitState() === 'submitting');
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private submitSub?: Subscription;
@@ -282,6 +294,8 @@ export class ProductFormComponent {
 
     this.submitSub = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (product) => {
+        // Bypassa il guard "modifiche non salvate": il salvataggio è riuscito.
+        this.saved.set(true);
         void this.router.navigateByUrl(`${PRODUCTS_LIST_PATH}/${product.id}`);
       },
       error: (err: unknown) => {
@@ -321,6 +335,40 @@ export class ProductFormComponent {
   protected cancel(): void {
     const id = this.productId();
     void this.router.navigateByUrl(id ? `${PRODUCTS_LIST_PATH}/${id}` : PRODUCTS_LIST_PATH);
+  }
+
+  // ── Modifiche non salvate ─────────────────────────────────────────────────
+  /**
+   * Chiamato dal CanDeactivate guard. Consente l'uscita se non ci sono modifiche
+   * non salvate, altrimenti chiede conferma esplicita (soluzione minimale: nessun
+   * sistema di modali nel progetto).
+   */
+  canDeactivate(): boolean {
+    if (!this.isDirty()) {
+      return true;
+    }
+    return window.confirm('Hai modifiche non salvate. Vuoi uscire dalla pagina e perderle?');
+  }
+
+  // Protezione a livello browser (refresh/chiusura tab/back verso l'esterno).
+  @HostListener('window:beforeunload', ['$event'])
+  protected onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.isDirty()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }
+
+  private resetDraft(draft: ProductFormDraft): void {
+    this.draft.set(draft);
+    this.pristine.set(this.serialize(draft));
+    this.saved.set(false);
+    this._submitState.set('idle');
+    this.submitError.set(null);
+  }
+
+  private serialize(draft: ProductFormDraft): string {
+    return JSON.stringify(draft);
   }
 
   private initialLoadState(): FormLoadState {
