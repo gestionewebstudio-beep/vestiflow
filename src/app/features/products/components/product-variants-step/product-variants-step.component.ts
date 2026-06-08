@@ -22,10 +22,13 @@ import type { Subscription } from 'rxjs';
 import type { EntityId } from '@core/models/common.model';
 import type { SelectedOption } from '@core/models/product.model';
 
-import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '../../models/product-form.model';
 import type { VariantDraft } from '../../models/product-form.model';
 import { isBarcodeDistinct, normalizeSku, SKU_PATTERN } from '../../models/product-form.validators';
-import { selectedOptionValue } from '../../models/product-variant.util';
+import {
+  selectedOptionValue,
+  variantOptionNames,
+  variantTitle,
+} from '../../models/product-variant.util';
 
 interface VariantRowControls {
   sku: FormControl<string>;
@@ -105,18 +108,21 @@ export class ProductVariantsStepComponent {
     return this.form.controls.variants;
   }
 
+  /** Colonne opzione dinamiche in base agli assi attivi nelle varianti. */
+  protected readonly optionNames = computed(() => variantOptionNames(this.variants()));
+
   protected meta(index: number): VariantRowMeta {
     return this.rowsMeta()[index] ?? EMPTY_META;
   }
 
-  /** Valore Taglia della riga (UX conservativa, derivato dalle optionValues). */
-  protected metaSize(index: number): string {
-    return selectedOptionValue(this.meta(index).optionValues, OPTION_NAME_SIZE);
+  /** Valore della riga per l'asse indicato (derivato dalle optionValues). */
+  protected metaValue(index: number, name: string): string {
+    return selectedOptionValue(this.meta(index).optionValues, name);
   }
 
-  /** Valore Colore della riga (UX conservativa, derivato dalle optionValues). */
-  protected metaColor(index: number): string {
-    return selectedOptionValue(this.meta(index).optionValues, OPTION_NAME_COLOR);
+  /** Titolo della combinazione per le aria-label (es. "M / Rosso"). */
+  protected rowTitle(index: number): string {
+    return variantTitle(this.meta(index).optionValues) || '—';
   }
 
   /** True se lo SKU corrente risulta gia' in uso da un altro prodotto. */

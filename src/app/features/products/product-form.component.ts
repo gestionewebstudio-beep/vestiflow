@@ -47,7 +47,13 @@ import type {
   VariantDraft,
 } from './models/product-form.model';
 import type { SkuAvailabilityResult } from './models/product.dto';
-import { findDuplicateSkus, isBarcodeDistinct, isValidSku } from './models/product-form.validators';
+import {
+  findDuplicateAxisNames,
+  findDuplicateSkus,
+  isBarcodeDistinct,
+  isValidAxisName,
+  isValidSku,
+} from './models/product-form.validators';
 import type { ProductFilterOptions } from './models/product-list-query.model';
 import { ProductService } from './services/product.service';
 
@@ -208,8 +214,18 @@ export class ProductFormComponent {
     );
   });
 
-  // Step "Opzioni" valido se esiste almeno una combinazione generata.
-  private readonly optionsValid = computed(() => this.draft().variants.length > 0);
+  // Step "Opzioni" valido se: c'è almeno una combinazione generata e i nomi degli
+  // assi sono validi (non vuoti) e univoci (es. il 3° asse non duplica Taglia/Colore).
+  private readonly optionsValid = computed(() => {
+    if (this.draft().variants.length === 0) {
+      return false;
+    }
+    const names = this.draft().options.axes.map((axis) => axis.name);
+    if (names.some((name) => !isValidAxisName(name))) {
+      return false;
+    }
+    return findDuplicateAxisNames(names).length === 0;
+  });
 
   // Step "Varianti" valido: regole pure su ogni variante + nessun duplicato
   // intra-form + nessuno SKU gia' in uso lato "server".
@@ -253,8 +269,9 @@ export class ProductFormComponent {
   }
 
   /**
-   * Aggiorna le opzioni e rigenera le varianti per (taglia,colore), preservando
-   * i dati gia' inseriti e scartando le combinazioni non piu' esistenti.
+   * Aggiorna le opzioni e rigenera le varianti dal prodotto cartesiano degli
+   * assi, preservando i dati gia' inseriti (merge per proiezione sugli assi
+   * attivi) e scartando le combinazioni non piu' esistenti.
    */
   protected onOptionsChange(options: ProductOptionsDraft): void {
     this.draft.update((draft) => ({

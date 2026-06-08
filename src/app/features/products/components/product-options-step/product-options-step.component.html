@@ -1,7 +1,7 @@
 <div class="options-step">
   <p class="options-step__intro">
-    Definisci le opzioni del prodotto: le varianti vengono generate automaticamente combinando
-    taglie e colori.
+    Definisci le opzioni del prodotto: le varianti vengono generate automaticamente combinando i
+    valori inseriti.
   </p>
 
   <div class="options-step__editors">
@@ -18,6 +18,51 @@
       (valuesChange)="onColorsChange($event)"
     />
   </div>
+
+  <section class="options-step__third" aria-labelledby="third-axis-title">
+    <div class="options-step__third-header">
+      <h2 id="third-axis-title" class="options-step__third-title">Opzione aggiuntiva</h2>
+      @if (!hasThirdAxis()) {
+        <app-button variant="ghost" type="button" (click)="addThirdAxis()">
+          + Aggiungi opzione
+        </app-button>
+      } @else {
+        <app-button variant="ghost" type="button" (click)="removeThirdAxis()">
+          Rimuovi opzione
+        </app-button>
+      }
+    </div>
+
+    @if (!hasThirdAxis()) {
+      <p class="options-step__third-hint">
+        Oltre a Taglia e Colore puoi aggiungere una terza opzione (es. Materiale, Vestibilità).
+      </p>
+    } @else {
+      <div class="options-step__third-name">
+        <label class="options-step__label" for="third-axis-name">Nome opzione</label>
+        <input
+          id="third-axis-name"
+          class="options-step__name-input"
+          type="text"
+          autocomplete="off"
+          [value]="thirdAxisName()"
+          (input)="onThirdNameChange($any($event.target).value)"
+          [attr.aria-invalid]="thirdAxisError() ? true : null"
+          [attr.aria-describedby]="thirdAxisError() ? 'third-axis-name-error' : null"
+        />
+        @if (thirdAxisError(); as error) {
+          <p id="third-axis-name-error" class="options-step__error" role="alert">{{ error }}</p>
+        }
+      </div>
+
+      <app-option-list-editor
+        [label]="(thirdAxisName() || 'Opzione') + ' (valori)'"
+        placeholder="Aggiungi valore"
+        [values]="thirdAxisValues()"
+        (valuesChange)="onThirdValuesChange($event)"
+      />
+    }
+  </section>
 
   <section class="options-step__preview" aria-labelledby="variants-preview-title">
     <h2 id="variants-preview-title" class="options-step__preview-title">
@@ -36,23 +81,25 @@
         <thead class="options-step__table-head">
           <tr>
             <th scope="col">SKU suggerito</th>
-            <th scope="col">Taglia</th>
-            <th scope="col">Colore</th>
+            @for (name of previewNames(); track name) {
+              <th scope="col">{{ name }}</th>
+            }
           </tr>
         </thead>
         <tbody>
           @for (variant of variants(); track variant.key) {
             <tr class="options-step__table-row">
               <td class="options-step__sku" data-label="SKU suggerito">{{ variant.sku || '—' }}</td>
-              <td data-label="Taglia">{{ optionValue(variant, sizeName) || '—' }}</td>
-              <td data-label="Colore">{{ optionValue(variant, colorName) || '—' }}</td>
+              @for (name of previewNames(); track name) {
+                <td [attr.data-label]="name">{{ optionValue(variant, name) || '—' }}</td>
+              }
             </tr>
           }
         </tbody>
       </table>
     } @else {
       <p class="options-step__preview-empty">
-        Aggiungi almeno una taglia o un colore per generare le varianti.
+        Aggiungi almeno un valore di opzione per generare le varianti.
       </p>
     }
   </section>

@@ -1,15 +1,16 @@
 <form [formGroup]="form" class="variants-step">
   <p class="variants-step__intro">
-    Completa i dati di ogni variante. Lo SKU è precompilato ma modificabile; taglia e colore
-    derivano dalle opzioni.
+    Completa i dati di ogni variante. Lo SKU è precompilato ma modificabile; i valori delle opzioni
+    derivano dallo step precedente.
   </p>
 
   @if (variantsArray.length > 0) {
     <table class="variants-step__table" formArrayName="variants">
       <thead class="variants-step__head">
         <tr>
-          <th scope="col">Taglia</th>
-          <th scope="col">Colore</th>
+          @for (name of optionNames(); track name) {
+            <th scope="col">{{ name }}</th>
+          }
           <th scope="col">SKU</th>
           <th scope="col" class="variants-step__col--numeric">Prezzo vendita</th>
           <th scope="col" class="variants-step__col--numeric">Prezzo acquisto</th>
@@ -19,8 +20,11 @@
       <tbody>
         @for (group of variantsArray.controls; track group; let i = $index) {
           <tr class="variants-step__row" [formGroupName]="i">
-            <td class="variants-step__fixed" data-label="Taglia">{{ metaSize(i) || '—' }}</td>
-            <td class="variants-step__fixed" data-label="Colore">{{ metaColor(i) || '—' }}</td>
+            @for (name of optionNames(); track name) {
+              <td class="variants-step__fixed" [attr.data-label]="name">
+                {{ metaValue(i, name) || '—' }}
+              </td>
+            }
             <td data-label="SKU">
               <div class="variants-step__field">
                 <input
@@ -35,9 +39,7 @@
                       ? true
                       : null
                   "
-                  [attr.aria-label]="
-                    'SKU per ' + (metaSize(i) || '—') + ' ' + (metaColor(i) || '—')
-                  "
+                  [attr.aria-label]="'SKU per ' + rowTitle(i)"
                 />
                 @if (isInvalid(group, 'sku')) {
                   <p class="variants-step__error" role="alert">
@@ -66,7 +68,7 @@
                   step="0.01"
                   formControlName="sellingPrice"
                   [attr.aria-invalid]="isInvalid(group, 'sellingPrice') ? true : null"
-                  [attr.aria-label]="'Prezzo di vendita per ' + (metaSize(i) || '—')"
+                  [attr.aria-label]="'Prezzo di vendita per ' + rowTitle(i)"
                 />
                 @if (isInvalid(group, 'sellingPrice')) {
                   <p class="variants-step__error" role="alert">
@@ -89,7 +91,7 @@
                   step="0.01"
                   formControlName="purchasePrice"
                   [attr.aria-invalid]="isInvalid(group, 'purchasePrice') ? true : null"
-                  [attr.aria-label]="'Prezzo di acquisto per ' + (metaSize(i) || '—')"
+                  [attr.aria-label]="'Prezzo di acquisto per ' + rowTitle(i)"
                 />
                 @if (isInvalid(group, 'purchasePrice')) {
                   <p class="variants-step__error" role="alert">
@@ -106,7 +108,7 @@
                   formControlName="barcode"
                   autocomplete="off"
                   [attr.aria-invalid]="isBarcodeInvalid(group) ? true : null"
-                  [attr.aria-label]="'Barcode per ' + (metaSize(i) || '—')"
+                  [attr.aria-label]="'Barcode per ' + rowTitle(i)"
                 />
                 @if (isBarcodeInvalid(group)) {
                   <p class="variants-step__error" role="alert">

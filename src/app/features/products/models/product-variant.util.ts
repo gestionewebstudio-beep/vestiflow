@@ -24,6 +24,24 @@ export function variantTitle(values: readonly SelectedOption[]): string {
   return values.map((option) => option.value).join(' / ');
 }
 
+/**
+ * Nomi opzione presenti nelle varianti, in ordine di prima comparsa. Usato per
+ * derivare colonne/intestazioni dinamiche dalle combinazioni effettive.
+ */
+export function variantOptionNames(
+  variants: readonly { readonly optionValues: readonly SelectedOption[] }[],
+): string[] {
+  const names: string[] = [];
+  for (const variant of variants) {
+    for (const option of variant.optionValues) {
+      if (!names.includes(option.name)) {
+        names.push(option.name);
+      }
+    }
+  }
+  return names;
+}
+
 /** Chiave stabile di una combinazione: valori in ordine d'asse. */
 export function comboKey(values: readonly SelectedOption[]): string {
   return values.map((option) => option.value).join(COMBO_SEPARATOR);

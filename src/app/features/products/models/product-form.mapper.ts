@@ -18,7 +18,7 @@ import type {
   VariantDraft,
 } from './product-form.model';
 import { suggestVariantSku } from './product-sku.util';
-import { cartesianOptionValues, comboKey } from './product-variant.util';
+import { cartesianOptionValues, comboKey, selectedOptionValue } from './product-variant.util';
 
 /** Assi di default per la creazione (UX conservativa: Taglia + Colore vuoti). */
 function defaultOptionAxes(): OptionAxisDraft[] {
@@ -30,18 +30,33 @@ function defaultOptionAxes(): OptionAxisDraft[] {
 
 /**
  * Rigenera le bozze variante dalle opzioni (prodotto cartesiano degli assi),
- * preservando per combinazione i dati gia' inseriti (id in edit, SKU/prezzi
- * modificati a mano, flag `included`). Le combinazioni nuove ricevono uno SKU
- * suggerito non bloccante; quelle non piu' presenti vengono scartate.
+ * preservando i dati gia' inseriti (id in edit, SKU/prezzi modificati a mano,
+ * flag `included`). Il match con le varianti esistenti avviene per *proiezione*
+ * sui soli assi attivi correnti: cosi' il rename di un asse (i valori non
+ * cambiano) conserva i dati, e la rimozione di un asse collassa le combinazioni
+ * sulla coppia rimanente conservando la PRIMA in ordine di generazione. Le
+ * combinazioni nuove ricevono uno SKU suggerito non bloccante; quelle non piu'
+ * presenti vengono scartate.
  */
 export function generateVariantDrafts(
   options: ProductOptionsDraft,
   productName: string,
   existing: readonly VariantDraft[] = [],
 ): VariantDraft[] {
+  const activeNames = options.axes
+    .filter((axis) => axis.values.length > 0)
+    .map((axis) => axis.name);
+  const projectedKey = (values: readonly { name: string; value: string }[]): string =>
+    comboKey(activeNames.map((name) => ({ name, value: selectedOptionValue(values, name) })));
+
   const existingByCombo = new Map<string, VariantDraft>();
   for (const variant of existing) {
-    existingByCombo.set(comboKey(variant.optionValues), variant);
+    const key = projectedKey(variant.optionValues);
+    // Prima occorrenza vince (rilevante quando la rimozione di un asse collassa
+    // piu' varianti sulla stessa combinazione rimanente).
+    if (!existingByCombo.has(key)) {
+      existingByCombo.set(key, variant);
+    }
   }
 
   return cartesianOptionValues(options.axes).map((optionValues) => {

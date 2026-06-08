@@ -42,34 +42,23 @@
   <section class="review-step__section" aria-labelledby="review-options-title">
     <h2 id="review-options-title" class="review-step__section-title">Opzioni</h2>
     <dl class="review-step__list">
-      <div class="review-step__row review-step__row--block">
-        <dt>Taglie</dt>
-        <dd>
-          @if (sizes().length > 0) {
+      @for (axis of activeAxes(); track axis.name) {
+        <div class="review-step__row review-step__row--block">
+          <dt>{{ axis.name }}</dt>
+          <dd>
             <ul class="review-step__chips">
-              @for (size of sizes(); track size) {
-                <li class="review-step__chip">{{ size }}</li>
+              @for (value of axis.values; track value) {
+                <li class="review-step__chip">{{ value }}</li>
               }
             </ul>
-          } @else {
-            <span class="review-step__muted">—</span>
-          }
-        </dd>
-      </div>
-      <div class="review-step__row review-step__row--block">
-        <dt>Colori</dt>
-        <dd>
-          @if (colors().length > 0) {
-            <ul class="review-step__chips">
-              @for (color of colors(); track color) {
-                <li class="review-step__chip">{{ color }}</li>
-              }
-            </ul>
-          } @else {
-            <span class="review-step__muted">—</span>
-          }
-        </dd>
-      </div>
+          </dd>
+        </div>
+      } @empty {
+        <div class="review-step__row review-step__row--block">
+          <dt>Opzioni</dt>
+          <dd><span class="review-step__muted">Nessuna opzione</span></dd>
+        </div>
+      }
     </dl>
   </section>
 
@@ -83,8 +72,9 @@
       <thead class="review-step__table-head">
         <tr>
           <th scope="col">SKU</th>
-          <th scope="col">Taglia</th>
-          <th scope="col">Colore</th>
+          @for (name of optionNames(); track name) {
+            <th scope="col">{{ name }}</th>
+          }
           <th scope="col" class="review-step__col--numeric">Prezzo vendita</th>
           <th scope="col" class="review-step__col--numeric">Prezzo acquisto</th>
           <th scope="col">Barcode</th>
@@ -94,8 +84,9 @@
         @for (variant of variants(); track variant.key) {
           <tr class="review-step__table-row">
             <td class="review-step__sku" data-label="SKU">{{ variant.sku || '—' }}</td>
-            <td data-label="Taglia">{{ optionValue(variant, sizeName) || '—' }}</td>
-            <td data-label="Colore">{{ optionValue(variant, colorName) || '—' }}</td>
+            @for (name of optionNames(); track name) {
+              <td [attr.data-label]="name">{{ optionValue(variant, name) || '—' }}</td>
+            }
             <td class="review-step__numeric" data-label="Prezzo vendita">
               {{ formatPrice(variant.sellingPrice) }}
             </td>
