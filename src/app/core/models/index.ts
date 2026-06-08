@@ -4,6 +4,7 @@ export * from './api.model';
 export * from './shopify.model';
 export * from './tenant.model';
 export * from './store.model';
+export * from './location.model';
 export * from './user.model';
 export * from './product.model';
 export * from './product-variant.model';
