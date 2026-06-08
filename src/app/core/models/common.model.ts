@@ -7,11 +7,13 @@ export type EntityId = string;
 /** Data/ora in formato ISO 8601 (es. '2026-06-05T08:30:00.000Z'). */
 export type IsoDateString = string;
 
-/** Importo monetario in unita' maggiori della valuta dello store (es. 19.90). */
-export type Money = number;
-
 /** Codice valuta ISO 4217 (es. 'EUR'). */
 export type CurrencyCode = string;
+
+// Ponte di compatibilità: `Money` è ora un value object (unità minori intere)
+// definito in money.model.ts. Lo re-export da qui mantiene validi tutti gli
+// import esistenti `from '@core/models/common.model'` senza churn.
+export type { Money } from './money.model';
 
 /** Entita' appartenente a un tenant (multi-tenant obbligatorio). */
 export interface TenantScoped {

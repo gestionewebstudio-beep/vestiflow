@@ -217,6 +217,7 @@ export class ProductService {
       optionValues: dto.optionValues.map((option) => ({ name: option.name, value: option.value })),
       sellingPrice: dto.sellingPrice,
       purchasePrice: dto.purchasePrice,
+      compareAtPrice: dto.compareAtPrice,
       barcode: dto.barcode,
       shopifyVariantId: dto.shopifyVariantId,
       shopifyInventoryItemId: dto.shopifyInventoryItemId,

@@ -24,6 +24,8 @@ export interface CreateProductVariantDto {
   readonly optionValues: readonly SelectedOptionDto[];
   readonly sellingPrice: Money;
   readonly purchasePrice?: Money;
+  /** Prezzo "barrato" (precedente). Stessa valuta di sellingPrice, valore maggiore. */
+  readonly compareAtPrice?: Money;
   readonly barcode?: string;
   // Mapping Shopify opzionale: solo ID pubblici, nessun token nel frontend.
   readonly shopifyVariantId?: string;

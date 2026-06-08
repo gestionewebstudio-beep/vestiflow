@@ -1,6 +1,7 @@
 import { ProductStatus } from '@core/models/product.model';
 import type { Product } from '@core/models/product.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
+import { DEFAULT_CURRENCY, moneyFromMajor, moneyToMajor } from '@core/utils/money.util';
 
 import type {
   CreateProductDto,
@@ -75,6 +76,7 @@ export function generateVariantDrafts(
       ),
       sellingPrice: 0,
       purchasePrice: null,
+      compareAtPrice: null,
       barcode: '',
       included: true,
     };
@@ -109,14 +111,23 @@ function buildOptionDtos(options: ProductOptionsDraft): ProductOptionDto[] {
 }
 
 function toVariantBase(variant: VariantDraft): CreateProductVariantDto {
+  // Ponte form->dominio: i prezzi del form sono in unità maggiori (number);
+  // qui diventano Money (unità minori) nella valuta di default.
   return {
     sku: variant.sku.trim(),
     optionValues: variant.optionValues.map((option) => ({
       name: option.name,
       value: option.value,
     })),
-    sellingPrice: variant.sellingPrice,
-    purchasePrice: variant.purchasePrice ?? undefined,
+    sellingPrice: moneyFromMajor(variant.sellingPrice, DEFAULT_CURRENCY),
+    purchasePrice:
+      variant.purchasePrice != null
+        ? moneyFromMajor(variant.purchasePrice, DEFAULT_CURRENCY)
+        : undefined,
+    compareAtPrice:
+      variant.compareAtPrice != null
+        ? moneyFromMajor(variant.compareAtPrice, DEFAULT_CURRENCY)
+        : undefined,
     barcode: trimmedOrUndefined(variant.barcode),
   };
 }
@@ -206,8 +217,10 @@ export function productToFormDraft(
       value: option.value,
     })),
     sku: variant.sku,
-    sellingPrice: variant.sellingPrice,
-    purchasePrice: variant.purchasePrice ?? null,
+    // Ponte dominio->form: Money (unità minori) torna a number in unità maggiori.
+    sellingPrice: moneyToMajor(variant.sellingPrice),
+    purchasePrice: variant.purchasePrice != null ? moneyToMajor(variant.purchasePrice) : null,
+    compareAtPrice: variant.compareAtPrice != null ? moneyToMajor(variant.compareAtPrice) : null,
     barcode: variant.barcode ?? '',
     included: true,
   }));

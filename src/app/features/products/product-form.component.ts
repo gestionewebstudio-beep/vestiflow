@@ -166,6 +166,10 @@ export class ProductFormComponent {
   protected readonly categories = computed(() => this.filterOptions()?.categories ?? []);
   protected readonly seasons = computed(() => this.filterOptions()?.seasons ?? []);
 
+  // Validità del formato compareAtPrice (testo libero) riportata dallo step
+  // varianti: non rappresentabile nel draft numerico, quindi gating dedicato.
+  private readonly variantsStepValid = signal(true);
+
   // SKU non vuoti delle varianti correnti, per la verifica di disponibilita'.
   private readonly variantSkus = computed(() =>
     this.draft()
@@ -240,6 +244,11 @@ export class ProductFormComponent {
     if (this.takenSkus().length > 0) {
       return false;
     }
+    // Il prezzo barrato (testo) è validato dallo step: il formato non valido non
+    // è rappresentabile nel draft numerico, quindi entra qui via signal dedicato.
+    if (!this.variantsStepValid()) {
+      return false;
+    }
     return variants.every(
       (variant) =>
         isValidSku(variant.sku) &&
@@ -283,6 +292,10 @@ export class ProductFormComponent {
 
   protected onVariantsChange(variants: readonly VariantDraft[]): void {
     this.draft.update((draft) => ({ ...draft, variants }));
+  }
+
+  protected onVariantsValidChange(valid: boolean): void {
+    this.variantsStepValid.set(valid);
   }
 
   // ── Submit (create/update) ────────────────────────────────────────────────

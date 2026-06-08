@@ -61,6 +61,7 @@
             [variants]="draft().variants"
             [takenSkus]="takenSkus()"
             (variantsChange)="onVariantsChange($event)"
+            (stepValidChange)="onVariantsValidChange($event)"
           />
         }
         @case ('review') {

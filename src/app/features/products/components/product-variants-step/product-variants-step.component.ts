@@ -21,9 +21,22 @@ import type { Subscription } from 'rxjs';
 
 import type { EntityId } from '@core/models/common.model';
 import type { SelectedOption } from '@core/models/product.model';
+import {
+  DEFAULT_CURRENCY,
+  moneyFromMajor,
+  moneyToDecimalString,
+  moneyToMajor,
+  parseMoneyInput,
+} from '@core/utils/money.util';
 
 import type { VariantDraft } from '../../models/product-form.model';
-import { isBarcodeDistinct, normalizeSku, SKU_PATTERN } from '../../models/product-form.validators';
+import type { CompareAtError } from '../../models/product-form.validators';
+import {
+  compareAtPriceError,
+  isBarcodeDistinct,
+  normalizeSku,
+  SKU_PATTERN,
+} from '../../models/product-form.validators';
 import {
   selectedOptionValue,
   variantOptionNames,
@@ -34,6 +47,8 @@ interface VariantRowControls {
   sku: FormControl<string>;
   sellingPrice: FormControl<number>;
   purchasePrice: FormControl<number | null>;
+  // Prezzo barrato come testo: parsing robusto via parseMoneyInput (it-IT).
+  compareAtPrice: FormControl<string>;
   barcode: FormControl<string>;
 }
 
@@ -69,6 +84,12 @@ export class ProductVariantsStepComponent {
   /** SKU gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
   readonly takenSkus = input<readonly string[]>([]);
   readonly variantsChange = output<readonly VariantDraft[]>();
+  /**
+   * Validità complessiva dello step (formato SKU/prezzi/barcode + regola
+   * compareAtPrice). Il parent la include nel gating: il prezzo barrato è testo
+   * libero, quindi un formato non valido non è rappresentabile nel draft numerico.
+   */
+  readonly stepValidChange = output<boolean>();
 
   private readonly takenSet = computed(() => new Set(this.takenSkus()));
 
@@ -100,6 +121,7 @@ export class ProductVariantsStepComponent {
       .subscribe(() => {
         if (!this.suppressEmit) {
           this.variantsChange.emit(this.collect());
+          this.emitValidity();
         }
       });
   }
@@ -141,6 +163,7 @@ export class ProductVariantsStepComponent {
     }
     this.rowsMeta.set(meta);
     this.suppressEmit = false;
+    this.emitValidity();
   }
 
   private buildRow(variant: VariantDraft): FormGroup<VariantRowControls> {
@@ -148,8 +171,14 @@ export class ProductVariantsStepComponent {
       sku: this.fb.control(variant.sku, [Validators.required, Validators.pattern(SKU_PATTERN)]),
       sellingPrice: this.fb.control(variant.sellingPrice, [Validators.required, Validators.min(0)]),
       purchasePrice: this.fb.control<number | null>(variant.purchasePrice, [Validators.min(0)]),
+      compareAtPrice: this.fb.control(this.compareAtToText(variant.compareAtPrice)),
       barcode: this.fb.control(variant.barcode),
     });
+  }
+
+  /** number (unità maggiori) -> testo per il campo compareAtPrice ('' se assente). */
+  private compareAtToText(value: number | null): string {
+    return value != null ? moneyToDecimalString(moneyFromMajor(value, DEFAULT_CURRENCY)) : '';
   }
 
   /** Errore di formato del controllo, mostrato solo dopo interazione (touched). */
@@ -181,6 +210,26 @@ export class ProductVariantsStepComponent {
     return !isBarcodeDistinct(group.controls.sku.value, group.controls.barcode.value);
   }
 
+  /** Esito della regola compareAtPrice per la riga (delegata all'helper puro). */
+  protected compareAtError(group: FormGroup<VariantRowControls>): CompareAtError {
+    return compareAtPriceError(
+      group.controls.sellingPrice.value,
+      group.controls.compareAtPrice.value,
+    );
+  }
+
+  /** Mostra l'errore compareAtPrice solo dopo interazione (touched). */
+  protected isCompareAtInvalid(group: FormGroup<VariantRowControls>): boolean {
+    return this.compareAtError(group) !== null && group.controls.compareAtPrice.touched;
+  }
+
+  private emitValidity(): void {
+    const valid =
+      this.variantsArray.valid &&
+      this.variantsArray.controls.every((group) => this.compareAtError(group) === null);
+    this.stepValidChange.emit(valid);
+  }
+
   private collect(): readonly VariantDraft[] {
     const meta = this.rowsMeta();
     const result: VariantDraft[] = [];
@@ -190,6 +239,9 @@ export class ProductVariantsStepComponent {
         return;
       }
       const raw = group.getRawValue();
+      // Testo utente -> number (unità maggiori) via parseMoneyInput; '' o non
+      // parsabile -> null (la validità di formato è gestita da emitValidity()).
+      const compareAtMoney = parseMoneyInput(raw.compareAtPrice, DEFAULT_CURRENCY);
       result.push({
         key: rowMeta.key,
         id: rowMeta.id,
@@ -197,6 +249,7 @@ export class ProductVariantsStepComponent {
         sku: raw.sku,
         sellingPrice: raw.sellingPrice,
         purchasePrice: raw.purchasePrice,
+        compareAtPrice: compareAtMoney != null ? moneyToMajor(compareAtMoney) : null,
         barcode: raw.barcode,
         included: true,
       });

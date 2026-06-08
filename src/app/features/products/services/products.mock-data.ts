@@ -1,7 +1,8 @@
-import type { EntityId, IsoDateString, Money } from '@core/models/common.model';
+import type { EntityId, IsoDateString } from '@core/models/common.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import { ProductStatus } from '@core/models/product.model';
 import type { Product, ProductOption } from '@core/models/product.model';
+import { DEFAULT_CURRENCY, moneyFromMajor } from '@core/utils/money.util';
 
 import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '../models/product-form.model';
 
@@ -17,7 +18,10 @@ interface ProductSeed {
   readonly status: ProductStatus;
   readonly sizes: readonly string[];
   readonly colors: readonly string[];
-  readonly price: Money;
+  /** Prezzo in unità maggiori (demo). Convertito in Money minor-units in build. */
+  readonly price: number;
+  /** Prezzo "barrato" opzionale (demo): se presente deve essere > price. */
+  readonly comparePrice?: number;
   readonly updatedAt: IsoDateString;
 }
 
@@ -38,6 +42,7 @@ const SEEDS: readonly ProductSeed[] = [
     sizes: APPAREL_SIZES,
     colors: ['Blu', 'Rosso'],
     price: 24.9,
+    comparePrice: 29.9,
     updatedAt: '2026-05-18T10:00:00.000Z',
   },
   {
@@ -281,7 +286,11 @@ function buildVariants(seed: ProductSeed): readonly ProductVariant[] {
           { name: OPTION_NAME_SIZE, value: size },
           { name: OPTION_NAME_COLOR, value: color },
         ],
-        sellingPrice: seed.price,
+        sellingPrice: moneyFromMajor(seed.price, DEFAULT_CURRENCY),
+        compareAtPrice:
+          seed.comparePrice != null
+            ? moneyFromMajor(seed.comparePrice, DEFAULT_CURRENCY)
+            : undefined,
       });
     }
   }

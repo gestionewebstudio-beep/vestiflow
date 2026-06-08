@@ -45,8 +45,11 @@ export interface VariantDraft {
   /** Valori opzione della combinazione (1-3 assi), forma Shopify. */
   readonly optionValues: readonly SelectedOption[];
   readonly sku: string;
+  /** Prezzi in unità maggiori (ponte form); il mapper li converte in Money. */
   readonly sellingPrice: number;
   readonly purchasePrice: number | null;
+  /** Prezzo "barrato" opzionale (unità maggiori). null = assente. */
+  readonly compareAtPrice: number | null;
   readonly barcode: string;
   /** L'utente puo' escludere singole combinazioni dalla generazione. */
   readonly included: boolean;

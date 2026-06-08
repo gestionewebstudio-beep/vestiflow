@@ -14,6 +14,7 @@
           <th scope="col">SKU</th>
           <th scope="col" class="variants-step__col--numeric">Prezzo vendita</th>
           <th scope="col" class="variants-step__col--numeric">Prezzo acquisto</th>
+          <th scope="col" class="variants-step__col--numeric">Prezzo barrato</th>
           <th scope="col">Barcode</th>
         </tr>
       </thead>
@@ -96,6 +97,32 @@
                 @if (isInvalid(group, 'purchasePrice')) {
                   <p class="variants-step__error" role="alert">
                     Il prezzo non può essere negativo.
+                  </p>
+                }
+              </div>
+            </td>
+            <td data-label="Prezzo barrato">
+              <div class="variants-step__field">
+                <input
+                  class="variants-step__input variants-step__input--numeric"
+                  type="text"
+                  inputmode="decimal"
+                  formControlName="compareAtPrice"
+                  autocomplete="off"
+                  placeholder="—"
+                  [attr.aria-invalid]="isCompareAtInvalid(group) ? true : null"
+                  [attr.aria-describedby]="
+                    isCompareAtInvalid(group) ? 'compare-at-error-' + i : null
+                  "
+                  [attr.aria-label]="'Prezzo barrato (opzionale) per ' + rowTitle(i)"
+                />
+                @if (isCompareAtInvalid(group)) {
+                  <p class="variants-step__error" role="alert" [id]="'compare-at-error-' + i">
+                    @if (compareAtError(group) === 'format') {
+                      Inserisci un importo valido (es. 29,90).
+                    } @else {
+                      Il prezzo barrato deve essere maggiore del prezzo di vendita.
+                    }
                   </p>
                 }
               </div>

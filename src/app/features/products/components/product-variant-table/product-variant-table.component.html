@@ -18,6 +18,9 @@
           <td [attr.data-label]="name">{{ optionValue(variant, name) }}</td>
         }
         <td class="variant-table__cell--numeric tabular-nums" data-label="Prezzo">
+          @if (variant.compareAtPrice) {
+            <span class="variant-table__compare-at">{{ formatPrice(variant.compareAtPrice) }}</span>
+          }
           {{ formatPrice(variant.sellingPrice) }}
         </td>
         <td class="tabular-nums" data-label="Barcode">{{ variant.barcode ?? '—' }}</td>

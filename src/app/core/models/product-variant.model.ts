@@ -16,6 +16,8 @@ export interface ProductVariant {
   // Opzionali ma raccomandati:
   readonly barcode?: string;
   readonly purchasePrice?: Money;
+  /** Prezzo "barrato" (precedente), più alto di sellingPrice. Shopify: compareAtPrice. */
+  readonly compareAtPrice?: Money;
   readonly shopifyVariantId?: string;
   readonly shopifyInventoryItemId?: string;
 }

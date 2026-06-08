@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import type { ProductStatus } from '@core/models/product.model';
+import {
+  DEFAULT_CURRENCY,
+  formatMoney,
+  isValidCompareAt,
+  moneyFromMajor,
+} from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
@@ -12,9 +18,6 @@ import type {
 } from '../../models/product-form.model';
 import { productStatusLabel, productStatusTone } from '../../models/product-status.util';
 import { selectedOptionValue, variantOptionNames } from '../../models/product-variant.util';
-
-// Valuta fissa EUR finche' non arriva il contesto tenant/store (come variant-table).
-const PRICE_FORMAT = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' });
 
 /**
  * Step "Riepilogo" del wizard (presentazionale). Mostra in sola lettura i dati
@@ -56,7 +59,20 @@ export class ProductReviewStepComponent {
     return productStatusTone(status);
   }
 
+  // Il draft del form tiene i prezzi in unità maggiori (ponte); qui li rendiamo
+  // currency-aware via formatMoney, coerenti con la tabella varianti.
   protected formatPrice(value: number): string {
-    return PRICE_FORMAT.format(value);
+    return formatMoney(moneyFromMajor(value, DEFAULT_CURRENCY));
+  }
+
+  /** Prezzo barrato mostrato solo se presente e valido (> prezzo di vendita). */
+  protected compareAtVisible(variant: VariantDraft): boolean {
+    if (variant.compareAtPrice == null) {
+      return false;
+    }
+    return isValidCompareAt(
+      moneyFromMajor(variant.sellingPrice, DEFAULT_CURRENCY),
+      moneyFromMajor(variant.compareAtPrice, DEFAULT_CURRENCY),
+    );
   }
 }

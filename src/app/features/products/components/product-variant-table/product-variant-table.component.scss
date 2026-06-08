@@ -43,6 +43,12 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.variant-table__compare-at {
+  margin-inline-end: var(--space-2);
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
 // ── Desktop: tabella vera ─────────────────────────────────────────────────────
 @include bp.media-up('lg') {
   .variant-table {
