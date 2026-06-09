@@ -21,7 +21,7 @@ In caso di conflitto:
 
 L'app gestisce:
 - prodotti e varianti (taglia, colore, SKU, barcode),
-- giacenze per negozio,
+- giacenze per location (multi-negozio/magazzino),
 - carico/scarico/trasferimenti,
 - ordini fornitori,
 - storico movimenti,
@@ -42,52 +42,91 @@ L'interfaccia deve privilegiare:
 
 ## Varianti prodotto
 - L'unità minima di inventario è la **variante**, non il prodotto.
+- Le varianti sono generate da **opzioni generiche** (`options: { name, values[] }[]`, semantica Shopify), non da campi fissi taglia/colore. Taglia e colore sono il caso comune, non lo schema.
 - Ogni variante DEVE avere:
-  - `id`
-  - `productId`
-  - `sku`
-  - `size`
-  - `color`
-  - `sellingPrice`
+ - `id`
+ - `productId`
+ - `sku`
+ - `optionValues` (mappa opzione → valore, es. `{ Taglia: 'M', Colore: 'Rosso' }`)
+ - `sellingPrice`
 - Campi opzionali ma fortemente raccomandati:
-  - `barcode`
-  - `purchasePrice`
-  - `shopifyVariantId`
-  - `shopifyInventoryItemId`
+ - `barcode`
+ - `purchasePrice`
+ - `compareAtPrice`
+ - `shopifyVariantId`
+ - `shopifyInventoryItemId`
 
-## Stock per negozio
+## SKU e Shopify — clausola di realtà
+- Lo SKU univoco è una **regola interna** (validata in form, bloccata in UI).
+- Shopify NON garantisce SKU univoci né presenti: in import/sync da Shopify, SKU duplicati o vuoti NON devono rompere il sync. Vanno importati e **segnalati come anomalie** da risolvere, non rifiutati.
+
+## Stock per location (non per negozio)
 - Lo stock NON vive direttamente sul prodotto o sulla variante.
-- Lo stock vive in una entità dedicata tipo `InventoryLevel` o equivalente:
-  - `variantId`
-  - `storeId`
-  - `quantity`
-  - `minThreshold`
-- È VIETATO rappresentare stock multi-negozio con proprietà hardcoded tipo:
-  - `stockNapoli`
-  - `stockMilano`
-  - `warehouse1Quantity`
+- Lo stock vive per **location** (semantica Shopify: il luogo fisico/logico che porta l'inventario), NON per "store". `Location` ≠ `Store`: lo store è l'entità commerciale/POS; una location (es. magazzino) può non avere store associato.
+- Entità dedicata `InventoryLevel`:
+ - `variantId`
+ - `locationId`
+ - quantità a stati: `onHand`, `available`, `committed`, `incoming`, `reserved` (allineate ai quantity states Shopify)
+ - `minThreshold`
+- È VIETATO rappresentare stock multi-location con proprietà hardcoded tipo:
+ - `stockNapoli`
+ - `stockMilano`
+ - `warehouse1Quantity`
 
 ## Movimenti
 - Ogni modifica inventariale significativa DEVE produrre un movimento tracciabile.
 - Entità minima: `StockMovement`
-  - `type`: `load | unload | transfer | adjustment | sale | return`
-  - `quantity`
-  - `storeId`
-  - `variantId`
-  - `createdAt`
-  - `createdBy`
+ - `type`: `load | unload | transfer | adjustment | sale | return`
+ - `quantity`
+ - `locationId` (e `targetLocationId` per i trasferimenti)
+ - `variantId` + snapshot `sku`
+ - `createdAt`
+ - `createdBy` + snapshot `createdByName`
 - È VIETATO aggiornare quantità stock senza lasciare traccia del movimento, salvo migrazioni documentate.
+- **Eccezione sync**: i delta di giacenza che arrivano da Shopify (vendite online, rettifiche fatte nell'admin Shopify) generano movimenti con origine `shopify` (`type: sale` o `adjustment`). Non sono "modifiche silenziose" ma nemmeno azioni utente: l'origine deve essere distinguibile nello storico.
 
 ## Multi-tenant
 - Tutte le entità di business DEVONO essere tenant-aware.
 - Entità principali con `tenantId` obbligatorio:
   - `Product`
-  - `Store`
+  - `Store` / `Location`
   - `SupplierOrder`
+  - `SalesOrder`
   - `StockMovement`
   - `Customer`
 - È VIETATO assumere single-tenant nel codice applicativo.
 - Ogni query, filtro o mock data DEVE essere pensato per tenant corrente.
+
+## Denaro
+- I prezzi e i totali viaggiano come **interi in unità minori** (`Money { amountMinor, currencyCode }`): niente float per il denaro.
+- Shopify espone i prezzi come **stringhe decimali** (es. `"29.90"`): la conversione stringa ↔ unità minori avviene in un'unica funzione di mapping testata, mai sparsa nel codice.
+- La formattazione display usa `Intl.NumberFormat` centralizzato, mai concatenazione manuale.
+
+---
+
+# OWNERSHIP DEI DATI — LA REGOLA SHOPIFY PIÙ IMPORTANTE
+
+Con Shopify connesso, **ogni entità ha un owner di sync** dichiarato. È la decisione che condiziona tutto: quali form esistono, cosa è editabile, come si risolvono i conflitti.
+
+| Entità | Owner | Conseguenza UI |
+|---|---|---|
+| Prodotti / varianti ecommerce | Shopify (di norma) | editing locale = write-through verso Shopify o read-only; mai fork silenzioso |
+| Clienti ecommerce | Shopify | anagrafica read-only nel gestionale |
+| Ordini di vendita online | Shopify | sempre read-only nel gestionale |
+| Giacenze | condiviso (per quantity state) | il gestionale scrive carichi/rettifiche/trasferimenti; Shopify scrive vendite/reso online |
+| Ordini fornitori, trasferimenti, rettifiche | gestionale | pieno CRUD locale |
+| Location | Shopify (mappate) | gestionale mappa le proprie location su quelle Shopify |
+
+Regole:
+- È VIETATO progettare una feature di editing senza prima dichiarare l'owner dell'entità.
+- Le entità owned da Shopify mostrano chiaramente in UI che la fonte è Shopify.
+- I conflitti di sync (modifica concorrente) non si risolvono silenziosamente: si segnalano.
+
+## Sync, webhook ed eventual consistency
+- Il sync reale è **webhook-driven** (ordini, inventory level update): i dati possono arrivare in ritardo, doppi o fuori ordine. Il backend DEVE essere idempotente; il frontend DEVE convivere con dati potenzialmente stale.
+- La UI espone sempre "ultimo sync" dove rilevante e uno stato sync per risorsa.
+- L'Admin API Shopify è **rate-limited**: le operazioni bulk passano da una coda lato backend, mai da N chiamate parallele richieste dal frontend.
+- Gli ID Shopify sono identificativi pubblici (formato GraphQL `gid://shopify/...` o numerico REST): si salvano come stringhe opache, non si parsano.
 
 ---
 
@@ -260,7 +299,7 @@ Queste azioni DEVONO avere almeno uno tra:
 
 ## Trasferimenti
 - Un trasferimento deve mostrare chiaramente:
-  - negozio origine,
+  - location origine,
   - negozio destinazione,
   - quantità,
   - impatto finale atteso.
@@ -327,7 +366,7 @@ Il gestionale deve essere consultabile e usabile da smartphone, specialmente in 
 Da smartphone un utente deve poter fare facilmente almeno:
 - cercare un prodotto,
 - vedere stock di una variante,
-- verificare giacenza per negozio,
+- verificare giacenza per location,
 - registrare un carico/scarico semplice,
 - consultare un ordine fornitore,
 - leggere un barcode/SKU.
@@ -428,7 +467,8 @@ Questo vale soprattutto per:
 - [ ] Ogni feature è lazy loaded.
 - [ ] Esiste una app shell coerente con sidebar + topbar.
 - [ ] Le varianti sono trattate come entità separate dal prodotto.
-- [ ] Lo stock è modellato per negozio, non come singolo campo.
+- [ ] Lo stock è modellato per location (variante × location), non come singolo campo.
+- [ ] Ogni entità sincronizzata ha un owner di sync dichiarato (vedi OWNERSHIP DEI DATI).
 - [ ] Ogni modifica inventariale produce un movimento tracciabile.
 - [ ] Tabelle principali hanno loading, empty, error e responsive fallback.
 - [ ] Mobile: ricerca stock e dettaglio variante sono usabili da smartphone.
