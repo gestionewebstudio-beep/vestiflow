@@ -1,0 +1,114 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+// ── Mobile-first: card impilate ──────────────────────────────────────────────
+.customer-table {
+  display: block;
+  inline-size: 100%;
+  font-size: var(--text-sm);
+}
+
+.customer-table__head {
+  display: none;
+}
+
+.customer-table__row {
+  display: block;
+  margin-block-end: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background-color var(--transition-fast) var(--ease-standard);
+}
+
+.customer-table__row:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.customer-table__row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.customer-table__row td {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-1);
+  color: var(--color-text);
+}
+
+.customer-table__row td::before {
+  content: attr(data-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.customer-table__name {
+  margin-block-end: var(--space-1);
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.customer-table__name::before {
+  display: none;
+}
+
+// ── Desktop: tabella vera ────────────────────────────────────────────────────
+@include bp.media-up('lg') {
+  .customer-table {
+    display: table;
+    border-collapse: collapse;
+  }
+
+  .customer-table__head {
+    display: table-header-group;
+  }
+
+  .customer-table__head tr,
+  .customer-table__row {
+    display: table-row;
+  }
+
+  .customer-table__head th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--z-raised);
+    padding: var(--space-3) var(--space-4);
+    text-align: start;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    background-color: var(--color-surface);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .customer-table__row {
+    margin-block-end: 0;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+  }
+
+  .customer-table__row td {
+    display: table-cell;
+    padding: var(--space-3) var(--space-4);
+    border-block-end: var(--border-width) solid var(--color-border);
+    vertical-align: middle;
+  }
+
+  .customer-table__row td::before {
+    display: none;
+  }
+
+  .customer-table__name {
+    margin-block-end: 0;
+    font-size: var(--text-sm);
+  }
+}

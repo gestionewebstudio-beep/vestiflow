@@ -1,0 +1,49 @@
+<section class="customer-list">
+  <header class="customer-list__header">
+    <h1 class="customer-list__title">Clienti</h1>
+    <p class="customer-list__subtitle">
+      Anagrafica in sola lettura: con l'integrazione attiva i clienti ecommerce arrivano da Shopify.
+    </p>
+  </header>
+
+  <div class="customer-list__toolbar">
+    <div class="customer-list__search">
+      <i class="pi pi-search customer-list__search-icon" aria-hidden="true"></i>
+      <input
+        id="customer-search"
+        class="customer-list__input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Cerca per nome o email…"
+        aria-label="Cerca clienti"
+        (input)="onSearchInput($event)"
+      />
+    </div>
+
+    <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+      <i class="pi pi-filter-slash" aria-hidden="true"></i>
+      Azzera filtri
+    </app-button>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessun cliente"
+      description="Nessun cliente corrisponde alla ricerca attuale."
+      icon="pi-users"
+    />
+  } @else {
+    <app-customer-table [customers]="customers()" (rowClick)="openCustomer($event)" />
+    <app-pagination
+      label="Paginazione clienti"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+</section>

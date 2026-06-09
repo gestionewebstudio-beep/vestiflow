@@ -1,0 +1,34 @@
+<section class="customer-detail">
+  <a class="customer-detail__back" [routerLink]="listPath">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Clienti
+  </a>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="5" />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-search"
+      title="Cliente non trovato"
+      description="Il cliente richiesto non esiste o è stato rimosso."
+      ctaLabel="Torna ai clienti"
+      (ctaClick)="goToList()"
+    />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (customer()) {
+    <header class="customer-detail__header">
+      <h1 class="customer-detail__title">{{ fullName() }}</h1>
+    </header>
+
+    <section class="customer-detail__panel" aria-labelledby="customer-general">
+      <h2 id="customer-general" class="customer-detail__panel-title">Anagrafica</h2>
+      <app-detail-facts [facts]="facts()" />
+    </section>
+
+    <p class="customer-detail__hint">
+      <i class="pi pi-info-circle" aria-hidden="true"></i>
+      Lo storico acquisti del cliente è consultabile nella sezione Vendite.
+    </p>
+  }
+</section>

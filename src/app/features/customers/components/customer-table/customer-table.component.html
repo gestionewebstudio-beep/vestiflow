@@ -1,0 +1,28 @@
+<table class="customer-table">
+  <thead class="customer-table__head">
+    <tr>
+      <th scope="col">Cliente</th>
+      <th scope="col">Email</th>
+      <th scope="col">Telefono</th>
+      <th scope="col">Città</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    @for (customer of customers(); track customer.id) {
+      <tr
+        class="customer-table__row"
+        tabindex="0"
+        [attr.aria-label]="rowLabel(customer)"
+        (click)="rowClick.emit(customer)"
+        (keydown.enter)="rowClick.emit(customer)"
+        (keydown.space)="$event.preventDefault(); rowClick.emit(customer)"
+      >
+        <td class="customer-table__name" data-label="Cliente">{{ fullName(customer) }}</td>
+        <td data-label="Email">{{ customer.email ?? '—' }}</td>
+        <td class="tabular-nums" data-label="Telefono">{{ customer.phone ?? '—' }}</td>
+        <td data-label="Città">{{ cityOf(customer) }}</td>
+      </tr>
+    }
+  </tbody>
+</table>
