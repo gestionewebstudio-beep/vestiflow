@@ -11,5 +11,6 @@ export * from './product-variant.model';
 export * from './inventory-level.model';
 export * from './stock-movement.model';
 export * from './supplier-order.model';
+export * from './sales-order.model';
 export * from './customer.model';
 export * from './app-error.model';
