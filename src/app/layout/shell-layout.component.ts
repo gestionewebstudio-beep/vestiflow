@@ -39,6 +39,7 @@ export class ShellLayoutComponent {
     { label: 'Prodotti', icon: 'pi-tags', route: '/app/products' },
     { label: 'Magazzino', icon: 'pi-box', route: '/app/inventory' },
     { label: 'Ordini Fornitori', icon: 'pi-truck', route: '/app/orders' },
+    { label: 'Vendite', icon: 'pi-shopping-cart', route: '/app/sales' },
     { label: 'Clienti', icon: 'pi-users', route: '/app/customers' },
     { label: 'Report', icon: 'pi-chart-line', route: '/app/reports' },
     { label: 'Impostazioni', icon: 'pi-cog', route: '/app/settings' },

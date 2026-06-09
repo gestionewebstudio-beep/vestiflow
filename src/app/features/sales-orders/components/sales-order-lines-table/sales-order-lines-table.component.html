@@ -1,0 +1,28 @@
+<div class="lines-table__wrapper">
+  <table class="lines-table">
+    <thead>
+      <tr>
+        <th scope="col">Articolo</th>
+        <th scope="col">SKU</th>
+        <th scope="col" class="lines-table__cell--numeric">Quantità</th>
+        <th scope="col" class="lines-table__cell--numeric">Prezzo unitario</th>
+        <th scope="col" class="lines-table__cell--numeric">Totale riga</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (line of lines(); track line.id) {
+        <tr class="lines-table__row">
+          <td>{{ line.title }}</td>
+          <td class="lines-table__sku tabular-nums">{{ line.sku }}</td>
+          <td class="lines-table__cell--numeric tabular-nums">{{ line.quantity }}</td>
+          <td class="lines-table__cell--numeric tabular-nums">
+            {{ formatMoney(line.unitPrice) }}
+          </td>
+          <td class="lines-table__cell--numeric tabular-nums">
+            {{ formatMoney(line.lineTotal) }}
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

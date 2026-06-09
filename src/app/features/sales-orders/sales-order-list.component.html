@@ -1,0 +1,82 @@
+<section class="sales-list">
+  <header class="sales-list__header">
+    <h1 class="sales-list__title">Vendite</h1>
+    <p class="sales-list__subtitle">
+      Ordini di vendita in sola lettura: la fonte autoritativa è Shopify/POS.
+    </p>
+  </header>
+
+  <div class="sales-list__toolbar">
+    <div class="sales-list__search">
+      <i class="pi pi-search sales-list__search-icon" aria-hidden="true"></i>
+      <input
+        id="sales-search"
+        class="sales-list__input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Cerca per numero ordine o cliente…"
+        aria-label="Cerca vendite"
+        (input)="onSearchInput($event)"
+      />
+    </div>
+
+    <div class="sales-list__filters">
+      <div class="sales-list__field">
+        <label class="sales-list__label" for="filter-financial">Pagamento</label>
+        <select
+          id="filter-financial"
+          class="sales-list__select"
+          [value]="query().financialStatus ?? ''"
+          (change)="onFinancialChange($event)"
+        >
+          <option value="">Tutti</option>
+          <option value="pending">In attesa</option>
+          <option value="paid">Pagato</option>
+          <option value="partially_refunded">Rimborso parziale</option>
+          <option value="refunded">Rimborsato</option>
+          <option value="voided">Annullato</option>
+        </select>
+      </div>
+
+      <div class="sales-list__field">
+        <label class="sales-list__label" for="filter-source">Canale</label>
+        <select
+          id="filter-source"
+          class="sales-list__select"
+          [value]="query().source ?? ''"
+          (change)="onSourceChange($event)"
+        >
+          <option value="">Tutti</option>
+          <option value="online">Online</option>
+          <option value="pos">Negozio</option>
+        </select>
+      </div>
+
+      <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+        <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        Azzera filtri
+      </app-button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessuna vendita"
+      description="Nessuna vendita corrisponde ai filtri attuali. Le vendite arrivano da Shopify e dal POS."
+      icon="pi-shopping-cart"
+    />
+  } @else {
+    <app-sales-order-table [orders]="orders()" (rowClick)="openOrder($event)" />
+    <app-pagination
+      label="Paginazione vendite"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+</section>
