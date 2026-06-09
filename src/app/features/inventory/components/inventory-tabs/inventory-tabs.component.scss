@@ -1,0 +1,37 @@
+:host {
+  display: block;
+}
+
+.inventory-tabs {
+  display: flex;
+  gap: var(--space-2);
+  border-block-end: var(--border-width) solid var(--color-border);
+}
+
+.inventory-tabs__link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-4);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border-block-end: var(--border-width-strong) solid transparent;
+  transition: color var(--transition-fast) var(--ease-standard);
+}
+
+.inventory-tabs__link:hover {
+  color: var(--color-text);
+}
+
+.inventory-tabs__link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+  border-radius: var(--radius-sm);
+}
+
+.inventory-tabs__link--active {
+  color: var(--color-primary);
+  border-block-end-color: var(--color-primary);
+}

@@ -1,0 +1,33 @@
+<table class="movement-table">
+  <thead class="movement-table__head">
+    <tr>
+      <th scope="col">Data</th>
+      <th scope="col">Tipo</th>
+      <th scope="col">SKU</th>
+      <th scope="col" class="movement-table__cell--numeric">Quantità</th>
+      <th scope="col">Location</th>
+      <th scope="col">Motivo</th>
+      <th scope="col">Eseguito da</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    @for (row of rows(); track row.id) {
+      <tr class="movement-table__row">
+        <td class="movement-table__date tabular-nums" data-label="Data">
+          {{ row.createdAtLabel }}
+        </td>
+        <td data-label="Tipo">
+          <app-badge [tone]="typeTone(row.type)">{{ typeLabel(row.type) }}</app-badge>
+        </td>
+        <td class="movement-table__sku tabular-nums" data-label="SKU">{{ row.sku }}</td>
+        <td class="movement-table__cell--numeric tabular-nums" data-label="Quantità">
+          {{ row.signedQuantity }}
+        </td>
+        <td data-label="Location">{{ row.locationLabel }}</td>
+        <td class="movement-table__reason" data-label="Motivo">{{ row.reason ?? '—' }}</td>
+        <td data-label="Eseguito da">{{ row.createdByName }}</td>
+      </tr>
+    }
+  </tbody>
+</table>

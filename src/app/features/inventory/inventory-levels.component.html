@@ -1,0 +1,77 @@
+<section class="inventory-levels">
+  <header class="inventory-levels__header">
+    <h1 class="inventory-levels__title">Magazzino</h1>
+    <app-button (click)="newMovement()">
+      <i class="pi pi-plus" aria-hidden="true"></i>
+      Registra movimento
+    </app-button>
+  </header>
+
+  <app-inventory-tabs />
+
+  <div class="inventory-levels__toolbar">
+    <div class="inventory-levels__search">
+      <i class="pi pi-search inventory-levels__search-icon" aria-hidden="true"></i>
+      <input
+        id="inventory-search"
+        class="inventory-levels__input"
+        type="search"
+        [value]="search()"
+        placeholder="Cerca per prodotto o SKU…"
+        aria-label="Cerca giacenze"
+        (input)="onSearchInput($event)"
+      />
+    </div>
+
+    <div class="inventory-levels__filters">
+      <div class="inventory-levels__field">
+        <label class="inventory-levels__label" for="filter-location">Location</label>
+        <select
+          id="filter-location"
+          class="inventory-levels__select"
+          [value]="locationFilter()"
+          (change)="onLocationChange($event)"
+        >
+          <option value="">Tutte</option>
+          @for (location of locations(); track location.id) {
+            <option [value]="location.id">{{ location.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="inventory-levels__field">
+        <label class="inventory-levels__label" for="filter-stock-status">Stato stock</label>
+        <select
+          id="filter-stock-status"
+          class="inventory-levels__select"
+          [value]="statusFilter()"
+          (change)="onStatusChange($event)"
+        >
+          <option value="">Tutti</option>
+          <option value="ok">Disponibile</option>
+          <option value="low">Sotto soglia</option>
+          <option value="empty">Esaurito</option>
+        </select>
+      </div>
+
+      <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+        <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        Azzera filtri
+      </app-button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessuna giacenza"
+      description="Nessuna giacenza corrisponde ai filtri attuali. Modifica i criteri o azzera i filtri."
+      icon="pi-box"
+    />
+  } @else {
+    <app-inventory-level-table [rows]="rows()" />
+  }
+</section>

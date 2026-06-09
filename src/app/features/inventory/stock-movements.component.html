@@ -1,0 +1,67 @@
+<section class="stock-movements">
+  <header class="stock-movements__header">
+    <h1 class="stock-movements__title">Movimenti di magazzino</h1>
+    <app-button (click)="newMovement()">
+      <i class="pi pi-plus" aria-hidden="true"></i>
+      Registra movimento
+    </app-button>
+  </header>
+
+  <app-inventory-tabs />
+
+  <div class="stock-movements__filters">
+    <div class="stock-movements__field">
+      <label class="stock-movements__label" for="filter-type">Tipo movimento</label>
+      <select
+        id="filter-type"
+        class="stock-movements__select"
+        [value]="typeFilter()"
+        (change)="onTypeChange($event)"
+      >
+        <option value="">Tutti</option>
+        <option value="load">Carico</option>
+        <option value="unload">Scarico</option>
+        <option value="transfer">Trasferimento</option>
+        <option value="adjustment">Rettifica</option>
+        <option value="sale">Vendita</option>
+        <option value="return">Reso</option>
+      </select>
+    </div>
+
+    <div class="stock-movements__field">
+      <label class="stock-movements__label" for="filter-mov-location">Location</label>
+      <select
+        id="filter-mov-location"
+        class="stock-movements__select"
+        [value]="locationFilter()"
+        (change)="onLocationChange($event)"
+      >
+        <option value="">Tutte</option>
+        @for (location of locations(); track location.id) {
+          <option [value]="location.id">{{ location.name }}</option>
+        }
+      </select>
+    </div>
+
+    <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+      <i class="pi pi-filter-slash" aria-hidden="true"></i>
+      Azzera filtri
+    </app-button>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessun movimento"
+      description="Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento."
+      icon="pi-arrow-right-arrow-left"
+      ctaLabel="Registra movimento"
+      (ctaClick)="newMovement()"
+    />
+  } @else {
+    <app-movement-table [rows]="rows()" />
+  }
+</section>

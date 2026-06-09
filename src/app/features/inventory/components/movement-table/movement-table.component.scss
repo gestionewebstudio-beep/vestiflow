@@ -1,0 +1,109 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+// ── Mobile-first: card impilate ──────────────────────────────────────────────
+.movement-table {
+  display: block;
+  inline-size: 100%;
+  font-size: var(--text-sm);
+}
+
+.movement-table__head {
+  display: none;
+}
+
+.movement-table__row {
+  display: block;
+  margin-block-end: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.movement-table__row td {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-1);
+  color: var(--color-text);
+}
+
+.movement-table__row td::before {
+  content: attr(data-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.movement-table__date {
+  color: var(--color-text-muted);
+}
+
+.movement-table__sku {
+  color: var(--color-text-muted);
+}
+
+.movement-table__reason {
+  overflow-wrap: anywhere;
+}
+
+// ── Desktop: tabella vera ────────────────────────────────────────────────────
+@include bp.media-up('lg') {
+  .movement-table {
+    display: table;
+    border-collapse: collapse;
+  }
+
+  .movement-table__head {
+    display: table-header-group;
+  }
+
+  .movement-table__head tr,
+  .movement-table__row {
+    display: table-row;
+  }
+
+  .movement-table__head th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--z-raised);
+    padding: var(--space-3) var(--space-4);
+    text-align: start;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    background-color: var(--color-surface);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .movement-table__row {
+    margin-block-end: 0;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+  }
+
+  .movement-table__row:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  .movement-table__row td {
+    display: table-cell;
+    padding: var(--space-3) var(--space-4);
+    border-block-end: var(--border-width) solid var(--color-border);
+    vertical-align: middle;
+  }
+
+  .movement-table__row td::before {
+    display: none;
+  }
+
+  .movement-table__head th.movement-table__cell--numeric,
+  .movement-table__cell--numeric {
+    text-align: end;
+  }
+}

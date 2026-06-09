@@ -1,0 +1,18 @@
+<nav class="inventory-tabs" aria-label="Sezioni magazzino">
+  <a
+    class="inventory-tabs__link"
+    routerLink="/app/inventory"
+    routerLinkActive="inventory-tabs__link--active"
+    [routerLinkActiveOptions]="{ exact: true }"
+  >
+    Giacenze
+  </a>
+  <a
+    class="inventory-tabs__link"
+    routerLink="/app/inventory/movements"
+    routerLinkActive="inventory-tabs__link--active"
+    [routerLinkActiveOptions]="{ exact: true }"
+  >
+    Movimenti
+  </a>
+</nav>

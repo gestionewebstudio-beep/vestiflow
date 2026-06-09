@@ -11,23 +11,39 @@ export const StockMovementType = {
 } as const;
 export type StockMovementType = (typeof StockMovementType)[keyof typeof StockMovementType];
 
+/** Verso di una rettifica: aumento o diminuzione della giacenza. */
+export const AdjustmentDirection = {
+  Increase: 'increase',
+  Decrease: 'decrease',
+} as const;
+export type AdjustmentDirection = (typeof AdjustmentDirection)[keyof typeof AdjustmentDirection];
+
 /**
  * Movimento di magazzino = log operativo immutabile.
- * `quantity` e' sempre positiva; la direzione e' data dal `type`.
+ * `quantity` e' sempre positiva; la direzione e' data dal `type`
+ * (e da `direction` per le rettifiche). Le giacenze vivono per Location
+ * (inventory-level.model), quindi il movimento referenzia `locationId`.
+ * `sku` e `createdByName` sono snapshot per display/audit, stabili anche se
+ * catalogo o utenti cambiano.
  */
 export interface StockMovement extends TenantScoped {
   readonly id: EntityId;
   readonly type: StockMovementType;
   readonly variantId: EntityId;
-  readonly storeId: EntityId;
+  /** SKU congelato al momento del movimento (display/audit). */
+  readonly sku: string;
+  /** Location interessata; per i trasferimenti e' la location di origine. */
+  readonly locationId: EntityId;
   readonly quantity: number;
+  /** Solo per le rettifiche: verso della correzione. */
+  readonly direction?: AdjustmentDirection;
   /** Motivo: obbligatorio a livello UI per le rettifiche (adjustment). */
   readonly reason?: string;
-  /** Per i trasferimenti: negozio di origine. */
-  readonly sourceStoreId?: EntityId;
-  /** Per i trasferimenti: negozio di destinazione. */
-  readonly targetStoreId?: EntityId;
+  /** Per i trasferimenti: location di destinazione. */
+  readonly targetLocationId?: EntityId;
   readonly createdAt: IsoDateString;
   /** Utente che ha eseguito il movimento (auditabilita'). */
   readonly createdBy: EntityId;
+  /** Nome utente snapshot (display audit). */
+  readonly createdByName: string;
 }

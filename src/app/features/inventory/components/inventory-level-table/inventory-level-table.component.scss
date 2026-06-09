@@ -1,0 +1,121 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+// ── Mobile-first: card impilate ──────────────────────────────────────────────
+.level-table {
+  display: block;
+  inline-size: 100%;
+  font-size: var(--text-sm);
+}
+
+.level-table__head {
+  display: none;
+}
+
+.level-table__row {
+  display: block;
+  margin-block-end: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.level-table__row td {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-1);
+  color: var(--color-text);
+}
+
+.level-table__row td::before {
+  content: attr(data-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.level-table__title {
+  margin-block-end: var(--space-1);
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.level-table__title::before {
+  display: none;
+}
+
+.level-table__sku {
+  color: var(--color-text-muted);
+}
+
+.level-table__cell--negative {
+  color: var(--status-error-fg);
+  font-weight: var(--font-weight-semibold);
+}
+
+// ── Desktop: tabella vera ────────────────────────────────────────────────────
+@include bp.media-up('lg') {
+  .level-table {
+    display: table;
+    border-collapse: collapse;
+  }
+
+  .level-table__head {
+    display: table-header-group;
+  }
+
+  .level-table__head tr,
+  .level-table__row {
+    display: table-row;
+  }
+
+  .level-table__head th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--z-raised);
+    padding: var(--space-3) var(--space-4);
+    text-align: start;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    background-color: var(--color-surface);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .level-table__row {
+    margin-block-end: 0;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+  }
+
+  .level-table__row:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  .level-table__row td {
+    display: table-cell;
+    padding: var(--space-3) var(--space-4);
+    border-block-end: var(--border-width) solid var(--color-border);
+    vertical-align: middle;
+  }
+
+  .level-table__row td::before {
+    display: none;
+  }
+
+  .level-table__title {
+    margin-block-end: 0;
+    font-size: var(--text-sm);
+  }
+
+  .level-table__head th.level-table__cell--numeric,
+  .level-table__cell--numeric {
+    text-align: end;
+  }
+}

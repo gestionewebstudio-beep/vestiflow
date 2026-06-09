@@ -1,0 +1,226 @@
+<section class="movement-form">
+  <a
+    class="movement-form__back"
+    href="/app/inventory/movements"
+    (click)="$event.preventDefault(); cancel()"
+  >
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Magazzino
+  </a>
+
+  <h1 class="movement-form__title">Registra movimento</h1>
+
+  @if (phase() === 'edit') {
+    <form class="movement-form__form" [formGroup]="form" (ngSubmit)="toReview()">
+      <div class="movement-form__grid">
+        <div class="movement-form__field">
+          <label class="movement-form__label" for="mov-type">Tipo movimento</label>
+          <select id="mov-type" class="movement-form__select" formControlName="type">
+            @for (option of typeOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="movement-form__field movement-form__field--wide">
+          <label class="movement-form__label" for="mov-variant">Variante</label>
+          <select
+            id="mov-variant"
+            class="movement-form__select"
+            formControlName="variantId"
+            [attr.aria-invalid]="fieldInvalid('variantId')"
+            aria-describedby="mov-variant-error"
+          >
+            <option value="">Seleziona una variante…</option>
+            @for (variant of variants(); track variant.variantId) {
+              <option [value]="variant.variantId">{{ variant.title }} ({{ variant.sku }})</option>
+            }
+          </select>
+          @if (fieldInvalid('variantId')) {
+            <p id="mov-variant-error" class="movement-form__error">Seleziona la variante.</p>
+          }
+        </div>
+
+        <div class="movement-form__field">
+          <label class="movement-form__label" for="mov-location">
+            {{ isTransfer() ? 'Location di origine' : 'Location' }}
+          </label>
+          <select
+            id="mov-location"
+            class="movement-form__select"
+            formControlName="locationId"
+            [attr.aria-invalid]="fieldInvalid('locationId')"
+            aria-describedby="mov-location-error"
+          >
+            <option value="">Seleziona…</option>
+            @for (location of locations(); track location.id) {
+              <option [value]="location.id">{{ location.name }}</option>
+            }
+          </select>
+          @if (fieldInvalid('locationId')) {
+            <p id="mov-location-error" class="movement-form__error">Seleziona la location.</p>
+          }
+        </div>
+
+        @if (isTransfer()) {
+          <div class="movement-form__field">
+            <label class="movement-form__label" for="mov-target">Location di destinazione</label>
+            <select
+              id="mov-target"
+              class="movement-form__select"
+              formControlName="targetLocationId"
+              [attr.aria-invalid]="fieldInvalid('targetLocationId')"
+              aria-describedby="mov-target-error"
+            >
+              <option value="">Seleziona…</option>
+              @for (location of locations(); track location.id) {
+                <option [value]="location.id">{{ location.name }}</option>
+              }
+            </select>
+            @if (fieldInvalid('targetLocationId')) {
+              <p id="mov-target-error" class="movement-form__error">
+                Seleziona la location di destinazione.
+              </p>
+            }
+          </div>
+        }
+
+        <div class="movement-form__field">
+          <label class="movement-form__label" for="mov-quantity">Quantità</label>
+          <input
+            id="mov-quantity"
+            class="movement-form__input"
+            type="number"
+            inputmode="numeric"
+            min="1"
+            step="1"
+            formControlName="quantity"
+            [attr.aria-invalid]="fieldInvalid('quantity')"
+            aria-describedby="mov-quantity-error"
+          />
+          @if (fieldInvalid('quantity')) {
+            <p id="mov-quantity-error" class="movement-form__error">
+              Inserisci una quantità intera maggiore di zero.
+            </p>
+          }
+        </div>
+
+        @if (isAdjustment()) {
+          <div class="movement-form__field">
+            <label class="movement-form__label" for="mov-direction">Verso della rettifica</label>
+            <select id="mov-direction" class="movement-form__select" formControlName="direction">
+              <option [value]="Direction.Decrease">Diminuzione</option>
+              <option [value]="Direction.Increase">Aumento</option>
+            </select>
+          </div>
+        }
+
+        <div class="movement-form__field movement-form__field--wide">
+          <label class="movement-form__label" for="mov-reason">
+            Motivo {{ isAdjustment() ? '(obbligatorio per le rettifiche)' : '(opzionale)' }}
+          </label>
+          <textarea
+            id="mov-reason"
+            class="movement-form__textarea"
+            rows="2"
+            formControlName="reason"
+            [attr.aria-invalid]="fieldInvalid('reason')"
+            aria-describedby="mov-reason-error"
+            placeholder="Es. ricezione fornitore, capo danneggiato, riequilibrio stock…"
+          ></textarea>
+          @if (fieldInvalid('reason')) {
+            <p id="mov-reason-error" class="movement-form__error">
+              Indica il motivo della rettifica (almeno 3 caratteri).
+            </p>
+          }
+        </div>
+      </div>
+
+      <div class="movement-form__actions">
+        <app-button variant="ghost" (click)="cancel()">Annulla</app-button>
+        <app-button type="submit">
+          Continua
+          <i class="pi pi-arrow-right" aria-hidden="true"></i>
+        </app-button>
+      </div>
+    </form>
+  } @else {
+    @let r = review();
+    <div class="movement-form__review" aria-labelledby="review-title">
+      <h2 id="review-title" class="movement-form__review-title">Riepilogo movimento</h2>
+
+      <dl class="movement-form__summary">
+        <div class="movement-form__summary-item">
+          <dt class="movement-form__term">Tipo</dt>
+          <dd class="movement-form__value">{{ r.typeLabel }}</dd>
+        </div>
+        <div class="movement-form__summary-item">
+          <dt class="movement-form__term">Variante</dt>
+          <dd class="movement-form__value">{{ r.variantTitle }} ({{ r.sku }})</dd>
+        </div>
+        <div class="movement-form__summary-item">
+          <dt class="movement-form__term">{{ r.isTransfer ? 'Origine' : 'Location' }}</dt>
+          <dd class="movement-form__value">{{ r.locationName }}</dd>
+        </div>
+        @if (r.isTransfer) {
+          <div class="movement-form__summary-item">
+            <dt class="movement-form__term">Destinazione</dt>
+            <dd class="movement-form__value">{{ r.targetName }}</dd>
+          </div>
+        }
+        <div class="movement-form__summary-item">
+          <dt class="movement-form__term">Quantità</dt>
+          <dd class="movement-form__value tabular-nums">{{ r.quantity }}</dd>
+        </div>
+        @if (r.isAdjustment) {
+          <div class="movement-form__summary-item">
+            <dt class="movement-form__term">Verso</dt>
+            <dd class="movement-form__value">{{ r.directionLabel }}</dd>
+          </div>
+        }
+        @if (r.reason) {
+          <div class="movement-form__summary-item movement-form__summary-item--wide">
+            <dt class="movement-form__term">Motivo</dt>
+            <dd class="movement-form__value">{{ r.reason }}</dd>
+          </div>
+        }
+      </dl>
+
+      <div class="movement-form__impact">
+        <h3 class="movement-form__impact-title">Impatto atteso sul disponibile</h3>
+        <p class="movement-form__impact-line tabular-nums">
+          {{ r.locationName }}: {{ r.originBefore }} → <strong>{{ r.originAfter }}</strong>
+        </p>
+        @if (r.isTransfer) {
+          <p class="movement-form__impact-line tabular-nums">
+            {{ r.targetName }}: {{ r.targetBefore }} → <strong>{{ r.targetAfter }}</strong>
+          </p>
+        }
+        @if (r.originGoesNegative) {
+          <p class="movement-form__warning" role="alert">
+            <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+            Il disponibile in {{ r.locationName }} diventerà negativo (oversell).
+          </p>
+        }
+      </div>
+
+      @if (submitError(); as appError) {
+        <p class="movement-form__submit-error" role="alert">
+          <i class="pi pi-times-circle" aria-hidden="true"></i>
+          {{ appError.message }}
+        </p>
+      }
+
+      <div class="movement-form__actions">
+        <app-button variant="ghost" [disabled]="saving()" (click)="backToEdit()">
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+          Modifica
+        </app-button>
+        <app-button [loading]="saving()" [disabled]="saving()" (click)="confirm()">
+          <i class="pi pi-check" aria-hidden="true"></i>
+          Conferma movimento
+        </app-button>
+      </div>
+    </div>
+  }
+</section>
