@@ -1,0 +1,68 @@
+<section class="po-list">
+  <header class="po-list__header">
+    <h1 class="po-list__title">Ordini Fornitori</h1>
+    <p class="po-list__subtitle">
+      Consultazione ordini di acquisto: la creazione e la ricezione merce arriveranno col backend.
+    </p>
+  </header>
+
+  <div class="po-list__toolbar">
+    <div class="po-list__search">
+      <i class="pi pi-search po-list__search-icon" aria-hidden="true"></i>
+      <input
+        id="po-search"
+        class="po-list__input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Cerca per riferimento o fornitore…"
+        aria-label="Cerca ordini fornitori"
+        (input)="onSearchInput($event)"
+      />
+    </div>
+
+    <div class="po-list__filters">
+      <div class="po-list__field">
+        <label class="po-list__label" for="filter-po-status">Stato</label>
+        <select
+          id="filter-po-status"
+          class="po-list__select"
+          [value]="query().status ?? ''"
+          (change)="onStatusChange($event)"
+        >
+          <option value="">Tutti</option>
+          <option value="draft">Bozza</option>
+          <option value="sent">Inviato</option>
+          <option value="partially_received">Ricevuto parziale</option>
+          <option value="received">Ricevuto</option>
+          <option value="cancelled">Annullato</option>
+        </select>
+      </div>
+
+      <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+        <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        Azzera filtri
+      </app-button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessun ordine fornitore"
+      description="Nessun ordine corrisponde ai filtri attuali. Modifica i criteri o azzera i filtri."
+      icon="pi-truck"
+    />
+  } @else {
+    <app-supplier-order-table [orders]="orders()" (rowClick)="openOrder($event)" />
+    <app-pagination
+      label="Paginazione ordini fornitori"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+</section>

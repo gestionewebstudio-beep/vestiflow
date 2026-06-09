@@ -1,0 +1,46 @@
+<section class="po-detail">
+  <a class="po-detail__back" [routerLink]="listPath">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Ordini Fornitori
+  </a>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-search"
+      title="Ordine non trovato"
+      description="L'ordine fornitore richiesto non esiste o è stato rimosso."
+      ctaLabel="Torna agli ordini"
+      (ctaClick)="goToList()"
+    />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (order(); as o) {
+    <header class="po-detail__header">
+      <div class="po-detail__heading">
+        <h1 class="po-detail__title tabular-nums">{{ o.reference }}</h1>
+        <p class="po-detail__supplier">{{ o.supplierName }}</p>
+      </div>
+      <app-badge [tone]="statusTone(o.status)">{{ statusLabel(o.status) }}</app-badge>
+    </header>
+
+    <section class="po-detail__panel" aria-labelledby="po-general">
+      <h2 id="po-general" class="po-detail__panel-title">Dati ordine</h2>
+      <app-detail-facts [facts]="facts()" />
+    </section>
+
+    <section class="po-detail__panel" aria-labelledby="po-lines">
+      <div class="po-detail__panel-head">
+        <h2 id="po-lines" class="po-detail__panel-title">Righe ordine</h2>
+        <span class="po-detail__count tabular-nums">{{ o.lines.length }}</span>
+      </div>
+
+      <app-supplier-order-lines-table [lines]="o.lines" />
+
+      <p class="po-detail__total tabular-nums">
+        Totale ordine: <strong>{{ formatMoney(o.totalAmount) }}</strong>
+      </p>
+    </section>
+  }
+</section>

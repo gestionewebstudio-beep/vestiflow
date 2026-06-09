@@ -1,0 +1,40 @@
+<table class="po-table">
+  <thead class="po-table__head">
+    <tr>
+      <th scope="col">Riferimento</th>
+      <th scope="col">Fornitore</th>
+      <th scope="col">Stato</th>
+      <th scope="col" class="po-table__cell--numeric">Righe</th>
+      <th scope="col">Attesa il</th>
+      <th scope="col" class="po-table__cell--numeric">Totale</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    @for (order of orders(); track order.id) {
+      <tr
+        class="po-table__row"
+        tabindex="0"
+        [attr.aria-label]="rowLabel(order)"
+        (click)="rowClick.emit(order)"
+        (keydown.enter)="rowClick.emit(order)"
+        (keydown.space)="$event.preventDefault(); rowClick.emit(order)"
+      >
+        <td class="po-table__reference tabular-nums" data-label="Riferimento">
+          {{ order.reference }}
+        </td>
+        <td data-label="Fornitore">{{ order.supplierName }}</td>
+        <td data-label="Stato">
+          <app-badge [tone]="statusTone(order.status)">{{ statusLabel(order.status) }}</app-badge>
+        </td>
+        <td class="po-table__cell--numeric tabular-nums" data-label="Righe">
+          {{ lineCount(order) }}
+        </td>
+        <td class="tabular-nums" data-label="Attesa il">{{ expectedLabel(order) }}</td>
+        <td class="po-table__cell--numeric tabular-nums" data-label="Totale">
+          {{ formatMoney(order.totalAmount) }}
+        </td>
+      </tr>
+    }
+  </tbody>
+</table>
