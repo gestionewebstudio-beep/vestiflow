@@ -22,6 +22,8 @@ import type {
   ProductListQuery,
   ProductSortField,
 } from '../models/product-list-query.model';
+import { variantTitle } from '../models/product-variant.util';
+import type { VariantSummary } from '../models/variant-summary.model';
 import { MOCK_PRODUCTS, MOCK_PRODUCT_VARIANTS } from './products.mock-data';
 
 const LIST_LATENCY_MS = 500;
@@ -42,8 +44,11 @@ const ERROR_SENTINEL = 'errore';
  * server-side simulata, filtri, ordinamento, scrittura, latenza ed errori.
  * Ritorna modelli di dominio: sostituibile con un client HTTP (backend NestJS
  * su Railway, PostgreSQL su Supabase) senza cambiare l'API pubblica.
+ *
+ * providedIn 'root': il catalogo e' consumato anche da magazzino, report e
+ * dashboard; un'unica istanza mantiene i dati mock coerenti cross-feature.
  */
-@Injectable()
+@Injectable({ providedIn: 'root' })
 export class ProductService {
   // Store interno mutabile: create/update persistono per la sessione corrente.
   private products: Product[] = [...MOCK_PRODUCTS];
@@ -107,6 +112,28 @@ export class ProductService {
   getProductVariants(productId: EntityId): Observable<readonly ProductVariant[]> {
     const variants = this.variants.filter((variant) => variant.productId === productId);
     return of(variants).pipe(delay(DETAIL_LATENCY_MS));
+  }
+
+  /**
+   * Vista denormalizzata di tutte le varianti (lookup per magazzino, report,
+   * dashboard). In un backend reale sarebbe un endpoint di ricerca varianti.
+   */
+  getVariantSummaries(): Observable<readonly VariantSummary[]> {
+    const byProduct = new Map(this.products.map((product) => [product.id, product]));
+    const summaries: VariantSummary[] = this.variants.map((variant) => {
+      const product = byProduct.get(variant.productId);
+      const productName = product?.name ?? variant.sku;
+      const options = variantTitle(variant.optionValues);
+      return {
+        variantId: variant.id,
+        productId: variant.productId,
+        sku: variant.sku,
+        productName,
+        title: options ? `${productName} — ${options}` : productName,
+        sellingPrice: variant.sellingPrice,
+      };
+    });
+    return of(summaries).pipe(delay(OPTIONS_LATENCY_MS));
   }
 
   /**
