@@ -3,6 +3,7 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
+import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
@@ -68,7 +69,17 @@ export class DashboardComponent {
   private readonly productService = inject(ProductService);
   private readonly salesOrderService = inject(SalesOrderService);
   private readonly supplierOrderService = inject(SupplierOrderService);
+  private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
+
+  /** Nome della location attiva (per contestualizzare i KPI di stock). */
+  protected readonly activeLocationName = computed(() => {
+    const id = this.locationContext.activeLocationId();
+    if (!id) {
+      return null;
+    }
+    return this.data()?.locations.find((location) => location.id === id)?.name ?? null;
+  });
 
   private readonly refreshTick = signal(0);
 
@@ -109,6 +120,16 @@ export class DashboardComponent {
     return current.status === 'success' ? current.data : null;
   });
 
+  /** Giacenze visibili: filtrate per la location attiva del topbar. */
+  private readonly visibleLevels = computed<readonly InventoryLevel[]>(() => {
+    const data = this.data();
+    if (!data) {
+      return [];
+    }
+    const activeId = this.locationContext.activeLocationId();
+    return activeId ? data.levels.filter((level) => level.locationId === activeId) : data.levels;
+  });
+
   // ── KPI ─────────────────────────────────────────────────────────────────────
   protected readonly productCountLabel = computed(() => {
     const data = this.data();
@@ -118,10 +139,9 @@ export class DashboardComponent {
     return String(new Set(data.summaries.map((summary) => summary.productId)).size);
   });
 
-  protected readonly availableUnitsLabel = computed(() => {
-    const data = this.data();
-    return String(data ? data.levels.reduce((sum, level) => sum + level.available, 0) : 0);
-  });
+  protected readonly availableUnitsLabel = computed(() =>
+    String(this.visibleLevels().reduce((sum, level) => sum + level.available, 0)),
+  );
 
   protected readonly lowStockCountLabel = computed(() => String(this.lowStockRows().length));
 
@@ -159,7 +179,7 @@ export class DashboardComponent {
     }
     const summaryByVariant = new Map(data.summaries.map((summary) => [summary.variantId, summary]));
     const locationById = new Map(data.locations.map((location) => [location.id, location]));
-    return data.levels
+    return this.visibleLevels()
       .filter((level) => isLowStock(level))
       .sort((a, b) => a.available - b.available)
       .map((level): LowStockRow => {

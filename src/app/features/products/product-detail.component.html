@@ -28,8 +28,35 @@
           <i class="pi pi-pencil" aria-hidden="true"></i>
           Modifica
         </app-button>
+        <app-button variant="ghost" [disabled]="deleting()" (click)="askDelete()">
+          <i class="pi pi-trash" aria-hidden="true"></i>
+          Elimina
+        </app-button>
       </div>
     </header>
+
+    @if (deleteError(); as message) {
+      <p class="product-detail__delete-error" role="alert">
+        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+        {{ message }}
+      </p>
+    }
+
+    <app-confirm-dialog
+      [(open)]="deleteDialogOpen"
+      title="Eliminare il prodotto?"
+      [message]="
+        'Verranno eliminati &quot;' +
+        p.name +
+        '&quot; e tutte le sue ' +
+        variants().length +
+        ' varianti. L\u0027azione non è reversibile.'
+      "
+      confirmLabel="Elimina prodotto"
+      [danger]="true"
+      [busy]="deleting()"
+      (confirmed)="confirmDelete(p.id)"
+    />
 
     <section class="product-detail__panel" aria-labelledby="detail-general">
       <h2 id="detail-general" class="product-detail__panel-title">Dati generali</h2>

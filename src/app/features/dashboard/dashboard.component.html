@@ -22,7 +22,7 @@
         [value]="availableUnitsLabel()"
         icon="pi-box"
         tone="info"
-        hint="Su tutte le location"
+        [hint]="activeLocationName() ?? 'Su tutte le location'"
       />
       <app-stat-card
         label="Sotto soglia"

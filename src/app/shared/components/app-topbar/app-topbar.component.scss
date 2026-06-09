@@ -57,8 +57,69 @@
   background-color: var(--color-surface-hover);
 }
 
-.app-topbar__store-label {
-  display: none;
+.app-topbar__store:focus-within {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+// Select nativo "nudo": il contenitore fornisce bordo e padding.
+.app-topbar__store-select {
+  max-inline-size: var(--space-32);
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.app-topbar__store-select:focus-visible {
+  outline: none;
+}
+
+.app-topbar__sync {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--btn-min-height);
+  block-size: var(--btn-min-height);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    color var(--transition-fast) var(--ease-standard);
+}
+
+.app-topbar__sync:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface-hover);
+}
+
+.app-topbar__sync-dot {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+  inline-size: var(--space-2);
+  block-size: var(--space-2);
+  border-radius: var(--radius-full);
+}
+
+.app-topbar__sync-dot--ok {
+  background-color: var(--status-success-fg);
+}
+
+.app-topbar__sync-dot--warning {
+  background-color: var(--status-warning-fg);
+}
+
+.app-topbar__sync-dot--error {
+  background-color: var(--status-error-fg);
+}
+
+.app-topbar__sync-dot--neutral {
+  background-color: var(--color-text-subtle);
 }
 
 .app-topbar__theme {
@@ -131,13 +192,13 @@
   background-color: var(--color-surface-hover);
 }
 
-// Desktop: l'hamburger non serve (sidebar persistente); mostra l'etichetta negozio.
+// Desktop: l'hamburger non serve (sidebar persistente); piu' spazio al selettore.
 @include bp.media-up('lg') {
   .app-topbar__menu {
     display: none;
   }
 
-  .app-topbar__store-label {
-    display: inline;
+  .app-topbar__store-select {
+    max-inline-size: none;
   }
 }

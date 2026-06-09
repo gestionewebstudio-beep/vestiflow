@@ -13,12 +13,37 @@
 
   <div class="app-topbar__spacer"></div>
 
-  <!-- Placeholder selettore negozio attivo (logica reale in step successivi). -->
-  <button type="button" class="app-topbar__store" aria-label="Negozio attivo">
-    <i class="pi pi-shop" aria-hidden="true"></i>
-    <span class="app-topbar__store-label">Tutti i negozi</span>
-    <i class="pi pi-angle-down" aria-hidden="true"></i>
-  </button>
+  <!-- Selettore location attiva: filtro globale per le viste di stock. -->
+  @if (locations().length > 0) {
+    <div class="app-topbar__store">
+      <i class="pi pi-shop" aria-hidden="true"></i>
+      <select
+        class="app-topbar__store-select"
+        aria-label="Location attiva"
+        [value]="activeLocationId() ?? ''"
+        (change)="onLocationSelect($event)"
+      >
+        <option value="">Tutte le location</option>
+        @for (location of locations(); track location.id) {
+          <option [value]="location.id">{{ location.name }}</option>
+        }
+      </select>
+    </div>
+  }
+
+  <!-- Stato sync Shopify: dettagli e gestione nelle impostazioni. -->
+  @if (syncStatus(); as status) {
+    <button
+      type="button"
+      class="app-topbar__sync"
+      [attr.aria-label]="syncLabel()"
+      [title]="syncLabel()"
+      (click)="syncClick.emit()"
+    >
+      <i class="pi pi-sync" aria-hidden="true"></i>
+      <span class="app-topbar__sync-dot" [ngClass]="syncToneClass()" aria-hidden="true"></span>
+    </button>
+  }
 
   <!-- Theme toggle a 3 stati (segmented control). -->
   <div class="app-topbar__theme" role="group" aria-label="Modalità tema">

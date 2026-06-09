@@ -90,6 +90,10 @@
   --color-primary-fg: var(--gray-0);
   --color-primary-subtle: var(--blue-50);
 
+  --color-danger: var(--red-600);
+  --color-danger-hover: var(--red-700);
+  --color-danger-fg: var(--gray-0);
+
   --color-focus-ring: var(--blue-500);
   --color-link: var(--blue-600);
 
@@ -141,6 +145,7 @@
   --space-10: 2.5rem; // 40px
   --space-12: 3rem; // 48px
   --space-16: 4rem; // 64px
+  --space-32: 8rem; // 128px
 
   // ── 4. RADIUS ──────────────────────────────────────────────────────────────
   --radius-xs: 0.125rem; // 2px
@@ -255,6 +260,10 @@
   --color-primary-active: var(--blue-300);
   --color-primary-fg: var(--gray-950);
   --color-primary-subtle: rgb(37 99 235 / 0.16);
+
+  --color-danger: var(--red-500);
+  --color-danger-hover: var(--red-600);
+  --color-danger-fg: var(--gray-0);
 
   --color-focus-ring: var(--blue-400);
   --color-link: var(--blue-400);

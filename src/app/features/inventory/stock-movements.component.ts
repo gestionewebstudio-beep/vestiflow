@@ -1,8 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
+import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Location } from '@core/models/location.model';
@@ -47,6 +55,7 @@ type MovementsState =
 })
 export class StockMovementsComponent {
   private readonly inventoryService = inject(InventoryService);
+  private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
 
   protected readonly skeletonColumns = 6;
@@ -54,7 +63,15 @@ export class StockMovementsComponent {
   private readonly refreshTick = signal(0);
 
   protected readonly typeFilter = signal('');
-  protected readonly locationFilter = signal('');
+  // La location parte dal contesto globale (selettore topbar).
+  protected readonly locationFilter = signal(this.locationContext.activeLocationId() ?? '');
+
+  constructor() {
+    // Il cambio dal selettore topbar si riflette sul filtro di pagina.
+    effect(() => {
+      this.locationFilter.set(this.locationContext.activeLocationId() ?? '');
+    });
+  }
 
   private readonly state = toSignal(
     toObservable(this.refreshTick).pipe(

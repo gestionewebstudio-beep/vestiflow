@@ -228,6 +228,26 @@ export class ProductService {
     return of(updated).pipe(delay(WRITE_LATENCY_MS));
   }
 
+  /**
+   * Elimina un prodotto e le sue varianti. 404 se assente. NB mock: le
+   * giacenze/movimenti riferiti restano (snapshot SKU); il backend reale
+   * decidera' la policy (soft delete / blocco se stock presente).
+   */
+  deleteProduct(id: EntityId): Observable<void> {
+    const existing = this.products.find((candidate) => candidate.id === id);
+    if (!existing) {
+      return of(null).pipe(
+        delay(WRITE_LATENCY_MS),
+        switchMap(() => throwError(() => this.notFoundError())),
+      );
+    }
+
+    this.products = this.products.filter((product) => product.id !== id);
+    this.variants = this.variants.filter((variant) => variant.productId !== id);
+
+    return of(undefined as void).pipe(delay(WRITE_LATENCY_MS));
+  }
+
   private toOptions(options: readonly ProductOptionDto[]): readonly ProductOption[] {
     return options.map((option) => ({ name: option.name, values: [...option.values] }));
   }

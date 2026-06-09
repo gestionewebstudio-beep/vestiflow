@@ -50,6 +50,16 @@
   background-color: var(--color-surface-hover);
 }
 
+// ── Danger (azioni distruttive) ─────────────────────────────────────────────
+.app-button--danger {
+  color: var(--color-danger-fg);
+  background-color: var(--color-danger);
+}
+
+.app-button--danger:hover:not(:disabled) {
+  background-color: var(--color-danger-hover);
+}
+
 // ── Ghost (testo) ─────────────────────────────────────────────────────────
 .app-button--ghost {
   color: var(--color-text);

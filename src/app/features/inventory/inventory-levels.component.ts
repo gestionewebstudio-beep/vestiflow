@@ -1,8 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
+import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
@@ -55,6 +63,7 @@ type LevelsState =
 export class InventoryLevelsComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly productService = inject(ProductService);
+  private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
 
   protected readonly skeletonColumns = 6;
@@ -62,9 +71,18 @@ export class InventoryLevelsComponent {
   private readonly refreshTick = signal(0);
 
   // Filtri locali (client-side: dataset compatto già caricato).
-  protected readonly locationFilter = signal('');
+  // La location parte dal contesto globale (selettore topbar).
+  protected readonly locationFilter = signal(this.locationContext.activeLocationId() ?? '');
   protected readonly statusFilter = signal('');
   protected readonly search = signal('');
+
+  constructor() {
+    // Il cambio dal selettore topbar si riflette sul filtro di pagina
+    // (azione esplicita dell'utente: prevale sulla scelta locale).
+    effect(() => {
+      this.locationFilter.set(this.locationContext.activeLocationId() ?? '');
+    });
+  }
 
   private readonly state = toSignal(
     toObservable(this.refreshTick).pipe(

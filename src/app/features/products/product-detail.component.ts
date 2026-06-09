@@ -1,7 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, forkJoin, map, of, startWith, switchMap, type Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -12,6 +19,7 @@ import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -62,6 +70,7 @@ type ProductDetailState =
     RouterLink,
     BadgeComponent,
     ButtonComponent,
+    ConfirmDialogComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
@@ -74,6 +83,7 @@ export class ProductDetailComponent {
   private readonly service = inject(ProductService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly listPath = PRODUCTS_LIST_PATH;
   protected readonly skeletonColumns = 5;
@@ -157,6 +167,38 @@ export class ProductDetailComponent {
 
   protected goToEdit(productId: string): void {
     void this.router.navigateByUrl(`${PRODUCTS_LIST_PATH}/${productId}/edit`);
+  }
+
+  // ── Eliminazione (azione sensibile: confirm dialog obbligatorio) ───────────
+  protected readonly deleteDialogOpen = signal(false);
+  protected readonly deleting = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
+
+  // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
+  private deleteSubscription: Subscription | null = null;
+
+  protected askDelete(): void {
+    this.deleteError.set(null);
+    this.deleteDialogOpen.set(true);
+  }
+
+  protected confirmDelete(productId: string): void {
+    this.deleting.set(true);
+    this.deleteSubscription = this.service
+      .deleteProduct(productId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.deleting.set(false);
+          this.deleteDialogOpen.set(false);
+          void this.router.navigateByUrl(PRODUCTS_LIST_PATH);
+        },
+        error: (err: unknown) => {
+          this.deleting.set(false);
+          this.deleteDialogOpen.set(false);
+          this.deleteError.set(this.toAppError(err).message);
+        },
+      });
   }
 
   private toErrorState(err: unknown): ProductDetailState {

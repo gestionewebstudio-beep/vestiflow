@@ -4,8 +4,13 @@
     <app-topbar
       [themeMode]="themeMode()"
       [user]="currentUser()"
+      [locations]="locations()"
+      [activeLocationId]="activeLocationId()"
+      [syncStatus]="shopifySyncStatus()"
       (menuToggle)="toggleDrawer()"
       (themeModeChange)="onThemeModeChange($event)"
+      (locationChange)="onLocationChange($event)"
+      (syncClick)="onSyncClick()"
       (logout)="onLogout()"
     />
   </header>

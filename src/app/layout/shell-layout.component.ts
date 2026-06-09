@@ -1,14 +1,20 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
-import { filter, type Subscription } from 'rxjs';
+import { catchError, filter, map, of, type Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
+import { LocationContextService } from '@core/services/location-context.service';
 import { ThemeService } from '@core/services/theme.service';
+import type { EntityId } from '@core/models/common.model';
+import type { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import { AppSidebarComponent } from '@shared/components/app-sidebar/app-sidebar.component';
 import { AppTopbarComponent } from '@shared/components/app-topbar/app-topbar.component';
 import type { NavItem } from '@shared/models/nav-item.model';
 import type { ThemeMode } from '@shared/models/theme.model';
+
+import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
+import { InventoryService } from '@features/inventory/services/inventory.service';
 
 /**
  * Shell applicativa: topbar + sidebar + area contenuti con singola regione di
@@ -26,10 +32,29 @@ export class ShellLayoutComponent {
   private readonly router = inject(Router);
   private readonly themeService = inject(ThemeService);
   private readonly authService = inject(AuthService);
+  private readonly locationContext = inject(LocationContextService);
+  private readonly inventoryService = inject(InventoryService);
+  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly themeMode = this.themeService.mode;
   readonly currentUser = this.authService.currentUser;
+  readonly activeLocationId = this.locationContext.activeLocationId;
+
+  /** Location per il selettore topbar (in errore: selettore nascosto). */
+  readonly locations = toSignal(
+    this.inventoryService.getLocations().pipe(catchError(() => of([]))),
+    { initialValue: [] },
+  );
+
+  /** Stato connessione Shopify per l'indicatore sync (null finche' non risolto). */
+  readonly shopifySyncStatus = toSignal<ShopifyConnectionStatus | null>(
+    this.shopifyConnectionService.getConnection().pipe(
+      map((connection) => connection.status),
+      catchError(() => of(null)),
+    ),
+    { initialValue: null },
+  );
 
   private readonly _drawerOpen = signal(false);
   readonly drawerOpen = this._drawerOpen.asReadonly();
@@ -64,6 +89,14 @@ export class ShellLayoutComponent {
 
   onThemeModeChange(mode: ThemeMode): void {
     this.themeService.setMode(mode);
+  }
+
+  onLocationChange(locationId: EntityId | null): void {
+    this.locationContext.setActiveLocation(locationId);
+  }
+
+  onSyncClick(): void {
+    void this.router.navigateByUrl('/app/settings');
   }
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
