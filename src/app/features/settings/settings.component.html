@@ -1,0 +1,138 @@
+<section class="settings">
+  <header class="settings__header">
+    <h1 class="settings__title">Impostazioni</h1>
+    <p class="settings__subtitle">Integrazione Shopify, aspetto, profilo e location.</p>
+  </header>
+
+  <!-- ── Shopify ─────────────────────────────────────────────────────────── -->
+  <section class="settings__panel" aria-labelledby="settings-shopify">
+    <h2 id="settings-shopify" class="settings__panel-title">Integrazione Shopify</h2>
+
+    @if (connectionLoading()) {
+      <app-table-skeleton [columns]="2" [rows]="3" />
+    } @else if (connectionNotFound()) {
+      <p class="settings__muted">
+        Nessuna connessione Shopify configurata per questo account. La connessione si attiva dal
+        backend con l'autorizzazione OAuth dello shop.
+      </p>
+    } @else if (connectionError(); as appError) {
+      <app-error-state
+        [description]="appError.message"
+        retryLabel="Riprova"
+        (retry)="reloadConnection()"
+      />
+    } @else if (connection(); as conn) {
+      <div class="settings__shopify-status">
+        <app-badge [tone]="connectionStatusTone(conn.status)">
+          {{ connectionStatusLabel(conn.status) }}
+        </app-badge>
+        @if (conn.shopDomain) {
+          <span class="settings__shopify-domain tabular-nums">{{ conn.shopDomain }}</span>
+        }
+      </div>
+
+      <dl class="settings__facts">
+        <div class="settings__fact">
+          <dt>Nome shop</dt>
+          <dd>{{ conn.displayName ?? '—' }}</dd>
+        </div>
+        <div class="settings__fact">
+          <dt>Versione API</dt>
+          <dd class="tabular-nums">{{ conn.apiVersion ?? '—' }}</dd>
+        </div>
+        <div class="settings__fact">
+          <dt>Ultima connessione</dt>
+          <dd class="tabular-nums">
+            {{ conn.lastConnectedAt ? formatDateTime(conn.lastConnectedAt) : '—' }}
+          </dd>
+        </div>
+        <div class="settings__fact">
+          <dt>Ultimo sync</dt>
+          <dd class="tabular-nums">
+            {{ conn.lastSyncAt ? formatDateTime(conn.lastSyncAt) : '—' }}
+          </dd>
+        </div>
+      </dl>
+
+      @if (conn.scopes?.length) {
+        <div class="settings__scopes" aria-label="Permessi concessi">
+          @for (scope of conn.scopes; track scope) {
+            <app-badge tone="neutral">{{ scope }}</app-badge>
+          }
+        </div>
+      }
+
+      @if (conn.lastError; as lastError) {
+        <p class="settings__shopify-error" role="alert">
+          <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+          {{ lastError.message }}
+          <span class="settings__muted tabular-nums">
+            ({{ formatDateTime(lastError.occurredAt)
+            }}{{ lastError.code ? ' · ' + lastError.code : '' }})
+          </span>
+        </p>
+      }
+
+      <p class="settings__muted">
+        La gestione della connessione (autorizzazione, rinnovo, disconnessione) avviene lato server:
+        nessuna credenziale Shopify è gestita dal browser.
+      </p>
+    }
+  </section>
+
+  <!-- ── Aspetto ─────────────────────────────────────────────────────────── -->
+  <section class="settings__panel" aria-labelledby="settings-theme">
+    <h2 id="settings-theme" class="settings__panel-title">Aspetto</h2>
+    <fieldset class="settings__theme-group">
+      <legend class="settings__muted">Tema dell'interfaccia</legend>
+      <div class="settings__theme-options">
+        @for (option of themeOptions; track option.value) {
+          <label class="settings__theme-option" [class.is-active]="themeMode() === option.value">
+            <input
+              class="settings__theme-radio"
+              type="radio"
+              name="theme-mode"
+              [value]="option.value"
+              [checked]="themeMode() === option.value"
+              (change)="onThemeChange(option.value)"
+            />
+            {{ option.label }}
+          </label>
+        }
+      </div>
+    </fieldset>
+  </section>
+
+  <!-- ── Profilo ─────────────────────────────────────────────────────────── -->
+  <section class="settings__panel" aria-labelledby="settings-profile">
+    <h2 id="settings-profile" class="settings__panel-title">Profilo</h2>
+    @if (currentUser(); as user) {
+      <dl class="settings__facts">
+        <div class="settings__fact">
+          <dt>Nome</dt>
+          <dd>{{ user.displayName }}</dd>
+        </div>
+        <div class="settings__fact">
+          <dt>Email</dt>
+          <dd>{{ user.email }}</dd>
+        </div>
+        <div class="settings__fact">
+          <dt>Ruolo</dt>
+          <dd>{{ roleLabel() }}</dd>
+        </div>
+      </dl>
+    } @else {
+      <p class="settings__muted">Nessun utente autenticato.</p>
+    }
+  </section>
+
+  <!-- ── Location ────────────────────────────────────────────────────────── -->
+  <section class="settings__panel" aria-labelledby="settings-locations">
+    <h2 id="settings-locations" class="settings__panel-title">Location</h2>
+    @if (locations().length > 0) {
+      <app-location-table [locations]="locations()" />
+    } @else {
+      <app-table-skeleton [columns]="4" [rows]="3" />
+    }
+  </section>
+</section>

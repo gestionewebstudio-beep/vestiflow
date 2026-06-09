@@ -56,7 +56,7 @@
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-wide);
 }
 
 .stat-card__value {

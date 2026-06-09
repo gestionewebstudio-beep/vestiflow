@@ -1,0 +1,28 @@
+<div class="location-table__wrapper">
+  <table class="location-table">
+    <thead>
+      <tr>
+        <th scope="col">Nome</th>
+        <th scope="col">Codice</th>
+        <th scope="col">Stato</th>
+        <th scope="col">Shopify</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (location of locations(); track location.id) {
+        <tr class="location-table__row">
+          <td>{{ location.name }}</td>
+          <td class="location-table__code tabular-nums">{{ location.code ?? '—' }}</td>
+          <td>
+            <app-badge [tone]="location.isActive ? 'success' : 'neutral'">
+              {{ location.isActive ? 'Attiva' : 'Disattivata' }}
+            </app-badge>
+          </td>
+          <td>
+            <app-badge [tone]="shopifyTone(location)">{{ shopifyLabel(location) }}</app-badge>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

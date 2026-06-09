@@ -1,0 +1,48 @@
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+
+import type { Location } from '@core/models/location.model';
+import { ShopifySyncStatus } from '@core/models/shopify.model';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
+import type { BadgeTone } from '@shared/components/badge/badge.component';
+
+/** Elenco location del tenant (dumb puro, read-only). */
+@Component({
+  selector: 'app-location-table',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [BadgeComponent],
+  templateUrl: './location-table.component.html',
+  styleUrl: './location-table.component.scss',
+})
+export class LocationTableComponent {
+  readonly locations = input.required<readonly Location[]>();
+
+  protected shopifyLabel(location: Location): string {
+    switch (location.shopify?.status) {
+      case ShopifySyncStatus.Synced:
+        return 'Sincronizzata';
+      case ShopifySyncStatus.Syncing:
+        return 'Sync in corso';
+      case ShopifySyncStatus.OutOfSync:
+        return 'Non aggiornata';
+      case ShopifySyncStatus.Error:
+        return 'Errore sync';
+      default:
+        return 'Non collegata';
+    }
+  }
+
+  protected shopifyTone(location: Location): BadgeTone {
+    switch (location.shopify?.status) {
+      case ShopifySyncStatus.Synced:
+        return 'success';
+      case ShopifySyncStatus.Syncing:
+        return 'info';
+      case ShopifySyncStatus.OutOfSync:
+        return 'warning';
+      case ShopifySyncStatus.Error:
+        return 'error';
+      default:
+        return 'neutral';
+    }
+  }
+}

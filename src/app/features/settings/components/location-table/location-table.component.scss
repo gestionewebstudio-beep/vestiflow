@@ -1,0 +1,36 @@
+:host {
+  display: block;
+}
+
+// Tabella compatta: su mobile scroll orizzontale controllato.
+.location-table__wrapper {
+  inline-size: 100%;
+  overflow-x: auto;
+}
+
+.location-table {
+  inline-size: 100%;
+  min-inline-size: var(--content-narrow);
+  font-size: var(--text-sm);
+  border-collapse: collapse;
+}
+
+.location-table th {
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  border-block-end: var(--border-width) solid var(--color-border);
+  white-space: nowrap;
+}
+
+.location-table__row td {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text);
+  border-block-end: var(--border-width) solid var(--color-border);
+  vertical-align: middle;
+}
+
+.location-table__code {
+  color: var(--color-text-muted);
+}
