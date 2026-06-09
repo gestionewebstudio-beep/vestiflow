@@ -1,0 +1,24 @@
+<div class="report-sales__wrapper">
+  <table class="report-sales">
+    <thead>
+      <tr>
+        <th scope="col">Stato pagamento</th>
+        <th scope="col" class="report-sales__cell--numeric">Ordini</th>
+        <th scope="col" class="report-sales__cell--numeric">Pezzi</th>
+        <th scope="col" class="report-sales__cell--numeric">Totale</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.status) {
+        <tr class="report-sales__row">
+          <td>
+            <app-badge [tone]="statusTone(row.status)">{{ statusLabel(row.status) }}</app-badge>
+          </td>
+          <td class="report-sales__cell--numeric tabular-nums">{{ row.orders }}</td>
+          <td class="report-sales__cell--numeric tabular-nums">{{ row.units }}</td>
+          <td class="report-sales__cell--numeric tabular-nums">{{ formatMoney(row.total) }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

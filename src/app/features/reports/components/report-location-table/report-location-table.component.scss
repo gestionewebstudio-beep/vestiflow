@@ -1,0 +1,42 @@
+:host {
+  display: block;
+}
+
+// Tabella compatta: su mobile scroll orizzontale controllato.
+.report-table__wrapper {
+  inline-size: 100%;
+  overflow-x: auto;
+}
+
+.report-table {
+  inline-size: 100%;
+  min-inline-size: var(--content-narrow);
+  font-size: var(--text-sm);
+  border-collapse: collapse;
+}
+
+.report-table th {
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  border-block-end: var(--border-width) solid var(--color-border);
+  white-space: nowrap;
+}
+
+.report-table__row td {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text);
+  border-block-end: var(--border-width) solid var(--color-border);
+  vertical-align: middle;
+}
+
+.report-table th.report-table__cell--numeric,
+.report-table__cell--numeric {
+  text-align: end;
+}
+
+.report-table__cell--warning {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-semibold);
+}

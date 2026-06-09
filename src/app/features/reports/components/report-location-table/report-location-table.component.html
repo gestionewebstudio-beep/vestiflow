@@ -1,0 +1,31 @@
+<div class="report-table__wrapper">
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th scope="col">Location</th>
+        <th scope="col" class="report-table__cell--numeric">Varianti tracciate</th>
+        <th scope="col" class="report-table__cell--numeric">Pezzi disponibili</th>
+        <th scope="col" class="report-table__cell--numeric">Sotto soglia</th>
+        <th scope="col" class="report-table__cell--numeric">Valore stock</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.locationId) {
+        <tr class="report-table__row">
+          <td>{{ row.locationName }}</td>
+          <td class="report-table__cell--numeric tabular-nums">{{ row.trackedVariants }}</td>
+          <td class="report-table__cell--numeric tabular-nums">{{ row.availableUnits }}</td>
+          <td
+            class="report-table__cell--numeric tabular-nums"
+            [class.report-table__cell--warning]="row.lowStockCount > 0"
+          >
+            {{ row.lowStockCount }}
+          </td>
+          <td class="report-table__cell--numeric tabular-nums">
+            {{ formatMoney(row.stockValue) }}
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
