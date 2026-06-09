@@ -1,0 +1,35 @@
+<div class="recent-sales__wrapper">
+  <table class="recent-sales">
+    <thead>
+      <tr>
+        <th scope="col">Ordine</th>
+        <th scope="col">Cliente</th>
+        <th scope="col">Stato</th>
+        <th scope="col" class="recent-sales__cell--numeric">Data</th>
+        <th scope="col" class="recent-sales__cell--numeric">Totale</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.orderId) {
+        <tr
+          class="recent-sales__row"
+          tabindex="0"
+          [attr.aria-label]="'Apri vendita ' + row.orderNumber"
+          (click)="rowClick.emit(row)"
+          (keydown.enter)="rowClick.emit(row)"
+          (keydown.space)="$event.preventDefault(); rowClick.emit(row)"
+        >
+          <td class="recent-sales__number tabular-nums">{{ row.orderNumber }}</td>
+          <td>{{ row.customerName }}</td>
+          <td>
+            <app-badge [tone]="statusTone(row.financialStatus)">
+              {{ statusLabel(row.financialStatus) }}
+            </app-badge>
+          </td>
+          <td class="recent-sales__cell--numeric tabular-nums">{{ formatDate(row.placedAt) }}</td>
+          <td class="recent-sales__cell--numeric tabular-nums">{{ formatMoney(row.total) }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

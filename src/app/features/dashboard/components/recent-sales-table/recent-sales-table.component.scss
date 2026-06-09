@@ -1,0 +1,55 @@
+:host {
+  display: block;
+}
+
+// Tabella compatta: su mobile scroll orizzontale controllato.
+.recent-sales__wrapper {
+  inline-size: 100%;
+  overflow-x: auto;
+}
+
+.recent-sales {
+  inline-size: 100%;
+  min-inline-size: var(--content-narrow);
+  font-size: var(--text-sm);
+  border-collapse: collapse;
+}
+
+.recent-sales th {
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  border-block-end: var(--border-width) solid var(--color-border);
+  white-space: nowrap;
+}
+
+.recent-sales__row td {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text);
+  border-block-end: var(--border-width) solid var(--color-border);
+  vertical-align: middle;
+}
+
+.recent-sales__row {
+  cursor: pointer;
+  transition: background-color var(--transition-fast) var(--ease-standard);
+}
+
+.recent-sales__row:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.recent-sales__row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.recent-sales th.recent-sales__cell--numeric,
+.recent-sales__cell--numeric {
+  text-align: end;
+}
+
+.recent-sales__number {
+  font-weight: var(--font-weight-medium);
+}

@@ -1,0 +1,29 @@
+<div class="low-stock__wrapper">
+  <table class="low-stock">
+    <thead>
+      <tr>
+        <th scope="col">Variante</th>
+        <th scope="col">Location</th>
+        <th scope="col" class="low-stock__cell--numeric">Disponibile</th>
+        <th scope="col" class="low-stock__cell--numeric">Soglia</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.variantId + row.locationId) {
+        <tr class="low-stock__row">
+          <td>
+            <span class="low-stock__title">{{ row.title }}</span>
+            <span class="low-stock__sku tabular-nums">{{ row.sku }}</span>
+          </td>
+          <td>{{ row.locationName }}</td>
+          <td class="low-stock__cell--numeric">
+            <app-badge [tone]="row.available <= 0 ? 'error' : 'warning'">
+              <span class="tabular-nums">{{ row.available }}</span>
+            </app-badge>
+          </td>
+          <td class="low-stock__cell--numeric tabular-nums">{{ row.minThreshold }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

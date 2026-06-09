@@ -1,0 +1,83 @@
+<section class="dashboard">
+  <header class="dashboard__header">
+    <h1 class="dashboard__title">Dashboard</h1>
+    <p class="dashboard__subtitle">Panoramica operativa di magazzino, vendite e ordini.</p>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="4" [rows]="6" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else {
+    <div class="dashboard__kpis">
+      <app-stat-card
+        label="Prodotti"
+        [value]="productCountLabel()"
+        icon="pi-tag"
+        tone="neutral"
+        hint="A catalogo"
+      />
+      <app-stat-card
+        label="Pezzi disponibili"
+        [value]="availableUnitsLabel()"
+        icon="pi-box"
+        tone="info"
+        hint="Su tutte le location"
+      />
+      <app-stat-card
+        label="Sotto soglia"
+        [value]="lowStockCountLabel()"
+        icon="pi-exclamation-triangle"
+        tone="warning"
+        hint="Varianti da riordinare"
+      />
+      <app-stat-card
+        label="Ordini in arrivo"
+        [value]="incomingOrdersLabel()"
+        icon="pi-truck"
+        tone="neutral"
+        hint="Da fornitori"
+      />
+      <app-stat-card
+        label="Vendite da evadere"
+        [value]="toFulfillLabel()"
+        icon="pi-shopping-cart"
+        tone="info"
+        hint="Non ancora evase"
+      />
+    </div>
+
+    <section class="dashboard__panel" aria-labelledby="dashboard-low-stock">
+      <div class="dashboard__panel-head">
+        <h2 id="dashboard-low-stock" class="dashboard__panel-title">Varianti sotto soglia</h2>
+        <a class="dashboard__panel-link" routerLink="/app/inventory">
+          Vai al magazzino
+          <i class="pi pi-arrow-right" aria-hidden="true"></i>
+        </a>
+      </div>
+      @if (lowStockPreview().length > 0) {
+        <app-low-stock-table [rows]="lowStockPreview()" />
+      } @else {
+        <p class="dashboard__muted">
+          <i class="pi pi-check-circle" aria-hidden="true"></i>
+          Nessuna variante sotto soglia: giacenze in ordine.
+        </p>
+      }
+    </section>
+
+    <section class="dashboard__panel" aria-labelledby="dashboard-recent-sales">
+      <div class="dashboard__panel-head">
+        <h2 id="dashboard-recent-sales" class="dashboard__panel-title">Ultime vendite</h2>
+        <a class="dashboard__panel-link" routerLink="/app/sales">
+          Vai alle vendite
+          <i class="pi pi-arrow-right" aria-hidden="true"></i>
+        </a>
+      </div>
+      @if (recentSales().length > 0) {
+        <app-recent-sales-table [rows]="recentSales()" (rowClick)="openSale($event)" />
+      } @else {
+        <p class="dashboard__muted">Nessuna vendita registrata.</p>
+      }
+    </section>
+  }
+</section>
