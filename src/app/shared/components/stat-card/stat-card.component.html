@@ -1,0 +1,14 @@
+<div class="stat-card stat-card--{{ tone() }}">
+  @if (icon(); as iconName) {
+    <span class="stat-card__icon" aria-hidden="true">
+      <i class="pi {{ iconName }}"></i>
+    </span>
+  }
+  <div class="stat-card__body">
+    <p class="stat-card__label">{{ label() }}</p>
+    <p class="stat-card__value tabular-nums">{{ value() }}</p>
+    @if (hint(); as hintText) {
+      <p class="stat-card__hint">{{ hintText }}</p>
+    }
+  </div>
+</div>

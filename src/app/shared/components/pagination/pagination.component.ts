@@ -4,19 +4,22 @@ import type { PageMeta } from '@core/models/api.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 
 /**
- * Paginazione lista (dumb puro). Coerente con la paginazione server-side
- * simulata: lavora sui PageMeta e emette page/pageSize richiesti.
+ * Paginazione lista (dumb puro, shared). Promossa da features/products perché
+ * riusata da più liste (prodotti, vendite, clienti, ordini). Lavora sui
+ * PageMeta della paginazione server-side simulata ed emette page/pageSize.
  */
 @Component({
-  selector: 'app-product-pagination',
+  selector: 'app-pagination',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ButtonComponent],
-  templateUrl: './product-pagination.component.html',
-  styleUrl: './product-pagination.component.scss',
+  templateUrl: './pagination.component.html',
+  styleUrl: './pagination.component.scss',
 })
-export class ProductPaginationComponent {
+export class PaginationComponent {
   readonly meta = input.required<PageMeta>();
   readonly pageSizeOptions = input.required<readonly number[]>();
+  /** Etichetta aria della nav (es. 'Paginazione prodotti'). */
+  readonly label = input<string>('Paginazione');
 
   readonly pageChange = output<number>();
   readonly pageSizeChange = output<number>();

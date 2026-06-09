@@ -1,0 +1,8 @@
+<dl class="detail-facts">
+  @for (fact of facts(); track fact.label) {
+    <div class="detail-facts__item" [class.detail-facts__item--wide]="fact.wide">
+      <dt class="detail-facts__term">{{ fact.label }}</dt>
+      <dd class="detail-facts__value" [class.tabular-nums]="fact.numeric">{{ fact.value }}</dd>
+    </div>
+  }
+</dl>

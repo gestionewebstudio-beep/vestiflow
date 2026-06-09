@@ -38,7 +38,8 @@
       (rowClick)="openProduct($event)"
       (sortChange)="onSortChange($event)"
     />
-    <app-product-pagination
+    <app-pagination
+      label="Paginazione prodotti"
       [meta]="meta()"
       [pageSizeOptions]="pageSizeOptions"
       (pageChange)="goToPage($event)"

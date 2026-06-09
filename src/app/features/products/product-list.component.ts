@@ -27,9 +27,9 @@ import type { Product } from '@core/models/product.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { ProductPaginationComponent } from './components/product-pagination/product-pagination.component';
 import { ProductTableComponent } from './components/product-table/product-table.component';
 import { ProductToolbarComponent } from './components/product-toolbar/product-toolbar.component';
 import type {
@@ -79,9 +79,9 @@ type ProductListState =
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    PaginationComponent,
     ProductToolbarComponent,
     ProductTableComponent,
-    ProductPaginationComponent,
   ],
   templateUrl: './product-list.component.html',
   styleUrl: './product-list.component.scss',
