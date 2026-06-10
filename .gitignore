@@ -6,13 +6,12 @@
 /out-tsc
 /bazel-out
 
-# Node
-/node_modules
+# Node (a qualsiasi livello: root, api/, futuri sotto-progetti)
+node_modules/
 npm-debug.log
 yarn-error.log
 
 # Backend NestJS (api/)
-/api/node_modules
 /api/dist
 
 # IDEs and editors
