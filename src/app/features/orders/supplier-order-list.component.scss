@@ -65,9 +65,9 @@
 }
 
 .po-list__input:focus-visible {
-  border-color: var(--color-primary);
+  border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-primary-subtle);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
 }
 
 .po-list__filters {
@@ -102,7 +102,7 @@
 }
 
 .po-list__select:focus-visible {
-  border-color: var(--color-primary);
+  border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-primary-subtle);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
 }

@@ -26,7 +26,7 @@
 
 .shell__sidebar {
   grid-area: sidebar;
-  background-color: var(--color-surface);
+  background-color: var(--color-nav-bg);
   border-inline-end: var(--border-width) solid var(--color-border);
   // Mobile: drawer off-canvas.
   position: fixed;

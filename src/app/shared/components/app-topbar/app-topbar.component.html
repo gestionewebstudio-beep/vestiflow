@@ -16,18 +16,15 @@
   <!-- Selettore location attiva: filtro globale per le viste di stock. -->
   @if (locations().length > 0) {
     <div class="app-topbar__store">
-      <i class="pi pi-shop" aria-hidden="true"></i>
-      <select
-        class="app-topbar__store-select"
-        aria-label="Location attiva"
-        [value]="activeLocationId() ?? ''"
-        (change)="onLocationSelect($event)"
-      >
-        <option value="">Tutte le location</option>
-        @for (location of locations(); track location.id) {
-          <option [value]="location.id">{{ location.name }}</option>
-        }
-      </select>
+      <app-select-menu
+        [options]="locationOptions()"
+        [value]="activeLocationValue()"
+        ariaLabel="Location attiva"
+        placeholder="Tutte le location"
+        triggerIcon="pi-shop"
+        [compact]="true"
+        (valueChange)="onLocationChange($event)"
+      />
     </div>
   }
 

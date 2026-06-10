@@ -8,11 +8,12 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-block-size: var(--btn-min-height);
-  padding-inline: var(--space-4);
-  font-size: var(--text-base);
-  font-weight: var(--font-weight-semibold);
+  min-block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
   border: var(--border-width) solid transparent;
   transition:
     background-color var(--transition-fast) var(--ease-standard),
@@ -33,17 +34,19 @@
 .app-button--primary {
   color: var(--color-primary-fg);
   background-color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .app-button--primary:hover:not(:disabled) {
   background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
-// ── Secondary (bordo) ───────────────────────────────────────────────────────
+// ── Secondary (default Polaris — bianco con bordo) ────────────────────────────
 .app-button--secondary {
   color: var(--color-text);
   background-color: var(--color-surface);
-  border-color: var(--color-border-strong);
+  border-color: var(--color-border);
 }
 
 .app-button--secondary:hover:not(:disabled) {

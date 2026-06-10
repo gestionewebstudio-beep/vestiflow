@@ -1,17 +1,18 @@
 // =============================================================================
-// VestiFlow — Design Tokens
+// VestiFlow — Design Tokens (Polaris-inspired / Shopify Admin)
 // UNICA fonte di verita' per valori visivi (regole-architettura).
 // I componenti usano SOLO `var(--token)`. Nessun valore numerico nudo altrove.
+//
+// Palette allineata a Shopify Polaris: neutri caldi, CTA scura, link/focus blu,
+// verde brand Shopify per accenti di sync/successo.
 //
 // Architettura a livelli:
 //   1. Primitive  -> scale colore grezze (uniche con valori hardcoded)
 //   2. Semantici  -> superfici/testo/primary (flippano in dark mode)
 //   3. Stato      -> stock/status (ok, low, empty, warning, error, success...)
 //   4. Spacing / Radius / Shadow / Z-index
-//   5. Typography (Inter)
+//   5. Typography (Inter — stesso stack di Polaris)
 //   6. Layout primitives + breakpoint (SCSS) + mixin
-// Breakpoint e mixin responsive vivono in `_breakpoints.scss` (solo SCSS),
-// per non duplicare il blocco :root quando un componente importa quei tool.
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -20,120 +21,150 @@
 :root {
   color-scheme: light;
 
-  // ── 1. PRIMITIVE — Blu (primary, professionale) ────────────────────────────
-  --blue-50: #eff5ff;
-  --blue-100: #dbe8fe;
-  --blue-200: #bfd5fe;
-  --blue-300: #93b6fd;
-  --blue-400: #6090fa;
-  --blue-500: #3b6cf6;
-  --blue-600: #2563eb;
-  --blue-700: #1d4ed8;
-  --blue-800: #1e40af;
-  --blue-900: #1e3a8a;
-  --blue-950: #172554;
+  // ── 1. PRIMITIVE — Blu (link, focus, info — Polaris emphasis) ─────────────
+  --blue-50: #eaf4ff;
+  --blue-100: #e0f0ff;
+  --blue-200: #cae6ff;
+  --blue-300: #91d0ff;
+  --blue-400: #51c0ff;
+  --blue-500: #005bd3;
+  --blue-600: #005bd3;
+  --blue-700: #004299;
+  --blue-800: #002e6a;
+  --blue-900: #003a5a;
+  --blue-950: #002133;
 
-  // ── 1. PRIMITIVE — Neutrali (slate) ────────────────────────────────────────
+  // ── 1. PRIMITIVE — Neutrali (Polaris warm gray) ─────────────────────────────
   --gray-0: #ffffff;
-  --gray-50: #f8fafc;
-  --gray-100: #f1f5f9;
-  --gray-200: #e2e8f0;
-  --gray-300: #cbd5e1;
-  --gray-400: #94a3b8;
-  --gray-500: #64748b;
-  --gray-600: #475569;
-  --gray-700: #334155;
-  --gray-800: #1e293b;
-  --gray-900: #0f172a;
-  --gray-950: #020617;
+  --gray-50: #fafafa;
+  --gray-100: #f7f7f7;
+  --gray-150: #f3f3f3;
+  --gray-200: #f1f1f1;
+  --gray-250: #ebebeb;
+  --gray-300: #e3e3e3;
+  --gray-400: #cccccc;
+  --gray-500: #b5b5b5;
+  --gray-600: #8a8a8a;
+  --gray-700: #616161;
+  --gray-800: #4a4a4a;
+  --gray-900: #303030;
+  --gray-950: #1a1a1a;
 
-  // ── 1. PRIMITIVE — Verde / Ambra / Rosso (stati) ───────────────────────────
-  --green-50: #ecfdf5;
-  --green-100: #d1fae5;
-  --green-300: #6ee7b7;
-  --green-500: #10b981;
-  --green-600: #059669;
-  --green-700: #047857;
+  // ── 1. PRIMITIVE — Verde brand Shopify / success ───────────────────────────
+  --green-50: #f1f8f5;
+  --green-100: #cdfed4;
+  --green-300: #92fcac;
+  --green-500: #047c5d;
+  --green-600: #035e4c;
+  --green-700: #014b40;
 
-  --amber-50: #fffbeb;
-  --amber-100: #fef3c7;
-  --amber-300: #fcd34d;
-  --amber-500: #f59e0b;
-  --amber-600: #d97706;
-  --amber-700: #b45309;
+  // ── 1. PRIMITIVE — Caution / Warning (Polaris distingue i due) ─────────────
+  --amber-50: #fff8db;
+  --amber-100: #fff4bf;
+  --amber-300: #ffeb78;
+  --amber-500: #ffe600;
+  --amber-600: #ead300;
+  --amber-700: #998500;
 
-  --red-50: #fef2f2;
-  --red-100: #fee2e2;
-  --red-300: #fca5a5;
-  --red-500: #ef4444;
-  --red-600: #dc2626;
-  --red-700: #b91c1c;
+  --orange-50: #fff1e3;
+  --orange-100: #ffebc5;
+  --orange-300: #ffc479;
+  --orange-500: #ffb800;
+  --orange-600: #e5a500;
+  --orange-700: #956f00;
 
-  // ── 2. SEMANTICI — Superfici / testo / primary (LIGHT) ─────────────────────
-  --color-bg: var(--gray-50);
+  // ── 1. PRIMITIVE — Critical ────────────────────────────────────────────────
+  --red-50: #fee9eb;
+  --red-100: #fed1d7;
+  --red-300: #fec1c7;
+  --red-500: #c70a24;
+  --red-600: #a30a24;
+  --red-700: #8e0b21;
+
+  // ── 2. SEMANTICI — Superfici / testo (LIGHT, Polaris) ──────────────────────
+  --color-bg: var(--gray-200);
   --color-surface: var(--gray-0);
   --color-surface-raised: var(--gray-0);
   --color-surface-sunken: var(--gray-100);
   --color-surface-hover: var(--gray-100);
 
-  --color-border: var(--gray-200);
-  --color-border-strong: var(--gray-300);
+  --color-border: var(--gray-300);
+  --color-border-strong: var(--gray-400);
 
   --color-text: var(--gray-900);
-  --color-text-muted: var(--gray-500);
-  --color-text-subtle: var(--gray-400);
+  --color-text-muted: var(--gray-700);
+  --color-text-subtle: var(--gray-600);
   --color-text-inverse: var(--gray-0);
 
-  --color-primary: var(--blue-600);
-  --color-primary-hover: var(--blue-700);
-  --color-primary-active: var(--blue-800);
+  // CTA principale: charcoal Polaris (--p-color-bg-fill-brand per main actions)
+  --color-primary: var(--gray-900);
+  --color-primary-hover: var(--gray-950);
+  --color-primary-active: var(--gray-950);
   --color-primary-fg: var(--gray-0);
-  --color-primary-subtle: var(--blue-50);
+  --color-primary-subtle: var(--gray-200);
 
-  --color-danger: var(--red-600);
-  --color-danger-hover: var(--red-700);
+  // Accento Shopify (sync, brand badge, success highlights)
+  --color-brand: var(--green-500);
+  --color-brand-hover: var(--green-600);
+  --color-brand-subtle: var(--green-50);
+
+  // Interattivo: link, focus form, tab attiva (Polaris emphasis blue)
+  --color-interactive: var(--blue-600);
+  --color-interactive-hover: var(--blue-700);
+  --color-interactive-active: var(--blue-800);
+  --color-interactive-subtle: var(--blue-50);
+
+  --color-danger: var(--red-500);
+  --color-danger-hover: var(--red-600);
   --color-danger-fg: var(--gray-0);
 
-  --color-focus-ring: var(--blue-500);
+  --color-focus-ring: var(--blue-600);
   --color-link: var(--blue-600);
+  --color-link-hover: var(--blue-700);
 
   /** Sfondo semitrasparente per overlay/drawer (backdrop). */
-  --color-backdrop: rgb(15 23 42 / 0.45);
+  --color-backdrop: rgb(0 0 0 / 0.71);
 
-  // ── 3. STATO / STOCK (LIGHT) — coppie fg/bg pensate per i badge ────────────
+  // Nav laterale — tono leggermente piu' scuro del page bg (Polaris nav)
+  --color-nav-bg: var(--gray-250);
+  --color-nav-hover: var(--gray-200);
+  --color-nav-selected-bg: var(--gray-50);
+  --color-nav-selected-text: var(--gray-900);
+
+  // ── 3. STATO / STOCK (LIGHT) — coppie fg/bg Polaris ────────────────────────
   --status-ok-fg: var(--green-700);
-  --status-ok-bg: var(--green-50);
-  --status-ok-border: var(--green-100);
+  --status-ok-bg: var(--green-100);
+  --status-ok-border: var(--green-300);
 
-  --status-low-fg: var(--amber-700);
-  --status-low-bg: var(--amber-50);
-  --status-low-border: var(--amber-100);
+  --status-low-fg: var(--orange-700);
+  --status-low-bg: var(--orange-50);
+  --status-low-border: var(--orange-100);
 
   --status-empty-fg: var(--red-700);
   --status-empty-bg: var(--red-50);
   --status-empty-border: var(--red-100);
 
   --status-success-fg: var(--green-700);
-  --status-success-bg: var(--green-50);
-  --status-success-border: var(--green-100);
+  --status-success-bg: var(--green-100);
+  --status-success-border: var(--green-300);
 
-  --status-warning-fg: var(--amber-700);
-  --status-warning-bg: var(--amber-50);
-  --status-warning-border: var(--amber-100);
+  --status-warning-fg: var(--orange-700);
+  --status-warning-bg: var(--orange-50);
+  --status-warning-border: var(--orange-100);
 
   --status-error-fg: var(--red-700);
   --status-error-bg: var(--red-50);
   --status-error-border: var(--red-100);
 
-  --status-info-fg: var(--blue-700);
+  --status-info-fg: var(--blue-900);
   --status-info-bg: var(--blue-50);
   --status-info-border: var(--blue-100);
 
-  --status-neutral-fg: var(--gray-600);
-  --status-neutral-bg: var(--gray-100);
-  --status-neutral-border: var(--gray-200);
+  --status-neutral-fg: var(--gray-700);
+  --status-neutral-bg: var(--gray-200);
+  --status-neutral-border: var(--gray-300);
 
-  // ── 4. SPACING — scala base 4px ────────────────────────────────────────────
+  // ── 4. SPACING — scala base 4px (compatibile Polaris) ──────────────────────
   --space-0: 0;
   --space-1: 0.25rem; // 4px
   --space-2: 0.5rem; // 8px
@@ -147,20 +178,20 @@
   --space-16: 4rem; // 64px
   --space-32: 8rem; // 128px
 
-  // ── 4. RADIUS ──────────────────────────────────────────────────────────────
+  // ── 4. RADIUS — Polaris default 8px su controlli e card ─────────────────────
   --radius-xs: 0.125rem; // 2px
   --radius-sm: 0.25rem; // 4px
-  --radius-md: 0.375rem; // 6px
-  --radius-lg: 0.5rem; // 8px
-  --radius-xl: 0.75rem; // 12px
-  --radius-2xl: 1rem; // 16px
+  --radius-md: 0.5rem; // 8px — default button/input/card
+  --radius-lg: 0.75rem; // 12px
+  --radius-xl: 1rem; // 16px
+  --radius-2xl: 1.25rem; // 20px
   --radius-full: 9999px;
 
-  // ── 4. SHADOWS (sobrie, LIGHT) ─────────────────────────────────────────────
-  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.04);
-  --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.06);
-  --shadow-md: 0 4px 8px -2px rgb(15 23 42 / 0.1), 0 2px 4px -2px rgb(15 23 42 / 0.06);
-  --shadow-lg: 0 12px 20px -6px rgb(15 23 42 / 0.12), 0 4px 8px -4px rgb(15 23 42 / 0.08);
+  // ── 4. SHADOWS — Polaris: bordi > ombre; ombre minime ───────────────────────
+  --shadow-xs: 0 1px 0 rgb(26 26 26 / 0.05);
+  --shadow-sm: 0 1px 0 rgb(26 26 26 / 0.07);
+  --shadow-md: 0 4px 6px -2px rgb(26 26 26 / 0.08);
+  --shadow-lg: 0 8px 16px -4px rgb(26 26 26 / 0.12);
 
   // ── 4. Z-INDEX ─────────────────────────────────────────────────────────────
   --z-base: 0;
@@ -173,21 +204,20 @@
   --z-toast: 1500;
   --z-tooltip: 1600;
 
-  // ── 5. TYPOGRAPHY — Inter (no font display decorativo) ─────────────────────
-  // 'Inter Variable' = font self-hosted (@fontsource-variable/inter), poi fallback.
+  // ── 5. TYPOGRAPHY — Inter (stack Polaris) ──────────────────────────────────
   --font-sans:
-    'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
-    sans-serif;
+    'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'San Francisco', 'Segoe UI',
+    Roboto, Helvetica, Arial, sans-serif;
   --font-display: var(--font-sans);
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --text-2xs: 0.6875rem; // 11px
   --text-xs: 0.75rem; // 12px
-  --text-sm: 0.8125rem; // 13px
-  --text-base: 0.875rem; // 14px — base UI (densita')
-  --text-md: 0.9375rem; // 15px
-  --text-lg: 1.0625rem; // 17px
-  --text-xl: 1.25rem; // 20px
+  --text-sm: 0.8125rem; // 13px — Polaris body compact
+  --text-base: 0.8125rem; // 13px — base UI densita' admin
+  --text-md: 0.875rem; // 14px
+  --text-lg: 1rem; // 16px
+  --text-xl: 1.25rem; // 20px — page title Polaris
   --text-2xl: 1.5rem; // 24px
 
   --font-weight-regular: 400;
@@ -195,7 +225,7 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  --leading-tight: 1.2;
+  --leading-tight: 1.25;
   --leading-snug: 1.35;
   --leading-normal: 1.5;
   --leading-relaxed: 1.65;
@@ -204,46 +234,46 @@
   --tracking-normal: 0;
   --tracking-wide: 0.04em;
 
-  // Numeri allineati per tabelle/prezzi/quantita' (regole-gestionale).
   --numeric-tabular: tabular-nums;
 
   // ── 6a. LAYOUT PRIMITIVES ──────────────────────────────────────────────────
-  --content-form: 26rem; // 416px — form centrati (login, recupero password)
-  --content-narrow: 40rem; // 640px
-  --content-default: 72rem; // 1152px
-  --content-wide: 90rem; // 1440px
+  --content-form: 26rem;
+  --content-narrow: 40rem;
+  --content-default: 72rem;
+  --content-wide: 90rem;
 
-  --sidebar-width: 16rem; // 256px
-  --sidebar-width-collapsed: 4rem; // 64px
-  --topbar-height: 3.5rem; // 56px
+  --sidebar-width: 15rem; // 240px — nav Shopify
+  --sidebar-width-collapsed: 3.5rem;
+  --topbar-height: 3.25rem; // 52px
 
   --btn-min-height: 2.75rem; // 44px — touch target minimo (a11y)
-  --field-height: 2.5rem; // 40px
+  --field-height: 2.25rem; // 36px — input Polaris
+  --select-menu-panel-min: 16rem; // larghezza minima pannello opzioni
+  --select-menu-panel-max-height: 16rem; // scroll solo con molte voci
   --container-pad-inline: var(--space-4);
 
   --border-width: 1px;
   --border-width-strong: 2px;
 
   --focus-ring-width: 2px;
-  --focus-ring-offset: 2px;
+  --focus-ring-offset: 1px;
 
-  // ── 6a. MOTION ─────────────────────────────────────────────────────────────
-  --transition-fast: 120ms;
-  --transition-base: 200ms;
-  --transition-slow: 600ms; // loader/skeleton pulse
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  // ── 6a. MOTION — Polaris ease ──────────────────────────────────────────────
+  --transition-fast: 100ms;
+  --transition-base: 150ms;
+  --transition-slow: 600ms;
+  --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 // -----------------------------------------------------------------------------
-// DARK MODE — override SOLO dei token semantici (le primitive restano invariate)
-// Attivazione: <html data-theme="dark"> (gestita in seguito dal theme service).
+// DARK MODE — override semantici (approx Polaris dark admin)
 // -----------------------------------------------------------------------------
 :root[data-theme='dark'] {
   color-scheme: dark;
 
   --color-bg: var(--gray-950);
-  --color-surface: var(--gray-900);
-  --color-surface-raised: var(--gray-800);
+  --color-surface: #1a1a1a;
+  --color-surface-raised: var(--gray-900);
   --color-surface-sunken: var(--gray-950);
   --color-surface-hover: var(--gray-800);
 
@@ -251,15 +281,24 @@
   --color-border-strong: var(--gray-700);
 
   --color-text: var(--gray-100);
-  --color-text-muted: var(--gray-400);
-  --color-text-subtle: var(--gray-500);
+  --color-text-muted: var(--gray-600);
+  --color-text-subtle: var(--gray-700);
   --color-text-inverse: var(--gray-900);
 
-  --color-primary: var(--blue-500);
-  --color-primary-hover: var(--blue-400);
-  --color-primary-active: var(--blue-300);
+  --color-primary: var(--gray-100);
+  --color-primary-hover: var(--gray-0);
+  --color-primary-active: var(--gray-0);
   --color-primary-fg: var(--gray-950);
-  --color-primary-subtle: rgb(37 99 235 / 0.16);
+  --color-primary-subtle: var(--gray-800);
+
+  --color-brand: var(--green-300);
+  --color-brand-hover: var(--green-100);
+  --color-brand-subtle: rgb(4 124 93 / 0.2);
+
+  --color-interactive: var(--blue-400);
+  --color-interactive-hover: var(--blue-300);
+  --color-interactive-active: var(--blue-200);
+  --color-interactive-subtle: rgb(0 91 211 / 0.16);
 
   --color-danger: var(--red-500);
   --color-danger-hover: var(--red-600);
@@ -267,45 +306,49 @@
 
   --color-focus-ring: var(--blue-400);
   --color-link: var(--blue-400);
+  --color-link-hover: var(--blue-300);
 
-  --color-backdrop: rgb(0 0 0 / 0.6);
+  --color-backdrop: rgb(0 0 0 / 0.81);
 
-  // Stato/stock: testo piu' chiaro, fondo translucido sulle superfici scure.
+  --color-nav-bg: #1a1a1a;
+  --color-nav-hover: var(--gray-800);
+  --color-nav-selected-bg: var(--gray-800);
+  --color-nav-selected-text: var(--gray-0);
+
   --status-ok-fg: var(--green-300);
-  --status-ok-bg: rgb(16 185 129 / 0.14);
-  --status-ok-border: rgb(16 185 129 / 0.28);
+  --status-ok-bg: rgb(4 124 93 / 0.2);
+  --status-ok-border: rgb(4 124 93 / 0.35);
 
-  --status-low-fg: var(--amber-300);
-  --status-low-bg: rgb(245 158 11 / 0.14);
-  --status-low-border: rgb(245 158 11 / 0.28);
+  --status-low-fg: var(--orange-300);
+  --status-low-bg: rgb(255 184 0 / 0.14);
+  --status-low-border: rgb(255 184 0 / 0.28);
 
   --status-empty-fg: var(--red-300);
-  --status-empty-bg: rgb(239 68 68 / 0.14);
-  --status-empty-border: rgb(239 68 68 / 0.28);
+  --status-empty-bg: rgb(199 10 36 / 0.14);
+  --status-empty-border: rgb(199 10 36 / 0.28);
 
   --status-success-fg: var(--green-300);
-  --status-success-bg: rgb(16 185 129 / 0.14);
-  --status-success-border: rgb(16 185 129 / 0.28);
+  --status-success-bg: rgb(4 124 93 / 0.2);
+  --status-success-border: rgb(4 124 93 / 0.35);
 
-  --status-warning-fg: var(--amber-300);
-  --status-warning-bg: rgb(245 158 11 / 0.14);
-  --status-warning-border: rgb(245 158 11 / 0.28);
+  --status-warning-fg: var(--orange-300);
+  --status-warning-bg: rgb(255 184 0 / 0.14);
+  --status-warning-border: rgb(255 184 0 / 0.28);
 
   --status-error-fg: var(--red-300);
-  --status-error-bg: rgb(239 68 68 / 0.14);
-  --status-error-border: rgb(239 68 68 / 0.28);
+  --status-error-bg: rgb(199 10 36 / 0.14);
+  --status-error-border: rgb(199 10 36 / 0.28);
 
   --status-info-fg: var(--blue-300);
-  --status-info-bg: rgb(59 108 246 / 0.16);
-  --status-info-border: rgb(59 108 246 / 0.3);
+  --status-info-bg: rgb(0 91 211 / 0.16);
+  --status-info-border: rgb(0 91 211 / 0.3);
 
-  --status-neutral-fg: var(--gray-300);
+  --status-neutral-fg: var(--gray-600);
   --status-neutral-bg: var(--gray-800);
   --status-neutral-border: var(--gray-700);
 
-  // Ombre piu' profonde su fondo scuro.
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
-  --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.55), 0 2px 4px -2px rgb(0 0 0 / 0.45);
-  --shadow-lg: 0 12px 20px -6px rgb(0 0 0 / 0.6), 0 4px 8px -4px rgb(0 0 0 / 0.5);
+  --shadow-xs: 0 1px 0 rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 0 rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 6px -2px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 8px 16px -4px rgb(0 0 0 / 0.6);
 }

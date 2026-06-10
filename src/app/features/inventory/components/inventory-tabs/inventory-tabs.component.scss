@@ -11,13 +11,14 @@
 .inventory-tabs__link {
   display: inline-flex;
   align-items: center;
-  min-block-size: var(--btn-min-height);
-  padding-inline: var(--space-4);
-  font-size: var(--text-base);
+  min-block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
   text-decoration: none;
   border-block-end: var(--border-width-strong) solid transparent;
+  margin-block-end: calc(-1 * var(--border-width));
   transition: color var(--transition-fast) var(--ease-standard);
 }
 
@@ -32,6 +33,7 @@
 }
 
 .inventory-tabs__link--active {
-  color: var(--color-primary);
-  border-block-end-color: var(--color-primary);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+  border-block-end-color: var(--color-interactive);
 }

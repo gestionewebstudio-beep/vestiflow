@@ -41,7 +41,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-block-size: var(--btn-min-height);
+  min-block-size: var(--field-height);
   padding-inline: var(--space-3);
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
@@ -54,13 +54,15 @@
 
 .app-sidebar__link:hover {
   color: var(--color-text);
-  background-color: var(--color-surface-hover);
+  background-color: var(--color-nav-hover);
   text-decoration: none;
 }
 
 .app-sidebar__link--active {
-  color: var(--color-primary);
-  background-color: var(--color-primary-subtle);
+  color: var(--color-nav-selected-text);
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-nav-selected-bg);
+  box-shadow: inset var(--border-width-strong) 0 0 var(--color-text);
 }
 
 .app-sidebar__icon {

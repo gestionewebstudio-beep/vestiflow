@@ -95,9 +95,9 @@
 .movement-form__select:focus-visible,
 .movement-form__input:focus-visible,
 .movement-form__textarea:focus-visible {
-  border-color: var(--color-primary);
+  border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-primary-subtle);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
 }
 
 .movement-form__select[aria-invalid='true'],

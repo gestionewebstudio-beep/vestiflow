@@ -5,6 +5,8 @@ import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import type { EntityId } from '@core/models/common.model';
 import type { Location } from '@core/models/location.model';
 import type { User } from '@core/models/user.model';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import type { ThemeMode } from '@shared/models/theme.model';
 
 interface ThemeOption {
@@ -27,7 +29,7 @@ const SYNC_LABELS: Record<ShopifyConnectionStatus, string> = {
 @Component({
   selector: 'app-topbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgClass],
+  imports: [NgClass, SelectMenuComponent],
   templateUrl: './app-topbar.component.html',
   styleUrl: './app-topbar.component.scss',
 })
@@ -60,6 +62,16 @@ export class AppTopbarComponent {
     { mode: 'system', icon: 'pi-desktop', label: 'Tema di sistema' },
   ];
 
+  protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
+    this.locations().map((location) => ({
+      value: location.id,
+      label: location.name,
+    })),
+  );
+
+  /** Valore stringa per il select-menu (EntityId o vuoto). */
+  protected readonly activeLocationValue = computed(() => this.activeLocationId() ?? '');
+
   /** Etichetta accessibile dell'indicatore sync. */
   protected readonly syncLabel = computed(() => {
     const status = this.syncStatus();
@@ -80,9 +92,8 @@ export class AppTopbarComponent {
     }
   });
 
-  protected onLocationSelect(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.locationChange.emit(value || null);
+  protected onLocationChange(value: string | null): void {
+    this.locationChange.emit(value);
   }
 
   /** Nome visualizzato: displayName se presente, altrimenti email. */
