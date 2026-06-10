@@ -1,0 +1,7 @@
+# Output build
+dist/
+
+# Ambiente locale: mai committare valori reali (regole-sicurezza)
+.env
+.env.local
+.env.*.local

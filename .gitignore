@@ -11,6 +11,10 @@
 npm-debug.log
 yarn-error.log
 
+# Backend NestJS (api/)
+/api/node_modules
+/api/dist
+
 # IDEs and editors
 .idea/
 .project

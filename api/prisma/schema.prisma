@@ -1,0 +1,489 @@
+// Schema VestiFlow — PostgreSQL su Supabase.
+// Specchia i modelli di dominio del frontend Angular (src/app/core/models):
+// multi-tenant ovunque, stock per location (semantica Shopify), denaro in
+// unità minori intere, movimenti tracciati con origine.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  owner
+  admin
+  manager
+  clerk
+}
+
+enum ProductStatus {
+  draft
+  active
+  archived
+}
+
+enum StockMovementType {
+  load
+  unload
+  transfer
+  adjustment
+  sale
+  return
+}
+
+enum AdjustmentDirection {
+  increase
+  decrease
+}
+
+/// Origine del movimento: manuale (utente gestionale) o sync Shopify.
+enum MovementOrigin {
+  manual
+  shopify
+}
+
+enum ShopifySyncStatus {
+  not_connected
+  synced
+  out_of_sync
+  syncing
+  error
+}
+
+enum ShopifyConnectionStatus {
+  not_connected
+  connected
+  reauth_required
+  error
+}
+
+enum SupplierOrderStatus {
+  draft
+  sent
+  partially_received
+  received
+  cancelled
+}
+
+enum SalesOrderFinancialStatus {
+  pending
+  authorized
+  paid
+  partially_refunded
+  refunded
+  voided
+}
+
+enum SalesOrderFulfillmentStatus {
+  unfulfilled
+  partially_fulfilled
+  fulfilled
+}
+
+enum SalesOrderSource {
+  shopify_online
+  shopify_pos
+  manual
+}
+
+// ── Tenant & utenti ──────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users              User[]
+  stores             Store[]
+  locations          Location[]
+  products           Product[]
+  variants           ProductVariant[]
+  inventoryLevels    InventoryLevel[]
+  stockMovements     StockMovement[]
+  suppliers          Supplier[]
+  supplierOrders     SupplierOrder[]
+  customers          Customer[]
+  salesOrders        SalesOrder[]
+  shopifyConnection  ShopifyConnection?
+
+  @@map("tenants")
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  /// Id dell'utente in Supabase Auth (sub del JWT). L'identità vive lì,
+  /// qui vivono profilo applicativo e ruolo.
+  authUserId  String?  @unique @map("auth_user_id") @db.Uuid
+  email       String
+  displayName String   @map("display_name")
+  role        UserRole @default(clerk)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id])
+  stores UserStore[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+model Store {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  code      String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  locations Location[]
+  users     UserStore[]
+
+  @@index([tenantId])
+  @@map("stores")
+}
+
+/// Accesso utente → negozi (UI: selettore e permessi per store).
+model UserStore {
+  userId  String @map("user_id") @db.Uuid
+  storeId String @map("store_id") @db.Uuid
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, storeId])
+  @@map("user_stores")
+}
+
+// ── Location (porta l'inventario, semantica Shopify) ────────────────────────
+
+model Location {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  code      String?
+  isActive  Boolean  @default(true) @map("is_active")
+  /// Store servito da questa location (un magazzino può non averne).
+  storeId   String?  @map("store_id") @db.Uuid
+  // Indirizzo denormalizzato (display/etichette, non entità a sé).
+  addressLine1 String? @map("address_line1")
+  addressLine2 String? @map("address_line2")
+  city         String?
+  province     String?
+  postalCode   String? @map("postal_code")
+  countryCode  String? @map("country_code")
+  // Collegamento Shopify Location: solo id pubblici, nessun segreto.
+  shopifyLocationId String?            @map("shopify_location_id")
+  shopifySyncStatus ShopifySyncStatus  @default(not_connected) @map("shopify_sync_status")
+  shopifyLastSyncAt DateTime?          @map("shopify_last_sync_at")
+  shopifyLastError  String?            @map("shopify_last_error")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  store             Store?           @relation(fields: [storeId], references: [id])
+  inventoryLevels   InventoryLevel[]
+  movements         StockMovement[]  @relation("MovementLocation")
+  incomingTransfers StockMovement[]  @relation("MovementTargetLocation")
+  supplierOrders    SupplierOrder[]
+
+  @@index([tenantId])
+  @@map("locations")
+}
+
+// ── Catalogo: prodotti e varianti ────────────────────────────────────────────
+
+model Product {
+  id          String        @id @default(uuid()) @db.Uuid
+  tenantId    String        @map("tenant_id") @db.Uuid
+  name        String
+  description String?
+  brand       String?
+  category    String?
+  season      String?
+  status      ProductStatus @default(draft)
+  /// Assi opzione (max 3, vincolo Shopify): [{ name: 'Taglia', values: ['S','M'] }]
+  options     Json          @default("[]")
+  // Collegamento Shopify Product: solo id pubblici.
+  shopifyProductId  String?           @map("shopify_product_id")
+  shopifySyncStatus ShopifySyncStatus @default(not_connected) @map("shopify_sync_status")
+  shopifyLastSyncAt DateTime?         @map("shopify_last_sync_at")
+  shopifyLastError  String?           @map("shopify_last_error")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  variants ProductVariant[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, name])
+  @@map("products")
+}
+
+model ProductVariant {
+  id        String  @id @default(uuid()) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+  /// Univoco per tenant: regola interna del gestionale. In import da Shopify
+  /// gli SKU duplicati/vuoti NON rompono il sync: vanno gestiti come anomalie
+  /// PRIMA dell'insert (regole-gestionale, clausola di realtà).
+  sku       String
+  /// Valori opzione (forma Shopify selectedOptions): [{ name, value }]
+  optionValues Json @default("[]") @map("option_values")
+  barcode   String?
+  // Denaro in unità minori intere (mai float).
+  currency               String @default("EUR")
+  sellingPriceMinor      Int    @map("selling_price_minor")
+  purchasePriceMinor     Int?   @map("purchase_price_minor")
+  compareAtPriceMinor    Int?   @map("compare_at_price_minor")
+  // Collegamento Shopify: variante e inventory item.
+  shopifyVariantId         String? @map("shopify_variant_id")
+  shopifyInventoryItemId   String? @map("shopify_inventory_item_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventoryLevels InventoryLevel[]
+  movements       StockMovement[]
+
+  @@unique([tenantId, sku])
+  @@index([productId])
+  @@index([tenantId])
+  @@map("product_variants")
+}
+
+// ── Inventario ───────────────────────────────────────────────────────────────
+
+/// Giacenza per variante × location. Quantity states allineati a Shopify;
+/// available può essere negativo (oversell).
+model InventoryLevel {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @map("tenant_id") @db.Uuid
+  variantId    String @map("variant_id") @db.Uuid
+  locationId   String @map("location_id") @db.Uuid
+  onHand       Int    @default(0) @map("on_hand")
+  available    Int    @default(0)
+  committed    Int    @default(0)
+  incoming     Int    @default(0)
+  reserved     Int    @default(0)
+  minThreshold Int    @default(0) @map("min_threshold")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+  variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  location Location       @relation(fields: [locationId], references: [id])
+
+  @@unique([variantId, locationId])
+  @@index([tenantId])
+  @@index([locationId])
+  @@map("inventory_levels")
+}
+
+/// Log immutabile: ogni modifica inventariale produce una riga qui
+/// (regole-gestionale: mai update silenziosi). Append-only by design.
+model StockMovement {
+  id               String              @id @default(uuid()) @db.Uuid
+  tenantId         String              @map("tenant_id") @db.Uuid
+  type             StockMovementType
+  origin           MovementOrigin      @default(manual)
+  variantId        String              @map("variant_id") @db.Uuid
+  /// Snapshot SKU al momento del movimento (audit anche se la variante cambia).
+  sku              String
+  locationId       String              @map("location_id") @db.Uuid
+  /// Solo trasferimenti: destinazione.
+  targetLocationId String?             @map("target_location_id") @db.Uuid
+  quantity         Int
+  direction        AdjustmentDirection?
+  reason           String?
+  /// Riferimento esterno (es. id ordine Shopify che ha generato la vendita).
+  externalRef      String?             @map("external_ref")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  createdById      String?             @map("created_by_id") @db.Uuid
+  /// Snapshot del nome operatore (audit stabile anche se l'utente cambia nome).
+  createdByName    String              @map("created_by_name")
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  variant        ProductVariant @relation(fields: [variantId], references: [id])
+  location       Location       @relation("MovementLocation", fields: [locationId], references: [id])
+  targetLocation Location?      @relation("MovementTargetLocation", fields: [targetLocationId], references: [id])
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([variantId])
+  @@index([locationId])
+  @@map("stock_movements")
+}
+
+// ── Fornitori e ordini fornitore ─────────────────────────────────────────────
+
+model Supplier {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  email     String?
+  phone     String?
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant          @relation(fields: [tenantId], references: [id])
+  orders SupplierOrder[]
+
+  @@index([tenantId])
+  @@map("suppliers")
+}
+
+model SupplierOrder {
+  id         String              @id @default(uuid()) @db.Uuid
+  tenantId   String              @map("tenant_id") @db.Uuid
+  /// Riferimento leggibile (es. 'PO-2026-0042'), univoco per tenant.
+  reference  String
+  supplierId String              @map("supplier_id") @db.Uuid
+  /// Snapshot nome fornitore (display stabile).
+  supplierName String            @map("supplier_name")
+  /// Location di destinazione merce (il frontend la chiama ancora storeId:
+  /// da allineare al wiring — la semantica è location).
+  destinationLocationId String   @map("destination_location_id") @db.Uuid
+  status     SupplierOrderStatus @default(draft)
+  currency   String              @default("EUR")
+  totalMinor Int                 @default(0) @map("total_minor")
+  expectedAt DateTime?           @map("expected_at")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  tenant              Tenant              @relation(fields: [tenantId], references: [id])
+  supplier            Supplier            @relation(fields: [supplierId], references: [id])
+  destinationLocation Location            @relation(fields: [destinationLocationId], references: [id])
+  lines               SupplierOrderLine[]
+
+  @@unique([tenantId, reference])
+  @@index([tenantId, status])
+  @@map("supplier_orders")
+}
+
+model SupplierOrderLine {
+  id               String @id @default(uuid()) @db.Uuid
+  orderId          String @map("order_id") @db.Uuid
+  variantId        String @map("variant_id") @db.Uuid
+  /// Snapshot SKU al momento dell'ordine.
+  sku              String
+  orderedQuantity  Int    @map("ordered_quantity")
+  receivedQuantity Int    @default(0) @map("received_quantity")
+  unitCostMinor    Int    @map("unit_cost_minor")
+
+  order SupplierOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("supplier_order_lines")
+}
+
+// ── Clienti e vendite (owner: Shopify per l'ecommerce) ──────────────────────
+
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  email     String?
+  phone     String?
+  notes     String?
+  addressLine1 String? @map("address_line1")
+  addressLine2 String? @map("address_line2")
+  city         String?
+  province     String?
+  postalCode   String? @map("postal_code")
+  countryCode  String? @map("country_code")
+  shopifyCustomerId String? @map("shopify_customer_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+  orders SalesOrder[]
+
+  @@unique([tenantId, shopifyCustomerId])
+  @@index([tenantId, lastName])
+  @@map("customers")
+}
+
+/// Ordini di vendita: read-model nel gestionale (owner Shopify per online/POS;
+/// `manual` per vendite registrate direttamente, se mai abilitate).
+model SalesOrder {
+  id                String                      @id @default(uuid()) @db.Uuid
+  tenantId          String                      @map("tenant_id") @db.Uuid
+  orderNumber       String                      @map("order_number")
+  source            SalesOrderSource            @default(manual)
+  financialStatus   SalesOrderFinancialStatus   @default(pending) @map("financial_status")
+  fulfillmentStatus SalesOrderFulfillmentStatus @default(unfulfilled) @map("fulfillment_status")
+  customerId        String?                     @map("customer_id") @db.Uuid
+  /// Snapshot nome cliente (display stabile, anche senza anagrafica).
+  customerName      String                      @map("customer_name")
+  currency          String                      @default("EUR")
+  subtotalMinor     Int                         @default(0) @map("subtotal_minor")
+  totalMinor        Int                         @default(0) @map("total_minor")
+  placedAt          DateTime                    @map("placed_at")
+  shopifyOrderId    String?                     @map("shopify_order_id")
+  createdAt         DateTime                    @default(now()) @map("created_at")
+  updatedAt         DateTime                    @updatedAt @map("updated_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  customer Customer?        @relation(fields: [customerId], references: [id])
+  lines    SalesOrderLine[]
+
+  @@unique([tenantId, shopifyOrderId])
+  @@index([tenantId, placedAt(sort: Desc)])
+  @@map("sales_orders")
+}
+
+model SalesOrderLine {
+  id             String  @id @default(uuid()) @db.Uuid
+  orderId        String  @map("order_id") @db.Uuid
+  /// Nullable: una riga può riferirsi a una variante non più a catalogo.
+  variantId      String? @map("variant_id") @db.Uuid
+  /// Snapshot SKU e titolo al momento della vendita.
+  sku            String
+  title          String
+  quantity       Int
+  unitPriceMinor Int     @map("unit_price_minor")
+  totalMinor     Int     @map("total_minor")
+
+  order SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("sales_order_lines")
+}
+
+// ── Integrazione Shopify (stato connessione, MAI token nel modello API) ─────
+
+/// Una connessione per tenant. I token OAuth NON vivono qui: stanno cifrati
+/// in storage dedicato lato server (o secret manager), mai esposti via API.
+model ShopifyConnection {
+  id              String                  @id @default(uuid()) @db.Uuid
+  tenantId        String                  @unique @map("tenant_id") @db.Uuid
+  status          ShopifyConnectionStatus @default(not_connected)
+  shopDomain      String?                 @map("shop_domain")
+  displayName     String?                 @map("display_name")
+  apiVersion      String?                 @map("api_version")
+  scopes          String[]                @default([])
+  lastConnectedAt DateTime?               @map("last_connected_at")
+  lastSyncAt      DateTime?               @map("last_sync_at")
+  lastErrorMessage String?                @map("last_error_message")
+  lastErrorCode    String?                @map("last_error_code")
+  lastErrorAt      DateTime?              @map("last_error_at")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("shopify_connections")
+}
