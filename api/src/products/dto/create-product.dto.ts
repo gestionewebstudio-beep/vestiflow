@@ -1,0 +1,112 @@
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+import { ProductStatus } from '@prisma/client';
+
+import { MoneyDto } from './money.dto';
+
+/** Asse opzione (es. Taglia → S/M/L). Max 3 assi: vincolo Shopify. */
+export class ProductOptionDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  name!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  values!: string[];
+}
+
+/** Valore opzione selezionato dalla variante (forma Shopify selectedOptions). */
+export class VariantOptionValueDto {
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
+  @IsString()
+  @MinLength(1)
+  value!: string;
+}
+
+export class CreateVariantDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  sku!: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VariantOptionValueDto)
+  optionValues!: VariantOptionValueDto[];
+
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  sellingPrice!: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  purchasePrice?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  compareAtPrice?: MoneyDto;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  barcode?: string;
+}
+
+export class CreateProductDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  brand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  season?: string;
+
+  @IsEnum(ProductStatus)
+  status: ProductStatus = ProductStatus.draft;
+
+  @IsArray()
+  @ArrayMaxSize(3)
+  @ValidateNested({ each: true })
+  @Type(() => ProductOptionDto)
+  options: ProductOptionDto[] = [];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreateVariantDto)
+  variants!: CreateVariantDto[];
+}
