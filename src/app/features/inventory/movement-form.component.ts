@@ -18,6 +18,8 @@ import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import { AdjustmentDirection, StockMovementType } from '@core/models/stock-movement.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import { ProductService } from '@features/products/services/product.service';
 
@@ -46,7 +48,7 @@ type SubmitState =
 @Component({
   selector: 'app-movement-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, ButtonComponent],
+  imports: [ReactiveFormsModule, ButtonComponent, SelectMenuComponent],
   templateUrl: './movement-form.component.html',
   styleUrl: './movement-form.component.scss',
 })
@@ -58,7 +60,16 @@ export class MovementFormComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly typeOptions = MANUAL_TYPES;
+  protected readonly typeSelectOptions: readonly SelectMenuOption[] = MANUAL_TYPES.map(
+    (option) => ({
+      value: option.value,
+      label: option.label,
+    }),
+  );
+  protected readonly directionSelectOptions: readonly SelectMenuOption[] = [
+    { value: AdjustmentDirection.Decrease, label: 'Diminuzione' },
+    { value: AdjustmentDirection.Increase, label: 'Aumento' },
+  ];
   protected readonly MovementType = StockMovementType;
   protected readonly Direction = AdjustmentDirection;
 
@@ -68,6 +79,17 @@ export class MovementFormComponent {
   protected readonly locations = toSignal(this.inventoryService.getLocations(), {
     initialValue: [],
   });
+
+  protected readonly variantSelectOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.variants().map((variant) => ({
+      value: variant.variantId,
+      label: `${variant.title} (${variant.sku})`,
+    })),
+  );
+
+  protected readonly locationSelectOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.locations().map((location) => ({ value: location.id, label: location.name })),
+  );
 
   readonly form = this.fb.group({
     type: this.fb.control<StockMovementType>(StockMovementType.Load, {
@@ -161,6 +183,33 @@ export class MovementFormComponent {
   ): boolean {
     const control = this.form.controls[name];
     return control.invalid && (control.touched || control.dirty);
+  }
+
+  protected onTypeSelect(value: string | null): void {
+    if (value) {
+      this.form.controls.type.setValue(value as StockMovementType);
+    }
+  }
+
+  protected onVariantSelect(value: string | null): void {
+    this.form.controls.variantId.setValue(value ?? '');
+    this.form.controls.variantId.markAsTouched();
+  }
+
+  protected onLocationSelect(value: string | null): void {
+    this.form.controls.locationId.setValue(value ?? '');
+    this.form.controls.locationId.markAsTouched();
+  }
+
+  protected onTargetLocationSelect(value: string | null): void {
+    this.form.controls.targetLocationId.setValue(value ?? '');
+    this.form.controls.targetLocationId.markAsTouched();
+  }
+
+  protected onDirectionSelect(value: string | null): void {
+    if (value) {
+      this.form.controls.direction.setValue(value as AdjustmentDirection);
+    }
   }
 
   protected toReview(): void {

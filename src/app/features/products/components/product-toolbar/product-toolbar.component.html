@@ -14,63 +14,55 @@
 
   <div class="product-toolbar__filters">
     <div class="product-toolbar__field">
-      <label class="product-toolbar__label" for="filter-category">Categoria</label>
-      <select
-        id="filter-category"
-        class="product-toolbar__select"
+      <span class="product-toolbar__label">Categoria</span>
+      <app-select-menu
+        [options]="categoryOptions()"
         [value]="filters().category ?? ''"
-        (change)="onFilterSelect('category', $event)"
-      >
-        <option value="">Tutte</option>
-        @for (category of categories(); track category) {
-          <option [value]="category">{{ category }}</option>
-        }
-      </select>
+        ariaLabel="Filtra per categoria"
+        placeholder="Tutte"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onFilterChange('category', $event)"
+      />
     </div>
 
     <div class="product-toolbar__field">
-      <label class="product-toolbar__label" for="filter-brand">Brand</label>
-      <select
-        id="filter-brand"
-        class="product-toolbar__select"
+      <span class="product-toolbar__label">Brand</span>
+      <app-select-menu
+        [options]="brandOptions()"
         [value]="filters().brand ?? ''"
-        (change)="onFilterSelect('brand', $event)"
-      >
-        <option value="">Tutti</option>
-        @for (brand of brands(); track brand) {
-          <option [value]="brand">{{ brand }}</option>
-        }
-      </select>
+        ariaLabel="Filtra per brand"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onFilterChange('brand', $event)"
+      />
     </div>
 
     <div class="product-toolbar__field">
-      <label class="product-toolbar__label" for="filter-season">Stagione</label>
-      <select
-        id="filter-season"
-        class="product-toolbar__select"
+      <span class="product-toolbar__label">Stagione</span>
+      <app-select-menu
+        [options]="seasonOptions()"
         [value]="filters().season ?? ''"
-        (change)="onFilterSelect('season', $event)"
-      >
-        <option value="">Tutte</option>
-        @for (season of seasons(); track season) {
-          <option [value]="season">{{ season }}</option>
-        }
-      </select>
+        ariaLabel="Filtra per stagione"
+        placeholder="Tutte"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onFilterChange('season', $event)"
+      />
     </div>
 
     <div class="product-toolbar__field">
-      <label class="product-toolbar__label" for="filter-status">Stato</label>
-      <select
-        id="filter-status"
-        class="product-toolbar__select"
+      <span class="product-toolbar__label">Stato</span>
+      <app-select-menu
+        [options]="statusOptions()"
         [value]="filters().status ?? ''"
-        (change)="onFilterSelect('status', $event)"
-      >
-        <option value="">Tutti</option>
-        @for (option of statusOptions(); track option.value) {
-          <option [value]="option.value">{{ option.label }}</option>
-        }
-      </select>
+        ariaLabel="Filtra per stato"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onFilterChange('status', $event)"
+      />
     </div>
 
     <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters.emit()">

@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import type { PageMeta } from '@core/models/api.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 /**
  * Paginazione lista (dumb puro, shared). Promossa da features/products perché
@@ -11,7 +13,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 @Component({
   selector: 'app-pagination',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent],
+  imports: [ButtonComponent, SelectMenuComponent],
   templateUrl: './pagination.component.html',
   styleUrl: './pagination.component.scss',
 })
@@ -39,6 +41,15 @@ export class PaginationComponent {
   protected readonly canPrev = computed(() => this.meta().page > 1);
   protected readonly canNext = computed(() => this.meta().page < this.meta().totalPages);
 
+  protected readonly pageSizeSelectOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.pageSizeOptions().map((size) => ({
+      value: String(size),
+      label: String(size),
+    })),
+  );
+
+  protected readonly pageSizeValue = computed(() => String(this.meta().pageSize));
+
   protected prev(): void {
     if (this.canPrev()) {
       this.pageChange.emit(this.meta().page - 1);
@@ -51,8 +62,10 @@ export class PaginationComponent {
     }
   }
 
-  protected onPageSizeChange(event: Event): void {
-    const target = event.target as HTMLSelectElement;
-    this.pageSizeChange.emit(Number(target.value));
+  protected onPageSizeSelect(value: string | null): void {
+    if (!value) {
+      return;
+    }
+    this.pageSizeChange.emit(Number(value));
   }
 }

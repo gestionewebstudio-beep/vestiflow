@@ -1,16 +1,16 @@
 <nav class="pagination" [attr.aria-label]="label()">
   <div class="pagination__size">
-    <label class="pagination__label" for="page-size">Per pagina</label>
-    <select
-      id="page-size"
-      class="pagination__select"
-      [value]="meta().pageSize"
-      (change)="onPageSizeChange($event)"
-    >
-      @for (size of pageSizeOptions(); track size) {
-        <option [value]="size">{{ size }}</option>
-      }
-    </select>
+    <span class="pagination__label">Per pagina</span>
+    <app-select-menu
+      [options]="pageSizeSelectOptions()"
+      [value]="pageSizeValue()"
+      ariaLabel="Righe per pagina"
+      placeholder="25"
+      [compact]="true"
+      [fullWidth]="true"
+      [includeEmptyOption]="false"
+      (valueChange)="onPageSizeSelect($event)"
+    />
   </div>
 
   <p class="pagination__info tabular-nums">

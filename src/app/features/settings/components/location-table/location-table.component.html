@@ -16,12 +16,16 @@
             {{ location.code ?? '—' }}
           </td>
           <td data-label="Stato">
-            <app-badge [tone]="location.isActive ? 'success' : 'neutral'">
-              {{ location.isActive ? 'Attiva' : 'Disattivata' }}
-            </app-badge>
+            <span class="location-table__cell-value">
+              <app-badge [tone]="location.isActive ? 'success' : 'neutral'">
+                {{ location.isActive ? 'Attiva' : 'Disattivata' }}
+              </app-badge>
+            </span>
           </td>
           <td data-label="Shopify">
-            <app-badge [tone]="shopifyTone(location)">{{ shopifyLabel(location) }}</app-badge>
+            <span class="location-table__cell-value">
+              <app-badge [tone]="shopifyTone(location)">{{ shopifyLabel(location) }}</app-badge>
+            </span>
           </td>
         </tr>
       }

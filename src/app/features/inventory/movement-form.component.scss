@@ -70,7 +70,6 @@
   color: var(--color-text-muted);
 }
 
-.movement-form__select,
 .movement-form__input {
   block-size: var(--field-height);
   padding-inline: var(--space-3);
@@ -92,7 +91,6 @@
   resize: vertical;
 }
 
-.movement-form__select:focus-visible,
 .movement-form__input:focus-visible,
 .movement-form__textarea:focus-visible {
   border-color: var(--color-interactive);
@@ -100,7 +98,6 @@
   box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
 }
 
-.movement-form__select[aria-invalid='true'],
 .movement-form__input[aria-invalid='true'],
 .movement-form__textarea[aria-invalid='true'] {
   border-color: var(--status-error-fg);

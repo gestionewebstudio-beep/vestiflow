@@ -33,7 +33,9 @@
         </td>
         <td data-label="Fornitore">{{ order.supplierName }}</td>
         <td data-label="Stato">
-          <app-badge [tone]="statusTone(order.status)">{{ statusLabel(order.status) }}</app-badge>
+          <span class="po-table__cell-value">
+            <app-badge [tone]="statusTone(order.status)">{{ statusLabel(order.status) }}</app-badge>
+          </span>
         </td>
         <td class="po-table__cell--lines tabular-nums" data-label="Righe">
           {{ lineCount(order) }}

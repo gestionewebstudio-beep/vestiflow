@@ -115,6 +115,17 @@
       content: none;
       display: none;
     }
+
+    // Badge/chip (inline-flex) non rispettano text-align: end nella griglia card.
+    .#{$block} tbody td .#{$block}__cell-value,
+    .#{$block} tbody td .#{$block}__status-value,
+    .#{$block}__row td .#{$block}__cell-value,
+    .#{$block}__row td .#{$block}__status-value {
+      display: flex;
+      justify-content: flex-end;
+      inline-size: 100%;
+      grid-column: 2;
+    }
   }
 }
 

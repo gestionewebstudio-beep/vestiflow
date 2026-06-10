@@ -22,6 +22,8 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { MovementTableComponent } from './components/movement-table/movement-table.component';
@@ -47,6 +49,7 @@ type MovementsState =
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    SelectMenuComponent,
     InventoryTabsComponent,
     MovementTableComponent,
   ],
@@ -59,6 +62,15 @@ export class StockMovementsComponent {
   private readonly router = inject(Router);
 
   protected readonly skeletonColumns = 6;
+
+  protected readonly movementTypeOptions: readonly SelectMenuOption[] = [
+    { value: StockMovementType.Load, label: 'Carico' },
+    { value: StockMovementType.Unload, label: 'Scarico' },
+    { value: StockMovementType.Transfer, label: 'Trasferimento' },
+    { value: StockMovementType.Adjustment, label: 'Rettifica' },
+    { value: StockMovementType.Sale, label: 'Vendita' },
+    { value: StockMovementType.Return, label: 'Reso' },
+  ];
 
   private readonly refreshTick = signal(0);
 
@@ -102,6 +114,10 @@ export class StockMovementsComponent {
     const current = this.state();
     return current.status === 'success' ? current.data.locations : [];
   });
+
+  protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.locations().map((location) => ({ value: location.id, label: location.name })),
+  );
 
   private readonly allRows = computed<readonly StockMovementRow[]>(() => {
     const current = this.state();
@@ -165,12 +181,12 @@ export class StockMovementsComponent {
     Boolean(this.typeFilter() || this.locationFilter()),
   );
 
-  protected onTypeChange(event: Event): void {
-    this.typeFilter.set((event.target as HTMLSelectElement).value);
+  protected onTypeFilterChange(value: string | null): void {
+    this.typeFilter.set(value ?? '');
   }
 
-  protected onLocationChange(event: Event): void {
-    this.locationFilter.set((event.target as HTMLSelectElement).value);
+  protected onLocationFilterChange(value: string | null): void {
+    this.locationFilter.set(value ?? '');
   }
 
   protected resetFilters(): void {

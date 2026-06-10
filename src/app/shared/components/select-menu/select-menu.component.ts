@@ -20,6 +20,7 @@ import type { SelectMenuOption } from './select-menu.model';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'select-menu-host',
+    '[class.select-menu-host--full]': 'fullWidth()',
     '(document:click)': 'onDocumentClick($event)',
     '(document:keydown.escape)': 'close()',
   },
@@ -40,6 +41,12 @@ export class SelectMenuComponent {
   /** Classe PrimeIcons opzionale sul trigger (es. `pi-shop`). */
   readonly triggerIcon = input<string>();
   readonly compact = input<boolean>(false);
+  /** Trigger e pannello a larghezza piena del contenitore (es. filtri mobile). */
+  readonly fullWidth = input<boolean>(false);
+  /** Voce placeholder con valore vuoto (es. "Tutti"); disabilita per select obbligati. */
+  readonly includeEmptyOption = input<boolean>(true);
+  readonly invalid = input<boolean>(false);
+  readonly describedBy = input<string>();
 
   readonly valueChange = output<string | null>();
 

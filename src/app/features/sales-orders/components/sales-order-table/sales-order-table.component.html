@@ -37,14 +37,18 @@
         <td data-label="Cliente">{{ order.customerName }}</td>
         <td data-label="Canale">{{ sourceLabel(order.source) }}</td>
         <td class="sales-table__cell--payment" data-label="Pagamento">
-          <app-badge [tone]="financialTone(order.financialStatus)">
-            {{ financialLabel(order.financialStatus) }}
-          </app-badge>
+          <span class="sales-table__cell-value">
+            <app-badge [tone]="financialTone(order.financialStatus)">
+              {{ financialLabel(order.financialStatus) }}
+            </app-badge>
+          </span>
         </td>
         <td class="sales-table__cell--fulfillment" data-label="Evasione">
-          <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
-            {{ fulfillmentLabel(order.fulfillmentStatus) }}
-          </app-badge>
+          <span class="sales-table__cell-value">
+            <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
+              {{ fulfillmentLabel(order.fulfillmentStatus) }}
+            </app-badge>
+          </span>
         </td>
         <td class="sales-table__cell--total tabular-nums" data-label="Totale">
           {{ formatMoney(order.total) }}

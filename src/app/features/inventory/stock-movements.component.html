@@ -11,36 +11,29 @@
 
   <div class="stock-movements__filters">
     <div class="stock-movements__field">
-      <label class="stock-movements__label" for="filter-type">Tipo movimento</label>
-      <select
-        id="filter-type"
-        class="stock-movements__select"
+      <span class="stock-movements__label">Tipo movimento</span>
+      <app-select-menu
+        [options]="movementTypeOptions"
         [value]="typeFilter()"
-        (change)="onTypeChange($event)"
-      >
-        <option value="">Tutti</option>
-        <option value="load">Carico</option>
-        <option value="unload">Scarico</option>
-        <option value="transfer">Trasferimento</option>
-        <option value="adjustment">Rettifica</option>
-        <option value="sale">Vendita</option>
-        <option value="return">Reso</option>
-      </select>
+        ariaLabel="Filtra per tipo movimento"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onTypeFilterChange($event)"
+      />
     </div>
 
     <div class="stock-movements__field">
-      <label class="stock-movements__label" for="filter-mov-location">Location</label>
-      <select
-        id="filter-mov-location"
-        class="stock-movements__select"
+      <span class="stock-movements__label">Location</span>
+      <app-select-menu
+        [options]="locationOptions()"
         [value]="locationFilter()"
-        (change)="onLocationChange($event)"
-      >
-        <option value="">Tutte</option>
-        @for (location of locations(); track location.id) {
-          <option [value]="location.id">{{ location.name }}</option>
-        }
-      </select>
+        ariaLabel="Filtra per location"
+        placeholder="Tutte"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onLocationFilterChange($event)"
+      />
     </div>
 
     <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">

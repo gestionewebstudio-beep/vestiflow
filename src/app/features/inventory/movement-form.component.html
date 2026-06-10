@@ -14,49 +14,52 @@
     <form class="movement-form__form" [formGroup]="form" (ngSubmit)="toReview()">
       <div class="movement-form__grid">
         <div class="movement-form__field">
-          <label class="movement-form__label" for="mov-type">Tipo movimento</label>
-          <select id="mov-type" class="movement-form__select" formControlName="type">
-            @for (option of typeOptions; track option.value) {
-              <option [value]="option.value">{{ option.label }}</option>
-            }
-          </select>
+          <span class="movement-form__label">Tipo movimento</span>
+          <app-select-menu
+            [options]="typeSelectOptions"
+            [value]="form.controls.type.value"
+            ariaLabel="Tipo movimento"
+            placeholder="Carico"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onTypeSelect($event)"
+          />
         </div>
 
         <div class="movement-form__field movement-form__field--wide">
-          <label class="movement-form__label" for="mov-variant">Variante</label>
-          <select
-            id="mov-variant"
-            class="movement-form__select"
-            formControlName="variantId"
-            [attr.aria-invalid]="fieldInvalid('variantId')"
-            aria-describedby="mov-variant-error"
-          >
-            <option value="">Seleziona una variante…</option>
-            @for (variant of variants(); track variant.variantId) {
-              <option [value]="variant.variantId">{{ variant.title }} ({{ variant.sku }})</option>
-            }
-          </select>
+          <span class="movement-form__label">Variante</span>
+          <app-select-menu
+            [options]="variantSelectOptions()"
+            [value]="form.controls.variantId.value"
+            ariaLabel="Variante prodotto"
+            placeholder="Seleziona una variante…"
+            [compact]="true"
+            [fullWidth]="true"
+            [invalid]="fieldInvalid('variantId')"
+            describedBy="mov-variant-error"
+            (valueChange)="onVariantSelect($event)"
+          />
           @if (fieldInvalid('variantId')) {
             <p id="mov-variant-error" class="movement-form__error">Seleziona la variante.</p>
           }
         </div>
 
         <div class="movement-form__field">
-          <label class="movement-form__label" for="mov-location">
+          <span class="movement-form__label">
             {{ isTransfer() ? 'Location di origine' : 'Location' }}
-          </label>
-          <select
-            id="mov-location"
-            class="movement-form__select"
-            formControlName="locationId"
-            [attr.aria-invalid]="fieldInvalid('locationId')"
-            aria-describedby="mov-location-error"
-          >
-            <option value="">Seleziona…</option>
-            @for (location of locations(); track location.id) {
-              <option [value]="location.id">{{ location.name }}</option>
-            }
-          </select>
+          </span>
+          <app-select-menu
+            [options]="locationSelectOptions()"
+            [value]="form.controls.locationId.value"
+            ariaLabel="Location"
+            placeholder="Seleziona…"
+            [compact]="true"
+            [fullWidth]="true"
+            [invalid]="fieldInvalid('locationId')"
+            describedBy="mov-location-error"
+            (valueChange)="onLocationSelect($event)"
+          />
           @if (fieldInvalid('locationId')) {
             <p id="mov-location-error" class="movement-form__error">Seleziona la location.</p>
           }
@@ -64,19 +67,18 @@
 
         @if (isTransfer()) {
           <div class="movement-form__field">
-            <label class="movement-form__label" for="mov-target">Location di destinazione</label>
-            <select
-              id="mov-target"
-              class="movement-form__select"
-              formControlName="targetLocationId"
-              [attr.aria-invalid]="fieldInvalid('targetLocationId')"
-              aria-describedby="mov-target-error"
-            >
-              <option value="">Seleziona…</option>
-              @for (location of locations(); track location.id) {
-                <option [value]="location.id">{{ location.name }}</option>
-              }
-            </select>
+            <span class="movement-form__label">Location di destinazione</span>
+            <app-select-menu
+              [options]="locationSelectOptions()"
+              [value]="form.controls.targetLocationId.value"
+              ariaLabel="Location di destinazione"
+              placeholder="Seleziona…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('targetLocationId')"
+              describedBy="mov-target-error"
+              (valueChange)="onTargetLocationSelect($event)"
+            />
             @if (fieldInvalid('targetLocationId')) {
               <p id="mov-target-error" class="movement-form__error">
                 Seleziona la location di destinazione.
@@ -107,11 +109,17 @@
 
         @if (isAdjustment()) {
           <div class="movement-form__field">
-            <label class="movement-form__label" for="mov-direction">Verso della rettifica</label>
-            <select id="mov-direction" class="movement-form__select" formControlName="direction">
-              <option [value]="Direction.Decrease">Diminuzione</option>
-              <option [value]="Direction.Increase">Aumento</option>
-            </select>
+            <span class="movement-form__label">Verso della rettifica</span>
+            <app-select-menu
+              [options]="directionSelectOptions"
+              [value]="form.controls.direction.value"
+              ariaLabel="Verso della rettifica"
+              placeholder="Diminuzione"
+              [compact]="true"
+              [fullWidth]="true"
+              [includeEmptyOption]="false"
+              (valueChange)="onDirectionSelect($event)"
+            />
           </div>
         }
 

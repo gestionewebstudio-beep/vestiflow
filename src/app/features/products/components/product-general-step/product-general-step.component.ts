@@ -14,6 +14,8 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import type { Subscription } from 'rxjs';
 
 import { ProductStatus } from '@core/models/product.model';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type { ProductGeneralDraft } from '../../models/product-form.model';
 import { productStatusLabel } from '../../models/product-status.util';
@@ -40,7 +42,7 @@ const STATUS_OPTIONS: readonly StatusOption[] = [
 @Component({
   selector: 'app-product-general-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, SelectMenuComponent],
   templateUrl: './product-general-step.component.html',
   styleUrl: './product-general-step.component.scss',
 })
@@ -56,7 +58,12 @@ export class ProductGeneralStepComponent implements OnInit {
   readonly categories = input<readonly string[]>([]);
   readonly seasons = input<readonly string[]>([]);
 
-  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly statusSelectOptions: readonly SelectMenuOption[] = STATUS_OPTIONS.map(
+    (option) => ({
+      value: option.value,
+      label: option.label,
+    }),
+  );
 
   // Valore iniziale del draft, catturato una volta: se in edit non e' tra i
   // facets viene comunque incluso nella select per non perderlo.
@@ -68,6 +75,14 @@ export class ProductGeneralStepComponent implements OnInit {
   );
   protected readonly seasonOptions = computed(() =>
     this.withCurrent(this.seasons(), this.initialSeason()),
+  );
+
+  protected readonly categorySelectOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.categoryOptions().map((category) => ({ value: category, label: category })),
+  );
+
+  protected readonly seasonSelectOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.seasonOptions().map((season) => ({ value: season, label: season })),
   );
 
   protected readonly form = this.fb.group(
@@ -98,6 +113,22 @@ export class ProductGeneralStepComponent implements OnInit {
   protected showError(field: RequiredField): boolean {
     const control = this.form.controls[field];
     return control.invalid && control.touched;
+  }
+
+  protected onCategorySelect(value: string | null): void {
+    this.form.controls.category.setValue(value ?? '');
+    this.form.controls.category.markAsTouched();
+  }
+
+  protected onSeasonSelect(value: string | null): void {
+    this.form.controls.season.setValue(value ?? '');
+    this.form.controls.season.markAsTouched();
+  }
+
+  protected onStatusSelect(value: string | null): void {
+    if (value) {
+      this.form.controls.status.setValue(value as ProductStatus);
+    }
   }
 
   /** Include il valore corrente tra le opzioni se non gia' presente (edit legacy). */

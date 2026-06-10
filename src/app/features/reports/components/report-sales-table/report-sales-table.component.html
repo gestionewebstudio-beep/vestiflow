@@ -12,7 +12,9 @@
       @for (row of rows(); track row.status) {
         <tr class="report-sales__row">
           <td data-label="Stato pagamento">
-            <app-badge [tone]="statusTone(row.status)">{{ statusLabel(row.status) }}</app-badge>
+            <span class="report-sales__cell-value">
+              <app-badge [tone]="statusTone(row.status)">{{ statusLabel(row.status) }}</app-badge>
+            </span>
           </td>
           <td class="report-sales__cell--numeric tabular-nums" data-label="Ordini">
             {{ row.orders }}

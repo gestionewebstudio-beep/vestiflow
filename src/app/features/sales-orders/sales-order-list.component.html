@@ -22,34 +22,29 @@
 
     <div class="sales-list__filters">
       <div class="sales-list__field">
-        <label class="sales-list__label" for="filter-financial">Pagamento</label>
-        <select
-          id="filter-financial"
-          class="sales-list__select"
+        <span class="sales-list__label">Pagamento</span>
+        <app-select-menu
+          [options]="financialStatusOptions"
           [value]="query().financialStatus ?? ''"
-          (change)="onFinancialChange($event)"
-        >
-          <option value="">Tutti</option>
-          <option value="pending">In attesa</option>
-          <option value="paid">Pagato</option>
-          <option value="partially_refunded">Rimborso parziale</option>
-          <option value="refunded">Rimborsato</option>
-          <option value="voided">Annullato</option>
-        </select>
+          ariaLabel="Filtra per stato pagamento"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onFinancialFilterChange($event)"
+        />
       </div>
 
       <div class="sales-list__field">
-        <label class="sales-list__label" for="filter-source">Canale</label>
-        <select
-          id="filter-source"
-          class="sales-list__select"
+        <span class="sales-list__label">Canale</span>
+        <app-select-menu
+          [options]="sourceOptions"
           [value]="query().source ?? ''"
-          (change)="onSourceChange($event)"
-        >
-          <option value="">Tutti</option>
-          <option value="online">Online</option>
-          <option value="pos">Negozio</option>
-        </select>
+          ariaLabel="Filtra per canale vendita"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onSourceFilterChange($event)"
+        />
       </div>
 
       <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">

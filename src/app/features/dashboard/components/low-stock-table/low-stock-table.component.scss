@@ -38,10 +38,14 @@
   color: var(--color-text-muted);
 }
 
-.low-stock__row td[data-label='Variante'] {
-  @include bp.media-down('lg') {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-1);
+@include bp.media-down('lg') {
+  .low-stock__row td[data-label='Variante'] {
+    align-items: start;
+
+    .low-stock__title,
+    .low-stock__sku {
+      grid-column: 2;
+      text-align: end;
+    }
   }
 }

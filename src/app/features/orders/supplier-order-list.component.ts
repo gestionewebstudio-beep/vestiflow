@@ -27,6 +27,8 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { SupplierOrderTableComponent } from './components/supplier-order-table/supplier-order-table.component';
@@ -67,6 +69,7 @@ type OrderListState =
     EmptyStateComponent,
     ErrorStateComponent,
     PaginationComponent,
+    SelectMenuComponent,
     TableSkeletonComponent,
     SupplierOrderTableComponent,
   ],
@@ -81,6 +84,14 @@ export class SupplierOrderListComponent {
 
   protected readonly skeletonColumns = 5;
   protected readonly pageSizeOptions = SUPPLIER_ORDER_PAGE_SIZE_OPTIONS;
+
+  protected readonly statusOptions: readonly SelectMenuOption[] = [
+    { value: 'draft', label: 'Bozza' },
+    { value: 'sent', label: 'Inviato' },
+    { value: 'partially_received', label: 'Ricevuto parziale' },
+    { value: 'received', label: 'Ricevuto' },
+    { value: 'cancelled', label: 'Annullato' },
+  ];
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseSupplierOrderListQuery(this.queryParams()));
@@ -156,9 +167,8 @@ export class SupplierOrderListComponent {
     this.searchDraft.set((event.target as HTMLInputElement).value);
   }
 
-  protected onStatusChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.updateParams({ status: value || null, page: null }, true);
+  protected onStatusFilterChange(value: string | null): void {
+    this.updateParams({ status: value, page: null }, true);
   }
 
   protected resetFilters(): void {

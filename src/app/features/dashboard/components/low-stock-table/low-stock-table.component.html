@@ -23,9 +23,11 @@
           </td>
           <td data-label="Location">{{ row.locationName }}</td>
           <td class="low-stock__cell--numeric" data-label="Disponibile">
-            <app-badge [tone]="row.available <= 0 ? 'error' : 'warning'">
-              <span class="tabular-nums">{{ row.available }}</span>
-            </app-badge>
+            <span class="low-stock__cell-value">
+              <app-badge [tone]="row.available <= 0 ? 'error' : 'warning'">
+                <span class="tabular-nums">{{ row.available }}</span>
+              </app-badge>
+            </span>
           </td>
           <td class="low-stock__cell--numeric tabular-nums" data-label="Soglia">
             {{ row.minThreshold }}

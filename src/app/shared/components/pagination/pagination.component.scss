@@ -15,30 +15,21 @@
 
 .pagination__size {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  min-inline-size: 9rem;
+
+  @include bp.media-up('sm') {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+  }
 }
 
 .pagination__label {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
-}
-
-.pagination__select {
-  block-size: var(--field-height);
-  padding-inline: var(--space-2);
-  font-size: var(--text-base);
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-}
-
-.pagination__select:focus-visible {
-  border-color: var(--color-interactive);
-  outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
 }
 
 .pagination__info {

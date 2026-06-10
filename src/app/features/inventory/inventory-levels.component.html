@@ -25,33 +25,29 @@
 
     <div class="inventory-levels__filters">
       <div class="inventory-levels__field">
-        <label class="inventory-levels__label" for="filter-location">Location</label>
-        <select
-          id="filter-location"
-          class="inventory-levels__select"
+        <span class="inventory-levels__label">Location</span>
+        <app-select-menu
+          [options]="locationOptions()"
           [value]="locationFilter()"
-          (change)="onLocationChange($event)"
-        >
-          <option value="">Tutte</option>
-          @for (location of locations(); track location.id) {
-            <option [value]="location.id">{{ location.name }}</option>
-          }
-        </select>
+          ariaLabel="Filtra per location"
+          placeholder="Tutte"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onLocationFilterChange($event)"
+        />
       </div>
 
       <div class="inventory-levels__field">
-        <label class="inventory-levels__label" for="filter-stock-status">Stato stock</label>
-        <select
-          id="filter-stock-status"
-          class="inventory-levels__select"
+        <span class="inventory-levels__label">Stato stock</span>
+        <app-select-menu
+          [options]="stockStatusOptions"
           [value]="statusFilter()"
-          (change)="onStatusChange($event)"
-        >
-          <option value="">Tutti</option>
-          <option value="ok">Disponibile</option>
-          <option value="low">Sotto soglia</option>
-          <option value="empty">Esaurito</option>
-        </select>
+          ariaLabel="Filtra per stato stock"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onStatusFilterChange($event)"
+        />
       </div>
 
       <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">

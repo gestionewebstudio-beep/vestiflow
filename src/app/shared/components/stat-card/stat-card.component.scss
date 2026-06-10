@@ -1,3 +1,5 @@
+@use 'breakpoints' as bp;
+
 :host {
   display: block;
 }
@@ -10,6 +12,11 @@
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
+
+  @include bp.media-down('md') {
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 .stat-card__icon {
@@ -47,6 +54,11 @@
 
 .stat-card__body {
   min-inline-size: 0;
+
+  @include bp.media-down('md') {
+    margin-inline-start: auto;
+    text-align: end;
+  }
 }
 
 .stat-card__label {

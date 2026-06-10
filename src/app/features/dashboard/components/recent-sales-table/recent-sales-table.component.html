@@ -31,9 +31,11 @@
           </td>
           <td data-label="Cliente">{{ row.customerName }}</td>
           <td data-label="Stato">
-            <app-badge [tone]="statusTone(row.financialStatus)">
-              {{ statusLabel(row.financialStatus) }}
-            </app-badge>
+            <span class="recent-sales__cell-value">
+              <app-badge [tone]="statusTone(row.financialStatus)">
+                {{ statusLabel(row.financialStatus) }}
+              </app-badge>
+            </span>
           </td>
           <td class="recent-sales__cell--numeric tabular-nums" data-label="Data">
             {{ formatDate(row.placedAt) }}

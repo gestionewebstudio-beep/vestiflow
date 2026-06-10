@@ -27,6 +27,8 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { SalesOrderTableComponent } from './components/sales-order-table/sales-order-table.component';
@@ -64,6 +66,7 @@ type SalesListState =
     EmptyStateComponent,
     ErrorStateComponent,
     PaginationComponent,
+    SelectMenuComponent,
     TableSkeletonComponent,
     SalesOrderTableComponent,
   ],
@@ -78,6 +81,19 @@ export class SalesOrderListComponent {
 
   protected readonly skeletonColumns = 6;
   protected readonly pageSizeOptions = SALES_PAGE_SIZE_OPTIONS;
+
+  protected readonly financialStatusOptions: readonly SelectMenuOption[] = [
+    { value: 'pending', label: 'In attesa' },
+    { value: 'paid', label: 'Pagato' },
+    { value: 'partially_refunded', label: 'Rimborso parziale' },
+    { value: 'refunded', label: 'Rimborsato' },
+    { value: 'voided', label: 'Annullato' },
+  ];
+
+  protected readonly sourceOptions: readonly SelectMenuOption[] = [
+    { value: 'online', label: 'Online' },
+    { value: 'pos', label: 'Negozio' },
+  ];
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseSalesOrderListQuery(this.queryParams()));
@@ -153,14 +169,12 @@ export class SalesOrderListComponent {
     this.searchDraft.set((event.target as HTMLInputElement).value);
   }
 
-  protected onFinancialChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.updateParams({ financialStatus: value || null, page: null }, true);
+  protected onFinancialFilterChange(value: string | null): void {
+    this.updateParams({ financialStatus: value, page: null }, true);
   }
 
-  protected onSourceChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.updateParams({ source: value || null, page: null }, true);
+  protected onSourceFilterChange(value: string | null): void {
+    this.updateParams({ source: value, page: null }, true);
   }
 
   protected resetFilters(): void {

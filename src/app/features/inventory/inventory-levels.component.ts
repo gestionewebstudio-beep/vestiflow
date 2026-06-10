@@ -21,6 +21,8 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
@@ -54,6 +56,7 @@ type LevelsState =
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    SelectMenuComponent,
     InventoryTabsComponent,
     InventoryLevelTableComponent,
   ],
@@ -67,6 +70,12 @@ export class InventoryLevelsComponent {
   private readonly router = inject(Router);
 
   protected readonly skeletonColumns = 6;
+
+  protected readonly stockStatusOptions: readonly SelectMenuOption[] = [
+    { value: 'ok', label: 'Disponibile' },
+    { value: 'low', label: 'Sotto soglia' },
+    { value: 'empty', label: 'Esaurito' },
+  ];
 
   private readonly refreshTick = signal(0);
 
@@ -114,6 +123,10 @@ export class InventoryLevelsComponent {
     const current = this.state();
     return current.status === 'success' ? current.data.locations : [];
   });
+
+  protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.locations().map((location) => ({ value: location.id, label: location.name })),
+  );
 
   /** Tutte le righe join-ate (prima dei filtri). */
   private readonly allRows = computed<readonly InventoryLevelRow[]>(() => {
@@ -181,12 +194,12 @@ export class InventoryLevelsComponent {
     this.search.set((event.target as HTMLInputElement).value);
   }
 
-  protected onLocationChange(event: Event): void {
-    this.locationFilter.set((event.target as HTMLSelectElement).value);
+  protected onLocationFilterChange(value: string | null): void {
+    this.locationFilter.set(value ?? '');
   }
 
-  protected onStatusChange(event: Event): void {
-    this.statusFilter.set((event.target as HTMLSelectElement).value);
+  protected onStatusFilterChange(value: string | null): void {
+    this.statusFilter.set(value ?? '');
   }
 
   protected resetFilters(): void {

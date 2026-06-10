@@ -42,6 +42,9 @@
     visibility 0s linear var(--transition-base);
   z-index: var(--z-modal);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .shell--drawer-open .shell__sidebar {

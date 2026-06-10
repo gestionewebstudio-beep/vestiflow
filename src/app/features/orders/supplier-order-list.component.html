@@ -22,20 +22,16 @@
 
     <div class="po-list__filters">
       <div class="po-list__field">
-        <label class="po-list__label" for="filter-po-status">Stato</label>
-        <select
-          id="filter-po-status"
-          class="po-list__select"
+        <span class="po-list__label">Stato</span>
+        <app-select-menu
+          [options]="statusOptions"
           [value]="query().status ?? ''"
-          (change)="onStatusChange($event)"
-        >
-          <option value="">Tutti</option>
-          <option value="draft">Bozza</option>
-          <option value="sent">Inviato</option>
-          <option value="partially_received">Ricevuto parziale</option>
-          <option value="received">Ricevuto</option>
-          <option value="cancelled">Annullato</option>
-        </select>
+          ariaLabel="Filtra per stato ordine"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onStatusFilterChange($event)"
+        />
       </div>
 
       <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">

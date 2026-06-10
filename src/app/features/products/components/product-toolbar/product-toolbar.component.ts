@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type { ProductFilters } from '../../models/product-list-query.model';
 
@@ -23,7 +25,7 @@ export interface ProductFilterChange {
 @Component({
   selector: 'app-product-toolbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent],
+  imports: [ButtonComponent, SelectMenuComponent],
   templateUrl: './product-toolbar.component.html',
   styleUrl: './product-toolbar.component.scss',
 })
@@ -40,13 +42,24 @@ export class ProductToolbarComponent {
   readonly filterChange = output<ProductFilterChange>();
   readonly resetFilters = output<void>();
 
+  protected readonly categoryOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.categories().map((category) => ({ value: category, label: category })),
+  );
+
+  protected readonly brandOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.brands().map((brand) => ({ value: brand, label: brand })),
+  );
+
+  protected readonly seasonOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.seasons().map((season) => ({ value: season, label: season })),
+  );
+
   protected onSearchInput(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.searchChange.emit(target.value);
   }
 
-  protected onFilterSelect(key: keyof ProductFilters, event: Event): void {
-    const target = event.target as HTMLSelectElement;
-    this.filterChange.emit({ key, value: target.value || null });
+  protected onFilterChange(key: keyof ProductFilters, value: string | null): void {
+    this.filterChange.emit({ key, value });
   }
 }
