@@ -85,10 +85,16 @@
 // ── Corpo step ──────────────────────────────────────────────────────────────
 .product-form__body {
   min-block-size: var(--space-16);
-  padding: var(--space-5);
+  padding: var(--space-3);
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
+}
+
+@include bp.media-up('md') {
+  .product-form__body {
+    padding: var(--space-5);
+  }
 }
 
 .product-form__submit-error {
@@ -113,6 +119,7 @@
 
 .product-form__nav {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
 }
 

@@ -1,34 +1,33 @@
+@use 'responsive-table' as rt;
+
 :host {
   display: block;
 }
 
-// Tabella compatta: su mobile scroll orizzontale controllato.
 .recent-sales__wrapper {
   inline-size: 100%;
-  overflow-x: auto;
 }
+
+@include rt.stack-table('recent-sales');
 
 .recent-sales {
-  inline-size: 100%;
-  min-inline-size: var(--content-narrow);
-  font-size: var(--text-sm);
-  border-collapse: collapse;
+  table-layout: fixed;
 }
 
-.recent-sales th {
-  padding: var(--space-2) var(--space-3);
-  text-align: start;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-  border-block-end: var(--border-width) solid var(--color-border);
-  white-space: nowrap;
+.recent-sales__col--order {
+  inline-size: 10%;
 }
 
-.recent-sales__row td {
-  padding: var(--space-2) var(--space-3);
-  color: var(--color-text);
-  border-block-end: var(--border-width) solid var(--color-border);
-  vertical-align: middle;
+.recent-sales__col--customer {
+  inline-size: 30%;
+}
+
+.recent-sales__col--status {
+  inline-size: 22%;
+}
+
+.recent-sales__col--numeric {
+  inline-size: 19%;
 }
 
 .recent-sales__row {
@@ -43,11 +42,6 @@
 .recent-sales__row:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
-}
-
-.recent-sales th.recent-sales__cell--numeric,
-.recent-sales__cell--numeric {
-  text-align: end;
 }
 
 .recent-sales__number {

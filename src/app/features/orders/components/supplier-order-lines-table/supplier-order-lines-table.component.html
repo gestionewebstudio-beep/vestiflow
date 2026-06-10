@@ -12,16 +12,23 @@
     <tbody>
       @for (line of lines(); track line.id) {
         <tr class="po-lines__row">
-          <td class="po-lines__sku tabular-nums">{{ line.sku }}</td>
-          <td class="po-lines__cell--numeric tabular-nums">{{ line.orderedQuantity }}</td>
+          <td class="po-lines__sku tabular-nums" data-label="SKU">{{ line.sku }}</td>
+          <td class="po-lines__cell--numeric tabular-nums" data-label="Ordinato">
+            {{ line.orderedQuantity }}
+          </td>
           <td
             class="po-lines__cell--numeric tabular-nums"
+            data-label="Ricevuto"
             [class.po-lines__cell--pending]="line.receivedQuantity < line.orderedQuantity"
           >
             {{ line.receivedQuantity }}
           </td>
-          <td class="po-lines__cell--numeric tabular-nums">{{ formatMoney(line.unitCost) }}</td>
-          <td class="po-lines__cell--numeric tabular-nums">{{ formatMoney(lineTotal(line)) }}</td>
+          <td class="po-lines__cell--numeric tabular-nums" data-label="Costo unitario">
+            {{ formatMoney(line.unitCost) }}
+          </td>
+          <td class="po-lines__cell--numeric tabular-nums" data-label="Totale riga">
+            {{ formatMoney(lineTotal(line)) }}
+          </td>
         </tr>
       }
     </tbody>

@@ -1,6 +1,7 @@
 :host {
   display: inline-flex;
   position: relative;
+  max-inline-size: 100%;
 }
 
 .select-menu {
@@ -10,8 +11,8 @@
 }
 
 .select-menu--compact {
-  inline-size: max-content;
-  max-inline-size: min(20rem, 50vw);
+  inline-size: 100%;
+  max-inline-size: 100%;
 }
 
 .select-menu__trigger {
@@ -52,7 +53,9 @@
 .select-menu--compact .select-menu__trigger {
   min-block-size: var(--field-height);
   gap: var(--space-1);
-  padding-inline: var(--space-2) var(--space-2);
+  padding-inline: var(--space-2);
+  inline-size: 100%;
+  max-inline-size: 100%;
 }
 
 .select-menu--compact .select-menu__trigger-label {
@@ -91,6 +94,7 @@
   inset-inline-end: auto;
   inline-size: max-content;
   min-inline-size: max(100%, var(--select-menu-panel-min));
+  max-inline-size: min(var(--select-menu-panel-min), calc(100vw - var(--space-8)));
   z-index: var(--z-dropdown);
   margin: 0;
   padding: var(--space-1);

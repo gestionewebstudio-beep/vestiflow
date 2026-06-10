@@ -13,6 +13,7 @@
 .app-sidebar__header {
   display: flex;
   justify-content: flex-end;
+  margin-block-end: var(--space-1);
 }
 
 .app-sidebar__close {
@@ -37,16 +38,23 @@
   list-style: none;
 }
 
+.app-sidebar__list li {
+  inline-size: 100%;
+}
+
 .app-sidebar__link {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--sidebar-icon-size) minmax(0, 1fr);
   align-items: center;
-  gap: var(--space-3);
-  min-block-size: var(--field-height);
+  column-gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: var(--btn-min-height);
   padding-inline: var(--space-3);
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
+  text-decoration: none;
   transition:
     background-color var(--transition-fast) var(--ease-standard),
     color var(--transition-fast) var(--ease-standard);
@@ -66,5 +74,15 @@
 }
 
 .app-sidebar__icon {
-  font-size: var(--text-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--sidebar-icon-size);
+  font-size: var(--text-md);
+}
+
+.app-sidebar__label {
+  justify-self: start;
+  text-align: start;
+  line-height: var(--leading-snug);
 }

@@ -1,4 +1,12 @@
 <table class="product-table">
+  <colgroup>
+    <col class="product-table__col product-table__col--name" />
+    <col class="product-table__col product-table__col--brand" />
+    <col class="product-table__col product-table__col--category" />
+    <col class="product-table__col product-table__col--season" />
+    <col class="product-table__col product-table__col--numeric" />
+    <col class="product-table__col product-table__col--status" />
+  </colgroup>
   <thead class="product-table__head">
     <tr>
       <th scope="col" [attr.aria-sort]="ariaSort('name')">
@@ -46,7 +54,7 @@
         </button>
       </th>
       <th scope="col" class="product-table__cell--numeric">Varianti</th>
-      <th scope="col" [attr.aria-sort]="ariaSort('status')">
+      <th scope="col" class="product-table__cell--status" [attr.aria-sort]="ariaSort('status')">
         <button
           type="button"
           class="product-table__sort"
@@ -77,10 +85,12 @@
         <td class="product-table__cell--numeric tabular-nums" data-label="Varianti">
           {{ variantCount(product) }}
         </td>
-        <td data-label="Stato">
-          <app-badge [tone]="statusTone(product.status)">{{
-            statusLabel(product.status)
-          }}</app-badge>
+        <td class="product-table__cell--status" data-label="Stato">
+          <span class="product-table__status-value">
+            <app-badge [tone]="statusTone(product.status)">{{
+              statusLabel(product.status)
+            }}</app-badge>
+          </span>
         </td>
       </tr>
     }

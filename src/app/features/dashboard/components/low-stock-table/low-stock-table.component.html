@@ -1,5 +1,11 @@
 <div class="low-stock__wrapper">
   <table class="low-stock">
+    <colgroup>
+      <col class="low-stock__col low-stock__col--variant" />
+      <col class="low-stock__col low-stock__col--location" />
+      <col class="low-stock__col low-stock__col--numeric" />
+      <col class="low-stock__col low-stock__col--numeric" />
+    </colgroup>
     <thead>
       <tr>
         <th scope="col">Variante</th>
@@ -11,17 +17,19 @@
     <tbody>
       @for (row of rows(); track row.variantId + row.locationId) {
         <tr class="low-stock__row">
-          <td>
+          <td data-label="Variante">
             <span class="low-stock__title">{{ row.title }}</span>
             <span class="low-stock__sku tabular-nums">{{ row.sku }}</span>
           </td>
-          <td>{{ row.locationName }}</td>
-          <td class="low-stock__cell--numeric">
+          <td data-label="Location">{{ row.locationName }}</td>
+          <td class="low-stock__cell--numeric" data-label="Disponibile">
             <app-badge [tone]="row.available <= 0 ? 'error' : 'warning'">
               <span class="tabular-nums">{{ row.available }}</span>
             </app-badge>
           </td>
-          <td class="low-stock__cell--numeric tabular-nums">{{ row.minThreshold }}</td>
+          <td class="low-stock__cell--numeric tabular-nums" data-label="Soglia">
+            {{ row.minThreshold }}
+          </td>
         </tr>
       }
     </tbody>

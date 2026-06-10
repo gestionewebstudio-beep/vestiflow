@@ -1,12 +1,20 @@
 <table class="po-table">
+  <colgroup>
+    <col class="po-table__col po-table__col--reference" />
+    <col class="po-table__col po-table__col--supplier" />
+    <col class="po-table__col po-table__col--status" />
+    <col class="po-table__col po-table__col--lines" />
+    <col class="po-table__col po-table__col--expected" />
+    <col class="po-table__col po-table__col--total" />
+  </colgroup>
   <thead class="po-table__head">
     <tr>
       <th scope="col">Riferimento</th>
       <th scope="col">Fornitore</th>
       <th scope="col">Stato</th>
-      <th scope="col" class="po-table__cell--numeric">Righe</th>
-      <th scope="col">Attesa il</th>
-      <th scope="col" class="po-table__cell--numeric">Totale</th>
+      <th scope="col" class="po-table__cell--lines">Righe</th>
+      <th scope="col" class="po-table__cell--expected">Attesa il</th>
+      <th scope="col" class="po-table__cell--total">Totale</th>
     </tr>
   </thead>
 
@@ -27,11 +35,13 @@
         <td data-label="Stato">
           <app-badge [tone]="statusTone(order.status)">{{ statusLabel(order.status) }}</app-badge>
         </td>
-        <td class="po-table__cell--numeric tabular-nums" data-label="Righe">
+        <td class="po-table__cell--lines tabular-nums" data-label="Righe">
           {{ lineCount(order) }}
         </td>
-        <td class="tabular-nums" data-label="Attesa il">{{ expectedLabel(order) }}</td>
-        <td class="po-table__cell--numeric tabular-nums" data-label="Totale">
+        <td class="po-table__cell--expected tabular-nums" data-label="Attesa il">
+          {{ expectedLabel(order) }}
+        </td>
+        <td class="po-table__cell--total tabular-nums" data-label="Totale">
           {{ formatMoney(order.totalAmount) }}
         </td>
       </tr>

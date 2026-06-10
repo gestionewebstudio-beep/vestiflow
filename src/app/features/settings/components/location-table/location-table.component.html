@@ -11,14 +11,16 @@
     <tbody>
       @for (location of locations(); track location.id) {
         <tr class="location-table__row">
-          <td>{{ location.name }}</td>
-          <td class="location-table__code tabular-nums">{{ location.code ?? '—' }}</td>
-          <td>
+          <td data-label="Nome">{{ location.name }}</td>
+          <td class="location-table__code tabular-nums" data-label="Codice">
+            {{ location.code ?? '—' }}
+          </td>
+          <td data-label="Stato">
             <app-badge [tone]="location.isActive ? 'success' : 'neutral'">
               {{ location.isActive ? 'Attiva' : 'Disattivata' }}
             </app-badge>
           </td>
-          <td>
+          <td data-label="Shopify">
             <app-badge [tone]="shopifyTone(location)">{{ shopifyLabel(location) }}</app-badge>
           </td>
         </tr>

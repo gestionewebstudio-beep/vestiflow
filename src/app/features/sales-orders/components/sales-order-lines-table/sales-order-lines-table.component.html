@@ -12,13 +12,15 @@
     <tbody>
       @for (line of lines(); track line.id) {
         <tr class="lines-table__row">
-          <td>{{ line.title }}</td>
-          <td class="lines-table__sku tabular-nums">{{ line.sku }}</td>
-          <td class="lines-table__cell--numeric tabular-nums">{{ line.quantity }}</td>
-          <td class="lines-table__cell--numeric tabular-nums">
+          <td data-label="Articolo">{{ line.title }}</td>
+          <td class="lines-table__sku tabular-nums" data-label="SKU">{{ line.sku }}</td>
+          <td class="lines-table__cell--numeric tabular-nums" data-label="Quantità">
+            {{ line.quantity }}
+          </td>
+          <td class="lines-table__cell--numeric tabular-nums" data-label="Prezzo unitario">
             {{ formatMoney(line.unitPrice) }}
           </td>
-          <td class="lines-table__cell--numeric tabular-nums">
+          <td class="lines-table__cell--numeric tabular-nums" data-label="Totale riga">
             {{ formatMoney(line.lineTotal) }}
           </td>
         </tr>

@@ -1,4 +1,14 @@
 <table class="level-table">
+  <colgroup>
+    <col class="level-table__col level-table__col--variant" />
+    <col class="level-table__col level-table__col--sku" />
+    <col class="level-table__col level-table__col--location" />
+    <col class="level-table__col level-table__col--available" />
+    <col class="level-table__col level-table__col--on-hand" />
+    <col class="level-table__col level-table__col--committed" />
+    <col class="level-table__col level-table__col--incoming" />
+    <col class="level-table__col level-table__col--status" />
+  </colgroup>
   <thead class="level-table__head">
     <tr>
       <th scope="col">Variante</th>
@@ -8,7 +18,7 @@
       <th scope="col" class="level-table__cell--numeric">Fisico</th>
       <th scope="col" class="level-table__cell--numeric">Impegnato</th>
       <th scope="col" class="level-table__cell--numeric">In arrivo</th>
-      <th scope="col">Stato</th>
+      <th scope="col" class="level-table__cell--status">Stato</th>
     </tr>
   </thead>
 
@@ -34,8 +44,10 @@
         <td class="level-table__cell--numeric tabular-nums" data-label="In arrivo">
           {{ row.incoming }}
         </td>
-        <td data-label="Stato">
-          <app-badge [tone]="statusTone(row.status)">{{ statusLabel(row.status) }}</app-badge>
+        <td class="level-table__cell--status" data-label="Stato">
+          <span class="level-table__status-value">
+            <app-badge [tone]="statusTone(row.status)">{{ statusLabel(row.status) }}</app-badge>
+          </span>
         </td>
       </tr>
     }

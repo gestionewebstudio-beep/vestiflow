@@ -1,27 +1,20 @@
 @use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
-:host {
-  display: block;
-}
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('sales-table');
+@include rt.data-table-mobile-cards('sales-table');
+@include rt.data-table-mobile-title('sales-table__number');
 
-// ── Mobile-first: card impilate ──────────────────────────────────────────────
-.sales-table {
-  display: block;
-  inline-size: 100%;
-  font-size: var(--text-sm);
-}
-
-.sales-table__head {
-  display: none;
+.sales-table__head th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-raised);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
 }
 
 .sales-table__row {
-  display: block;
-  margin-block-end: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: background-color var(--transition-fast) var(--ease-standard);
 }
@@ -36,84 +29,69 @@
 }
 
 .sales-table__row td {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding-block: var(--space-1);
-  color: var(--color-text);
-}
-
-.sales-table__row td::before {
-  content: attr(data-label);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
+  padding: var(--space-3) var(--space-4);
 }
 
 .sales-table__number {
-  margin-block-end: var(--space-1);
-  font-size: var(--text-md);
   font-weight: var(--font-weight-semibold);
 }
 
-.sales-table__number::before {
-  display: none;
-}
-
-// ── Desktop: tabella vera ────────────────────────────────────────────────────
 @include bp.media-up('lg') {
   .sales-table {
-    display: table;
-    border-collapse: collapse;
+    table-layout: fixed;
   }
 
-  .sales-table__head {
-    display: table-header-group;
+  .sales-table__col--order {
+    inline-size: 10%;
   }
 
-  .sales-table__head tr,
-  .sales-table__row {
-    display: table-row;
+  .sales-table__col--date {
+    inline-size: 12%;
   }
 
-  .sales-table__head th {
-    position: sticky;
-    inset-block-start: 0;
-    z-index: var(--z-raised);
-    padding: var(--space-3) var(--space-4);
-    text-align: start;
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-muted);
-    background-color: var(--color-surface);
-    border-block-end: var(--border-width) solid var(--color-border);
+  .sales-table__col--customer {
+    inline-size: 28%;
   }
 
-  .sales-table__row {
-    margin-block-end: 0;
-    padding: 0;
-    background-color: transparent;
-    border: none;
-    border-radius: 0;
+  .sales-table__col--channel {
+    inline-size: 12%;
   }
 
-  .sales-table__row td {
-    display: table-cell;
-    padding: var(--space-3) var(--space-4);
-    border-block-end: var(--border-width) solid var(--color-border);
-    vertical-align: middle;
+  .sales-table__col--payment {
+    inline-size: 14%;
   }
 
-  .sales-table__row td::before {
-    display: none;
+  .sales-table__col--fulfillment {
+    inline-size: 14%;
   }
 
-  .sales-table__number {
-    margin-block-end: 0;
-    font-size: var(--text-sm);
+  .sales-table__col--total {
+    inline-size: 10%;
   }
 
-  .sales-table__head th.sales-table__cell--numeric,
-  .sales-table__cell--numeric {
+  .sales-table__number,
+  .sales-table tbody td[data-label='Cliente'] {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sales-table tbody td.sales-table__cell--payment,
+  .sales-table__head th.sales-table__cell--payment,
+  .sales-table tbody td.sales-table__cell--fulfillment,
+  .sales-table__head th.sales-table__cell--fulfillment {
+    padding-inline-start: var(--space-6);
+  }
+
+  .sales-table tbody td.sales-table__cell--total,
+  .sales-table__head th.sales-table__cell--total {
     text-align: end;
+    white-space: nowrap;
+  }
+}
+
+@include bp.media-down('lg') {
+  .sales-table__row {
+    border-radius: var(--radius-lg);
   }
 }

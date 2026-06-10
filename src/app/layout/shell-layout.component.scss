@@ -9,7 +9,8 @@
 .shell {
   display: grid;
   block-size: 100dvh;
-  overflow: hidden; // garantisce che l'unico scroll sia in .shell__content
+  min-inline-size: 0;
+  overflow: hidden;
   grid-template-columns: 1fr;
   grid-template-rows: var(--topbar-height) 1fr;
   grid-template-areas:
@@ -22,6 +23,7 @@
   grid-area: topbar;
   border-block-end: var(--border-width) solid var(--color-border);
   background-color: var(--color-surface);
+  min-inline-size: 0;
 }
 
 .shell__sidebar {
@@ -32,7 +34,7 @@
   position: fixed;
   inset-block: 0;
   inset-inline-start: 0;
-  inline-size: var(--sidebar-width);
+  inline-size: min(var(--sidebar-width-drawer), 100%);
   transform: translateX(-100%);
   visibility: hidden; // fuori dal tab order quando il drawer e' chiuso
   transition:
@@ -57,8 +59,16 @@
 
 .shell__content {
   grid-area: content;
-  overflow-y: auto; // UNICA regione principale di scroll
-  padding: var(--space-4);
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-inline-size: 0;
+  padding: var(--space-2);
+}
+
+@include bp.media-up('sm') {
+  .shell__content {
+    padding: var(--space-3);
+  }
 }
 
 // Desktop: sidebar persistente nella griglia, niente drawer/hamburger.

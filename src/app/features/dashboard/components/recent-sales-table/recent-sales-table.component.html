@@ -1,5 +1,12 @@
 <div class="recent-sales__wrapper">
   <table class="recent-sales">
+    <colgroup>
+      <col class="recent-sales__col recent-sales__col--order" />
+      <col class="recent-sales__col recent-sales__col--customer" />
+      <col class="recent-sales__col recent-sales__col--status" />
+      <col class="recent-sales__col recent-sales__col--numeric" />
+      <col class="recent-sales__col recent-sales__col--numeric" />
+    </colgroup>
     <thead>
       <tr>
         <th scope="col">Ordine</th>
@@ -19,15 +26,21 @@
           (keydown.enter)="rowClick.emit(row)"
           (keydown.space)="$event.preventDefault(); rowClick.emit(row)"
         >
-          <td class="recent-sales__number tabular-nums">{{ row.orderNumber }}</td>
-          <td>{{ row.customerName }}</td>
-          <td>
+          <td class="recent-sales__number tabular-nums" data-label="Ordine">
+            {{ row.orderNumber }}
+          </td>
+          <td data-label="Cliente">{{ row.customerName }}</td>
+          <td data-label="Stato">
             <app-badge [tone]="statusTone(row.financialStatus)">
               {{ statusLabel(row.financialStatus) }}
             </app-badge>
           </td>
-          <td class="recent-sales__cell--numeric tabular-nums">{{ formatDate(row.placedAt) }}</td>
-          <td class="recent-sales__cell--numeric tabular-nums">{{ formatMoney(row.total) }}</td>
+          <td class="recent-sales__cell--numeric tabular-nums" data-label="Data">
+            {{ formatDate(row.placedAt) }}
+          </td>
+          <td class="recent-sales__cell--numeric tabular-nums" data-label="Totale">
+            {{ formatMoney(row.total) }}
+          </td>
         </tr>
       }
     </tbody>

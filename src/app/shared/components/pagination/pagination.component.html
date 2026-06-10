@@ -20,13 +20,14 @@
   <div class="pagination__controls">
     <app-button variant="secondary" [disabled]="!canPrev()" (click)="prev()">
       <i class="pi pi-chevron-left" aria-hidden="true"></i>
-      Precedente
+      <span class="pagination__btn-label">Precedente</span>
     </app-button>
     <span class="pagination__page tabular-nums">
-      Pagina {{ meta().page }} di {{ meta().totalPages }}
+      <span class="pagination__page-full">Pagina {{ meta().page }} di {{ meta().totalPages }}</span>
+      <span class="pagination__page-short">{{ meta().page }}/{{ meta().totalPages }}</span>
     </span>
     <app-button variant="secondary" [disabled]="!canNext()" (click)="next()">
-      Successiva
+      <span class="pagination__btn-label">Successiva</span>
       <i class="pi pi-chevron-right" aria-hidden="true"></i>
     </app-button>
   </div>

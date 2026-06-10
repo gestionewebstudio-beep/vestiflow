@@ -1,28 +1,25 @@
 @use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
-:host {
-  display: block;
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('product-table');
+@include rt.data-table-mobile-cards('product-table');
+@include rt.data-table-mobile-title('product-table__name');
+
+.product-table__head th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-raised);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
 }
 
-// ── Mobile-first: card impilate ──────────────────────────────────────────────
-.product-table {
-  display: block;
-  inline-size: 100%;
-  font-size: var(--text-sm);
-}
-
-.product-table__head {
-  // Header nascosto su mobile: le etichette arrivano da data-label sulle celle.
-  display: none;
+.product-table__head th[aria-sort='ascending'] .product-table__sort,
+.product-table__head th[aria-sort='descending'] .product-table__sort {
+  color: var(--color-link);
 }
 
 .product-table__row {
-  display: block;
-  margin-block-end: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: background-color var(--transition-fast) var(--ease-standard);
 }
@@ -37,29 +34,11 @@
 }
 
 .product-table__row td {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding-block: var(--space-1);
-  color: var(--color-text);
-}
-
-.product-table__row td::before {
-  content: attr(data-label);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
+  padding: var(--space-3) var(--space-4);
 }
 
 .product-table__name {
-  margin-block-end: var(--space-1);
-  font-size: var(--text-md);
   font-weight: var(--font-weight-semibold);
-}
-
-.product-table__name::before {
-  // Su mobile il nome fa da titolo della card: niente etichetta.
-  display: none;
 }
 
 .product-table__sort {
@@ -80,66 +59,61 @@
   color: var(--color-text-subtle);
 }
 
-// ── Desktop: tabella vera ─────────────────────────────────────────────────────
 @include bp.media-up('lg') {
   .product-table {
-    display: table;
-    border-collapse: collapse;
+    table-layout: fixed;
   }
 
-  .product-table__head {
-    display: table-header-group;
+  .product-table__col--name {
+    inline-size: 30%;
   }
 
-  .product-table__head tr,
-  .product-table__row {
-    display: table-row;
+  .product-table__col--brand {
+    inline-size: 15%;
   }
 
-  .product-table__head th {
-    position: sticky;
-    inset-block-start: 0;
-    z-index: var(--z-raised);
-    padding: var(--space-3) var(--space-4);
-    text-align: start;
-    background-color: var(--color-surface);
-    border-block-end: var(--border-width) solid var(--color-border);
+  .product-table__col--category {
+    inline-size: 15%;
   }
 
-  .product-table__head th[aria-sort='ascending'] .product-table__sort,
-  .product-table__head th[aria-sort='descending'] .product-table__sort {
-    color: var(--color-link);
+  .product-table__col--season {
+    inline-size: 12%;
   }
 
-  .product-table__row {
-    margin-block-end: 0;
-    padding: 0;
-    background-color: transparent;
-    border: none;
-    border-radius: 0;
+  .product-table__col--numeric {
+    inline-size: 10%;
   }
 
-  .product-table__row:hover {
-    background-color: var(--color-surface-hover);
-  }
-
-  .product-table__row td {
-    display: table-cell;
-    padding: var(--space-3) var(--space-4);
-    border-block-end: var(--border-width) solid var(--color-border);
-    vertical-align: middle;
-  }
-
-  .product-table__row td::before {
-    display: none;
+  .product-table__col--status {
+    inline-size: 18%;
   }
 
   .product-table__name {
-    margin-block-end: 0;
-    font-size: var(--text-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .product-table__cell--numeric {
+  .product-table tbody td.product-table__cell--status,
+  .product-table__head th.product-table__cell--status {
     text-align: end;
+    white-space: nowrap;
+  }
+
+  .product-table__status-value {
+    display: flex;
+    justify-content: flex-end;
+    inline-size: 100%;
+  }
+
+  .product-table__cell--status .product-table__sort {
+    justify-content: flex-end;
+    inline-size: 100%;
+  }
+}
+
+@include bp.media-down('lg') {
+  .product-table__row {
+    border-radius: var(--radius-lg);
   }
 }

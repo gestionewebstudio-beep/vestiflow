@@ -27,3 +27,15 @@ $breakpoints: (
     @content;
   }
 }
+
+// Applica stili solo sotto il breakpoint indicato (escluso).
+// Uso: `@include bp.media-down('lg') { ... }`
+@mixin media-down($name) {
+  @if not map.has-key($breakpoints, $name) {
+    @error "Breakpoint sconosciuto: #{$name}. Disponibili: #{map.keys($breakpoints)}.";
+  }
+  $max-width: map.get($breakpoints, $name) - 0.0625rem;
+  @media (max-width: $max-width) {
+    @content;
+  }
+}

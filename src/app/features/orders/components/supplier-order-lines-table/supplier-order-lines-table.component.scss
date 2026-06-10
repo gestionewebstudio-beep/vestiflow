@@ -1,43 +1,17 @@
+@use 'responsive-table' as rt;
+
 :host {
   display: block;
 }
 
-// Tabella compatta: su mobile scroll orizzontale controllato (5 colonne strette).
 .po-lines__wrapper {
   inline-size: 100%;
-  overflow-x: auto;
 }
 
-.po-lines {
-  inline-size: 100%;
-  min-inline-size: var(--content-narrow);
-  font-size: var(--text-sm);
-  border-collapse: collapse;
-}
-
-.po-lines th {
-  padding: var(--space-2) var(--space-3);
-  text-align: start;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-  border-block-end: var(--border-width) solid var(--color-border);
-  white-space: nowrap;
-}
-
-.po-lines__row td {
-  padding: var(--space-2) var(--space-3);
-  color: var(--color-text);
-  border-block-end: var(--border-width) solid var(--color-border);
-  vertical-align: middle;
-}
+@include rt.stack-table('po-lines');
 
 .po-lines__sku {
   white-space: nowrap;
-}
-
-.po-lines th.po-lines__cell--numeric,
-.po-lines__cell--numeric {
-  text-align: end;
 }
 
 .po-lines__cell--pending {

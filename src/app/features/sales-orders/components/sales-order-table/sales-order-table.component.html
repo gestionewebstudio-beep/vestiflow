@@ -1,13 +1,22 @@
 <table class="sales-table">
+  <colgroup>
+    <col class="sales-table__col sales-table__col--order" />
+    <col class="sales-table__col sales-table__col--date" />
+    <col class="sales-table__col sales-table__col--customer" />
+    <col class="sales-table__col sales-table__col--channel" />
+    <col class="sales-table__col sales-table__col--payment" />
+    <col class="sales-table__col sales-table__col--fulfillment" />
+    <col class="sales-table__col sales-table__col--total" />
+  </colgroup>
   <thead class="sales-table__head">
     <tr>
       <th scope="col">Ordine</th>
       <th scope="col">Data</th>
       <th scope="col">Cliente</th>
       <th scope="col">Canale</th>
-      <th scope="col">Pagamento</th>
-      <th scope="col">Evasione</th>
-      <th scope="col" class="sales-table__cell--numeric">Totale</th>
+      <th scope="col" class="sales-table__cell--payment">Pagamento</th>
+      <th scope="col" class="sales-table__cell--fulfillment">Evasione</th>
+      <th scope="col" class="sales-table__cell--total">Totale</th>
     </tr>
   </thead>
 
@@ -27,17 +36,17 @@
         <td class="tabular-nums" data-label="Data">{{ formatDate(order.placedAt) }}</td>
         <td data-label="Cliente">{{ order.customerName }}</td>
         <td data-label="Canale">{{ sourceLabel(order.source) }}</td>
-        <td data-label="Pagamento">
+        <td class="sales-table__cell--payment" data-label="Pagamento">
           <app-badge [tone]="financialTone(order.financialStatus)">
             {{ financialLabel(order.financialStatus) }}
           </app-badge>
         </td>
-        <td data-label="Evasione">
+        <td class="sales-table__cell--fulfillment" data-label="Evasione">
           <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
             {{ fulfillmentLabel(order.fulfillmentStatus) }}
           </app-badge>
         </td>
-        <td class="sales-table__cell--numeric tabular-nums" data-label="Totale">
+        <td class="sales-table__cell--total tabular-nums" data-label="Totale">
           {{ formatMoney(order.total) }}
         </td>
       </tr>

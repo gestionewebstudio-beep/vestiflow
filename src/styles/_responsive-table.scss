@@ -1,0 +1,167 @@
+// Tabelle responsive: layout tabella di default (desktop), card impilate sotto lg.
+// Richiede `data-label` su ogni <td> e classe BEM `__cell--numeric` dove serve.
+@use 'breakpoints' as bp;
+
+/// Layout tabella standard — default desktop, nessuna media query.
+@mixin data-table-desktop($block) {
+  .#{$block} {
+    display: table;
+    border-collapse: collapse;
+    inline-size: 100%;
+    table-layout: auto;
+    font-size: var(--text-sm);
+  }
+
+  .#{$block} tbody {
+    display: table-row-group;
+  }
+
+  .#{$block} thead,
+  .#{$block}__head {
+    display: table-header-group;
+  }
+
+  .#{$block} tbody tr,
+  .#{$block}__row {
+    display: table-row;
+  }
+
+  .#{$block} tbody td,
+  .#{$block}__row td {
+    display: table-cell;
+    padding: var(--space-2) var(--space-3);
+    border-block-end: var(--border-width) solid var(--color-border);
+    vertical-align: middle;
+    text-align: start;
+    color: var(--color-text);
+
+    &::before {
+      content: none;
+      display: none;
+    }
+  }
+
+  .#{$block} th {
+    padding: var(--space-2) var(--space-3);
+    text-align: start;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    border-block-end: var(--border-width) solid var(--color-border);
+    white-space: nowrap;
+  }
+
+  .#{$block} th.#{$block}__cell--numeric,
+  .#{$block} tbody td.#{$block}__cell--numeric,
+  .#{$block}__row td.#{$block}__cell--numeric {
+    text-align: end;
+  }
+}
+
+/// Card impilate — solo sotto lg, non interferisce col layout desktop.
+@mixin data-table-mobile-cards($block) {
+  @include bp.media-down('lg') {
+    .#{$block} {
+      display: block;
+      max-inline-size: 100%;
+    }
+
+    .#{$block} tbody {
+      display: block;
+      inline-size: 100%;
+      max-inline-size: 100%;
+    }
+
+    .#{$block} thead,
+    .#{$block}__head {
+      display: none;
+    }
+
+    .#{$block} tbody tr,
+    .#{$block}__row {
+      display: block;
+      inline-size: 100%;
+      max-inline-size: 100%;
+      box-sizing: border-box;
+      margin-block-end: var(--space-3);
+      padding: var(--space-3);
+      background-color: var(--color-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-md);
+    }
+
+    .#{$block} tbody td,
+    .#{$block}__row td {
+      display: grid;
+      grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
+      gap: var(--space-2);
+      align-items: center;
+      padding-block: var(--space-1);
+      border: none;
+      text-align: end;
+
+      &::before {
+        content: attr(data-label);
+        display: block;
+        grid-column: 1;
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text-muted);
+        text-align: start;
+      }
+    }
+
+    .#{$block}__title-cell::before,
+    .#{$block} tbody td[data-label='']::before,
+    .#{$block}__row td[data-label='']::before {
+      content: none;
+      display: none;
+    }
+  }
+}
+
+@mixin stack-table($block) {
+  @include data-table-desktop($block);
+  @include data-table-mobile-cards($block);
+}
+
+/// Intestazione pagina con titolo + CTA: stack su mobile, riga su md+.
+@mixin page-header($block) {
+  .#{$block} {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  @include bp.media-up('md') {
+    .#{$block} {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+  }
+}
+
+@mixin list-card-table-host() {
+  :host {
+    display: block;
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
+}
+
+/// Titolo card mobile (nasconde data-label sul ::before).
+@mixin data-table-mobile-title($title-class) {
+  @include bp.media-down('lg') {
+    .#{$title-class} {
+      margin-block-end: var(--space-1);
+      font-size: var(--text-md);
+      font-weight: var(--font-weight-semibold);
+      text-align: start;
+    }
+
+    .#{$title-class}::before {
+      content: none;
+      display: none;
+    }
+  }
+}
