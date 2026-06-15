@@ -15,6 +15,8 @@ import {
 import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ADMIN_ROLES, MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -41,7 +43,7 @@ class VariantByCodeQueryDto {
 }
 
 @Controller('products')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
@@ -85,6 +87,7 @@ export class ProductsController {
   }
 
   @Post()
+  @Roles(...MANAGER_ROLES)
   create(
     @CurrentTenant() tenantId: string,
     @Body() dto: CreateProductDto,
@@ -93,6 +96,7 @@ export class ProductsController {
   }
 
   @Patch(':id')
+  @Roles(...MANAGER_ROLES)
   update(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -102,6 +106,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @Roles(...ADMIN_ROLES)
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(
     @CurrentTenant() tenantId: string,

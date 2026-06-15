@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
@@ -18,7 +20,7 @@ import { ReceiveSupplierOrderDto } from './dto/receive-supplier-order.dto';
 import { SupplierOrdersService, type SupplierOrderWithLines } from './supplier-orders.service';
 
 @Controller('supplier-orders')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class SupplierOrdersController {
   constructor(private readonly supplierOrders: SupplierOrdersService) {}
 
@@ -39,6 +41,7 @@ export class SupplierOrdersController {
   }
 
   @Post()
+  @Roles(...MANAGER_ROLES)
   create(
     @CurrentTenant() tenantId: string,
     @Body() dto: CreateSupplierOrderDto,
@@ -47,6 +50,7 @@ export class SupplierOrdersController {
   }
 
   @Post(':id/send')
+  @Roles(...MANAGER_ROLES)
   send(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,

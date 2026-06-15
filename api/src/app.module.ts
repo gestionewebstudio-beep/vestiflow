@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
@@ -19,6 +21,9 @@ import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
       isGlobal: true,
       validate: validateEnv,
     }),
+    // Rate limiting globale (anti brute-force / DoS). 300 req/min per IP:
+    // sufficiente per un operatore di gestionale, blocca abusi automatizzati.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     PrismaModule,
     AuthModule,
     HealthModule,
@@ -30,5 +35,6 @@ import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
     ShopifyModule,
     DashboardModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

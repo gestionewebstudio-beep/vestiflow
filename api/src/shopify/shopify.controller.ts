@@ -2,6 +2,8 @@ import { Body, Controller, Delete, Get, Post, Query, Res, UseGuards } from '@nes
 import type { Response } from 'express';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ADMIN_ROLES, Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import { BeginShopifyAuthDto } from './dto/begin-shopify-auth.dto';
@@ -11,7 +13,7 @@ import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 
 @Controller('shopify')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class ShopifyController {
   constructor(
     private readonly shopifyConnection: ShopifyConnectionService,
@@ -25,6 +27,7 @@ export class ShopifyController {
   }
 
   @Post('auth/begin')
+  @Roles(...ADMIN_ROLES)
   beginAuth(
     @CurrentTenant() tenantId: string,
     @Body() dto: BeginShopifyAuthDto,
@@ -47,6 +50,7 @@ export class ShopifyController {
   }
 
   @Delete('connection')
+  @Roles(...ADMIN_ROLES)
   async disconnect(@CurrentTenant() tenantId: string): Promise<{ disconnected: true }> {
     await this.shopifyOAuth.disconnect(tenantId);
     return { disconnected: true };

@@ -1,9 +1,9 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 
-import type { TenantAwareRequest } from './tenant.guard';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 
-/** Tenant corrente risolto dalla TenantGuard. Uso: `@CurrentTenant() tenantId: string`. */
+/** Tenant corrente risolto da JwtAuthGuard dal JWT Supabase verificato. */
 export const CurrentTenant = createParamDecorator((_data: unknown, context: ExecutionContext) => {
-  const request = context.switchToHttp().getRequest<TenantAwareRequest>();
+  const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
   return request.tenantId;
 });

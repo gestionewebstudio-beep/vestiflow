@@ -1,4 +1,5 @@
 import { BadRequestException, Controller, Headers, Post, Req } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
 
 import { Public } from '../common/decorators/public.decorator';
@@ -8,6 +9,9 @@ interface RawBodyRequest extends Request {
   rawBody?: Buffer;
 }
 
+// I webhook Shopify arrivano in burst (bulk sync) e sono gia' autenticati via HMAC:
+// niente rate limit qui per non perdere eventi legittimi.
+@SkipThrottle()
 @Controller('shopify/webhooks')
 export class ShopifyWebhooksController {
   constructor(private readonly shopifyWebhooks: ShopifyWebhookService) {}
