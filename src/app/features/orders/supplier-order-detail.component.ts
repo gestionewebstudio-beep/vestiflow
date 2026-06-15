@@ -1,15 +1,26 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import type { Subscription } from 'rxjs';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Location } from '@core/models/location.model';
-import type { SupplierOrder } from '@core/models/supplier-order.model';
+import { SupplierOrderStatus } from '@core/models/supplier-order.model';
+import type { SupplierOrder, SupplierOrderLine } from '@core/models/supplier-order.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -24,6 +35,11 @@ import {
   supplierOrderStatusTone,
 } from './models/supplier-order-labels.util';
 import { SupplierOrderService } from './services/supplier-order.service';
+
+type ActionState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'saving' }
+  | { readonly status: 'error'; readonly error: AppError };
 
 interface DetailData {
   readonly order: SupplierOrder;
@@ -42,7 +58,9 @@ type DetailState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
+    ReactiveFormsModule,
     BadgeComponent,
+    ButtonComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -57,6 +75,8 @@ export class SupplierOrderDetailComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly fb = inject(NonNullableFormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly listPath = '/app/orders';
   protected readonly skeletonColumns = 4;
@@ -109,7 +129,8 @@ export class SupplierOrderDetailComponent {
     }
     const { order, locations } = current.data;
     const destination =
-      locations.find((location) => location.storeId === order.storeId)?.name ?? order.storeId;
+      locations.find((location) => location.id === order.destinationLocationId)?.name ??
+      order.destinationLocationId;
     return [
       { label: 'Fornitore', value: order.supplierName },
       { label: 'Destinazione', value: destination },
@@ -124,12 +145,134 @@ export class SupplierOrderDetailComponent {
     ];
   });
 
+  protected readonly canSend = computed(() => this.order()?.status === SupplierOrderStatus.Draft);
+  protected readonly canReceive = computed(() => {
+    const status = this.order()?.status;
+    return status === SupplierOrderStatus.Sent || status === SupplierOrderStatus.PartiallyReceived;
+  });
+
+  // Fase: visualizzazione vs ricezione merce (azione sensibile, conferma esplicita).
+  private readonly _mode = signal<'view' | 'receive'>('view');
+  protected readonly mode = this._mode.asReadonly();
+
+  private readonly _actionState = signal<ActionState>({ status: 'idle' });
+  protected readonly actionSaving = computed(() => this._actionState().status === 'saving');
+  protected readonly actionError = computed(() => {
+    const state = this._actionState();
+    return state.status === 'error' ? state.error : null;
+  });
+
+  readonly receiveForm = this.fb.group({
+    rows: this.fb.array<ReturnType<SupplierOrderDetailComponent['createReceiveRow']>>([]),
+  });
+
+  protected get receiveRows(): FormArray<
+    ReturnType<SupplierOrderDetailComponent['createReceiveRow']>
+  > {
+    return this.receiveForm.controls.rows;
+  }
+
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
   }
 
   protected goToList(): void {
     void this.router.navigateByUrl(this.listPath);
+  }
+
+  protected remaining(line: SupplierOrderLine): number {
+    return Math.max(0, line.orderedQuantity - line.receivedQuantity);
+  }
+
+  protected startReceive(): void {
+    const order = this.order();
+    if (!order) {
+      return;
+    }
+    this._actionState.set({ status: 'idle' });
+    this.receiveRows.clear();
+    for (const line of order.lines) {
+      this.receiveRows.push(this.createReceiveRow(line));
+    }
+    this._mode.set('receive');
+  }
+
+  protected cancelReceive(): void {
+    this._mode.set('view');
+  }
+
+  private actionSubscription: Subscription | null = null;
+
+  protected sendOrder(): void {
+    const order = this.order();
+    if (!order || this.actionSaving()) {
+      return;
+    }
+    this._actionState.set({ status: 'saving' });
+    this.actionSubscription = this.service
+      .sendOrder(order.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this._actionState.set({ status: 'idle' });
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this._actionState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  protected confirmReceive(): void {
+    const order = this.order();
+    if (!order || this.actionSaving()) {
+      return;
+    }
+    const lines = this.receiveRows.controls
+      .map((row) => ({
+        lineId: row.controls.lineId.value,
+        quantity: Number(row.controls.quantity.value),
+      }))
+      .filter((line) => Number.isFinite(line.quantity) && line.quantity > 0);
+
+    if (lines.length === 0) {
+      this._actionState.set({
+        status: 'error',
+        error: {
+          kind: AppErrorKind.Validation,
+          message: 'Inserisci almeno una quantità da ricevere.',
+        },
+      });
+      return;
+    }
+
+    this._actionState.set({ status: 'saving' });
+    this.actionSubscription = this.service
+      .receiveOrder(order.id, lines)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this._actionState.set({ status: 'idle' });
+          this._mode.set('view');
+          this.inventoryService.invalidateLocationsCache();
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this._actionState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  private createReceiveRow(line: SupplierOrderLine) {
+    const remaining = this.remaining(line);
+    return this.fb.group({
+      lineId: this.fb.control(line.id),
+      sku: this.fb.control(line.sku),
+      remaining: this.fb.control(remaining),
+      quantity: this.fb.control(remaining, {
+        validators: [Validators.min(0), Validators.max(remaining), Validators.pattern(/^\d+$/)],
+      }),
+    });
   }
 
   private errorToState(err: unknown): DetailState {

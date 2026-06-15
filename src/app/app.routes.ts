@@ -21,21 +21,25 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       {
         path: 'dashboard',
+        data: { reuse: true },
         loadChildren: () =>
           import('@features/dashboard/dashboard.routes').then((m) => m.dashboardRoutes),
       },
       {
         path: 'products',
+        data: { reuse: true },
         loadChildren: () =>
           import('@features/products/products.routes').then((m) => m.productsRoutes),
       },
       {
         path: 'inventory',
+        data: { reuse: true },
         loadChildren: () =>
           import('@features/inventory/inventory.routes').then((m) => m.inventoryRoutes),
       },
       {
         path: 'orders',
+        data: { reuse: true },
         loadChildren: () => import('@features/orders/orders.routes').then((m) => m.ordersRoutes),
       },
       {

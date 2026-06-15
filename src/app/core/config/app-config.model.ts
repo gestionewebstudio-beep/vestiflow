@@ -8,11 +8,19 @@ export interface FeatureFlags {
   readonly shopify: boolean;
 }
 
+/** Config pubblica Supabase (anon key — ok nel bundle con restrizioni referrer). */
+export interface SupabasePublicConfig {
+  readonly url: string;
+  readonly anonKey: string;
+}
+
 /** Config applicativa pubblica, iniettata via APP_CONFIG. */
 export interface AppConfig {
   readonly production: boolean;
   readonly appName: string;
   /** Base URL del backend (solo origine fidata, nessuna credenziale). */
   readonly apiBaseUrl: string;
+  /** Se presente, auth via Supabase; altrimenti fallback mock (solo dev). */
+  readonly supabase?: SupabasePublicConfig;
   readonly features: FeatureFlags;
 }

@@ -195,6 +195,10 @@ export class SupplierOrderListComponent {
     void this.router.navigate(['/app/orders', order.id]);
   }
 
+  protected createOrder(): void {
+    void this.router.navigate(['/app/orders/new']);
+  }
+
   private updateParams(params: Record<string, string | number | null>, replace = false): void {
     void this.router.navigate([], {
       relativeTo: this.route,

@@ -4,6 +4,7 @@ import { inject } from '@angular/core';
 import { switchMap, take } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { isApiRequest } from '@core/http/api-url.util';
 
 import { AuthService } from './auth.service';
 
@@ -17,7 +18,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
   const document = inject(DOCUMENT);
 
-  if (!isTrustedUrl(req.url, config.apiBaseUrl, document)) {
+  if (!isApiRequest(req.url, config.apiBaseUrl, document)) {
     return next(req);
   }
 
@@ -33,16 +34,3 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     }),
   );
 };
-
-/** True solo se la request punta alla stessa origine di apiBaseUrl. */
-function isTrustedUrl(requestUrl: string, apiBaseUrl: string, document: Document): boolean {
-  try {
-    const base = document.defaultView?.location.href ?? apiBaseUrl;
-    const target = new URL(requestUrl, base);
-    const api = new URL(apiBaseUrl, base);
-    return target.origin === api.origin;
-  } catch {
-    // URL malformato o ambiente senza window: nessun header (fail-safe).
-    return false;
-  }
-}

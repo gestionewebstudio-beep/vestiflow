@@ -4,6 +4,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "start:api": "npm run start:dev --prefix api",
+    "start:dev": "npm run start:dev --prefix api",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
@@ -23,7 +25,9 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
+    "@angular/service-worker": "^21.2.16",
     "@fontsource-variable/inter": "^5.2.8",
+    "@supabase/supabase-js": "^2.108.1",
     "primeicons": "^7.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"

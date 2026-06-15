@@ -35,8 +35,8 @@ export interface SupplierOrder extends TenantScoped, Timestamped {
   readonly supplierId: EntityId;
   /** Snapshot del nome fornitore per la visualizzazione. */
   readonly supplierName: string;
-  /** Negozio di destinazione della merce. */
-  readonly storeId: EntityId;
+  /** Location di destinazione della merce. */
+  readonly destinationLocationId: EntityId;
   readonly status: SupplierOrderStatus;
   readonly currency: CurrencyCode;
   readonly lines: readonly SupplierOrderLine[];

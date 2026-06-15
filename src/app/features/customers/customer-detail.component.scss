@@ -21,6 +21,13 @@
   color: var(--color-text);
 }
 
+.customer-detail__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .customer-detail__title {
   margin: 0;
   font-size: var(--text-xl);

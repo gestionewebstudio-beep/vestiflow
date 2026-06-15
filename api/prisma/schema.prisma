@@ -112,6 +112,8 @@ model Tenant {
   customers          Customer[]
   salesOrders        SalesOrder[]
   shopifyConnection  ShopifyConnection?
+  shopifyCredential  ShopifyCredential?
+  shopifyOAuthStates ShopifyOAuthState[]
 
   @@map("tenants")
 }
@@ -486,4 +488,33 @@ model ShopifyConnection {
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@map("shopify_connections")
+}
+
+/// Token OAuth cifrato (MAI esposto via API). Una riga per tenant.
+model ShopifyCredential {
+  tenantId       String   @id @map("tenant_id") @db.Uuid
+  shopDomain     String   @map("shop_domain")
+  accessTokenEnc String   @map("access_token_enc")
+  scopes         String[] @default([])
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("shopify_credentials")
+}
+
+/// Stato OAuth monouso (CSRF) con scadenza breve.
+model ShopifyOAuthState {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  state      String   @unique
+  shopDomain String   @map("shop_domain")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("shopify_oauth_states")
 }

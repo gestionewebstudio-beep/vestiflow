@@ -1,9 +1,15 @@
 <section class="po-list">
   <header class="po-list__header">
-    <h1 class="po-list__title">Ordini Fornitori</h1>
-    <p class="po-list__subtitle">
-      Consultazione ordini di acquisto: la creazione e la ricezione merce arriveranno col backend.
-    </p>
+    <div class="po-list__heading">
+      <h1 class="po-list__title">Ordini Fornitori</h1>
+      <p class="po-list__subtitle">
+        Ordini di acquisto verso i fornitori: crea un ordine, invialo e registra la ricezione merce.
+      </p>
+    </div>
+    <app-button (click)="createOrder()">
+      <i class="pi pi-plus" aria-hidden="true"></i>
+      Nuovo ordine
+    </app-button>
   </header>
 
   <div class="po-list__toolbar">

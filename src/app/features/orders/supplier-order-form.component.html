@@ -1,0 +1,229 @@
+<section class="po-form">
+  <a class="po-form__back" href="/app/orders" (click)="$event.preventDefault(); cancel()">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Ordini Fornitori
+  </a>
+
+  <h1 class="po-form__title">Nuovo ordine fornitore</h1>
+
+  <form class="po-form__form" [formGroup]="form" (ngSubmit)="saveAndSend()">
+    <div class="po-form__grid">
+      <div class="po-form__field">
+        <span class="po-form__label" id="po-supplier-label">Fornitore</span>
+        <app-select-menu
+          [options]="supplierOptions()"
+          [value]="form.controls.supplierId.value"
+          ariaLabel="Fornitore"
+          placeholder="Seleziona un fornitore…"
+          [compact]="true"
+          [fullWidth]="true"
+          [invalid]="fieldInvalid('supplierId')"
+          describedBy="po-supplier-error"
+          (valueChange)="onSupplierSelect($event)"
+        />
+        @if (fieldInvalid('supplierId')) {
+          <p id="po-supplier-error" class="po-form__error">Seleziona un fornitore.</p>
+        }
+        <button type="button" class="po-form__inline-toggle" (click)="toggleSupplierForm()">
+          <i
+            class="pi"
+            [class.pi-plus]="!showSupplierForm()"
+            [class.pi-minus]="showSupplierForm()"
+            aria-hidden="true"
+          ></i>
+          {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+        </button>
+      </div>
+
+      <div class="po-form__field">
+        <span class="po-form__label">Destinazione merce</span>
+        <app-select-menu
+          [options]="locationOptions()"
+          [value]="form.controls.destinationLocationId.value"
+          ariaLabel="Location di destinazione"
+          placeholder="Seleziona una location…"
+          [compact]="true"
+          [fullWidth]="true"
+          [invalid]="fieldInvalid('destinationLocationId')"
+          describedBy="po-location-error"
+          (valueChange)="onLocationSelect($event)"
+        />
+        @if (fieldInvalid('destinationLocationId')) {
+          <p id="po-location-error" class="po-form__error">Seleziona la location.</p>
+        }
+      </div>
+
+      <div class="po-form__field">
+        <label class="po-form__label" for="po-expected">Data attesa (opzionale)</label>
+        <input id="po-expected" class="po-form__input" type="date" formControlName="expectedAt" />
+      </div>
+    </div>
+
+    @if (showSupplierForm()) {
+      <div class="po-form__supplier-box" [formGroup]="supplierForm">
+        <h2 class="po-form__subtitle">Nuovo fornitore</h2>
+        <div class="po-form__grid">
+          <div class="po-form__field">
+            <label class="po-form__label" for="po-new-supplier-name">Nome</label>
+            <input
+              id="po-new-supplier-name"
+              class="po-form__input"
+              type="text"
+              formControlName="name"
+              placeholder="Es. Tessuti Italia S.r.l."
+            />
+          </div>
+          <div class="po-form__field">
+            <label class="po-form__label" for="po-new-supplier-email">Email (opzionale)</label>
+            <input
+              id="po-new-supplier-email"
+              class="po-form__input"
+              type="email"
+              formControlName="email"
+              placeholder="ordini@fornitore.it"
+            />
+          </div>
+          <div class="po-form__field">
+            <label class="po-form__label" for="po-new-supplier-phone">Telefono (opzionale)</label>
+            <input
+              id="po-new-supplier-phone"
+              class="po-form__input"
+              type="tel"
+              formControlName="phone"
+              placeholder="+39 ..."
+            />
+          </div>
+        </div>
+        <div class="po-form__supplier-actions">
+          <app-button
+            type="button"
+            [loading]="savingSupplier()"
+            [disabled]="savingSupplier()"
+            (click)="saveSupplier()"
+          >
+            <i class="pi pi-check" aria-hidden="true"></i>
+            Salva fornitore
+          </app-button>
+        </div>
+      </div>
+    }
+
+    <section class="po-form__lines" aria-labelledby="po-lines-title">
+      <div class="po-form__lines-head">
+        <h2 id="po-lines-title" class="po-form__subtitle">Righe ordine</h2>
+        <app-button type="button" variant="ghost" (click)="addLine()">
+          <i class="pi pi-plus" aria-hidden="true"></i>
+          Aggiungi riga
+        </app-button>
+      </div>
+
+      <div class="po-form__line-list" formArrayName="lines">
+        @for (line of lines.controls; track line; let i = $index) {
+          <div class="po-form__line" [formGroupName]="i">
+            <div class="po-form__line-field po-form__line-field--variant">
+              <span class="po-form__label">Variante</span>
+              <app-select-menu
+                [options]="variantOptions()"
+                [value]="line.controls.variantId.value"
+                ariaLabel="Variante"
+                placeholder="Seleziona una variante…"
+                [compact]="true"
+                [fullWidth]="true"
+                [invalid]="lineFieldInvalid(i, 'variantId')"
+                (valueChange)="onVariantSelect(i, $event)"
+              />
+              @if (lineFieldInvalid(i, 'variantId')) {
+                <p class="po-form__error">Seleziona la variante.</p>
+              }
+            </div>
+
+            <div class="po-form__line-field po-form__line-field--qty">
+              <label class="po-form__label" [attr.for]="'po-qty-' + i">Quantità</label>
+              <input
+                [id]="'po-qty-' + i"
+                class="po-form__input po-form__input--num"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                step="1"
+                formControlName="orderedQuantity"
+                [attr.aria-invalid]="lineFieldInvalid(i, 'orderedQuantity')"
+              />
+              @if (lineFieldInvalid(i, 'orderedQuantity')) {
+                <p class="po-form__error">Intero ≥ 1.</p>
+              }
+            </div>
+
+            <div class="po-form__line-field po-form__line-field--cost">
+              <label class="po-form__label" [attr.for]="'po-cost-' + i">Costo unitario</label>
+              <input
+                [id]="'po-cost-' + i"
+                class="po-form__input po-form__input--num"
+                type="text"
+                inputmode="decimal"
+                formControlName="unitCost"
+                placeholder="0,00"
+                [attr.aria-invalid]="unitCostInvalid(i)"
+              />
+              @if (unitCostInvalid(i)) {
+                <p class="po-form__error">Importo non valido.</p>
+              }
+            </div>
+
+            <div class="po-form__line-field po-form__line-field--total">
+              <span class="po-form__label">Subtotale</span>
+              <span class="po-form__line-total tabular-nums">{{ formatMoney(lineMoney(i)) }}</span>
+            </div>
+
+            <button
+              type="button"
+              class="po-form__line-remove"
+              [disabled]="lines.length <= 1"
+              aria-label="Rimuovi riga"
+              (click)="removeLine(i)"
+            >
+              <i class="pi pi-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        }
+      </div>
+
+      <p class="po-form__total tabular-nums">
+        Totale ordine: <strong>{{ formatMoney(orderTotal()) }}</strong>
+      </p>
+    </section>
+
+    @if (submitError(); as appError) {
+      <p class="po-form__submit-error" role="alert">
+        <i class="pi pi-times-circle" aria-hidden="true"></i>
+        {{ appError.message }}
+      </p>
+    }
+
+    @if (!hasSuppliers()) {
+      <p class="po-form__hint">
+        Nessun fornitore disponibile: crea prima un fornitore con il pulsante “Nuovo fornitore”.
+      </p>
+    }
+
+    <div class="po-form__actions">
+      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
+        Annulla
+      </app-button>
+      <app-button
+        type="button"
+        variant="secondary"
+        [disabled]="saving()"
+        [loading]="saving()"
+        (click)="saveDraft()"
+      >
+        <i class="pi pi-save" aria-hidden="true"></i>
+        Salva bozza
+      </app-button>
+      <app-button type="submit" [disabled]="saving()" [loading]="saving()">
+        <i class="pi pi-send" aria-hidden="true"></i>
+        Crea e invia
+      </app-button>
+    </div>
+  </form>
+</section>

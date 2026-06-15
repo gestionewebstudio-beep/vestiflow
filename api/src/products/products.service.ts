@@ -11,6 +11,7 @@ import type { Paginated } from '../common/dto/pagination.dto';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import type { ListProductsQueryDto } from './dto/list-products.query.dto';
 import type { UpdateProductDto } from './dto/update-product.dto';
+import type { UpdateVariantDto } from './dto/update-variant.dto';
 
 export type ProductWithVariants = Product & { variants: ProductVariant[] };
 
@@ -93,18 +94,25 @@ export class ProductsService {
 
   async update(tenantId: string, id: string, dto: UpdateProductDto): Promise<ProductWithVariants> {
     await this.getById(tenantId, id);
-    return this.prisma.product.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        description: dto.description,
-        brand: dto.brand,
-        category: dto.category,
-        season: dto.season,
-        status: dto.status,
-        ...(dto.options ? { options: dto.options as unknown as Prisma.InputJsonValue } : {}),
-      },
-      include: { variants: true },
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.variants) {
+        await this.syncVariants(tx, tenantId, id, dto.variants);
+      }
+
+      return tx.product.update({
+        where: { id },
+        data: {
+          name: dto.name,
+          description: dto.description,
+          brand: dto.brand,
+          category: dto.category,
+          season: dto.season,
+          status: dto.status,
+          ...(dto.options ? { options: dto.options as unknown as Prisma.InputJsonValue } : {}),
+        },
+        include: { variants: true },
+      });
     });
   }
 
@@ -137,6 +145,150 @@ export class ProductsService {
       select: { id: true },
     });
     return { sku: normalized, available: existing === null };
+  }
+
+  /** Allinea il set varianti al payload: create, update, delete (senza movimenti). */
+  private async syncVariants(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    productId: string,
+    variants: readonly UpdateVariantDto[],
+  ): Promise<void> {
+    this.assertNoDuplicateSkusInPayload(variants);
+    this.assertSingleCurrency(variants);
+
+    const existing = await tx.productVariant.findMany({
+      where: { tenantId, productId },
+      select: { id: true },
+    });
+    const payloadIds = new Set(
+      variants.map((variant) => variant.id).filter((id): id is string => Boolean(id)),
+    );
+
+    for (const variant of existing) {
+      if (!payloadIds.has(variant.id)) {
+        await this.deleteVariantInTx(tx, tenantId, productId, variant.id);
+      }
+    }
+
+    for (const variant of variants) {
+      if (variant.id) {
+        await this.updateVariantInTx(tx, tenantId, productId, variant);
+      } else {
+        await this.createVariantInTx(tx, tenantId, productId, variant);
+      }
+    }
+  }
+
+  private async createVariantInTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    productId: string,
+    variant: CreateVariantDto,
+  ): Promise<void> {
+    await this.assertSkuAvailable(tx, tenantId, variant.sku);
+    await tx.productVariant.create({
+      data: this.toVariantCreateData(tenantId, productId, variant),
+    });
+  }
+
+  private async updateVariantInTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    productId: string,
+    variant: UpdateVariantDto,
+  ): Promise<void> {
+    const id = variant.id;
+    if (!id) {
+      return;
+    }
+
+    const current = await tx.productVariant.findFirst({
+      where: { id, tenantId, productId },
+      select: { id: true },
+    });
+    if (!current) {
+      throw new NotFoundException(`Variante ${id} non trovata sul prodotto`);
+    }
+
+    await this.assertSkuAvailable(tx, tenantId, variant.sku, id);
+    await tx.productVariant.update({
+      where: { id },
+      data: {
+        sku: variant.sku.trim(),
+        optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
+        barcode: variant.barcode,
+        currency: variant.sellingPrice.currency,
+        sellingPriceMinor: variant.sellingPrice.amountMinor,
+        purchasePriceMinor: variant.purchasePrice?.amountMinor,
+        compareAtPriceMinor: variant.compareAtPrice?.amountMinor,
+      },
+    });
+  }
+
+  private async deleteVariantInTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    productId: string,
+    variantId: string,
+  ): Promise<void> {
+    const variant = await tx.productVariant.findFirst({
+      where: { id: variantId, tenantId, productId },
+      select: { id: true },
+    });
+    if (!variant) {
+      return;
+    }
+
+    const movementCount = await tx.stockMovement.count({
+      where: { tenantId, variantId },
+    });
+    if (movementCount > 0) {
+      throw new ConflictException(
+        'Una o più varianti da rimuovere hanno movimenti di magazzino: non eliminabili.',
+      );
+    }
+
+    await tx.inventoryLevel.deleteMany({ where: { variantId } });
+    await tx.productVariant.delete({ where: { id: variantId } });
+  }
+
+  private async assertSkuAvailable(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    sku: string,
+    excludeVariantId?: string,
+  ): Promise<void> {
+    const normalized = sku.trim();
+    const existing = await tx.productVariant.findFirst({
+      where: {
+        tenantId,
+        sku: { equals: normalized, mode: 'insensitive' },
+        ...(excludeVariantId ? { id: { not: excludeVariantId } } : {}),
+      },
+      select: { sku: true },
+    });
+    if (existing) {
+      throw new ConflictException(`SKU già presente a catalogo: ${existing.sku}`);
+    }
+  }
+
+  private toVariantCreateData(
+    tenantId: string,
+    productId: string,
+    variant: CreateVariantDto,
+  ): Prisma.ProductVariantUncheckedCreateInput {
+    return {
+      tenantId,
+      productId,
+      sku: variant.sku.trim(),
+      optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
+      barcode: variant.barcode,
+      currency: variant.sellingPrice.currency,
+      sellingPriceMinor: variant.sellingPrice.amountMinor,
+      purchasePriceMinor: variant.purchasePrice?.amountMinor,
+      compareAtPriceMinor: variant.compareAtPrice?.amountMinor,
+    };
   }
 
   private toVariantCreateInput(

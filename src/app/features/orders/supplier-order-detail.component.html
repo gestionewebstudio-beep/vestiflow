@@ -22,25 +22,107 @@
         <h1 class="po-detail__title tabular-nums">{{ o.reference }}</h1>
         <p class="po-detail__supplier">{{ o.supplierName }}</p>
       </div>
-      <app-badge [tone]="statusTone(o.status)">{{ statusLabel(o.status) }}</app-badge>
+      <div class="po-detail__header-actions">
+        <app-badge [tone]="statusTone(o.status)">{{ statusLabel(o.status) }}</app-badge>
+        @if (mode() === 'view') {
+          @if (canSend()) {
+            <app-button
+              variant="secondary"
+              [loading]="actionSaving()"
+              [disabled]="actionSaving()"
+              (click)="sendOrder()"
+            >
+              <i class="pi pi-send" aria-hidden="true"></i>
+              Invia ordine
+            </app-button>
+          }
+          @if (canReceive()) {
+            <app-button (click)="startReceive()">
+              <i class="pi pi-box" aria-hidden="true"></i>
+              Ricevi merce
+            </app-button>
+          }
+        }
+      </div>
     </header>
+
+    @if (actionError(); as appError) {
+      <p class="po-detail__action-error" role="alert">
+        <i class="pi pi-times-circle" aria-hidden="true"></i>
+        {{ appError.message }}
+      </p>
+    }
 
     <section class="po-detail__panel" aria-labelledby="po-general">
       <h2 id="po-general" class="po-detail__panel-title">Dati ordine</h2>
       <app-detail-facts [facts]="facts()" />
     </section>
 
-    <section class="po-detail__panel" aria-labelledby="po-lines">
-      <div class="po-detail__panel-head">
-        <h2 id="po-lines" class="po-detail__panel-title">Righe ordine</h2>
-        <span class="po-detail__count tabular-nums">{{ o.lines.length }}</span>
-      </div>
+    @if (mode() === 'receive') {
+      <section class="po-detail__panel" aria-labelledby="po-receive">
+        <h2 id="po-receive" class="po-detail__panel-title">Ricezione merce</h2>
+        <p class="po-detail__receive-hint">
+          Indica le quantità effettivamente ricevute per ogni riga. Le giacenze della destinazione
+          verranno aggiornate con un movimento di carico tracciato.
+        </p>
 
-      <app-supplier-order-lines-table [lines]="o.lines" />
+        <ul class="po-detail__receive-list" [formGroup]="receiveForm">
+          <ng-container formArrayName="rows">
+            @for (row of receiveRows.controls; track row; let i = $index) {
+              <li class="po-detail__receive-row" [formGroupName]="i">
+                <div class="po-detail__receive-info">
+                  <span class="po-detail__receive-sku">{{ row.controls.sku.value }}</span>
+                  <span class="po-detail__receive-remaining tabular-nums">
+                    Da ricevere: {{ row.controls.remaining.value }}
+                  </span>
+                </div>
+                <div class="po-detail__receive-field">
+                  <label class="po-detail__receive-label" [attr.for]="'po-receive-' + i">
+                    Quantità
+                  </label>
+                  <input
+                    [id]="'po-receive-' + i"
+                    class="po-detail__receive-input tabular-nums"
+                    type="number"
+                    inputmode="numeric"
+                    min="0"
+                    step="1"
+                    [max]="row.controls.remaining.value"
+                    formControlName="quantity"
+                  />
+                </div>
+              </li>
+            }
+          </ng-container>
+        </ul>
 
-      <p class="po-detail__total tabular-nums">
-        Totale ordine: <strong>{{ formatMoney(o.totalAmount) }}</strong>
-      </p>
-    </section>
+        <div class="po-detail__receive-actions">
+          <app-button variant="ghost" [disabled]="actionSaving()" (click)="cancelReceive()">
+            Annulla
+          </app-button>
+          <app-button
+            [loading]="actionSaving()"
+            [disabled]="actionSaving() || receiveForm.invalid"
+            (click)="confirmReceive()"
+          >
+            <i class="pi pi-check" aria-hidden="true"></i>
+            Conferma ricezione
+          </app-button>
+        </div>
+      </section>
+    } @else {
+      <section class="po-detail__panel" aria-labelledby="po-lines">
+        <div class="po-detail__panel-head">
+          <h2 id="po-lines" class="po-detail__panel-title">Righe ordine</h2>
+          <span class="po-detail__count tabular-nums">{{ o.lines.length }}</span>
+        </div>
+
+        <app-supplier-order-lines-table [lines]="o.lines" />
+
+        <p class="po-detail__total tabular-nums">
+          Totale ordine: <strong>{{ formatMoney(o.totalAmount) }}</strong>
+        </p>
+      </section>
+    }
   }
 </section>

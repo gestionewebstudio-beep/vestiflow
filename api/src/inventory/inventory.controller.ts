@@ -1,15 +1,15 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import type { Location, StockMovement } from '@prisma/client';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
-import { TenantGuard } from '../common/tenant/tenant.guard';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { ListInventoryLevelsQueryDto, ListMovementsQueryDto } from './dto/inventory-queries.dto';
 import { RegisterMovementDto } from './dto/register-movement.dto';
 import { InventoryService, type InventoryLevelWithRefs } from './inventory.service';
 
 @Controller('inventory')
-@UseGuards(TenantGuard)
+@UseGuards(JwtAuthGuard)
 export class InventoryController {
   constructor(private readonly inventory: InventoryService) {}
 

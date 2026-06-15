@@ -1,407 +1,212 @@
-import { Injectable } from '@angular/core';
-import { type Observable, delay, of, switchMap, throwError } from 'rxjs';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { inject, Injectable } from '@angular/core';
+import { forkJoin, map, type Observable, shareReplay, timeout, tap } from 'rxjs';
 
-import { AppErrorKind } from '@core/models/app-error.model';
-import type { AppError } from '@core/models/app-error.model';
+import { toPaginatedResponse } from '@core/api/api-pagination.mapper';
+import type { ApiPaginated } from '@core/api/api-paginated.model';
+import {
+  mapProductApiRow,
+  mapProductVariantApiRow,
+  type ProductApiRow,
+} from '@core/api/domain-api.mapper';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import type { PaginatedResponse } from '@core/models/api.model';
-import type { EntityId, IsoDateString } from '@core/models/common.model';
+import type { EntityId } from '@core/models/common.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
-import type { Product, ProductOption } from '@core/models/product.model';
+import type { Product } from '@core/models/product.model';
 
+import type { VariantSummary } from '../models/variant-summary.model';
 import type {
   CreateProductDto,
-  CreateProductVariantDto,
-  ProductOptionDto,
   SkuAvailabilityResult,
   UpdateProductDto,
-  UpdateProductVariantDto,
 } from '../models/product.dto';
-import { findDuplicateSkus, normalizeSku } from '../models/product-form.validators';
-import type {
-  ProductFilterOptions,
-  ProductListQuery,
-  ProductSortField,
-} from '../models/product-list-query.model';
+import type { ProductFilterOptions, ProductListQuery } from '../models/product-list-query.model';
 import { variantTitle } from '../models/product-variant.util';
-import type { VariantSummary } from '../models/variant-summary.model';
-import { MOCK_PRODUCTS, MOCK_PRODUCT_VARIANTS } from './products.mock-data';
+import { toCreateProductBody, toUpdateProductBody } from './product-api.mapper';
 
-const LIST_LATENCY_MS = 500;
-const DETAIL_LATENCY_MS = 400;
-const OPTIONS_LATENCY_MS = 200;
-const WRITE_LATENCY_MS = 600;
-const SKU_CHECK_LATENCY_MS = 300;
+const HTTP_TIMEOUT_MS = 15000;
+const FACET_PAGE_SIZE = 100;
+const VARIANT_SUMMARIES_CACHE_MS = 60_000;
+const FILTER_OPTIONS_CACHE_MS = 5 * 60_000;
 
-// Tenant corrente mock: in attesa del Tenant/Store context service. In produzione
-// il tenant e' derivato lato backend dal token (regole-sicurezza).
-const MOCK_TENANT_ID: EntityId = 'tenant-demo';
-
-// Sentinel di sviluppo: cercare "errore" forza un errore server (test stato error).
-const ERROR_SENTINEL = 'errore';
+interface TimedCache<T> {
+  readonly expiresAt: number;
+  readonly value$: Observable<T>;
+}
 
 /**
- * Accesso ai dati prodotti. Implementazione mock (in memoria) con paginazione
- * server-side simulata, filtri, ordinamento, scrittura, latenza ed errori.
- * Ritorna modelli di dominio: sostituibile con un client HTTP (backend NestJS
- * su Railway, PostgreSQL su Supabase) senza cambiare l'API pubblica.
- *
- * providedIn 'root': il catalogo e' consumato anche da magazzino, report e
- * dashboard; un'unica istanza mantiene i dati mock coerenti cross-feature.
+ * Accesso HTTP ai prodotti (NestJS + Supabase). Sostituisce il mock in-memory
+ * mantenendo la stessa API pubblica per i componenti smart.
  */
 @Injectable({ providedIn: 'root' })
 export class ProductService {
-  // Store interno mutabile: create/update persistono per la sessione corrente.
-  private products: Product[] = [...MOCK_PRODUCTS];
-  private variants: ProductVariant[] = [...MOCK_PRODUCT_VARIANTS];
+  private readonly http = inject(HttpClient);
+  private readonly config = inject(APP_CONFIG);
 
-  /** Lista paginata, filtrata e ordinata (paginazione simulata lato "server"). */
+  private variantSummariesCache: TimedCache<readonly VariantSummary[]> | null = null;
+  private filterOptionsCache: TimedCache<ProductFilterOptions> | null = null;
+
   getProducts(query: ProductListQuery): Observable<PaginatedResponse<Product>> {
-    if (this.shouldSimulateError(query)) {
-      return of(null).pipe(
-        delay(LIST_LATENCY_MS),
-        switchMap(() => throwError(() => this.serverError())),
-      );
-    }
+    let params = new HttpParams()
+      .set('page', String(query.page))
+      .set('pageSize', String(query.pageSize));
 
-    const filtered = this.applyFilters(this.products, query);
-    const sorted = this.applySort(filtered, query.sort ?? 'name', query.order ?? 'asc');
+    if (query.search) params = params.set('search', query.search);
+    if (query.status) params = params.set('status', query.status);
+    if (query.category) params = params.set('category', query.category);
+    if (query.brand) params = params.set('brand', query.brand);
+    if (query.season) params = params.set('season', query.season);
 
-    const page = Math.max(1, query.page);
-    const pageSize = Math.max(1, query.pageSize);
-    const total = sorted.length;
-    const start = (page - 1) * pageSize;
-    const data = sorted.slice(start, start + pageSize);
-
-    const response: PaginatedResponse<Product> = {
-      data,
-      meta: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
-    };
-
-    return of(response).pipe(delay(LIST_LATENCY_MS));
+    return this.http.get<ApiPaginated<ProductApiRow>>(this.url('/products'), { params }).pipe(
+      timeout(HTTP_TIMEOUT_MS),
+      map((response) => {
+        const paginated = toPaginatedResponse(response);
+        return {
+          data: paginated.data.map(mapProductApiRow),
+          meta: paginated.meta,
+        };
+      }),
+    );
   }
 
-  /**
-   * Valori distinti per i filtri (facets). In un backend reale sarebbe un
-   * endpoint dedicato; qui derivati dal catalogo mock e ordinati.
-   */
   getFilterOptions(): Observable<ProductFilterOptions> {
-    const options: ProductFilterOptions = {
-      categories: this.distinctSorted(this.products.map((product) => product.category)),
-      brands: this.distinctSorted(this.products.map((product) => product.brand)),
-      seasons: this.distinctSorted(this.products.map((product) => product.season)),
-    };
-    return of(options).pipe(delay(OPTIONS_LATENCY_MS));
-  }
-
-  /** Singolo prodotto per id; AppError NotFound se assente. */
-  getProductById(id: EntityId): Observable<Product> {
-    const product = this.products.find((candidate) => candidate.id === id);
-    if (!product) {
-      return of(null).pipe(
-        delay(DETAIL_LATENCY_MS),
-        switchMap(() => throwError(() => this.notFoundError())),
-      );
-    }
-    return of(product).pipe(delay(DETAIL_LATENCY_MS));
-  }
-
-  /**
-   * Varianti di un prodotto. Hook tecnico per il dettaglio: lo stock per negozio
-   * resta responsabilita' della feature Magazzino.
-   */
-  getProductVariants(productId: EntityId): Observable<readonly ProductVariant[]> {
-    const variants = this.variants.filter((variant) => variant.productId === productId);
-    return of(variants).pipe(delay(DETAIL_LATENCY_MS));
-  }
-
-  /**
-   * Vista denormalizzata di tutte le varianti (lookup per magazzino, report,
-   * dashboard). In un backend reale sarebbe un endpoint di ricerca varianti.
-   */
-  getVariantSummaries(): Observable<readonly VariantSummary[]> {
-    const byProduct = new Map(this.products.map((product) => [product.id, product]));
-    const summaries: VariantSummary[] = this.variants.map((variant) => {
-      const product = byProduct.get(variant.productId);
-      const productName = product?.name ?? variant.sku;
-      const options = variantTitle(variant.optionValues);
-      return {
-        variantId: variant.id,
-        productId: variant.productId,
-        sku: variant.sku,
-        productName,
-        title: options ? `${productName} — ${options}` : productName,
-        sellingPrice: variant.sellingPrice,
+    if (!this.filterOptionsCache || this.filterOptionsCache.expiresAt <= Date.now()) {
+      const params = new HttpParams().set('page', '1').set('pageSize', String(FACET_PAGE_SIZE));
+      this.filterOptionsCache = {
+        expiresAt: Date.now() + FILTER_OPTIONS_CACHE_MS,
+        value$: this.http.get<ApiPaginated<ProductApiRow>>(this.url('/products'), { params }).pipe(
+          timeout(HTTP_TIMEOUT_MS),
+          map((response) => this.deriveFilterOptions(response.items.map(mapProductApiRow))),
+          shareReplay({ bufferSize: 1, refCount: false }),
+        ),
       };
-    });
-    return of(summaries).pipe(delay(OPTIONS_LATENCY_MS));
+    }
+    return this.filterOptionsCache.value$;
   }
 
-  /**
-   * Verifica l'unicita' degli SKU lato "server". `excludeProductId` esclude le
-   * varianti del prodotto in modifica, cosi' l'edit non si auto-blocca.
-   */
+  getProductById(id: EntityId): Observable<Product> {
+    return this.http
+      .get<ProductApiRow>(this.url(`/products/${id}`))
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapProductApiRow));
+  }
+
+  getProductVariants(productId: EntityId): Observable<readonly ProductVariant[]> {
+    return this.http.get<ProductApiRow>(this.url(`/products/${productId}`)).pipe(
+      timeout(HTTP_TIMEOUT_MS),
+      map((row) => (row.variants ?? []).map(mapProductVariantApiRow)),
+    );
+  }
+
+  getVariantSummaries(): Observable<readonly VariantSummary[]> {
+    if (!this.variantSummariesCache || this.variantSummariesCache.expiresAt <= Date.now()) {
+      const params = new HttpParams().set('page', '1').set('pageSize', String(FACET_PAGE_SIZE));
+      this.variantSummariesCache = {
+        expiresAt: Date.now() + VARIANT_SUMMARIES_CACHE_MS,
+        value$: this.http.get<ApiPaginated<ProductApiRow>>(this.url('/products'), { params }).pipe(
+          timeout(HTTP_TIMEOUT_MS),
+          map((response) => this.toVariantSummaries(response.items)),
+          shareReplay({ bufferSize: 1, refCount: false }),
+        ),
+      };
+    }
+    return this.variantSummariesCache.value$;
+  }
+
+  invalidateVariantSummariesCache(): void {
+    this.variantSummariesCache = null;
+    this.filterOptionsCache = null;
+  }
+
   checkSkuAvailability(
     skus: readonly string[],
     excludeProductId?: EntityId,
   ): Observable<SkuAvailabilityResult> {
-    const taken = this.findTakenSkus(skus, excludeProductId);
-    return of<SkuAvailabilityResult>({ available: taken.length === 0, taken }).pipe(
-      delay(SKU_CHECK_LATENCY_MS),
-    );
-  }
-
-  /** Crea un prodotto con le sue varianti. 409 se uno SKU e' gia' in uso. */
-  createProduct(dto: CreateProductDto): Observable<Product> {
-    const conflict = this.validateSkus(dto.variants);
-    if (conflict) {
-      return of(null).pipe(
-        delay(WRITE_LATENCY_MS),
-        switchMap(() => throwError(() => conflict)),
-      );
+    if (skus.length === 0) {
+      return forkJoin([]).pipe(map(() => ({ available: true, taken: [] as readonly string[] })));
     }
 
-    const now = this.now();
-    const productId: EntityId = crypto.randomUUID();
-    const product: Product = {
-      id: productId,
-      tenantId: MOCK_TENANT_ID,
-      name: dto.name,
-      description: dto.description,
-      brand: dto.brand,
-      category: dto.category,
-      season: dto.season,
-      status: dto.status,
-      options: this.toOptions(dto.options),
-      createdAt: now,
-      updatedAt: now,
-    };
-    const newVariants = dto.variants.map((variant) =>
-      this.toVariant(variant, productId, crypto.randomUUID()),
-    );
-
-    this.products = [product, ...this.products];
-    this.variants = [...this.variants, ...newVariants];
-
-    return of(product).pipe(delay(WRITE_LATENCY_MS));
-  }
-
-  /** Aggiorna un prodotto e ne rimpiazza il set di varianti. 404/409 gestiti. */
-  updateProduct(id: EntityId, dto: UpdateProductDto): Observable<Product> {
-    const existing = this.products.find((candidate) => candidate.id === id);
-    if (!existing) {
-      return of(null).pipe(
-        delay(WRITE_LATENCY_MS),
-        switchMap(() => throwError(() => this.notFoundError())),
-      );
-    }
-
-    const incomingVariants = dto.variants ?? [];
-    const conflict = this.validateSkus(incomingVariants, id);
-    if (conflict) {
-      return of(null).pipe(
-        delay(WRITE_LATENCY_MS),
-        switchMap(() => throwError(() => conflict)),
-      );
-    }
-
-    const updated: Product = {
-      ...existing,
-      name: dto.name ?? existing.name,
-      description: dto.description ?? existing.description,
-      brand: dto.brand ?? existing.brand,
-      category: dto.category ?? existing.category,
-      season: dto.season ?? existing.season,
-      status: dto.status ?? existing.status,
-      options: dto.options ? this.toOptions(dto.options) : existing.options,
-      updatedAt: this.now(),
-    };
-    const nextVariants = incomingVariants.map((variant) =>
-      this.toVariant(variant, id, variant.id ?? crypto.randomUUID()),
-    );
-
-    this.products = this.products.map((product) => (product.id === id ? updated : product));
-    this.variants = [
-      ...this.variants.filter((variant) => variant.productId !== id),
-      ...nextVariants,
-    ];
-
-    return of(updated).pipe(delay(WRITE_LATENCY_MS));
-  }
-
-  /**
-   * Elimina un prodotto e le sue varianti. 404 se assente. NB mock: le
-   * giacenze/movimenti riferiti restano (snapshot SKU); il backend reale
-   * decidera' la policy (soft delete / blocco se stock presente).
-   */
-  deleteProduct(id: EntityId): Observable<void> {
-    const existing = this.products.find((candidate) => candidate.id === id);
-    if (!existing) {
-      return of(null).pipe(
-        delay(WRITE_LATENCY_MS),
-        switchMap(() => throwError(() => this.notFoundError())),
-      );
-    }
-
-    this.products = this.products.filter((product) => product.id !== id);
-    this.variants = this.variants.filter((variant) => variant.productId !== id);
-
-    return of(undefined as void).pipe(delay(WRITE_LATENCY_MS));
-  }
-
-  private toOptions(options: readonly ProductOptionDto[]): readonly ProductOption[] {
-    return options.map((option) => ({ name: option.name, values: [...option.values] }));
-  }
-
-  private toVariant(
-    dto: CreateProductVariantDto | UpdateProductVariantDto,
-    productId: EntityId,
-    id: EntityId,
-  ): ProductVariant {
-    return {
-      id,
-      productId,
-      sku: dto.sku,
-      optionValues: dto.optionValues.map((option) => ({ name: option.name, value: option.value })),
-      sellingPrice: dto.sellingPrice,
-      purchasePrice: dto.purchasePrice,
-      compareAtPrice: dto.compareAtPrice,
-      barcode: dto.barcode,
-      shopifyVariantId: dto.shopifyVariantId,
-      shopifyInventoryItemId: dto.shopifyInventoryItemId,
-    };
-  }
-
-  /** Duplicati intra-payload -> Validation; SKU gia' in uso -> Conflict. */
-  private validateSkus(
-    variants: readonly CreateProductVariantDto[],
-    excludeProductId?: EntityId,
-  ): AppError | null {
-    const skus = variants.map((variant) => variant.sku);
-    const duplicates = findDuplicateSkus(skus);
-    if (duplicates.length > 0) {
-      return this.duplicateSkuError(duplicates);
-    }
-    const taken = this.findTakenSkus(skus, excludeProductId);
-    if (taken.length > 0) {
-      return this.skuConflictError(taken);
-    }
-    return null;
-  }
-
-  private findTakenSkus(skus: readonly string[], excludeProductId?: EntityId): readonly string[] {
-    const requested = new Set(skus.map(normalizeSku));
-    const inUse = new Set<string>();
-    for (const variant of this.variants) {
-      if (excludeProductId && variant.productId === excludeProductId) {
-        continue;
+    const checks = skus.map((sku) => {
+      let params = new HttpParams().set('sku', sku.trim());
+      if (excludeProductId) {
+        params = params.set('excludeProductId', excludeProductId);
       }
-      inUse.add(normalizeSku(variant.sku));
+      return this.http
+        .get<{ sku: string; available: boolean }>(this.url('/products/sku-availability'), {
+          params,
+        })
+        .pipe(timeout(HTTP_TIMEOUT_MS));
+    });
+
+    return forkJoin(checks).pipe(
+      map((results) => {
+        const taken = results.filter((result) => !result.available).map((result) => result.sku);
+        return { available: taken.length === 0, taken };
+      }),
+    );
+  }
+
+  createProduct(dto: CreateProductDto): Observable<Product> {
+    return this.http.post<ProductApiRow>(this.url('/products'), toCreateProductBody(dto)).pipe(
+      timeout(HTTP_TIMEOUT_MS),
+      tap(() => this.invalidateVariantSummariesCache()),
+      map(mapProductApiRow),
+    );
+  }
+
+  updateProduct(id: EntityId, dto: UpdateProductDto): Observable<Product> {
+    return this.http
+      .patch<ProductApiRow>(this.url(`/products/${id}`), toUpdateProductBody(dto))
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        tap(() => this.invalidateVariantSummariesCache()),
+        map(mapProductApiRow),
+      );
+  }
+
+  deleteProduct(id: EntityId): Observable<void> {
+    return this.http.delete<void>(this.url(`/products/${id}`)).pipe(
+      timeout(HTTP_TIMEOUT_MS),
+      tap(() => this.invalidateVariantSummariesCache()),
+    );
+  }
+
+  private url(path: string): string {
+    return `${this.config.apiBaseUrl}${path}`;
+  }
+
+  private deriveFilterOptions(products: readonly Product[]): ProductFilterOptions {
+    const categories = this.distinctSorted(products.map((product) => product.category));
+    const brands = this.distinctSorted(products.map((product) => product.brand));
+    const seasons = this.distinctSorted(products.map((product) => product.season));
+    return { categories, brands, seasons };
+  }
+
+  private toVariantSummaries(rows: readonly ProductApiRow[]): readonly VariantSummary[] {
+    const summaries: VariantSummary[] = [];
+    for (const row of rows) {
+      const product = mapProductApiRow(row);
+      for (const variantRow of row.variants ?? []) {
+        const variant = mapProductVariantApiRow(variantRow);
+        const options = variantTitle(variant.optionValues);
+        summaries.push({
+          variantId: variant.id,
+          productId: product.id,
+          sku: variant.sku,
+          productName: product.name,
+          title: options ? `${product.name} — ${options}` : product.name,
+          sellingPrice: variant.sellingPrice,
+        });
+      }
     }
-    return [...requested].filter((sku) => inUse.has(sku));
+    return summaries;
   }
 
   private distinctSorted(values: readonly (string | undefined)[]): readonly string[] {
     const unique = new Set<string>();
     for (const value of values) {
-      if (value) {
-        unique.add(value);
-      }
+      if (value) unique.add(value);
     }
     return [...unique].sort((a, b) => a.localeCompare(b));
-  }
-
-  private applyFilters(products: readonly Product[], query: ProductListQuery): readonly Product[] {
-    const search = query.search?.trim().toLowerCase();
-
-    return products.filter((product) => {
-      if (query.category && product.category !== query.category) {
-        return false;
-      }
-      if (query.brand && product.brand !== query.brand) {
-        return false;
-      }
-      if (query.season && product.season !== query.season) {
-        return false;
-      }
-      if (query.status && product.status !== query.status) {
-        return false;
-      }
-      if (search) {
-        const haystack = `${product.name} ${product.brand ?? ''}`.toLowerCase();
-        if (!haystack.includes(search)) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }
-
-  private applySort(
-    products: readonly Product[],
-    field: ProductSortField,
-    order: 'asc' | 'desc',
-  ): readonly Product[] {
-    const direction = order === 'desc' ? -1 : 1;
-    return [...products].sort((a, b) => this.compare(a, b, field) * direction);
-  }
-
-  private compare(a: Product, b: Product, field: ProductSortField): number {
-    switch (field) {
-      case 'updatedAt':
-        return a.updatedAt.localeCompare(b.updatedAt);
-      case 'status':
-        return a.status.localeCompare(b.status);
-      case 'brand':
-        return (a.brand ?? '').localeCompare(b.brand ?? '');
-      case 'category':
-        return (a.category ?? '').localeCompare(b.category ?? '');
-      case 'season':
-        return (a.season ?? '').localeCompare(b.season ?? '');
-      case 'name':
-      default:
-        return a.name.localeCompare(b.name);
-    }
-  }
-
-  private shouldSimulateError(query: ProductListQuery): boolean {
-    return query.search?.trim().toLowerCase() === ERROR_SENTINEL;
-  }
-
-  private now(): IsoDateString {
-    return new Date().toISOString();
-  }
-
-  private serverError(): AppError {
-    return {
-      kind: AppErrorKind.Server,
-      message: 'Errore nel caricamento dei prodotti. Riprova piu\u0027 tardi.',
-      status: 500,
-    };
-  }
-
-  private notFoundError(): AppError {
-    return {
-      kind: AppErrorKind.NotFound,
-      message: 'Prodotto non trovato.',
-      status: 404,
-    };
-  }
-
-  private duplicateSkuError(duplicates: readonly string[]): AppError {
-    return {
-      kind: AppErrorKind.Validation,
-      message: 'Sono presenti SKU duplicati tra le varianti.',
-      status: 422,
-      details: { duplicates },
-    };
-  }
-
-  private skuConflictError(taken: readonly string[]): AppError {
-    return {
-      kind: AppErrorKind.Conflict,
-      message: 'Alcuni SKU sono gia\u0027 in uso da altri prodotti.',
-      status: 409,
-      details: { taken },
-    };
   }
 }

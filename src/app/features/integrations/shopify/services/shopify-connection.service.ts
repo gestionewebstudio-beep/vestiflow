@@ -1,47 +1,39 @@
-import { Injectable } from '@angular/core';
-import { type Observable, delay, of, switchMap, throwError } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { inject, Injectable } from '@angular/core';
+import { map, type Observable, timeout } from 'rxjs';
 
-import { AppErrorKind } from '@core/models/app-error.model';
-import type { AppError } from '@core/models/app-error.model';
-import type { EntityId } from '@core/models/common.model';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 
-import { MOCK_SHOPIFY_CONNECTIONS } from './shopify-connection.mock-data';
+import { shopifyConnectionFromDto } from '../models/shopify-connection.mapper';
+import type { ShopifyConnectionDto } from '../models/shopify-connection.dto';
 
-const CONNECTION_LATENCY_MS = 350;
-
-// Tenant corrente mock: in produzione e' derivato lato backend dal token.
-const MOCK_TENANT_ID: EntityId = 'tenant-demo';
+const HTTP_TIMEOUT_MS = 15000;
 
 /**
- * Accesso in SOLA LETTURA allo stato della connessione Shopify del tenant
- * (livello integrazione/account, distinto dal sync per-risorsa di ShopifyLink).
- * Nessuna mutazione: niente connect/reconnect/disconnect, nessun OAuth flow.
- * Implementazione mock (in memoria) con latenza simulata, coerente con gli altri
- * service. Ritorna un modello di dominio: sostituibile con un client HTTP
- * (NestJS/Railway) senza cambiare l'API pubblica.
+ * Stato connessione Shopify (read-only) + avvio OAuth lato server.
+ * Nessun token nel browser: solo URL di autorizzazione e metadati pubblici.
  */
 @Injectable({ providedIn: 'root' })
 export class ShopifyConnectionService {
-  private readonly connections: readonly ShopifyConnection[] = [...MOCK_SHOPIFY_CONNECTIONS];
+  private readonly http = inject(HttpClient);
+  private readonly config = inject(APP_CONFIG);
 
-  /** Connessione Shopify del tenant corrente; AppError NotFound se assente. */
   getConnection(): Observable<ShopifyConnection> {
-    const connection = this.connections.find((candidate) => candidate.tenantId === MOCK_TENANT_ID);
-    if (!connection) {
-      return of(null).pipe(
-        delay(CONNECTION_LATENCY_MS),
-        switchMap(() => throwError(() => this.notFoundError())),
-      );
-    }
-    return of(connection).pipe(delay(CONNECTION_LATENCY_MS));
+    return this.http
+      .get<ShopifyConnectionDto>(`${this.config.apiBaseUrl}/shopify/connection`)
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(shopifyConnectionFromDto));
   }
 
-  private notFoundError(): AppError {
-    return {
-      kind: AppErrorKind.NotFound,
-      message: 'Connessione Shopify non trovata.',
-      status: 404,
-    };
+  beginAuth(shop: string): Observable<{ authorizeUrl: string }> {
+    return this.http
+      .post<{ authorizeUrl: string }>(`${this.config.apiBaseUrl}/shopify/auth/begin`, { shop })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  disconnect(): Observable<{ disconnected: true }> {
+    return this.http
+      .delete<{ disconnected: true }>(`${this.config.apiBaseUrl}/shopify/connection`)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 }

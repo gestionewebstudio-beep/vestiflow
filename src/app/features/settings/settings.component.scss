@@ -77,6 +77,89 @@
   color: var(--status-error-fg);
 }
 
+.settings__banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--color-border);
+}
+
+.settings__banner--success {
+  color: var(--status-success-fg);
+  background-color: var(--status-success-bg);
+  border-color: var(--status-success-border);
+}
+
+.settings__banner--error {
+  color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+  border-color: var(--status-error-border);
+}
+
+.settings__banner-dismiss {
+  flex-shrink: 0;
+  padding: 0;
+  font-size: var(--text-sm);
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.settings__connect-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-inline-size: var(--content-narrow);
+}
+
+.settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings__field-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.settings__input {
+  min-block-size: var(--btn-min-height);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.settings__input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.settings__input[aria-invalid='true'] {
+  border-color: var(--status-error-border);
+}
+
+.settings__field-error {
+  font-size: var(--text-xs);
+  color: var(--status-error-fg);
+}
+
+.settings__shopify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 // ── Facts (dl compatta) ──────────────────────────────────────────────────────
 .settings__facts {
   display: grid;

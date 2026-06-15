@@ -7,6 +7,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Customer } from '@core/models/customer.model';
 import { formatDate } from '@core/utils/date.util';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -27,6 +28,7 @@ type DetailState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
+    BadgeComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -81,6 +83,8 @@ export class CustomerDetailComponent {
     const customer = this.customer();
     return customer ? `${customer.firstName} ${customer.lastName}` : '';
   });
+
+  protected readonly isShopifyOwned = computed(() => Boolean(this.customer()?.shopifyCustomerId));
 
   protected readonly facts = computed<readonly DetailFact[]>(() => {
     const customer = this.customer();

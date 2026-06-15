@@ -8,13 +8,74 @@
   <section class="settings__panel" aria-labelledby="settings-shopify">
     <h2 id="settings-shopify" class="settings__panel-title">Integrazione Shopify</h2>
 
+    @if (shopifyBanner(); as banner) {
+      <div
+        class="settings__banner"
+        [class.settings__banner--success]="banner === 'connected'"
+        [class.settings__banner--error]="banner === 'error'"
+        role="status"
+      >
+        @switch (banner) {
+          @case ('connected') {
+            Connessione Shopify completata. Clienti, ordini e giacenze si aggiorneranno via webhook.
+          }
+          @case ('error') {
+            Autorizzazione Shopify non riuscita. Verifica dominio shop e configurazione app.
+          }
+          @case ('disconnected') {
+            Connessione Shopify rimossa.
+          }
+        }
+        <button type="button" class="settings__banner-dismiss" (click)="dismissBanner()">
+          Chiudi
+        </button>
+      </div>
+    }
+
     @if (connectionLoading()) {
       <app-table-skeleton [columns]="2" [rows]="3" />
     } @else if (connectionNotFound()) {
       <p class="settings__muted">
-        Nessuna connessione Shopify configurata per questo account. La connessione si attiva dal
-        backend con l'autorizzazione OAuth dello shop.
+        Nessuna connessione Shopify attiva. Inserisci il dominio dello shop e avvia l'autorizzazione
+        OAuth: i token restano solo sul server.
       </p>
+
+      @if (canManageShopify()) {
+        <form
+          class="settings__connect-form"
+          [formGroup]="connectForm"
+          (ngSubmit)="connectShopify()"
+        >
+          <label class="settings__field" for="shopify-shop">
+            <span class="settings__field-label">Dominio shop</span>
+            <input
+              id="shopify-shop"
+              class="settings__input"
+              type="text"
+              formControlName="shop"
+              placeholder="mio-negozio.myshopify.com"
+              autocomplete="off"
+              spellcheck="false"
+              [attr.aria-invalid]="
+                connectForm.controls.shop.invalid && connectForm.controls.shop.touched
+              "
+            />
+            @if (connectForm.controls.shop.invalid && connectForm.controls.shop.touched) {
+              <span class="settings__field-error">Inserisci il dominio dello shop.</span>
+            }
+          </label>
+
+          @if (connectError(); as message) {
+            <p class="settings__shopify-error" role="alert">{{ message }}</p>
+          }
+
+          <app-button type="submit" [loading]="connectLoading()" [disabled]="connectLoading()">
+            Connetti Shopify
+          </app-button>
+        </form>
+      } @else {
+        <p class="settings__muted">Solo titolare o amministratore possono collegare Shopify.</p>
+      }
     } @else if (connectionError(); as appError) {
       <app-error-state
         [description]="appError.message"
@@ -73,9 +134,26 @@
         </p>
       }
 
+      @if (connectError(); as message) {
+        <p class="settings__shopify-error" role="alert">{{ message }}</p>
+      }
+
+      @if (canManageShopify()) {
+        <div class="settings__shopify-actions">
+          <app-button
+            variant="danger"
+            [loading]="disconnectLoading()"
+            [disabled]="disconnectLoading()"
+            (click)="disconnectShopify()"
+          >
+            Disconnetti Shopify
+          </app-button>
+        </div>
+      }
+
       <p class="settings__muted">
-        La gestione della connessione (autorizzazione, rinnovo, disconnessione) avviene lato server:
-        nessuna credenziale Shopify è gestita dal browser.
+        La gestione della connessione avviene lato server: nessuna credenziale Shopify è gestita dal
+        browser. Clienti, vendite e delta giacenza arrivano via webhook.
       </p>
     }
   </section>

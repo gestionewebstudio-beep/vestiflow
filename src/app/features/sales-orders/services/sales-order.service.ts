@@ -1,117 +1,64 @@
-import { Injectable } from '@angular/core';
-import { type Observable, delay, of, switchMap, throwError } from 'rxjs';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { inject, Injectable } from '@angular/core';
+import { map, type Observable, timeout } from 'rxjs';
 
-import { AppErrorKind } from '@core/models/app-error.model';
-import type { AppError } from '@core/models/app-error.model';
+import { toPaginatedResponse } from '@core/api/api-pagination.mapper';
+import type { ApiPaginated } from '@core/api/api-paginated.model';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
 
 import type { SalesOrderListQuery } from '../models/sales-order-list-query.model';
-import { MOCK_SALES_ORDERS } from './sales-orders.mock-data';
+import { mapSalesOrderApiRow, type SalesOrderApiRow } from './sales-order-api.mapper';
 
-const LIST_LATENCY_MS = 500;
-const DETAIL_LATENCY_MS = 400;
-
-const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 20;
-
-// Sentinel di sviluppo: cercare "errore" (lista) o un id "errore" (dettaglio)
-// forza un errore server, per testare lo stato error in UI.
-const ERROR_SENTINEL = 'errore';
+const HTTP_TIMEOUT_MS = 15000;
 
 /**
- * Accesso in SOLA LETTURA alle vendite. Shopify e' autoritativo su vendite e
- * clienti: nessuna scrittura (create/update/cancel/refund/fulfill) e nessun
- * impatto su giacenze. Implementazione mock (in memoria) con latenza ed errori
- * simulati, coerente con ProductService/InventoryService. Ritorna modelli di
- * dominio: sostituibile con un client HTTP (NestJS/Railway) senza cambiare l'API.
+ * Accesso read-only alle vendite via NestJS. Shopify è owner: nessuna scrittura
+ * lato gestionale; snapshot popolati da sync.
  */
 @Injectable({ providedIn: 'root' })
 export class SalesOrderService {
-  // Piu' recenti per prime: ordinamento stabile applicato una volta.
-  private readonly orders: readonly SalesOrder[] = [...MOCK_SALES_ORDERS].sort((a, b) =>
-    b.placedAt.localeCompare(a.placedAt),
-  );
+  private readonly http = inject(HttpClient);
+  private readonly config = inject(APP_CONFIG);
 
-  /** Lista paginata e filtrata (paginazione simulata lato "server"). */
   getSalesOrders(query: SalesOrderListQuery = {}): Observable<PaginatedResponse<SalesOrder>> {
-    if (query.search?.trim().toLowerCase() === ERROR_SENTINEL) {
-      return this.failWith(this.serverError(), LIST_LATENCY_MS);
+    let params = new HttpParams()
+      .set('page', String(query.page ?? 1))
+      .set('pageSize', String(query.pageSize ?? 20));
+
+    if (query.search) {
+      params = params.set('search', query.search);
+    }
+    if (query.financialStatus) {
+      params = params.set('financialStatus', query.financialStatus);
+    }
+    if (query.source) {
+      params = params.set('source', query.source);
     }
 
-    const filtered = this.applyFilters(this.orders, query);
-
-    const page = Math.max(1, query.page ?? DEFAULT_PAGE);
-    const pageSize = Math.max(1, query.pageSize ?? DEFAULT_PAGE_SIZE);
-    const total = filtered.length;
-    const start = (page - 1) * pageSize;
-    const data = filtered.slice(start, start + pageSize);
-
-    const response: PaginatedResponse<SalesOrder> = {
-      data,
-      meta: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
-    };
-
-    return of(response).pipe(delay(LIST_LATENCY_MS));
+    return this.http
+      .get<ApiPaginated<SalesOrderApiRow>>(this.url('/sales-orders'), { params })
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((response) => {
+          const paginated = toPaginatedResponse(response);
+          return {
+            data: paginated.data.map(mapSalesOrderApiRow),
+            meta: paginated.meta,
+          };
+        }),
+      );
   }
 
-  /** Singola vendita per id; AppError NotFound se assente. */
   getSalesOrderById(id: EntityId): Observable<SalesOrder> {
-    if (id === ERROR_SENTINEL) {
-      return this.failWith(this.serverError(), DETAIL_LATENCY_MS);
-    }
-    const order = this.orders.find((candidate) => candidate.id === id);
-    if (!order) {
-      return this.failWith(this.notFoundError(), DETAIL_LATENCY_MS);
-    }
-    return of(order).pipe(delay(DETAIL_LATENCY_MS));
+    return this.http
+      .get<SalesOrderApiRow>(this.url(`/sales-orders/${id}`))
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSalesOrderApiRow));
   }
 
-  private applyFilters(
-    orders: readonly SalesOrder[],
-    query: SalesOrderListQuery,
-  ): readonly SalesOrder[] {
-    const search = query.search?.trim().toLowerCase();
-
-    return orders.filter((order) => {
-      if (query.financialStatus && order.financialStatus !== query.financialStatus) {
-        return false;
-      }
-      if (query.source && order.source !== query.source) {
-        return false;
-      }
-      if (search) {
-        const haystack = `${order.orderNumber} ${order.customerName}`.toLowerCase();
-        if (!haystack.includes(search)) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }
-
-  // Errore simulato dopo la stessa latenza della chiamata "felice".
-  private failWith<T>(error: AppError, latencyMs: number): Observable<T> {
-    return of(null).pipe(
-      delay(latencyMs),
-      switchMap(() => throwError(() => error)),
-    );
-  }
-
-  private serverError(): AppError {
-    return {
-      kind: AppErrorKind.Server,
-      message: 'Errore nel caricamento delle vendite. Riprova piu\u0027 tardi.',
-      status: 500,
-    };
-  }
-
-  private notFoundError(): AppError {
-    return {
-      kind: AppErrorKind.NotFound,
-      message: 'Vendita non trovata.',
-      status: 404,
-    };
+  private url(path: string): string {
+    return `${this.config.apiBaseUrl}${path}`;
   }
 }

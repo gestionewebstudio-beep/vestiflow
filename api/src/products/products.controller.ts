@@ -14,8 +14,8 @@ import {
 } from '@nestjs/common';
 import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
-import { TenantGuard } from '../common/tenant/tenant.guard';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
@@ -34,7 +34,7 @@ class SkuAvailabilityQueryDto {
 }
 
 @Controller('products')
-@UseGuards(TenantGuard)
+@UseGuards(JwtAuthGuard)
 export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 

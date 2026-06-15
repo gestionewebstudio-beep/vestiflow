@@ -10,6 +10,20 @@
   gap: var(--space-5);
 }
 
+.po-list__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@include bp.media-up('md') {
+  .po-list__header {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+
 .po-list__title {
   margin: 0;
   font-size: var(--text-xl);

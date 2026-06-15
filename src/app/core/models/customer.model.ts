@@ -1,6 +1,6 @@
 import type { Address, EntityId, TenantScoped, Timestamped } from './common.model';
 
-/** Cliente del tenant (anagrafica; storico acquisti arrivera' con ecommerce/POS). */
+/** Cliente del tenant (anagrafica read-only; owner Shopify per ecommerce). */
 export interface Customer extends TenantScoped, Timestamped {
   readonly id: EntityId;
   readonly firstName: string;
@@ -9,4 +9,6 @@ export interface Customer extends TenantScoped, Timestamped {
   readonly phone?: string;
   readonly address?: Address;
   readonly notes?: string;
+  /** Presente se il cliente è sincronizzato da Shopify. */
+  readonly shopifyCustomerId?: string;
 }

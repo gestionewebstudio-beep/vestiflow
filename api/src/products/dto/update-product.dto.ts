@@ -12,11 +12,9 @@ import {
 import { ProductStatus } from '@prisma/client';
 
 import { ProductOptionDto } from './create-product.dto';
+import { UpdateVariantDto } from './update-variant.dto';
 
-/**
- * Aggiornamento dati generali del prodotto. Le varianti hanno endpoint
- * dedicati: toccarle insieme al prodotto rende le PUT ambigue.
- */
+/** Aggiornamento prodotto: dati generali + sync opzionale del set varianti. */
 export class UpdateProductDto {
   @IsOptional()
   @IsString()
@@ -54,4 +52,10 @@ export class UpdateProductDto {
   @ValidateNested({ each: true })
   @Type(() => ProductOptionDto)
   options?: ProductOptionDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateVariantDto)
+  variants?: UpdateVariantDto[];
 }

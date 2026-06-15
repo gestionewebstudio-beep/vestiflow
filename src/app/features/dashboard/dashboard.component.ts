@@ -6,39 +6,30 @@ import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { InventoryLevel } from '@core/models/inventory-level.model';
-import type { Location } from '@core/models/location.model';
 import { SalesOrderFulfillmentStatus } from '@core/models/sales-order.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
-import { SupplierOrderStatus } from '@core/models/supplier-order.model';
-import type { SupplierOrder } from '@core/models/supplier-order.model';
 import { isLowStock } from '@core/utils/inventory.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { InventoryService } from '@features/inventory/services/inventory.service';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductService } from '@features/products/services/product.service';
-import { SupplierOrderService } from '@features/orders/services/supplier-order.service';
 import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
 
 import { LowStockTableComponent } from './components/low-stock-table/low-stock-table.component';
 import { RecentSalesTableComponent } from './components/recent-sales-table/recent-sales-table.component';
+import type { DashboardLevel, DashboardSummary } from './models/dashboard-summary.model';
 import type { LowStockRow, RecentSaleRow } from './models/dashboard-view.model';
+import { DashboardService } from './services/dashboard.service';
 
-// I mock sono piccoli: una pagina larga copre l'intero dataset.
-// Col backend reale la dashboard avra' endpoint aggregati dedicati.
+// I mock vendite sono piccoli: una pagina larga copre l'intero dataset
+// (Shopify e' owner delle vendite: niente endpoint di scrittura lato gestionale).
 const WIDE_PAGE_SIZE = 100;
 const LOW_STOCK_LIMIT = 8;
 const RECENT_SALES_LIMIT = 6;
 
 interface DashboardData {
-  readonly levels: readonly InventoryLevel[];
-  readonly locations: readonly Location[];
-  readonly summaries: readonly VariantSummary[];
+  readonly summary: DashboardSummary;
   readonly salesOrders: readonly SalesOrder[];
-  readonly supplierOrders: readonly SupplierOrder[];
 }
 
 type DashboardState =
@@ -47,8 +38,9 @@ type DashboardState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
- * Dashboard operativa (smart): KPI, varianti sotto soglia e ultime vendite,
- * aggregati client-side dai service mock.
+ * Dashboard operativa (smart): KPI, varianti sotto soglia e ultime vendite.
+ * I KPI di magazzino arrivano da un solo endpoint aggregato; le vendite sono
+ * ancora mock (owner Shopify). Il filtro per location resta client-side.
  */
 @Component({
   selector: 'app-dashboard',
@@ -65,10 +57,8 @@ type DashboardState =
   styleUrl: './dashboard.component.scss',
 })
 export class DashboardComponent {
-  private readonly inventoryService = inject(InventoryService);
-  private readonly productService = inject(ProductService);
+  private readonly dashboardService = inject(DashboardService);
   private readonly salesOrderService = inject(SalesOrderService);
-  private readonly supplierOrderService = inject(SupplierOrderService);
   private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
 
@@ -78,7 +68,7 @@ export class DashboardComponent {
     if (!id) {
       return null;
     }
-    return this.data()?.locations.find((location) => location.id === id)?.name ?? null;
+    return this.data()?.summary.locations.find((location) => location.id === id)?.name ?? null;
   });
 
   private readonly refreshTick = signal(0);
@@ -87,14 +77,9 @@ export class DashboardComponent {
     toObservable(this.refreshTick).pipe(
       switchMap(() =>
         forkJoin({
-          levels: this.inventoryService.getLevels(),
-          locations: this.inventoryService.getLocations(),
-          summaries: this.productService.getVariantSummaries(),
+          summary: this.dashboardService.getSummary(),
           salesOrders: this.salesOrderService
             .getSalesOrders({ page: 1, pageSize: WIDE_PAGE_SIZE })
-            .pipe(map((response) => response.data)),
-          supplierOrders: this.supplierOrderService
-            .getSupplierOrders({ page: 1, pageSize: WIDE_PAGE_SIZE })
             .pipe(map((response) => response.data)),
         }).pipe(
           map((data): DashboardState => ({ status: 'success', data })),
@@ -121,23 +106,21 @@ export class DashboardComponent {
   });
 
   /** Giacenze visibili: filtrate per la location attiva del topbar. */
-  private readonly visibleLevels = computed<readonly InventoryLevel[]>(() => {
+  private readonly visibleLevels = computed<readonly DashboardLevel[]>(() => {
     const data = this.data();
     if (!data) {
       return [];
     }
     const activeId = this.locationContext.activeLocationId();
-    return activeId ? data.levels.filter((level) => level.locationId === activeId) : data.levels;
+    return activeId
+      ? data.summary.levels.filter((level) => level.locationId === activeId)
+      : data.summary.levels;
   });
 
   // ── KPI ─────────────────────────────────────────────────────────────────────
-  protected readonly productCountLabel = computed(() => {
-    const data = this.data();
-    if (!data) {
-      return '0';
-    }
-    return String(new Set(data.summaries.map((summary) => summary.productId)).size);
-  });
+  protected readonly productCountLabel = computed(() =>
+    String(this.data()?.summary.productCount ?? 0),
+  );
 
   protected readonly availableUnitsLabel = computed(() =>
     String(this.visibleLevels().reduce((sum, level) => sum + level.available, 0)),
@@ -145,19 +128,9 @@ export class DashboardComponent {
 
   protected readonly lowStockCountLabel = computed(() => String(this.lowStockRows().length));
 
-  protected readonly incomingOrdersLabel = computed(() => {
-    const data = this.data();
-    if (!data) {
-      return '0';
-    }
-    return String(
-      data.supplierOrders.filter(
-        (order) =>
-          order.status === SupplierOrderStatus.Sent ||
-          order.status === SupplierOrderStatus.PartiallyReceived,
-      ).length,
-    );
-  });
+  protected readonly incomingOrdersLabel = computed(() =>
+    String(this.data()?.summary.incomingSupplierOrders ?? 0),
+  );
 
   protected readonly toFulfillLabel = computed(() => {
     const data = this.data();
@@ -172,29 +145,22 @@ export class DashboardComponent {
   });
 
   // ── Liste ───────────────────────────────────────────────────────────────────
-  protected readonly lowStockRows = computed<readonly LowStockRow[]>(() => {
-    const data = this.data();
-    if (!data) {
-      return [];
-    }
-    const summaryByVariant = new Map(data.summaries.map((summary) => [summary.variantId, summary]));
-    const locationById = new Map(data.locations.map((location) => [location.id, location]));
-    return this.visibleLevels()
+  protected readonly lowStockRows = computed<readonly LowStockRow[]>(() =>
+    [...this.visibleLevels()]
       .filter((level) => isLowStock(level))
       .sort((a, b) => a.available - b.available)
-      .map((level): LowStockRow => {
-        const summary = summaryByVariant.get(level.variantId);
-        return {
+      .map(
+        (level): LowStockRow => ({
           variantId: level.variantId,
           locationId: level.locationId,
-          sku: summary?.sku ?? level.variantId,
-          title: summary?.title ?? 'Variante sconosciuta',
-          locationName: locationById.get(level.locationId)?.name ?? level.locationId,
+          sku: level.sku,
+          title: level.title,
+          locationName: level.locationName,
           available: level.available,
           minThreshold: level.minThreshold,
-        };
-      });
-  });
+        }),
+      ),
+  );
 
   protected readonly lowStockPreview = computed(() =>
     this.lowStockRows().slice(0, LOW_STOCK_LIMIT),

@@ -19,6 +19,9 @@
   } @else if (customer()) {
     <header class="customer-detail__header">
       <h1 class="customer-detail__title">{{ fullName() }}</h1>
+      @if (isShopifyOwned()) {
+        <app-badge tone="info">Shopify</app-badge>
+      }
     </header>
 
     <section class="customer-detail__panel" aria-labelledby="customer-general">
@@ -28,7 +31,11 @@
 
     <p class="customer-detail__hint">
       <i class="pi pi-info-circle" aria-hidden="true"></i>
-      Lo storico acquisti del cliente è consultabile nella sezione Vendite.
+      @if (isShopifyOwned()) {
+        Anagrafica sincronizzata da Shopify: sola lettura nel gestionale.
+      } @else {
+        Anagrafica locale. Lo storico acquisti è consultabile nella sezione Vendite.
+      }
     </p>
   }
 </section>

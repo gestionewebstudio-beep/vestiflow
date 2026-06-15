@@ -40,7 +40,7 @@ function order(seed: {
   readonly reference: string;
   readonly supplierId: string;
   readonly supplierName: string;
-  readonly storeId: string;
+  readonly destinationLocationId: string;
   readonly status: SupplierOrderStatus;
   readonly lines: readonly SupplierOrderLine[];
   readonly expectedAt?: string;
@@ -61,7 +61,7 @@ export const MOCK_SUPPLIER_ORDERS: readonly SupplierOrder[] = [
     reference: 'PO-2026-0001',
     supplierId: 'sup-confezioni-sud',
     supplierName: 'Confezioni Sud SRL',
-    storeId: 'store-napoli',
+    destinationLocationId: '33333333-3333-4333-8333-333333333333',
     status: SupplierOrderStatus.Received,
     lines: [
       line('po-0001-l1', 'tee-basic-m-bia', 'TEE-BASIC-M-BIA', 40, 40, 7.5),
@@ -76,7 +76,7 @@ export const MOCK_SUPPLIER_ORDERS: readonly SupplierOrder[] = [
     reference: 'PO-2026-0002',
     supplierId: 'sup-denim-co',
     supplierName: 'Denim Co Distribution',
-    storeId: 'store-milano',
+    destinationLocationId: '44444444-4444-4444-8444-444444444444',
     status: SupplierOrderStatus.PartiallyReceived,
     lines: [
       line('po-0002-l1', 'jeans-slim-m-blu', 'JEANS-SLIM-M-BLU', 30, 18, 32),
@@ -91,7 +91,7 @@ export const MOCK_SUPPLIER_ORDERS: readonly SupplierOrder[] = [
     reference: 'PO-2026-0003',
     supplierId: 'sup-confezioni-sud',
     supplierName: 'Confezioni Sud SRL',
-    storeId: 'store-napoli',
+    destinationLocationId: '33333333-3333-4333-8333-333333333333',
     status: SupplierOrderStatus.Sent,
     lines: [
       line('po-0003-l1', 'tee-stripe-l-ros', 'TEE-STRIPE-L-ROS', 30, 0, 9.8),
@@ -107,7 +107,7 @@ export const MOCK_SUPPLIER_ORDERS: readonly SupplierOrder[] = [
     reference: 'PO-2026-0004',
     supplierId: 'sup-passo',
     supplierName: 'Calzaturificio Passo',
-    storeId: 'store-milano',
+    destinationLocationId: '44444444-4444-4444-8444-444444444444',
     status: SupplierOrderStatus.Draft,
     lines: [
       line('po-0004-l1', 'sneaker-run-42-bia', 'SNEAKER-RUN-42-BIA', 12, 0, 41),
@@ -121,7 +121,7 @@ export const MOCK_SUPPLIER_ORDERS: readonly SupplierOrder[] = [
     reference: 'PO-2026-0005',
     supplierId: 'sup-denim-co',
     supplierName: 'Denim Co Distribution',
-    storeId: 'store-napoli',
+    destinationLocationId: '33333333-3333-4333-8333-333333333333',
     status: SupplierOrderStatus.Cancelled,
     lines: [line('po-0005-l1', 'jacket-denim-m-blu', 'JACKET-DENIM-M-BLU', 10, 0, 48)],
     expectedAt: '2026-06-05T00:00:00.000Z',
