@@ -1,11 +1,11 @@
 import type { AppConfig } from '@core/config/app-config.model';
 
 /**
- * Build di produzione (default `ng build`).
- * Per Firebase App Hosting usa `scripts/generate-environment-prod.mjs` via apphosting.yaml.
+ * Build di produzione (`ng build`, usato da Firebase App Hosting).
+ * Solo valori pubblici (regole-sicurezza). I segreti vivono in api/ su Railway.
  *
- * IMPORTANTE: aggiorna `apiBaseUrl` con l'URL pubblico del backend (Railway, ecc.)
- * prima del deploy manuale, oppure imposta le env in Firebase App Hosting.
+ * Per cambiare API URL / Supabase senza toccare questo file:
+ * `npm run build:firebase` con variabili VESTIFLOW_* (vedi scripts/generate-environment-prod.mjs).
  */
 export const environment: AppConfig = {
   production: true,
