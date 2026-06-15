@@ -26,5 +26,5 @@ env:
     availability:
       - BUILD
 
-scripts:
-  buildCommand: npm ci && node scripts/generate-environment-prod.mjs && npx ng build
+# Non usare scripts.buildCommand qui: disattiva l'adapter Angular e Cloud Run
+# non trova un processo su PORT=8080. Usa package.json → apphosting:build.
