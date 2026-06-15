@@ -1,0 +1,30 @@
+# Firebase App Hosting — variabili pubbliche per la build Angular.
+# I segreti (service role, JWT secret) vivono SOLO in api/ su Railway.
+#
+# Console Firebase → App Hosting → Environment variables (stessi nomi).
+# Dopo ogni modifica: redeploy.
+
+env:
+  - variable: VESTIFLOW_API_BASE_URL
+    value: https://YOUR-RAILWAY-API.up.railway.app/api/v1
+    availability:
+      - BUILD
+  - variable: VESTIFLOW_SUPABASE_URL
+    value: https://YOUR-PROJECT.supabase.co
+    availability:
+      - BUILD
+  - variable: VESTIFLOW_SUPABASE_ANON_KEY
+    value: YOUR_PUBLISHABLE_ANON_KEY
+    availability:
+      - BUILD
+  - variable: VESTIFLOW_ENABLE_SHOPIFY
+    value: 'true'
+    availability:
+      - BUILD
+  - variable: VESTIFLOW_ENABLE_BARCODE_SCANNER
+    value: 'true'
+    availability:
+      - BUILD
+
+scripts:
+  buildCommand: npm ci && node scripts/generate-environment-prod.mjs && npx ng build
