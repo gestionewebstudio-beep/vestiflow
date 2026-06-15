@@ -1,30 +1,9 @@
-# Firebase App Hosting — variabili pubbliche per la build Angular.
-# I segreti (service role, JWT secret) vivono SOLO in api/ su Railway.
+# Firebase App Hosting — SPA Angular (senza SSR).
+# runCommand esplicito: Cloud Run richiede un processo su PORT (default 8080).
+# NON usare scripts.buildCommand né apphosting:build: disattivano l'adapter Angular.
 #
-# Console Firebase → App Hosting → Environment variables (stessi nomi).
-# Dopo ogni modifica: redeploy.
+# Per cambiare API URL / Supabase: modifica src/environments/environment.prod.ts
+# oppure usa npm run build:firebase con variabili VESTIFLOW_* in locale.
 
-env:
-  - variable: VESTIFLOW_API_BASE_URL
-    value: https://YOUR-RAILWAY-API.up.railway.app/api/v1
-    availability:
-      - BUILD
-  - variable: VESTIFLOW_SUPABASE_URL
-    value: https://YOUR-PROJECT.supabase.co
-    availability:
-      - BUILD
-  - variable: VESTIFLOW_SUPABASE_ANON_KEY
-    value: YOUR_PUBLISHABLE_ANON_KEY
-    availability:
-      - BUILD
-  - variable: VESTIFLOW_ENABLE_SHOPIFY
-    value: 'true'
-    availability:
-      - BUILD
-  - variable: VESTIFLOW_ENABLE_BARCODE_SCANNER
-    value: 'true'
-    availability:
-      - BUILD
-
-# Non usare scripts.buildCommand qui: disattiva l'adapter Angular e Cloud Run
-# non trova un processo su PORT=8080. Usa package.json → apphosting:build.
+scripts:
+  runCommand: superstatic serve dist/vestiflow/browser -p $PORT --host 0.0.0.0

@@ -10,8 +10,7 @@ import type { AppConfig } from '@core/config/app-config.model';
 export const environment: AppConfig = {
   production: true,
   appName: 'VestiFlow',
-  // Sostituisci con l'URL Railway della API NestJS (HTTPS + /api/v1).
-  apiBaseUrl: 'https://YOUR-RAILWAY-API.up.railway.app/api/v1',
+  apiBaseUrl: 'https://vestiflow-production.up.railway.app/api/v1',
   supabase: {
     url: 'https://upuypsqavodytixhlwvz.supabase.co',
     anonKey: 'sb_publishable_mUCWHpkkrwRLllUQt8YGCg_-x048Dsi',
