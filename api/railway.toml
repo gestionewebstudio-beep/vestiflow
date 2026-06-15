@@ -1,12 +1,13 @@
-# Railway — deploy solo la cartella api/ (NestJS).
-# In Railway: Settings → Root Directory = api (oppure crea il service da questa cartella).
+# Railway — deploy della sola cartella api/ (NestJS + Prisma).
+# In Railway: Settings → Root Directory = api.
+# Usiamo un Dockerfile (non nixpacks) per evitare il bug EBUSY su
+# node_modules/.cache quando npm ci gira con la cache montata.
 
 [build]
-builder = "nixpacks"
-buildCommand = "npm ci && npx prisma generate && npm run build"
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npx prisma migrate deploy && npm run start"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
