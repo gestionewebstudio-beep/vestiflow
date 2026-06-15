@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { of, switchMap } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
@@ -58,6 +58,7 @@ export class MovementFormComponent {
   private readonly productService = inject(ProductService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly typeSelectOptions: readonly SelectMenuOption[] = MANUAL_TYPES.map(
@@ -104,6 +105,13 @@ export class MovementFormComponent {
     direction: this.fb.control<AdjustmentDirection>(AdjustmentDirection.Decrease),
     reason: this.fb.control(''),
   });
+
+  constructor() {
+    const variantId = this.route.snapshot.queryParamMap.get('variantId');
+    if (variantId) {
+      this.form.controls.variantId.setValue(variantId);
+    }
+  }
 
   // Tipo corrente come signal (guida campi condizionali e validator dinamici).
   private readonly typeValue = toSignal(this.form.controls.type.valueChanges, {

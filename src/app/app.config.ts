@@ -3,6 +3,7 @@ import {
   ApplicationConfig,
   ErrorHandler,
   inject,
+  isDevMode,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
@@ -12,6 +13,7 @@ import {
   withPreloading,
   PreloadAllModules,
 } from '@angular/router';
+import { provideServiceWorker } from '@angular/service-worker';
 
 import { AUTH_GATEWAY, AuthService, authInterceptor } from '@core/auth';
 import { MockAuthGateway } from '@core/auth/mock-auth.gateway';
@@ -43,5 +45,9 @@ export const appConfig: ApplicationConfig = {
       },
     },
     provideAppInitializer(() => inject(AuthService).initialize()),
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      registrationStrategy: 'registerWhenStable:30000',
+    }),
   ],
 };

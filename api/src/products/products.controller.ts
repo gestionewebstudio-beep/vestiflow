@@ -33,6 +33,13 @@ class SkuAvailabilityQueryDto {
   excludeProductId?: string;
 }
 
+class VariantByCodeQueryDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  code!: string;
+}
+
 @Controller('products')
 @UseGuards(JwtAuthGuard)
 export class ProductsController {
@@ -53,6 +60,20 @@ export class ProductsController {
     @Query() query: SkuAvailabilityQueryDto,
   ): Promise<{ sku: string; available: boolean }> {
     return this.products.checkSkuAvailability(tenantId, query.sku, query.excludeProductId);
+  }
+
+  @Get('variants/by-code')
+  findVariantByCode(
+    @CurrentTenant() tenantId: string,
+    @Query() query: VariantByCodeQueryDto,
+  ): Promise<{
+    variantId: string;
+    productId: string;
+    sku: string;
+    barcode: string | null;
+    productName: string;
+  }> {
+    return this.products.findVariantByCode(tenantId, query.code);
   }
 
   @Get(':id')

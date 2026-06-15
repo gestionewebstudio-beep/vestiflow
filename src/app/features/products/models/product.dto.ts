@@ -70,3 +70,12 @@ export interface SkuAvailabilityResult {
   /** SKU gia' in uso (normalizzati). Vuoto se tutti disponibili. */
   readonly taken: readonly string[];
 }
+
+/** Lookup variante per SKU o barcode esatto (magazzino / PWA). */
+export interface VariantByCodeDto {
+  readonly variantId: string;
+  readonly productId: string;
+  readonly sku: string;
+  readonly barcode?: string | null;
+  readonly productName: string;
+}

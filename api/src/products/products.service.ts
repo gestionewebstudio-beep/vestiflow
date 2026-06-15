@@ -147,6 +147,45 @@ export class ProductsService {
     return { sku: normalized, available: existing === null };
   }
 
+  async findVariantByCode(
+    tenantId: string,
+    code: string,
+  ): Promise<{
+    variantId: string;
+    productId: string;
+    sku: string;
+    barcode: string | null;
+    productName: string;
+  }> {
+    const trimmed = code.trim();
+    if (!trimmed) {
+      throw new NotFoundException('Variante non trovata');
+    }
+
+    const variant = await this.prisma.productVariant.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          { sku: { equals: trimmed, mode: 'insensitive' } },
+          { barcode: { equals: trimmed, mode: 'insensitive' } },
+        ],
+      },
+      include: { product: { select: { id: true, name: true } } },
+    });
+
+    if (!variant) {
+      throw new NotFoundException('Variante non trovata per SKU o barcode');
+    }
+
+    return {
+      variantId: variant.id,
+      productId: variant.productId,
+      sku: variant.sku,
+      barcode: variant.barcode,
+      productName: variant.product.name,
+    };
+  }
+
   /** Allinea il set varianti al payload: create, update, delete (senza movimenti). */
   private async syncVariants(
     tx: Prisma.TransactionClient,

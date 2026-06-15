@@ -1,0 +1,16 @@
+.pwa-update {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-interactive-subtle);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.pwa-update__text {
+  margin: 0;
+}

@@ -1,0 +1,127 @@
+<section class="stock-lookup">
+  <header class="stock-lookup__header">
+    <h1 class="stock-lookup__title">Magazzino</h1>
+    <p class="stock-lookup__subtitle">Cerca per SKU o barcode e consulta le giacenze.</p>
+  </header>
+
+  <app-inventory-tabs />
+
+  @if (canInstallPwa()) {
+    <div class="stock-lookup__install" role="status">
+      <p class="stock-lookup__install-text">
+        Installa VestiFlow sul telefono per accesso rapido in magazzino.
+      </p>
+      <app-button variant="secondary" (click)="installApp()">Installa app</app-button>
+    </div>
+  }
+
+  <form class="stock-lookup__form" [formGroup]="searchForm" (ngSubmit)="lookup()">
+    <label class="stock-lookup__field" for="stock-code">
+      <span class="stock-lookup__field-label">SKU o barcode</span>
+      <input
+        id="stock-code"
+        class="stock-lookup__input"
+        type="search"
+        formControlName="code"
+        autocomplete="off"
+        spellcheck="false"
+        enterkeyhint="search"
+        placeholder="Es. TSB-M-WHT"
+        [attr.aria-invalid]="searchForm.controls.code.invalid && searchForm.controls.code.touched"
+      />
+    </label>
+
+    @if (barcodeScannerEnabled) {
+      <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+    }
+
+    <app-button type="submit">Cerca giacenza</app-button>
+  </form>
+
+  @switch (lookupState().status) {
+    @case ('loading') {
+      <app-table-skeleton [columns]="3" [rows]="4" />
+    }
+    @case ('not-found') {
+      <app-empty-state
+        title="Nessuna variante trovata"
+        description="Verifica SKU o barcode e riprova."
+        icon="pi-search"
+      />
+    }
+    @case ('error') {
+      @if (lookupState(); as state) {
+        @if (state.status === 'error') {
+          <app-error-state
+            [description]="state.error.message"
+            retryLabel="Riprova"
+            (retry)="lookup()"
+          />
+        }
+      }
+    }
+    @case ('success') {
+      @let result = lookupState();
+      @if (result.status === 'success') {
+        <section class="stock-lookup__result" aria-labelledby="lookup-result-title">
+          <div class="stock-lookup__result-header">
+            <h2 id="lookup-result-title" class="stock-lookup__result-title">
+              {{ result.variant.productName }}
+            </h2>
+            <p class="stock-lookup__meta tabular-nums">
+              SKU <strong>{{ result.variant.sku }}</strong>
+              @if (result.variant.barcode) {
+                · Barcode <strong>{{ result.variant.barcode }}</strong>
+              }
+            </p>
+          </div>
+
+          <div class="stock-lookup__actions">
+            <a
+              class="stock-lookup__link"
+              [routerLink]="['/app/products', result.variant.productId]"
+            >
+              Dettaglio prodotto
+            </a>
+            <a
+              class="stock-lookup__link"
+              [routerLink]="['/app/inventory/movements/new']"
+              [queryParams]="movementQueryParams(result.variant.variantId)"
+            >
+              Registra movimento
+            </a>
+          </div>
+
+          @if (result.levels.length > 0) {
+            <div class="stock-lookup__table-wrap">
+              <table class="stock-lookup__table">
+                <thead>
+                  <tr>
+                    <th scope="col">Location</th>
+                    <th scope="col" class="stock-lookup__num">Disponibile</th>
+                    <th scope="col" class="stock-lookup__num">In sede</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (level of result.levels; track level.id) {
+                    <tr [class.stock-lookup__row--active]="isActiveLocation(level.locationId)">
+                      <td>{{ locationName(level.locationId, result.locations) }}</td>
+                      <td class="stock-lookup__num tabular-nums">{{ level.available }}</td>
+                      <td class="stock-lookup__num tabular-nums">{{ level.onHand }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <app-empty-state
+              title="Nessuna giacenza"
+              description="Questa variante non ha livelli inventario registrati."
+              icon="pi-box"
+            />
+          }
+        </section>
+      }
+    }
+  }
+</section>

@@ -20,6 +20,7 @@ import type {
   CreateProductDto,
   SkuAvailabilityResult,
   UpdateProductDto,
+  VariantByCodeDto,
 } from '../models/product.dto';
 import type { ProductFilterOptions, ProductListQuery } from '../models/product-list-query.model';
 import { variantTitle } from '../models/product-variant.util';
@@ -116,6 +117,13 @@ export class ProductService {
   invalidateVariantSummariesCache(): void {
     this.variantSummariesCache = null;
     this.filterOptionsCache = null;
+  }
+
+  findVariantByCode(code: string): Observable<VariantByCodeDto> {
+    const params = new HttpParams().set('code', code.trim());
+    return this.http
+      .get<VariantByCodeDto>(this.url('/products/variants/by-code'), { params })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   checkSkuAvailability(

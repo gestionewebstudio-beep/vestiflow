@@ -1,0 +1,6 @@
+@if (updateReady()) {
+  <div class="pwa-update" role="status">
+    <p class="pwa-update__text">Nuova versione disponibile.</p>
+    <app-button variant="secondary" (click)="applyUpdate()">Aggiorna ora</app-button>
+  </div>
+}
