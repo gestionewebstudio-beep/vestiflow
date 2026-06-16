@@ -15,7 +15,7 @@
     (click)="toggle()"
   >
     @if (triggerIcon(); as icon) {
-      <i class="select-menu__trigger-icon pi" [class]="icon" aria-hidden="true"></i>
+      <i class="select-menu__trigger-icon pi {{ icon }}" aria-hidden="true"></i>
     }
     <span class="select-menu__trigger-label">{{ selectedLabel() }}</span>
     <i class="select-menu__chevron pi pi-chevron-down" aria-hidden="true"></i>
