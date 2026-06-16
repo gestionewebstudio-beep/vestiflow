@@ -35,6 +35,7 @@ export class CreateClientComponent {
   protected readonly submitLoading = signal(false);
   protected readonly submitError = signal<string | null>(null);
   protected readonly created = signal<ProvisionedTenant | null>(null);
+  protected readonly passwordVisible = signal(false);
 
   protected readonly form = this.fb.group({
     tenantName: this.fb.control('', {
@@ -60,6 +61,10 @@ export class CreateClientComponent {
   protected showError(controlName: keyof typeof this.form.controls): boolean {
     const control = this.form.controls[controlName];
     return control.invalid && control.touched;
+  }
+
+  protected togglePasswordVisibility(): void {
+    this.passwordVisible.update((visible) => !visible);
   }
 
   protected onSubmit(): void {

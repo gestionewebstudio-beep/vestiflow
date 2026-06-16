@@ -98,20 +98,38 @@
           }
         </label>
 
-        <label class="create-client__field" for="client-owner-password">
-          <span class="create-client__field-label">Password iniziale</span>
-          <input
-            id="client-owner-password"
-            class="create-client__input"
-            type="password"
-            formControlName="ownerPassword"
-            autocomplete="new-password"
-            [attr.aria-invalid]="showError('ownerPassword')"
-          />
+        <div class="create-client__field">
+          <label class="create-client__field-label" for="client-owner-password"
+            >Password iniziale</label
+          >
+          <div class="create-client__password">
+            <input
+              id="client-owner-password"
+              class="create-client__input create-client__input--password"
+              [type]="passwordVisible() ? 'text' : 'password'"
+              formControlName="ownerPassword"
+              autocomplete="new-password"
+              [attr.aria-invalid]="showError('ownerPassword')"
+            />
+            <button
+              type="button"
+              class="create-client__password-toggle"
+              [attr.aria-label]="passwordVisible() ? 'Nascondi password' : 'Mostra password'"
+              [attr.aria-pressed]="passwordVisible()"
+              (click)="togglePasswordVisibility()"
+            >
+              <i
+                class="pi"
+                [class.pi-eye]="!passwordVisible()"
+                [class.pi-eye-slash]="passwordVisible()"
+                aria-hidden="true"
+              ></i>
+            </button>
+          </div>
           @if (showError('ownerPassword')) {
             <span class="create-client__field-error">Minimo 8 caratteri.</span>
           }
-        </label>
+        </div>
 
         <label class="create-client__field" for="client-store-name">
           <span class="create-client__field-label">Nome negozio (opzionale)</span>

@@ -95,6 +95,44 @@
   border-color: var(--status-error-border);
 }
 
+.create-client__password {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.create-client__input--password {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding-inline-end: calc(var(--btn-min-height) + var(--space-1));
+}
+
+.create-client__password-toggle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--btn-min-height);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  border-radius: var(--radius-md);
+  transition:
+    color var(--transition-fast) var(--ease-standard),
+    background-color var(--transition-fast) var(--ease-standard);
+}
+
+.create-client__password-toggle:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface-hover);
+}
+
+.create-client__password-toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+}
+
 .create-client__field-error {
   font-size: var(--text-xs);
   color: var(--status-error-fg);
