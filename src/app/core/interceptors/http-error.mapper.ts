@@ -13,6 +13,7 @@ const MESSAGES: Record<AppErrorKind, string> = {
   [AppErrorKind.Conflict]: 'Conflitto con lo stato attuale dei dati.',
   [AppErrorKind.Validation]: 'Alcuni dati non sono validi.',
   [AppErrorKind.RateLimited]: 'Troppe richieste. Attendi qualche istante e riprova.',
+  [AppErrorKind.MfaRequired]: 'Completa la verifica a due fattori per continuare.',
   [AppErrorKind.Server]: 'Errore del server. Riprova più tardi.',
   [AppErrorKind.Unknown]: 'Si è verificato un errore imprevisto.',
 };

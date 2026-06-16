@@ -51,6 +51,14 @@ export class AuthService {
     );
   }
 
+  /** Completa l'accesso con codice TOTP dopo login password. */
+  verifyMfa(code: string): Observable<User> {
+    return this.gateway.verifyMfa(code).pipe(
+      tap((session) => this.applySession(session)),
+      map((session) => session.user),
+    );
+  }
+
   /** Termina la sessione e azzera lo stato. */
   logout(): Observable<void> {
     return this.gateway.logout().pipe(tap(() => this.applySession(null)));

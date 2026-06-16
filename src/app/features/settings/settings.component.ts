@@ -17,6 +17,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { UserRole } from '@core/models/user.model';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { ThemeService } from '@core/services/theme.service';
 import { formatDateTime } from '@core/utils/date.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -33,6 +34,7 @@ import { ShopifyConnectionService } from '@features/integrations/shopify/service
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
 import { LocationTableComponent } from './components/location-table/location-table.component';
+import { MfaSettingsComponent } from './components/mfa-settings/mfa-settings.component';
 
 type ConnectionState =
   | { readonly status: 'loading' }
@@ -69,6 +71,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     ReactiveFormsModule,
     TableSkeletonComponent,
     LocationTableComponent,
+    MfaSettingsComponent,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
@@ -82,10 +85,12 @@ export class SettingsComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly appConfig = inject(APP_CONFIG);
 
   protected readonly themeOptions = THEME_OPTIONS;
   protected readonly themeMode = this.themeService.mode;
   protected readonly currentUser = this.authService.currentUser;
+  protected readonly mfaAvailable = Boolean(this.appConfig.supabase?.anonKey);
 
   protected readonly connectionStatusLabel = shopifyConnectionStatusLabel;
   protected readonly connectionStatusTone = shopifyConnectionStatusTone;
@@ -138,6 +143,14 @@ export class SettingsComponent {
   protected readonly canManageShopify = computed(() => {
     const user = this.currentUser();
     return user?.role === UserRole.Owner || user?.role === UserRole.Admin;
+  });
+
+  protected readonly canManageMfa = computed(() => {
+    const user = this.currentUser();
+    if (!user) {
+      return false;
+    }
+    return user.role === UserRole.Owner || user.role === UserRole.Admin || user.isPlatformAdmin;
   });
 
   protected readonly locations = toSignal(this.inventoryService.getLocations(), {

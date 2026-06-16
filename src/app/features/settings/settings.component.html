@@ -158,6 +158,14 @@
     }
   </section>
 
+  <!-- ── Sicurezza account ─────────────────────────────────────────────────── -->
+  @if (mfaAvailable && canManageMfa()) {
+    <section class="settings__panel" aria-labelledby="settings-mfa">
+      <h2 id="settings-mfa" class="settings__panel-title">Sicurezza account</h2>
+      <app-mfa-settings />
+    </section>
+  }
+
   <!-- ── Aspetto ─────────────────────────────────────────────────────────── -->
   <section class="settings__panel" aria-labelledby="settings-theme">
     <h2 id="settings-theme" class="settings__panel-title">Aspetto</h2>

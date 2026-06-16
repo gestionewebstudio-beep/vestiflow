@@ -1,0 +1,88 @@
+@if (loading()) {
+  <p class="mfa-settings__muted">Caricamento stato sicurezza…</p>
+} @else {
+  @if (error(); as message) {
+    <p class="mfa-settings__alert" role="alert">{{ message }}</p>
+  }
+
+  @if (verifiedFactors().length > 0) {
+    <p class="mfa-settings__status">
+      <i class="pi pi-shield" aria-hidden="true"></i>
+      Autenticazione a due fattori <strong>attiva</strong>.
+    </p>
+    <p class="mfa-settings__muted">
+      Al login ti verrà chiesto il codice a 6 cifre dalla tua app di autenticazione.
+    </p>
+
+    @for (factor of verifiedFactors(); track factor.id) {
+      <div class="mfa-settings__factor">
+        <span>{{ factor.friendly_name ?? 'App di autenticazione' }}</span>
+        <app-button
+          variant="danger"
+          [loading]="actionLoading()"
+          [disabled]="actionLoading()"
+          (click)="unenroll(factor.id)"
+        >
+          Disattiva
+        </app-button>
+      </div>
+    }
+  } @else if (enrollment(); as pending) {
+    <p class="mfa-settings__muted">
+      Scansiona il QR con Google Authenticator, Authy o un’app TOTP compatibile, poi inserisci il
+      codice a 6 cifre.
+    </p>
+
+    <div class="mfa-settings__qr-wrap">
+      <div class="mfa-settings__qr" [innerHTML]="pending.qrCodeSvg"></div>
+    </div>
+
+    <p class="mfa-settings__secret">
+      Codice manuale:
+      <code class="tabular-nums">{{ pending.secret }}</code>
+    </p>
+
+    <form class="mfa-settings__form" [formGroup]="verifyForm" (ngSubmit)="completeEnrollment()">
+      <label class="mfa-settings__field" for="mfa-enroll-code">
+        <span class="mfa-settings__field-label">Codice di verifica</span>
+        <input
+          id="mfa-enroll-code"
+          class="mfa-settings__input"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="6"
+          formControlName="code"
+          placeholder="000000"
+          [attr.aria-invalid]="verifyForm.controls.code.invalid && verifyForm.controls.code.touched"
+        />
+      </label>
+
+      <div class="mfa-settings__actions">
+        <app-button type="submit" [loading]="actionLoading()" [disabled]="actionLoading()">
+          Attiva MFA
+        </app-button>
+        <app-button
+          type="button"
+          variant="ghost"
+          [disabled]="actionLoading()"
+          (click)="cancelEnrollment()"
+        >
+          Annulla
+        </app-button>
+      </div>
+    </form>
+  } @else {
+    <p class="mfa-settings__muted">
+      Proteggi l’accesso con un codice temporaneo oltre a email e password. Consigliato per titolari
+      e amministratori.
+    </p>
+    <app-button
+      [loading]="actionLoading()"
+      [disabled]="actionLoading()"
+      (click)="startEnrollment()"
+    >
+      Attiva autenticazione a due fattori
+    </app-button>
+  }
+}

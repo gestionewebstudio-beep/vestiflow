@@ -1,34 +1,21 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { createClient, type AuthError } from '@supabase/supabase-js';
-import { from, map, of, type Observable, switchMap, throwError } from 'rxjs';
+import type { AuthError } from '@supabase/supabase-js';
+import { catchError, from, map, of, type Observable, switchMap, throwError } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { AppErrorKind } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { User } from '@core/models/user.model';
-import { UserRole } from '@core/models/user.model';
 
 import type { AuthGateway } from './auth-gateway';
+import { fetchUserProfile } from './fetch-user-profile.util';
 import type { AuthSession } from './models/auth-session.model';
 import type { LoginCredentials } from './models/login-credentials.model';
-
-/** Risposta `GET /auth/me` (allineata al backend NestJS). */
-interface UserProfileApi {
-  readonly id: string;
-  readonly tenantId: string;
-  readonly email: string;
-  readonly displayName: string;
-  readonly role: string;
-  readonly storeIds: readonly string[];
-  readonly isActive: boolean;
-  readonly isPlatformAdmin: boolean;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+import { SupabaseClientService } from './supabase-client.service';
+import { sessionNeedsMfaVerification, verifyMfaChallenge } from './supabase-mfa.util';
 
 /**
- * Gateway auth via Supabase (email/password). La sessione JWT è gestita
+ * Gateway auth via Supabase (email/password + MFA TOTP). La sessione JWT è gestita
  * dall'SDK (persistenza locale); il profilo applicativo (tenant, ruolo)
  * arriva dall'API `GET /auth/me`.
  */
@@ -36,21 +23,7 @@ interface UserProfileApi {
 export class SupabaseAuthGateway implements AuthGateway {
   private readonly http = inject(HttpClient);
   private readonly config = inject(APP_CONFIG);
-  private readonly supabase;
-
-  constructor() {
-    const supabaseConfig = this.config.supabase;
-    if (!supabaseConfig?.url || !supabaseConfig.anonKey) {
-      throw new Error('Configurazione Supabase incompleta (url / anonKey).');
-    }
-    this.supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: false,
-      },
-    });
-  }
+  private readonly supabase = inject(SupabaseClientService).client;
 
   login(credentials: LoginCredentials): Observable<AuthSession> {
     return from(
@@ -63,10 +36,23 @@ export class SupabaseAuthGateway implements AuthGateway {
         if (error || !data.session) {
           return throwError(() => this.mapAuthError(error));
         }
-        return this.fetchProfile(data.session.access_token).pipe(
-          map((user) => ({ user, accessToken: data.session.access_token })),
+
+        return from(sessionNeedsMfaVerification(this.supabase)).pipe(
+          switchMap((needsMfa) => {
+            if (needsMfa) {
+              return throwError(() => this.mfaRequiredError());
+            }
+            return this.buildSession(data.session.access_token);
+          }),
         );
       }),
+    );
+  }
+
+  verifyMfa(code: string): Observable<AuthSession> {
+    return from(verifyMfaChallenge(this.supabase, code)).pipe(
+      catchError((err: unknown) => throwError(() => this.mapMfaError(err))),
+      switchMap(({ accessToken }) => this.buildSession(accessToken)),
     );
   }
 
@@ -80,11 +66,20 @@ export class SupabaseAuthGateway implements AuthGateway {
         if (error) {
           return throwError(() => this.mapAuthError(error));
         }
+
         const token = data.session?.access_token;
         if (!token) {
           return of(null);
         }
-        return this.fetchProfile(token).pipe(map((user) => ({ user, accessToken: token })));
+
+        return from(sessionNeedsMfaVerification(this.supabase)).pipe(
+          switchMap((needsMfa) => {
+            if (needsMfa) {
+              return from(this.supabase.auth.signOut()).pipe(switchMap(() => of(null)));
+            }
+            return this.buildSession(token);
+          }),
+        );
       }),
     );
   }
@@ -95,12 +90,17 @@ export class SupabaseAuthGateway implements AuthGateway {
     );
   }
 
-  private fetchProfile(accessToken: string): Observable<User> {
-    return this.http
-      .get<UserProfileApi>(`${this.config.apiBaseUrl}/auth/me`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      .pipe(map(mapUserProfile));
+  private buildSession(accessToken: string): Observable<AuthSession> {
+    return fetchUserProfile(this.http, this.config.apiBaseUrl, accessToken).pipe(
+      map((user) => ({ user, accessToken })),
+    );
+  }
+
+  private mfaRequiredError(): AppError {
+    return {
+      kind: AppErrorKind.MfaRequired,
+      message: 'Inserisci il codice a 6 cifre dalla tua app di autenticazione.',
+    };
   }
 
   private mapAuthError(error: AuthError | null): AppError {
@@ -116,19 +116,28 @@ export class SupabaseAuthGateway implements AuthGateway {
       message: error?.message ?? 'Accesso non riuscito. Riprova.',
     };
   }
-}
 
-function mapUserProfile(row: UserProfileApi): User {
-  return {
-    id: row.id,
-    tenantId: row.tenantId,
-    email: row.email,
-    displayName: row.displayName,
-    role: row.role as UserRole,
-    storeIds: row.storeIds,
-    isActive: row.isActive,
-    isPlatformAdmin: row.isPlatformAdmin,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
+  private mapMfaError(error: unknown): AppError {
+    const message = this.readErrorMessage(error);
+    if (message) {
+      const normalized = message.toLowerCase();
+      if (normalized.includes('invalid') || normalized.includes('expired')) {
+        return {
+          kind: AppErrorKind.Unauthorized,
+          message: 'Codice non valido o scaduto. Riprova.',
+          status: 401,
+        };
+      }
+      return { kind: AppErrorKind.Unknown, message };
+    }
+    return { kind: AppErrorKind.Unknown, message: 'Verifica a due fattori non riuscita.' };
+  }
+
+  private readErrorMessage(error: unknown): string | null {
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+      const candidate = (error as { message?: unknown }).message;
+      return typeof candidate === 'string' ? candidate : null;
+    }
+    return null;
+  }
 }

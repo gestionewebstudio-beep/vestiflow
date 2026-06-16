@@ -10,6 +10,7 @@ export const AppErrorKind = {
   Validation: 'validation',
   Conflict: 'conflict',
   RateLimited: 'rate_limited',
+  MfaRequired: 'mfa_required',
   Server: 'server',
   Unknown: 'unknown',
 } as const;

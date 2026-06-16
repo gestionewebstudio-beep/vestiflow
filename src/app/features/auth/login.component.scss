@@ -88,6 +88,30 @@
   color: var(--color-text-muted);
 }
 
+.login__input--otp {
+  letter-spacing: var(--tracking-wide);
+  text-align: center;
+}
+
+.login__back {
+  margin-block-start: var(--space-3);
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
+
+.login__back:hover {
+  color: var(--color-text);
+}
+
+.login__back:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
 .login__password {
   position: relative;
   display: flex;

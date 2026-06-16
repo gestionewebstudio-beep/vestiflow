@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthProfileCacheService } from './auth-profile-cache.service';
 import { toUserProfileDto } from './dto/user-profile.dto';
 import { SupabaseJwtService } from './supabase-jwt.service';
+import { SupabaseService } from './supabase.service';
 
 /**
  * Verifica il Bearer JWT Supabase (locale, senza getUser remoto) e risolve
@@ -26,6 +27,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly profileCache: AuthProfileCacheService,
     private readonly prisma: PrismaService,
     private readonly platformAdmin: PlatformAdminService,
+    private readonly supabase: SupabaseService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -48,12 +50,19 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const accessToken = header.slice('Bearer '.length).trim();
-    const authUserId = await this.jwt.verifyAccessToken(accessToken);
-    if (!authUserId) {
+    const verified = await this.jwt.verifyAccessToken(accessToken);
+    if (!verified) {
       throw new UnauthorizedException('Sessione non valida o scaduta');
     }
 
-    const cached = this.profileCache.get(authUserId);
+    if (verified.assuranceLevel !== 'aal2') {
+      const hasMfa = await this.supabase.userHasVerifiedTotpFactor(verified.authUserId);
+      if (hasMfa) {
+        throw new UnauthorizedException('Verifica a due fattori richiesta');
+      }
+    }
+
+    const cached = this.profileCache.get(verified.authUserId);
     if (cached) {
       request.tenantId = cached.tenantId;
       request.appUser = cached.appUser;
@@ -61,7 +70,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const user = await this.prisma.user.findFirst({
-      where: { authUserId },
+      where: { authUserId: verified.authUserId },
       include: { stores: true },
     });
     if (!user || !user.isActive) {
@@ -69,7 +78,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const appUser = toUserProfileDto(user, this.platformAdmin.isPlatformAdmin(user.email));
-    this.profileCache.set(authUserId, user.tenantId, appUser);
+    this.profileCache.set(verified.authUserId, user.tenantId, appUser);
     request.tenantId = user.tenantId;
     request.appUser = appUser;
     return true;

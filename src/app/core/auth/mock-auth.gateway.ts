@@ -99,6 +99,16 @@ export class MockAuthGateway implements AuthGateway {
     );
   }
 
+  verifyMfa(_code: string): Observable<AuthSession> {
+    return throwError(
+      () =>
+        ({
+          kind: AppErrorKind.Unknown,
+          message: 'Verifica a due fattori non disponibile in modalità mock.',
+        }) satisfies AppError,
+    );
+  }
+
   logout(): Observable<void> {
     return of(undefined).pipe(
       delay(SHORT_LATENCY_MS),

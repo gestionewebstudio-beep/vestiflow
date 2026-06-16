@@ -23,6 +23,7 @@ Non devi rifare nulla qui, serve solo a ricordarti cosa è coperto:
 - [x] Script CI `npm run check:rls` + workflow `.github/workflows/security.yml`
 - [x] Secret GitHub `SUPABASE_URL` + `SUPABASE_ANON_KEY` configurati (Actions → Secrets)
 - [x] CI **Security checks** verde in produzione (verificato 16/06/2026 — run #2)
+- [x] MFA TOTP nel gestionale: login a 2 step + attivazione in Impostazioni + enforcement AAL2 API
 
 ---
 
@@ -35,7 +36,8 @@ Dashboard: **Supabase → Authentication → Settings**
 - [ ] **Conferma email obbligatoria** per i nuovi utenti (evita account fake)
 - [ ] **Password policy** adeguata (lunghezza minima ≥ 8, meglio 12+)
 - [ ] **Rate limiting login** attivo (di default Supabase ne ha; verifica che non sia disabilitato)
-- [ ] **MFA (2FA)** almeno per account **owner/admin** del gestionale (Supabase → Auth → MFA)
+- [ ] **Abilita TOTP MFA** in Supabase → Authentication → MFA (Enrollment + Verification **Enabled**)
+- [ ] **Attiva MFA sul tuo account** (Impostazioni → Sicurezza account nell’app, o titolari clienti)
 - [ ] **MFA anche sui tuoi account** Supabase / GitHub / Railway (protezione del pannello, non dell’app)
 
 ---
@@ -155,7 +157,7 @@ Dashboard: **Shopify Partners → App → Configuration**
 ### 10. Ogni nuova tabella nel database
 
 - [ ] Nella **stessa migration** Prisma che crea la tabella:  
-      `ALTER TABLE "nome_tabella" ENABLE ROW LEVEL SECURITY;`
+       `ALTER TABLE "nome_tabella" ENABLE ROW LEVEL SECURITY;`
 - [ ] Push → la CI `check:rls` deve restare **verde** (scopre le tabelle dallo schema automaticamente)
 
 Regola scritta in: `.cursor/rules/regole-sicurezza.mdc` (sezione Supabase RLS)

@@ -16,6 +16,9 @@ export interface AuthGateway {
   /** Autentica con le credenziali. Emette la sessione o lancia un AppError. */
   login(credentials: LoginCredentials): Observable<AuthSession>;
 
+  /** Completa l'accesso con codice TOTP dopo login password (sessione AAL1). */
+  verifyMfa(code: string): Observable<AuthSession>;
+
   /** Termina la sessione corrente. */
   logout(): Observable<void>;
 

@@ -6,6 +6,11 @@ import {
   type User as SupabaseAuthUser,
 } from '@supabase/supabase-js';
 
+interface AdminMfaFactor {
+  readonly factor_type?: string;
+  readonly status?: string;
+}
+
 /**
  * Client Supabase con service role (solo backend). Usato per validare i JWT
  * emessi da Supabase Auth — mai esporre la service role al frontend.
@@ -13,10 +18,14 @@ import {
 @Injectable()
 export class SupabaseService {
   private readonly client: SupabaseClient | null;
+  private readonly supabaseUrl: string | undefined;
+  private readonly serviceRoleKey: string | undefined;
 
   constructor(private readonly config: ConfigService) {
     const url = this.config.get<string>('SUPABASE_URL');
     const serviceRoleKey = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+    this.supabaseUrl = url?.replace(/\/$/, '');
+    this.serviceRoleKey = serviceRoleKey;
     this.client =
       url && serviceRoleKey
         ? createClient(url, serviceRoleKey, {
@@ -104,5 +113,38 @@ export class SupabaseService {
       return;
     }
     await this.client.auth.admin.deleteUser(authUserId);
+  }
+
+  /** True se l'utente Auth ha almeno un fattore TOTP verificato (MFA attivo). */
+  async userHasVerifiedTotpFactor(authUserId: string): Promise<boolean> {
+    if (!this.supabaseUrl || !this.serviceRoleKey) {
+      return false;
+    }
+
+    const response = await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${authUserId}/factors`, {
+      headers: {
+        Authorization: `Bearer ${this.serviceRoleKey}`,
+        apikey: this.serviceRoleKey,
+      },
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const body: unknown = await response.json();
+    const factors = this.extractAdminFactors(body);
+    return factors.some((factor) => factor.factor_type === 'totp' && factor.status === 'verified');
+  }
+
+  private extractAdminFactors(body: unknown): readonly AdminMfaFactor[] {
+    if (Array.isArray(body)) {
+      return body as AdminMfaFactor[];
+    }
+    if (typeof body === 'object' && body !== null && 'factors' in body) {
+      const nested = (body as { factors: unknown }).factors;
+      return Array.isArray(nested) ? (nested as AdminMfaFactor[]) : [];
+    }
+    return [];
   }
 }

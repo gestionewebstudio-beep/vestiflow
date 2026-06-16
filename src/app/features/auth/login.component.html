@@ -1,91 +1,133 @@
 <main class="login">
   <section class="login__card" aria-labelledby="login-title">
     <header class="login__header">
-      <h1 id="login-title" class="login__title">Accesso</h1>
-      <p class="login__subtitle">Accedi al gestionale VestiFlow.</p>
+      <h1 id="login-title" class="login__title">
+        @if (step() === 'mfa') {
+          Verifica a due fattori
+        } @else {
+          Accesso
+        }
+      </h1>
+      <p class="login__subtitle">
+        @if (step() === 'mfa') {
+          Inserisci il codice a 6 cifre dalla tua app di autenticazione.
+        } @else {
+          Accedi al gestionale VestiFlow.
+        }
+      </p>
     </header>
 
     @if (error(); as appError) {
       <div class="login__alert" role="alert">{{ appError.message }}</div>
     }
 
-    <form class="login__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
-      <div class="login__field">
-        <label class="login__label" for="login-email">Email</label>
-        <input
-          id="login-email"
-          class="login__input"
-          type="email"
-          formControlName="email"
-          autocomplete="username"
-          inputmode="email"
-          [attr.aria-invalid]="showError('email')"
-          [attr.aria-describedby]="showError('email') ? 'login-email-error' : null"
-        />
-        @if (showError('email')) {
-          <p id="login-email-error" class="login__field-error">
-            @if (form.controls.email.hasError('required')) {
-              Inserisci la tua email.
-            } @else {
-              Inserisci un'email valida.
-            }
-          </p>
-        }
-      </div>
-
-      <div class="login__field">
-        <label class="login__label" for="login-password">Password</label>
-        <div class="login__password">
+    @if (step() === 'mfa') {
+      <form class="login__form" [formGroup]="mfaForm" (ngSubmit)="onMfaSubmit()" novalidate>
+        <div class="login__field">
+          <label class="login__label" for="login-mfa-code">Codice di verifica</label>
           <input
-            id="login-password"
-            class="login__input login__input--password"
-            [type]="passwordVisible() ? 'text' : 'password'"
-            formControlName="password"
-            autocomplete="current-password"
-            [attr.aria-invalid]="showError('password')"
-            [attr.aria-describedby]="showError('password') ? 'login-password-error' : null"
+            id="login-mfa-code"
+            class="login__input login__input--otp"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            formControlName="code"
+            placeholder="000000"
+            [attr.aria-invalid]="showMfaError()"
           />
-          <button
-            type="button"
-            class="login__password-toggle"
-            [attr.aria-label]="passwordVisible() ? 'Nascondi password' : 'Mostra password'"
-            [attr.aria-pressed]="passwordVisible()"
-            (click)="togglePasswordVisibility()"
-          >
-            <i
-              class="pi"
-              [class.pi-eye]="!passwordVisible()"
-              [class.pi-eye-slash]="passwordVisible()"
-              aria-hidden="true"
-            ></i>
-          </button>
+          @if (showMfaError()) {
+            <p class="login__field-error">Inserisci un codice a 6 cifre.</p>
+          }
         </div>
-        @if (showError('password')) {
-          <p id="login-password-error" class="login__field-error">
-            @if (form.controls.password.hasError('required')) {
-              Inserisci la tua password.
-            } @else {
-              La password deve avere almeno {{ passwordMinLength }} caratteri.
-            }
+
+        <app-button type="submit" [fullWidth]="true" [loading]="loading()">
+          {{ loading() ? 'Verifica in corso…' : 'Verifica e accedi' }}
+        </app-button>
+
+        <button type="button" class="login__back" (click)="backToCredentials()">
+          Torna a email e password
+        </button>
+      </form>
+    } @else {
+      <form class="login__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+        <div class="login__field">
+          <label class="login__label" for="login-email">Email</label>
+          <input
+            id="login-email"
+            class="login__input"
+            type="email"
+            formControlName="email"
+            autocomplete="username"
+            inputmode="email"
+            [attr.aria-invalid]="showError('email')"
+            [attr.aria-describedby]="showError('email') ? 'login-email-error' : null"
+          />
+          @if (showError('email')) {
+            <p id="login-email-error" class="login__field-error">
+              @if (form.controls.email.hasError('required')) {
+                Inserisci la tua email.
+              } @else {
+                Inserisci un'email valida.
+              }
+            </p>
+          }
+        </div>
+
+        <div class="login__field">
+          <label class="login__label" for="login-password">Password</label>
+          <div class="login__password">
+            <input
+              id="login-password"
+              class="login__input login__input--password"
+              [type]="passwordVisible() ? 'text' : 'password'"
+              formControlName="password"
+              autocomplete="current-password"
+              [attr.aria-invalid]="showError('password')"
+              [attr.aria-describedby]="showError('password') ? 'login-password-error' : null"
+            />
+            <button
+              type="button"
+              class="login__password-toggle"
+              [attr.aria-label]="passwordVisible() ? 'Nascondi password' : 'Mostra password'"
+              [attr.aria-pressed]="passwordVisible()"
+              (click)="togglePasswordVisibility()"
+            >
+              <i
+                class="pi"
+                [class.pi-eye]="!passwordVisible()"
+                [class.pi-eye-slash]="passwordVisible()"
+                aria-hidden="true"
+              ></i>
+            </button>
+          </div>
+          @if (showError('password')) {
+            <p id="login-password-error" class="login__field-error">
+              @if (form.controls.password.hasError('required')) {
+                Inserisci la tua password.
+              } @else {
+                La password deve avere almeno {{ passwordMinLength }} caratteri.
+              }
+            </p>
+          }
+        </div>
+
+        <app-button type="submit" [fullWidth]="true" [loading]="loading()">
+          {{ loading() ? 'Accesso in corso…' : 'Accedi' }}
+        </app-button>
+      </form>
+
+      @if (showDemoCredentials) {
+        <aside class="login__demo" aria-label="Credenziali demo">
+          <p class="login__demo-title">Credenziali demo (solo sviluppo)</p>
+          <ul class="login__demo-list">
+            <li><strong>owner&#64;demo-boutique.it</strong> · DemoOwner2026!</li>
+          </ul>
+          <p class="login__demo-hint">
+            Richiede Supabase Auth configurato (anon key in environment.ts) e seed con service role.
           </p>
-        }
-      </div>
-
-      <app-button type="submit" [fullWidth]="true" [loading]="loading()">
-        {{ loading() ? 'Accesso in corso…' : 'Accedi' }}
-      </app-button>
-    </form>
-
-    @if (showDemoCredentials) {
-      <aside class="login__demo" aria-label="Credenziali demo">
-        <p class="login__demo-title">Credenziali demo (solo sviluppo)</p>
-        <ul class="login__demo-list">
-          <li><strong>owner&#64;demo-boutique.it</strong> · DemoOwner2026!</li>
-        </ul>
-        <p class="login__demo-hint">
-          Richiede Supabase Auth configurato (anon key in environment.ts) e seed con service role.
-        </p>
-      </aside>
+        </aside>
+      }
     }
   </section>
 </main>
