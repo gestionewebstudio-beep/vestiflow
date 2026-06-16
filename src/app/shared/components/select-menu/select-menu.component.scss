@@ -9,15 +9,14 @@
   inline-size: 100%;
 }
 
-.select-menu {
-  position: relative;
-  inline-size: auto;
+:host(.select-menu-host--full) .select-menu {
+  inline-size: 100%;
   max-inline-size: 100%;
 }
 
-.select-menu--compact,
-:host(.select-menu-host--full) .select-menu {
-  inline-size: 100%;
+.select-menu {
+  position: relative;
+  inline-size: auto;
   max-inline-size: 100%;
 }
 
@@ -60,13 +59,18 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.select-menu--compact .select-menu__trigger,
 :host(.select-menu-host--full) .select-menu__trigger {
   min-block-size: var(--field-height);
   gap: var(--space-1);
   padding-inline: var(--space-2);
   inline-size: 100%;
   max-inline-size: 100%;
+}
+
+.select-menu--compact .select-menu__trigger {
+  min-block-size: var(--field-height);
+  gap: var(--space-1);
+  padding-inline: var(--space-2);
 }
 
 .select-menu--compact .select-menu__trigger-label {
@@ -115,8 +119,8 @@
   inset-inline-start: 0;
   inset-inline-end: auto;
   inline-size: max-content;
-  min-inline-size: max(100%, var(--select-menu-panel-min));
-  max-inline-size: min(var(--select-menu-panel-min), calc(100vw - var(--space-8)));
+  min-inline-size: 100%;
+  max-inline-size: min(var(--select-menu-panel-max), calc(100vw - var(--space-8)));
   z-index: var(--z-dropdown);
   margin: 0;
   padding: var(--space-1);

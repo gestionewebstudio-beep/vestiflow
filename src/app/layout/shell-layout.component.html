@@ -12,9 +12,18 @@
       (themeModeChange)="onThemeModeChange($event)"
       (locationChange)="onLocationChange($event)"
       (syncClick)="onSyncClick()"
-      (logout)="onLogout()"
+      (logout)="onLogoutRequest()"
     />
   </header>
+
+  <app-confirm-dialog
+    [(open)]="logoutDialogOpen"
+    title="Uscire dall'applicazione?"
+    message="La sessione verrà chiusa e dovrai accedere di nuovo per continuare."
+    confirmLabel="Esci"
+    cancelLabel="Annulla"
+    (confirmed)="onLogoutConfirm()"
+  />
 
   <!-- Sidebar persistente (desktop) / drawer (mobile). -->
   <aside id="shell-sidebar" class="shell__sidebar">

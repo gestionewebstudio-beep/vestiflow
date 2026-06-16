@@ -10,6 +10,7 @@ import type { EntityId } from '@core/models/common.model';
 import type { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import { AppSidebarComponent } from '@shared/components/app-sidebar/app-sidebar.component';
 import { AppTopbarComponent } from '@shared/components/app-topbar/app-topbar.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PwaUpdateBannerComponent } from '@shared/components/pwa-update-banner/pwa-update-banner.component';
 import type { NavItem } from '@shared/models/nav-item.model';
 import type { ThemeMode } from '@shared/models/theme.model';
@@ -25,7 +26,13 @@ import { InventoryService } from '@features/inventory/services/inventory.service
 @Component({
   selector: 'app-shell-layout',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, AppSidebarComponent, AppTopbarComponent, PwaUpdateBannerComponent],
+  imports: [
+    RouterOutlet,
+    AppSidebarComponent,
+    AppTopbarComponent,
+    ConfirmDialogComponent,
+    PwaUpdateBannerComponent,
+  ],
   templateUrl: './shell-layout.component.html',
   styleUrl: './shell-layout.component.scss',
 })
@@ -59,6 +66,8 @@ export class ShellLayoutComponent {
 
   private readonly _drawerOpen = signal(false);
   readonly drawerOpen = this._drawerOpen.asReadonly();
+
+  protected readonly logoutDialogOpen = signal(false);
 
   readonly navItems: readonly NavItem[] = [
     { label: 'Dashboard', icon: 'pi-th-large', route: '/app/dashboard' },
@@ -103,7 +112,12 @@ export class ShellLayoutComponent {
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private logoutSubscription: Subscription | null = null;
 
-  onLogout(): void {
+  onLogoutRequest(): void {
+    this.logoutDialogOpen.set(true);
+  }
+
+  onLogoutConfirm(): void {
+    this.logoutDialogOpen.set(false);
     this.logoutSubscription = this.authService
       .logout()
       .pipe(takeUntilDestroyed(this.destroyRef))

@@ -49,6 +49,7 @@
   min-inline-size: 0;
   margin-inline-start: auto;
   max-inline-size: min(20rem, 55vw);
+  inline-size: max-content;
 }
 
 .app-topbar__actions {

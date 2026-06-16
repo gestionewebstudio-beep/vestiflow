@@ -55,12 +55,18 @@ export class LoginComponent {
   private readonly _submitted = signal(false);
   readonly submitted = this._submitted.asReadonly();
 
+  protected readonly passwordVisible = signal(false);
+
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private loginSubscription: Subscription | null = null;
 
   protected showError(field: 'email' | 'password'): boolean {
     const control = this.form.controls[field];
     return control.invalid && (control.touched || this._submitted());
+  }
+
+  protected togglePasswordVisibility(): void {
+    this.passwordVisible.update((visible) => !visible);
   }
 
   protected onSubmit(): void {

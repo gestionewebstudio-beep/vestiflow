@@ -34,19 +34,31 @@ export class SupabaseJwtService {
       return null;
     }
 
-    try {
-      const { payload } = this.hs256Secret
-        ? await jwtVerify(accessToken, this.hs256Secret, {
-            issuer: this.issuer,
-            audience: 'authenticated',
-          })
-        : await jwtVerify(accessToken, this.jwks!, {
-            issuer: this.issuer,
-            audience: 'authenticated',
-          });
-      return typeof payload.sub === 'string' ? payload.sub : null;
-    } catch {
-      return null;
+    const verifyOptions = {
+      issuer: this.issuer,
+      audience: 'authenticated' as const,
+    };
+
+    // Supabase recente emette JWT ES256 (JWKS). I progetti legacy usano HS256
+    // con JWT secret: proviamo entrambi (HS256 prima, poi JWKS se fallisce).
+    if (this.hs256Secret) {
+      try {
+        const { payload } = await jwtVerify(accessToken, this.hs256Secret, verifyOptions);
+        return typeof payload.sub === 'string' ? payload.sub : null;
+      } catch {
+        // Token asimmetrico o secret non allineato: fallback JWKS sotto.
+      }
     }
+
+    if (this.jwks) {
+      try {
+        const { payload } = await jwtVerify(accessToken, this.jwks, verifyOptions);
+        return typeof payload.sub === 'string' ? payload.sub : null;
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
   }
 }

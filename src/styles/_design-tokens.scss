@@ -250,7 +250,7 @@
 
   --btn-min-height: 2.75rem; // 44px — touch target minimo (a11y)
   --field-height: 2.25rem; // 36px — input Polaris
-  --select-menu-panel-min: 16rem; // larghezza minima pannello opzioni
+  --select-menu-panel-max: 16rem; // larghezza massima pannello opzioni (non fullWidth)
   --select-menu-panel-max-height: 16rem; // scroll solo con molte voci
   --container-pad-inline: var(--space-4);
 

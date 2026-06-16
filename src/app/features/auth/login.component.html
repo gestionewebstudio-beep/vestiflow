@@ -35,15 +35,31 @@
 
       <div class="login__field">
         <label class="login__label" for="login-password">Password</label>
-        <input
-          id="login-password"
-          class="login__input"
-          type="password"
-          formControlName="password"
-          autocomplete="current-password"
-          [attr.aria-invalid]="showError('password')"
-          [attr.aria-describedby]="showError('password') ? 'login-password-error' : null"
-        />
+        <div class="login__password">
+          <input
+            id="login-password"
+            class="login__input login__input--password"
+            [type]="passwordVisible() ? 'text' : 'password'"
+            formControlName="password"
+            autocomplete="current-password"
+            [attr.aria-invalid]="showError('password')"
+            [attr.aria-describedby]="showError('password') ? 'login-password-error' : null"
+          />
+          <button
+            type="button"
+            class="login__password-toggle"
+            [attr.aria-label]="passwordVisible() ? 'Nascondi password' : 'Mostra password'"
+            [attr.aria-pressed]="passwordVisible()"
+            (click)="togglePasswordVisibility()"
+          >
+            <i
+              class="pi"
+              [class.pi-eye]="!passwordVisible()"
+              [class.pi-eye-slash]="passwordVisible()"
+              aria-hidden="true"
+            ></i>
+          </button>
+        </div>
         @if (showError('password')) {
           <p id="login-password-error" class="login__field-error">
             @if (form.controls.password.hasError('required')) {
