@@ -175,6 +175,19 @@ app.use((_req, res, next) => {
 
 ---
 
+# `[scope: supabase]` ROW LEVEL SECURITY — Obbligatoria su ogni tabella
+
+La anon/publishable key Supabase è **pubblica** (finisce nel bundle JS). Senza RLS, la Data API (PostgREST) espone le tabelle a chiunque possieda la chiave, scavalcando l'API applicativa e il filtro `tenantId`. È la vulnerabilità più grave di un'app Supabase multi-tenant.
+
+- **OGNI tabella nuova nello schema (Prisma o SQL) DEVE avere la RLS abilitata** nella stessa migration che la crea: `ALTER TABLE "..." ENABLE ROW LEVEL SECURITY;`. Default deny: nessuna policy = nessun accesso per `anon`/`authenticated`.
+- Difesa in profondità: `REVOKE ALL ON ... FROM anon, authenticated` sulle tabelle di business.
+- **VIETATO** affidarsi solo al filtro `tenantId` dell'API: se la RLS manca, la Data API resta aperta comunque.
+- L'API backend si connette come **owner** del DB (bypassa la RLS): abilitare la RLS NON rompe l'app. Non usare `FORCE ROW LEVEL SECURITY` (bloccherebbe anche l'owner).
+- **Verifica obbligatoria in CI**: lo script `scripts/check-rls.mjs` (workflow `.github/workflows/security.yml`) scopre le tabelle dallo schema Prisma e fallisce se la anon key riesce a leggere anche una sola riga. Gira su ogni push/PR e settimanalmente. Una tabella nuova senza RLS fa fallire la build.
+- Test manuale equivalente: `GET {SUPABASE_URL}/rest/v1/<tabella>` con header `apikey`/`Authorization` = anon key → deve dare `401`/`403` o array vuoto, mai righe.
+
+---
+
 # UPLOAD DI FILE
 
 - Limita dimensione massima dei file (es. 5MB per immagini, 10MB per documenti). Configura i limiti sia lato client (UX) che lato server (sicurezza).
@@ -252,6 +265,7 @@ Prima di ogni deploy in produzione, verifica:
 - [ ] CORS configurato senza wildcard su endpoint con credenziali
 - [ ] Cookie sessione con `HttpOnly`, `Secure`, `SameSite`
 - [ ] Security Rules / IAM Policies deployate e testate
+- [ ] `[scope: supabase]` RLS attiva su tutte le tabelle (`npm run check:rls` verde)
 - [ ] Messaggi di errore API generici, dettagli solo in log
 - [ ] Cookie banner e privacy policy aggiornati (se in scope GDPR)
 - [ ] Lockfile committato + `npm ci` in CI

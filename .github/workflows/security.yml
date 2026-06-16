@@ -1,0 +1,35 @@
+name: Security checks
+
+# Verifica che la Data API pubblica di Supabase non esponga dati alla anon key.
+# Gira su ogni push/PR e una volta a settimana (per intercettare tabelle nuove
+# aggiunte senza RLS anche quando non ci sono modifiche al codice).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1' # lunedi' 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  rls:
+    name: RLS exposure check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # SUPABASE_URL e SUPABASE_ANON_KEY sono valori PUBBLICI: impostarli come
+      # GitHub repo variables (Settings → Secrets and variables → Actions → Variables).
+      - name: Check RLS (anon key must not read any table)
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: node scripts/check-rls.mjs
