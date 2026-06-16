@@ -4,7 +4,7 @@
   "description": "VestiFlow backend API (NestJS + Prisma + PostgreSQL su Supabase)",
   "private": true,
   "engines": {
-    "node": ">=22.0.0 <23.0.0"
+    "node": ">=22.13.0 <23.0.0"
   },
   "scripts": {
     "build": "nest build",
