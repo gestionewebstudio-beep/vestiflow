@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 
 import type { AuthenticatedRequest } from '../common/auth/authenticated-request';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
+import { PlatformAdminService } from '../common/platform-admin/platform-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthProfileCacheService } from './auth-profile-cache.service';
 import { toUserProfileDto } from './dto/user-profile.dto';
@@ -24,6 +25,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly jwt: SupabaseJwtService,
     private readonly profileCache: AuthProfileCacheService,
     private readonly prisma: PrismaService,
+    private readonly platformAdmin: PlatformAdminService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -66,7 +68,7 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Profilo applicativo non trovato o disabilitato');
     }
 
-    const appUser = toUserProfileDto(user);
+    const appUser = toUserProfileDto(user, this.platformAdmin.isPlatformAdmin(user.email));
     this.profileCache.set(authUserId, user.tenantId, appUser);
     request.tenantId = user.tenantId;
     request.appUser = appUser;

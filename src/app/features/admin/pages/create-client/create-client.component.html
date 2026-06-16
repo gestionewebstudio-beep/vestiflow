@@ -1,0 +1,188 @@
+<section class="create-client">
+  <header class="create-client__header">
+    <h1 class="create-client__title">Nuovo cliente</h1>
+    <p class="create-client__subtitle">
+      Crea tenant, credenziali del titolare e location iniziale. Il cliente potrà collegare Shopify
+      da Impostazioni dopo il primo accesso.
+    </p>
+  </header>
+
+  @if (created(); as result) {
+    <section class="create-client__panel create-client__panel--success" aria-live="polite">
+      <h2 class="create-client__panel-title">Cliente creato</h2>
+      <p class="create-client__muted">
+        Comunica al titolare email e password. Al primo login potrà andare in
+        <strong>Impostazioni → Connetti Shopify</strong>.
+      </p>
+
+      <dl class="create-client__facts">
+        <div class="create-client__fact">
+          <dt>Azienda</dt>
+          <dd>{{ result.tenantName }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Titolare</dt>
+          <dd>{{ result.ownerDisplayName }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Email accesso</dt>
+          <dd>{{ result.ownerEmail }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Negozio</dt>
+          <dd>{{ result.storeName }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Location</dt>
+          <dd>{{ result.locationName }}</dd>
+        </div>
+      </dl>
+
+      <div class="create-client__actions">
+        <app-button type="button" (click)="resetForm()">Crea un altro cliente</app-button>
+      </div>
+    </section>
+  } @else {
+    <section class="create-client__panel" aria-labelledby="create-client-form-title">
+      <h2 id="create-client-form-title" class="create-client__panel-title">Dati cliente</h2>
+
+      <form class="create-client__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+        <label class="create-client__field" for="client-tenant-name">
+          <span class="create-client__field-label">Nome azienda</span>
+          <input
+            id="client-tenant-name"
+            class="create-client__input"
+            type="text"
+            formControlName="tenantName"
+            placeholder="Boutique Napoli"
+            autocomplete="organization"
+            [attr.aria-invalid]="showError('tenantName')"
+          />
+          @if (showError('tenantName')) {
+            <span class="create-client__field-error"
+              >Inserisci il nome dell’azienda (min. 2 caratteri).</span
+            >
+          }
+        </label>
+
+        <label class="create-client__field" for="client-owner-name">
+          <span class="create-client__field-label">Nome titolare</span>
+          <input
+            id="client-owner-name"
+            class="create-client__input"
+            type="text"
+            formControlName="ownerDisplayName"
+            placeholder="Maria Rossi"
+            autocomplete="name"
+            [attr.aria-invalid]="showError('ownerDisplayName')"
+          />
+          @if (showError('ownerDisplayName')) {
+            <span class="create-client__field-error">Inserisci il nome del titolare.</span>
+          }
+        </label>
+
+        <label class="create-client__field" for="client-owner-email">
+          <span class="create-client__field-label">Email accesso</span>
+          <input
+            id="client-owner-email"
+            class="create-client__input"
+            type="email"
+            formControlName="ownerEmail"
+            placeholder="maria@boutiquenapoli.it"
+            autocomplete="off"
+            inputmode="email"
+            [attr.aria-invalid]="showError('ownerEmail')"
+          />
+          @if (showError('ownerEmail')) {
+            <span class="create-client__field-error">Inserisci un’email valida.</span>
+          }
+        </label>
+
+        <label class="create-client__field" for="client-owner-password">
+          <span class="create-client__field-label">Password iniziale</span>
+          <input
+            id="client-owner-password"
+            class="create-client__input"
+            type="password"
+            formControlName="ownerPassword"
+            autocomplete="new-password"
+            [attr.aria-invalid]="showError('ownerPassword')"
+          />
+          @if (showError('ownerPassword')) {
+            <span class="create-client__field-error">Minimo 8 caratteri.</span>
+          }
+        </label>
+
+        <label class="create-client__field" for="client-store-name">
+          <span class="create-client__field-label">Nome negozio (opzionale)</span>
+          <input
+            id="client-store-name"
+            class="create-client__input"
+            type="text"
+            formControlName="storeName"
+            placeholder="Negozio principale"
+            autocomplete="off"
+          />
+          <span class="create-client__hint">Se vuoto: «Negozio principale».</span>
+        </label>
+
+        <label class="create-client__field" for="client-location-name">
+          <span class="create-client__field-label">Nome location (opzionale)</span>
+          <input
+            id="client-location-name"
+            class="create-client__input"
+            type="text"
+            formControlName="locationName"
+            placeholder="Come il negozio"
+            autocomplete="off"
+          />
+        </label>
+
+        @if (submitError(); as message) {
+          <p class="create-client__alert" role="alert">{{ message }}</p>
+        }
+
+        <div class="create-client__actions">
+          <app-button type="submit" [loading]="submitLoading()" [disabled]="submitLoading()">
+            Crea cliente
+          </app-button>
+        </div>
+      </form>
+    </section>
+  }
+
+  <section class="create-client__panel" aria-labelledby="create-client-list-title">
+    <h2 id="create-client-list-title" class="create-client__panel-title">Clienti registrati</h2>
+
+    @if (tenantsLoading()) {
+      <app-table-skeleton [columns]="3" [rows]="4" />
+    } @else if (tenantsError(); as message) {
+      <p class="create-client__alert" role="alert">{{ message }}</p>
+    } @else if (tenants().length === 0) {
+      <p class="create-client__muted">Nessun cliente oltre al tenant demo.</p>
+    } @else {
+      <div class="create-client__table-wrap">
+        <table class="create-client__table">
+          <thead>
+            <tr>
+              <th scope="col">Azienda</th>
+              <th scope="col">Titolare</th>
+              <th scope="col">Email</th>
+              <th scope="col">Creato</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (tenant of tenants(); track tenant.id) {
+              <tr>
+                <td>{{ tenant.name }}</td>
+                <td>{{ tenant.ownerDisplayName ?? '—' }}</td>
+                <td>{{ tenant.ownerEmail ?? '—' }}</td>
+                <td class="tabular-nums">{{ formatDateTime(tenant.createdAt) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</section>

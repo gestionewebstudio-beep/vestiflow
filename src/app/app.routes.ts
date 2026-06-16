@@ -61,6 +61,10 @@ export const routes: Routes = [
         loadChildren: () =>
           import('@features/settings/settings.routes').then((m) => m.settingsRoutes),
       },
+      {
+        path: 'admin',
+        loadChildren: () => import('@features/admin/admin.routes').then((m) => m.adminRoutes),
+      },
     ],
   },
   { path: '**', redirectTo: 'app/dashboard' },

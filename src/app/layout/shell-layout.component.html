@@ -27,7 +27,11 @@
 
   <!-- Sidebar persistente (desktop) / drawer (mobile). -->
   <aside id="shell-sidebar" class="shell__sidebar">
-    <app-sidebar [items]="navItems" [drawerOpen]="drawerOpen()" (closeRequested)="closeDrawer()" />
+    <app-sidebar
+      [items]="navItems()"
+      [drawerOpen]="drawerOpen()"
+      (closeRequested)="closeDrawer()"
+    />
   </aside>
 
   <!-- Backdrop: solo mobile, quando il drawer e' aperto. -->

@@ -22,6 +22,7 @@ interface UserProfileApi {
   readonly role: string;
   readonly storeIds: readonly string[];
   readonly isActive: boolean;
+  readonly isPlatformAdmin: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -126,6 +127,7 @@ function mapUserProfile(row: UserProfileApi): User {
     role: row.role as UserRole,
     storeIds: row.storeIds,
     isActive: row.isActive,
+    isPlatformAdmin: row.isPlatformAdmin,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

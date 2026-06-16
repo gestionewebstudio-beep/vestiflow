@@ -19,4 +19,6 @@ export interface User extends TenantScoped, Timestamped {
   /** Negozi a cui l'utente ha accesso. */
   readonly storeIds: readonly EntityId[];
   readonly isActive: boolean;
+  /** Operatore VestiFlow abilitato al provisioning clienti (da PLATFORM_ADMIN_EMAILS). */
+  readonly isPlatformAdmin: boolean;
 }

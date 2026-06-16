@@ -69,4 +69,40 @@ export class SupabaseService {
     }
     return data.user.id;
   }
+
+  /**
+   * Crea un utente Supabase Auth per onboarding cliente. Fallisce se l'email esiste.
+   */
+  async createAuthUser(email: string, password: string): Promise<string> {
+    if (!this.client) {
+      throw new Error('Supabase non configurato');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const { data: listed, error: listError } = await this.client.auth.admin.listUsers();
+    if (!listError) {
+      const existing = listed.users.find((user) => user.email?.toLowerCase() === normalizedEmail);
+      if (existing) {
+        throw new Error('EMAIL_ALREADY_REGISTERED');
+      }
+    }
+
+    const { data, error } = await this.client.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      email_confirm: true,
+    });
+    if (error || !data.user) {
+      throw new Error(error?.message ?? 'CREATION_FAILED');
+    }
+    return data.user.id;
+  }
+
+  /** Rollback onboarding se la transazione Prisma fallisce dopo la creazione Auth. */
+  async deleteAuthUser(authUserId: string): Promise<void> {
+    if (!this.client) {
+      return;
+    }
+    await this.client.auth.admin.deleteUser(authUserId);
+  }
 }

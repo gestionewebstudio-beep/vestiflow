@@ -80,6 +80,14 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   FRONTEND_URL?: string;
+
+  /**
+   * Email degli operatori VestiFlow che possono creare tenant (onboarding clienti).
+   * Separate da virgola, confronto case-insensitive.
+   */
+  @IsString()
+  @IsOptional()
+  PLATFORM_ADMIN_EMAILS?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

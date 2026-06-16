@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { catchError, filter, map, of, type Subscription } from 'rxjs';
@@ -69,7 +76,7 @@ export class ShellLayoutComponent {
 
   protected readonly logoutDialogOpen = signal(false);
 
-  readonly navItems: readonly NavItem[] = [
+  private readonly baseNavItems: readonly NavItem[] = [
     { label: 'Dashboard', icon: 'pi-th-large', route: '/app/dashboard' },
     { label: 'Prodotti', icon: 'pi-tags', route: '/app/products' },
     { label: 'Magazzino', icon: 'pi-box', route: '/app/inventory/lookup' },
@@ -79,6 +86,18 @@ export class ShellLayoutComponent {
     { label: 'Report', icon: 'pi-chart-line', route: '/app/reports' },
     { label: 'Impostazioni', icon: 'pi-cog', route: '/app/settings' },
   ];
+
+  readonly navItems = computed((): readonly NavItem[] => {
+    const items = [...this.baseNavItems];
+    if (this.authService.currentUser()?.isPlatformAdmin) {
+      items.splice(items.length - 1, 0, {
+        label: 'Nuovo cliente',
+        icon: 'pi-user-plus',
+        route: '/app/admin/clients/new',
+      });
+    }
+    return items;
+  });
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).
   // takeUntilDestroyed() gestisce l'unsubscribe automatico.
