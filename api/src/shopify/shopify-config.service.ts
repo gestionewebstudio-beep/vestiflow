@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { normalizeShopInput } from './shopify-shop.util';
+
 export interface ShopifyConnectionDto {
   readonly id: string;
   readonly tenantId: string;
@@ -80,10 +82,6 @@ export class ShopifyConfigService {
   }
 
   normalizeShopDomain(shop: string): string {
-    const trimmed = shop.trim().toLowerCase();
-    if (trimmed.endsWith('.myshopify.com')) {
-      return trimmed;
-    }
-    return `${trimmed}.myshopify.com`;
+    return normalizeShopInput(shop);
   }
 }

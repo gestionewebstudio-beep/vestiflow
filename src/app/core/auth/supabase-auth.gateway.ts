@@ -90,6 +90,39 @@ export class SupabaseAuthGateway implements AuthGateway {
     );
   }
 
+  requestPasswordReset(email: string): Observable<void> {
+    return from(
+      this.supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: this.buildPasswordResetRedirectUrl(),
+      }),
+    ).pipe(
+      switchMap(({ error }) => {
+        if (error) {
+          return throwError(() => this.mapAuthError(error));
+        }
+        return of(undefined);
+      }),
+    );
+  }
+
+  updatePassword(newPassword: string): Observable<void> {
+    return from(this.supabase.auth.updateUser({ password: newPassword })).pipe(
+      switchMap(({ error }) => {
+        if (error) {
+          return throwError(() => this.mapAuthError(error));
+        }
+        return from(this.supabase.auth.signOut()).pipe(map(() => undefined));
+      }),
+    );
+  }
+
+  private buildPasswordResetRedirectUrl(): string {
+    if (typeof window === 'undefined') {
+      return 'http://localhost:4200/login/reset-password';
+    }
+    return `${window.location.origin}/login/reset-password`;
+  }
+
   private buildSession(accessToken: string): Observable<AuthSession> {
     return fetchUserProfile(this.http, this.config.apiBaseUrl, accessToken).pipe(
       map((user) => ({ user, accessToken })),

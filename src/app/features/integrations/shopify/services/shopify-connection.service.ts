@@ -36,4 +36,10 @@ export class ShopifyConnectionService {
       .delete<{ disconnected: true }>(`${this.config.apiBaseUrl}/shopify/connection`)
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
+
+  syncLocations(): Observable<{ synced: true }> {
+    return this.http
+      .post<{ synced: true }>(`${this.config.apiBaseUrl}/shopify/sync/locations`, {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
 }

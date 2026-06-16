@@ -28,11 +28,14 @@ export interface AuthGateway {
    */
   restoreSession(): Observable<AuthSession | null>;
 
-  /**
-   * Token effimero da allegare alle chiamate verso origini fidate.
-   * Mai persistito: ottenuto on-demand (Firebase: getIdToken()).
-   */
+  /** Token effimero da allegare alle chiamate verso origini fidate. */
   getToken(): Observable<string | null>;
+
+  /** Invia email di recupero password (Supabase resetPasswordForEmail). */
+  requestPasswordReset(email: string): Observable<void>;
+
+  /** Imposta una nuova password dopo il link ricevuto via email. */
+  updatePassword(newPassword: string): Observable<void>;
 }
 
 /** DI token per il provider auth (sostituibile per ambiente). */

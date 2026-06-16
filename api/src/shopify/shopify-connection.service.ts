@@ -40,6 +40,18 @@ export class ShopifyConnectionService {
     });
   }
 
+  /** Avviso post-OAuth senza invalidare la connessione (es. webhook non registrati). */
+  async recordSetupWarning(tenantId: string, message: string, code?: string): Promise<void> {
+    await this.prisma.shopifyConnection.updateMany({
+      where: { tenantId },
+      data: {
+        lastErrorMessage: message.slice(0, 500),
+        lastErrorCode: code,
+        lastErrorAt: new Date(),
+      },
+    });
+  }
+
   private toDto(connection: ShopifyConnection): ShopifyConnectionDto {
     return {
       id: connection.id,

@@ -11,13 +11,18 @@
     @if (shopifyBanner(); as banner) {
       <div
         class="settings__banner"
-        [class.settings__banner--success]="banner === 'connected'"
+        [class.settings__banner--success]="banner === 'connected' || banner === 'connected-warn'"
         [class.settings__banner--error]="banner === 'error'"
+        [class.settings__banner--warning]="banner === 'connected-warn'"
         role="status"
       >
         @switch (banner) {
           @case ('connected') {
             Connessione Shopify completata. Clienti, ordini e giacenze si aggiorneranno via webhook.
+          }
+          @case ('connected-warn') {
+            Negozio collegato. Verifica in basso eventuali avvisi su webhook o location: la sync
+            potrebbe essere incompleta finché non risolvi.
           }
           @case ('error') {
             Autorizzazione Shopify non riuscita. Verifica dominio shop e configurazione app.
@@ -141,9 +146,16 @@
       @if (canManageShopify()) {
         <div class="settings__shopify-actions">
           <app-button
-            variant="danger"
+            variant="secondary"
+            [loading]="syncLocationsLoading()"
+            [disabled]="syncLocationsLoading() || disconnectLoading()"
+            (click)="syncShopifyLocations()"
+          >
+            Sincronizza location
+          </app-button>
+          <app-button
             [loading]="disconnectLoading()"
-            [disabled]="disconnectLoading()"
+            [disabled]="disconnectLoading() || syncLocationsLoading()"
             (click)="disconnectShopify()"
           >
             Disconnetti Shopify

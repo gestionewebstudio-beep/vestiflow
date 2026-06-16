@@ -57,6 +57,7 @@
 .app-button--danger {
   color: var(--color-danger-fg);
   background-color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .app-button--danger:hover:not(:disabled) {

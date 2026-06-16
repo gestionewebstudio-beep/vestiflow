@@ -10,12 +10,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
+import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import { UserRole } from '@core/models/user.model';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ThemeService } from '@core/services/theme.service';
@@ -31,6 +32,7 @@ import {
   shopifyConnectionStatusTone,
 } from '@features/integrations/shopify/models/shopify-connection-labels.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
+import { normalizeShopDomainInput } from '@features/integrations/shopify/models/normalize-shop-domain.util';
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
 import { LocationTableComponent } from './components/location-table/location-table.component';
@@ -42,7 +44,7 @@ type ConnectionState =
   | { readonly status: 'not-found' }
   | { readonly status: 'error'; readonly error: AppError };
 
-type ShopifyBanner = 'connected' | 'error' | 'disconnected';
+type ShopifyBanner = 'connected' | 'connected-warn' | 'error' | 'disconnected';
 
 const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.Owner]: 'Titolare',
@@ -98,6 +100,7 @@ export class SettingsComponent {
 
   protected readonly connectLoading = signal(false);
   protected readonly disconnectLoading = signal(false);
+  protected readonly syncLocationsLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
   protected readonly shopifyBanner = signal<ShopifyBanner | null>(null);
 
@@ -108,6 +111,7 @@ export class SettingsComponent {
   });
 
   private readonly connectionTick = signal(0);
+  private readonly locationTick = signal(0);
 
   private readonly connectionState = toSignal(
     toObservable(this.connectionTick).pipe(
@@ -153,9 +157,10 @@ export class SettingsComponent {
     return user.role === UserRole.Owner || user.role === UserRole.Admin || user.isPlatformAdmin;
   });
 
-  protected readonly locations = toSignal(this.inventoryService.getLocations(), {
-    initialValue: [],
-  });
+  protected readonly locations = toSignal(
+    toObservable(this.locationTick).pipe(switchMap(() => this.inventoryService.getLocations())),
+    { initialValue: [] },
+  );
 
   protected readonly roleLabel = computed(() => {
     const user = this.currentUser();
@@ -170,10 +175,7 @@ export class SettingsComponent {
         shopifyParam === 'error' ||
         shopifyParam === 'disconnected'
       ) {
-        this.shopifyBanner.set(shopifyParam);
-        if (shopifyParam === 'connected') {
-          this.reloadConnection();
-        }
+        this.handleShopifyOAuthReturn(shopifyParam);
         void this.router.navigate([], {
           relativeTo: this.route,
           queryParams: { shopify: null },
@@ -192,6 +194,64 @@ export class SettingsComponent {
     this.connectionTick.update((tick) => tick + 1);
   }
 
+  protected reloadLocations(): void {
+    this.inventoryService.invalidateLocationsCache();
+    this.locationTick.update((tick) => tick + 1);
+  }
+
+  private handleShopifyOAuthReturn(param: Exclude<ShopifyBanner, 'connected-warn'>): void {
+    this.reloadConnection();
+
+    if (param === 'connected' || param === 'error') {
+      this.shopifyConnectionService
+        .syncLocations()
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => this.reloadLocations(),
+          error: () => this.reloadLocations(),
+        });
+    } else {
+      this.reloadLocations();
+    }
+
+    if (param === 'connected') {
+      this.shopifyConnectionService
+        .getConnection()
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (connection) => {
+            this.shopifyBanner.set(connection.lastError ? 'connected-warn' : 'connected');
+          },
+          error: () => {
+            this.shopifyBanner.set('connected');
+          },
+        });
+      return;
+    }
+
+    if (param === 'disconnected') {
+      this.shopifyBanner.set('disconnected');
+      return;
+    }
+
+    // OAuth callback con ?shopify=error: verifica se la connessione e' comunque attiva.
+    this.shopifyConnectionService
+      .getConnection()
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (connection) => {
+          if (connection.status === ShopifyConnectionStatus.Connected) {
+            this.shopifyBanner.set(connection.lastError ? 'connected-warn' : 'connected');
+          } else {
+            this.shopifyBanner.set('error');
+          }
+        },
+        error: () => {
+          this.shopifyBanner.set('error');
+        },
+      });
+  }
+
   protected connectShopify(): void {
     if (this.connectForm.invalid || this.connectLoading()) {
       this.connectForm.markAllAsTouched();
@@ -202,7 +262,7 @@ export class SettingsComponent {
     this.connectLoading.set(true);
 
     this.shopifyConnectionService
-      .beginAuth(this.connectForm.controls.shop.value.trim())
+      .beginAuth(normalizeShopDomainInput(this.connectForm.controls.shop.value))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ authorizeUrl }) => {
@@ -231,9 +291,33 @@ export class SettingsComponent {
           this.disconnectLoading.set(false);
           this.shopifyBanner.set('disconnected');
           this.reloadConnection();
+          this.reloadLocations();
         },
         error: (err: unknown) => {
           this.disconnectLoading.set(false);
+          this.connectError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected syncShopifyLocations(): void {
+    if (this.syncLocationsLoading()) {
+      return;
+    }
+
+    this.syncLocationsLoading.set(true);
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .syncLocations()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.syncLocationsLoading.set(false);
+          this.reloadLocations();
+        },
+        error: (err: unknown) => {
+          this.syncLocationsLoading.set(false);
           this.connectError.set(this.extractErrorMessage(err));
         },
       });

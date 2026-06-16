@@ -128,6 +128,14 @@ export class MockAuthGateway implements AuthGateway {
     return of(this.currentUser ? `mock-token-${this.currentUser.id}` : null);
   }
 
+  requestPasswordReset(_email: string): Observable<void> {
+    return of(undefined).pipe(delay(SHORT_LATENCY_MS));
+  }
+
+  updatePassword(_newPassword: string): Observable<void> {
+    return of(undefined).pipe(delay(SHORT_LATENCY_MS));
+  }
+
   private invalidCredentialsError(): AppError {
     return {
       kind: AppErrorKind.Unauthorized,

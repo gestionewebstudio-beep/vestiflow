@@ -72,6 +72,14 @@ export class AuthService {
     return this.gateway.getToken();
   }
 
+  requestPasswordReset(email: string): Observable<void> {
+    return this.gateway.requestPasswordReset(email);
+  }
+
+  updatePassword(newPassword: string): Observable<void> {
+    return this.gateway.updatePassword(newPassword);
+  }
+
   private applySession(session: AuthSession | null): void {
     this._currentUser.set(session?.user ?? null);
     this._status.set(session ? 'authenticated' : 'unauthenticated');

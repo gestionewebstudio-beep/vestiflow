@@ -100,6 +100,12 @@
   border-color: var(--status-error-border);
 }
 
+.settings__banner--warning {
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+}
+
 .settings__banner-dismiss {
   flex-shrink: 0;
   padding: 0;

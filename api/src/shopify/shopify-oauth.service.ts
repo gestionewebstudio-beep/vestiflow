@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -16,17 +17,21 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConfigService } from './shopify-config.service';
+import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyCryptoService } from './shopify-crypto.service';
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class ShopifyOAuthService {
+  private readonly logger = new Logger(ShopifyOAuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly shopifyConfig: ShopifyConfigService,
     private readonly shopifyCrypto: ShopifyCryptoService,
     private readonly shopifyAdmin: ShopifyAdminClient,
+    private readonly shopifyConnection: ShopifyConnectionService,
   ) {}
 
   async beginAuth(tenantId: string, shopInput: string): Promise<{ authorizeUrl: string }> {
@@ -134,11 +139,27 @@ export class ShopifyOAuthService {
       },
     });
 
-    await this.syncLocations(tenantId, shopDomain, tokenJson.access_token);
+    try {
+      await this.syncLocations(tenantId, shopDomain, tokenJson.access_token);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Sync location fallita';
+      this.logger.warn(`Shopify OAuth post-connect (location): ${message}`);
+      await this.shopifyConnection.recordSetupWarning(tenantId, message, 'location_sync_failed');
+    }
 
     const webhookUrl = this.shopifyConfig.webhookUrl;
     if (webhookUrl) {
-      await this.shopifyAdmin.registerWebhooks(shopDomain, tokenJson.access_token, webhookUrl);
+      try {
+        await this.shopifyAdmin.registerWebhooks(shopDomain, tokenJson.access_token, webhookUrl);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Registrazione webhook fallita';
+        this.logger.warn(`Shopify OAuth post-connect (webhook): ${message}`);
+        await this.shopifyConnection.recordSetupWarning(
+          tenantId,
+          message,
+          'webhook_registration_failed',
+        );
+      }
     }
 
     return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=connected`;
@@ -181,6 +202,11 @@ export class ShopifyOAuthService {
       throw new NotFoundException('Tenant non trovato per questo shop Shopify');
     }
     return connection.tenantId;
+  }
+
+  async resyncLocations(tenantId: string): Promise<void> {
+    const { shopDomain, accessToken } = await this.getAccessToken(tenantId);
+    await this.syncLocations(tenantId, shopDomain, accessToken);
   }
 
   private async syncLocations(

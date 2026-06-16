@@ -13,6 +13,19 @@ export const routes: Routes = [
     loadComponent: () => import('@features/auth/login.component').then((m) => m.LoginComponent),
   },
   {
+    path: 'login/forgot-password',
+    title: 'VestiFlow · Recupero password',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('@features/auth/forgot-password.component').then((m) => m.ForgotPasswordComponent),
+  },
+  {
+    path: 'login/reset-password',
+    title: 'VestiFlow · Nuova password',
+    loadComponent: () =>
+      import('@features/auth/reset-password.component').then((m) => m.ResetPasswordComponent),
+  },
+  {
     path: 'app',
     canActivate: [authGuard],
     loadComponent: () =>

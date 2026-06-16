@@ -30,6 +30,8 @@ function kindFromStatus(status: number): AppErrorKind {
       return AppErrorKind.NotFound;
     case 409:
       return AppErrorKind.Conflict;
+    case 400:
+      return AppErrorKind.Validation;
     case 422:
       return AppErrorKind.Validation;
     case 429:

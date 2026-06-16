@@ -1,16 +1,16 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ReactiveFormsModule, NonNullableFormBuilder, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
+import { PASSWORD_MIN_LENGTH } from '@core/auth/auth-password.constants';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 
 const DEFAULT_REDIRECT = '/app/dashboard';
-const PASSWORD_MIN_LENGTH = 6;
 
 /**
  * Pagina di accesso (smart). Reactive Form tipizzato, validazione inline,
@@ -19,9 +19,9 @@ const PASSWORD_MIN_LENGTH = 6;
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, ButtonComponent],
+  imports: [ReactiveFormsModule, ButtonComponent, RouterLink],
   templateUrl: './login.component.html',
-  styleUrl: './login.component.scss',
+  styleUrl: './auth-page.component.scss',
 })
 export class LoginComponent {
   private readonly fb = inject(NonNullableFormBuilder);
@@ -61,8 +61,15 @@ export class LoginComponent {
   readonly submitted = this._submitted.asReadonly();
 
   protected readonly passwordVisible = signal(false);
+  protected readonly passwordResetSuccess = signal(false);
 
   private loginSubscription: Subscription | null = null;
+
+  constructor() {
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      this.passwordResetSuccess.set(params.get('reset') === 'success');
+    });
+  }
 
   protected showError(field: 'email' | 'password'): boolean {
     const control = this.form.controls[field];

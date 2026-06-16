@@ -55,4 +55,11 @@ export class ShopifyController {
     await this.shopifyOAuth.disconnect(tenantId);
     return { disconnected: true };
   }
+
+  @Post('sync/locations')
+  @Roles(...ADMIN_ROLES)
+  async syncLocations(@CurrentTenant() tenantId: string): Promise<{ synced: true }> {
+    await this.shopifyOAuth.resyncLocations(tenantId);
+    return { synced: true };
+  }
 }
