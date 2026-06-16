@@ -18,11 +18,12 @@
       >
         @switch (banner) {
           @case ('connected') {
-            Connessione Shopify completata. Clienti, ordini e giacenze si aggiorneranno via webhook.
+            Negozio collegato. Ordini, clienti e giacenze si aggiorneranno automaticamente quando
+            attivi gli aggiornamenti automatici.
           }
           @case ('connected-warn') {
-            Negozio collegato. Verifica in basso eventuali avvisi su webhook o location: la sync
-            potrebbe essere incompleta finché non risolvi.
+            Negozio collegato. Verifica in basso eventuali avvisi su location o aggiornamenti
+            automatici: la sync potrebbe essere incompleta finché non risolvi.
           }
           @case ('error') {
             Autorizzazione Shopify non riuscita. Verifica dominio shop e configurazione app.
@@ -195,7 +196,7 @@
             [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
             (click)="syncShopifyWebhooks()"
           >
-            Registra webhook
+            Attiva aggiornamenti automatici
           </app-button>
           <app-button
             [loading]="disconnectLoading()"
@@ -208,8 +209,9 @@
       }
 
       <p class="settings__muted">
-        La gestione della connessione avviene lato server: nessuna credenziale Shopify è gestita dal
-        browser. Clienti, vendite e delta giacenza arrivano via webhook.
+        Le credenziali Shopify restano sul server, mai nel browser. Con «Attiva aggiornamenti
+        automatici» VestiFlow riceve ordini, clienti e variazioni giacenza dal negozio online in
+        tempo reale.
       </p>
     }
   </section>

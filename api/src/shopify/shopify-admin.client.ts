@@ -16,6 +16,15 @@ interface ShopifyAdminResponse<T> {
   readonly errors?: string;
 }
 
+export interface ShopifyProductPayload {
+  readonly id: number;
+  readonly variants: readonly {
+    readonly id: number;
+    readonly sku: string | null;
+    readonly inventory_item_id: number;
+  }[];
+}
+
 @Injectable()
 export class ShopifyAdminClient {
   constructor(private readonly shopifyConfig: ShopifyConfigService) {}
@@ -39,6 +48,37 @@ export class ShopifyAdminClient {
       '/locations.json',
     );
     return response.locations ?? [];
+  }
+
+  async getVariant(
+    shopDomain: string,
+    accessToken: string,
+    variantId: string,
+  ): Promise<{ inventory_item_id: number }> {
+    const response = await this.request<{ variant: { inventory_item_id: number } }>(
+      shopDomain,
+      accessToken,
+      `/variants/${variantId}.json`,
+    );
+    return response.variant;
+  }
+
+  /** Imposta la quantità disponibile assoluta su una location Shopify. */
+  async setInventoryAvailable(
+    shopDomain: string,
+    accessToken: string,
+    inventoryItemId: string,
+    locationId: string,
+    available: number,
+  ): Promise<void> {
+    await this.request(shopDomain, accessToken, '/inventory_levels/set.json', {
+      method: 'POST',
+      body: JSON.stringify({
+        location_id: Number(locationId),
+        inventory_item_id: Number(inventoryItemId),
+        available: Math.max(0, Math.trunc(available)),
+      }),
+    });
   }
 
   async registerWebhooks(
@@ -80,6 +120,41 @@ export class ShopifyAdminClient {
     }
 
     return { registered, skipped, failed };
+  }
+
+  async createProduct(
+    shopDomain: string,
+    accessToken: string,
+    product: Record<string, unknown>,
+  ): Promise<ShopifyProductPayload> {
+    const response = await this.request<{ product: ShopifyProductPayload }>(
+      shopDomain,
+      accessToken,
+      '/products.json',
+      {
+        method: 'POST',
+        body: JSON.stringify({ product }),
+      },
+    );
+    return response.product;
+  }
+
+  async updateProduct(
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+    product: Record<string, unknown>,
+  ): Promise<ShopifyProductPayload> {
+    const response = await this.request<{ product: ShopifyProductPayload }>(
+      shopDomain,
+      accessToken,
+      `/products/${shopifyProductId}.json`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ product }),
+      },
+    );
+    return response.product;
   }
 
   private async request<T>(

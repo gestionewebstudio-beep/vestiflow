@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { ShopifyInventoryPushService } from '../shopify/shopify-inventory-push.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
@@ -24,7 +26,12 @@ export type SupplierOrderWithLines = SupplierOrder & { lines: SupplierOrderLine[
 
 @Injectable()
 export class SupplierOrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(SupplierOrdersService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shopifyInventoryPush: ShopifyInventoryPushService,
+  ) {}
 
   listSuppliers(tenantId: string): Promise<Supplier[]> {
     return this.prisma.supplier.findMany({
@@ -180,7 +187,9 @@ export class SupplierOrdersService {
     id: string,
     dto: ReceiveSupplierOrderDto,
   ): Promise<SupplierOrderWithLines> {
-    return this.prisma.$transaction(async (tx) => {
+    const receivedVariants: { variantId: string; locationId: string }[] = [];
+
+    const order = await this.prisma.$transaction(async (tx) => {
       const order = await tx.supplierOrder.findFirst({
         where: { id, tenantId },
         include: { lines: true },
@@ -234,6 +243,13 @@ export class SupplierOrdersService {
           `Ricezione ordine ${order.reference}`,
           order.id,
         );
+
+        if (quantity > 0) {
+          receivedVariants.push({
+            variantId: line.variantId,
+            locationId: order.destinationLocationId,
+          });
+        }
       }
 
       const updatedLines = await tx.supplierOrderLine.findMany({ where: { orderId: id } });
@@ -253,6 +269,17 @@ export class SupplierOrdersService {
         include: { lines: true },
       });
     });
+
+    for (const entry of receivedVariants) {
+      try {
+        await this.shopifyInventoryPush.pushLevel(tenantId, entry.variantId, entry.locationId);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Push inventario Shopify fallito';
+        this.logger.warn(`Push inventario Shopify non riuscito (${tenantId}): ${message}`);
+      }
+    }
+
+    return order;
   }
 
   private async applyLoad(

@@ -15,28 +15,30 @@
     </div>
   }
 
-  <form class="stock-lookup__form" [formGroup]="searchForm" (ngSubmit)="lookup()">
-    <label class="stock-lookup__field" for="stock-code">
-      <span class="stock-lookup__field-label">SKU o barcode</span>
-      <input
-        id="stock-code"
-        class="stock-lookup__input"
-        type="search"
-        formControlName="code"
-        autocomplete="off"
-        spellcheck="false"
-        enterkeyhint="search"
-        placeholder="Es. TSB-M-WHT"
-        [attr.aria-invalid]="searchForm.controls.code.invalid && searchForm.controls.code.touched"
-      />
-    </label>
+  <div class="stock-lookup__search">
+    <form class="stock-lookup__form" [formGroup]="searchForm" (ngSubmit)="lookup()">
+      <label class="stock-lookup__field" for="stock-code">
+        <span class="stock-lookup__field-label">SKU o barcode</span>
+        <input
+          id="stock-code"
+          class="stock-lookup__input"
+          type="search"
+          formControlName="code"
+          autocomplete="off"
+          spellcheck="false"
+          enterkeyhint="search"
+          placeholder="Es. TSB-M-WHT"
+          [attr.aria-invalid]="searchForm.controls.code.invalid && searchForm.controls.code.touched"
+        />
+      </label>
 
-    @if (barcodeScannerEnabled) {
-      <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
-    }
+      @if (barcodeScannerEnabled) {
+        <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+      }
 
-    <app-button type="submit">Cerca giacenza</app-button>
-  </form>
+      <app-button type="submit">Cerca giacenza</app-button>
+    </form>
+  </div>
 
   @switch (lookupState().status) {
     @case ('loading') {

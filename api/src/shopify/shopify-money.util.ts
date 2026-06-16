@@ -18,3 +18,13 @@ export function shopifyDecimalToMinor(amount: string, decimals = 2): number {
 export function shopifyGid(type: string, id: string | number): string {
   return `gid://shopify/${type}/${id}`;
 }
+
+/** Converte unità minori intere in stringa decimale Shopify (es. 2990 → "29.90"). */
+export function minorToShopifyDecimal(amountMinor: number, decimals = 2): string {
+  const negative = amountMinor < 0;
+  const abs = Math.abs(amountMinor);
+  const factor = 10 ** decimals;
+  const intPart = Math.floor(abs / factor);
+  const frac = String(abs % factor).padStart(decimals, '0');
+  return `${negative ? '-' : ''}${intPart}.${frac}`;
+}

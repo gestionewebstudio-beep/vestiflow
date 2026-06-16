@@ -5,7 +5,9 @@ import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyController } from './shopify.controller';
 import { ShopifyCryptoService } from './shopify-crypto.service';
+import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import { ShopifyProductPushService } from './shopify-product-push.service';
 import { ShopifySyncService } from './shopify-sync.service';
 import { ShopifyWebhookService } from './shopify-webhook.service';
 import { ShopifyWebhooksController } from './shopify-webhooks.controller';
@@ -18,9 +20,11 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
     ShopifyAdminClient,
     ShopifyConnectionService,
     ShopifyOAuthService,
+    ShopifyInventoryPushService,
+    ShopifyProductPushService,
     ShopifySyncService,
     ShopifyWebhookService,
   ],
-  exports: [ShopifyConnectionService],
+  exports: [ShopifyConnectionService, ShopifyInventoryPushService, ShopifyProductPushService],
 })
 export class ShopifyModule {}

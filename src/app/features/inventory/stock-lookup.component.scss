@@ -45,10 +45,17 @@
   font-size: var(--text-sm);
 }
 
+.stock-lookup__search {
+  display: flex;
+  justify-content: center;
+  inline-size: 100%;
+}
+
 .stock-lookup__form {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  inline-size: 100%;
   max-inline-size: var(--content-narrow);
 }
 

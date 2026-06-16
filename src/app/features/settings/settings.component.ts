@@ -432,8 +432,8 @@ export class SettingsComponent {
         tone: 'success',
         message:
           activeCount === 1
-            ? 'Webhook registrato su Shopify.'
-            : `Webhook registrati su Shopify (${activeCount} topic attivi).`,
+            ? 'Aggiornamenti automatici attivi su Shopify.'
+            : `Aggiornamenti automatici attivi (${activeCount} canali).`,
       };
     }
 
@@ -441,13 +441,13 @@ export class SettingsComponent {
     if (activeCount > 0) {
       return {
         tone: 'warning',
-        message: `Webhook parzialmente registrati: ${activeCount} attivi. Non registrati: ${failedTopics}.`,
+        message: `Aggiornamenti parzialmente attivi: ${activeCount} canali ok. Non attivi: ${failedTopics}.`,
       };
     }
 
     return {
       tone: 'warning',
-      message: `Registrazione webhook non riuscita per: ${failedTopics}.`,
+      message: `Aggiornamenti automatici non attivati per: ${failedTopics}.`,
     };
   }
 }

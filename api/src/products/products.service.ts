@@ -1,12 +1,14 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma, type Product, type ProductVariant } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { ShopifyProductPushService } from '../shopify/shopify-product-push.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import type { ListProductsQueryDto } from './dto/list-products.query.dto';
@@ -17,7 +19,12 @@ export type ProductWithVariants = Product & { variants: ProductVariant[] };
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ProductsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shopifyProductPush: ShopifyProductPushService,
+  ) {}
 
   async list(
     tenantId: string,
@@ -89,13 +96,15 @@ export class ProductsService {
       },
       include: { variants: true },
     });
-    return created;
+
+    await this.pushProductToShopifySafe(tenantId, created.id);
+    return this.getById(tenantId, created.id);
   }
 
   async update(tenantId: string, id: string, dto: UpdateProductDto): Promise<ProductWithVariants> {
     await this.getById(tenantId, id);
 
-    return this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       if (dto.variants) {
         await this.syncVariants(tx, tenantId, id, dto.variants);
       }
@@ -114,6 +123,9 @@ export class ProductsService {
         include: { variants: true },
       });
     });
+
+    await this.pushProductToShopifySafe(tenantId, id);
+    return this.getById(tenantId, id);
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
@@ -385,6 +397,15 @@ export class ProductsService {
       throw new UnprocessableEntityException(
         `Valute miste nelle varianti: ${[...currencies].join(', ')}`,
       );
+    }
+  }
+
+  private async pushProductToShopifySafe(tenantId: string, productId: string): Promise<void> {
+    try {
+      await this.shopifyProductPush.pushProduct(tenantId, productId);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Push prodotto Shopify fallito';
+      this.logger.warn(`Push prodotto Shopify non riuscito (${tenantId}): ${message}`);
     }
   }
 }

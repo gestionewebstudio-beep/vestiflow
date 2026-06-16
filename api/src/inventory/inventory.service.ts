@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import {
   AdjustmentDirection,
   Prisma,
@@ -9,6 +14,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { ShopifyInventoryPushService } from '../shopify/shopify-inventory-push.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type {
   ListInventoryLevelsQueryDto,
@@ -23,7 +29,12 @@ export type InventoryLevelWithRefs = InventoryLevel & {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(InventoryService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shopifyInventoryPush: ShopifyInventoryPushService,
+  ) {}
 
   listLocations(tenantId: string): Promise<Location[]> {
     return this.prisma.location.findMany({
@@ -112,7 +123,7 @@ export class InventoryService {
   async registerMovement(tenantId: string, dto: RegisterMovementDto): Promise<StockMovement> {
     this.assertMovementShape(dto);
 
-    return this.prisma.$transaction(async (tx) => {
+    const movement = await this.prisma.$transaction(async (tx) => {
       const variant = await tx.productVariant.findFirst({
         where: { id: dto.variantId, tenantId },
         select: { id: true, sku: true },
@@ -149,6 +160,26 @@ export class InventoryService {
         },
       });
     });
+
+    const locationIds = dto.targetLocationId
+      ? [dto.locationId, dto.targetLocationId]
+      : [dto.locationId];
+    await this.pushInventoryToShopify(tenantId, dto.variantId, locationIds);
+
+    return movement;
+  }
+
+  private async pushInventoryToShopify(
+    tenantId: string,
+    variantId: string,
+    locationIds: readonly string[],
+  ): Promise<void> {
+    try {
+      await this.shopifyInventoryPush.pushLevels(tenantId, variantId, locationIds);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Push inventario Shopify fallito';
+      this.logger.warn(`Push inventario Shopify non riuscito (${tenantId}): ${message}`);
+    }
   }
 
   /** Variazione (con segno) da applicare alla location di origine. */
