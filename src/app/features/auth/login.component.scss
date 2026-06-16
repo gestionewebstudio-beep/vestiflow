@@ -155,26 +155,3 @@
   font-size: var(--text-sm);
   color: var(--status-error-fg);
 }
-
-.login__demo {
-  margin-block-start: var(--space-5);
-  padding: var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  background-color: var(--color-surface-sunken);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.login__demo-title {
-  margin: 0 0 var(--space-2);
-  font-weight: var(--font-weight-semibold);
-}
-
-.login__demo-list {
-  margin: 0;
-  padding-inline-start: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}

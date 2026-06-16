@@ -5,7 +5,6 @@ import { ActivatedRoute, Router } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
-import { APP_CONFIG } from '@core/config/app-config.token';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -30,10 +29,8 @@ export class LoginComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly config = inject(APP_CONFIG);
 
   protected readonly passwordMinLength = PASSWORD_MIN_LENGTH;
-  protected readonly showDemoCredentials = !this.config.production;
 
   protected readonly step = signal<'credentials' | 'mfa'>('credentials');
 

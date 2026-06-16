@@ -7,8 +7,10 @@ import {
 } from '@supabase/supabase-js';
 
 interface AdminMfaFactor {
+  readonly id?: string;
   readonly factor_type?: string;
   readonly status?: string;
+  readonly friendly_name?: string;
 }
 
 /**
@@ -117,8 +119,29 @@ export class SupabaseService {
 
   /** True se l'utente Auth ha almeno un fattore TOTP verificato (MFA attivo). */
   async userHasVerifiedTotpFactor(authUserId: string): Promise<boolean> {
+    const factors = await this.listAdminMfaFactors(authUserId);
+    return factors.some((factor) => factor.factor_type === 'totp' && factor.status === 'verified');
+  }
+
+  /** Elimina fattori TOTP non verificati (registrazione MFA abbandonata). */
+  async cleanupUnverifiedTotpFactors(authUserId: string): Promise<number> {
+    const factors = await this.listAdminMfaFactors(authUserId);
+    let removed = 0;
+
+    for (const factor of factors) {
+      if (factor.factor_type !== 'totp' || factor.status === 'verified' || !factor.id) {
+        continue;
+      }
+      await this.deleteAdminMfaFactor(authUserId, factor.id);
+      removed += 1;
+    }
+
+    return removed;
+  }
+
+  private async listAdminMfaFactors(authUserId: string): Promise<readonly AdminMfaFactor[]> {
     if (!this.supabaseUrl || !this.serviceRoleKey) {
-      return false;
+      return [];
     }
 
     const response = await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${authUserId}/factors`, {
@@ -129,12 +152,32 @@ export class SupabaseService {
     });
 
     if (!response.ok) {
-      return false;
+      return [];
     }
 
     const body: unknown = await response.json();
-    const factors = this.extractAdminFactors(body);
-    return factors.some((factor) => factor.factor_type === 'totp' && factor.status === 'verified');
+    return this.extractAdminFactors(body);
+  }
+
+  private async deleteAdminMfaFactor(authUserId: string, factorId: string): Promise<void> {
+    if (!this.supabaseUrl || !this.serviceRoleKey) {
+      throw new Error('Supabase non configurato');
+    }
+
+    const response = await fetch(
+      `${this.supabaseUrl}/auth/v1/admin/users/${authUserId}/factors/${factorId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${this.serviceRoleKey}`,
+          apikey: this.serviceRoleKey,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Impossibile rimuovere il fattore MFA incompleto.');
+    }
   }
 
   private extractAdminFactors(body: unknown): readonly AdminMfaFactor[] {

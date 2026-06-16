@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { Factor } from '@supabase/supabase-js';
-import type { SafeHtml } from '@angular/platform-browser';
+import type { SafeResourceUrl } from '@angular/platform-browser';
 
 import { MfaService } from '@core/auth/mfa.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -26,7 +26,7 @@ export class MfaSettingsComponent {
   protected readonly verifiedFactors = signal<readonly Factor[]>([]);
   protected readonly enrollment = signal<{
     readonly factorId: string;
-    readonly qrCodeSvg: SafeHtml;
+    readonly qrCodeSrc: SafeResourceUrl;
     readonly secret: string;
   } | null>(null);
 
@@ -48,12 +48,12 @@ export class MfaSettingsComponent {
       const started = await this.mfaService.startEnrollment();
       this.enrollment.set({
         factorId: started.factorId,
-        qrCodeSvg: started.qrCodeSvg,
+        qrCodeSrc: started.qrCodeSrc,
         secret: started.secret,
       });
       this.verifyForm.reset();
     } catch (err: unknown) {
-      this.error.set(this.extractMessage(err));
+      this.error.set(this.mfaService.mapErrorMessage(err));
     } finally {
       this.actionLoading.set(false);
     }
@@ -77,16 +77,30 @@ export class MfaSettingsComponent {
       this.enrollment.set(null);
       await this.reloadFactors();
     } catch (err: unknown) {
-      this.error.set(this.extractMessage(err));
+      this.error.set(this.mfaService.mapErrorMessage(err));
     } finally {
       this.actionLoading.set(false);
     }
   }
 
-  protected cancelEnrollment(): void {
+  protected async cancelEnrollment(): Promise<void> {
+    const pending = this.enrollment();
     this.enrollment.set(null);
     this.verifyForm.reset();
     this.error.set(null);
+
+    if (!pending) {
+      return;
+    }
+
+    this.actionLoading.set(true);
+    try {
+      await this.mfaService.unenroll(pending.factorId);
+    } catch (err: unknown) {
+      this.error.set(this.mfaService.mapErrorMessage(err));
+    } finally {
+      this.actionLoading.set(false);
+    }
   }
 
   protected unenroll(factorId: string): void {
@@ -100,7 +114,7 @@ export class MfaSettingsComponent {
     this.mfaService
       .unenroll(factorId)
       .then(() => this.reloadFactors())
-      .catch((err: unknown) => this.error.set(this.extractMessage(err)))
+      .catch((err: unknown) => this.error.set(this.mfaService.mapErrorMessage(err)))
       .finally(() => this.actionLoading.set(false));
   }
 
@@ -109,23 +123,19 @@ export class MfaSettingsComponent {
     this.error.set(null);
 
     try {
+      try {
+        await this.mfaService.cleanupUnverifiedTotpFactors();
+      } catch {
+        // Non bloccare la pagina al refresh: l'utente può riprovare dal pulsante.
+      }
+
       const factors = await this.mfaService.listVerifiedTotpFactors();
       this.verifiedFactors.set(factors);
     } catch (err: unknown) {
-      this.error.set(this.extractMessage(err));
+      this.error.set(this.mfaService.mapErrorMessage(err));
       this.verifiedFactors.set([]);
     } finally {
       this.loading.set(false);
     }
-  }
-
-  private extractMessage(err: unknown): string {
-    if (typeof err === 'object' && err !== null && 'message' in err) {
-      const candidate = (err as { message?: unknown }).message;
-      if (typeof candidate === 'string' && candidate.trim().length > 0) {
-        return candidate;
-      }
-    }
-    return 'Operazione MFA non riuscita. Riprova.';
   }
 }

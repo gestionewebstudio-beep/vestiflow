@@ -56,23 +56,24 @@ Dashboard: **Supabase → Project Settings → Database → Backups**
 
 Dashboard: **Railway → servizio API → Variables**
 
-Controlla che siano tutte impostate e **non** siano ancora valori di demo/locali:
+Controlla che siano tutte impostate e **non** siano ancora valori di sviluppo/locali:
 
 - [ ] `DATABASE_URL` / `DIRECT_URL` (Supabase, connection string corrette)
 - [ ] `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_JWT_SECRET`
 - [ ] `CORS_ORIGINS` — deve includere l’URL **Firebase App Hosting** (es. `https://<tuo-progetto>.web.app`), **non** solo `localhost`
 - [ ] `SHOPIFY_*` (quando colleghi Shopify: URL pubblici Railway, chiave cifratura ≥ 32 caratteri random)
 - [ ] `FRONTEND_URL` — URL reale del frontend deployato
-- [ ] **Nessun** `DEMO_OWNER_PASSWORD` in produzione se non serve (o cambialo subito dopo il seed)
+- [ ] `PLATFORM_ADMIN_EMAILS` — solo email operatori reali (nessun account demo)
 
 File di riferimento: `api/.env.example`
 
 ---
 
-### 4. Credenziali demo / seed
+### 4. Account demo rimosso
 
-- [ ] Se in produzione hai eseguito il seed con `owner@demo-boutique.it`, **cambia quella password** o disabilita l’utente demo
-- [ ] Non lasciare password demo prevedibili su un ambiente accessibile da internet
+- [x] L’account `owner@demo-boutique.it` e il tenant demo sono stati eliminati da Supabase
+- [x] Il seed non crea più utenti Auth: i clienti si creano da **Nuovo cliente** o da Supabase
+- [ ] Verifica che in Railway non resti `DEMO_OWNER_PASSWORD` (variabile rimossa dal progetto)
 
 ---
 
@@ -190,7 +191,7 @@ Regola scritta in: `.cursor/rules/regole-sicurezza.mdc` (sezione Supabase RLS)
 - [ ] Login/logout e refresh token funzionano in produzione
 - [ ] Un utente **clerk** non può eliminare prodotti / collegare Shopify
 - [ ] API `/health` → `database: up`
-- [ ] Nessuna password demo attiva in produzione
+- [ ] Nessun account di test/demo attivo in produzione
 - [ ] `CORS_ORIGINS` include solo domini tuoi (no wildcard)
 - [ ] Backup DB verificato negli ultimi 30 giorni
 

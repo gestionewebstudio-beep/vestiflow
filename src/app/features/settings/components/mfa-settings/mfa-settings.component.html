@@ -29,16 +29,22 @@
     }
   } @else if (enrollment(); as pending) {
     <p class="mfa-settings__muted">
-      Scansiona il QR con Google Authenticator, Authy o un’app TOTP compatibile, poi inserisci il
-      codice a 6 cifre.
+      Scansiona il QR code con Google Authenticator, Authy o un’app TOTP compatibile, poi inserisci
+      il codice a 6 cifre generato dall’app.
     </p>
 
     <div class="mfa-settings__qr-wrap">
-      <div class="mfa-settings__qr" [innerHTML]="pending.qrCodeSvg"></div>
+      <img
+        class="mfa-settings__qr-image"
+        [src]="pending.qrCodeSrc"
+        width="192"
+        height="192"
+        alt="QR code per configurare l'autenticazione a due fattori"
+      />
     </div>
 
     <p class="mfa-settings__secret">
-      Codice manuale:
+      Non riesci a scansionare? Inserisci manualmente questo codice nell’app:
       <code class="tabular-nums">{{ pending.secret }}</code>
     </p>
 
@@ -77,12 +83,14 @@
       Proteggi l’accesso con un codice temporaneo oltre a email e password. Consigliato per titolari
       e amministratori.
     </p>
-    <app-button
-      [loading]="actionLoading()"
-      [disabled]="actionLoading()"
-      (click)="startEnrollment()"
-    >
-      Attiva autenticazione a due fattori
-    </app-button>
+    <div class="mfa-settings__cta">
+      <app-button
+        [loading]="actionLoading()"
+        [disabled]="actionLoading()"
+        (click)="startEnrollment()"
+      >
+        Attiva autenticazione a due fattori
+      </app-button>
+    </div>
   }
 }

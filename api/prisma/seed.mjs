@@ -1,53 +1,16 @@
-// Seed di sviluppo: tenant demo, location, prodotto, giacenze e utente Supabase Auth.
+// Seed di sviluppo: tenant sandbox, location, prodotti, giacenze e dati di esempio.
+// Nessun utente Auth: accedi con un account creato da «Nuovo cliente» o da Supabase.
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
-const USER_ID = '55555555-5555-4555-8555-555555555555';
-const DEMO_EMAIL = 'owner@demo-boutique.it';
-const DEMO_PASSWORD = process.env.DEMO_OWNER_PASSWORD ?? 'DemoOwner2026!';
-
-async function resolveAuthUserId() {
-  const url = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) {
-    console.warn(
-      'Seed auth: imposta SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY in api/.env per creare l utente login.',
-    );
-    return null;
-  }
-
-  const { createClient } = await import('@supabase/supabase-js');
-  const admin = createClient(url, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const { data: listed } = await admin.auth.admin.listUsers();
-  const existing = listed?.users.find(
-    (user) => user.email?.toLowerCase() === DEMO_EMAIL.toLowerCase(),
-  );
-  if (existing) {
-    return existing.id;
-  }
-
-  const { data, error } = await admin.auth.admin.createUser({
-    email: DEMO_EMAIL,
-    password: DEMO_PASSWORD,
-    email_confirm: true,
-  });
-  if (error || !data.user) {
-    console.warn(`Seed auth: ${error?.message ?? 'creazione utente fallita'}`);
-    return null;
-  }
-  return data.user.id;
-}
 
 async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { id: TENANT_ID },
     update: {},
-    create: { id: TENANT_ID, name: 'Demo Boutique' },
+    create: { id: TENANT_ID, name: 'Sandbox locale' },
   });
 
   const store = await prisma.store.upsert({
@@ -85,22 +48,6 @@ async function main() {
       code: 'LOC-MAG',
       city: 'Napoli',
       countryCode: 'IT',
-    },
-  });
-
-  const authUserId = await resolveAuthUserId();
-
-  await prisma.user.upsert({
-    where: { id: USER_ID },
-    update: { authUserId: authUserId ?? undefined },
-    create: {
-      id: USER_ID,
-      tenantId: tenant.id,
-      authUserId,
-      email: DEMO_EMAIL,
-      displayName: 'Anna Esposito',
-      role: 'owner',
-      stores: { create: { storeId: store.id } },
     },
   });
 
@@ -294,7 +241,7 @@ async function main() {
     });
   }
 
-  const demoCustomers = [
+  const sampleCustomers = [
     {
       id: 'c0011111-1111-4111-8111-111111111001',
       firstName: 'Giulia',
@@ -375,7 +322,7 @@ async function main() {
     },
   ];
 
-  for (const customer of demoCustomers) {
+  for (const customer of sampleCustomers) {
     await prisma.customer.upsert({
       where: { id: customer.id },
       update: {},
@@ -393,7 +340,7 @@ async function main() {
   ];
   await prisma.salesOrder.deleteMany({ where: { id: { in: salesOrderIds } } });
 
-  const demoSalesOrders = [
+  const sampleSalesOrders = [
     {
       id: salesOrderIds[0],
       orderNumber: '#1001',
@@ -555,7 +502,7 @@ async function main() {
     },
   ];
 
-  for (const order of demoSalesOrders) {
+  for (const order of sampleSalesOrders) {
     const { lines, ...orderData } = order;
     await prisma.salesOrder.create({
       data: {
@@ -567,10 +514,7 @@ async function main() {
     });
   }
 
-  console.log('Seed completato: tenant', tenant.id);
-  if (authUserId) {
-    console.log(`Login demo: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
-  }
+  console.log('Seed completato: tenant sandbox', tenant.id);
 }
 
 main()

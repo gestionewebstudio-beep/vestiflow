@@ -177,7 +177,7 @@
     } @else if (tenantsError(); as message) {
       <p class="create-client__alert" role="alert">{{ message }}</p>
     } @else if (tenants().length === 0) {
-      <p class="create-client__muted">Nessun cliente oltre al tenant demo.</p>
+      <p class="create-client__muted">Nessun altro cliente registrato.</p>
     } @else {
       <div class="create-client__table-wrap">
         <table class="create-client__table">

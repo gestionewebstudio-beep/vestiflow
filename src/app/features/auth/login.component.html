@@ -116,18 +116,6 @@
           {{ loading() ? 'Accesso in corso…' : 'Accedi' }}
         </app-button>
       </form>
-
-      @if (showDemoCredentials) {
-        <aside class="login__demo" aria-label="Credenziali demo">
-          <p class="login__demo-title">Credenziali demo (solo sviluppo)</p>
-          <ul class="login__demo-list">
-            <li><strong>owner&#64;demo-boutique.it</strong> · DemoOwner2026!</li>
-          </ul>
-          <p class="login__demo-hint">
-            Richiede Supabase Auth configurato (anon key in environment.ts) e seed con service role.
-          </p>
-        </aside>
-      }
     }
   </section>
 </main>

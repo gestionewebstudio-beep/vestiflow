@@ -27,7 +27,7 @@ In `.env` servono le due connection string di Supabase (Project Settings → Dat
 ```bash
 npm run prisma:deploy     # applica le migrazioni (prisma/migrations)
 npm run prisma:generate   # rigenera il client dopo modifiche allo schema
-npm run prisma:seed       # dati demo (tenant, location, prodotto, giacenze)
+npm run prisma:seed       # dati sandbox (tenant, location, prodotti, giacenze)
 ```
 
 Per evolvere lo schema in sviluppo: `npm run prisma:migrate -- --name nome_migrazione`.
@@ -47,13 +47,13 @@ npm run start:dev   # watch mode su http://localhost:3000
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API → **service_role**, solo backend)
 2. In `src/environments/environment.ts` imposta `supabase.anonKey` (API → **anon/public**).
-3. Esegui il seed (crea utente Auth + collegamento DB):
+3. Esegui il seed (dati di esempio in DB, **senza** utente Auth):
 
 ```bash
 npm run prisma:seed
 ```
 
-4. Login demo: `owner@demo-boutique.it` / `DemoOwner2026!` (o `DEMO_OWNER_PASSWORD` in `.env`).
+4. Accedi con un account creato da **Nuovo cliente** (platform admin) o da Supabase Auth.
 
 Le route protette richiedono `Authorization: Bearer <jwt>`. Il tenant è risolto dal profilo DB, non da header client.
 

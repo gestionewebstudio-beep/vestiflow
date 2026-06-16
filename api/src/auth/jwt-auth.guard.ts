@@ -65,6 +65,7 @@ export class JwtAuthGuard implements CanActivate {
     const cached = this.profileCache.get(verified.authUserId);
     if (cached) {
       request.tenantId = cached.tenantId;
+      request.authUserId = verified.authUserId;
       request.appUser = cached.appUser;
       return true;
     }
@@ -80,6 +81,7 @@ export class JwtAuthGuard implements CanActivate {
     const appUser = toUserProfileDto(user, this.platformAdmin.isPlatformAdmin(user.email));
     this.profileCache.set(verified.authUserId, user.tenantId, appUser);
     request.tenantId = user.tenantId;
+    request.authUserId = verified.authUserId;
     request.appUser = appUser;
     return true;
   }
