@@ -19,6 +19,10 @@ import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyCryptoService } from './shopify-crypto.service';
+import {
+  SHOPIFY_PROTECTED_WEBHOOK_TOPICS,
+  type ShopifyWebhookRegistrationResult,
+} from './shopify-webhook-topics';
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -149,17 +153,12 @@ export class ShopifyOAuthService {
 
     const webhookUrl = this.shopifyConfig.webhookUrl;
     if (webhookUrl) {
-      try {
-        await this.shopifyAdmin.registerWebhooks(shopDomain, tokenJson.access_token, webhookUrl);
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Registrazione webhook fallita';
-        this.logger.warn(`Shopify OAuth post-connect (webhook): ${message}`);
-        await this.shopifyConnection.recordSetupWarning(
-          tenantId,
-          message,
-          'webhook_registration_failed',
-        );
-      }
+      await this.registerWebhooksForTenant(
+        tenantId,
+        shopDomain,
+        tokenJson.access_token,
+        webhookUrl,
+      );
     }
 
     return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=connected`;
@@ -207,6 +206,78 @@ export class ShopifyOAuthService {
   async resyncLocations(tenantId: string): Promise<void> {
     const { shopDomain, accessToken } = await this.getAccessToken(tenantId);
     await this.syncLocations(tenantId, shopDomain, accessToken);
+  }
+
+  async resyncWebhooks(tenantId: string): Promise<ShopifyWebhookRegistrationResult> {
+    const webhookUrl = this.shopifyConfig.webhookUrl;
+    if (!webhookUrl) {
+      throw new ServiceUnavailableException('SHOPIFY_APP_URL non configurato: webhook URL assente');
+    }
+    const { shopDomain, accessToken } = await this.getAccessToken(tenantId);
+    return this.registerWebhooksForTenant(tenantId, shopDomain, accessToken, webhookUrl);
+  }
+
+  private async registerWebhooksForTenant(
+    tenantId: string,
+    shopDomain: string,
+    accessToken: string,
+    webhookUrl: string,
+  ): Promise<ShopifyWebhookRegistrationResult> {
+    const result = await this.shopifyAdmin.registerWebhooks(shopDomain, accessToken, webhookUrl);
+    const warning = this.formatWebhookRegistrationWarning(result);
+
+    if (warning) {
+      this.logger.warn(`Shopify webhook registration (${tenantId}): ${warning.message}`);
+      await this.shopifyConnection.recordSetupWarning(tenantId, warning.message, warning.code);
+    } else {
+      await this.prisma.shopifyConnection.updateMany({
+        where: { tenantId },
+        data: {
+          lastErrorMessage: null,
+          lastErrorCode: null,
+          lastErrorAt: null,
+        },
+      });
+    }
+
+    return result;
+  }
+
+  private formatWebhookRegistrationWarning(
+    result: ShopifyWebhookRegistrationResult,
+  ): { message: string; code: string } | null {
+    if (result.failed.length === 0) {
+      return null;
+    }
+
+    const protectedFailed = result.failed.filter((entry) =>
+      SHOPIFY_PROTECTED_WEBHOOK_TOPICS.has(entry.topic),
+    );
+    const inventoryOk =
+      result.registered.includes('inventory_levels/update') ||
+      result.skipped.includes('inventory_levels/update');
+
+    if (protectedFailed.length > 0 && inventoryOk) {
+      return {
+        code: 'webhook_partial_registration',
+        message:
+          'Webhook giacenze attivo. Ordini e clienti richiedono permesso Protected customer data su Shopify Partners (app VestiFlow): riconnetti dopo averlo abilitato.',
+      };
+    }
+
+    if (protectedFailed.length > 0) {
+      return {
+        code: 'webhook_registration_failed',
+        message:
+          'Webhook ordini/clienti non registrati: Shopify richiede Protected customer data sull’app VestiFlow. Giacenze non ancora attive: verifica SHOPIFY_APP_URL su Railway.',
+      };
+    }
+
+    const detail = result.failed.map((entry) => entry.topic).join(', ');
+    return {
+      code: 'webhook_registration_failed',
+      message: `Registrazione webhook fallita per: ${detail}.`,
+    };
   }
 
   private async syncLocations(

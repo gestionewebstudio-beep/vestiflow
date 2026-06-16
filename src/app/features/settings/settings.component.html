@@ -148,14 +148,22 @@
           <app-button
             variant="secondary"
             [loading]="syncLocationsLoading()"
-            [disabled]="syncLocationsLoading() || disconnectLoading()"
+            [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
             (click)="syncShopifyLocations()"
           >
             Sincronizza location
           </app-button>
           <app-button
+            variant="secondary"
+            [loading]="syncWebhooksLoading()"
+            [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
+            (click)="syncShopifyWebhooks()"
+          >
+            Registra webhook
+          </app-button>
+          <app-button
             [loading]="disconnectLoading()"
-            [disabled]="disconnectLoading() || syncLocationsLoading()"
+            [disabled]="disconnectLoading() || syncLocationsLoading() || syncWebhooksLoading()"
             (click)="disconnectShopify()"
           >
             Disconnetti Shopify

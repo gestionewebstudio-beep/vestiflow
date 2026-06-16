@@ -101,6 +101,7 @@ export class SettingsComponent {
   protected readonly connectLoading = signal(false);
   protected readonly disconnectLoading = signal(false);
   protected readonly syncLocationsLoading = signal(false);
+  protected readonly syncWebhooksLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
   protected readonly shopifyBanner = signal<ShopifyBanner | null>(null);
 
@@ -318,6 +319,29 @@ export class SettingsComponent {
         },
         error: (err: unknown) => {
           this.syncLocationsLoading.set(false);
+          this.connectError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected syncShopifyWebhooks(): void {
+    if (this.syncWebhooksLoading()) {
+      return;
+    }
+
+    this.syncWebhooksLoading.set(true);
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .syncWebhooks()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.syncWebhooksLoading.set(false);
+          this.reloadConnection();
+        },
+        error: (err: unknown) => {
+          this.syncWebhooksLoading.set(false);
           this.connectError.set(this.extractErrorMessage(err));
         },
       });

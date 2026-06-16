@@ -5,6 +5,11 @@ import {
 } from '@nestjs/common';
 
 import { ShopifyConfigService } from './shopify-config.service';
+import {
+  SHOPIFY_WEBHOOK_TOPICS,
+  type ShopifyWebhookRegistrationResult,
+  type ShopifyWebhookTopic,
+} from './shopify-webhook-topics';
 
 interface ShopifyAdminResponse<T> {
   readonly data?: T;
@@ -36,35 +41,45 @@ export class ShopifyAdminClient {
     return response.locations ?? [];
   }
 
-  async registerWebhooks(shopDomain: string, accessToken: string, address: string): Promise<void> {
-    const topics = [
-      'orders/create',
-      'orders/updated',
-      'customers/create',
-      'customers/update',
-      'inventory_levels/update',
-    ];
-
+  async registerWebhooks(
+    shopDomain: string,
+    accessToken: string,
+    address: string,
+  ): Promise<ShopifyWebhookRegistrationResult> {
     const existing = await this.request<{ webhooks: { topic: string; address: string }[] }>(
       shopDomain,
       accessToken,
       '/webhooks.json',
     );
-    const registered = new Set(
+    const alreadyRegistered = new Set(
       (existing.webhooks ?? [])
         .filter((hook) => hook.address === address)
         .map((hook) => hook.topic),
     );
 
-    for (const topic of topics) {
-      if (registered.has(topic)) {
+    const registered: ShopifyWebhookTopic[] = [];
+    const skipped: ShopifyWebhookTopic[] = [];
+    const failed: { topic: ShopifyWebhookTopic; message: string }[] = [];
+
+    for (const topic of SHOPIFY_WEBHOOK_TOPICS) {
+      if (alreadyRegistered.has(topic)) {
+        skipped.push(topic);
         continue;
       }
-      await this.request(shopDomain, accessToken, '/webhooks.json', {
-        method: 'POST',
-        body: JSON.stringify({ webhook: { topic, address, format: 'json' } }),
-      });
+
+      try {
+        await this.request(shopDomain, accessToken, '/webhooks.json', {
+          method: 'POST',
+          body: JSON.stringify({ webhook: { topic, address, format: 'json' } }),
+        });
+        registered.push(topic);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Registrazione fallita';
+        failed.push({ topic, message: message.slice(0, 300) });
+      }
     }
+
+    return { registered, skipped, failed };
   }
 
   private async request<T>(

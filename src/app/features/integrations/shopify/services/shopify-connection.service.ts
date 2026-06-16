@@ -42,4 +42,10 @@ export class ShopifyConnectionService {
       .post<{ synced: true }>(`${this.config.apiBaseUrl}/shopify/sync/locations`, {})
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
+
+  syncWebhooks(): Observable<{ synced: true }> {
+    return this.http
+      .post<{ synced: true }>(`${this.config.apiBaseUrl}/shopify/sync/webhooks`, {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
 }
