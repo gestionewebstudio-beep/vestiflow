@@ -2,6 +2,13 @@
 <html lang="it">
   <head>
     <meta charset="utf-8" />
+    <!--
+      index.html di SVILUPPO. La Content-Security-Policy stretta vive in
+      src/index.prod.html (build production), perche' in locale l'API gira su
+      http://localhost:3000 e una CSP stretta la bloccherebbe.
+      Tenere allineato a src/index.prod.html per modifiche non legate alla CSP.
+    -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>VestiFlow</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

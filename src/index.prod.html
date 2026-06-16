@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+  index.html di PRODUZIONE (usato dalla build `production`, vedi angular.json).
+  Differisce da src/index.html SOLO per la Content-Security-Policy stretta:
+  in sviluppo l'API gira su http://localhost:3000 e la CSP la bloccherebbe.
+  Tenere allineato a src/index.html per ogni modifica non legata alla CSP.
+-->
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Content-Security-Policy (anti-XSS). App statica senza SSR: la policy vive
+      qui via meta. connect-src elenca SOLO le origini realmente usate (API
+      Railway + Supabase). img-src https: per le immagini prodotto (CDN Shopify/
+      storage). frame-ancestors/X-Frame-Options vanno aggiunti come header lato
+      host (non impostabili da meta).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://vestiflow-production.up.railway.app https://upuypsqavodytixhlwvz.supabase.co wss://upuypsqavodytixhlwvz.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+    />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>VestiFlow</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Gestionale magazzino e vendite per boutique." />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="VestiFlow" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>
