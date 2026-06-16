@@ -31,8 +31,13 @@ import {
   shopifyConnectionStatusLabel,
   shopifyConnectionStatusTone,
 } from '@features/integrations/shopify/models/shopify-connection-labels.util';
+import {
+  shopifyScopeAccessLabel,
+  shopifyScopeDisplay,
+} from '@features/integrations/shopify/models/shopify-scope-labels.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { normalizeShopDomainInput } from '@features/integrations/shopify/models/normalize-shop-domain.util';
+import type { ShopifySyncWebhooksDto } from '@features/integrations/shopify/models/shopify-sync.dto';
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
 import { LocationTableComponent } from './components/location-table/location-table.component';
@@ -45,6 +50,13 @@ type ConnectionState =
   | { readonly status: 'error'; readonly error: AppError };
 
 type ShopifyBanner = 'connected' | 'connected-warn' | 'error' | 'disconnected';
+
+interface ActionFeedback {
+  readonly message: string;
+  readonly tone: 'success' | 'warning';
+}
+
+const ACTION_SUCCESS_DISMISS_MS = 8000;
 
 const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.Owner]: 'Titolare',
@@ -96,6 +108,8 @@ export class SettingsComponent {
 
   protected readonly connectionStatusLabel = shopifyConnectionStatusLabel;
   protected readonly connectionStatusTone = shopifyConnectionStatusTone;
+  protected readonly shopifyScopeDisplay = shopifyScopeDisplay;
+  protected readonly shopifyScopeAccessLabel = shopifyScopeAccessLabel;
   protected readonly formatDateTime = formatDateTime;
 
   protected readonly connectLoading = signal(false);
@@ -103,7 +117,10 @@ export class SettingsComponent {
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
+  protected readonly actionFeedback = signal<ActionFeedback | null>(null);
   protected readonly shopifyBanner = signal<ShopifyBanner | null>(null);
+
+  private actionFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly connectForm = this.fb.group({
     shop: this.fb.control('', {
@@ -169,6 +186,12 @@ export class SettingsComponent {
   });
 
   constructor() {
+    this.destroyRef.onDestroy(() => {
+      if (this.actionFeedbackTimer) {
+        clearTimeout(this.actionFeedbackTimer);
+      }
+    });
+
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const shopifyParam = params.get('shopify');
       if (
@@ -307,15 +330,25 @@ export class SettingsComponent {
     }
 
     this.syncLocationsLoading.set(true);
+    this.clearActionFeedback();
     this.connectError.set(null);
 
     this.shopifyConnectionService
       .syncLocations()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
+        next: (result) => {
           this.syncLocationsLoading.set(false);
           this.reloadLocations();
+          this.showActionFeedback({
+            tone: 'success',
+            message:
+              result.matchedCount === 0
+                ? 'Sync completata: nessuna location VestiFlow da collegare.'
+                : result.matchedCount === 1
+                  ? 'Location sincronizzata con Shopify.'
+                  : `${result.matchedCount} location sincronizzate con Shopify.`,
+          });
         },
         error: (err: unknown) => {
           this.syncLocationsLoading.set(false);
@@ -330,21 +363,27 @@ export class SettingsComponent {
     }
 
     this.syncWebhooksLoading.set(true);
+    this.clearActionFeedback();
     this.connectError.set(null);
 
     this.shopifyConnectionService
       .syncWebhooks()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
+        next: (result) => {
           this.syncWebhooksLoading.set(false);
           this.reloadConnection();
+          this.showActionFeedback(this.formatWebhooksFeedback(result));
         },
         error: (err: unknown) => {
           this.syncWebhooksLoading.set(false);
           this.connectError.set(this.extractErrorMessage(err));
         },
       });
+  }
+
+  protected dismissActionFeedback(): void {
+    this.clearActionFeedback();
   }
 
   protected dismissBanner(): void {
@@ -366,5 +405,49 @@ export class SettingsComponent {
       return err.message;
     }
     return 'Operazione non riuscita. Riprova.';
+  }
+
+  private showActionFeedback(feedback: ActionFeedback): void {
+    this.clearActionFeedback();
+    this.actionFeedback.set(feedback);
+    this.actionFeedbackTimer = setTimeout(() => {
+      this.actionFeedback.set(null);
+      this.actionFeedbackTimer = null;
+    }, ACTION_SUCCESS_DISMISS_MS);
+  }
+
+  private clearActionFeedback(): void {
+    if (this.actionFeedbackTimer) {
+      clearTimeout(this.actionFeedbackTimer);
+      this.actionFeedbackTimer = null;
+    }
+    this.actionFeedback.set(null);
+  }
+
+  private formatWebhooksFeedback(result: ShopifySyncWebhooksDto): ActionFeedback {
+    const activeCount = result.registered.length + result.skipped.length;
+
+    if (result.failed.length === 0) {
+      return {
+        tone: 'success',
+        message:
+          activeCount === 1
+            ? 'Webhook registrato su Shopify.'
+            : `Webhook registrati su Shopify (${activeCount} topic attivi).`,
+      };
+    }
+
+    const failedTopics = result.failed.map((entry) => entry.topic).join(', ');
+    if (activeCount > 0) {
+      return {
+        tone: 'warning',
+        message: `Webhook parzialmente registrati: ${activeCount} attivi. Non registrati: ${failedTopics}.`,
+      };
+    }
+
+    return {
+      tone: 'warning',
+      message: `Registrazione webhook non riuscita per: ${failedTopics}.`,
+    };
   }
 }

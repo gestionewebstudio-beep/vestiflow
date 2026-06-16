@@ -203,9 +203,9 @@ export class ShopifyOAuthService {
     return connection.tenantId;
   }
 
-  async resyncLocations(tenantId: string): Promise<void> {
+  async resyncLocations(tenantId: string): Promise<{ matchedCount: number }> {
     const { shopDomain, accessToken } = await this.getAccessToken(tenantId);
-    await this.syncLocations(tenantId, shopDomain, accessToken);
+    return this.syncLocations(tenantId, shopDomain, accessToken);
   }
 
   async resyncWebhooks(tenantId: string): Promise<ShopifyWebhookRegistrationResult> {
@@ -284,12 +284,14 @@ export class ShopifyOAuthService {
     tenantId: string,
     shopDomain: string,
     accessToken: string,
-  ): Promise<void> {
+  ): Promise<{ matchedCount: number }> {
     const locations = await this.shopifyAdmin.listLocations(shopDomain, accessToken);
     const tenantLocations = await this.prisma.location.findMany({
       where: { tenantId },
       orderBy: { name: 'asc' },
     });
+
+    let matchedCount = 0;
 
     for (const shopifyLocation of locations) {
       const shopifyId = String(shopifyLocation.id);
@@ -311,6 +313,9 @@ export class ShopifyOAuthService {
           shopifyLastError: null,
         },
       });
+      matchedCount += 1;
     }
+
+    return { matchedCount };
   }
 }

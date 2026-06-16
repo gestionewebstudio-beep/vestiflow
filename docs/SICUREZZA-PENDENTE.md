@@ -44,6 +44,8 @@ Dashboard: **Supabase → Authentication → Settings**
 
 ### 2. Backup database
 
+> **Guida completa:** `docs/BACKUP-DISASTER-RECOVERY.md` (backup esterni, runbook DR, fasi 0→2 per Supabase, Railway, Firebase).
+
 Dashboard: **Supabase → Project Settings → Database → Backups**
 
 - [ ] Verifica che i **backup automatici** siano attivi (piano Pro o superiore per backup point-in-time; sul free verifica cosa è incluso)

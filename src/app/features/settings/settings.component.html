@@ -121,10 +121,28 @@
       </dl>
 
       @if (conn.scopes?.length) {
-        <div class="settings__scopes" aria-label="Permessi concessi">
-          @for (scope of conn.scopes; track scope) {
-            <app-badge tone="neutral">{{ scope }}</app-badge>
-          }
+        <div class="settings__permissions" aria-labelledby="settings-shopify-permissions">
+          <h3 id="settings-shopify-permissions" class="settings__permissions-title">
+            Accesso a Shopify
+          </h3>
+          <p class="settings__muted">
+            Permessi concessi al collegamento. «Solo lettura» = VestiFlow importa da Shopify;
+            «Lettura e scrittura» = può anche inviare modifiche.
+          </p>
+          <ul class="settings__permissions-list">
+            @for (scope of conn.scopes; track scope) {
+              @let display = shopifyScopeDisplay(scope);
+              <li class="settings__permission">
+                <div class="settings__permission-copy">
+                  <span class="settings__permission-label">{{ display.label }}</span>
+                  <span class="settings__permission-desc">{{ display.description }}</span>
+                </div>
+                <app-badge [tone]="display.access === 'write' ? 'success' : 'neutral'">
+                  {{ shopifyScopeAccessLabel(display.access) }}
+                </app-badge>
+              </li>
+            }
+          </ul>
         </div>
       }
 
@@ -141,6 +159,24 @@
 
       @if (connectError(); as message) {
         <p class="settings__shopify-error" role="alert">{{ message }}</p>
+      }
+
+      @if (actionFeedback(); as feedback) {
+        <div
+          class="settings__action-feedback"
+          [class.settings__action-feedback--success]="feedback.tone === 'success'"
+          [class.settings__action-feedback--warning]="feedback.tone === 'warning'"
+          role="status"
+        >
+          <span>{{ feedback.message }}</span>
+          <button
+            type="button"
+            class="settings__action-feedback-dismiss"
+            (click)="dismissActionFeedback()"
+          >
+            Chiudi
+          </button>
+        </div>
       }
 
       @if (canManageShopify()) {
