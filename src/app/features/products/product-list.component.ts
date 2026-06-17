@@ -111,6 +111,7 @@ export class ProductListComponent {
 
   // Testo ricerca "draft": locale, debounced. Inizializzato una volta dall'URL.
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
+  protected readonly exporting = signal(false);
 
   protected readonly filterOptions = toSignal(this.service.getFilterOptions(), {
     initialValue: { categories: [], brands: [], seasons: [] },
@@ -251,6 +252,41 @@ export class ProductListComponent {
 
   protected importProducts(): void {
     void this.router.navigateByUrl('/app/products/import');
+  }
+
+  protected exportProducts(): void {
+    if (this.exporting()) {
+      return;
+    }
+
+    const {
+      page: _page,
+      pageSize: _pageSize,
+      sort: _sort,
+      order: _order,
+      ...filters
+    } = this.query();
+
+    this.exporting.set(true);
+    this.service.exportProductsCsv(filters).subscribe({
+      next: (blob) => {
+        this.exporting.set(false);
+        this.downloadCsvBlob(blob);
+      },
+      error: () => {
+        this.exporting.set(false);
+      },
+    });
+  }
+
+  private downloadCsvBlob(blob: Blob): void {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `prodotti-vestiflow-${stamp}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   /** Naviga solo modificando i param indicati (merge); null rimuove la chiave. */

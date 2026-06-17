@@ -14,6 +14,11 @@ export interface ProductFilters {
   readonly status?: ProductStatus;
 }
 
+/** Filtri per export CSV (stessi filtri lista, senza paginazione). */
+export type ProductExportQuery = ProductFilters & {
+  readonly search?: string;
+};
+
 /** Query completa della lista prodotti: paginazione + ricerca + filtri. */
 export interface ProductListQuery extends PageQuery, ProductFilters {
   readonly sort?: ProductSortField;

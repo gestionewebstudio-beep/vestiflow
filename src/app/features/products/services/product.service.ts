@@ -23,7 +23,11 @@ import type {
   UpdateProductDto,
   VariantByCodeDto,
 } from '../models/product.dto';
-import type { ProductFilterOptions, ProductListQuery } from '../models/product-list-query.model';
+import type {
+  ProductFilterOptions,
+  ProductExportQuery,
+  ProductListQuery,
+} from '../models/product-list-query.model';
 import type { ProductImportPreview, ProductImportResult } from '../models/product-import.model';
 import {
   mapProductImportPreview,
@@ -33,6 +37,7 @@ import { variantTitle } from '../models/product-variant.util';
 import { toCreateProductBody, toUpdateProductBody } from './product-api.mapper';
 
 const HTTP_TIMEOUT_MS = 15000;
+const EXPORT_HTTP_TIMEOUT_MS = 120_000;
 const FACET_PAGE_SIZE = 100;
 const VARIANT_SUMMARIES_CACHE_MS = 60_000;
 const FILTER_OPTIONS_CACHE_MS = 5 * 60_000;
@@ -242,6 +247,19 @@ export class ProductService {
     return this.http
       .post<ProductImportResult>(this.url('/products/import'), formData)
       .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  exportProductsCsv(query: ProductExportQuery): Observable<Blob> {
+    let params = new HttpParams();
+    if (query.search) params = params.set('search', query.search);
+    if (query.status) params = params.set('status', query.status);
+    if (query.category) params = params.set('category', query.category);
+    if (query.brand) params = params.set('brand', query.brand);
+    if (query.season) params = params.set('season', query.season);
+
+    return this.http
+      .get(this.url('/products/export/csv'), { params, responseType: 'blob' })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 
   private url(path: string): string {

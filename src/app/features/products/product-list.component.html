@@ -2,6 +2,14 @@
   <header class="product-list__header">
     <h1 class="product-list__title">Prodotti</h1>
     <div class="product-list__actions">
+      <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
+        <i class="pi pi-download" aria-hidden="true"></i>
+        @if (exporting()) {
+          Export in corso…
+        } @else {
+          Esporta CSV
+        }
+      </app-button>
       <app-button variant="secondary" (click)="importProducts()">
         <i class="pi pi-upload" aria-hidden="true"></i>
         Importa CSV

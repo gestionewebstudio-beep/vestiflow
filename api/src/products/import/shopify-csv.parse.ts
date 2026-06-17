@@ -214,7 +214,8 @@ export function groupShopifyCsvRows(rows: readonly ShopifyCsvRow[]): Map<string,
   return groups;
 }
 
-function slugFromTitle(title: string): string {
+/** Slug handle Shopify derivato dal titolo prodotto. */
+export function slugFromTitle(title: string): string {
   return title
     .trim()
     .toLowerCase()
