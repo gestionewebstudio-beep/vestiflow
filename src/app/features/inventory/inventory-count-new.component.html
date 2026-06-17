@@ -1,0 +1,77 @@
+<section class="count-new">
+  <a
+    class="count-new__back"
+    href="/app/inventory/counts"
+    (click)="$event.preventDefault(); cancel()"
+  >
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Inventario fisico
+  </a>
+
+  <h1 class="count-new__title">Nuova sessione inventario</h1>
+  <p class="count-new__intro">
+    Verrà creato uno snapshot delle giacenze attuali per la location scelta. Potrai inserire le
+    quantità contate e, a fine revisione, applicare le rettifiche al magazzino.
+  </p>
+
+  <app-inventory-tabs />
+
+  @if (submitError(); as appError) {
+    <div class="count-new__alert" role="alert">{{ appError.message }}</div>
+  }
+
+  <form class="count-new__form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="count-new__field">
+      <label class="count-new__label" for="count-name">Nome sessione</label>
+      <input
+        id="count-name"
+        class="count-new__input"
+        type="text"
+        formControlName="name"
+        autocomplete="off"
+        [attr.aria-invalid]="fieldInvalid('name') ? true : null"
+      />
+      @if (fieldInvalid('name')) {
+        <p class="count-new__error">Inserisci un nome (minimo 2 caratteri).</p>
+      }
+    </div>
+
+    <div class="count-new__field">
+      <span class="count-new__label">Location</span>
+      <app-select-menu
+        [options]="locationOptions()"
+        [value]="form.controls.locationId.value"
+        ariaLabel="Location da contare"
+        placeholder="Seleziona location…"
+        [compact]="true"
+        [fullWidth]="true"
+        [invalid]="fieldInvalid('locationId')"
+        (valueChange)="onLocationSelect($event)"
+      />
+      @if (fieldInvalid('locationId')) {
+        <p class="count-new__error">Seleziona la location.</p>
+      }
+    </div>
+
+    <div class="count-new__field">
+      <label class="count-new__label" for="count-notes">Note (opzionale)</label>
+      <textarea
+        id="count-notes"
+        class="count-new__textarea"
+        rows="3"
+        formControlName="notes"
+      ></textarea>
+    </div>
+
+    <div class="count-new__actions">
+      <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
+      <app-button type="submit" [disabled]="submitting()">
+        @if (submitting()) {
+          Avvio in corso…
+        } @else {
+          Avvia inventario
+        }
+      </app-button>
+    </div>
+  </form>
+</section>

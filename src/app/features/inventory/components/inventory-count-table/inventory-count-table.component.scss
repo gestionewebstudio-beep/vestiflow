@@ -1,0 +1,31 @@
+@use 'responsive-table' as rt;
+
+:host {
+  display: block;
+}
+
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('count-table');
+@include rt.data-table-mobile-cards('count-table');
+
+.count-table__name {
+  font-weight: var(--font-weight-medium);
+}
+
+.count-table__col--numeric,
+.count-table__numeric {
+  text-align: end;
+}
+
+.count-table__row {
+  cursor: pointer;
+}
+
+.count-table__row:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.count-table__row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}

@@ -1,0 +1,33 @@
+<section class="inventory-count-list">
+  <header class="inventory-count-list__header">
+    <div>
+      <h1 class="inventory-count-list__title">Inventario fisico</h1>
+      <p class="inventory-count-list__intro">
+        Conteggio periodico delle giacenze per location. Alla chiusura genera rettifiche tracciate e
+        aggiorna il magazzino.
+      </p>
+    </div>
+    <app-button (click)="newSession()">
+      <i class="pi pi-plus" aria-hidden="true"></i>
+      Nuova sessione
+    </app-button>
+  </header>
+
+  <app-inventory-tabs />
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessuna sessione inventario"
+      description="Avvia un inventario fisico per confrontare le quantità di sistema con il conteggio reale in negozio o magazzino."
+      icon="pi-list-check"
+      ctaLabel="Nuova sessione"
+      (ctaClick)="newSession()"
+    />
+  } @else {
+    <app-inventory-count-table [sessions]="sessions()" (rowClick)="openSession($event)" />
+  }
+</section>

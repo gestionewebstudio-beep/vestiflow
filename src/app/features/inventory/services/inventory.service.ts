@@ -17,8 +17,20 @@ import { AppErrorKind } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
+import type {
+  CreateInventoryCountInput,
+  InventoryCountLine,
+  InventoryCountSession,
+} from '@core/models/inventory-count.model';
 import type { Location } from '@core/models/location.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
+
+import {
+  mapInventoryCountLineApiRow,
+  mapInventoryCountSessionApiRow,
+  type InventoryCountLineApiRow,
+  type InventoryCountSessionApiRow,
+} from '../models/inventory-count.mapper';
 
 /** Input per la registrazione di un movimento manuale (carico/scarico/rettifica/trasferimento). */
 export interface RegisterMovementInput {
@@ -126,6 +138,58 @@ export class InventoryService {
     return this.http
       .post<StockMovementApiRow>(this.url('/inventory/movements'), body)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapStockMovementApiRow));
+  }
+
+  listInventoryCounts(): Observable<readonly InventoryCountSession[]> {
+    const params = new HttpParams().set('page', '1').set('pageSize', String(LIST_PAGE_SIZE));
+    return this.http
+      .get<ApiPaginated<InventoryCountSessionApiRow>>(this.url('/inventory/counts'), { params })
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((response) => toPaginatedResponse(response).data.map(mapInventoryCountSessionApiRow)),
+      );
+  }
+
+  getInventoryCount(id: EntityId): Observable<InventoryCountSession> {
+    return this.http
+      .get<InventoryCountSessionApiRow>(this.url(`/inventory/counts/${id}`))
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapInventoryCountSessionApiRow));
+  }
+
+  createInventoryCount(input: CreateInventoryCountInput): Observable<InventoryCountSession> {
+    return this.http
+      .post<InventoryCountSessionApiRow>(this.url('/inventory/counts'), input)
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapInventoryCountSessionApiRow));
+  }
+
+  updateInventoryCountLine(
+    sessionId: EntityId,
+    lineId: EntityId,
+    countedQuantity: number,
+  ): Observable<InventoryCountLine> {
+    return this.http
+      .patch<InventoryCountLineApiRow>(this.url(`/inventory/counts/${sessionId}/lines/${lineId}`), {
+        countedQuantity,
+      })
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapInventoryCountLineApiRow));
+  }
+
+  submitInventoryCount(sessionId: EntityId): Observable<InventoryCountSession> {
+    return this.http
+      .post<InventoryCountSessionApiRow>(this.url(`/inventory/counts/${sessionId}/submit`), {})
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapInventoryCountSessionApiRow));
+  }
+
+  finalizeInventoryCount(sessionId: EntityId): Observable<InventoryCountSession> {
+    return this.http
+      .post<InventoryCountSessionApiRow>(this.url(`/inventory/counts/${sessionId}/finalize`), {})
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapInventoryCountSessionApiRow));
+  }
+
+  cancelInventoryCount(sessionId: EntityId): Observable<InventoryCountSession> {
+    return this.http
+      .post<InventoryCountSessionApiRow>(this.url(`/inventory/counts/${sessionId}/cancel`), {})
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapInventoryCountSessionApiRow));
   }
 
   private url(path: string): string {

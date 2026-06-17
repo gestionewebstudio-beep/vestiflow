@@ -1,0 +1,189 @@
+<section class="count-detail">
+  <a
+    class="count-detail__back"
+    href="/app/inventory/counts"
+    (click)="$event.preventDefault(); back()"
+  >
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Inventario fisico
+  </a>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (session(); as s) {
+    <header class="count-detail__header">
+      <div>
+        <div class="count-detail__title-row">
+          <h1 class="count-detail__title">{{ s.name }}</h1>
+          <app-badge [tone]="statusTone(s.status)">{{ statusLabel(s.status) }}</app-badge>
+        </div>
+        <p class="count-detail__meta">
+          {{ s.locationName }} · {{ progressLabel() }} · avviato il
+          {{ formatDate(s.createdAt) }}
+        </p>
+        @if (s.notes) {
+          <p class="count-detail__notes">{{ s.notes }}</p>
+        }
+      </div>
+
+      <div class="count-detail__header-actions">
+        @if (canEdit()) {
+          <app-button variant="secondary" [disabled]="actionPending()" (click)="submitForReview()">
+            Invia a revisione
+          </app-button>
+          <app-button variant="ghost" [disabled]="actionPending()" (click)="cancelSession()">
+            Annulla sessione
+          </app-button>
+        } @else if (canReview()) {
+          <app-button [disabled]="actionPending()" (click)="finalize()">
+            Applica rettifiche
+          </app-button>
+          <app-button variant="ghost" [disabled]="actionPending()" (click)="cancelSession()">
+            Annulla sessione
+          </app-button>
+        }
+      </div>
+    </header>
+
+    @if (actionError(); as err) {
+      <div class="count-detail__alert" role="alert">{{ err.message }}</div>
+    }
+
+    @if (canReview()) {
+      <div class="count-detail__review-banner" role="status">
+        <strong>Revisione.</strong>
+        Verifica le differenze rilevate. Confermando verranno create rettifiche di magazzino
+        tracciate e, se collegato, le giacenze verranno sincronizzate con Shopify.
+        <span class="count-detail__review-stats tabular-nums">
+          {{ s.linesWithDelta }} differenze su {{ s.linesCounted }} righe contate
+        </span>
+      </div>
+    }
+
+    @if (isClosed()) {
+      <div class="count-detail__review-banner count-detail__review-banner--done" role="status">
+        @if (s.status === InventoryCountStatus.Completed) {
+          Sessione completata
+          @if (s.completedAt) {
+            il {{ formatDate(s.completedAt) }}
+          }
+          . Le rettifiche sono state registrate nello storico movimenti.
+        } @else {
+          Sessione annullata: nessuna modifica applicata al magazzino.
+        }
+      </div>
+    }
+
+    @if (s.lineCount === 0) {
+      <app-empty-state
+        title="Nessuna giacenza da contare"
+        description="Non ci sono varianti con stock registrato per questa location. Aggiungi giacenze o scegli un'altra location."
+        icon="pi-box"
+      />
+    } @else {
+      <div class="count-detail__toolbar">
+        <div class="count-detail__search">
+          <i class="pi pi-search count-detail__search-icon" aria-hidden="true"></i>
+          <input
+            class="count-detail__input"
+            type="search"
+            [value]="search()"
+            placeholder="Cerca SKU o prodotto…"
+            aria-label="Cerca righe inventario"
+            (input)="onSearchInput($event)"
+          />
+        </div>
+
+        <div class="count-detail__filters" role="group" aria-label="Filtro righe">
+          <button
+            type="button"
+            class="count-detail__filter"
+            [class.count-detail__filter--active]="lineFilter() === 'all'"
+            (click)="setLineFilter('all')"
+          >
+            Tutte
+          </button>
+          <button
+            type="button"
+            class="count-detail__filter"
+            [class.count-detail__filter--active]="lineFilter() === 'pending'"
+            (click)="setLineFilter('pending')"
+          >
+            Da contare
+          </button>
+          <button
+            type="button"
+            class="count-detail__filter"
+            [class.count-detail__filter--active]="lineFilter() === 'delta'"
+            (click)="setLineFilter('delta')"
+          >
+            Con differenza
+          </button>
+        </div>
+      </div>
+
+      <div class="count-detail__table-scroll">
+        <table class="count-detail__table">
+          <thead>
+            <tr>
+              <th scope="col">Prodotto</th>
+              <th scope="col">SKU</th>
+              <th scope="col" class="count-detail__col--numeric">Sistema</th>
+              <th scope="col" class="count-detail__col--numeric">Contato</th>
+              <th scope="col" class="count-detail__col--numeric">Delta</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of filteredLines(); track line.id) {
+              <tr
+                class="count-detail__row"
+                [class.count-detail__row--delta]="lineDelta(line) !== null && lineDelta(line) !== 0"
+              >
+                <td data-label="Prodotto">{{ line.productName }}</td>
+                <td data-label="SKU">{{ line.sku }}</td>
+                <td class="count-detail__numeric tabular-nums" data-label="Sistema">
+                  {{ line.systemQuantity }}
+                </td>
+                <td class="count-detail__numeric" data-label="Contato">
+                  @if (canEdit()) {
+                    <input
+                      class="count-detail__qty-input tabular-nums"
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      step="1"
+                      [value]="line.countedQuantity ?? ''"
+                      [attr.aria-label]="'Quantità contata per ' + line.sku"
+                      [disabled]="savingLineId() === line.id"
+                      (blur)="onCountedBlur(line, $event)"
+                    />
+                  } @else {
+                    <span class="tabular-nums">{{ line.countedQuantity ?? '—' }}</span>
+                  }
+                </td>
+                <td
+                  class="count-detail__numeric tabular-nums"
+                  data-label="Delta"
+                  [class.count-detail__delta--pos]="(lineDelta(line) ?? 0) > 0"
+                  [class.count-detail__delta--neg]="(lineDelta(line) ?? 0) < 0"
+                >
+                  @if (lineDelta(line); as delta) {
+                    {{ delta > 0 ? '+' + delta : delta }}
+                  } @else {
+                    —
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (filteredLines().length === 0) {
+        <p class="count-detail__empty-filter">Nessuna riga corrisponde ai filtri attuali.</p>
+      }
+    }
+  }
+</section>

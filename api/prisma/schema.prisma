@@ -92,6 +92,14 @@ enum SalesOrderSource {
   manual
 }
 
+/// Stato di una sessione di inventario fisico (conteggio annuale/spot).
+enum InventoryCountStatus {
+  in_progress
+  review
+  completed
+  cancelled
+}
+
 // ── Tenant & utenti ──────────────────────────────────────────────────────────
 
 model Tenant {
@@ -108,6 +116,7 @@ model Tenant {
   variants           ProductVariant[]
   inventoryLevels    InventoryLevel[]
   stockMovements     StockMovement[]
+  inventoryCounts    InventoryCountSession[]
   suppliers          Supplier[]
   supplierOrders     SupplierOrder[]
   customers          Customer[]
@@ -200,6 +209,7 @@ model Location {
   movements         StockMovement[]  @relation("MovementLocation")
   incomingTransfers StockMovement[]  @relation("MovementTargetLocation")
   supplierOrders    SupplierOrder[]
+  inventoryCounts   InventoryCountSession[]
 
   @@index([tenantId])
   @@map("locations")
@@ -293,6 +303,7 @@ model ProductVariant {
   product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   inventoryLevels InventoryLevel[]
   movements       StockMovement[]
+  countLines      InventoryCountLine[]
 
   @@unique([tenantId, sku])
   @@index([productId])
@@ -325,6 +336,49 @@ model InventoryLevel {
   @@index([tenantId])
   @@index([locationId])
   @@map("inventory_levels")
+}
+
+/// Sessione di inventario fisico per location (conteggio spot o annuale).
+model InventoryCountSession {
+  id            String               @id @default(uuid()) @db.Uuid
+  tenantId      String               @map("tenant_id") @db.Uuid
+  locationId    String               @map("location_id") @db.Uuid
+  name          String
+  notes         String?
+  status        InventoryCountStatus @default(in_progress)
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+  completedAt   DateTime?            @map("completed_at")
+  createdByName String               @map("created_by_name")
+
+  tenant   Tenant               @relation(fields: [tenantId], references: [id])
+  location Location             @relation(fields: [locationId], references: [id])
+  lines    InventoryCountLine[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("inventory_count_sessions")
+}
+
+/// Riga conteggio: snapshot giacenza di sistema vs quantità contata.
+model InventoryCountLine {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  sessionId       String   @map("session_id") @db.Uuid
+  variantId       String   @map("variant_id") @db.Uuid
+  sku             String
+  productName     String   @map("product_name")
+  systemQuantity  Int      @map("system_quantity")
+  countedQuantity Int?     @map("counted_quantity")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  session InventoryCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  variant ProductVariant      @relation(fields: [variantId], references: [id])
+
+  @@unique([sessionId, variantId])
+  @@index([sessionId])
+  @@index([tenantId])
+  @@map("inventory_count_lines")
 }
 
 /// Log immutabile: ogni modifica inventariale produce una riga qui

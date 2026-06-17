@@ -1,0 +1,344 @@
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import {
+  AdjustmentDirection,
+  InventoryCountStatus,
+  Prisma,
+  StockMovementType,
+  type InventoryCountLine,
+  type InventoryCountSession,
+} from '@prisma/client';
+
+import type { Paginated } from '../common/dto/pagination.dto';
+import { PrismaService } from '../prisma/prisma.service';
+import { ShopifyInventoryPushService } from '../shopify/shopify-inventory-push.service';
+import type { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
+import type { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
+
+export type InventoryCountSessionSummary = InventoryCountSession & {
+  location: { name: string };
+  _count: { lines: number };
+  linesCounted: number;
+  linesWithDelta: number;
+};
+
+export type InventoryCountSessionDetail = InventoryCountSession & {
+  location: { name: string };
+  lines: InventoryCountLine[];
+};
+
+@Injectable()
+export class InventoryCountService {
+  private readonly logger = new Logger(InventoryCountService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shopifyInventoryPush: ShopifyInventoryPushService,
+  ) {}
+
+  async list(
+    tenantId: string,
+    query: ListInventoryCountsQueryDto,
+  ): Promise<Paginated<InventoryCountSessionSummary>> {
+    const where: Prisma.InventoryCountSessionWhereInput = {
+      tenantId,
+      ...(query.locationId ? { locationId: query.locationId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+    };
+
+    const [sessions, total] = await this.prisma.$transaction([
+      this.prisma.inventoryCountSession.findMany({
+        where,
+        include: {
+          location: { select: { name: true } },
+          _count: { select: { lines: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      this.prisma.inventoryCountSession.count({ where }),
+    ]);
+
+    const sessionIds = sessions.map((s) => s.id);
+    const countStats =
+      sessionIds.length === 0
+        ? []
+        : await this.prisma.inventoryCountLine.groupBy({
+            by: ['sessionId'],
+            where: { sessionId: { in: sessionIds }, countedQuantity: { not: null } },
+            _count: { _all: true },
+          });
+
+    const deltaStats =
+      sessionIds.length === 0
+        ? []
+        : await this.prisma.$queryRaw<{ session_id: string; delta_count: bigint }[]>`
+          SELECT session_id, COUNT(*)::bigint AS delta_count
+          FROM inventory_count_lines
+          WHERE session_id = ANY(${sessionIds}::uuid[])
+            AND counted_quantity IS NOT NULL
+            AND counted_quantity <> system_quantity
+          GROUP BY session_id
+        `;
+
+    const countedMap = new Map(countStats.map((row) => [row.sessionId, row._count._all]));
+    const deltaMap = new Map(deltaStats.map((row) => [row.session_id, Number(row.delta_count)]));
+
+    const items: InventoryCountSessionSummary[] = sessions.map((session) => ({
+      ...session,
+      linesCounted: countedMap.get(session.id) ?? 0,
+      linesWithDelta: deltaMap.get(session.id) ?? 0,
+    }));
+
+    return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  async create(
+    tenantId: string,
+    dto: CreateInventoryCountDto,
+  ): Promise<InventoryCountSessionDetail> {
+    const location = await this.prisma.location.findFirst({
+      where: { id: dto.locationId, tenantId },
+      select: { id: true },
+    });
+    if (!location) {
+      throw new NotFoundException('Location non trovata');
+    }
+
+    const levels = await this.prisma.inventoryLevel.findMany({
+      where: { tenantId, locationId: dto.locationId },
+      include: {
+        variant: {
+          select: {
+            id: true,
+            sku: true,
+            product: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { variant: { sku: 'asc' } },
+    });
+
+    const session = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.inventoryCountSession.create({
+        data: {
+          tenantId,
+          locationId: dto.locationId,
+          name: dto.name.trim(),
+          notes: dto.notes?.trim() || null,
+          status: InventoryCountStatus.in_progress,
+          createdByName: 'API',
+        },
+      });
+
+      if (levels.length > 0) {
+        await tx.inventoryCountLine.createMany({
+          data: levels.map((level) => ({
+            tenantId,
+            sessionId: created.id,
+            variantId: level.variantId,
+            sku: level.variant.sku,
+            productName: level.variant.product.name,
+            systemQuantity: level.onHand,
+          })),
+        });
+      }
+
+      return created;
+    });
+
+    return this.getById(tenantId, session.id);
+  }
+
+  async getById(tenantId: string, id: string): Promise<InventoryCountSessionDetail> {
+    const session = await this.prisma.inventoryCountSession.findFirst({
+      where: { id, tenantId },
+      include: {
+        location: { select: { name: true } },
+        lines: { orderBy: [{ productName: 'asc' }, { sku: 'asc' }] },
+      },
+    });
+    if (!session) {
+      throw new NotFoundException('Sessione inventario non trovata');
+    }
+    return session;
+  }
+
+  async updateLine(
+    tenantId: string,
+    sessionId: string,
+    lineId: string,
+    countedQuantity: number,
+  ): Promise<InventoryCountLine> {
+    const session = await this.assertEditableSession(tenantId, sessionId);
+
+    const line = await this.prisma.inventoryCountLine.findFirst({
+      where: { id: lineId, sessionId: session.id, tenantId },
+    });
+    if (!line) {
+      throw new NotFoundException('Riga inventario non trovata');
+    }
+
+    return this.prisma.inventoryCountLine.update({
+      where: { id: line.id },
+      data: { countedQuantity },
+    });
+  }
+
+  async submitForReview(tenantId: string, sessionId: string): Promise<InventoryCountSessionDetail> {
+    const session = await this.assertEditableSession(tenantId, sessionId);
+
+    const counted = await this.prisma.inventoryCountLine.count({
+      where: { sessionId: session.id, countedQuantity: { not: null } },
+    });
+    if (counted === 0) {
+      throw new UnprocessableEntityException(
+        'Conta almeno una variante prima di inviare a revisione.',
+      );
+    }
+
+    await this.prisma.inventoryCountSession.update({
+      where: { id: session.id },
+      data: { status: InventoryCountStatus.review },
+    });
+
+    return this.getById(tenantId, sessionId);
+  }
+
+  async finalize(tenantId: string, sessionId: string): Promise<InventoryCountSessionDetail> {
+    const session = await this.prisma.inventoryCountSession.findFirst({
+      where: { id: sessionId, tenantId },
+      include: { lines: true },
+    });
+    if (!session) {
+      throw new NotFoundException('Sessione inventario non trovata');
+    }
+    if (session.status !== InventoryCountStatus.review) {
+      throw new ConflictException(
+        'La sessione deve essere in revisione prima di applicare le rettifiche.',
+      );
+    }
+
+    const reason = `Inventario fisico: ${session.name}`;
+    const linesToApply = session.lines.filter(
+      (line) => line.countedQuantity !== null && line.countedQuantity !== line.systemQuantity,
+    );
+
+    const variantIdsForPush = new Set<string>();
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const line of linesToApply) {
+        const delta = line.countedQuantity! - line.systemQuantity;
+        const direction = delta > 0 ? AdjustmentDirection.increase : AdjustmentDirection.decrease;
+        const quantity = Math.abs(delta);
+
+        await this.applyDelta(tx, tenantId, line.variantId, session.locationId, delta);
+
+        await tx.stockMovement.create({
+          data: {
+            tenantId,
+            type: StockMovementType.adjustment,
+            origin: 'manual',
+            variantId: line.variantId,
+            sku: line.sku,
+            locationId: session.locationId,
+            quantity,
+            direction,
+            reason,
+            createdByName: 'API',
+            externalRef: `inventory-count:${session.id}:${line.id}`,
+          },
+        });
+
+        variantIdsForPush.add(line.variantId);
+      }
+
+      await tx.inventoryCountSession.update({
+        where: { id: session.id },
+        data: {
+          status: InventoryCountStatus.completed,
+          completedAt: new Date(),
+        },
+      });
+    });
+
+    for (const variantId of variantIdsForPush) {
+      try {
+        await this.shopifyInventoryPush.pushLevels(tenantId, variantId, [session.locationId]);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Push Shopify fallito';
+        this.logger.warn(`Push inventario post-conteggio (${tenantId}): ${message}`);
+      }
+    }
+
+    return this.getById(tenantId, sessionId);
+  }
+
+  async cancel(tenantId: string, sessionId: string): Promise<InventoryCountSessionDetail> {
+    const session = await this.prisma.inventoryCountSession.findFirst({
+      where: { id: sessionId, tenantId },
+    });
+    if (!session) {
+      throw new NotFoundException('Sessione inventario non trovata');
+    }
+    if (
+      session.status === InventoryCountStatus.completed ||
+      session.status === InventoryCountStatus.cancelled
+    ) {
+      throw new ConflictException('La sessione non può essere annullata.');
+    }
+
+    await this.prisma.inventoryCountSession.update({
+      where: { id: session.id },
+      data: { status: InventoryCountStatus.cancelled },
+    });
+
+    return this.getById(tenantId, sessionId);
+  }
+
+  private async assertEditableSession(
+    tenantId: string,
+    sessionId: string,
+  ): Promise<InventoryCountSession> {
+    const session = await this.prisma.inventoryCountSession.findFirst({
+      where: { id: sessionId, tenantId },
+    });
+    if (!session) {
+      throw new NotFoundException('Sessione inventario non trovata');
+    }
+    if (session.status !== InventoryCountStatus.in_progress) {
+      throw new ConflictException('La sessione non è modificabile in questo stato.');
+    }
+    return session;
+  }
+
+  private async applyDelta(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    variantId: string,
+    locationId: string,
+    delta: number,
+  ): Promise<void> {
+    const level = await tx.inventoryLevel.upsert({
+      where: { variantId_locationId: { variantId, locationId } },
+      create: { tenantId, variantId, locationId },
+      update: {},
+    });
+    const nextAvailable = level.available + delta;
+    if (delta < 0 && nextAvailable < 0) {
+      throw new UnprocessableEntityException(
+        `Disponibilità insufficiente per SKU in rettifica inventario (disponibili ${level.available}).`,
+      );
+    }
+    await tx.inventoryLevel.update({
+      where: { id: level.id },
+      data: { onHand: level.onHand + delta, available: nextAvailable },
+    });
+  }
+}

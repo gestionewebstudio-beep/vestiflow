@@ -1,5 +1,8 @@
 import { Routes } from '@angular/router';
 
+import { InventoryCountDetailComponent } from './inventory-count-detail.component';
+import { InventoryCountListComponent } from './inventory-count-list.component';
+import { InventoryCountNewComponent } from './inventory-count-new.component';
 import { InventoryLevelsComponent } from './inventory-levels.component';
 import { MovementFormComponent } from './movement-form.component';
 import { StockLookupComponent } from './stock-lookup.component';
@@ -21,5 +24,20 @@ export const inventoryRoutes: Routes = [
     path: 'movements/new',
     title: 'VestiFlow · Registra movimento',
     component: MovementFormComponent,
+  },
+  {
+    path: 'counts/new',
+    title: 'VestiFlow · Nuovo inventario fisico',
+    component: InventoryCountNewComponent,
+  },
+  {
+    path: 'counts/:id',
+    title: 'VestiFlow · Inventario fisico',
+    component: InventoryCountDetailComponent,
+  },
+  {
+    path: 'counts',
+    title: 'VestiFlow · Inventario fisico',
+    component: InventoryCountListComponent,
   },
 ];
