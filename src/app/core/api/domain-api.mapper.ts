@@ -6,6 +6,7 @@ import type { Product, ProductOption } from '@core/models/product.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import type { ShopifyLink } from '@core/models/shopify.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
+import { stripHtmlToPlainText } from '@core/utils/html-text.util';
 
 /** Riga prodotto come restituita dall'API NestJS (Prisma JSON). */
 export interface ProductApiRow {
@@ -170,7 +171,7 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     id: row.id,
     tenantId: row.tenantId,
     name: row.name,
-    description: row.description ?? undefined,
+    description: stripHtmlToPlainText(row.description),
     brand: row.brand ?? undefined,
     category: row.category ?? undefined,
     season: row.season ?? undefined,

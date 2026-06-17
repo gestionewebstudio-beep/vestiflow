@@ -87,7 +87,10 @@ export class ProductsService {
     if (!product) {
       throw new NotFoundException('Prodotto non trovato');
     }
-    return withReadableShopifyErrors(product);
+
+    const normalized = withReadableShopifyErrors(product);
+    await this.healProductDescriptionIfNeeded(id, product.description, normalized.description);
+    return normalized;
   }
 
   async create(tenantId: string, dto: CreateProductDto): Promise<ProductWithVariants> {
@@ -102,7 +105,7 @@ export class ProductsService {
       data: {
         tenantId,
         name: dto.name,
-        description: dto.description,
+        description: normalizeProductDescription(dto.description),
         brand: dto.brand,
         category: dto.category,
         season: dto.season,
@@ -132,7 +135,7 @@ export class ProductsService {
         where: { id },
         data: {
           name: dto.name,
-          description: dto.description,
+          description: normalizeProductDescription(dto.description),
           brand: dto.brand,
           category: dto.category,
           season: dto.season,
@@ -167,10 +170,18 @@ export class ProductsService {
     }
 
     if (product.shopifyProductId) {
+      this.logger.log(
+        `Eliminazione prodotto ${id}: sync Shopify id=${product.shopifyProductId} (${tenantId})`,
+      );
       const shopifyDelete = await this.shopifyProductPush.deleteProduct(
         tenantId,
         product.shopifyProductId,
       );
+      if (shopifyDelete.reason === 'not_connected') {
+        throw new UnprocessableEntityException(
+          'Shopify non è connesso: il prodotto non può essere eliminato dal negozio online. Ricollega Shopify e riprova.',
+        );
+      }
       if (shopifyDelete.reason === 'missing_write_products_scope') {
         throw new UnprocessableEntityException(
           'Impossibile eliminare su Shopify: manca il permesso di scrittura catalogo. Ricollega il negozio e riprova.',
@@ -450,6 +461,23 @@ export class ProductsService {
       return [];
     }
     return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))];
+  }
+
+  private async healProductDescriptionIfNeeded(
+    productId: string,
+    stored: string | null,
+    normalized: string | null,
+  ): Promise<void> {
+    const storedPlain = stored?.trim() || null;
+    const normalizedPlain = normalized?.trim() || null;
+    if (storedPlain === normalizedPlain) {
+      return;
+    }
+
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { description: normalizedPlain },
+    });
   }
 
   private async pushProductToShopifySafe(tenantId: string, productId: string): Promise<void> {

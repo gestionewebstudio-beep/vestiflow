@@ -509,6 +509,11 @@ export class ShopifyAdminClient {
       }
 
       if (!response.ok) {
+        if (response.status === 404 && init.method === 'DELETE') {
+          await response.text().catch(() => undefined);
+          return {} as T;
+        }
+
         const body = await response.text();
         throw new InternalServerErrorException(
           `Shopify Admin API error (${response.status}): ${body.slice(0, 200)}`,

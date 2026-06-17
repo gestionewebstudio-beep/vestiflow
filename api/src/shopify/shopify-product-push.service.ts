@@ -11,13 +11,17 @@ import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { minorToShopifyDecimal } from './shopify-money.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
-import { SHOPIFY_WRITE_PRODUCTS_SCOPE, shopifyHasScope } from './shopify-scopes.util';
+import {
+  mergeShopifyScopes,
+  SHOPIFY_WRITE_PRODUCTS_SCOPE,
+  shopifyHasScope,
+} from './shopify-scopes.util';
 import {
   VESTIFLOW_METAFIELD_NAMESPACE,
   VESTIFLOW_SEASON_METAFIELD_KEY,
 } from './shopify-product-metadata.types';
 import { formatShopifyTags } from './shopify-product-metadata.util';
-import { plainTextToShopifyBodyHtml } from './shopify-html.util';
+import { plainTextToShopifyBodyHtml, normalizeProductDescription } from './shopify-html.util';
 
 type ProductWithVariants = Product & { variants: ProductVariant[] };
 
@@ -69,7 +73,13 @@ export class ShopifyProductPushService {
       return { pushed: false, reason: 'not_connected' };
     }
 
-    if (!shopifyHasScope(connection.scopes, SHOPIFY_WRITE_PRODUCTS_SCOPE)) {
+    const credential = await this.prisma.shopifyCredential.findUnique({
+      where: { tenantId },
+      select: { scopes: true },
+    });
+    const effectiveScopes = mergeShopifyScopes(connection.scopes, credential?.scopes);
+
+    if (!shopifyHasScope(effectiveScopes, SHOPIFY_WRITE_PRODUCTS_SCOPE)) {
       this.logger.debug(
         `Push prodotto saltato (${tenantId}): scope ${SHOPIFY_WRITE_PRODUCTS_SCOPE} assente`,
       );
@@ -155,13 +165,22 @@ export class ShopifyProductPushService {
       return { deleted: false, reason: 'not_connected' };
     }
 
-    if (!shopifyHasScope(connection.scopes, SHOPIFY_WRITE_PRODUCTS_SCOPE)) {
+    const credential = await this.prisma.shopifyCredential.findUnique({
+      where: { tenantId },
+      select: { scopes: true },
+    });
+    const effectiveScopes = mergeShopifyScopes(connection.scopes, credential?.scopes);
+
+    if (!shopifyHasScope(effectiveScopes, SHOPIFY_WRITE_PRODUCTS_SCOPE)) {
       return { deleted: false, reason: 'missing_write_products_scope' };
     }
 
     try {
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
       await this.shopifyAdmin.deleteProduct(shopDomain, accessToken, shopifyProductId);
+      this.logger.log(
+        `Prodotto eliminato su Shopify (${tenantId}, shop=${shopDomain}, id=${shopifyProductId})`,
+      );
       return { deleted: true };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Eliminazione Shopify fallita';
@@ -176,7 +195,7 @@ export class ShopifyProductPushService {
 
     return {
       title: product.name,
-      body_html: plainTextToShopifyBodyHtml(product.description),
+      body_html: plainTextToShopifyBodyHtml(normalizeProductDescription(product.description)),
       vendor: product.brand ?? undefined,
       product_type: product.category ?? undefined,
       tags: product.tags.length > 0 ? formatShopifyTags(product.tags) : undefined,
