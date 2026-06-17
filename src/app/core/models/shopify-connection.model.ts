@@ -46,5 +46,7 @@ export interface ShopifyConnection extends TenantScoped, Timestamped {
   readonly storeId?: EntityId;
   readonly lastConnectedAt?: IsoDateString;
   readonly lastSyncAt?: IsoDateString;
+  readonly webhooksActivatedAt?: IsoDateString;
+  readonly webhooksActiveCount?: number;
   readonly lastError?: ShopifyConnectionError;
 }

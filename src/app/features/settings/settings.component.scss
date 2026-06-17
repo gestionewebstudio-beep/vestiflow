@@ -253,6 +253,57 @@
   color: var(--status-error-fg);
 }
 
+.settings__setup-status {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+  margin-block-end: var(--space-3);
+}
+
+@include bp.media-up('md') {
+  .settings__setup-status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.settings__setup-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised, var(--color-surface));
+}
+
+.settings__setup-item--active {
+  border-color: var(--status-success-border);
+  background-color: var(--status-success-bg);
+}
+
+.settings__setup-item--partial {
+  border-color: var(--status-warning-border);
+  background-color: var(--status-warning-bg);
+}
+
+.settings__setup-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.settings__setup-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.settings__setup-detail {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 .settings__shopify-actions {
   display: flex;
   flex-wrap: wrap;

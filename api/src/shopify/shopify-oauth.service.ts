@@ -165,6 +165,7 @@ export class ShopifyOAuthService {
   }
 
   async disconnect(tenantId: string): Promise<void> {
+    await this.shopifyConnection.clearSetupStatus(tenantId);
     await this.prisma.$transaction([
       this.prisma.shopifyCredential.deleteMany({ where: { tenantId } }),
       this.prisma.shopifyConnection.updateMany({
@@ -224,6 +225,10 @@ export class ShopifyOAuthService {
     webhookUrl: string,
   ): Promise<ShopifyWebhookRegistrationResult> {
     const result = await this.shopifyAdmin.registerWebhooks(shopDomain, accessToken, webhookUrl);
+    const activeCount = result.registered.length + result.skipped.length;
+    if (activeCount > 0) {
+      await this.shopifyConnection.recordWebhooksActivated(tenantId, activeCount);
+    }
     const warning = this.formatWebhookRegistrationWarning(result);
 
     if (warning) {

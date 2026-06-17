@@ -479,6 +479,8 @@ model ShopifyConnection {
   scopes          String[]                @default([])
   lastConnectedAt DateTime?               @map("last_connected_at")
   lastSyncAt      DateTime?               @map("last_sync_at")
+  webhooksActivatedAt DateTime?           @map("webhooks_activated_at")
+  webhooksActiveCount Int?                @map("webhooks_active_count")
   lastErrorMessage String?                @map("last_error_message")
   lastErrorCode    String?                @map("last_error_code")
   lastErrorAt      DateTime?              @map("last_error_at")

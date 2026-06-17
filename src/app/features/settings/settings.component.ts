@@ -18,6 +18,8 @@ import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import { UserRole } from '@core/models/user.model';
+import { ShopifySyncStatus } from '@core/models/shopify.model';
+import type { IsoDateString } from '@core/models/common.model';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ThemeService } from '@core/services/theme.service';
 import { formatDateTime } from '@core/utils/date.util';
@@ -54,6 +56,13 @@ type ShopifyBanner = 'connected' | 'connected-warn' | 'error' | 'disconnected';
 interface ActionFeedback {
   readonly message: string;
   readonly tone: 'success' | 'warning';
+}
+
+interface SetupStatusItem {
+  readonly active: boolean;
+  readonly partial?: boolean;
+  readonly label: string;
+  readonly detail: string;
 }
 
 const ACTION_SUCCESS_DISMISS_MS = 8000;
@@ -179,6 +188,64 @@ export class SettingsComponent {
     toObservable(this.locationTick).pipe(switchMap(() => this.inventoryService.getLocations())),
     { initialValue: [] },
   );
+
+  protected readonly locationSetupStatus = computed((): SetupStatusItem => {
+    const synced = this.locations().filter(
+      (location) => location.shopify?.status === ShopifySyncStatus.Synced,
+    );
+    if (synced.length === 0) {
+      return {
+        active: false,
+        label: 'Location non collegate',
+        detail: 'Premi «Sincronizza location» per collegare i magazzini VestiFlow a Shopify.',
+      };
+    }
+
+    const lastSyncedAt = synced.reduce<IsoDateString | undefined>((latest, location) => {
+      const at = location.shopify?.lastSyncedAt;
+      if (!at) {
+        return latest;
+      }
+      return !latest || at > latest ? at : latest;
+    }, undefined);
+
+    const countLabel =
+      synced.length === 1
+        ? '1 location collegata a Shopify'
+        : `${synced.length} location collegate a Shopify`;
+    const timeLabel = lastSyncedAt ? ` · ${this.formatDateTime(lastSyncedAt)}` : '';
+
+    return {
+      active: true,
+      label: 'Location collegate',
+      detail: `${countLabel}${timeLabel}`,
+    };
+  });
+
+  protected readonly webhooksSetupStatus = computed((): SetupStatusItem => {
+    const conn = this.connection();
+    if (!conn?.webhooksActivatedAt || !conn.webhooksActiveCount) {
+      return {
+        active: false,
+        label: 'Aggiornamenti automatici non attivi',
+        detail:
+          'Premi «Attiva aggiornamenti automatici» per ricevere ordini, clienti e giacenze da Shopify.',
+      };
+    }
+
+    const partial = conn.lastError?.code === 'webhook_partial_registration';
+    const countLabel =
+      conn.webhooksActiveCount === 1
+        ? '1 canale attivo'
+        : `${conn.webhooksActiveCount} canali attivi`;
+
+    return {
+      active: true,
+      partial,
+      label: partial ? 'Aggiornamenti automatici parziali' : 'Aggiornamenti automatici attivi',
+      detail: `${countLabel} · ${this.formatDateTime(conn.webhooksActivatedAt)}`,
+    };
+  });
 
   protected readonly roleLabel = computed(() => {
     const user = this.currentUser();

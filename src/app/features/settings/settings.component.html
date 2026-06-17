@@ -181,6 +181,48 @@
       }
 
       @if (canManageShopify()) {
+        <div class="settings__setup-status" aria-label="Stato configurazione Shopify">
+          <div
+            class="settings__setup-item"
+            [class.settings__setup-item--active]="locationSetupStatus().active"
+          >
+            <app-badge [tone]="locationSetupStatus().active ? 'success' : 'neutral'">
+              {{ locationSetupStatus().active ? 'Attivo' : 'Da fare' }}
+            </app-badge>
+            <div class="settings__setup-copy">
+              <span class="settings__setup-label">{{ locationSetupStatus().label }}</span>
+              <span class="settings__setup-detail">{{ locationSetupStatus().detail }}</span>
+            </div>
+          </div>
+          <div
+            class="settings__setup-item"
+            [class.settings__setup-item--active]="webhooksSetupStatus().active"
+            [class.settings__setup-item--partial]="webhooksSetupStatus().partial"
+          >
+            <app-badge
+              [tone]="
+                webhooksSetupStatus().partial
+                  ? 'warning'
+                  : webhooksSetupStatus().active
+                    ? 'success'
+                    : 'neutral'
+              "
+            >
+              {{
+                webhooksSetupStatus().partial
+                  ? 'Parziale'
+                  : webhooksSetupStatus().active
+                    ? 'Attivo'
+                    : 'Da fare'
+              }}
+            </app-badge>
+            <div class="settings__setup-copy">
+              <span class="settings__setup-label">{{ webhooksSetupStatus().label }}</span>
+              <span class="settings__setup-detail">{{ webhooksSetupStatus().detail }}</span>
+            </div>
+          </div>
+        </div>
+
         <div class="settings__shopify-actions">
           <app-button
             variant="secondary"

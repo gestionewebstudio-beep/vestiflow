@@ -52,6 +52,29 @@ export class ShopifyConnectionService {
     });
   }
 
+  async recordWebhooksActivated(tenantId: string, activeCount: number): Promise<void> {
+    if (activeCount <= 0) {
+      return;
+    }
+    await this.prisma.shopifyConnection.updateMany({
+      where: { tenantId },
+      data: {
+        webhooksActivatedAt: new Date(),
+        webhooksActiveCount: activeCount,
+      },
+    });
+  }
+
+  async clearSetupStatus(tenantId: string): Promise<void> {
+    await this.prisma.shopifyConnection.updateMany({
+      where: { tenantId },
+      data: {
+        webhooksActivatedAt: null,
+        webhooksActiveCount: null,
+      },
+    });
+  }
+
   private toDto(connection: ShopifyConnection): ShopifyConnectionDto {
     return {
       id: connection.id,
@@ -63,6 +86,8 @@ export class ShopifyConnectionService {
       scopes: connection.scopes,
       lastConnectedAt: connection.lastConnectedAt?.toISOString() ?? null,
       lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
+      webhooksActivatedAt: connection.webhooksActivatedAt?.toISOString() ?? null,
+      webhooksActiveCount: connection.webhooksActiveCount,
       lastError: connection.lastErrorMessage
         ? {
             message: connection.lastErrorMessage,

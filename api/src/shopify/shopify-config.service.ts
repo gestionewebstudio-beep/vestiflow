@@ -13,6 +13,8 @@ export interface ShopifyConnectionDto {
   readonly scopes?: readonly string[];
   readonly lastConnectedAt?: string | null;
   readonly lastSyncAt?: string | null;
+  readonly webhooksActivatedAt?: string | null;
+  readonly webhooksActiveCount?: number | null;
   readonly lastError?: {
     readonly message: string;
     readonly occurredAt: string;

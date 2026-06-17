@@ -29,6 +29,8 @@ export function shopifyConnectionFromDto(dto: ShopifyConnectionDto): ShopifyConn
     storeId: dto.storeId,
     lastConnectedAt: dto.lastConnectedAt,
     lastSyncAt: dto.lastSyncAt,
+    webhooksActivatedAt: dto.webhooksActivatedAt,
+    webhooksActiveCount: dto.webhooksActiveCount,
     lastError: dto.lastError ? errorFromDto(dto.lastError) : undefined,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
