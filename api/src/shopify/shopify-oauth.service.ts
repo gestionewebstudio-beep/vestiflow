@@ -23,6 +23,10 @@ import {
   type ShopifyLocationSyncResult,
 } from './shopify-location-sync.service';
 import {
+  buildShopifyScopeDiagnostics,
+  shopifyCatalogImportBlockMessage,
+} from './shopify-scopes.util';
+import {
   SHOPIFY_PROTECTED_WEBHOOK_TOPICS,
   type ShopifyWebhookRegistrationResult,
 } from './shopify-webhook-topics';
@@ -147,6 +151,24 @@ export class ShopifyOAuthService {
       },
     });
 
+    const scopeDiagnostics = buildShopifyScopeDiagnostics(
+      this.shopifyConfig.requestedScopes,
+      scopes,
+    );
+    const catalogScopeMessage = shopifyCatalogImportBlockMessage(scopeDiagnostics);
+    if (catalogScopeMessage) {
+      this.logger.warn(
+        `OAuth Shopify (${tenantId}): read_products assente. Richiesti=[${scopeDiagnostics.requested.join(', ')}] concessi=[${scopeDiagnostics.granted.join(', ')}]`,
+      );
+      await this.shopifyConnection.recordSetupWarning(
+        tenantId,
+        catalogScopeMessage,
+        scopeDiagnostics.catalogImportBlockedReason === 'not_requested'
+          ? 'oauth_scope_not_requested'
+          : 'oauth_scope_not_granted',
+      );
+    }
+
     try {
       await this.syncLocations(tenantId, shopDomain, tokenJson.access_token);
     } catch (error: unknown) {
@@ -169,6 +191,7 @@ export class ShopifyOAuthService {
   }
 
   async disconnect(tenantId: string): Promise<void> {
+    await this.revokeShopifyAccessToken(tenantId);
     await this.shopifyConnection.clearSetupStatus(tenantId);
     await this.prisma.$transaction([
       this.prisma.shopifyCredential.deleteMany({ where: { tenantId } }),
@@ -330,5 +353,40 @@ export class ShopifyOAuthService {
     accessToken: string,
   ): Promise<ShopifyLocationSyncResult> {
     return this.shopifyLocationSync.syncFromShopify(tenantId, shopDomain, accessToken);
+  }
+
+  /** Revoca il token OAuth su Shopify così la riconnessione richiede tutti gli scope aggiornati. */
+  private async revokeShopifyAccessToken(tenantId: string): Promise<void> {
+    const credential = await this.prisma.shopifyCredential.findUnique({ where: { tenantId } });
+    if (!credential) {
+      return;
+    }
+
+    const apiKey = this.shopifyConfig.apiKey;
+    const apiSecret = this.shopifyConfig.apiSecret;
+    if (!apiKey || !apiSecret) {
+      return;
+    }
+
+    try {
+      const accessToken = this.shopifyCrypto.decrypt(credential.accessTokenEnc);
+      const response = await fetch(`https://${credential.shopDomain}/admin/oauth/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: apiKey,
+          client_secret: apiSecret,
+          token: accessToken,
+        }),
+      });
+      if (!response.ok) {
+        this.logger.warn(
+          `Revoca token Shopify non riuscita (${tenantId}, HTTP ${response.status}): la riconnessione potrebbe riusare permessi obsoleti`,
+        );
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'revoke fallita';
+      this.logger.warn(`Revoca token Shopify ignorata (${tenantId}): ${message}`);
+    }
   }
 }

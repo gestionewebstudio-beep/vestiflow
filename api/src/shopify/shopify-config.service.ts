@@ -11,6 +11,7 @@ export interface ShopifyConnectionDto {
   readonly displayName?: string | null;
   readonly apiVersion?: string | null;
   readonly scopes?: readonly string[];
+  readonly scopeDiagnostics?: ShopifyScopeDiagnosticsDto | null;
   readonly lastConnectedAt?: string | null;
   readonly lastSyncAt?: string | null;
   readonly webhooksActivatedAt?: string | null;
@@ -23,6 +24,15 @@ export interface ShopifyConnectionDto {
   } | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/** Confronto ambiti richiesti (server) vs concessi (token OAuth del negozio). */
+export interface ShopifyScopeDiagnosticsDto {
+  readonly requested: readonly string[];
+  readonly granted: readonly string[];
+  readonly missingFromGrant: readonly string[];
+  readonly missingForCatalogImport: readonly string[];
+  readonly catalogImportBlockedReason: 'none' | 'not_requested' | 'not_granted';
 }
 
 @Injectable()
@@ -56,6 +66,11 @@ export class ShopifyConfigService {
       this.config.get<string>('SHOPIFY_SCOPES') ??
       'read_orders,read_customers,read_inventory,write_inventory,read_locations,read_products,write_products'
     );
+  }
+
+  /** Ambiti OAuth richiesti al negozio (da SHOPIFY_SCOPES o default). */
+  get requestedScopes(): readonly string[] {
+    return parseShopifyScopesCsv(this.scopes);
   }
 
   get callbackUrl(): string | undefined {
@@ -115,4 +130,11 @@ export class ShopifyConfigService {
   normalizeShopDomain(shop: string): string {
     return normalizeShopInput(shop);
   }
+}
+
+function parseShopifyScopesCsv(raw: string): readonly string[] {
+  return raw
+    .split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean);
 }

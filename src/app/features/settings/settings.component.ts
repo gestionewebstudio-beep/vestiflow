@@ -29,7 +29,10 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import type { ThemeMode } from '@shared/models/theme.model';
 
-import { shopifyProductReadScopeWarning } from '@features/integrations/shopify/models/shopify-scope-capabilities.util';
+import {
+  shopifyProductReadScopeWarning,
+  shopifyScopeDiagnosticsDetail,
+} from '@features/integrations/shopify/models/shopify-scope-capabilities.util';
 import {
   shopifyConnectionStatusLabel,
   shopifyConnectionStatusTone,
@@ -277,7 +280,11 @@ export class SettingsComponent {
   });
 
   protected readonly catalogReadScopeWarning = computed(() =>
-    shopifyProductReadScopeWarning(this.connection()?.scopes),
+    shopifyProductReadScopeWarning(this.connection()?.scopeDiagnostics),
+  );
+
+  protected readonly catalogScopeDiagnosticsDetail = computed(() =>
+    shopifyScopeDiagnosticsDetail(this.connection()?.scopeDiagnostics),
   );
 
   protected readonly roleLabel = computed(() => {

@@ -5,9 +5,14 @@
 import type {
   ShopifyConnection,
   ShopifyConnectionError,
+  ShopifyScopeDiagnostics,
 } from '@core/models/shopify-connection.model';
 
-import type { ShopifyConnectionDto, ShopifyConnectionErrorDto } from './shopify-connection.dto';
+import type {
+  ShopifyConnectionDto,
+  ShopifyConnectionErrorDto,
+  ShopifyScopeDiagnosticsDto,
+} from './shopify-connection.dto';
 
 function errorFromDto(dto: ShopifyConnectionErrorDto): ShopifyConnectionError {
   return {
@@ -15,6 +20,10 @@ function errorFromDto(dto: ShopifyConnectionErrorDto): ShopifyConnectionError {
     occurredAt: dto.occurredAt,
     code: dto.code,
   };
+}
+
+function diagnosticsFromDto(dto: ShopifyScopeDiagnosticsDto): ShopifyScopeDiagnostics {
+  return { ...dto };
 }
 
 export function shopifyConnectionFromDto(dto: ShopifyConnectionDto): ShopifyConnection {
@@ -26,6 +35,7 @@ export function shopifyConnectionFromDto(dto: ShopifyConnectionDto): ShopifyConn
     displayName: dto.displayName,
     apiVersion: dto.apiVersion,
     scopes: dto.scopes,
+    scopeDiagnostics: dto.scopeDiagnostics ? diagnosticsFromDto(dto.scopeDiagnostics) : undefined,
     storeId: dto.storeId,
     lastConnectedAt: dto.lastConnectedAt,
     lastSyncAt: dto.lastSyncAt,

@@ -16,9 +16,14 @@ import type { ProductShopifyEnrichment } from './shopify-product-metadata.types'
 import { PRODUCT_IMPORT_TX } from './shopify-product-metadata.types';
 import { parseShopifyTags } from './shopify-product-metadata.util';
 import { shopifyDecimalToMinor } from './shopify-money.util';
+import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { toShopifyUserMessage } from './shopify-user-error.util';
-import { mergeShopifyScopes, shopifyProductReadScopeError } from './shopify-scopes.util';
+import {
+  mergeShopifyScopes,
+  buildShopifyScopeDiagnostics,
+  shopifyCatalogImportBlockMessage,
+} from './shopify-scopes.util';
 
 export interface ShopifyCatalogSyncResult {
   readonly imported: number;
@@ -40,6 +45,7 @@ export class ShopifyProductPullService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly shopifyOAuth: ShopifyOAuthService,
+    private readonly shopifyConfig: ShopifyConfigService,
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyEnrichment: ShopifyProductEnrichmentService,
@@ -78,8 +84,11 @@ export class ShopifyProductPullService {
       select: { scopes: true },
     });
     const effectiveScopes = mergeShopifyScopes(connection.scopes, credential?.scopes);
-
-    const readScopeError = shopifyProductReadScopeError(effectiveScopes);
+    const scopeDiagnostics = buildShopifyScopeDiagnostics(
+      this.shopifyConfig.requestedScopes,
+      effectiveScopes,
+    );
+    const readScopeError = shopifyCatalogImportBlockMessage(scopeDiagnostics);
     if (readScopeError) {
       this.logger.warn(
         `Import catalogo bloccato (${tenantId}): read_products assente (scopes: ${effectiveScopes.join(', ')})`,

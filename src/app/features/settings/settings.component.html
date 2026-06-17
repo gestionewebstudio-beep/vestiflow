@@ -148,10 +148,15 @@
       }
 
       @if (catalogReadScopeWarning(); as scopeWarning) {
-        <p class="settings__shopify-error" role="alert">
-          <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-          {{ scopeWarning }}
-        </p>
+        <div class="settings__shopify-error-block">
+          <p class="settings__shopify-error" role="alert">
+            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+            {{ scopeWarning }}
+          </p>
+          @if (catalogScopeDiagnosticsDetail(); as scopeDetail) {
+            <p class="settings__muted">{{ scopeDetail }}</p>
+          }
+        </div>
       }
 
       @if (conn.lastError; as lastError) {

@@ -17,6 +17,10 @@ const CODE_MESSAGES: Readonly<Record<string, string>> = {
     'Impossibile importare il catalogo: la connessione Shopify non è pronta. Ricollega lo store da Impostazioni.',
   catalog_scope_missing:
     'Mancano i permessi per leggere i prodotti su Shopify. Ricollega lo store e accetta tutti i permessi richiesti.',
+  oauth_scope_not_requested:
+    'La configurazione del server non richiede read_products (variabile SHOPIFY_SCOPES). Aggiorna Railway e riconnetti Shopify.',
+  oauth_scope_not_granted:
+    'Shopify non ha concesso read_products. In Partners abilita l’ambito Admin API Read products, salva e riconnetti il negozio.',
 };
 
 function includesAny(haystack: string, needles: readonly string[]): boolean {

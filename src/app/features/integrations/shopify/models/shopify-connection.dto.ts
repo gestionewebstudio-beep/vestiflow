@@ -12,6 +12,14 @@ export interface ShopifyConnectionErrorDto {
   readonly code?: string;
 }
 
+export interface ShopifyScopeDiagnosticsDto {
+  readonly requested: readonly string[];
+  readonly granted: readonly string[];
+  readonly missingFromGrant: readonly string[];
+  readonly missingForCatalogImport: readonly string[];
+  readonly catalogImportBlockedReason: 'none' | 'not_requested' | 'not_granted';
+}
+
 export interface ShopifyConnectionDto {
   readonly id: EntityId;
   readonly tenantId: EntityId;
@@ -20,6 +28,7 @@ export interface ShopifyConnectionDto {
   readonly displayName?: string;
   readonly apiVersion?: string;
   readonly scopes?: readonly string[];
+  readonly scopeDiagnostics?: ShopifyScopeDiagnosticsDto;
   readonly storeId?: EntityId;
   readonly lastConnectedAt?: IsoDateString;
   readonly lastSyncAt?: IsoDateString;

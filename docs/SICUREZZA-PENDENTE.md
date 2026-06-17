@@ -147,7 +147,7 @@ La CSP è già nel `index.html` di produzione. Restano header che **non** si pos
 
 Dashboard: **Shopify Partners → App → Configuration**
 
-- [ ] **Ambiti OAuth** includono `write_inventory` e `write_products` oltre ai `read_*`
+- [ ] **Ambiti OAuth** includono almeno: `read_products`, `write_products`, `write_inventory` e i relativi `read_*` (ordini, clienti, giacenze, location)
 - [ ] Dopo aver aggiunto scope: aggiorna `SHOPIFY_SCOPES` su Railway e **riconnetti** ogni shop
 - [ ] **App URL** e **Allowed redirection URL(s)** puntano a produzione (`https://vestiflow-production.up.railway.app/api/v1/shopify/auth/callback` o dominio custom)
 - [ ] **Webhook URL** pubblico e raggiungibile da Shopify

@@ -29,6 +29,14 @@ export interface ShopifyConnectionError {
   readonly code?: string;
 }
 
+export interface ShopifyScopeDiagnostics {
+  readonly requested: readonly string[];
+  readonly granted: readonly string[];
+  readonly missingFromGrant: readonly string[];
+  readonly missingForCatalogImport: readonly string[];
+  readonly catalogImportBlockedReason: 'none' | 'not_requested' | 'not_granted';
+}
+
 /** Connessione Shopify del tenant (una per tenant). */
 export interface ShopifyConnection extends TenantScoped, Timestamped {
   readonly id: EntityId;
@@ -41,6 +49,7 @@ export interface ShopifyConnection extends TenantScoped, Timestamped {
   readonly apiVersion?: string;
   /** Scope concessi (pubblici), es. 'read_products'. */
   readonly scopes?: readonly string[];
+  readonly scopeDiagnostics?: ShopifyScopeDiagnostics;
   /** Negozio del gestionale collegato (multi-store), opzionale: non tutte le
    * connessioni sono legate a un singolo store. */
   readonly storeId?: EntityId;

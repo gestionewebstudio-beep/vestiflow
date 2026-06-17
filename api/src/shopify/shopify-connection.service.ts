@@ -2,7 +2,9 @@ import { Injectable, NotFoundException, UnprocessableEntityException } from '@ne
 import { ShopifyConnectionStatus, ShopifySyncStatus, type ShopifyConnection } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import type { ShopifyConnectionDto } from './shopify-config.service';
+import type { ShopifyConnectionDto, ShopifyScopeDiagnosticsDto } from './shopify-config.service';
+import { ShopifyConfigService } from './shopify-config.service';
+import { buildShopifyScopeDiagnostics } from './shopify-scopes.util';
 import { toShopifyUserMessage } from './shopify-user-error.util';
 
 export interface ClearShopifyErrorsResult {
@@ -13,7 +15,10 @@ export interface ClearShopifyErrorsResult {
 
 @Injectable()
 export class ShopifyConnectionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shopifyConfig: ShopifyConfigService,
+  ) {}
 
   async getForTenant(tenantId: string): Promise<ShopifyConnectionDto> {
     let connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
@@ -188,6 +193,7 @@ export class ShopifyConnectionService {
   }
 
   private toDto(connection: ShopifyConnection): ShopifyConnectionDto {
+    const scopeDiagnostics = this.buildScopeDiagnosticsDto(connection.scopes);
     return {
       id: connection.id,
       tenantId: connection.tenantId,
@@ -196,6 +202,7 @@ export class ShopifyConnectionService {
       displayName: connection.displayName,
       apiVersion: connection.apiVersion,
       scopes: connection.scopes,
+      scopeDiagnostics,
       lastConnectedAt: connection.lastConnectedAt?.toISOString() ?? null,
       lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
       webhooksActivatedAt: connection.webhooksActivatedAt?.toISOString() ?? null,
@@ -214,5 +221,10 @@ export class ShopifyConnectionService {
       createdAt: connection.createdAt.toISOString(),
       updatedAt: connection.updatedAt.toISOString(),
     };
+  }
+
+  private buildScopeDiagnosticsDto(granted: readonly string[]): ShopifyScopeDiagnosticsDto {
+    const diagnostics = buildShopifyScopeDiagnostics(this.shopifyConfig.requestedScopes, granted);
+    return diagnostics;
   }
 }
