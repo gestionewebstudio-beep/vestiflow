@@ -100,10 +100,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  min-inline-size: 9rem;
+  align-items: flex-start;
+  min-inline-size: 0;
 
   @include bp.media-down('md') {
-    min-inline-size: 0;
+    align-items: stretch;
     inline-size: 100%;
   }
 }

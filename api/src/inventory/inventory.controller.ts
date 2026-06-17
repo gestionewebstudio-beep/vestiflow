@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@ne
 import type { InventoryCountLine, Location, StockMovement } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
@@ -48,9 +50,10 @@ export class InventoryController {
   @Post('movements')
   registerMovement(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Body() dto: RegisterMovementDto,
   ): Promise<StockMovement> {
-    return this.inventory.registerMovement(tenantId, dto);
+    return this.inventory.registerMovement(tenantId, dto, user.displayName);
   }
 
   @Get('counts')

@@ -1,98 +1,102 @@
-<table class="product-table">
-  <colgroup>
-    <col class="product-table__col product-table__col--name" />
-    <col class="product-table__col product-table__col--brand" />
-    <col class="product-table__col product-table__col--category" />
-    <col class="product-table__col product-table__col--season" />
-    <col class="product-table__col product-table__col--numeric" />
-    <col class="product-table__col product-table__col--status" />
-  </colgroup>
-  <thead class="product-table__head">
-    <tr>
-      <th scope="col" [attr.aria-sort]="ariaSort('name')">
-        <button
-          type="button"
-          class="product-table__sort"
-          aria-label="Ordina per nome"
-          (click)="sortChange.emit('name')"
-        >
-          Nome
-          <i class="pi {{ sortIcon('name') }}" aria-hidden="true"></i>
-        </button>
-      </th>
-      <th scope="col" [attr.aria-sort]="ariaSort('brand')">
-        <button
-          type="button"
-          class="product-table__sort"
-          aria-label="Ordina per brand"
-          (click)="sortChange.emit('brand')"
-        >
-          Brand
-          <i class="pi {{ sortIcon('brand') }}" aria-hidden="true"></i>
-        </button>
-      </th>
-      <th scope="col" [attr.aria-sort]="ariaSort('category')">
-        <button
-          type="button"
-          class="product-table__sort"
-          aria-label="Ordina per categoria"
-          (click)="sortChange.emit('category')"
-        >
-          Categoria
-          <i class="pi {{ sortIcon('category') }}" aria-hidden="true"></i>
-        </button>
-      </th>
-      <th scope="col" [attr.aria-sort]="ariaSort('season')">
-        <button
-          type="button"
-          class="product-table__sort"
-          aria-label="Ordina per stagione"
-          (click)="sortChange.emit('season')"
-        >
-          Stagione
-          <i class="pi {{ sortIcon('season') }}" aria-hidden="true"></i>
-        </button>
-      </th>
-      <th scope="col" class="product-table__cell--numeric">Varianti</th>
-      <th scope="col" class="product-table__cell--status" [attr.aria-sort]="ariaSort('status')">
-        <button
-          type="button"
-          class="product-table__sort"
-          aria-label="Ordina per stato"
-          (click)="sortChange.emit('status')"
-        >
-          Stato
-          <i class="pi {{ sortIcon('status') }}" aria-hidden="true"></i>
-        </button>
-      </th>
-    </tr>
-  </thead>
-
-  <tbody>
-    @for (product of products(); track product.id) {
-      <tr
-        class="product-table__row"
-        tabindex="0"
-        [attr.aria-label]="rowLabel(product)"
-        (click)="rowClick.emit(product)"
-        (keydown.enter)="rowClick.emit(product)"
-        (keydown.space)="$event.preventDefault(); rowClick.emit(product)"
-      >
-        <td class="product-table__name" data-label="Nome">{{ product.name }}</td>
-        <td data-label="Brand">{{ product.brand ?? '—' }}</td>
-        <td data-label="Categoria">{{ product.category ?? '—' }}</td>
-        <td data-label="Stagione">{{ product.season ?? '—' }}</td>
-        <td class="product-table__cell--numeric tabular-nums" data-label="Varianti">
-          {{ variantCount(product) }}
-        </td>
-        <td class="product-table__cell--status" data-label="Stato">
-          <span class="product-table__status-value">
-            <app-badge [tone]="statusTone(product.status)">{{
-              statusLabel(product.status)
-            }}</app-badge>
-          </span>
-        </td>
+<div class="product-table-scroll">
+  <table class="product-table">
+    <colgroup>
+      <col class="product-table__col product-table__col--name" />
+      <col class="product-table__col product-table__col--brand" />
+      <col class="product-table__col product-table__col--category" />
+      <col class="product-table__col product-table__col--season" />
+      <col class="product-table__col product-table__col--numeric" />
+      <col class="product-table__col product-table__col--status" />
+    </colgroup>
+    <thead class="product-table__head">
+      <tr>
+        <th scope="col" [attr.aria-sort]="ariaSort('name')">
+          <button
+            type="button"
+            class="product-table__sort"
+            aria-label="Ordina per nome"
+            (click)="sortChange.emit('name')"
+          >
+            Nome
+            <i class="pi {{ sortIcon('name') }}" aria-hidden="true"></i>
+          </button>
+        </th>
+        <th scope="col" [attr.aria-sort]="ariaSort('brand')">
+          <button
+            type="button"
+            class="product-table__sort"
+            aria-label="Ordina per brand"
+            (click)="sortChange.emit('brand')"
+          >
+            Brand
+            <i class="pi {{ sortIcon('brand') }}" aria-hidden="true"></i>
+          </button>
+        </th>
+        <th scope="col" [attr.aria-sort]="ariaSort('category')">
+          <button
+            type="button"
+            class="product-table__sort"
+            aria-label="Ordina per categoria"
+            (click)="sortChange.emit('category')"
+          >
+            Categoria
+            <i class="pi {{ sortIcon('category') }}" aria-hidden="true"></i>
+          </button>
+        </th>
+        <th scope="col" [attr.aria-sort]="ariaSort('season')">
+          <button
+            type="button"
+            class="product-table__sort"
+            aria-label="Ordina per stagione"
+            (click)="sortChange.emit('season')"
+          >
+            Stagione
+            <i class="pi {{ sortIcon('season') }}" aria-hidden="true"></i>
+          </button>
+        </th>
+        <th scope="col" class="product-table__cell--numeric">Varianti</th>
+        <th scope="col" class="product-table__cell--status" [attr.aria-sort]="ariaSort('status')">
+          <button
+            type="button"
+            class="product-table__sort"
+            aria-label="Ordina per stato"
+            (click)="sortChange.emit('status')"
+          >
+            Stato
+            <i class="pi {{ sortIcon('status') }}" aria-hidden="true"></i>
+          </button>
+        </th>
       </tr>
-    }
-  </tbody>
-</table>
+    </thead>
+
+    <tbody>
+      @for (product of products(); track product.id) {
+        <tr
+          class="product-table__row"
+          tabindex="0"
+          [attr.aria-label]="rowLabel(product)"
+          (click)="rowClick.emit(product)"
+          (keydown.enter)="rowClick.emit(product)"
+          (keydown.space)="$event.preventDefault(); rowClick.emit(product)"
+        >
+          <td class="product-table__name" data-label="Nome">{{ product.name }}</td>
+          <td class="product-table__brand" data-label="Brand">{{ product.brand ?? '—' }}</td>
+          <td class="product-table__category" data-label="Categoria">
+            {{ product.category ?? '—' }}
+          </td>
+          <td class="product-table__season" data-label="Stagione">{{ product.season ?? '—' }}</td>
+          <td class="product-table__cell--numeric tabular-nums" data-label="Varianti">
+            {{ variantCount(product) }}
+          </td>
+          <td class="product-table__cell--status" data-label="Stato">
+            <span class="product-table__status-value">
+              <app-badge [tone]="statusTone(product.status)">{{
+                statusLabel(product.status)
+              }}</app-badge>
+            </span>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

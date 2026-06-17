@@ -1,22 +1,27 @@
+@use 'breakpoints' as bp;
+
 :host {
   display: inline-flex;
   position: relative;
-  max-inline-size: 100%;
+  inline-size: var(--select-menu-width);
+  max-inline-size: min(var(--select-menu-width), 100%);
+  vertical-align: top;
 }
 
 :host(.select-menu-host--full) {
   display: block;
-  inline-size: 100%;
-}
+  inline-size: var(--select-menu-width);
+  max-inline-size: min(var(--select-menu-width), 100%);
 
-:host(.select-menu-host--full) .select-menu {
-  inline-size: 100%;
-  max-inline-size: 100%;
+  @include bp.media-down('md') {
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
 }
 
 .select-menu {
   position: relative;
-  inline-size: auto;
+  inline-size: 100%;
   max-inline-size: 100%;
 }
 
@@ -26,7 +31,7 @@
   gap: var(--space-2);
   min-block-size: var(--btn-min-height);
   padding-inline: var(--space-3);
-  inline-size: auto;
+  inline-size: 100%;
   max-inline-size: 100%;
   color: var(--color-text);
   font-size: var(--text-sm);
@@ -63,8 +68,6 @@
   min-block-size: var(--field-height);
   gap: var(--space-1);
   padding-inline: var(--space-2);
-  inline-size: 100%;
-  max-inline-size: 100%;
 }
 
 .select-menu--compact .select-menu__trigger {
@@ -89,7 +92,7 @@
 }
 
 .select-menu__trigger-label {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -107,20 +110,14 @@
   transform: rotate(180deg);
 }
 
-:host(.select-menu-host--full) .select-menu__panel {
-  inline-size: 100%;
-  min-inline-size: 100%;
-  max-inline-size: 100%;
-}
-
 .select-menu__panel {
   position: absolute;
   inset-block-start: calc(100% + var(--space-1));
   inset-inline-start: 0;
   inset-inline-end: auto;
-  inline-size: max-content;
+  inline-size: 100%;
   min-inline-size: 100%;
-  max-inline-size: min(var(--select-menu-panel-max), calc(100vw - var(--space-8)));
+  max-inline-size: 100%;
   z-index: var(--z-dropdown);
   margin: 0;
   padding: var(--space-1);
@@ -153,13 +150,14 @@
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  white-space: nowrap;
   transition: background-color var(--transition-fast) var(--ease-standard);
 }
 
 .select-menu__option-label {
   flex: 1 1 auto;
   min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

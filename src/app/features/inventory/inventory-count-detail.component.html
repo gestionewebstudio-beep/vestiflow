@@ -83,6 +83,63 @@
         icon="pi-box"
       />
     } @else {
+      @if (canEdit()) {
+        <section class="count-detail__scan" aria-labelledby="count-scan-title">
+          <h2 id="count-scan-title" class="count-detail__scan-title">Conteggio rapido</h2>
+          <p class="count-detail__scan-intro">
+            Scansiona il barcode o inserisci SKU/barcode manualmente. Ogni lettura aggiunge
+            <strong>+1</strong> alla quantità contata.
+          </p>
+
+          <form
+            class="count-detail__scan-form"
+            [formGroup]="scanForm"
+            (ngSubmit)="submitScanCode()"
+          >
+            @if (barcodeScannerEnabled) {
+              <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+            }
+
+            <div class="count-detail__scan-manual">
+              <label class="count-detail__scan-field" for="count-scan-code">
+                <span class="count-detail__scan-label">SKU o barcode</span>
+                <input
+                  id="count-scan-code"
+                  class="count-detail__input count-detail__scan-input"
+                  type="search"
+                  formControlName="code"
+                  autocomplete="off"
+                  spellcheck="false"
+                  enterkeyhint="done"
+                  placeholder="Es. DEMO-TSH-WHT-S"
+                  [attr.aria-invalid]="
+                    scanForm.controls.code.invalid && scanForm.controls.code.touched
+                  "
+                />
+              </label>
+              <app-button type="submit" [disabled]="scanPending() || scanForm.invalid">
+                @if (scanPending()) {
+                  Ricerca…
+                } @else {
+                  +1 conta
+                }
+              </app-button>
+            </div>
+          </form>
+
+          @if (scanFeedback(); as feedback) {
+            <p
+              class="count-detail__scan-feedback"
+              [class.count-detail__scan-feedback--error]="feedback.tone === 'error'"
+              [class.count-detail__scan-feedback--success]="feedback.tone === 'success'"
+              role="status"
+            >
+              {{ feedback.message }}
+            </p>
+          }
+        </section>
+      }
+
       <div class="count-detail__toolbar">
         <div class="count-detail__search">
           <i class="pi pi-search count-detail__search-icon" aria-hidden="true"></i>
@@ -138,8 +195,10 @@
           <tbody>
             @for (line of filteredLines(); track line.id) {
               <tr
+                [id]="'count-line-' + line.id"
                 class="count-detail__row"
                 [class.count-detail__row--delta]="lineDelta(line) !== null && lineDelta(line) !== 0"
+                [class.count-detail__row--highlight]="highlightedLineId() === line.id"
               >
                 <td data-label="Prodotto">{{ line.productName }}</td>
                 <td data-label="SKU">{{ line.sku }}</td>

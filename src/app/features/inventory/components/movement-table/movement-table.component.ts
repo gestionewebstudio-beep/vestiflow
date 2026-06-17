@@ -2,7 +2,11 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 
-import { movementTypeLabel, movementTypeTone } from '../../models/inventory-labels.util';
+import {
+  movementActorLabel,
+  movementTypeLabel,
+  movementTypeTone,
+} from '../../models/inventory-labels.util';
 import type { StockMovementRow } from '../../models/inventory-view.model';
 
 /**
@@ -21,4 +25,5 @@ export class MovementTableComponent {
 
   protected readonly typeLabel = movementTypeLabel;
   protected readonly typeTone = movementTypeTone;
+  protected readonly actorLabel = movementActorLabel;
 }

@@ -48,8 +48,7 @@
 .app-topbar__store {
   min-inline-size: 0;
   margin-inline-start: auto;
-  max-inline-size: min(20rem, 55vw);
-  inline-size: max-content;
+  flex-shrink: 1;
 }
 
 .app-topbar__actions {
@@ -200,10 +199,6 @@
     display: inline;
   }
 
-  .app-topbar__store {
-    max-inline-size: min(20rem, 40vw);
-  }
-
   .app-topbar__actions {
     gap: var(--space-2);
   }
@@ -219,9 +214,5 @@
 @include bp.media-up('lg') {
   .app-topbar__menu {
     display: none;
-  }
-
-  .app-topbar__store {
-    max-inline-size: min(20rem, 30vw);
   }
 }

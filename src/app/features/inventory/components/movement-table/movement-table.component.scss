@@ -5,6 +5,11 @@
 @include rt.data-table-desktop('movement-table');
 @include rt.data-table-mobile-cards('movement-table');
 
+.movement-table-scroll {
+  overflow-x: auto;
+  inline-size: 100%;
+}
+
 .movement-table__head th {
   position: sticky;
   inset-block-start: 0;
@@ -19,14 +24,51 @@
 
 .movement-table__date {
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .movement-table__sku {
   color: var(--color-text-muted);
 }
 
-.movement-table__reason {
-  overflow-wrap: anywhere;
+@include bp.media-up('lg') {
+  .movement-table {
+    table-layout: fixed;
+  }
+
+  .movement-table__col--date {
+    inline-size: 15%;
+  }
+
+  .movement-table__col--type {
+    inline-size: 9%;
+  }
+
+  .movement-table__col--sku {
+    inline-size: 18%;
+  }
+
+  .movement-table__col--qty {
+    inline-size: 8%;
+  }
+
+  .movement-table__col--location {
+    inline-size: 14%;
+  }
+
+  .movement-table__col--reason {
+    inline-size: 20%;
+  }
+
+  .movement-table__col--actor {
+    inline-size: 16%;
+  }
+
+  .movement-table__sku {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 @include bp.media-down('lg') {

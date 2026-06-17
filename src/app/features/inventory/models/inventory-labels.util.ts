@@ -50,3 +50,17 @@ export function movementTypeLabel(type: StockMovementType): string {
 export function movementTypeTone(type: StockMovementType): BadgeTone {
   return MOVEMENT_TYPE_TONES[type];
 }
+
+/** Snapshot audit `createdByName` → etichetta comprensibile in UI. */
+const MOVEMENT_ACTOR_LABELS: Readonly<Record<string, string>> = {
+  API: 'Automatico',
+  Shopify: 'Shopify',
+};
+
+export function movementActorLabel(createdByName: string): string {
+  const trimmed = createdByName.trim();
+  if (!trimmed) {
+    return '—';
+  }
+  return MOVEMENT_ACTOR_LABELS[trimmed] ?? trimmed;
+}

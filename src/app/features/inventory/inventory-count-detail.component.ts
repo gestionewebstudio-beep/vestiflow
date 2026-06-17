@@ -3,19 +3,24 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { InventoryCountStatus } from '@core/models/inventory-count.model';
 import type { InventoryCountLine, InventoryCountSession } from '@core/models/inventory-count.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { formatDateTime } from '@core/utils/date.util';
+import { ProductService } from '@features/products/services/product.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
+import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -35,12 +40,19 @@ type DetailState =
 
 type LineFilter = 'all' | 'pending' | 'delta';
 
+interface ScanFeedback {
+  readonly tone: 'success' | 'error';
+  readonly message: string;
+}
+
 /** Dettaglio sessione inventario: conteggio, revisione e chiusura. */
 @Component({
   selector: 'app-inventory-count-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ReactiveFormsModule,
     BadgeComponent,
+    BarcodeScannerComponent,
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -53,7 +65,14 @@ export class InventoryCountDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly inventoryService = inject(InventoryService);
+  private readonly productService = inject(ProductService);
+  private readonly config = inject(APP_CONFIG);
+  private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+
+  private highlightTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
 
   protected readonly InventoryCountStatus = InventoryCountStatus;
   protected readonly formatDate = formatDateTime;
@@ -67,6 +86,15 @@ export class InventoryCountDetailComponent {
   protected readonly actionPending = signal(false);
   protected readonly actionError = signal<AppError | null>(null);
   protected readonly savingLineId = signal<string | null>(null);
+  protected readonly scanPending = signal(false);
+  protected readonly scanFeedback = signal<ScanFeedback | null>(null);
+  protected readonly highlightedLineId = signal<string | null>(null);
+
+  protected readonly scanForm = this.fb.group({
+    code: this.fb.control('', { validators: [Validators.required, Validators.maxLength(100)] }),
+  });
+
+  protected readonly session = signal<InventoryCountSession | null>(null);
 
   private readonly sessionId = toSignal(
     this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
@@ -113,14 +141,29 @@ export class InventoryCountDetailComponent {
     { initialValue: { status: 'loading' } satisfies DetailState },
   );
 
-  protected readonly loading = computed(() => this.detailState().status === 'loading');
+  constructor() {
+    effect(() => {
+      const state = this.detailState();
+      if (state.status === 'success') {
+        this.session.set(state.session);
+      } else if (state.status === 'error') {
+        this.session.set(null);
+      }
+    });
+
+    this.destroyRef.onDestroy(() => {
+      if (this.highlightTimeout) {
+        clearTimeout(this.highlightTimeout);
+      }
+    });
+  }
+
+  protected readonly loading = computed(
+    () => this.detailState().status === 'loading' && this.session() === null,
+  );
   protected readonly error = computed((): AppError | null => {
     const state = this.detailState();
     return state.status === 'error' ? state.error : null;
-  });
-  protected readonly session = computed((): InventoryCountSession | null => {
-    const state = this.detailState();
-    return state.status === 'success' ? state.session : null;
   });
 
   protected readonly lines = computed(() => this.session()?.lines ?? []);
@@ -184,6 +227,66 @@ export class InventoryCountDetailComponent {
     this.lineFilter.set(filter);
   }
 
+  protected onScanned(code: string): void {
+    this.scanForm.controls.code.setValue(code);
+    this.applyScanCode(code);
+  }
+
+  protected submitScanCode(): void {
+    if (this.scanForm.invalid) {
+      this.scanForm.markAllAsTouched();
+      return;
+    }
+    this.applyScanCode(this.scanForm.controls.code.value);
+  }
+
+  protected applyScanCode(rawCode: string): void {
+    if (!this.canEdit() || this.scanPending()) {
+      return;
+    }
+
+    const code = rawCode.trim();
+    if (!code) {
+      return;
+    }
+
+    const localLine = this.findLineBySku(code);
+    if (localLine) {
+      this.incrementLineCount(localLine);
+      return;
+    }
+
+    this.scanPending.set(true);
+    this.scanFeedback.set(null);
+    this.productService
+      .findVariantByCode(code)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (variant) => {
+          this.scanPending.set(false);
+          const line = this.lines().find((entry) => entry.variantId === variant.variantId);
+          if (!line) {
+            this.scanFeedback.set({
+              tone: 'error',
+              message: `${variant.productName} non è in questa sessione di inventario.`,
+            });
+            return;
+          }
+          this.incrementLineCount(line);
+        },
+        error: (err: unknown) => {
+          this.scanPending.set(false);
+          this.scanFeedback.set({
+            tone: 'error',
+            message:
+              isAppError(err) && err.kind === AppErrorKind.NotFound
+                ? 'Nessuna variante trovata per questo SKU o barcode.'
+                : 'Ricerca variante non riuscita. Riprova.',
+          });
+        },
+      });
+  }
+
   protected onCountedBlur(line: InventoryCountLine, event: Event): void {
     if (!this.canEdit()) {
       return;
@@ -223,6 +326,39 @@ export class InventoryCountDetailComponent {
     this.runAction(() => this.inventoryService.cancelInventoryCount(session.id));
   }
 
+  private incrementLineCount(line: InventoryCountLine): void {
+    const nextCount = (line.countedQuantity ?? 0) + 1;
+    this.scanFeedback.set({
+      tone: 'success',
+      message: `${line.productName} (${line.sku}): contato ${nextCount}`,
+    });
+    this.highlightLine(line.id);
+    this.saveLineCount(line, nextCount);
+  }
+
+  private findLineBySku(code: string): InventoryCountLine | undefined {
+    const normalized = code.toLowerCase();
+    return this.lines().find((line) => line.sku.toLowerCase() === normalized);
+  }
+
+  private highlightLine(lineId: string): void {
+    if (this.highlightTimeout) {
+      clearTimeout(this.highlightTimeout);
+    }
+    this.highlightedLineId.set(lineId);
+    queueMicrotask(() => {
+      document.getElementById(`count-line-${lineId}`)?.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth',
+      });
+    });
+    this.highlightTimeout = setTimeout(() => {
+      if (this.highlightedLineId() === lineId) {
+        this.highlightedLineId.set(null);
+      }
+    }, 2500);
+  }
+
   private saveLineCount(line: InventoryCountLine, countedQuantity: number): void {
     const session = this.session();
     if (!session) {
@@ -235,7 +371,7 @@ export class InventoryCountDetailComponent {
       .subscribe({
         next: () => {
           this.savingLineId.set(null);
-          this.reload();
+          this.patchSessionLine(line.id, countedQuantity);
         },
         error: () => {
           this.savingLineId.set(null);
@@ -245,6 +381,28 @@ export class InventoryCountDetailComponent {
           });
         },
       });
+  }
+
+  private patchSessionLine(lineId: string, countedQuantity: number): void {
+    this.session.update((current) => {
+      if (!current?.lines) {
+        return current;
+      }
+
+      const lines = current.lines.map((entry) =>
+        entry.id === lineId ? { ...entry, countedQuantity } : entry,
+      );
+
+      return {
+        ...current,
+        lines,
+        linesCounted: lines.filter((entry) => entry.countedQuantity !== null).length,
+        linesWithDelta: lines.filter(
+          (entry) =>
+            entry.countedQuantity !== null && entry.countedQuantity !== entry.systemQuantity,
+        ).length,
+      };
+    });
   }
 
   private runAction(action: () => ReturnType<InventoryService['submitInventoryCount']>): void {

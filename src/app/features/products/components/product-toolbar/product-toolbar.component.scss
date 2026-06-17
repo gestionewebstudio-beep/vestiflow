@@ -29,9 +29,9 @@
   }
 
   .product-toolbar__field {
-    flex: 1 1 11rem;
-    min-inline-size: 11rem;
-    max-inline-size: 15rem;
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    max-inline-size: none;
   }
 }
 
@@ -88,10 +88,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  min-inline-size: 11rem;
+  align-items: flex-start;
+  min-inline-size: 0;
 
   @include bp.media-down('md') {
-    min-inline-size: 0;
+    align-items: stretch;
     inline-size: 100%;
   }
 }

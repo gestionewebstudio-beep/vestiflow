@@ -120,7 +120,11 @@ export class InventoryService {
    * transazione: o si scrivono movimento + giacenze, o niente
    * (regole-gestionale: mai stock aggiornato senza traccia).
    */
-  async registerMovement(tenantId: string, dto: RegisterMovementDto): Promise<StockMovement> {
+  async registerMovement(
+    tenantId: string,
+    dto: RegisterMovementDto,
+    actorDisplayName: string,
+  ): Promise<StockMovement> {
     this.assertMovementShape(dto);
 
     const movement = await this.prisma.$transaction(async (tx) => {
@@ -154,9 +158,7 @@ export class InventoryService {
           quantity: dto.quantity,
           direction: dto.type === StockMovementType.adjustment ? dto.direction : null,
           reason: dto.reason,
-          // TODO(auth): con Supabase Auth qui andranno id e nome dell'utente
-          // autenticato. Finché non c'è, l'operatore è l'API stessa.
-          createdByName: 'API',
+          createdByName: actorDisplayName.trim() || 'Utente',
         },
       });
     });
