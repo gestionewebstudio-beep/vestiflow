@@ -16,6 +16,9 @@
     "lint": "ng lint",
     "lint:fix": "ng lint --fix",
     "check:rls": "node scripts/check-rls.mjs",
+    "docs:guide": "node scripts/generate-guide-html.mjs",
+    "docs:guide:pdf": "node scripts/generate-guide-pdf.mjs",
+    "docs:guide:all": "npm run docs:guide && npm run docs:guide:pdf",
     "prepare": "husky"
   },
   "private": true,
@@ -57,6 +60,7 @@
     "husky": "^9.1.7",
     "jsdom": "^28.0.0",
     "lint-staged": "^16.4.0",
+    "marked": "^15.0.12",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.60.1",

@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
+import { InlineSpinnerComponent } from '../inline-spinner/inline-spinner.component';
+
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonType = 'button' | 'submit';
 
@@ -10,6 +12,7 @@ type ButtonType = 'button' | 'submit';
 @Component({
   selector: 'app-button',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [InlineSpinnerComponent],
   templateUrl: './button.component.html',
   styleUrl: './button.component.scss',
 })

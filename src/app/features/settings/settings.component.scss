@@ -312,6 +312,19 @@
   color: var(--color-text-muted);
 }
 
+.settings__action-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  background-color: var(--color-surface-raised, var(--color-surface));
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
 .settings__shopify-actions {
   display: flex;
   flex-wrap: wrap;

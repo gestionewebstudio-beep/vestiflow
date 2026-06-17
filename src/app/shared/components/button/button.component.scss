@@ -74,3 +74,7 @@
 .app-button--ghost:hover:not(:disabled) {
   background-color: var(--color-surface-hover);
 }
+
+.app-button--loading {
+  cursor: wait;
+}

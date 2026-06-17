@@ -146,7 +146,7 @@
   <body>
     <h1>VestiFlow — Guida completa al gestionale</h1>
     <p>
-      <strong>Versione documento:</strong> 1.1 — Giugno 2026<br /><strong>Destinatari:</strong>
+      <strong>Versione documento:</strong> 1.2 — Giugno 2026<br /><strong>Destinatari:</strong>
       titolari di negozio, responsabili magazzino, amministratori<br /><strong>Prodotto:</strong>
       VestiFlow — gestionale web multi-negozio per boutique di abbigliamento, integrato con Shopify
     </p>
@@ -160,7 +160,17 @@
       <li>
         <a href="#5-configurazione-iniziale-del-negozio">Configurazione iniziale del negozio</a>
       </li>
-      <li><a href="#6-collegamento-con-shopify">Collegamento con Shopify</a></li>
+      <li>
+        <a href="#6-collegamento-con-shopify">Collegamento con Shopify</a>
+        <ul>
+          <li>
+            <a href="#schermata-integrazione-shopify-dopo-il-collegamento"
+              >Schermata Integrazione Shopify</a
+            >
+          </li>
+          <li><a href="#limiti-delle-chiamate-api-shopify">Limiti chiamate API Shopify</a></li>
+        </ul>
+      </li>
       <li>
         <a href="#7-sincronizzazione-dati-cosa-va-dove">Sincronizzazione dati: cosa va dove</a>
       </li>
@@ -627,10 +637,343 @@
       Scarica <strong>tutti i prodotti</strong> già presenti su Shopify nel gestionale.<br />Utile
       al primo collegamento o per un allineamento manuale completo.
     </p>
+    <blockquote>
+      <p>
+        <strong>Tempo di attesa:</strong> con cataloghi grandi l&#39;import può richiedere
+        <strong>diversi minuti</strong>. Resta sulla pagina finché compare il messaggio di esito
+        (vedi <a href="#indicatori-di-avanzamento-loader">Indicatori di avanzamento</a>). Non
+        premere più volte il pulsante.
+      </p>
+    </blockquote>
+    <h3>Schermata «Integrazione Shopify» (dopo il collegamento)</h3>
+    <p>Quando il negozio è <strong>Connesso</strong>, la sezione mostra:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Elemento</th>
+          <th>Significato</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Badge Connesso</strong></td>
+          <td>OAuth attivo; il server può chiamare Shopify per conto tuo</td>
+        </tr>
+        <tr>
+          <td><strong>Dominio shop</strong></td>
+          <td>Negozio collegato (es. <code>mio-negozio.myshopify.com</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Nome shop / Versione API</strong></td>
+          <td>Dati letti da Shopify al momento della connessione</td>
+        </tr>
+        <tr>
+          <td><strong>Ultima connessione</strong></td>
+          <td>Quando hai autorizzato l&#39;app l&#39;ultima volta</td>
+        </tr>
+        <tr>
+          <td><strong>Ultimo sync</strong></td>
+          <td>Ultimo evento di sync riuscito (webhook o operazione manuale)</td>
+        </tr>
+        <tr>
+          <td><strong>Location collegate</strong></td>
+          <td>Quante sedi VestiFlow sono mappate su Shopify (Attivo / Da fare)</td>
+        </tr>
+        <tr>
+          <td><strong>Aggiornamenti automatici</strong></td>
+          <td>
+            Webhook attivi per ordini, clienti, prodotti, giacenze (Attivo / Parziale / Da fare)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <h3>Accesso a Shopify — «Lettura» e «Scrittura»</h3>
+    <p>
+      Sotto <strong>Accesso a Shopify</strong> ogni riga corrisponde a
+      <strong>un permesso OAuth</strong> concesso al collegamento, non a un modulo generico
+      dell&#39;app.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Voce in elenco</th>
+          <th>Badge tipico</th>
+          <th>Significato operativo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Clienti ecommerce</strong></td>
+          <td>Lettura</td>
+          <td>VestiFlow importa l&#39;anagrafica da Shopify; non modifica i clienti lì</td>
+        </tr>
+        <tr>
+          <td><strong>Ordini online</strong></td>
+          <td>Lettura</td>
+          <td>Riceve vendite e aggiornamenti ordini via webhook</td>
+        </tr>
+        <tr>
+          <td><strong>Location</strong></td>
+          <td>Lettura</td>
+          <td>Importa e aggiorna le sedi da Shopify</td>
+        </tr>
+        <tr>
+          <td><strong>Giacenze</strong> (riga «Legge quantità…»)</td>
+          <td>Lettura</td>
+          <td>Legge stock per location da Shopify</td>
+        </tr>
+        <tr>
+          <td><strong>Giacenze</strong> (riga «Aggiorna quantità…»)</td>
+          <td>Scrittura</td>
+          <td>Invia carichi, rettifiche e allineamenti verso Shopify</td>
+        </tr>
+        <tr>
+          <td><strong>Catalogo prodotti</strong> (riga «Legge prodotti…»)</td>
+          <td>Lettura</td>
+          <td><strong>Obbligatorio per import catalogo</strong> — legge prodotti e varianti</td>
+        </tr>
+        <tr>
+          <td><strong>Catalogo prodotti</strong> (riga «Pubblica e aggiorna…»)</td>
+          <td>Scrittura</td>
+          <td>Invia prodotti creati o modificati in VestiFlow verso Shopify</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      È <strong>normale e corretto</strong> che alcune aree abbiano
+      <strong>solo Lettura</strong> (clienti, ordini, location) e che <strong>Giacenze</strong> e
+      <strong>Catalogo prodotti</strong> compaiano <strong>due volte</strong> (Lettura +
+      Scrittura).<br />Se manca la riga <strong>Catalogo prodotti → Lettura</strong>, l&#39;import
+      catalogo è bloccato: vedi
+      <a href="#permessi-mancanti-read_products">Permessi mancanti (read_products)</a>.
+    </p>
+    <h3>Pulsanti di sincronizzazione</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Pulsante</th>
+          <th>Cosa fa</th>
+          <th>Quando usarlo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Sincronizza location</strong></td>
+          <td>Importa/collega le sedi da Shopify</td>
+          <td>Primo setup, nuova sede su Shopify Admin</td>
+        </tr>
+        <tr>
+          <td><strong>Attiva aggiornamenti automatici</strong></td>
+          <td>Registra i webhook su Shopify</td>
+          <td>Dopo connessione o cambio permessi app</td>
+        </tr>
+        <tr>
+          <td><strong>Disattiva aggiornamenti automatici</strong></td>
+          <td>Rimuove i webhook; VestiFlow ignora nuovi eventi</td>
+          <td>Manutenzione, debug, negozio in pausa</td>
+        </tr>
+        <tr>
+          <td><strong>Importa catalogo da Shopify</strong></td>
+          <td>Scarica tutti i prodotti nello shop collegato</td>
+          <td>Primo setup, allineamento totale, prodotti nati solo su Shopify</td>
+        </tr>
+        <tr>
+          <td><strong>Ripristina connessione</strong></td>
+          <td>Azzera errori di sync locali se OAuth è ancora valido</td>
+          <td>Badge errore o messaggi stale ma negozio funzionante</td>
+        </tr>
+        <tr>
+          <td><strong>Disconnetti Shopify</strong></td>
+          <td>Revoca il token OAuth e rimuove il collegamento</td>
+          <td>Cambio shop, reset permessi, disinstallazione</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Solo <strong>titolare</strong> e <strong>amministratore</strong> vedono questi pulsanti.</p>
+    <h3>Indicatori di avanzamento (loader)</h3>
+    <p>
+      Quando premi un pulsante di sync (location, catalogo, webhook, disconnessione, ripristino):
+    </p>
+    <ol>
+      <li>
+        Il <strong>pulsante premuto</strong> mostra un <strong>spinner</strong> e si disabilita
+        finché l&#39;operazione non termina.
+      </li>
+      <li>
+        Sopra i pulsanti compare un <strong>riquadro con messaggio</strong> (es. «Import catalogo da
+        Shopify in corso…»).
+      </li>
+      <li>
+        Al termine il riquadro scompare e compare un <strong>messaggio di esito</strong> verde (ok)
+        o giallo (parziale/attenzione), che puoi chiudere.
+      </li>
+    </ol>
+    <p><strong>Cosa fare durante l&#39;attesa</strong></p>
+    <ul>
+      <li>Resta sulla pagina Impostazioni (o almeno non chiudere il browser).</li>
+      <li>
+        <strong>Non cliccare di nuovo</strong> lo stesso pulsante: le richieste duplicate non
+        accelerano l&#39;operazione e possono peggiorare i tempi (vedi limiti API sotto).
+      </li>
+      <li>
+        Per l&#39;<strong>import catalogo</strong>, cataloghi con centinaia di prodotti possono
+        richiedere <strong>5–15 minuti</strong> o più: è atteso.
+      </li>
+    </ul>
+    <p>
+      Dopo un import catalogo riuscito, la <strong>lista Prodotti</strong> si aggiorna
+      automaticamente quando torni su quella sezione (senza refresh manuale della pagina).
+    </p>
+    <h3>Ripristina connessione</h3>
+    <p>
+      Compare se la connessione segnala <strong>Errore</strong> o un
+      <strong>messaggio di avviso</strong> persistente, ma il negozio Shopify è ancora
+      raggiungibile.
+    </p>
+    <ul>
+      <li><strong>Non</strong> rifà l&#39;OAuth: non serve reinserire il dominio.</li>
+      <li>
+        Azzera stati di errore locali su prodotti/location e ripristina lo stato
+        <strong>Connesso</strong> se le credenziali sul server sono ancora valide.
+      </li>
+      <li>Utile dopo un webhook fallito temporaneamente o un deploy dell&#39;API.</li>
+    </ul>
+    <p>
+      Se il problema è sui <strong>permessi OAuth</strong> (manca <code>read_products</code>), serve
+      invece <strong>disinstallare l&#39;app</strong> dall&#39;admin Shopify,
+      <strong>disconnettere</strong> e <strong>riconnettere</strong> — non basta «Ripristina
+      connessione».
+    </p>
+    <h3>Disattiva aggiornamenti automatici</h3>
+    <p>
+      Disattivare i webhook <strong>non</strong> cancella i dati già importati. Da quel momento:
+    </p>
+    <ul>
+      <li>
+        VestiFlow <strong>non</strong> riceve più ordini, clienti, prodotti e giacenze in tempo
+        reale.
+      </li>
+      <li>
+        Puoi ancora usare <strong>Importa catalogo</strong> e
+        <strong>Sincronizza location</strong> manualmente.
+      </li>
+      <li>
+        I prodotti modificati su Shopify mentre i webhook erano spenti
+        <strong>non</strong> compaiono da soli: serve un nuovo import o riattivare gli aggiornamenti
+        automatici.
+      </li>
+    </ul>
+    <h3>Limiti delle chiamate API Shopify</h3>
+    <p>
+      Shopify applica un <strong>limite al numero di richieste</strong> che un&#39;app può fare al
+      minuto/secondo verso ogni negozio (piano <strong>Basic</strong>: circa
+      <strong>2 richieste al secondo</strong> in media, con un «secchio» che si riempie e si
+      svuota).
+    </p>
+    <p>
+      VestiFlow <strong>non</strong> invia chiamate dal browser: tutto passa dal
+      <strong>server</strong> (Railway), che applica automaticamente:
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Comportamento</th>
+          <th>A cosa serve</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Intervallo minimo tra richieste</strong></td>
+          <td>Evita di superare il limite durante sync e import</td>
+        </tr>
+        <tr>
+          <td><strong>Lettura header «secchio pieno»</strong></td>
+          <td>
+            Se Shopify segnala che il limite è quasi esaurito, il server
+            <strong>aspetta</strong> prima di continuare
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Retry automatico su errore 429</strong></td>
+          <td>
+            Se Shopify risponde «troppo veloce», il server riprova con attesa crescente (fino a 5
+            tentativi)
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Un solo import catalogo per negozio alla volta</strong></td>
+          <td>
+            Se l&#39;import è già avviato, una seconda richiesta <strong>si unisce</strong> alla
+            stessa operazione invece di duplicarla
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Import catalogo «leggero»</strong></td>
+          <td>
+            Durante l&#39;import massivo non vengono scaricati subito tutti i metadati extra
+            (collezioni, metafield, costi) per ogni prodotto, per ridurre le chiamate; i dati
+            essenziali (titolo, varianti, SKU, prezzi, tag) restano importati
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>In pratica per chi usa il gestionale</strong></p>
+    <ol>
+      <li>
+        <strong>Un&#39;operazione alla volta</strong> — attendi la fine di «Importa catalogo» prima
+        di lanciare altre sync pesanti sullo stesso negozio.
+      </li>
+      <li>
+        <strong>Messaggio «Shopify ha limitato temporaneamente le richieste»</strong> — attendi 1–2
+        minuti e riprova; non spamare il pulsante.
+      </li>
+      <li>
+        <strong>Catalogo grande = tempi lunghi</strong> — non è un blocco: il loader e il banner
+        indicano che il lavoro è in corso.
+      </li>
+      <li>
+        <strong>Più utenti sullo stesso tenant</strong> — condividono lo stesso limite verso
+        Shopify; evitare import simultanei da più postazioni.
+      </li>
+    </ol>
+    <p>
+      I dettagli tecnici (variabili server) sono in
+      <a href="#rate-limiting-shopify-lato-server">§16 — Rate limiting Shopify</a>.
+    </p>
+    <h3>Permessi mancanti (read_products)</h3>
+    <p>
+      Se compare un avviso che <strong>manca <code>read_products</code></strong> (o l&#39;import
+      catalogo è bloccato):
+    </p>
+    <ol>
+      <li>
+        In <strong>Dev Dashboard Shopify</strong> (app VestiFlow) verifica che la
+        <strong>versione attiva</strong> includa <code>read_products</code> e
+        <code>read_inventory</code>, non solo <code>write_*</code>.
+      </li>
+      <li>
+        Su <strong>Railway</strong>, <code>SHOPIFY_API_KEY</code> deve coincidere
+        <strong>carattere per carattere</strong> con il Client ID dell&#39;app.
+      </li>
+      <li>
+        <strong>Disinstalla</strong> VestiFlow dall&#39;admin del negozio (Impostazioni → App).
+      </li>
+      <li>In VestiFlow: <strong>Disconnetti</strong>, poi <strong>Connetti</strong> di nuovo.</li>
+      <li>
+        Controlla che in <strong>Accesso a Shopify</strong> compaia
+        <strong>Catalogo prodotti → Lettura</strong>.
+      </li>
+    </ol>
+    <p>
+      La schermata mostra anche <strong>Ambiti richiesti dal server</strong> vs
+      <strong>Ambiti concessi dal negozio</strong> per capire se il problema è configurazione server
+      o autorizzazione Shopify.
+    </p>
     <h3>Disconnessione</h3>
     <p>
-      In Impostazioni puoi <strong>Disconnetti Shopify</strong>. I dati già importati restano in
-      VestiFlow; la sync si interrompe fino a una nuova connessione.
+      In Impostazioni puoi <strong>Disconnetti Shopify</strong>. Il server
+      <strong>revoca</strong> il token su Shopify (non basta rimuovere i dati locali). I dati già
+      importati restano in VestiFlow; la sync si interrompe fino a una nuova connessione OAuth.
     </p>
     <hr />
     <h2>7. Sincronizzazione dati: cosa va dove</h2>
@@ -712,6 +1055,16 @@
           <td><strong>Importa catalogo da Shopify</strong></td>
           <td>Impostazioni</td>
           <td>Primo setup, allineamento totale</td>
+        </tr>
+        <tr>
+          <td><strong>Disattiva aggiornamenti automatici</strong></td>
+          <td>Impostazioni</td>
+          <td>Pausa sync realtime, manutenzione</td>
+        </tr>
+        <tr>
+          <td><strong>Ripristina connessione</strong></td>
+          <td>Impostazioni</td>
+          <td>Errore stale con OAuth ancora valido</td>
         </tr>
         <tr>
           <td><strong>Sincronizza location</strong></td>
@@ -1135,6 +1488,72 @@ Consultabile in Vendite e Magazzino
       <strong><code>product-media</code></strong
       >. Configurazione una tantum a cura dell&#39;operatore VestiFlow.
     </p>
+    <h3>Rate limiting Shopify (lato server)</h3>
+    <p>
+      Il backend VestiFlow regola tutte le chiamate <strong>REST Admin API</strong> verso ogni shop.
+      Il frontend <strong>non</strong> contatta mai Shopify direttamente.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Variabile (Railway / <code>api/.env</code>)</th>
+          <th>Default</th>
+          <th>Effetto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>SHOPIFY_API_MIN_INTERVAL_MS</code></td>
+          <td><code>550</code></td>
+          <td>
+            Pausa minima tra due richieste consecutive (~1,8 req/s, sotto il limite Basic 2/s)
+          </td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_API_MAX_RETRIES</code></td>
+          <td><code>5</code></td>
+          <td>Tentativi su risposta HTTP <strong>429 Too Many Requests</strong></td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_API_BUCKET_HIGH_WATERMARK</code></td>
+          <td><code>0.85</code></td>
+          <td>
+            Se l&#39;header <code>X-Shopify-Shop-Api-Call-Limit</code> indica ≥85% del secchio
+            usato, pausa breve
+          </td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_API_BUCKET_PAUSE_MS</code></td>
+          <td><code>1000</code></td>
+          <td>Durata della pausa quando il secchio è quasi pieno</td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_SCOPES</code></td>
+          <td>vedi <code>.env.example</code></td>
+          <td>Ambiti richiesti in OAuth; devono essere ⊆ versione attiva app Partners</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>Note operative</strong></p>
+    <ul>
+      <li>
+        Il rate limiter è <strong>per processo</strong>: con più repliche Railway ogni istanza ha il
+        proprio contatore (comportamento conservativo).
+      </li>
+      <li>
+        L&#39;<strong>import catalogo</strong> usa enrichment ridotto
+        (<code>skipRemoteMetadata</code>) per limitare le chiamate per prodotto; metadati avanzati
+        possono essere arricchiti in sync successive.
+      </li>
+      <li>
+        In <strong>disconnessione</strong>, VestiFlow <strong>revoca</strong> il token OAuth su
+        Shopify così la riconnessione richiede permessi aggiornati.
+      </li>
+      <li>
+        Dopo OAuth il server legge gli scope effettivi da Shopify (<code>access_scopes</code>) oltre
+        alla risposta token, per diagnostica più accurata in Impostazioni.
+      </li>
+    </ul>
     <hr />
     <h2>17. Domande frequenti e risoluzione problemi</h2>
     <h3>Il prodotto creato in VestiFlow non compare su Shopify</h3>
@@ -1148,9 +1567,38 @@ Consultabile in Vendite e Magazzino
     </ol>
     <h3>Il prodotto su Shopify non compare in VestiFlow</h3>
     <ol>
-      <li><strong>Importa catalogo da Shopify</strong> in Impostazioni</li>
+      <li>
+        <strong>Importa catalogo da Shopify</strong> in Impostazioni (attendi la fine del loader)
+      </li>
       <li>Verifica che <strong>Aggiornamenti automatici</strong> sia attivo (webhook prodotti)</li>
+      <li>
+        Controlla che <strong>Catalogo prodotti → Lettura</strong> sia presente in Accesso a Shopify
+      </li>
     </ol>
+    <h3>L&#39;import catalogo impiega molto tempo o sembra bloccato</h3>
+    <ul>
+      <li>
+        È <strong>normale</strong> con molti prodotti: ogni articolo richiede almeno una chiamata
+        API e il server rispetta i limiti Shopify.
+      </li>
+      <li>
+        Verifica il <strong>banner</strong> «Import catalogo da Shopify in corso…» e lo
+        <strong>spinner</strong> sul pulsante.
+      </li>
+      <li>
+        <strong>Non</strong> premere di nuovo il pulsante finché non compare il messaggio di esito.
+      </li>
+      <li>
+        Se compare «Shopify ha limitato temporaneamente le richieste», attendi 1–2 minuti e riprova
+        una sola volta.
+      </li>
+    </ul>
+    <h3>Messaggio su permessi read_products</h3>
+    <p>
+      Vedi <a href="#permessi-mancanti-read_products">Permessi mancanti (read_products)</a>. Di
+      solito serve riconnessione OAuth dopo aver verificato app Partners e
+      <code>SHOPIFY_API_KEY</code> su Railway.
+    </p>
     <h3>Ho più negozi / sedi: le vedo tutte in VestiFlow?</h3>
     <p>
       <strong>Sì</strong>, se intendi <strong>più location nello stesso shop Shopify</strong> (es.
@@ -1225,6 +1673,18 @@ Consultabile in Vendite e Magazzino
         <tr>
           <td>Scanner barcode su più schermate</td>
           <td>In roadmap</td>
+        </tr>
+        <tr>
+          <td>Messaggi errore Shopify tradotti in italiano</td>
+          <td>Attivo (sync, OAuth, import)</td>
+        </tr>
+        <tr>
+          <td>Loader e feedback operazioni sync in Impostazioni</td>
+          <td>Attivo</td>
+        </tr>
+        <tr>
+          <td>Diagnostica scope OAuth (richiesti vs concessi)</td>
+          <td>Attivo</td>
         </tr>
         <tr>
           <td>Integrazione cassa nativa / fiscale IT</td>

@@ -244,6 +244,13 @@
           </div>
         </div>
 
+        @if (shopifyActionProgress(); as progressMessage) {
+          <div class="settings__action-progress" role="status" aria-live="polite">
+            <app-inline-spinner size="md" />
+            <span>{{ progressMessage }}</span>
+          </div>
+        }
+
         <div class="settings__shopify-actions">
           @if (showClearShopifyErrors()) {
             <app-button

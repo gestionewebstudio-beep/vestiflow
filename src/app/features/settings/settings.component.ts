@@ -26,6 +26,7 @@ import { formatDateTime } from '@core/utils/date.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { InlineSpinnerComponent } from '@shared/components/inline-spinner/inline-spinner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import type { ThemeMode } from '@shared/models/theme.model';
 
@@ -101,6 +102,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     BadgeComponent,
     ButtonComponent,
     ErrorStateComponent,
+    InlineSpinnerComponent,
     ReactiveFormsModule,
     TableSkeletonComponent,
     LocationTableComponent,
@@ -270,6 +272,31 @@ export class SettingsComponent {
       ? 'Disattiva aggiornamenti automatici'
       : 'Attiva aggiornamenti automatici',
   );
+
+  /** Messaggio visibile mentre un'azione Shopify è in corso. */
+  protected readonly shopifyActionProgress = computed((): string | null => {
+    if (this.connectLoading()) {
+      return 'Reindirizzamento a Shopify…';
+    }
+    if (this.disconnectLoading()) {
+      return 'Disconnessione Shopify in corso…';
+    }
+    if (this.syncLocationsLoading()) {
+      return 'Sincronizzazione location in corso…';
+    }
+    if (this.syncWebhooksLoading()) {
+      return this.autoSyncEnabled()
+        ? 'Disattivazione aggiornamenti automatici…'
+        : 'Attivazione aggiornamenti automatici…';
+    }
+    if (this.syncProductsLoading()) {
+      return 'Import catalogo da Shopify in corso…';
+    }
+    if (this.clearErrorsLoading()) {
+      return 'Ripristino connessione in corso…';
+    }
+    return null;
+  });
 
   protected readonly showClearShopifyErrors = computed(() => {
     const conn = this.connection();

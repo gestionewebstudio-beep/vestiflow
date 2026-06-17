@@ -1,0 +1,22 @@
+.app-inline-spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  border: var(--border-width) solid currentColor;
+  border-block-start-color: transparent;
+  border-radius: var(--radius-full);
+  animation: app-inline-spinner-spin var(--transition-slow) linear infinite;
+  opacity: 0.85;
+}
+
+.app-inline-spinner--md {
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+}
+
+@keyframes app-inline-spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
