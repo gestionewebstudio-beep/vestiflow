@@ -48,7 +48,6 @@ import type {
   ShopifyClearErrorsDto,
   ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
-  ShopifySyncProductsDto,
   ShopifySyncWebhooksDto,
 } from '@features/integrations/shopify/models/shopify-sync.dto';
 import { InventoryService } from '@features/inventory/services/inventory.service';
@@ -137,7 +136,6 @@ export class SettingsComponent {
   protected readonly disconnectLoading = signal(false);
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
-  protected readonly syncProductsLoading = signal(false);
   protected readonly clearErrorsLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
   protected readonly actionFeedback = signal<ActionFeedback | null>(null);
@@ -288,9 +286,6 @@ export class SettingsComponent {
       return this.autoSyncEnabled()
         ? 'Disattivazione aggiornamenti automatici…'
         : 'Attivazione aggiornamenti automatici…';
-    }
-    if (this.syncProductsLoading()) {
-      return 'Import catalogo da Shopify in corso…';
     }
     if (this.clearErrorsLoading()) {
       return 'Ripristino connessione in corso…';
@@ -544,30 +539,6 @@ export class SettingsComponent {
       });
   }
 
-  protected syncShopifyProducts(): void {
-    if (this.syncProductsLoading()) {
-      return;
-    }
-
-    this.syncProductsLoading.set(true);
-    this.clearActionFeedback();
-    this.connectError.set(null);
-
-    this.shopifyConnectionService
-      .syncProducts()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          this.syncProductsLoading.set(false);
-          this.showActionFeedback(this.formatProductsFeedback(result));
-        },
-        error: (err: unknown) => {
-          this.syncProductsLoading.set(false);
-          this.connectError.set(this.extractErrorMessage(err));
-        },
-      });
-  }
-
   protected clearShopifyErrors(): void {
     if (this.clearErrorsLoading()) {
       return;
@@ -664,40 +635,6 @@ export class SettingsComponent {
     }
 
     return `${parts.join(', ')} (${result.totalCount} sedi su Shopify).`;
-  }
-
-  private formatProductsFeedback(result: ShopifySyncProductsDto): ActionFeedback {
-    const failedCount = result.failed.length;
-    const changedCount = result.imported + result.updated;
-
-    if (failedCount > 0) {
-      const firstError = result.failed[0]?.message;
-      const errorHint = firstError ? ` Dettaglio: ${firstError}.` : '';
-      return {
-        tone: 'warning',
-        message: `Catalogo importato con ${failedCount} errori: ${result.imported} nuovi, ${result.updated} aggiornati.${errorHint}`,
-      };
-    }
-
-    if (result.remoteProductCount > 0 && changedCount === 0) {
-      return {
-        tone: 'warning',
-        message: `Shopify ha ${result.remoteProductCount} prodotti ma nessuna modifica in VestiFlow. Controlla i filtri in lista prodotti o i log di sync.`,
-      };
-    }
-
-    if (result.remoteProductCount === 0) {
-      return {
-        tone: 'warning',
-        message:
-          'Nessun prodotto trovato su Shopify. Verifica che il prodotto sia salvato nello store collegato.',
-      };
-    }
-
-    return {
-      tone: 'success',
-      message: `Catalogo sincronizzato da Shopify: ${result.imported} nuovi, ${result.updated} aggiornati (${result.remoteProductCount} su Shopify).`,
-    };
   }
 
   private formatClearErrorsFeedback(result: ShopifyClearErrorsDto): ActionFeedback {

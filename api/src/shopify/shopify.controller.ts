@@ -12,6 +12,8 @@ import { ShopifyConfigService } from './shopify-config.service';
 import type { ClearShopifyErrorsResult } from './shopify-connection.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import { ShopifyInventoryPullService } from './shopify-inventory-pull.service';
+import type { ShopifyInventoryPullResult } from './shopify-inventory-pull.service';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 import type { ShopifyCatalogSyncResult } from './shopify-product-pull.service';
 
@@ -23,6 +25,7 @@ export class ShopifyController {
     private readonly shopifyOAuth: ShopifyOAuthService,
     private readonly shopifyConfig: ShopifyConfigService,
     private readonly shopifyProductPull: ShopifyProductPullService,
+    private readonly shopifyInventoryPull: ShopifyInventoryPullService,
   ) {}
 
   @Get('connection')
@@ -87,6 +90,15 @@ export class ShopifyController {
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyCatalogSyncResult> {
     const result = await this.shopifyProductPull.pullCatalog(tenantId);
+    return { synced: true, ...result };
+  }
+
+  @Post('sync/inventory')
+  @Roles(...ADMIN_ROLES)
+  async syncInventory(
+    @CurrentTenant() tenantId: string,
+  ): Promise<{ synced: true } & ShopifyInventoryPullResult> {
+    const result = await this.shopifyInventoryPull.pullInventory(tenantId);
     return { synced: true, ...result };
   }
 

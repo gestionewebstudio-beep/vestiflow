@@ -32,3 +32,14 @@ export interface ShopifySyncProductsDto {
   readonly remoteProductCount: number;
   readonly failed: readonly { readonly shopifyProductId: string; readonly message: string }[];
 }
+
+export interface ShopifySyncInventoryDto {
+  readonly synced: true;
+  readonly imported: number;
+  readonly updated: number;
+  readonly unchanged: number;
+  readonly skipped: number;
+  readonly linkedVariantCount: number;
+  readonly linkedLocationCount: number;
+  readonly remoteLevelCount: number;
+}

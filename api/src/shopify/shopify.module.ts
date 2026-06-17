@@ -5,6 +5,7 @@ import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyController } from './shopify.controller';
 import { ShopifyCryptoService } from './shopify-crypto.service';
+import { ShopifyInventoryPullService } from './shopify-inventory-pull.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyLocationSyncService } from './shopify-location-sync.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
@@ -26,6 +27,7 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
     ShopifyConnectionService,
     ShopifyOAuthService,
     ShopifyLocationSyncService,
+    ShopifyInventoryPullService,
     ShopifyInventoryPushService,
     ShopifyProductPushService,
     ShopifyProductPullService,

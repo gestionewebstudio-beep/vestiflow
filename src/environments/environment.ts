@@ -13,6 +13,6 @@ export const environment: AppConfig = {
   },
   features: {
     barcodeScanner: true,
-    shopify: false,
+    shopify: true,
   },
 };

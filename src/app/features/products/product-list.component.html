@@ -2,6 +2,17 @@
   <header class="product-list__header">
     <h1 class="product-list__title">Prodotti</h1>
     <div class="product-list__actions">
+      @if (showShopifyCatalogImport()) {
+        <app-button
+          variant="secondary"
+          [loading]="shopifyCatalogLoading()"
+          [disabled]="shopifyCatalogLoading()"
+          (click)="importCatalogFromShopify()"
+        >
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          Importa catalogo da Shopify
+        </app-button>
+      }
       <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
         <i class="pi pi-download" aria-hidden="true"></i>
         @if (exporting()) {
@@ -20,6 +31,18 @@
       </app-button>
     </div>
   </header>
+
+  @if (shopifySyncError(); as message) {
+    <p class="product-list__shopify-error" role="alert">{{ message }}</p>
+  }
+
+  @if (shopifyFeedback(); as feedback) {
+    <app-shopify-sync-feedback
+      [message]="feedback.message"
+      [tone]="feedback.tone"
+      (dismissed)="dismissShopifyFeedback()"
+    />
+  }
 
   <app-product-toolbar
     [search]="searchDraft()"

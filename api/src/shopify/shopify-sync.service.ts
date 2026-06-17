@@ -35,7 +35,13 @@ export class ShopifySyncService {
         await this.syncOrder(tenantId, data);
         break;
       case 'inventory_levels/update':
-        await this.syncInventoryLevel(tenantId, data);
+        await this.applyInventoryLevelFromShopify(
+          tenantId,
+          String(data.inventory_item_id),
+          String(data.location_id),
+          Number(data.available),
+          'Sync inventario Shopify',
+        );
         break;
       case 'products/create':
       case 'products/update':
@@ -180,43 +186,48 @@ export class ShopifySyncService {
     });
   }
 
-  private async syncInventoryLevel(
+  /**
+   * Allinea una giacenza locale al valore `available` Shopify (webhook o import bulk).
+   * @returns esito applicazione; `skipped` se manca mapping variante/location.
+   */
+  async applyInventoryLevelFromShopify(
     tenantId: string,
-    payload: Record<string, unknown>,
-  ): Promise<void> {
-    const inventoryItemId = payload.inventory_item_id;
-    const locationId = payload.location_id;
-    const available = Number(payload.available);
-
-    if (inventoryItemId == null || locationId == null || !Number.isFinite(available)) {
-      return;
+    shopifyInventoryItemId: string,
+    shopifyLocationId: string,
+    available: number,
+    reason: string,
+  ): Promise<'created' | 'updated' | 'unchanged' | 'skipped'> {
+    if (!Number.isFinite(available)) {
+      return 'skipped';
     }
 
     const variant = await this.prisma.productVariant.findFirst({
-      where: { tenantId, shopifyInventoryItemId: String(inventoryItemId) },
+      where: { tenantId, shopifyInventoryItemId },
       select: { id: true, sku: true },
     });
     const location = await this.prisma.location.findFirst({
-      where: { tenantId, shopifyLocationId: String(locationId) },
+      where: { tenantId, shopifyLocationId },
       select: { id: true },
     });
 
     if (!variant || !location) {
       this.logger.debug(
-        `Inventory webhook skipped: mapping mancante item=${inventoryItemId} loc=${locationId}`,
+        `Inventory sync skipped: mapping mancante item=${shopifyInventoryItemId} loc=${shopifyLocationId}`,
       );
-      return;
+      return 'skipped';
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    const normalizedAvailable = Math.max(0, Math.trunc(available));
+
+    return this.prisma.$transaction(async (tx) => {
       const level = await tx.inventoryLevel.findUnique({
         where: { variantId_locationId: { variantId: variant.id, locationId: location.id } },
       });
 
       const before = level?.available ?? 0;
-      const delta = available - before;
+      const delta = normalizedAvailable - before;
       if (delta === 0) {
-        return;
+        return 'unchanged' as const;
       }
 
       if (level) {
@@ -224,7 +235,7 @@ export class ShopifySyncService {
           where: { id: level.id },
           data: {
             onHand: level.onHand + delta,
-            available: available,
+            available: normalizedAvailable,
           },
         });
       } else {
@@ -233,8 +244,8 @@ export class ShopifySyncService {
             tenantId,
             variantId: variant.id,
             locationId: location.id,
-            onHand: available,
-            available,
+            onHand: normalizedAvailable,
+            available: normalizedAvailable,
             minThreshold: 0,
           },
         });
@@ -249,11 +260,13 @@ export class ShopifySyncService {
           sku: variant.sku,
           locationId: location.id,
           quantity: Math.abs(delta),
-          reason: 'Sync inventario Shopify',
-          externalRef: `inventory_item:${inventoryItemId}`,
+          reason,
+          externalRef: `inventory_item:${shopifyInventoryItemId}`,
           createdByName: 'Shopify',
         },
       });
+
+      return level ? ('updated' as const) : ('created' as const);
     });
   }
 

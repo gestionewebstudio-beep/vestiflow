@@ -2,17 +2,20 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   inject,
   signal,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
 import { stockStatusOf } from '@core/utils/inventory.util';
@@ -26,6 +29,16 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
+import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
+import {
+  canManageShopifySync,
+  isShopifyConnected,
+} from '@features/integrations/shopify/models/shopify-page-sync.util';
+import {
+  formatShopifyInventorySyncFeedback,
+  type ShopifySyncFeedback,
+} from '@features/integrations/shopify/models/shopify-sync-feedback.util';
+import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 
 import { InventoryLevelTableComponent } from './components/inventory-level-table/inventory-level-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
@@ -43,6 +56,8 @@ type LevelsState =
   | { readonly status: 'success'; readonly data: LevelsData }
   | { readonly status: 'error'; readonly error: AppError };
 
+const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
+
 /**
  * Giacenze per variante × location (smart). Join client-side di livelli,
  * location e catalogo; filtri locali immediati (dataset compatto, niente
@@ -59,6 +74,7 @@ type LevelsState =
     SelectMenuComponent,
     InventoryTabsComponent,
     InventoryLevelTableComponent,
+    ShopifySyncFeedbackComponent,
   ],
   templateUrl: './inventory-levels.component.html',
   styleUrl: './inventory-levels.component.scss',
@@ -66,8 +82,13 @@ type LevelsState =
 export class InventoryLevelsComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly productService = inject(ProductService);
+  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly authService = inject(AuthService);
   private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
+
+  private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly skeletonColumns = 6;
 
@@ -84,6 +105,20 @@ export class InventoryLevelsComponent {
   protected readonly locationFilter = signal(this.locationContext.activeLocationId() ?? '');
   protected readonly statusFilter = signal('');
   protected readonly search = signal('');
+  protected readonly shopifyInventoryLoading = signal(false);
+  protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
+  protected readonly shopifySyncError = signal<string | null>(null);
+
+  private readonly shopifyConnection = toSignal(
+    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
+    { initialValue: null as ShopifyConnection | null },
+  );
+
+  protected readonly showShopifyInventorySync = computed(
+    () =>
+      isShopifyConnected(this.shopifyConnection()) &&
+      canManageShopifySync(this.authService.currentUser()),
+  );
 
   constructor() {
     // Il cambio dal selettore topbar si riflette sul filtro di pagina
@@ -216,6 +251,35 @@ export class InventoryLevelsComponent {
     void this.router.navigateByUrl('/app/inventory/movements/new');
   }
 
+  protected syncInventoryFromShopify(): void {
+    if (this.shopifyInventoryLoading()) {
+      return;
+    }
+
+    this.shopifyInventoryLoading.set(true);
+    this.clearShopifyFeedback();
+    this.shopifySyncError.set(null);
+
+    this.shopifyConnectionService
+      .syncInventory()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.shopifyInventoryLoading.set(false);
+          this.showShopifyFeedback(formatShopifyInventorySyncFeedback(result));
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this.shopifyInventoryLoading.set(false);
+          this.shopifySyncError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected dismissShopifyFeedback(): void {
+    this.clearShopifyFeedback();
+  }
+
   private statusOf(level: InventoryLevel): StockStatus {
     return stockStatusOf(level);
   }
@@ -225,5 +289,29 @@ export class InventoryLevelsComponent {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
+  }
+
+  private showShopifyFeedback(feedback: ShopifySyncFeedback): void {
+    this.clearShopifyFeedback();
+    this.shopifyFeedback.set(feedback);
+    this.shopifyFeedbackTimer = setTimeout(() => {
+      this.shopifyFeedback.set(null);
+      this.shopifyFeedbackTimer = null;
+    }, SHOPIFY_FEEDBACK_DISMISS_MS);
+  }
+
+  private clearShopifyFeedback(): void {
+    if (this.shopifyFeedbackTimer) {
+      clearTimeout(this.shopifyFeedbackTimer);
+      this.shopifyFeedbackTimer = null;
+    }
+    this.shopifyFeedback.set(null);
+  }
+
+  private extractErrorMessage(err: unknown): string {
+    if (isAppError(err)) {
+      return err.message;
+    }
+    return 'Operazione non riuscita. Riprova.';
   }
 }

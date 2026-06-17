@@ -1,11 +1,36 @@
 <section class="inventory-levels">
   <header class="inventory-levels__header">
     <h1 class="inventory-levels__title">Magazzino</h1>
-    <app-button (click)="newMovement()">
-      <i class="pi pi-plus" aria-hidden="true"></i>
-      Registra movimento
-    </app-button>
+    <div class="inventory-levels__actions">
+      @if (showShopifyInventorySync()) {
+        <app-button
+          variant="secondary"
+          [loading]="shopifyInventoryLoading()"
+          [disabled]="shopifyInventoryLoading()"
+          (click)="syncInventoryFromShopify()"
+        >
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          Sincronizza giacenze da Shopify
+        </app-button>
+      }
+      <app-button (click)="newMovement()">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+        Registra movimento
+      </app-button>
+    </div>
   </header>
+
+  @if (shopifySyncError(); as message) {
+    <p class="inventory-levels__shopify-error" role="alert">{{ message }}</p>
+  }
+
+  @if (shopifyFeedback(); as feedback) {
+    <app-shopify-sync-feedback
+      [message]="feedback.message"
+      [tone]="feedback.tone"
+      (dismissed)="dismissShopifyFeedback()"
+    />
+  }
 
   <app-inventory-tabs />
 

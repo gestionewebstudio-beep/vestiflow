@@ -10,6 +10,7 @@ import type { ShopifyConnectionDto } from '../models/shopify-connection.dto';
 import type {
   ShopifyClearErrorsDto,
   ShopifyDisableWebhooksDto,
+  ShopifySyncInventoryDto,
   ShopifySyncLocationsDto,
   ShopifySyncProductsDto,
   ShopifySyncWebhooksDto,
@@ -18,6 +19,8 @@ import type {
 const HTTP_TIMEOUT_MS = 15000;
 /** Import catalogo può richiedere più chiamate Shopify per ogni prodotto. */
 const SYNC_PRODUCTS_TIMEOUT_MS = 180_000;
+/** Import giacenze: batch per location e varianti collegate. */
+const SYNC_INVENTORY_TIMEOUT_MS = 180_000;
 
 /**
  * Stato connessione Shopify (read-only) + avvio OAuth lato server.
@@ -71,6 +74,12 @@ export class ShopifyConnectionService {
     return this.http
       .post<ShopifySyncProductsDto>(`${this.config.apiBaseUrl}/shopify/sync/products`, {})
       .pipe(timeout(SYNC_PRODUCTS_TIMEOUT_MS));
+  }
+
+  syncInventory(): Observable<ShopifySyncInventoryDto> {
+    return this.http
+      .post<ShopifySyncInventoryDto>(`${this.config.apiBaseUrl}/shopify/sync/inventory`, {})
+      .pipe(timeout(SYNC_INVENTORY_TIMEOUT_MS));
   }
 
   clearErrors(): Observable<ShopifyClearErrorsDto> {

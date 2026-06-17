@@ -260,7 +260,6 @@
                 clearErrorsLoading() ||
                 syncLocationsLoading() ||
                 syncWebhooksLoading() ||
-                syncProductsLoading() ||
                 disconnectLoading()
               "
               (click)="clearShopifyErrors()"
@@ -271,12 +270,7 @@
           <app-button
             variant="secondary"
             [loading]="syncLocationsLoading()"
-            [disabled]="
-              syncLocationsLoading() ||
-              syncWebhooksLoading() ||
-              syncProductsLoading() ||
-              disconnectLoading()
-            "
+            [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
             (click)="syncShopifyLocations()"
           >
             Sincronizza location
@@ -284,37 +278,14 @@
           <app-button
             variant="secondary"
             [loading]="syncWebhooksLoading()"
-            [disabled]="
-              syncLocationsLoading() ||
-              syncWebhooksLoading() ||
-              syncProductsLoading() ||
-              disconnectLoading()
-            "
+            [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
             (click)="toggleAutoSync()"
           >
             {{ autoSyncButtonLabel() }}
           </app-button>
           <app-button
-            variant="secondary"
-            [loading]="syncProductsLoading()"
-            [disabled]="
-              syncLocationsLoading() ||
-              syncWebhooksLoading() ||
-              syncProductsLoading() ||
-              disconnectLoading()
-            "
-            (click)="syncShopifyProducts()"
-          >
-            Importa catalogo da Shopify
-          </app-button>
-          <app-button
             [loading]="disconnectLoading()"
-            [disabled]="
-              disconnectLoading() ||
-              syncLocationsLoading() ||
-              syncWebhooksLoading() ||
-              syncProductsLoading()
-            "
+            [disabled]="disconnectLoading() || syncLocationsLoading() || syncWebhooksLoading()"
             (click)="disconnectShopify()"
           >
             Disconnetti Shopify
@@ -325,9 +296,9 @@
       <p class="settings__muted">
         Le credenziali Shopify restano sul server, mai nel browser. «Attiva aggiornamenti
         automatici» registra i webhook per ordini, clienti, prodotti e giacenze in tempo reale;
-        «Disattiva» li rimuove e ignora gli eventi in arrivo. I prodotti creati o modificati su
-        Shopify mentre gli aggiornamenti automatici erano disattivi non arrivano da soli: usa
-        «Importa catalogo» per scaricarli nel gestionale.
+        «Disattiva» li rimuove e ignora gli eventi in arrivo. Per l’import iniziale usa «Importa
+        catalogo da Shopify» in Prodotti e «Sincronizza giacenze da Shopify» in Magazzino →
+        Giacenze.
       </p>
     }
   </section>

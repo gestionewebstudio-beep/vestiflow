@@ -95,6 +95,13 @@ export interface ShopifyInventoryItemRow {
   readonly cost: string | null;
 }
 
+export interface ShopifyInventoryLevelRow {
+  readonly inventory_item_id: number;
+  readonly location_id: number;
+  readonly available: number | null;
+  readonly updated_at?: string;
+}
+
 @Injectable()
 export class ShopifyAdminClient {
   constructor(
@@ -162,6 +169,30 @@ export class ShopifyAdminClient {
         available: Math.max(0, Math.trunc(available)),
       }),
     });
+  }
+
+  /** Max 50 inventory_item_ids per richiesta (limite Shopify REST). */
+  async listInventoryLevels(
+    shopDomain: string,
+    accessToken: string,
+    shopifyLocationId: string,
+    inventoryItemIds: readonly string[],
+  ): Promise<readonly ShopifyInventoryLevelRow[]> {
+    if (inventoryItemIds.length === 0) {
+      return [];
+    }
+
+    const params = new URLSearchParams({
+      location_ids: shopifyLocationId,
+      inventory_item_ids: inventoryItemIds.join(','),
+      limit: '250',
+    });
+    const response = await this.request<{ inventory_levels: ShopifyInventoryLevelRow[] }>(
+      shopDomain,
+      accessToken,
+      `/inventory_levels.json?${params.toString()}`,
+    );
+    return response.inventory_levels ?? [];
   }
 
   async registerWebhooks(

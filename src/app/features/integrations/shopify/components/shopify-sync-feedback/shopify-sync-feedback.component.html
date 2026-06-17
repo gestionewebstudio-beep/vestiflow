@@ -1,0 +1,12 @@
+<div
+  class="shopify-sync-feedback"
+  [class.shopify-sync-feedback--success]="tone() === 'success'"
+  [class.shopify-sync-feedback--warning]="tone() === 'warning'"
+  role="status"
+  aria-live="polite"
+>
+  <span>{{ message() }}</span>
+  <button type="button" class="shopify-sync-feedback__dismiss" (click)="dismissed.emit()">
+    Chiudi
+  </button>
+</div>

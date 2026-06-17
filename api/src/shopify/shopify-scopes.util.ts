@@ -34,8 +34,24 @@ export function shopifyProductReadScopeError(scopes: readonly string[]): string 
 }
 
 export const SHOPIFY_WRITE_INVENTORY_SCOPE = 'write_inventory';
+export const SHOPIFY_READ_INVENTORY_SCOPE = 'read_inventory';
 export const SHOPIFY_WRITE_PRODUCTS_SCOPE = 'write_products';
 export const SHOPIFY_READ_PRODUCTS_SCOPE = 'read_products';
+
+export function shopifyHasInventoryReadScope(scopes: readonly string[]): boolean {
+  return shopifyHasScope(scopes, SHOPIFY_READ_INVENTORY_SCOPE);
+}
+
+/** Messaggio utente se manca read_inventory (import giacenze). */
+export function shopifyInventoryReadScopeError(scopes: readonly string[]): string | null {
+  if (shopifyHasInventoryReadScope(scopes)) {
+    return null;
+  }
+  if (shopifyHasScope(scopes, SHOPIFY_WRITE_INVENTORY_SCOPE)) {
+    return 'Il collegamento Shopify può scrivere le giacenze ma non leggerle. Disconnetti e riconnetti lo store per aggiornare i permessi (read_inventory).';
+  }
+  return 'Mancano i permessi per leggere le giacenze su Shopify. Ricollega lo store da Impostazioni.';
+}
 
 /** Normalizza scope da CSV env o dalla risposta OAuth (virgola o spazio). */
 export function parseShopifyScopesString(raw: string): readonly string[] {
