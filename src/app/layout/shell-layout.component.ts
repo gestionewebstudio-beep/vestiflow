@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
-import { catchError, filter, map, of, type Subscription } from 'rxjs';
+import { catchError, filter, map, merge, of, switchMap, type Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
@@ -23,6 +23,7 @@ import type { NavItem } from '@shared/models/nav-item.model';
 import type { ThemeMode } from '@shared/models/theme.model';
 
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
 /**
@@ -50,6 +51,7 @@ export class ShellLayoutComponent {
   private readonly locationContext = inject(LocationContextService);
   private readonly inventoryService = inject(InventoryService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly themeMode = this.themeService.mode;
@@ -64,9 +66,13 @@ export class ShellLayoutComponent {
 
   /** Stato connessione Shopify per l'indicatore sync (null finche' non risolto). */
   readonly shopifySyncStatus = toSignal<ShopifyConnectionStatus | null>(
-    this.shopifyConnectionService.getConnection().pipe(
-      map((connection) => connection.status),
-      catchError(() => of(null)),
+    merge(of(void 0), this.shopifySyncWatch.watchSyncCompleted()).pipe(
+      switchMap(() =>
+        this.shopifyConnectionService.getConnection().pipe(
+          map((connection) => connection.status),
+          catchError(() => of(null)),
+        ),
+      ),
     ),
     { initialValue: null },
   );

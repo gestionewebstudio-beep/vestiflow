@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { ShopifyConnection } from '@prisma/client';
+import { ShopifyConnectionStatus, type ShopifyConnection } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import type { ShopifyConnectionDto } from './shopify-config.service';
@@ -9,10 +9,19 @@ export class ShopifyConnectionService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getForTenant(tenantId: string): Promise<ShopifyConnectionDto> {
-    const connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
+    let connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
     if (!connection || connection.status === 'not_connected') {
       throw new NotFoundException('Connessione Shopify non trovata');
     }
+
+    if (connection.status === ShopifyConnectionStatus.error) {
+      await this.healStaleErrorStatus(tenantId);
+      connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
+      if (!connection || connection.status === 'not_connected') {
+        throw new NotFoundException('Connessione Shopify non trovata');
+      }
+    }
+
     return this.toDto(connection);
   }
 
@@ -25,6 +34,26 @@ export class ShopifyConnectionService {
         lastErrorCode: null,
         lastErrorAt: null,
       },
+    });
+    await this.healStaleErrorStatus(tenantId);
+  }
+
+  /**
+   * Ripristina status `connected` se OAuth è ancora valido ma un webhook passato
+   * aveva impostato `error` (stato stale, non connessione realmente rotta).
+   */
+  async healStaleErrorStatus(tenantId: string): Promise<void> {
+    const credential = await this.prisma.shopifyCredential.findUnique({
+      where: { tenantId },
+      select: { tenantId: true },
+    });
+    if (!credential) {
+      return;
+    }
+
+    await this.prisma.shopifyConnection.updateMany({
+      where: { tenantId, status: ShopifyConnectionStatus.error },
+      data: { status: ShopifyConnectionStatus.connected },
     });
   }
 
@@ -64,6 +93,7 @@ export class ShopifyConnectionService {
         webhooksActiveCount: activeCount,
       },
     });
+    await this.healStaleErrorStatus(tenantId);
   }
 
   async recordAutoSyncDisabled(tenantId: string): Promise<void> {

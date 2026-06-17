@@ -36,6 +36,7 @@ import type {
   ProductFilterChange,
   ProductStatusOption,
 } from './components/product-toolbar/product-toolbar.component';
+import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
 import {
   DEFAULT_PRODUCT_ORDER,
   DEFAULT_PRODUCT_PAGE_SIZE,
@@ -88,9 +89,12 @@ type ProductListState =
 })
 export class ProductListComponent {
   private readonly service = inject(ProductService);
+  private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+
+  private lastFetchQueryKey = '';
 
   protected readonly skeletonColumns = 5;
   protected readonly statusOptions = STATUS_OPTIONS;
@@ -102,6 +106,8 @@ export class ProductListComponent {
 
   // Tick di refresh per il retry (la query da URL e' identica dopo un errore).
   private readonly refreshTick = signal(0);
+  /** Refresh silenzioso (es. webhook Shopify): niente skeleton se query invariata. */
+  private readonly softRefreshTick = signal(0);
 
   // Testo ricerca "draft": locale, debounced. Inizializzato una volta dall'URL.
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
@@ -113,12 +119,17 @@ export class ProductListComponent {
   private readonly request = computed(() => ({
     query: this.query(),
     tick: this.refreshTick(),
+    softTick: this.softRefreshTick(),
   }));
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(
-      switchMap(({ query }) =>
-        this.service.getProducts(query).pipe(
+      switchMap(({ query, tick, softTick }) => {
+        const queryKey = JSON.stringify(query);
+        const silentRefresh = softTick > 0 && tick === 0 && queryKey === this.lastFetchQueryKey;
+        this.lastFetchQueryKey = queryKey;
+
+        const fetch$ = this.service.getProducts(query).pipe(
           map(
             (response): ProductListState => ({
               status: 'success',
@@ -126,12 +137,15 @@ export class ProductListComponent {
               meta: response.meta,
             }),
           ),
-          startWith<ProductListState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<ProductListState>({ status: 'error', error: this.toAppError(err) }),
           ),
-        ),
-      ),
+        );
+
+        return silentRefresh
+          ? fetch$
+          : fetch$.pipe(startWith<ProductListState>({ status: 'loading' }));
+      }),
     ),
     { initialValue: { status: 'loading' } satisfies ProductListState },
   );
@@ -175,6 +189,13 @@ export class ProductListComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.applySearch(value));
+
+    this.shopifySyncWatch
+      .watchSyncCompleted()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.softRefreshTick.update((tick) => tick + 1);
+      });
   }
 
   protected onSearchInput(value: string): void {

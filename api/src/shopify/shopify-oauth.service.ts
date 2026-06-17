@@ -281,6 +281,7 @@ export class ShopifyOAuthService {
           lastErrorAt: null,
         },
       });
+      await this.shopifyConnection.healStaleErrorStatus(tenantId);
     }
 
     return result;
