@@ -33,48 +33,54 @@
     </div>
 
     <div class="general-step__field">
-      <span class="general-step__label">Categoria</span>
+      <label class="general-step__label" for="product-category">Categoria</label>
+      <input
+        id="product-category"
+        class="general-step__control"
+        type="text"
+        formControlName="category"
+        autocomplete="off"
+        list="product-category-suggestions"
+        placeholder="Es. Abbigliamento, Accessori…"
+        [attr.aria-invalid]="showError('category')"
+        [attr.aria-describedby]="showError('category') ? 'product-category-error' : null"
+      />
       @if (categoryOptions().length > 0) {
-        <app-select-menu
-          [options]="categorySelectOptions()"
-          [value]="form.controls.category.value"
-          ariaLabel="Categoria prodotto"
-          placeholder="Seleziona una categoria…"
-          [compact]="true"
-          [fullWidth]="true"
-          [invalid]="showError('category')"
-          describedBy="product-category-error"
-          (valueChange)="onCategorySelect($event)"
-        />
-        @if (showError('category')) {
-          <p id="product-category-error" class="general-step__error">Seleziona una categoria.</p>
-        }
-      } @else {
-        <p class="general-step__fallback">Nessuna categoria disponibile.</p>
+        <datalist id="product-category-suggestions">
+          @for (category of categoryOptions(); track category) {
+            <option [value]="category"></option>
+          }
+        </datalist>
+      }
+      @if (showError('category')) {
+        <p id="product-category-error" class="general-step__error">
+          Indica la categoria del prodotto.
+        </p>
       }
     </div>
 
     <div class="general-step__field">
-      <span class="general-step__label">Stagione</span>
+      <label class="general-step__label" for="product-season">Stagione</label>
+      <input
+        id="product-season"
+        class="general-step__control"
+        type="text"
+        formControlName="season"
+        autocomplete="off"
+        list="product-season-suggestions"
+        placeholder="Es. SS26, FW25…"
+        [attr.aria-invalid]="showError('season')"
+        [attr.aria-describedby]="showError('season') ? 'product-season-error' : null"
+      />
       @if (seasonOptions().length > 0) {
-        <app-select-menu
-          [options]="seasonSelectOptions()"
-          [value]="form.controls.season.value"
-          ariaLabel="Stagione prodotto"
-          placeholder="Seleziona una stagione…"
-          [compact]="true"
-          [fullWidth]="true"
-          [invalid]="showError('season')"
-          describedBy="product-season-error"
-          (valueChange)="onSeasonSelect($event)"
-        />
-        @if (showError('season')) {
-          <p id="product-season-error" class="general-step__error">
-            Indica la stagione di vendita.
-          </p>
-        }
-      } @else {
-        <p class="general-step__fallback">Nessuna stagione disponibile.</p>
+        <datalist id="product-season-suggestions">
+          @for (season of seasonOptions(); track season) {
+            <option [value]="season"></option>
+          }
+        </datalist>
+      }
+      @if (showError('season')) {
+        <p id="product-season-error" class="general-step__error">Indica la stagione di vendita.</p>
       }
     </div>
 

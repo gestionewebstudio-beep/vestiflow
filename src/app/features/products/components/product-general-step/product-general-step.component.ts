@@ -77,25 +77,14 @@ export class ProductGeneralStepComponent implements OnInit {
     this.withCurrent(this.seasons(), this.initialSeason()),
   );
 
-  protected readonly categorySelectOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.categoryOptions().map((category) => ({ value: category, label: category })),
-  );
-
-  protected readonly seasonSelectOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.seasonOptions().map((season) => ({ value: season, label: season })),
-  );
-
-  protected readonly form = this.fb.group(
-    {
-      name: this.fb.control('', [Validators.required]),
-      brand: this.fb.control('', [Validators.required]),
-      category: this.fb.control('', [Validators.required]),
-      season: this.fb.control('', [Validators.required]),
-      status: this.fb.control<ProductStatus>(ProductStatus.Draft),
-      description: this.fb.control(''),
-    },
-    { updateOn: 'blur' },
-  );
+  protected readonly form = this.fb.group({
+    name: this.fb.control('', [Validators.required]),
+    brand: this.fb.control('', [Validators.required]),
+    category: this.fb.control('', [Validators.required]),
+    season: this.fb.control('', [Validators.required]),
+    status: this.fb.control<ProductStatus>(ProductStatus.Draft),
+    description: this.fb.control(''),
+  });
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private valueChangesSub: Subscription | null = null;
@@ -113,16 +102,6 @@ export class ProductGeneralStepComponent implements OnInit {
   protected showError(field: RequiredField): boolean {
     const control = this.form.controls[field];
     return control.invalid && control.touched;
-  }
-
-  protected onCategorySelect(value: string | null): void {
-    this.form.controls.category.setValue(value ?? '');
-    this.form.controls.category.markAsTouched();
-  }
-
-  protected onSeasonSelect(value: string | null): void {
-    this.form.controls.season.setValue(value ?? '');
-    this.form.controls.season.markAsTouched();
   }
 
   protected onStatusSelect(value: string | null): void {
