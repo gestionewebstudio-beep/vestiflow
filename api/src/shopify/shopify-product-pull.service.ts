@@ -16,6 +16,7 @@ import type { ProductShopifyEnrichment } from './shopify-product-metadata.types'
 import { PRODUCT_IMPORT_TX } from './shopify-product-metadata.types';
 import { parseShopifyTags } from './shopify-product-metadata.util';
 import { shopifyDecimalToMinor } from './shopify-money.util';
+import { shopifyBodyHtmlToPlainText } from './shopify-html.util';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { toShopifyUserMessage } from './shopify-user-error.util';
@@ -188,7 +189,7 @@ export class ShopifyProductPullService {
     const tags = enrichment?.tags ?? parseShopifyTags(remote.tags);
     const productData = {
       name: remote.title.trim() || 'Prodotto Shopify',
-      description: remote.body_html ?? null,
+      description: shopifyBodyHtmlToPlainText(remote.body_html),
       brand: remote.vendor?.trim() || null,
       category: remote.product_type?.trim() || null,
       season: enrichment?.season ?? existing?.season ?? null,

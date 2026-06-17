@@ -9,6 +9,7 @@ import { Prisma, type Product, type ProductImage, type ProductVariant } from '@p
 
 import { PrismaService } from '../prisma/prisma.service';
 import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
+import { normalizeProductDescription } from '../shopify/shopify-html.util';
 import {
   ShopifyProductPushService,
   type ShopifyProductPushResult,
@@ -148,7 +149,14 @@ export class ProductsService {
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
-    await this.getById(tenantId, id);
+    const product = await this.prisma.product.findFirst({
+      where: { id, tenantId },
+      select: { id: true, shopifyProductId: true },
+    });
+    if (!product) {
+      throw new NotFoundException('Prodotto non trovato');
+    }
+
     const movementCount = await this.prisma.stockMovement.count({
       where: { tenantId, variant: { productId: id } },
     });
@@ -157,6 +165,24 @@ export class ProductsService {
         'Il prodotto ha movimenti di magazzino registrati: archivialo invece di eliminarlo.',
       );
     }
+
+    if (product.shopifyProductId) {
+      const shopifyDelete = await this.shopifyProductPush.deleteProduct(
+        tenantId,
+        product.shopifyProductId,
+      );
+      if (shopifyDelete.reason === 'missing_write_products_scope') {
+        throw new UnprocessableEntityException(
+          'Impossibile eliminare su Shopify: manca il permesso di scrittura catalogo. Ricollega il negozio e riprova.',
+        );
+      }
+      if (shopifyDelete.reason === 'shopify_error') {
+        throw new UnprocessableEntityException(
+          'Eliminazione su Shopify non riuscita. Il prodotto non è stato rimosso dal gestionale: riprova tra qualche minuto.',
+        );
+      }
+    }
+
     await this.prisma.product.delete({ where: { id } });
   }
 
@@ -442,11 +468,15 @@ export class ProductsService {
 }
 
 function withReadableShopifyErrors(product: ProductWithVariants): ProductWithVariants {
+  const normalized: ProductWithVariants = {
+    ...product,
+    description: normalizeProductDescription(product.description),
+  };
   if (!product.shopifyLastError) {
-    return product;
+    return normalized;
   }
   return {
-    ...product,
+    ...normalized,
     shopifyLastError: toShopifyUserMessage(undefined, product.shopifyLastError),
   };
 }

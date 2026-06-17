@@ -17,6 +17,7 @@ import {
   VESTIFLOW_SEASON_METAFIELD_KEY,
 } from './shopify-product-metadata.types';
 import { formatShopifyTags } from './shopify-product-metadata.util';
+import { plainTextToShopifyBodyHtml } from './shopify-html.util';
 
 type ProductWithVariants = Product & { variants: ProductVariant[] };
 
@@ -31,6 +32,16 @@ export type ShopifyProductPushSkipReason =
 export interface ShopifyProductPushResult {
   readonly pushed: boolean;
   readonly reason?: ShopifyProductPushSkipReason | 'shopify_error';
+}
+
+export type ShopifyProductDeleteSkipReason =
+  | 'not_linked'
+  | 'not_connected'
+  | 'missing_write_products_scope';
+
+export interface ShopifyProductDeleteResult {
+  readonly deleted: boolean;
+  readonly reason?: ShopifyProductDeleteSkipReason | 'shopify_error';
 }
 
 /**
@@ -126,13 +137,46 @@ export class ShopifyProductPushService {
     }
   }
 
+  /** Elimina su Shopify un prodotto collegato (write-through). */
+  async deleteProduct(
+    tenantId: string,
+    shopifyProductId: string | null,
+  ): Promise<ShopifyProductDeleteResult> {
+    if (!shopifyProductId) {
+      return { deleted: false, reason: 'not_linked' };
+    }
+
+    const connection = await this.prisma.shopifyConnection.findUnique({
+      where: { tenantId },
+      select: { status: true, scopes: true },
+    });
+
+    if (!connection || connection.status !== ShopifyConnectionStatus.connected) {
+      return { deleted: false, reason: 'not_connected' };
+    }
+
+    if (!shopifyHasScope(connection.scopes, SHOPIFY_WRITE_PRODUCTS_SCOPE)) {
+      return { deleted: false, reason: 'missing_write_products_scope' };
+    }
+
+    try {
+      const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
+      await this.shopifyAdmin.deleteProduct(shopDomain, accessToken, shopifyProductId);
+      return { deleted: true };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Eliminazione Shopify fallita';
+      this.logger.warn(`Delete prodotto Shopify (${tenantId}, ${shopifyProductId}): ${message}`);
+      return { deleted: false, reason: 'shopify_error' };
+    }
+  }
+
   private buildShopifyProductPayload(product: ProductWithVariants): Record<string, unknown> {
     const options = this.normalizeOptions(product.options);
     const { shopifyOptions, variantRows } = this.buildVariantsPayload(options, product.variants);
 
     return {
       title: product.name,
-      body_html: product.description ?? '',
+      body_html: plainTextToShopifyBodyHtml(product.description),
       vendor: product.brand ?? undefined,
       product_type: product.category ?? undefined,
       tags: product.tags.length > 0 ? formatShopifyTags(product.tags) : undefined,

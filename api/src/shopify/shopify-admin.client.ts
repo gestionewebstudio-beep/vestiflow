@@ -271,6 +271,16 @@ export class ShopifyAdminClient {
     return response.product;
   }
 
+  async deleteProduct(
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+  ): Promise<void> {
+    await this.request(shopDomain, accessToken, `/products/${shopifyProductId}.json`, {
+      method: 'DELETE',
+    });
+  }
+
   async listAllProducts(
     shopDomain: string,
     accessToken: string,
