@@ -7,7 +7,11 @@ import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 
 import { shopifyConnectionFromDto } from '../models/shopify-connection.mapper';
 import type { ShopifyConnectionDto } from '../models/shopify-connection.dto';
-import type { ShopifySyncLocationsDto, ShopifySyncWebhooksDto } from '../models/shopify-sync.dto';
+import type {
+  ShopifySyncLocationsDto,
+  ShopifySyncProductsDto,
+  ShopifySyncWebhooksDto,
+} from '../models/shopify-sync.dto';
 
 const HTTP_TIMEOUT_MS = 15000;
 
@@ -47,6 +51,12 @@ export class ShopifyConnectionService {
   syncWebhooks(): Observable<ShopifySyncWebhooksDto> {
     return this.http
       .post<ShopifySyncWebhooksDto>(`${this.config.apiBaseUrl}/shopify/sync/webhooks`, {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  syncProducts(): Observable<ShopifySyncProductsDto> {
+    return this.http
+      .post<ShopifySyncProductsDto>(`${this.config.apiBaseUrl}/shopify/sync/products`, {})
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 }

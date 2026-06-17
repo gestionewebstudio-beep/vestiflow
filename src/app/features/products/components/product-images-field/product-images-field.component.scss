@@ -1,0 +1,95 @@
+:host {
+  display: block;
+}
+
+.product-images {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.product-images__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.product-images__label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.product-images__hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.product-images__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.product-images__item {
+  position: relative;
+  inline-size: var(--space-16);
+  block-size: var(--space-16);
+}
+
+.product-images__thumb {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--color-border-strong);
+  background-color: var(--color-surface-sunken);
+}
+
+.product-images__remove {
+  position: absolute;
+  inset-block-start: var(--space-1);
+  inset-inline-end: var(--space-1);
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-full);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.product-images__upload {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-interactive);
+  border: var(--border-width) dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  inline-size: fit-content;
+}
+
+.product-images__file-input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.product-images__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}

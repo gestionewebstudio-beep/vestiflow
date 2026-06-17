@@ -24,12 +24,14 @@ import type { Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { ProductImage } from '@core/models/product-image.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { ProductGeneralStepComponent } from './components/product-general-step/product-general-step.component';
+import { ProductImagesFieldComponent } from './components/product-images-field/product-images-field.component';
 import { ProductOptionsStepComponent } from './components/product-options-step/product-options-step.component';
 import { ProductReviewStepComponent } from './components/product-review-step/product-review-step.component';
 import { ProductVariantsStepComponent } from './components/product-variants-step/product-variants-step.component';
@@ -96,6 +98,7 @@ type FormLoadState =
     ErrorStateComponent,
     TableSkeletonComponent,
     ProductGeneralStepComponent,
+    ProductImagesFieldComponent,
     ProductOptionsStepComponent,
     ProductVariantsStepComponent,
     ProductReviewStepComponent,
@@ -125,8 +128,13 @@ export class ProductFormComponent {
   // Diventa true dopo un salvataggio riuscito: disattiva il guard di uscita.
   protected readonly saved = signal(false);
   protected readonly isDirty = computed(
-    () => !this.saved() && this.serialize(this.draft()) !== this.pristine(),
+    () =>
+      !this.saved() &&
+      (this.serialize(this.draft()) !== this.pristine() || this.pendingImageFiles().length > 0),
   );
+
+  protected readonly pendingImageFiles = signal<readonly File[]>([]);
+  protected readonly existingImages = signal<readonly ProductImage[]>([]);
 
   // Stato submit (dichiarati prima del pipe di load, che usa resetDraft in init).
   private readonly _submitState = signal<'idle' | 'submitting' | 'error'>('idle');
@@ -146,7 +154,10 @@ export class ProductFormComponent {
           product: this.service.getProductById(id),
           variants: this.service.getProductVariants(id),
         }).pipe(
-          tap(({ product, variants }) => this.resetDraft(productToFormDraft(product, variants))),
+          tap(({ product, variants }) => {
+            this.resetDraft(productToFormDraft(product, variants));
+            this.existingImages.set(product.images ?? []);
+          }),
           map((): FormLoadState => ({ status: 'ready' })),
           startWith<FormLoadState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.toErrorState(err))),
@@ -277,6 +288,25 @@ export class ProductFormComponent {
     this.draft.update((draft) => ({ ...draft, general: value }));
   }
 
+  protected onPendingImagesChange(files: readonly File[]): void {
+    this.pendingImageFiles.set(files);
+  }
+
+  protected onRemoveExistingImage(imageId: string): void {
+    const productId = this.productId();
+    if (!productId) {
+      return;
+    }
+    this.service
+      .deleteProductImage(productId, imageId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.existingImages.update((images) => images.filter((image) => image.id !== imageId));
+        },
+      });
+  }
+
   /**
    * Aggiorna le opzioni e rigenera le varianti dal prodotto cartesiano degli
    * assi, preservando i dati gia' inseriti (merge per proiezione sugli assi
@@ -315,9 +345,21 @@ export class ProductFormComponent {
     }
     const draft = this.draft();
     const id = this.productId();
-    const request$ = id
+    const pendingFiles = [...this.pendingImageFiles()];
+    const baseRequest$ = id
       ? this.service.updateProduct(id, toUpdateProductDto(draft))
       : this.service.createProduct(toCreateProductDto(draft));
+
+    const request$ = baseRequest$.pipe(
+      switchMap((product) => {
+        if (pendingFiles.length === 0) {
+          return of(product);
+        }
+        return forkJoin(
+          pendingFiles.map((file) => this.service.uploadProductImage(product.id, file)),
+        ).pipe(map(() => product));
+      }),
+    );
 
     this._submitState.set('submitting');
     this.submitError.set(null);
@@ -392,6 +434,7 @@ export class ProductFormComponent {
   private resetDraft(draft: ProductFormDraft): void {
     this.draft.set(draft);
     this.pristine.set(this.serialize(draft));
+    this.pendingImageFiles.set([]);
     this.saved.set(false);
     this._submitState.set('idle');
     this.submitError.set(null);

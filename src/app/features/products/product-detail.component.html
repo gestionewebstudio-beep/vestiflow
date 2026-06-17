@@ -24,6 +24,17 @@
       </div>
       <div class="product-detail__actions">
         <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
+        @if (p.shopify) {
+          <app-button
+            variant="secondary"
+            [loading]="syncingShopify()"
+            [disabled]="syncingShopify()"
+            (click)="syncWithShopify(p.id)"
+          >
+            <i class="pi pi-sync" aria-hidden="true"></i>
+            Sincronizza con Shopify
+          </app-button>
+        }
         <app-button variant="secondary" (click)="goToEdit(p.id)">
           <i class="pi pi-pencil" aria-hidden="true"></i>
           Modifica
@@ -40,6 +51,10 @@
         <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
         {{ message }}
       </p>
+    }
+
+    @if (shopifySyncMessage(); as syncMessage) {
+      <p class="product-detail__sync-message" role="status">{{ syncMessage }}</p>
     }
 
     <app-confirm-dialog
@@ -96,11 +111,35 @@
               <app-badge [tone]="shopifyTone(shopify.status)">
                 {{ shopifyLabel(shopify.status) }}
               </app-badge>
+              @if (shopify.lastError) {
+                <span class="product-detail__sync-error">{{ shopify.lastError }}</span>
+              }
             </dd>
           </div>
         }
       </dl>
     </section>
+
+    @if (p.images && p.images.length > 0) {
+      <section class="product-detail__panel" aria-labelledby="detail-images">
+        <h2 id="detail-images" class="product-detail__panel-title">Immagini</h2>
+        <ul class="product-detail__images">
+          @for (image of p.images; track image.id) {
+            <li class="product-detail__image-item">
+              <img
+                class="product-detail__image"
+                [src]="image.url"
+                [alt]="image.altText ?? p.name"
+                width="160"
+                height="160"
+                loading="lazy"
+                decoding="async"
+              />
+            </li>
+          }
+        </ul>
+      </section>
+    }
 
     <section class="product-detail__panel" aria-labelledby="detail-variants">
       <div class="product-detail__panel-head">

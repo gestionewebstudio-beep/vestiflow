@@ -11,6 +11,8 @@ import type { ShopifyConnectionDto } from './shopify-config.service';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import { ShopifyProductPullService } from './shopify-product-pull.service';
+import type { ShopifyCatalogSyncResult } from './shopify-product-pull.service';
 
 @Controller('shopify')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -19,6 +21,7 @@ export class ShopifyController {
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyOAuth: ShopifyOAuthService,
     private readonly shopifyConfig: ShopifyConfigService,
+    private readonly shopifyProductPull: ShopifyProductPullService,
   ) {}
 
   @Get('connection')
@@ -70,5 +73,14 @@ export class ShopifyController {
   async syncWebhooks(@CurrentTenant() tenantId: string) {
     const result = await this.shopifyOAuth.resyncWebhooks(tenantId);
     return { synced: true as const, ...result };
+  }
+
+  @Post('sync/products')
+  @Roles(...ADMIN_ROLES)
+  async syncProducts(
+    @CurrentTenant() tenantId: string,
+  ): Promise<{ synced: true } & ShopifyCatalogSyncResult> {
+    const result = await this.shopifyProductPull.pullCatalog(tenantId);
+    return { synced: true, ...result };
   }
 }

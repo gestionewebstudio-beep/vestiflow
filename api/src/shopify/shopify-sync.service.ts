@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
+import { ShopifyProductPullService } from './shopify-product-pull.service';
 
 @Injectable()
 export class ShopifySyncService {
@@ -18,6 +19,7 @@ export class ShopifySyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly shopifyConnection: ShopifyConnectionService,
+    private readonly shopifyProductPull: ShopifyProductPullService,
   ) {}
 
   async handleWebhook(tenantId: string, topic: string, payload: unknown): Promise<void> {
@@ -34,6 +36,10 @@ export class ShopifySyncService {
         break;
       case 'inventory_levels/update':
         await this.syncInventoryLevel(tenantId, data);
+        break;
+      case 'products/create':
+      case 'products/update':
+        await this.shopifyProductPull.importProductFromWebhook(tenantId, data);
         break;
       default:
         this.logger.debug(`Webhook Shopify ignorato: ${topic}`);

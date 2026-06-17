@@ -5,3 +5,4 @@ export function shopifyHasScope(scopes: readonly string[], required: string): bo
 
 export const SHOPIFY_WRITE_INVENTORY_SCOPE = 'write_inventory';
 export const SHOPIFY_WRITE_PRODUCTS_SCOPE = 'write_products';
+export const SHOPIFY_READ_PRODUCTS_SCOPE = 'read_products';

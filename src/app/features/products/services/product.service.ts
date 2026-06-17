@@ -13,6 +13,7 @@ import { APP_CONFIG } from '@core/config/app-config.token';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
+import type { ProductImage } from '@core/models/product-image.model';
 import type { Product } from '@core/models/product.model';
 
 import type { VariantSummary } from '../models/variant-summary.model';
@@ -177,6 +178,44 @@ export class ProductService {
       timeout(HTTP_TIMEOUT_MS),
       tap(() => this.invalidateVariantSummariesCache()),
     );
+  }
+
+  uploadProductImage(productId: EntityId, file: File): Observable<ProductImage> {
+    const body = new FormData();
+    body.append('file', file);
+    return this.http
+      .post<{
+        id: string;
+        url: string;
+        altText?: string | null;
+        sortOrder: number;
+      }>(this.url(`/products/${productId}/images`), body)
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((row) => ({
+          id: row.id,
+          url: row.url,
+          altText: row.altText ?? undefined,
+          sortOrder: row.sortOrder,
+        })),
+      );
+  }
+
+  deleteProductImage(productId: EntityId, imageId: EntityId): Observable<void> {
+    return this.http
+      .delete<void>(this.url(`/products/${productId}/images/${imageId}`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  syncProductToShopify(
+    productId: EntityId,
+  ): Observable<{ readonly pushed: boolean; readonly reason?: string }> {
+    return this.http
+      .post<{
+        pushed: boolean;
+        reason?: string;
+      }>(this.url(`/products/${productId}/sync-shopify`), {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   private url(path: string): string {

@@ -1,4 +1,5 @@
 import type { EntityId, TenantScoped, Timestamped } from './common.model';
+import type { ProductImage } from './product-image.model';
 import type { ShopifyLink } from './shopify.model';
 
 export const ProductStatus = {
@@ -39,5 +40,6 @@ export interface Product extends TenantScoped, Timestamped {
   readonly season?: string;
   readonly status: ProductStatus;
   readonly options: readonly ProductOption[];
+  readonly images?: readonly ProductImage[];
   readonly shopify?: ShopifyLink;
 }

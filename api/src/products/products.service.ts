@@ -5,17 +5,28 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma, type Product, type ProductVariant } from '@prisma/client';
+import { Prisma, type Product, type ProductImage, type ProductVariant } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { ShopifyProductPushService } from '../shopify/shopify-product-push.service';
+import {
+  ShopifyProductPushService,
+  type ShopifyProductPushResult,
+} from '../shopify/shopify-product-push.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import type { ListProductsQueryDto } from './dto/list-products.query.dto';
 import type { UpdateProductDto } from './dto/update-product.dto';
 import type { UpdateVariantDto } from './dto/update-variant.dto';
 
-export type ProductWithVariants = Product & { variants: ProductVariant[] };
+export type ProductWithVariants = Product & {
+  variants: ProductVariant[];
+  images: ProductImage[];
+};
+
+const PRODUCT_INCLUDE = {
+  variants: true,
+  images: { orderBy: { sortOrder: 'asc' as const } },
+} satisfies Prisma.ProductInclude;
 
 @Injectable()
 export class ProductsService {
@@ -50,7 +61,7 @@ export class ProductsService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
         where,
-        include: { variants: true },
+        include: PRODUCT_INCLUDE,
         orderBy: { updatedAt: 'desc' },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
@@ -64,7 +75,7 @@ export class ProductsService {
   async getById(tenantId: string, id: string): Promise<ProductWithVariants> {
     const product = await this.prisma.product.findFirst({
       where: { id, tenantId },
-      include: { variants: true },
+      include: PRODUCT_INCLUDE,
     });
     if (!product) {
       throw new NotFoundException('Prodotto non trovato');
@@ -94,7 +105,7 @@ export class ProductsService {
           create: dto.variants.map((variant) => this.toVariantCreateInput(tenantId, variant)),
         },
       },
-      include: { variants: true },
+      include: PRODUCT_INCLUDE,
     });
 
     await this.pushProductToShopifySafe(tenantId, created.id);
@@ -120,7 +131,7 @@ export class ProductsService {
           status: dto.status,
           ...(dto.options ? { options: dto.options as unknown as Prisma.InputJsonValue } : {}),
         },
-        include: { variants: true },
+        include: PRODUCT_INCLUDE,
       });
     });
 
@@ -407,5 +418,10 @@ export class ProductsService {
       const message = error instanceof Error ? error.message : 'Push prodotto Shopify fallito';
       this.logger.warn(`Push prodotto Shopify non riuscito (${tenantId}): ${message}`);
     }
+  }
+
+  async syncToShopify(tenantId: string, id: string): Promise<ShopifyProductPushResult> {
+    await this.getById(tenantId, id);
+    return this.shopifyProductPush.pushProduct(tenantId, id);
   }
 }

@@ -48,6 +48,12 @@
             [seasons]="seasons()"
             (valueChange)="onGeneralChange($event)"
           />
+          <app-product-images-field
+            [existingImages]="existingImages()"
+            [disabled]="submitting()"
+            (filesChange)="onPendingImagesChange($event)"
+            (removeExisting)="onRemoveExistingImage($event)"
+          />
         }
         @case ('options') {
           <app-product-options-step

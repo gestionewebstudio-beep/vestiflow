@@ -5,6 +5,8 @@ export const SHOPIFY_WEBHOOK_TOPICS = [
   'orders/updated',
   'customers/create',
   'customers/update',
+  'products/create',
+  'products/update',
 ] as const;
 
 export type ShopifyWebhookTopic = (typeof SHOPIFY_WEBHOOK_TOPICS)[number];

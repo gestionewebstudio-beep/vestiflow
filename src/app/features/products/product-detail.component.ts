@@ -158,7 +158,34 @@ export class ProductDetailComponent {
   }
 
   protected reload(): void {
+    this.shopifySyncMessage.set(null);
     this.refreshTick.update((tick) => tick + 1);
+  }
+
+  protected syncWithShopify(productId: string): void {
+    if (this.syncingShopify()) {
+      return;
+    }
+    this.syncingShopify.set(true);
+    this.shopifySyncMessage.set(null);
+    this.service
+      .syncProductToShopify(productId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.syncingShopify.set(false);
+          this.shopifySyncMessage.set(
+            result.pushed
+              ? 'Prodotto inviato a Shopify con successo.'
+              : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
+          );
+          this.reload();
+        },
+        error: () => {
+          this.syncingShopify.set(false);
+          this.shopifySyncMessage.set('Errore durante la sincronizzazione con Shopify.');
+        },
+      });
   }
 
   protected goToList(): void {
@@ -173,6 +200,8 @@ export class ProductDetailComponent {
   protected readonly deleteDialogOpen = signal(false);
   protected readonly deleting = signal(false);
   protected readonly deleteError = signal<string | null>(null);
+  protected readonly syncingShopify = signal(false);
+  protected readonly shopifySyncMessage = signal<string | null>(null);
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private deleteSubscription: Subscription | null = null;

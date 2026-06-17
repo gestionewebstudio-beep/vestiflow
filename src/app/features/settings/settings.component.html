@@ -227,7 +227,12 @@
           <app-button
             variant="secondary"
             [loading]="syncLocationsLoading()"
-            [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
+            [disabled]="
+              syncLocationsLoading() ||
+              syncWebhooksLoading() ||
+              syncProductsLoading() ||
+              disconnectLoading()
+            "
             (click)="syncShopifyLocations()"
           >
             Sincronizza location
@@ -235,14 +240,37 @@
           <app-button
             variant="secondary"
             [loading]="syncWebhooksLoading()"
-            [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
+            [disabled]="
+              syncLocationsLoading() ||
+              syncWebhooksLoading() ||
+              syncProductsLoading() ||
+              disconnectLoading()
+            "
             (click)="syncShopifyWebhooks()"
           >
             Attiva aggiornamenti automatici
           </app-button>
           <app-button
+            variant="secondary"
+            [loading]="syncProductsLoading()"
+            [disabled]="
+              syncLocationsLoading() ||
+              syncWebhooksLoading() ||
+              syncProductsLoading() ||
+              disconnectLoading()
+            "
+            (click)="syncShopifyProducts()"
+          >
+            Importa catalogo da Shopify
+          </app-button>
+          <app-button
             [loading]="disconnectLoading()"
-            [disabled]="disconnectLoading() || syncLocationsLoading() || syncWebhooksLoading()"
+            [disabled]="
+              disconnectLoading() ||
+              syncLocationsLoading() ||
+              syncWebhooksLoading() ||
+              syncProductsLoading()
+            "
             (click)="disconnectShopify()"
           >
             Disconnetti Shopify
@@ -252,8 +280,9 @@
 
       <p class="settings__muted">
         Le credenziali Shopify restano sul server, mai nel browser. Con «Attiva aggiornamenti
-        automatici» VestiFlow riceve ordini, clienti e variazioni giacenza dal negozio online in
-        tempo reale.
+        automatici» VestiFlow riceve ordini, clienti, prodotti e variazioni giacenza dal negozio
+        online in tempo reale. «Importa catalogo» scarica tutti i prodotti presenti su Shopify nel
+        gestionale (utile al primo collegamento o per un allineamento manuale).
       </p>
     }
   </section>

@@ -104,6 +104,7 @@ model Tenant {
   stores             Store[]
   locations          Location[]
   products           Product[]
+  productImages      ProductImage[]
   variants           ProductVariant[]
   inventoryLevels    InventoryLevel[]
   stockMovements     StockMovement[]
@@ -227,10 +228,34 @@ model Product {
 
   tenant   Tenant           @relation(fields: [tenantId], references: [id])
   variants ProductVariant[]
+  images   ProductImage[]
 
   @@index([tenantId, status])
   @@index([tenantId, name])
+  @@index([tenantId, shopifyProductId])
   @@map("products")
+}
+
+model ProductImage {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  productId      String   @map("product_id") @db.Uuid
+  /// URL pubblico (Supabase Storage o CDN Shopify).
+  url            String
+  /// Path nel bucket Supabase; null se l'immagine proviene solo da Shopify.
+  storagePath    String?  @map("storage_path")
+  altText        String?  @map("alt_text")
+  sortOrder      Int      @default(0) @map("sort_order")
+  shopifyImageId String?  @map("shopify_image_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+  @@index([tenantId])
+  @@map("product_images")
 }
 
 model ProductVariant {

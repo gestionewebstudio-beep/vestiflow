@@ -125,6 +125,7 @@ export class SettingsComponent {
   protected readonly disconnectLoading = signal(false);
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
+  protected readonly syncProductsLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
   protected readonly actionFeedback = signal<ActionFeedback | null>(null);
   protected readonly shopifyBanner = signal<ShopifyBanner | null>(null);
@@ -444,6 +445,37 @@ export class SettingsComponent {
         },
         error: (err: unknown) => {
           this.syncWebhooksLoading.set(false);
+          this.connectError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected syncShopifyProducts(): void {
+    if (this.syncProductsLoading()) {
+      return;
+    }
+
+    this.syncProductsLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .syncProducts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.syncProductsLoading.set(false);
+          const failedCount = result.failed.length;
+          this.showActionFeedback({
+            tone: failedCount > 0 ? 'warning' : 'success',
+            message:
+              failedCount > 0
+                ? `Catalogo importato con ${failedCount} errori: ${result.imported} nuovi, ${result.updated} aggiornati.`
+                : `Catalogo sincronizzato da Shopify: ${result.imported} nuovi, ${result.updated} aggiornati.`,
+          });
+        },
+        error: (err: unknown) => {
+          this.syncProductsLoading.set(false);
           this.connectError.set(this.extractErrorMessage(err));
         },
       });

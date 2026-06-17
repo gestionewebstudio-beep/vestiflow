@@ -40,6 +40,11 @@ export class SupabaseService {
     return this.client !== null;
   }
 
+  /** Client Supabase per Storage (service role). */
+  getStorageClient(): SupabaseClient | null {
+    return this.client;
+  }
+
   async getUserFromAccessToken(accessToken: string): Promise<SupabaseAuthUser | null> {
     if (!this.client) {
       return null;

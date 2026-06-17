@@ -62,7 +62,7 @@ export class ShopifyProductPushService {
 
     const product = await this.prisma.product.findFirst({
       where: { id: productId, tenantId },
-      include: { variants: true },
+      include: { variants: true, images: { orderBy: { sortOrder: 'asc' } } },
     });
     if (!product) {
       return { pushed: false, reason: 'shopify_error' };
@@ -86,6 +86,13 @@ export class ShopifyProductPushService {
         : await this.shopifyAdmin.createProduct(shopDomain, accessToken, payload);
 
       await this.persistShopifyIds(product, shopifyProduct);
+      await this.pushProductImages(
+        tenantId,
+        product.id,
+        shopDomain,
+        accessToken,
+        shopifyProduct.id,
+      );
       await this.shopifyConnection.touchSync(tenantId);
 
       this.logger.log(
@@ -207,6 +214,41 @@ export class ShopifyProductPushService {
         return 'archived';
       default:
         return 'draft';
+    }
+  }
+
+  private async pushProductImages(
+    tenantId: string,
+    productId: string,
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: number,
+  ): Promise<void> {
+    const images = await this.prisma.productImage.findMany({
+      where: { tenantId, productId, shopifyImageId: null },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    for (const image of images) {
+      try {
+        const created = await this.shopifyAdmin.createProductImage(
+          shopDomain,
+          accessToken,
+          String(shopifyProductId),
+          {
+            src: image.url,
+            alt: image.altText ?? undefined,
+            position: image.sortOrder + 1,
+          },
+        );
+        await this.prisma.productImage.update({
+          where: { id: image.id },
+          data: { shopifyImageId: String(created.id), url: created.src },
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Push immagine fallito';
+        this.logger.warn(`Push immagine Shopify fallito (${productId}/${image.id}): ${message}`);
+      }
     }
   }
 

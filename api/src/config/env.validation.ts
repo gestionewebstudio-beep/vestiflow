@@ -88,6 +88,11 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   PLATFORM_ADMIN_EMAILS?: string;
+
+  /** Bucket Supabase Storage per immagini prodotto (public). Default: product-media */
+  @IsString()
+  @IsOptional()
+  SUPABASE_PRODUCT_MEDIA_BUCKET?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

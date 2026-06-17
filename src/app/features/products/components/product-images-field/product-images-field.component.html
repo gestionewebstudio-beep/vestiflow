@@ -1,0 +1,75 @@
+<div class="product-images">
+  <div class="product-images__header">
+    <span class="product-images__label">Immagini prodotto</span>
+    <span class="product-images__hint">(opzionale — max 10, JPEG/PNG/WebP, 5 MB)</span>
+  </div>
+
+  @if (existingImages().length > 0) {
+    <ul class="product-images__grid">
+      @for (image of existingImages(); track image.id) {
+        <li class="product-images__item">
+          <img
+            class="product-images__thumb"
+            [src]="image.url"
+            [alt]="image.altText ?? 'Immagine prodotto'"
+            width="120"
+            height="120"
+            loading="lazy"
+            decoding="async"
+          />
+          @if (!disabled()) {
+            <button
+              type="button"
+              class="product-images__remove"
+              aria-label="Rimuovi immagine"
+              (click)="onRemoveExisting(image.id)"
+            >
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  @if (pendingFiles().length > 0) {
+    <ul class="product-images__grid">
+      @for (entry of pendingFiles(); track entry.previewUrl; let i = $index) {
+        <li class="product-images__item">
+          <img
+            class="product-images__thumb"
+            [src]="entry.previewUrl"
+            alt="Anteprima immagine da caricare"
+            width="120"
+            height="120"
+          />
+          <button
+            type="button"
+            class="product-images__remove"
+            aria-label="Rimuovi anteprima"
+            (click)="removePending(i)"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+
+  @if (!disabled()) {
+    <label class="product-images__upload">
+      <input
+        class="product-images__file-input"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        (change)="onFileSelected($event)"
+      />
+      <i class="pi pi-upload" aria-hidden="true"></i>
+      Aggiungi immagine
+    </label>
+  }
+
+  @if (error(); as message) {
+    <p class="product-images__error" role="alert">{{ message }}</p>
+  }
+</div>

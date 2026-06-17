@@ -25,6 +25,14 @@ export interface ProductApiRow {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly variants?: readonly ProductVariantApiRow[];
+  readonly images?: readonly ProductImageApiRow[];
+}
+
+export interface ProductImageApiRow {
+  readonly id: EntityId;
+  readonly url: string;
+  readonly altText?: string | null;
+  readonly sortOrder: number;
 }
 
 export interface ProductVariantApiRow {
@@ -127,6 +135,12 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     season: row.season ?? undefined,
     status: row.status,
     options: row.options ?? [],
+    images: (row.images ?? []).map((image) => ({
+      id: image.id,
+      url: image.url,
+      altText: image.altText ?? undefined,
+      sortOrder: image.sortOrder,
+    })),
     shopify: mapShopifyLink(
       row.shopifySyncStatus,
       row.shopifyProductId,

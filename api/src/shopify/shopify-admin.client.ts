@@ -25,6 +25,39 @@ export interface ShopifyProductPayload {
   }[];
 }
 
+export interface ShopifyAdminProduct {
+  readonly id: number;
+  readonly title: string;
+  readonly body_html: string | null;
+  readonly vendor: string | null;
+  readonly product_type: string | null;
+  readonly status: string;
+  readonly options: readonly { readonly name: string; readonly values: readonly string[] }[];
+  readonly variants: readonly {
+    readonly id: number;
+    readonly title: string;
+    readonly sku: string | null;
+    readonly barcode: string | null;
+    readonly price: string;
+    readonly compare_at_price: string | null;
+    readonly inventory_item_id: number;
+    readonly option1: string | null;
+    readonly option2: string | null;
+    readonly option3: string | null;
+  }[];
+  readonly images: readonly {
+    readonly id: number;
+    readonly src: string;
+    readonly alt: string | null;
+    readonly position: number;
+  }[];
+}
+
+export interface ShopifyProductImagePayload {
+  readonly id: number;
+  readonly src: string;
+}
+
 @Injectable()
 export class ShopifyAdminClient {
   constructor(private readonly shopifyConfig: ShopifyConfigService) {}
@@ -155,6 +188,51 @@ export class ShopifyAdminClient {
       },
     );
     return response.product;
+  }
+
+  async listAllProducts(
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<readonly ShopifyAdminProduct[]> {
+    const products: ShopifyAdminProduct[] = [];
+    let sinceId = 0;
+
+    for (;;) {
+      const page = await this.request<{ products: ShopifyAdminProduct[] }>(
+        shopDomain,
+        accessToken,
+        `/products.json?limit=250&since_id=${sinceId}`,
+      );
+      const batch = page.products ?? [];
+      if (batch.length === 0) {
+        break;
+      }
+      products.push(...batch);
+      sinceId = batch[batch.length - 1]!.id;
+      if (batch.length < 250) {
+        break;
+      }
+    }
+
+    return products;
+  }
+
+  async createProductImage(
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+    image: { src: string; alt?: string; position?: number },
+  ): Promise<ShopifyProductImagePayload> {
+    const response = await this.request<{ image: ShopifyProductImagePayload }>(
+      shopDomain,
+      accessToken,
+      `/products/${shopifyProductId}/images.json`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ image }),
+      },
+    );
+    return response.image;
   }
 
   private async request<T>(
