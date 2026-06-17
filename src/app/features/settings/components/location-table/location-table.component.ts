@@ -16,6 +16,17 @@ import type { BadgeTone } from '@shared/components/badge/badge.component';
 export class LocationTableComponent {
   readonly locations = input.required<readonly Location[]>();
 
+  protected formatAddress(location: Location): string {
+    const address = location.address;
+    if (!address) {
+      return '—';
+    }
+
+    const cityLine = [address.postalCode, address.city].filter(Boolean).join(' ');
+    const parts = [address.line1, cityLine, address.province].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : '—';
+  }
+
   protected shopifyLabel(location: Location): string {
     switch (location.shopify?.status) {
       case ShopifySyncStatus.Synced:

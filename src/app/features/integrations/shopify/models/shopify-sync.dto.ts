@@ -1,6 +1,8 @@
 export interface ShopifySyncLocationsDto {
   readonly synced: true;
   readonly matchedCount: number;
+  readonly importedCount: number;
+  readonly totalCount: number;
 }
 
 export interface ShopifySyncWebhooksDto {

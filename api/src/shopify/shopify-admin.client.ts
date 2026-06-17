@@ -58,6 +58,19 @@ export interface ShopifyProductImagePayload {
   readonly src: string;
 }
 
+export interface ShopifyAdminLocation {
+  readonly id: number;
+  readonly name: string;
+  readonly address1?: string | null;
+  readonly address2?: string | null;
+  readonly city?: string | null;
+  readonly zip?: string | null;
+  readonly province?: string | null;
+  readonly country?: string | null;
+  readonly country_code?: string | null;
+  readonly active: boolean;
+}
+
 @Injectable()
 export class ShopifyAdminClient {
   constructor(private readonly shopifyConfig: ShopifyConfigService) {}
@@ -74,8 +87,8 @@ export class ShopifyAdminClient {
   async listLocations(
     shopDomain: string,
     accessToken: string,
-  ): Promise<readonly { id: number; name: string }[]> {
-    const response = await this.request<{ locations: { id: number; name: string }[] }>(
+  ): Promise<readonly ShopifyAdminLocation[]> {
+    const response = await this.request<{ locations: ShopifyAdminLocation[] }>(
       shopDomain,
       accessToken,
       '/locations.json',

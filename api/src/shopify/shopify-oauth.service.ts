@@ -11,7 +11,6 @@ import {
   SalesOrderFulfillmentStatus,
   SalesOrderSource,
   ShopifyConnectionStatus,
-  ShopifySyncStatus,
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,6 +18,10 @@ import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyCryptoService } from './shopify-crypto.service';
+import {
+  ShopifyLocationSyncService,
+  type ShopifyLocationSyncResult,
+} from './shopify-location-sync.service';
 import {
   SHOPIFY_PROTECTED_WEBHOOK_TOPICS,
   type ShopifyWebhookRegistrationResult,
@@ -36,6 +39,7 @@ export class ShopifyOAuthService {
     private readonly shopifyCrypto: ShopifyCryptoService,
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyConnection: ShopifyConnectionService,
+    private readonly shopifyLocationSync: ShopifyLocationSyncService,
   ) {}
 
   async beginAuth(tenantId: string, shopInput: string): Promise<{ authorizeUrl: string }> {
@@ -204,7 +208,7 @@ export class ShopifyOAuthService {
     return connection.tenantId;
   }
 
-  async resyncLocations(tenantId: string): Promise<{ matchedCount: number }> {
+  async resyncLocations(tenantId: string): Promise<ShopifyLocationSyncResult> {
     const { shopDomain, accessToken } = await this.getAccessToken(tenantId);
     return this.syncLocations(tenantId, shopDomain, accessToken);
   }
@@ -285,42 +289,11 @@ export class ShopifyOAuthService {
     };
   }
 
-  private async syncLocations(
+  private syncLocations(
     tenantId: string,
     shopDomain: string,
     accessToken: string,
-  ): Promise<{ matchedCount: number }> {
-    const locations = await this.shopifyAdmin.listLocations(shopDomain, accessToken);
-    const tenantLocations = await this.prisma.location.findMany({
-      where: { tenantId },
-      orderBy: { name: 'asc' },
-    });
-
-    let matchedCount = 0;
-
-    for (const shopifyLocation of locations) {
-      const shopifyId = String(shopifyLocation.id);
-      const match =
-        tenantLocations.find(
-          (loc) => loc.shopifyLocationId === shopifyId || loc.name === shopifyLocation.name,
-        ) ?? tenantLocations[0];
-
-      if (!match) {
-        continue;
-      }
-
-      await this.prisma.location.update({
-        where: { id: match.id },
-        data: {
-          shopifyLocationId: shopifyId,
-          shopifySyncStatus: ShopifySyncStatus.synced,
-          shopifyLastSyncAt: new Date(),
-          shopifyLastError: null,
-        },
-      });
-      matchedCount += 1;
-    }
-
-    return { matchedCount };
+  ): Promise<ShopifyLocationSyncResult> {
+    return this.shopifyLocationSync.syncFromShopify(tenantId, shopDomain, accessToken);
   }
 }

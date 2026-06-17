@@ -61,11 +61,9 @@ export class ShopifyController {
 
   @Post('sync/locations')
   @Roles(...ADMIN_ROLES)
-  async syncLocations(
-    @CurrentTenant() tenantId: string,
-  ): Promise<{ synced: true; matchedCount: number }> {
-    const { matchedCount } = await this.shopifyOAuth.resyncLocations(tenantId);
-    return { synced: true, matchedCount };
+  async syncLocations(@CurrentTenant() tenantId: string) {
+    const result = await this.shopifyOAuth.resyncLocations(tenantId);
+    return { synced: true as const, ...result };
   }
 
   @Post('sync/webhooks')

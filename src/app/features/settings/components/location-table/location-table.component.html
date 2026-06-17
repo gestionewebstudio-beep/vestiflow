@@ -3,6 +3,7 @@
     <thead>
       <tr>
         <th scope="col">Nome</th>
+        <th scope="col">Indirizzo</th>
         <th scope="col">Codice</th>
         <th scope="col">Stato</th>
         <th scope="col">Shopify</th>
@@ -12,6 +13,7 @@
       @for (location of locations(); track location.id) {
         <tr class="location-table__row">
           <td data-label="Nome">{{ location.name }}</td>
+          <td data-label="Indirizzo">{{ formatAddress(location) }}</td>
           <td class="location-table__code tabular-nums" data-label="Codice">
             {{ location.code ?? '—' }}
           </td>

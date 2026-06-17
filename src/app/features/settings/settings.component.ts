@@ -39,7 +39,10 @@ import {
 } from '@features/integrations/shopify/models/shopify-scope-labels.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { normalizeShopDomainInput } from '@features/integrations/shopify/models/normalize-shop-domain.util';
-import type { ShopifySyncWebhooksDto } from '@features/integrations/shopify/models/shopify-sync.dto';
+import type {
+  ShopifySyncLocationsDto,
+  ShopifySyncWebhooksDto,
+} from '@features/integrations/shopify/models/shopify-sync.dto';
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
 import { LocationTableComponent } from './components/location-table/location-table.component';
@@ -198,7 +201,8 @@ export class SettingsComponent {
       return {
         active: false,
         label: 'Location non collegate',
-        detail: 'Premi «Sincronizza location» per collegare i magazzini VestiFlow a Shopify.',
+        detail:
+          'Premi «Sincronizza location» per importare le sedi da Shopify e collegarle a VestiFlow.',
       };
     }
 
@@ -410,12 +414,7 @@ export class SettingsComponent {
           this.reloadLocations();
           this.showActionFeedback({
             tone: 'success',
-            message:
-              result.matchedCount === 0
-                ? 'Sync completata: nessuna location VestiFlow da collegare.'
-                : result.matchedCount === 1
-                  ? 'Location sincronizzata con Shopify.'
-                  : `${result.matchedCount} location sincronizzate con Shopify.`,
+            message: this.formatLocationSyncFeedback(result),
           });
         },
         error: (err: unknown) => {
@@ -521,6 +520,36 @@ export class SettingsComponent {
       this.actionFeedbackTimer = null;
     }
     this.actionFeedback.set(null);
+  }
+
+  private formatLocationSyncFeedback(result: ShopifySyncLocationsDto): string {
+    if (result.totalCount === 0) {
+      return 'Sync completata: nessuna location trovata su Shopify.';
+    }
+
+    const parts: string[] = [];
+
+    if (result.importedCount > 0) {
+      parts.push(
+        result.importedCount === 1
+          ? '1 location importata da Shopify'
+          : `${result.importedCount} location importate da Shopify`,
+      );
+    }
+
+    if (result.matchedCount > 0) {
+      parts.push(
+        result.matchedCount === 1
+          ? '1 location collegata'
+          : `${result.matchedCount} location collegate`,
+      );
+    }
+
+    if (parts.length === 0) {
+      return 'Sync completata: nessuna modifica alle location.';
+    }
+
+    return `${parts.join(', ')} (${result.totalCount} sedi su Shopify).`;
   }
 
   private formatWebhooksFeedback(result: ShopifySyncWebhooksDto): ActionFeedback {
