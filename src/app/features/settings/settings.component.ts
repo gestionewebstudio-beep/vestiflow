@@ -29,6 +29,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import type { ThemeMode } from '@shared/models/theme.model';
 
+import { shopifyProductReadScopeWarning } from '@features/integrations/shopify/models/shopify-scope-capabilities.util';
 import {
   shopifyConnectionStatusLabel,
   shopifyConnectionStatusTone,
@@ -40,6 +41,7 @@ import {
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { normalizeShopDomainInput } from '@features/integrations/shopify/models/normalize-shop-domain.util';
 import type {
+  ShopifyClearErrorsDto,
   ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
   ShopifySyncProductsDto,
@@ -131,6 +133,7 @@ export class SettingsComponent {
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
   protected readonly syncProductsLoading = signal(false);
+  protected readonly clearErrorsLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
   protected readonly actionFeedback = signal<ActionFeedback | null>(null);
   protected readonly shopifyBanner = signal<ShopifyBanner | null>(null);
@@ -263,6 +266,18 @@ export class SettingsComponent {
     this.autoSyncEnabled()
       ? 'Disattiva aggiornamenti automatici'
       : 'Attiva aggiornamenti automatici',
+  );
+
+  protected readonly showClearShopifyErrors = computed(() => {
+    const conn = this.connection();
+    if (!conn) {
+      return false;
+    }
+    return conn.status === ShopifyConnectionStatus.Error || Boolean(conn.lastError);
+  });
+
+  protected readonly catalogReadScopeWarning = computed(() =>
+    shopifyProductReadScopeWarning(this.connection()?.scopes),
   );
 
   protected readonly roleLabel = computed(() => {
@@ -519,6 +534,32 @@ export class SettingsComponent {
       });
   }
 
+  protected clearShopifyErrors(): void {
+    if (this.clearErrorsLoading()) {
+      return;
+    }
+
+    this.clearErrorsLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .clearErrors()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.clearErrorsLoading.set(false);
+          this.reloadConnection();
+          this.reloadLocations();
+          this.showActionFeedback(this.formatClearErrorsFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.clearErrorsLoading.set(false);
+          this.connectError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
   protected dismissActionFeedback(): void {
     this.clearActionFeedback();
   }
@@ -597,7 +638,7 @@ export class SettingsComponent {
 
     if (failedCount > 0) {
       const firstError = result.failed[0]?.message;
-      const errorHint = firstError ? ` Primo errore: ${firstError.slice(0, 120)}.` : '';
+      const errorHint = firstError ? ` Dettaglio: ${firstError}.` : '';
       return {
         tone: 'warning',
         message: `Catalogo importato con ${failedCount} errori: ${result.imported} nuovi, ${result.updated} aggiornati.${errorHint}`,
@@ -622,6 +663,31 @@ export class SettingsComponent {
     return {
       tone: 'success',
       message: `Catalogo sincronizzato da Shopify: ${result.imported} nuovi, ${result.updated} aggiornati (${result.remoteProductCount} su Shopify).`,
+    };
+  }
+
+  private formatClearErrorsFeedback(result: ShopifyClearErrorsDto): ActionFeedback {
+    const parts: string[] = ['Connessione Shopify ripristinata'];
+
+    if (result.productsReset > 0) {
+      parts.push(
+        result.productsReset === 1
+          ? '1 prodotto ripristinato'
+          : `${result.productsReset} prodotti ripristinati`,
+      );
+    }
+
+    if (result.locationsReset > 0) {
+      parts.push(
+        result.locationsReset === 1
+          ? '1 location ripristinata'
+          : `${result.locationsReset} location ripristinate`,
+      );
+    }
+
+    return {
+      tone: 'success',
+      message: `${parts.join('. ')}.`,
     };
   }
 

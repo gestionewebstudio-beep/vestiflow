@@ -125,6 +125,14 @@
   color: var(--color-text-muted);
 }
 
+.settings__shopify-error-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-block-end: var(--space-2);
+}
+
 .settings__shopify-error {
   display: flex;
   align-items: center;

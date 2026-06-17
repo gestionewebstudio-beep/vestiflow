@@ -8,6 +8,7 @@ import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { shopifyConnectionFromDto } from '../models/shopify-connection.mapper';
 import type { ShopifyConnectionDto } from '../models/shopify-connection.dto';
 import type {
+  ShopifyClearErrorsDto,
   ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
   ShopifySyncProductsDto,
@@ -70,5 +71,11 @@ export class ShopifyConnectionService {
     return this.http
       .post<ShopifySyncProductsDto>(`${this.config.apiBaseUrl}/shopify/sync/products`, {})
       .pipe(timeout(SYNC_PRODUCTS_TIMEOUT_MS));
+  }
+
+  clearErrors(): Observable<ShopifyClearErrorsDto> {
+    return this.http
+      .post<ShopifyClearErrorsDto>(`${this.config.apiBaseUrl}/shopify/connection/clear-errors`, {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 }

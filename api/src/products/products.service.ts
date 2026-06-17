@@ -8,6 +8,7 @@ import {
 import { Prisma, type Product, type ProductImage, type ProductVariant } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
 import {
   ShopifyProductPushService,
   type ShopifyProductPushResult,
@@ -69,7 +70,12 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
-    return { items, total, page: query.page, pageSize: query.pageSize };
+    return {
+      items: items.map((item) => withReadableShopifyErrors(item)),
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
   }
 
   async getById(tenantId: string, id: string): Promise<ProductWithVariants> {
@@ -80,7 +86,7 @@ export class ProductsService {
     if (!product) {
       throw new NotFoundException('Prodotto non trovato');
     }
-    return product;
+    return withReadableShopifyErrors(product);
   }
 
   async create(tenantId: string, dto: CreateProductDto): Promise<ProductWithVariants> {
@@ -433,4 +439,14 @@ export class ProductsService {
     await this.getById(tenantId, id);
     return this.shopifyProductPush.pushProduct(tenantId, id);
   }
+}
+
+function withReadableShopifyErrors(product: ProductWithVariants): ProductWithVariants {
+  if (!product.shopifyLastError) {
+    return product;
+  }
+  return {
+    ...product,
+    shopifyLastError: toShopifyUserMessage(undefined, product.shopifyLastError),
+  };
 }

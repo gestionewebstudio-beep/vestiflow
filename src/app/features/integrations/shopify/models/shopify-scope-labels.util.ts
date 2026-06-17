@@ -62,8 +62,8 @@ const SCOPE_DISPLAY: Record<string, ShopifyScopeDisplay> = {
 };
 
 const ACCESS_LABELS: Record<ShopifyScopeAccess, string> = {
-  read: 'Solo lettura',
-  write: 'Lettura e scrittura',
+  read: 'Lettura',
+  write: 'Scrittura',
 };
 
 export function shopifyScopeDisplay(scope: string): ShopifyScopeDisplay {

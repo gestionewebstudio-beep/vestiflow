@@ -17,7 +17,8 @@ import { PRODUCT_IMPORT_TX } from './shopify-product-metadata.types';
 import { parseShopifyTags } from './shopify-product-metadata.util';
 import { shopifyDecimalToMinor } from './shopify-money.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
-import { SHOPIFY_READ_PRODUCTS_SCOPE, shopifyHasScope } from './shopify-scopes.util';
+import { toShopifyUserMessage } from './shopify-user-error.util';
+import { mergeShopifyScopes, shopifyProductReadScopeError } from './shopify-scopes.util';
 
 export interface ShopifyCatalogSyncResult {
   readonly imported: number;
@@ -76,14 +77,14 @@ export class ShopifyProductPullService {
       where: { tenantId },
       select: { scopes: true },
     });
-    const effectiveScopes =
-      connection.scopes.length > 0 ? connection.scopes : (credential?.scopes ?? []);
+    const effectiveScopes = mergeShopifyScopes(connection.scopes, credential?.scopes);
 
-    if (!shopifyHasScope(effectiveScopes, SHOPIFY_READ_PRODUCTS_SCOPE)) {
-      this.logger.warn(`Import catalogo bloccato (${tenantId}): scope read_products assente`);
-      throw new UnprocessableEntityException(
-        'Permesso read_products mancante. Ricollega Shopify per autorizzare la lettura del catalogo.',
+    const readScopeError = shopifyProductReadScopeError(effectiveScopes);
+    if (readScopeError) {
+      this.logger.warn(
+        `Import catalogo bloccato (${tenantId}): read_products assente (scopes: ${effectiveScopes.join(', ')})`,
       );
+      throw new UnprocessableEntityException(readScopeError);
     }
 
     const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
@@ -115,7 +116,10 @@ export class ShopifyProductPullService {
         }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Import fallito';
-        failed.push({ shopifyProductId: String(remote.id), message: message.slice(0, 300) });
+        failed.push({
+          shopifyProductId: String(remote.id),
+          message: toShopifyUserMessage(undefined, message).slice(0, 300),
+        });
         await this.recordProductImportError(tenantId, String(remote.id), message);
       }
     }

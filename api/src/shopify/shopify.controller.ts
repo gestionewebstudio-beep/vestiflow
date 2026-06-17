@@ -9,6 +9,7 @@ import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import { BeginShopifyAuthDto } from './dto/begin-shopify-auth.dto';
 import type { ShopifyConnectionDto } from './shopify-config.service';
 import { ShopifyConfigService } from './shopify-config.service';
+import type { ClearShopifyErrorsResult } from './shopify-connection.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
@@ -87,5 +88,11 @@ export class ShopifyController {
   ): Promise<{ synced: true } & ShopifyCatalogSyncResult> {
     const result = await this.shopifyProductPull.pullCatalog(tenantId);
     return { synced: true, ...result };
+  }
+
+  @Post('connection/clear-errors')
+  @Roles(...ADMIN_ROLES)
+  async clearErrors(@CurrentTenant() tenantId: string): Promise<ClearShopifyErrorsResult> {
+    return this.shopifyConnection.clearErrors(tenantId);
   }
 }

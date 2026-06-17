@@ -147,15 +147,31 @@
         </div>
       }
 
-      @if (conn.lastError; as lastError) {
+      @if (catalogReadScopeWarning(); as scopeWarning) {
         <p class="settings__shopify-error" role="alert">
           <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-          {{ lastError.message }}
-          <span class="settings__muted tabular-nums">
-            ({{ formatDateTime(lastError.occurredAt)
-            }}{{ lastError.code ? ' · ' + lastError.code : '' }})
-          </span>
+          {{ scopeWarning }}
         </p>
+      }
+
+      @if (conn.lastError; as lastError) {
+        <div class="settings__shopify-error-block">
+          <p class="settings__shopify-error" role="alert">
+            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+            {{ lastError.message }}
+            <span class="settings__muted tabular-nums">
+              ({{ formatDateTime(lastError.occurredAt) }})
+            </span>
+          </p>
+        </div>
+      } @else if (conn.status === 'error') {
+        <div class="settings__shopify-error-block">
+          <p class="settings__shopify-error" role="alert">
+            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+            La connessione Shopify segnala un errore. Se il negozio funziona, puoi ripristinare la
+            connessione e riprovare la sincronizzazione.
+          </p>
+        </div>
       }
 
       @if (connectError(); as message) {
@@ -224,6 +240,22 @@
         </div>
 
         <div class="settings__shopify-actions">
+          @if (showClearShopifyErrors()) {
+            <app-button
+              variant="ghost"
+              [loading]="clearErrorsLoading()"
+              [disabled]="
+                clearErrorsLoading() ||
+                syncLocationsLoading() ||
+                syncWebhooksLoading() ||
+                syncProductsLoading() ||
+                disconnectLoading()
+              "
+              (click)="clearShopifyErrors()"
+            >
+              Ripristina connessione
+            </app-button>
+          }
           <app-button
             variant="secondary"
             [loading]="syncLocationsLoading()"

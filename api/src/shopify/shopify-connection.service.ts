@@ -1,8 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { ShopifyConnectionStatus, type ShopifyConnection } from '@prisma/client';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ShopifyConnectionStatus, ShopifySyncStatus, type ShopifyConnection } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import type { ShopifyConnectionDto } from './shopify-config.service';
+import { toShopifyUserMessage } from './shopify-user-error.util';
+
+export interface ClearShopifyErrorsResult {
+  readonly cleared: true;
+  readonly productsReset: number;
+  readonly locationsReset: number;
+}
 
 @Injectable()
 export class ShopifyConnectionService {
@@ -126,6 +133,60 @@ export class ShopifyConnectionService {
     });
   }
 
+  /** Azzera avvisi/errori Shopify salvati e ripristina lo stato connessione se OAuth è valido. */
+  async clearErrors(tenantId: string): Promise<ClearShopifyErrorsResult> {
+    const connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
+    if (!connection || connection.status === ShopifyConnectionStatus.not_connected) {
+      throw new NotFoundException('Connessione Shopify non trovata');
+    }
+
+    const credential = await this.prisma.shopifyCredential.findUnique({
+      where: { tenantId },
+      select: { tenantId: true },
+    });
+    if (!credential) {
+      throw new UnprocessableEntityException(
+        'Impossibile ripristinare la connessione: Shopify non è più collegato.',
+      );
+    }
+
+    await this.prisma.shopifyConnection.updateMany({
+      where: { tenantId },
+      data: {
+        lastErrorMessage: null,
+        lastErrorCode: null,
+        lastErrorAt: null,
+      },
+    });
+    await this.healStaleErrorStatus(tenantId);
+
+    await this.prisma.product.updateMany({
+      where: { tenantId, shopifyLastError: { not: null } },
+      data: { shopifyLastError: null },
+    });
+
+    const productsReset = await this.prisma.product.updateMany({
+      where: { tenantId, shopifySyncStatus: ShopifySyncStatus.error },
+      data: { shopifySyncStatus: ShopifySyncStatus.out_of_sync, shopifyLastError: null },
+    });
+
+    await this.prisma.location.updateMany({
+      where: { tenantId, shopifyLastError: { not: null } },
+      data: { shopifyLastError: null },
+    });
+
+    const locationsReset = await this.prisma.location.updateMany({
+      where: { tenantId, shopifySyncStatus: ShopifySyncStatus.error },
+      data: { shopifySyncStatus: ShopifySyncStatus.out_of_sync, shopifyLastError: null },
+    });
+
+    return {
+      cleared: true,
+      productsReset: productsReset.count,
+      locationsReset: locationsReset.count,
+    };
+  }
+
   private toDto(connection: ShopifyConnection): ShopifyConnectionDto {
     return {
       id: connection.id,
@@ -142,7 +203,10 @@ export class ShopifyConnectionService {
       autoSyncEnabled: connection.autoSyncEnabled,
       lastError: connection.lastErrorMessage
         ? {
-            message: connection.lastErrorMessage,
+            message: toShopifyUserMessage(
+              connection.lastErrorCode ?? undefined,
+              connection.lastErrorMessage,
+            ),
             occurredAt: (connection.lastErrorAt ?? connection.updatedAt).toISOString(),
             code: connection.lastErrorCode ?? undefined,
           }

@@ -18,6 +18,12 @@ export interface ShopifyDisableWebhooksDto {
   readonly failed: readonly { readonly id: number; readonly message: string }[];
 }
 
+export interface ShopifyClearErrorsDto {
+  readonly cleared: true;
+  readonly productsReset: number;
+  readonly locationsReset: number;
+}
+
 export interface ShopifySyncProductsDto {
   readonly synced: true;
   readonly imported: number;
