@@ -15,6 +15,7 @@ export interface ShopifyConnectionDto {
   readonly lastSyncAt?: string | null;
   readonly webhooksActivatedAt?: string | null;
   readonly webhooksActiveCount?: number | null;
+  readonly autoSyncEnabled?: boolean;
   readonly lastError?: {
     readonly message: string;
     readonly occurredAt: string;
@@ -77,6 +78,34 @@ export class ShopifyConfigService {
 
   get frontendUrl(): string {
     return this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:4200';
+  }
+
+  /** Intervallo minimo tra richieste REST Admin API (~1,8 req/s, sotto il limite Basic 2/s). */
+  get apiMinIntervalMs(): number {
+    const raw = this.config.get<string>('SHOPIFY_API_MIN_INTERVAL_MS');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 550;
+  }
+
+  /** Retry massimi su HTTP 429 prima di fallire. */
+  get apiMaxRetries(): number {
+    const raw = this.config.get<string>('SHOPIFY_API_MAX_RETRIES');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 5;
+  }
+
+  /** Soglia bucket (used/max) oltre cui inserire una pausa breve. */
+  get apiBucketHighWatermark(): number {
+    const raw = this.config.get<string>('SHOPIFY_API_BUCKET_HIGH_WATERMARK');
+    const parsed = raw != null ? Number.parseFloat(raw) : Number.NaN;
+    return Number.isFinite(parsed) && parsed > 0 && parsed <= 1 ? parsed : 0.85;
+  }
+
+  /** Pausa (ms) quando il bucket Shopify è quasi pieno. */
+  get apiBucketPauseMs(): number {
+    const raw = this.config.get<string>('SHOPIFY_API_BUCKET_PAUSE_MS');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1000;
   }
 
   get encryptionConfigured(): boolean {

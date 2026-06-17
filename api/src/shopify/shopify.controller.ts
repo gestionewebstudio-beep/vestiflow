@@ -73,6 +73,13 @@ export class ShopifyController {
     return { synced: true as const, ...result };
   }
 
+  @Post('sync/webhooks/disable')
+  @Roles(...ADMIN_ROLES)
+  async disableWebhooks(@CurrentTenant() tenantId: string) {
+    const result = await this.shopifyOAuth.disableWebhooks(tenantId);
+    return { disabled: true as const, ...result };
+  }
+
   @Post('sync/products')
   @Roles(...ADMIN_ROLES)
   async syncProducts(

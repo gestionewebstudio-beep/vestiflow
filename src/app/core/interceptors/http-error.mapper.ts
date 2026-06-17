@@ -41,6 +41,23 @@ function kindFromStatus(status: number): AppErrorKind {
   }
 }
 
+function extractServerMessage(error: HttpErrorResponse): string | undefined {
+  const body: unknown = error.error;
+  if (typeof body === 'string' && body.trim().length > 0) {
+    return body.trim();
+  }
+  if (typeof body === 'object' && body !== null && 'message' in body) {
+    const message = (body as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message.trim();
+    }
+    if (Array.isArray(message) && typeof message[0] === 'string') {
+      return message[0].trim();
+    }
+  }
+  return undefined;
+}
+
 /**
  * Normalizza un errore HTTP (o qualsiasi errore) in AppError di dominio.
  * Funzione pura: facilmente testabile in isolamento.
@@ -48,9 +65,10 @@ function kindFromStatus(status: number): AppErrorKind {
 export function mapHttpErrorToAppError(error: unknown): AppError {
   if (error instanceof HttpErrorResponse) {
     const kind = kindFromStatus(error.status);
+    const serverMessage = extractServerMessage(error);
     return {
       kind,
-      message: MESSAGES[kind],
+      message: serverMessage ?? MESSAGES[kind],
       status: error.status,
       details: error,
     };

@@ -11,6 +11,10 @@ import { syncProductImagesFromShopify } from '../products/product-images.sync';
 import type { ShopifyAdminProduct } from './shopify-admin.client';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConnectionService } from './shopify-connection.service';
+import { ShopifyProductEnrichmentService } from './shopify-product-enrichment.service';
+import type { ProductShopifyEnrichment } from './shopify-product-metadata.types';
+import { PRODUCT_IMPORT_TX } from './shopify-product-metadata.types';
+import { parseShopifyTags } from './shopify-product-metadata.util';
 import { shopifyDecimalToMinor } from './shopify-money.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { SHOPIFY_READ_PRODUCTS_SCOPE, shopifyHasScope } from './shopify-scopes.util';
@@ -28,14 +32,32 @@ type VariantOptionRow = { readonly name: string; readonly value: string };
 export class ShopifyProductPullService {
   private readonly logger = new Logger(ShopifyProductPullService.name);
 
+  /** Evita import catalogo paralleli per lo stesso tenant (process-local). */
+  private readonly catalogPullInFlight = new Map<string, Promise<ShopifyCatalogSyncResult>>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly shopifyOAuth: ShopifyOAuthService,
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyConnection: ShopifyConnectionService,
+    private readonly shopifyEnrichment: ShopifyProductEnrichmentService,
   ) {}
 
   async pullCatalog(tenantId: string): Promise<ShopifyCatalogSyncResult> {
+    const inflight = this.catalogPullInFlight.get(tenantId);
+    if (inflight) {
+      this.logger.log(`Import catalogo già in corso (${tenantId}): join richiesta parallela`);
+      return inflight;
+    }
+
+    const job = this.executePullCatalog(tenantId).finally(() => {
+      this.catalogPullInFlight.delete(tenantId);
+    });
+    this.catalogPullInFlight.set(tenantId, job);
+    return job;
+  }
+
+  private async executePullCatalog(tenantId: string): Promise<ShopifyCatalogSyncResult> {
     const connection = await this.prisma.shopifyConnection.findUnique({
       where: { tenantId },
       select: { status: true, scopes: true },
@@ -60,7 +82,13 @@ export class ShopifyProductPullService {
 
     for (const remote of remoteProducts) {
       try {
-        const outcome = await this.importProduct(tenantId, remote);
+        const enrichment = await this.shopifyEnrichment.enrichProduct(
+          shopDomain,
+          accessToken,
+          remote,
+          { fetchVariantCosts: true },
+        );
+        const outcome = await this.importProduct(tenantId, remote, enrichment);
         if (outcome === 'imported') {
           imported += 1;
         } else if (outcome === 'updated') {
@@ -71,6 +99,7 @@ export class ShopifyProductPullService {
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Import fallito';
         failed.push({ shopifyProductId: String(remote.id), message: message.slice(0, 300) });
+        await this.recordProductImportError(tenantId, String(remote.id), message);
       }
     }
 
@@ -86,12 +115,31 @@ export class ShopifyProductPullService {
     if (!remote) {
       return 'skipped';
     }
-    return this.importProduct(tenantId, remote);
+
+    let enrichment: ProductShopifyEnrichment | undefined;
+    try {
+      const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
+      enrichment = await this.shopifyEnrichment.enrichProduct(shopDomain, accessToken, remote, {
+        fetchVariantCosts: true,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Enrichment webhook fallito';
+      this.logger.warn(`Enrichment webhook prodotto ${remote.id}: ${message}`);
+    }
+
+    try {
+      return await this.importProduct(tenantId, remote, enrichment);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Import webhook fallito';
+      await this.recordProductImportError(tenantId, String(remote.id), message);
+      throw error;
+    }
   }
 
   private async importProduct(
     tenantId: string,
     remote: ShopifyAdminProduct,
+    enrichment?: ProductShopifyEnrichment,
   ): Promise<'imported' | 'updated' | 'skipped'> {
     const shopifyProductId = String(remote.id);
     const existing = await this.prisma.product.findFirst({
@@ -101,11 +149,18 @@ export class ShopifyProductPullService {
 
     const options = this.mapOptions(remote);
     const status = this.mapStatus(remote.status);
+    const tags = enrichment?.tags ?? parseShopifyTags(remote.tags);
     const productData = {
       name: remote.title.trim() || 'Prodotto Shopify',
       description: remote.body_html ?? null,
       brand: remote.vendor?.trim() || null,
       category: remote.product_type?.trim() || null,
+      season: enrichment?.season ?? existing?.season ?? null,
+      tags: [...tags],
+      seoTitle: enrichment?.seoTitle ?? null,
+      seoDescription: enrichment?.seoDescription ?? null,
+      shopifyCollections: (enrichment?.collections ?? []) as unknown as Prisma.InputJsonValue,
+      shopifyMetafields: (enrichment?.metafields ?? []) as unknown as Prisma.InputJsonValue,
       status,
       options: options as unknown as Prisma.InputJsonValue,
       shopifyProductId,
@@ -136,6 +191,7 @@ export class ShopifyProductPullService {
               barcode: variant.barcode ?? null,
               currency: 'EUR',
               sellingPriceMinor: shopifyDecimalToMinor(variant.price ?? '0'),
+              purchasePriceMinor: enrichment?.variantPurchasePriceMinor.get(variant.id) ?? null,
               compareAtPriceMinor: variant.compare_at_price
                 ? shopifyDecimalToMinor(variant.compare_at_price)
                 : null,
@@ -146,9 +202,14 @@ export class ShopifyProductPullService {
         }
 
         await syncProductImagesFromShopify(tx, tenantId, product.id, remote.images);
-      });
+      }, PRODUCT_IMPORT_TX);
       return 'imported';
     }
+
+    const reservedSkus = await this.loadTenantSkus(tenantId, existing.id);
+    const byShopifyVariantId = new Map(
+      existing.variants.filter((v) => v.shopifyVariantId).map((v) => [v.shopifyVariantId!, v]),
+    );
 
     await this.prisma.$transaction(async (tx) => {
       await tx.product.update({
@@ -156,18 +217,18 @@ export class ShopifyProductPullService {
         data: productData,
       });
 
-      const reservedSkus = await this.loadTenantSkus(tenantId, existing.id);
-      const byShopifyVariantId = new Map(
-        existing.variants.filter((v) => v.shopifyVariantId).map((v) => [v.shopifyVariantId!, v]),
-      );
-
       for (const variant of remote.variants) {
         const shopifyVariantId = String(variant.id);
         const matched = byShopifyVariantId.get(shopifyVariantId);
+        const purchasePriceMinor =
+          enrichment?.variantPurchasePriceMinor.get(variant.id) ??
+          matched?.purchasePriceMinor ??
+          null;
         const variantData = {
           optionValues: this.mapVariantOptions(remote, variant) as unknown as Prisma.InputJsonValue,
           barcode: variant.barcode ?? null,
           sellingPriceMinor: shopifyDecimalToMinor(variant.price ?? '0'),
+          purchasePriceMinor,
           compareAtPriceMinor: variant.compare_at_price
             ? shopifyDecimalToMinor(variant.compare_at_price)
             : null,
@@ -196,9 +257,23 @@ export class ShopifyProductPullService {
       }
 
       await syncProductImagesFromShopify(tx, tenantId, existing.id, remote.images);
-    });
+    }, PRODUCT_IMPORT_TX);
 
     return 'updated';
+  }
+
+  private async recordProductImportError(
+    tenantId: string,
+    shopifyProductId: string,
+    message: string,
+  ): Promise<void> {
+    await this.prisma.product.updateMany({
+      where: { tenantId, shopifyProductId },
+      data: {
+        shopifySyncStatus: ShopifySyncStatus.error,
+        shopifyLastError: message.slice(0, 500),
+      },
+    });
   }
 
   private async loadTenantSkus(tenantId: string, excludeProductId?: string): Promise<Set<string>> {

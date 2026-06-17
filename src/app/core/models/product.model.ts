@@ -1,6 +1,7 @@
 import type { EntityId, TenantScoped, Timestamped } from './common.model';
 import type { ProductImage } from './product-image.model';
 import type { ShopifyLink } from './shopify.model';
+import type { ShopifyCollectionRef, ShopifyMetafieldRef } from './shopify-product-metadata.model';
 
 export const ProductStatus = {
   Draft: 'draft',
@@ -38,6 +39,11 @@ export interface Product extends TenantScoped, Timestamped {
   readonly brand?: string;
   readonly category?: string;
   readonly season?: string;
+  readonly tags?: readonly string[];
+  readonly seoTitle?: string;
+  readonly seoDescription?: string;
+  readonly shopifyCollections?: readonly ShopifyCollectionRef[];
+  readonly shopifyMetafields?: readonly ShopifyMetafieldRef[];
   readonly status: ProductStatus;
   readonly options: readonly ProductOption[];
   readonly images?: readonly ProductImage[];

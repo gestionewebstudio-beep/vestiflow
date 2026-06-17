@@ -215,6 +215,15 @@ model Product {
   brand       String?
   category    String?
   season      String?
+  /// Tag prodotto (forma Shopify: lista normalizzata, es. ['estate','donna']).
+  tags        String[]      @default([])
+  /// SEO importato da Shopify (metafields global title_tag / description_tag).
+  seoTitle       String? @map("seo_title")
+  seoDescription String? @map("seo_description")
+  /// Collezioni Shopify collegate [{ id, title }] — read-only lato sync.
+  shopifyCollections Json @default("[]") @map("shopify_collections")
+  /// Metafields Shopify importati [{ namespace, key, value, type? }] — snapshot.
+  shopifyMetafields  Json @default("[]") @map("shopify_metafields")
   status      ProductStatus @default(draft)
   /// Assi opzione (max 3, vincolo Shopify): [{ name: 'Taglia', values: ['S','M'] }]
   options     Json          @default("[]")
@@ -506,6 +515,8 @@ model ShopifyConnection {
   lastSyncAt      DateTime?               @map("last_sync_at")
   webhooksActivatedAt DateTime?           @map("webhooks_activated_at")
   webhooksActiveCount Int?                @map("webhooks_active_count")
+  /// Webhook Shopify attivi: ordini, clienti, prodotti e giacenze in tempo reale.
+  autoSyncEnabled     Boolean               @default(false) @map("auto_sync_enabled")
   lastErrorMessage String?                @map("last_error_message")
   lastErrorCode    String?                @map("last_error_code")
   lastErrorAt      DateTime?              @map("last_error_at")

@@ -16,6 +16,11 @@ export interface ProductApiRow {
   readonly brand?: string | null;
   readonly category?: string | null;
   readonly season?: string | null;
+  readonly tags?: readonly string[];
+  readonly seoTitle?: string | null;
+  readonly seoDescription?: string | null;
+  readonly shopifyCollections?: unknown;
+  readonly shopifyMetafields?: unknown;
   readonly status: Product['status'];
   readonly options: readonly ProductOption[];
   readonly shopifyProductId?: string | null;
@@ -124,6 +129,42 @@ function mapShopifyLink(
   };
 }
 
+function parseJsonArray<T>(value: unknown, guard: (item: unknown) => item is T): T[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(guard);
+}
+
+function isShopifyCollectionRef(item: unknown): item is { id: string; title: string } {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'id' in item &&
+    'title' in item &&
+    typeof (item as { id: unknown }).id === 'string' &&
+    typeof (item as { title: unknown }).title === 'string'
+  );
+}
+
+function isShopifyMetafieldRef(item: unknown): item is {
+  namespace: string;
+  key: string;
+  value: string;
+  type?: string;
+} {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'namespace' in item &&
+    'key' in item &&
+    'value' in item &&
+    typeof (item as { namespace: unknown }).namespace === 'string' &&
+    typeof (item as { key: unknown }).key === 'string' &&
+    typeof (item as { value: unknown }).value === 'string'
+  );
+}
+
 export function mapProductApiRow(row: ProductApiRow): Product {
   return {
     id: row.id,
@@ -133,6 +174,11 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     brand: row.brand ?? undefined,
     category: row.category ?? undefined,
     season: row.season ?? undefined,
+    tags: row.tags?.length ? [...row.tags] : undefined,
+    seoTitle: row.seoTitle ?? undefined,
+    seoDescription: row.seoDescription ?? undefined,
+    shopifyCollections: parseJsonArray(row.shopifyCollections, isShopifyCollectionRef),
+    shopifyMetafields: parseJsonArray(row.shopifyMetafields, isShopifyMetafieldRef),
     status: row.status,
     options: row.options ?? [],
     images: (row.images ?? []).map((image) => ({

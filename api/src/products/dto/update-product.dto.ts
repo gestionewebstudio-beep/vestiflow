@@ -43,6 +43,12 @@ export class UpdateProductDto {
   season?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  tags?: string[];
+
+  @IsOptional()
   @IsEnum(ProductStatus)
   status?: ProductStatus;
 

@@ -25,6 +25,7 @@ export interface ShopifyConnectionDto {
   readonly lastSyncAt?: IsoDateString;
   readonly webhooksActivatedAt?: IsoDateString;
   readonly webhooksActiveCount?: number;
+  readonly autoSyncEnabled?: boolean;
   readonly lastError?: ShopifyConnectionErrorDto;
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;

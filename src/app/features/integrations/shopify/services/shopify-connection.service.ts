@@ -8,6 +8,7 @@ import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { shopifyConnectionFromDto } from '../models/shopify-connection.mapper';
 import type { ShopifyConnectionDto } from '../models/shopify-connection.dto';
 import type {
+  ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
   ShopifySyncProductsDto,
   ShopifySyncWebhooksDto,
@@ -51,6 +52,15 @@ export class ShopifyConnectionService {
   syncWebhooks(): Observable<ShopifySyncWebhooksDto> {
     return this.http
       .post<ShopifySyncWebhooksDto>(`${this.config.apiBaseUrl}/shopify/sync/webhooks`, {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  disableWebhooks(): Observable<ShopifyDisableWebhooksDto> {
+    return this.http
+      .post<ShopifyDisableWebhooksDto>(
+        `${this.config.apiBaseUrl}/shopify/sync/webhooks/disable`,
+        {},
+      )
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

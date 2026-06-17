@@ -1,6 +1,8 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { ShopifySyncStatus } from '@prisma/client';
 
+import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
@@ -15,6 +17,7 @@ export class ShopifyWebhookService {
     private readonly shopifyOAuth: ShopifyOAuthService,
     private readonly shopifySync: ShopifySyncService,
     private readonly shopifyConnection: ShopifyConnectionService,
+    private readonly prisma: PrismaService,
   ) {}
 
   verifyHmac(rawBody: Buffer, hmacHeader: string | undefined): void {
@@ -34,14 +37,52 @@ export class ShopifyWebhookService {
 
   async process(shopDomain: string, topic: string, payload: unknown): Promise<void> {
     const tenantId = await this.shopifyOAuth.resolveTenantByShopDomain(shopDomain);
+    const data = payload as Record<string, unknown>;
+
+    const autoSyncEnabled = await this.shopifyConnection.isAutoSyncEnabled(tenantId);
+    if (!autoSyncEnabled) {
+      this.logger.debug(
+        `Webhook ${topic} ignorato: aggiornamenti automatici disattivati (${tenantId})`,
+      );
+      return;
+    }
 
     try {
       await this.shopifySync.handleWebhook(tenantId, topic, payload);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Errore sync webhook';
       this.logger.error(`Webhook ${topic} fallito per tenant ${tenantId}: ${message}`);
-      await this.shopifyConnection.recordError(tenantId, message, 'webhook_sync_failed');
+
+      if (topic.startsWith('products/')) {
+        await this.recordProductWebhookFailure(tenantId, data, message);
+      } else {
+        await this.shopifyConnection.recordSetupWarning(tenantId, message, 'webhook_sync_failed');
+      }
+
       throw error;
     }
+  }
+
+  private async recordProductWebhookFailure(
+    tenantId: string,
+    payload: Record<string, unknown>,
+    message: string,
+  ): Promise<void> {
+    const shopifyProductId = payload.id != null ? String(payload.id) : null;
+    if (shopifyProductId) {
+      await this.prisma.product.updateMany({
+        where: { tenantId, shopifyProductId },
+        data: {
+          shopifySyncStatus: ShopifySyncStatus.error,
+          shopifyLastError: message.slice(0, 500),
+        },
+      });
+    }
+
+    await this.shopifyConnection.recordSetupWarning(
+      tenantId,
+      `Sync prodotto Shopify non riuscito: ${message.slice(0, 200)}`,
+      'product_webhook_failed',
+    );
   }
 }

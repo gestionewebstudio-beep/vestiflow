@@ -95,6 +95,12 @@ export class CreateProductDto {
   @MaxLength(100)
   season?: string;
 
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  tags?: string[];
+
   @IsEnum(ProductStatus)
   status: ProductStatus = ProductStatus.draft;
 

@@ -246,9 +246,9 @@
               syncProductsLoading() ||
               disconnectLoading()
             "
-            (click)="syncShopifyWebhooks()"
+            (click)="toggleAutoSync()"
           >
-            Attiva aggiornamenti automatici
+            {{ autoSyncButtonLabel() }}
           </app-button>
           <app-button
             variant="secondary"
@@ -279,10 +279,11 @@
       }
 
       <p class="settings__muted">
-        Le credenziali Shopify restano sul server, mai nel browser. Con «Attiva aggiornamenti
-        automatici» VestiFlow riceve ordini, clienti, prodotti e variazioni giacenza dal negozio
-        online in tempo reale. «Importa catalogo» scarica tutti i prodotti presenti su Shopify nel
-        gestionale (utile al primo collegamento o per un allineamento manuale).
+        Le credenziali Shopify restano sul server, mai nel browser. «Attiva aggiornamenti
+        automatici» registra i webhook per ordini, clienti, prodotti e giacenze in tempo reale;
+        «Disattiva» li rimuove e ignora gli eventi in arrivo. «Importa catalogo» scarica tutti i
+        prodotti presenti su Shopify nel gestionale (utile al primo collegamento o per un
+        allineamento manuale).
       </p>
     }
   </section>

@@ -82,6 +82,7 @@ export class ProductGeneralStepComponent implements OnInit {
     brand: this.fb.control('', [Validators.required]),
     category: this.fb.control('', [Validators.required]),
     season: this.fb.control('', [Validators.required]),
+    tags: this.fb.control(''),
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
     description: this.fb.control(''),
   });

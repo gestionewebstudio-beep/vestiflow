@@ -59,16 +59,37 @@ export class ShopifyConnectionService {
     await this.prisma.shopifyConnection.updateMany({
       where: { tenantId },
       data: {
+        autoSyncEnabled: true,
         webhooksActivatedAt: new Date(),
         webhooksActiveCount: activeCount,
       },
     });
   }
 
+  async recordAutoSyncDisabled(tenantId: string): Promise<void> {
+    await this.prisma.shopifyConnection.updateMany({
+      where: { tenantId },
+      data: {
+        autoSyncEnabled: false,
+        webhooksActivatedAt: null,
+        webhooksActiveCount: null,
+      },
+    });
+  }
+
+  async isAutoSyncEnabled(tenantId: string): Promise<boolean> {
+    const connection = await this.prisma.shopifyConnection.findUnique({
+      where: { tenantId },
+      select: { autoSyncEnabled: true },
+    });
+    return connection?.autoSyncEnabled ?? false;
+  }
+
   async clearSetupStatus(tenantId: string): Promise<void> {
     await this.prisma.shopifyConnection.updateMany({
       where: { tenantId },
       data: {
+        autoSyncEnabled: false,
         webhooksActivatedAt: null,
         webhooksActiveCount: null,
       },
@@ -88,6 +109,7 @@ export class ShopifyConnectionService {
       lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
       webhooksActivatedAt: connection.webhooksActivatedAt?.toISOString() ?? null,
       webhooksActiveCount: connection.webhooksActiveCount,
+      autoSyncEnabled: connection.autoSyncEnabled,
       lastError: connection.lastErrorMessage
         ? {
             message: connection.lastErrorMessage,

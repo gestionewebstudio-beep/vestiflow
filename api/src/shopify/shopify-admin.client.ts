@@ -1,10 +1,14 @@
 import {
+  HttpException,
+  HttpStatus,
   Injectable,
   InternalServerErrorException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { ShopifyConfigService } from './shopify-config.service';
+import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
+import { parseShopifyRetryAfterHeader } from './shopify-rate-limiter.util';
 import {
   SHOPIFY_WEBHOOK_TOPICS,
   type ShopifyWebhookRegistrationResult,
@@ -31,6 +35,7 @@ export interface ShopifyAdminProduct {
   readonly body_html: string | null;
   readonly vendor: string | null;
   readonly product_type: string | null;
+  readonly tags?: string | null;
   readonly status: string;
   readonly options: readonly { readonly name: string; readonly values: readonly string[] }[];
   readonly variants: readonly {
@@ -71,9 +76,31 @@ export interface ShopifyAdminLocation {
   readonly active: boolean;
 }
 
+export interface ShopifyCollectRow {
+  readonly id: number;
+  readonly collection_id: number;
+  readonly product_id: number;
+}
+
+export interface ShopifyMetafieldRow {
+  readonly id?: number;
+  readonly namespace: string;
+  readonly key: string;
+  readonly value: string;
+  readonly type?: string;
+}
+
+export interface ShopifyInventoryItemRow {
+  readonly id: number;
+  readonly cost: string | null;
+}
+
 @Injectable()
 export class ShopifyAdminClient {
-  constructor(private readonly shopifyConfig: ShopifyConfigService) {}
+  constructor(
+    private readonly shopifyConfig: ShopifyConfigService,
+    private readonly rateLimiter: ShopifyRateLimiterService,
+  ) {}
 
   async getShop(shopDomain: string, accessToken: string): Promise<{ name: string }> {
     const response = await this.request<{ shop: { name: string } }>(
@@ -168,6 +195,37 @@ export class ShopifyAdminClient {
     return { registered, skipped, failed };
   }
 
+  /** Rimuove i webhook registrati verso l'URL VestiFlow (disattiva sync automatica). */
+  async deleteWebhooksForAddress(
+    shopDomain: string,
+    accessToken: string,
+    address: string,
+  ): Promise<{ deletedCount: number; failed: readonly { id: number; message: string }[] }> {
+    const existing = await this.request<{ webhooks: { id: number; address: string }[] }>(
+      shopDomain,
+      accessToken,
+      '/webhooks.json',
+    );
+
+    const targets = (existing.webhooks ?? []).filter((hook) => hook.address === address);
+    const failed: { id: number; message: string }[] = [];
+    let deletedCount = 0;
+
+    for (const hook of targets) {
+      try {
+        await this.request(shopDomain, accessToken, `/webhooks/${hook.id}.json`, {
+          method: 'DELETE',
+        });
+        deletedCount += 1;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Eliminazione fallita';
+        failed.push({ id: hook.id, message: message.slice(0, 300) });
+      }
+    }
+
+    return { deletedCount, failed };
+  }
+
   async createProduct(
     shopDomain: string,
     accessToken: string,
@@ -248,6 +306,128 @@ export class ShopifyAdminClient {
     return response.image;
   }
 
+  async listProductCollects(
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+  ): Promise<readonly ShopifyCollectRow[]> {
+    const response = await this.request<{ collects: ShopifyCollectRow[] }>(
+      shopDomain,
+      accessToken,
+      `/collects.json?product_id=${shopifyProductId}&limit=250`,
+    );
+    return response.collects ?? [];
+  }
+
+  async listProductMetafields(
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+  ): Promise<readonly ShopifyMetafieldRow[]> {
+    const response = await this.request<{ metafields: ShopifyMetafieldRow[] }>(
+      shopDomain,
+      accessToken,
+      `/products/${shopifyProductId}/metafields.json?limit=250`,
+    );
+    return response.metafields ?? [];
+  }
+
+  async upsertProductMetafield(
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+    metafield: { namespace: string; key: string; value: string; type: string },
+    existingId?: string,
+  ): Promise<void> {
+    if (existingId) {
+      await this.request(
+        shopDomain,
+        accessToken,
+        `/products/${shopifyProductId}/metafields/${existingId}.json`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ metafield: { value: metafield.value, type: metafield.type } }),
+        },
+      );
+      return;
+    }
+
+    await this.request(shopDomain, accessToken, `/products/${shopifyProductId}/metafields.json`, {
+      method: 'POST',
+      body: JSON.stringify({ metafield }),
+    });
+  }
+
+  async getInventoryItem(
+    shopDomain: string,
+    accessToken: string,
+    inventoryItemId: string,
+  ): Promise<ShopifyInventoryItemRow> {
+    const response = await this.request<{ inventory_item: ShopifyInventoryItemRow }>(
+      shopDomain,
+      accessToken,
+      `/inventory_items/${inventoryItemId}.json`,
+    );
+    return response.inventory_item;
+  }
+
+  async updateInventoryItemCost(
+    shopDomain: string,
+    accessToken: string,
+    inventoryItemId: string,
+    cost: string,
+  ): Promise<void> {
+    await this.request(shopDomain, accessToken, `/inventory_items/${inventoryItemId}.json`, {
+      method: 'PUT',
+      body: JSON.stringify({ inventory_item: { id: Number(inventoryItemId), cost } }),
+    });
+  }
+
+  /** Risolve i titoli delle collezioni a partire dai collect del prodotto. */
+  async resolveCollectionTitles(
+    shopDomain: string,
+    accessToken: string,
+    collects: readonly ShopifyCollectRow[],
+  ): Promise<{ id: string; title: string }[]> {
+    const uniqueIds = [...new Set(collects.map((row) => row.collection_id))];
+    const results: { id: string; title: string }[] = [];
+
+    for (const collectionId of uniqueIds) {
+      const title = await this.fetchCollectionTitle(shopDomain, accessToken, collectionId);
+      if (title) {
+        results.push({ id: String(collectionId), title });
+      }
+    }
+
+    return results;
+  }
+
+  private async fetchCollectionTitle(
+    shopDomain: string,
+    accessToken: string,
+    collectionId: number,
+  ): Promise<string | null> {
+    try {
+      const custom = await this.request<{ custom_collection: { title: string } }>(
+        shopDomain,
+        accessToken,
+        `/custom_collections/${collectionId}.json`,
+      );
+      return custom.custom_collection?.title ?? null;
+    } catch {
+      try {
+        const smart = await this.request<{ smart_collection: { title: string } }>(
+          shopDomain,
+          accessToken,
+          `/smart_collections/${collectionId}.json`,
+        );
+        return smart.smart_collection?.title ?? null;
+      } catch {
+        return null;
+      }
+    }
+  }
+
   private async request<T>(
     shopDomain: string,
     accessToken: string,
@@ -256,31 +436,56 @@ export class ShopifyAdminClient {
   ): Promise<T> {
     const apiVersion = this.shopifyConfig.apiVersion;
     const url = `https://${shopDomain}/admin/api/${apiVersion}${path}`;
-    const response = await fetch(url, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken,
-        ...(init.headers ?? {}),
-      },
-    });
+    const maxRetries = this.shopifyConfig.apiMaxRetries;
 
-    if (!response.ok) {
-      const body = await response.text();
-      throw new InternalServerErrorException(
-        `Shopify Admin API error (${response.status}): ${body.slice(0, 200)}`,
+    for (let attempt = 0; ; attempt += 1) {
+      await this.rateLimiter.beforeRequest(shopDomain);
+
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': accessToken,
+          ...(init.headers ?? {}),
+        },
+      });
+
+      this.rateLimiter.onCallLimitHeader(
+        shopDomain,
+        response.headers.get('x-shopify-shop-api-call-limit'),
       );
-    }
 
-    if (response.status === 204) {
-      return {} as T;
-    }
+      if (response.status === 429) {
+        if (attempt >= maxRetries) {
+          throw new HttpException(
+            'Shopify ha limitato temporaneamente le richieste API. Riprova tra qualche minuto.',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
 
-    const json = (await response.json()) as ShopifyAdminResponse<T> | T;
-    if (typeof json === 'object' && json !== null && 'errors' in json && json.errors) {
-      throw new InternalServerErrorException(`Shopify Admin API: ${json.errors}`);
+        const retryAfter = parseShopifyRetryAfterHeader(response.headers.get('retry-after'));
+        await response.text().catch(() => undefined);
+        await this.rateLimiter.waitForRetry(shopDomain, attempt, retryAfter);
+        continue;
+      }
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new InternalServerErrorException(
+          `Shopify Admin API error (${response.status}): ${body.slice(0, 200)}`,
+        );
+      }
+
+      if (response.status === 204) {
+        return {} as T;
+      }
+
+      const json = (await response.json()) as ShopifyAdminResponse<T> | T;
+      if (typeof json === 'object' && json !== null && 'errors' in json && json.errors) {
+        throw new InternalServerErrorException(`Shopify Admin API: ${json.errors}`);
+      }
+      return json as T;
     }
-    return json as T;
   }
 
   assertConfigured(): void {

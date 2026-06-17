@@ -42,6 +42,7 @@ export interface CreateProductDto {
   readonly brand?: string;
   readonly category?: string;
   readonly season?: string;
+  readonly tags?: readonly string[];
   readonly status: ProductStatus;
   readonly options: readonly ProductOptionDto[];
   readonly variants: readonly CreateProductVariantDto[];
@@ -59,6 +60,7 @@ export interface UpdateProductDto {
   readonly brand?: string;
   readonly category?: string;
   readonly season?: string;
+  readonly tags?: readonly string[];
   readonly status?: ProductStatus;
   readonly options?: readonly ProductOptionDto[];
   readonly variants?: readonly UpdateProductVariantDto[];

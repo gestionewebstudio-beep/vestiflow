@@ -168,6 +168,19 @@
   color: var(--color-text);
 }
 
+.product-detail__metafields {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.product-detail__metafield-key {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 // ── Hint inventory (hook tecnico, non una sezione stock) ─────────────────────
 .product-detail__hint {
   display: flex;

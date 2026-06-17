@@ -12,6 +12,11 @@ import { ShopifyConnectionService } from './shopify-connection.service';
 import { minorToShopifyDecimal } from './shopify-money.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { SHOPIFY_WRITE_PRODUCTS_SCOPE, shopifyHasScope } from './shopify-scopes.util';
+import {
+  VESTIFLOW_METAFIELD_NAMESPACE,
+  VESTIFLOW_SEASON_METAFIELD_KEY,
+} from './shopify-product-metadata.types';
+import { formatShopifyTags } from './shopify-product-metadata.util';
 
 type ProductWithVariants = Product & { variants: ProductVariant[] };
 
@@ -93,6 +98,14 @@ export class ShopifyProductPushService {
         accessToken,
         shopifyProduct.id,
       );
+      await this.pushSeasonMetafield(
+        shopDomain,
+        accessToken,
+        String(shopifyProduct.id),
+        product.season,
+        product.shopifyMetafields,
+      );
+      await this.pushVariantCosts(shopDomain, accessToken, product.variants);
       await this.shopifyConnection.touchSync(tenantId);
 
       this.logger.log(
@@ -122,10 +135,76 @@ export class ShopifyProductPushService {
       body_html: product.description ?? '',
       vendor: product.brand ?? undefined,
       product_type: product.category ?? undefined,
+      tags: product.tags.length > 0 ? formatShopifyTags(product.tags) : undefined,
       status: this.mapProductStatus(product.status),
       options: shopifyOptions,
       variants: variantRows,
     };
+  }
+
+  private async pushSeasonMetafield(
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+    season: string | null,
+    rawMetafields: unknown,
+  ): Promise<void> {
+    const trimmed = season?.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const metafields = Array.isArray(rawMetafields) ? rawMetafields : [];
+    const existing = metafields.find(
+      (field): field is { id?: number; namespace: string; key: string } =>
+        typeof field === 'object' &&
+        field !== null &&
+        'namespace' in field &&
+        'key' in field &&
+        (field as { namespace: string }).namespace === VESTIFLOW_METAFIELD_NAMESPACE &&
+        (field as { key: string }).key === VESTIFLOW_SEASON_METAFIELD_KEY,
+    );
+
+    try {
+      await this.shopifyAdmin.upsertProductMetafield(
+        shopDomain,
+        accessToken,
+        shopifyProductId,
+        {
+          namespace: VESTIFLOW_METAFIELD_NAMESPACE,
+          key: VESTIFLOW_SEASON_METAFIELD_KEY,
+          value: trimmed,
+          type: 'single_line_text_field',
+        },
+        existing?.id != null ? String(existing.id) : undefined,
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Push metafield stagione fallito';
+      this.logger.warn(`Metafield stagione non sincronizzato (${shopifyProductId}): ${message}`);
+    }
+  }
+
+  private async pushVariantCosts(
+    shopDomain: string,
+    accessToken: string,
+    variants: ProductWithVariants['variants'],
+  ): Promise<void> {
+    for (const variant of variants) {
+      if (variant.purchasePriceMinor == null || !variant.shopifyInventoryItemId) {
+        continue;
+      }
+      try {
+        await this.shopifyAdmin.updateInventoryItemCost(
+          shopDomain,
+          accessToken,
+          variant.shopifyInventoryItemId,
+          minorToShopifyDecimal(variant.purchasePriceMinor),
+        );
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Push costo fallito';
+        this.logger.warn(`Costo variante ${variant.sku} non sincronizzato: ${message}`);
+      }
+    }
   }
 
   private normalizeOptions(raw: unknown): ProductOptionRow[] {

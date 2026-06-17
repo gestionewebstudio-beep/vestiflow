@@ -40,6 +40,7 @@ import {
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { normalizeShopDomainInput } from '@features/integrations/shopify/models/normalize-shop-domain.util';
 import type {
+  ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
   ShopifySyncWebhooksDto,
 } from '@features/integrations/shopify/models/shopify-sync.dto';
@@ -229,12 +230,12 @@ export class SettingsComponent {
 
   protected readonly webhooksSetupStatus = computed((): SetupStatusItem => {
     const conn = this.connection();
-    if (!conn?.webhooksActivatedAt || !conn.webhooksActiveCount) {
+    if (!conn?.autoSyncEnabled) {
       return {
         active: false,
         label: 'Aggiornamenti automatici non attivi',
         detail:
-          'Premi «Attiva aggiornamenti automatici» per ricevere ordini, clienti e giacenze da Shopify.',
+          'Premi «Attiva aggiornamenti automatici» per ricevere ordini, clienti, prodotti e giacenze da Shopify.',
       };
     }
 
@@ -242,15 +243,26 @@ export class SettingsComponent {
     const countLabel =
       conn.webhooksActiveCount === 1
         ? '1 canale attivo'
-        : `${conn.webhooksActiveCount} canali attivi`;
+        : `${conn.webhooksActiveCount ?? 0} canali attivi`;
+    const activatedAt = conn.webhooksActivatedAt
+      ? ` · ${this.formatDateTime(conn.webhooksActivatedAt)}`
+      : '';
 
     return {
       active: true,
       partial,
       label: partial ? 'Aggiornamenti automatici parziali' : 'Aggiornamenti automatici attivi',
-      detail: `${countLabel} · ${this.formatDateTime(conn.webhooksActivatedAt)}`,
+      detail: `${countLabel}${activatedAt}`,
     };
   });
+
+  protected readonly autoSyncEnabled = computed(() => this.connection()?.autoSyncEnabled === true);
+
+  protected readonly autoSyncButtonLabel = computed(() =>
+    this.autoSyncEnabled()
+      ? 'Disattiva aggiornamenti automatici'
+      : 'Attiva aggiornamenti automatici',
+  );
 
   protected readonly roleLabel = computed(() => {
     const user = this.currentUser();
@@ -424,7 +436,15 @@ export class SettingsComponent {
       });
   }
 
-  protected syncShopifyWebhooks(): void {
+  protected toggleAutoSync(): void {
+    if (this.autoSyncEnabled()) {
+      this.disableAutoSync();
+      return;
+    }
+    this.enableAutoSync();
+  }
+
+  protected enableAutoSync(): void {
     if (this.syncWebhooksLoading()) {
       return;
     }
@@ -441,6 +461,31 @@ export class SettingsComponent {
           this.syncWebhooksLoading.set(false);
           this.reloadConnection();
           this.showActionFeedback(this.formatWebhooksFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.syncWebhooksLoading.set(false);
+          this.connectError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected disableAutoSync(): void {
+    if (this.syncWebhooksLoading()) {
+      return;
+    }
+
+    this.syncWebhooksLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .disableWebhooks()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.syncWebhooksLoading.set(false);
+          this.reloadConnection();
+          this.showActionFeedback(this.formatDisableWebhooksFeedback(result));
         },
         error: (err: unknown) => {
           this.syncWebhooksLoading.set(false);
@@ -550,6 +595,24 @@ export class SettingsComponent {
     }
 
     return `${parts.join(', ')} (${result.totalCount} sedi su Shopify).`;
+  }
+
+  private formatDisableWebhooksFeedback(result: ShopifyDisableWebhooksDto): ActionFeedback {
+    if (result.failed.length > 0) {
+      return {
+        tone: 'warning',
+        message:
+          'Aggiornamenti automatici disattivati in VestiFlow. Alcuni webhook potrebbero restare su Shopify: riprova se necessario.',
+      };
+    }
+
+    return {
+      tone: 'success',
+      message:
+        result.deletedCount === 1
+          ? 'Aggiornamenti automatici disattivati.'
+          : `Aggiornamenti automatici disattivati (${result.deletedCount} canali rimossi).`,
+    };
   }
 
   private formatWebhooksFeedback(result: ShopifySyncWebhooksDto): ActionFeedback {

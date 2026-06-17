@@ -99,6 +99,7 @@ export class ProductsService {
         brand: dto.brand,
         category: dto.category,
         season: dto.season,
+        tags: this.normalizeTags(dto.tags),
         status: dto.status,
         options: dto.options as unknown as Prisma.InputJsonValue,
         variants: {
@@ -128,6 +129,7 @@ export class ProductsService {
           brand: dto.brand,
           category: dto.category,
           season: dto.season,
+          tags: dto.tags !== undefined ? this.normalizeTags(dto.tags) : undefined,
           status: dto.status,
           ...(dto.options ? { options: dto.options as unknown as Prisma.InputJsonValue } : {}),
         },
@@ -409,6 +411,13 @@ export class ProductsService {
         `Valute miste nelle varianti: ${[...currencies].join(', ')}`,
       );
     }
+  }
+
+  private normalizeTags(tags: readonly string[] | undefined): string[] {
+    if (!tags) {
+      return [];
+    }
+    return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))];
   }
 
   private async pushProductToShopifySafe(tenantId: string, productId: string): Promise<void> {

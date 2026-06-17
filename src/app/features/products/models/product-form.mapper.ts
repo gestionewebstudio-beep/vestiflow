@@ -92,6 +92,7 @@ export function emptyProductFormDraft(): ProductFormDraft {
       brand: '',
       category: '',
       season: '',
+      tags: '',
       status: ProductStatus.Draft,
     },
     options: { axes: defaultOptionAxes() },
@@ -136,6 +137,21 @@ function includedVariants(variants: readonly VariantDraft[]): readonly VariantDr
   return variants.filter((variant) => variant.included);
 }
 
+function parseTagsInput(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function formatTagsInput(tags: readonly string[] | undefined): string {
+  return tags?.join(', ') ?? '';
+}
+
 function generalToDto(
   general: ProductGeneralDraft,
 ): Omit<CreateProductDto, 'options' | 'variants'> {
@@ -145,6 +161,7 @@ function generalToDto(
     brand: trimmedOrUndefined(general.brand),
     category: trimmedOrUndefined(general.category),
     season: trimmedOrUndefined(general.season),
+    tags: parseTagsInput(general.tags),
     status: general.status,
   };
 }
@@ -207,6 +224,7 @@ export function productToFormDraft(
     brand: product.brand ?? '',
     category: product.category ?? '',
     season: product.season ?? '',
+    tags: formatTagsInput(product.tags),
     status: product.status,
   };
   const variantDrafts: VariantDraft[] = variants.map((variant) => ({

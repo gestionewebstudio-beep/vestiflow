@@ -16,6 +16,7 @@ export interface ProductGeneralDraft {
   readonly brand: string;
   readonly category: string;
   readonly season: string;
+  readonly tags: string;
   readonly status: ProductStatus;
 }
 

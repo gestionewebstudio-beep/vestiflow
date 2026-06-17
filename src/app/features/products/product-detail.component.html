@@ -96,6 +96,12 @@
           <dt class="product-detail__term">Descrizione</dt>
           <dd class="product-detail__value">{{ p.description ?? '—' }}</dd>
         </div>
+        @if (p.tags && p.tags.length > 0) {
+          <div class="product-detail__fact product-detail__fact--wide">
+            <dt class="product-detail__term">Tag</dt>
+            <dd class="product-detail__value">{{ p.tags.join(', ') }}</dd>
+          </div>
+        }
         <div class="product-detail__fact">
           <dt class="product-detail__term">Creato il</dt>
           <dd class="product-detail__value tabular-nums">{{ formatDate(p.createdAt) }}</dd>
@@ -119,6 +125,61 @@
         }
       </dl>
     </section>
+
+    @if (
+      p.seoTitle ||
+      p.seoDescription ||
+      (p.shopifyCollections && p.shopifyCollections.length > 0) ||
+      (p.shopifyMetafields && p.shopifyMetafields.length > 0)
+    ) {
+      <section class="product-detail__panel" aria-labelledby="detail-shopify-meta">
+        <h2 id="detail-shopify-meta" class="product-detail__panel-title">Dati Shopify</h2>
+        <dl class="product-detail__facts">
+          @if (p.seoTitle) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Titolo SEO</dt>
+              <dd class="product-detail__value">{{ p.seoTitle }}</dd>
+            </div>
+          }
+          @if (p.seoDescription) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Descrizione SEO</dt>
+              <dd class="product-detail__value">{{ p.seoDescription }}</dd>
+            </div>
+          }
+          @if (p.shopifyCollections && p.shopifyCollections.length > 0) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Collezioni</dt>
+              <dd class="product-detail__value">
+                @for (collection of p.shopifyCollections; track collection.id; let last = $last) {
+                  {{ collection.title }}
+                  @if (!last) {
+                    <span>, </span>
+                  }
+                }
+              </dd>
+            </div>
+          }
+          @if (p.shopifyMetafields && p.shopifyMetafields.length > 0) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Metafields</dt>
+              <dd class="product-detail__value">
+                <ul class="product-detail__metafields">
+                  @for (field of p.shopifyMetafields; track field.namespace + field.key) {
+                    <li>
+                      <span class="product-detail__metafield-key"
+                        >{{ field.namespace }}.{{ field.key }}</span
+                      >:
+                      {{ field.value }}
+                    </li>
+                  }
+                </ul>
+              </dd>
+            </div>
+          }
+        </dl>
+      </section>
+    }
 
     @if (p.images && p.images.length > 0) {
       <section class="product-detail__panel" aria-labelledby="detail-images">

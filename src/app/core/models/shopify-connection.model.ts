@@ -48,5 +48,7 @@ export interface ShopifyConnection extends TenantScoped, Timestamped {
   readonly lastSyncAt?: IsoDateString;
   readonly webhooksActivatedAt?: IsoDateString;
   readonly webhooksActiveCount?: number;
+  /** Webhook attivi: ordini, clienti, prodotti e giacenze in tempo reale da Shopify. */
+  readonly autoSyncEnabled?: boolean;
   readonly lastError?: ShopifyConnectionError;
 }

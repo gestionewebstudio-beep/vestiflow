@@ -222,6 +222,40 @@ export class ShopifyOAuthService {
     return this.registerWebhooksForTenant(tenantId, shopDomain, accessToken, webhookUrl);
   }
 
+  async disableWebhooks(
+    tenantId: string,
+  ): Promise<{ deletedCount: number; failed: readonly { id: number; message: string }[] }> {
+    const webhookUrl = this.shopifyConfig.webhookUrl;
+    if (!webhookUrl) {
+      throw new ServiceUnavailableException('SHOPIFY_APP_URL non configurato: webhook URL assente');
+    }
+
+    const { shopDomain, accessToken } = await this.getAccessToken(tenantId);
+    const result = await this.shopifyAdmin.deleteWebhooksForAddress(
+      shopDomain,
+      accessToken,
+      webhookUrl,
+    );
+
+    await this.shopifyConnection.recordAutoSyncDisabled(tenantId);
+
+    if (result.failed.length > 0) {
+      const message = `Alcuni webhook non rimossi su Shopify (${result.failed.length}). La sync automatica resta disattivata in VestiFlow.`;
+      await this.shopifyConnection.recordSetupWarning(tenantId, message, 'webhook_disable_partial');
+    } else {
+      await this.prisma.shopifyConnection.updateMany({
+        where: { tenantId },
+        data: {
+          lastErrorMessage: null,
+          lastErrorCode: null,
+          lastErrorAt: null,
+        },
+      });
+    }
+
+    return result;
+  }
+
   private async registerWebhooksForTenant(
     tenantId: string,
     shopDomain: string,
