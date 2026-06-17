@@ -14,6 +14,8 @@ import { shopifyDecimalToMinor } from './shopify-money.util';
 export interface EnrichProductOptions {
   /** Su import catalogo massivo i costi varianti possono essere saltati (N chiamate API). */
   readonly fetchVariantCosts?: boolean;
+  /** Import catalogo: solo tag dal payload prodotto, senza metafield/collezioni via API. */
+  readonly skipRemoteMetadata?: boolean;
 }
 
 const EMPTY_ENRICHMENT: ProductShopifyEnrichment = {
@@ -40,6 +42,10 @@ export class ShopifyProductEnrichmentService {
   ): Promise<ProductShopifyEnrichment> {
     const shopifyProductId = String(remote.id);
     const tags = parseShopifyTags(remote.tags);
+
+    if (options.skipRemoteMetadata) {
+      return { ...EMPTY_ENRICHMENT, tags };
+    }
 
     try {
       const [collectRows, metafieldRows] = await Promise.all([

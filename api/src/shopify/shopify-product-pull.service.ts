@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import {
   ProductStatus,
   ShopifyConnectionStatus,
@@ -23,6 +23,7 @@ export interface ShopifyCatalogSyncResult {
   readonly imported: number;
   readonly updated: number;
   readonly skipped: number;
+  readonly remoteProductCount: number;
   readonly failed: readonly { shopifyProductId: string; message: string }[];
 }
 
@@ -58,22 +59,38 @@ export class ShopifyProductPullService {
   }
 
   private async executePullCatalog(tenantId: string): Promise<ShopifyCatalogSyncResult> {
+    await this.shopifyConnection.healStaleErrorStatus(tenantId);
+
     const connection = await this.prisma.shopifyConnection.findUnique({
       where: { tenantId },
       select: { status: true, scopes: true },
     });
 
     if (!connection || connection.status !== ShopifyConnectionStatus.connected) {
-      return { imported: 0, updated: 0, skipped: 0, failed: [] };
+      throw new UnprocessableEntityException(
+        'Connessione Shopify non attiva. Ricollega lo store da Impostazioni e riprova.',
+      );
     }
 
-    if (!shopifyHasScope(connection.scopes, SHOPIFY_READ_PRODUCTS_SCOPE)) {
-      this.logger.warn(`Import catalogo saltato (${tenantId}): scope read_products assente`);
-      return { imported: 0, updated: 0, skipped: 0, failed: [] };
+    const credential = await this.prisma.shopifyCredential.findUnique({
+      where: { tenantId },
+      select: { scopes: true },
+    });
+    const effectiveScopes =
+      connection.scopes.length > 0 ? connection.scopes : (credential?.scopes ?? []);
+
+    if (!shopifyHasScope(effectiveScopes, SHOPIFY_READ_PRODUCTS_SCOPE)) {
+      this.logger.warn(`Import catalogo bloccato (${tenantId}): scope read_products assente`);
+      throw new UnprocessableEntityException(
+        'Permesso read_products mancante. Ricollega Shopify per autorizzare la lettura del catalogo.',
+      );
     }
 
     const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
     const remoteProducts = await this.shopifyAdmin.listAllProducts(shopDomain, accessToken);
+    this.logger.log(
+      `Import catalogo Shopify (${tenantId}): ${remoteProducts.length} prodotti da ${shopDomain}`,
+    );
 
     let imported = 0;
     let updated = 0;
@@ -86,7 +103,7 @@ export class ShopifyProductPullService {
           shopDomain,
           accessToken,
           remote,
-          { fetchVariantCosts: true },
+          { fetchVariantCosts: false, skipRemoteMetadata: true },
         );
         const outcome = await this.importProduct(tenantId, remote, enrichment);
         if (outcome === 'imported') {
@@ -104,7 +121,13 @@ export class ShopifyProductPullService {
     }
 
     await this.shopifyConnection.touchSync(tenantId);
-    return { imported, updated, skipped, failed };
+    return {
+      imported,
+      updated,
+      skipped,
+      remoteProductCount: remoteProducts.length,
+      failed,
+    };
   }
 
   async importProductFromWebhook(

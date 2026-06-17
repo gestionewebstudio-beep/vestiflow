@@ -15,6 +15,8 @@ import type {
 } from '../models/shopify-sync.dto';
 
 const HTTP_TIMEOUT_MS = 15000;
+/** Import catalogo può richiedere più chiamate Shopify per ogni prodotto. */
+const SYNC_PRODUCTS_TIMEOUT_MS = 180_000;
 
 /**
  * Stato connessione Shopify (read-only) + avvio OAuth lato server.
@@ -67,6 +69,6 @@ export class ShopifyConnectionService {
   syncProducts(): Observable<ShopifySyncProductsDto> {
     return this.http
       .post<ShopifySyncProductsDto>(`${this.config.apiBaseUrl}/shopify/sync/products`, {})
-      .pipe(timeout(HTTP_TIMEOUT_MS));
+      .pipe(timeout(SYNC_PRODUCTS_TIMEOUT_MS));
   }
 }

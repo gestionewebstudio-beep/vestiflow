@@ -42,6 +42,7 @@ import { normalizeShopDomainInput } from '@features/integrations/shopify/models/
 import type {
   ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
+  ShopifySyncProductsDto,
   ShopifySyncWebhooksDto,
 } from '@features/integrations/shopify/models/shopify-sync.dto';
 import { InventoryService } from '@features/inventory/services/inventory.service';
@@ -509,14 +510,7 @@ export class SettingsComponent {
       .subscribe({
         next: (result) => {
           this.syncProductsLoading.set(false);
-          const failedCount = result.failed.length;
-          this.showActionFeedback({
-            tone: failedCount > 0 ? 'warning' : 'success',
-            message:
-              failedCount > 0
-                ? `Catalogo importato con ${failedCount} errori: ${result.imported} nuovi, ${result.updated} aggiornati.`
-                : `Catalogo sincronizzato da Shopify: ${result.imported} nuovi, ${result.updated} aggiornati.`,
-          });
+          this.showActionFeedback(this.formatProductsFeedback(result));
         },
         error: (err: unknown) => {
           this.syncProductsLoading.set(false);
@@ -595,6 +589,40 @@ export class SettingsComponent {
     }
 
     return `${parts.join(', ')} (${result.totalCount} sedi su Shopify).`;
+  }
+
+  private formatProductsFeedback(result: ShopifySyncProductsDto): ActionFeedback {
+    const failedCount = result.failed.length;
+    const changedCount = result.imported + result.updated;
+
+    if (failedCount > 0) {
+      const firstError = result.failed[0]?.message;
+      const errorHint = firstError ? ` Primo errore: ${firstError.slice(0, 120)}.` : '';
+      return {
+        tone: 'warning',
+        message: `Catalogo importato con ${failedCount} errori: ${result.imported} nuovi, ${result.updated} aggiornati.${errorHint}`,
+      };
+    }
+
+    if (result.remoteProductCount > 0 && changedCount === 0) {
+      return {
+        tone: 'warning',
+        message: `Shopify ha ${result.remoteProductCount} prodotti ma nessuna modifica in VestiFlow. Controlla i filtri in lista prodotti o i log di sync.`,
+      };
+    }
+
+    if (result.remoteProductCount === 0) {
+      return {
+        tone: 'warning',
+        message:
+          'Nessun prodotto trovato su Shopify. Verifica che il prodotto sia salvato nello store collegato.',
+      };
+    }
+
+    return {
+      tone: 'success',
+      message: `Catalogo sincronizzato da Shopify: ${result.imported} nuovi, ${result.updated} aggiornati (${result.remoteProductCount} su Shopify).`,
+    };
   }
 
   private formatDisableWebhooksFeedback(result: ShopifyDisableWebhooksDto): ActionFeedback {
