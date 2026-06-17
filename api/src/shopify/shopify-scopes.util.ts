@@ -37,11 +37,17 @@ export const SHOPIFY_WRITE_INVENTORY_SCOPE = 'write_inventory';
 export const SHOPIFY_WRITE_PRODUCTS_SCOPE = 'write_products';
 export const SHOPIFY_READ_PRODUCTS_SCOPE = 'read_products';
 
-export function parseShopifyScopesCsv(raw: string): readonly string[] {
+/** Normalizza scope da CSV env o dalla risposta OAuth (virgola o spazio). */
+export function parseShopifyScopesString(raw: string): readonly string[] {
   return raw
-    .split(',')
+    .split(/[\s,]+/)
     .map((scope) => scope.trim())
     .filter(Boolean);
+}
+
+/** @deprecated Usa parseShopifyScopesString */
+export function parseShopifyScopesCsv(raw: string): readonly string[] {
+  return parseShopifyScopesString(raw);
 }
 
 export interface ShopifyScopeDiagnostics {
@@ -87,5 +93,12 @@ export function shopifyCatalogImportBlockMessage(
   if (diagnostics.catalogImportBlockedReason === 'not_requested') {
     return 'La configurazione del server non richiede read_products (variabile SHOPIFY_SCOPES). Aggiorna Railway con read_products incluso, ridistribuisci l’API e riconnetti Shopify.';
   }
-  return 'Shopify non ha concesso read_products sul token attuale. Disinstalla l’app VestiFlow dall’admin del negozio (Impostazioni → App), salva in Partners, poi riconnetti.';
+  const missing = diagnostics.missingFromGrant.join(', ') || SHOPIFY_READ_PRODUCTS_SCOPE;
+  return (
+    'Shopify non ha concesso tutti gli ambiti richiesti sul token attuale ' +
+    `(mancano: ${missing}). ` +
+    'In Dev Dashboard → vestiflow-1.1 → Versioni → versione attiva verifica che siano selezionati ' +
+    'read_products e read_inventory (non solo write_*). Rilascia una nuova versione, disinstalla l’app dal negozio, ' +
+    'ridistribuisci l’API su Railway e riconnetti.'
+  );
 }

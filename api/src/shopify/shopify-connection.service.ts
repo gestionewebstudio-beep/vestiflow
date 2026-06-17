@@ -194,6 +194,11 @@ export class ShopifyConnectionService {
 
   private toDto(connection: ShopifyConnection): ShopifyConnectionDto {
     const scopeDiagnostics = this.buildScopeDiagnosticsDto(connection.scopes);
+    const hideScopeDuplicate =
+      scopeDiagnostics.catalogImportBlockedReason !== 'none' &&
+      (connection.lastErrorCode === 'oauth_scope_not_granted' ||
+        connection.lastErrorCode === 'oauth_scope_not_requested');
+
     return {
       id: connection.id,
       tenantId: connection.tenantId,
@@ -208,16 +213,17 @@ export class ShopifyConnectionService {
       webhooksActivatedAt: connection.webhooksActivatedAt?.toISOString() ?? null,
       webhooksActiveCount: connection.webhooksActiveCount,
       autoSyncEnabled: connection.autoSyncEnabled,
-      lastError: connection.lastErrorMessage
-        ? {
-            message: toShopifyUserMessage(
-              connection.lastErrorCode ?? undefined,
-              connection.lastErrorMessage,
-            ),
-            occurredAt: (connection.lastErrorAt ?? connection.updatedAt).toISOString(),
-            code: connection.lastErrorCode ?? undefined,
-          }
-        : null,
+      lastError:
+        !hideScopeDuplicate && connection.lastErrorMessage
+          ? {
+              message: toShopifyUserMessage(
+                connection.lastErrorCode ?? undefined,
+                connection.lastErrorMessage,
+              ),
+              occurredAt: (connection.lastErrorAt ?? connection.updatedAt).toISOString(),
+              code: connection.lastErrorCode ?? undefined,
+            }
+          : null,
       createdAt: connection.createdAt.toISOString(),
       updatedAt: connection.updatedAt.toISOString(),
     };

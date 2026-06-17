@@ -24,6 +24,7 @@ import {
 } from './shopify-location-sync.service';
 import {
   buildShopifyScopeDiagnostics,
+  parseShopifyScopesString,
   shopifyCatalogImportBlockMessage,
 } from './shopify-scopes.util';
 import {
@@ -108,10 +109,20 @@ export class ShopifyOAuthService {
       scope: string;
     };
 
-    const scopes = tokenJson.scope
-      .split(',')
-      .map((scope) => scope.trim())
-      .filter(Boolean);
+    const scopesFromToken = parseShopifyScopesString(tokenJson.scope);
+    let scopes: string[] = [...scopesFromToken];
+    try {
+      const scopesFromApi = await this.shopifyAdmin.getAccessScopes(
+        shopDomain,
+        tokenJson.access_token,
+      );
+      if (scopesFromApi.length > 0) {
+        scopes = [...scopesFromApi];
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'access_scopes non disponibile';
+      this.logger.warn(`OAuth Shopify: impossibile leggere access_scopes (${message})`);
+    }
     const encrypted = this.shopifyCrypto.encrypt(tokenJson.access_token);
     const tenantId = oauthState.tenantId;
 

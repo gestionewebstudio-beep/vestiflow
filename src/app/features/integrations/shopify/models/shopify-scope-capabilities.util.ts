@@ -12,10 +12,16 @@ export function shopifyProductReadScopeWarning(
     return 'La configurazione del server non richiede read_products (variabile SHOPIFY_SCOPES su Railway). Aggiungi read_products, ridistribuisci l’API e riconnetti Shopify.';
   }
 
-  return 'Shopify non ha concesso read_products sul token attuale. Disinstalla l’app VestiFlow dall’admin del negozio (Impostazioni → App), poi riconnetti da VestiFlow. Se persiste, verifica che SHOPIFY_API_KEY su Railway corrisponda al Client ID dell’app vestiflow-1.1.';
+  const missing = diagnostics.missingFromGrant.join(', ') || 'read_products';
+  return (
+    'Shopify non ha concesso tutti gli ambiti richiesti sul token ' +
+    `(mancano: ${missing}). ` +
+    'In Dev Dashboard → vestiflow-1.1 → Versioni → versione attiva verifica read_products e read_inventory ' +
+    '(non solo write_*). Rilascia una nuova versione, disinstalla l’app dal negozio, ridistribuisci Railway e riconnetti.'
+  );
 }
 
-/** Dettaglio tecnico-leggibile per admin (ambiti mancanti). */
+/** Dettaglio tecnico-leggibile per admin (ambiti richiesti vs concessi). */
 export function shopifyScopeDiagnosticsDetail(
   diagnostics: ShopifyScopeDiagnostics | undefined,
 ): string | null {
@@ -24,5 +30,11 @@ export function shopifyScopeDiagnosticsDetail(
   }
 
   const missing = diagnostics.missingForCatalogImport.join(', ') || 'read_products';
-  return `Ambiti concessi dal negozio: ${diagnostics.granted.join(', ') || 'nessuno'}. Mancante per import catalogo: ${missing}.`;
+  const requested = diagnostics.requested.join(', ') || '—';
+  const granted = diagnostics.granted.join(', ') || 'nessuno';
+  return (
+    `Ambiti richiesti dal server: ${requested}. ` +
+    `Ambiti concessi dal negozio: ${granted}. ` +
+    `Mancante per import catalogo: ${missing}.`
+  );
 }

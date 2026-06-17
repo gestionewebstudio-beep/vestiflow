@@ -111,6 +111,16 @@ export class ShopifyAdminClient {
     return { name: response.shop.name };
   }
 
+  /** Ambiti effettivi sul token (fonte autorevole post-OAuth). */
+  async getAccessScopes(shopDomain: string, accessToken: string): Promise<readonly string[]> {
+    const response = await this.requestOAuth<{ access_scopes: { handle: string }[] }>(
+      shopDomain,
+      accessToken,
+      '/oauth/access_scopes.json',
+    );
+    return (response.access_scopes ?? []).map((entry) => entry.handle.trim()).filter(Boolean);
+  }
+
   async listLocations(
     shopDomain: string,
     accessToken: string,
@@ -426,6 +436,25 @@ export class ShopifyAdminClient {
         return null;
       }
     }
+  }
+
+  private async requestOAuth<T>(shopDomain: string, accessToken: string, path: string): Promise<T> {
+    const url = `https://${shopDomain}/admin${path}`;
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new InternalServerErrorException(
+        `Shopify OAuth API error (${response.status}): ${body.slice(0, 200)}`,
+      );
+    }
+
+    return (await response.json()) as T;
   }
 
   private async request<T>(

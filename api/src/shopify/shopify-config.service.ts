@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { normalizeShopInput } from './shopify-shop.util';
+import { parseShopifyScopesString } from './shopify-scopes.util';
 
 export interface ShopifyConnectionDto {
   readonly id: string;
@@ -133,8 +134,5 @@ export class ShopifyConfigService {
 }
 
 function parseShopifyScopesCsv(raw: string): readonly string[] {
-  return raw
-    .split(',')
-    .map((scope) => scope.trim())
-    .filter(Boolean);
+  return parseShopifyScopesString(raw);
 }
