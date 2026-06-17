@@ -1,21 +1,21 @@
 <div class="movement-table-scroll">
   <table class="movement-table">
     <colgroup>
-      <col class="movement-table__col movement-table__col--date" />
-      <col class="movement-table__col movement-table__col--type" />
-      <col class="movement-table__col movement-table__col--sku" />
-      <col class="movement-table__col movement-table__col--qty" />
-      <col class="movement-table__col movement-table__col--location" />
-      <col class="movement-table__col movement-table__col--reason" />
-      <col class="movement-table__col movement-table__col--actor" />
+      <col class="movement-table__col" />
+      <col class="movement-table__col" />
+      <col class="movement-table__col" />
+      <col class="movement-table__col" />
+      <col class="movement-table__col" />
+      <col class="movement-table__col" />
+      <col class="movement-table__col" />
     </colgroup>
     <thead class="movement-table__head">
       <tr>
         <th scope="col">Data</th>
         <th scope="col">Tipo</th>
-        <th scope="col">SKU</th>
-        <th scope="col" class="movement-table__cell--numeric">Quantità</th>
-        <th scope="col">Location</th>
+        <th scope="col" class="movement-table__cell--sku">SKU</th>
+        <th scope="col" class="movement-table__cell--qty">Quantità</th>
+        <th scope="col" class="movement-table__cell--location">Location</th>
         <th scope="col">Motivo</th>
         <th scope="col">Eseguito da</th>
       </tr>
@@ -33,10 +33,12 @@
             </span>
           </td>
           <td class="movement-table__sku tabular-nums" data-label="SKU">{{ row.sku }}</td>
-          <td class="movement-table__cell--numeric tabular-nums" data-label="Quantità">
+          <td class="movement-table__cell--qty tabular-nums" data-label="Quantità">
             {{ row.signedQuantity }}
           </td>
-          <td data-label="Location">{{ row.locationLabel }}</td>
+          <td class="movement-table__cell--location" data-label="Location">
+            {{ row.locationLabel }}
+          </td>
           <td data-label="Motivo">{{ row.reason ?? '—' }}</td>
           <td data-label="Eseguito da">{{ actorLabel(row.createdByName) }}</td>
         </tr>

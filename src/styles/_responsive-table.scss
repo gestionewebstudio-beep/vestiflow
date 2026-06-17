@@ -29,7 +29,8 @@
   .#{$block} tbody td,
   .#{$block}__row td {
     display: table-cell;
-    padding: var(--space-2) var(--space-3);
+    box-sizing: border-box;
+    padding: var(--space-3) var(--space-4);
     border-block-end: var(--border-width) solid var(--color-border);
     vertical-align: middle;
     text-align: start;
@@ -42,7 +43,8 @@
   }
 
   .#{$block} th {
-    padding: var(--space-2) var(--space-3);
+    box-sizing: border-box;
+    padding: var(--space-3) var(--space-4);
     text-align: start;
     font-weight: var(--font-weight-semibold);
     color: var(--color-text-muted);

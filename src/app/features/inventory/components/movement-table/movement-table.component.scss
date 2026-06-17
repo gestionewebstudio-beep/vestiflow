@@ -10,16 +10,17 @@
   inline-size: 100%;
 }
 
+.movement-table {
+  inline-size: 100%;
+  min-inline-size: 100%;
+  border-collapse: collapse;
+}
+
 .movement-table__head th {
   position: sticky;
   inset-block-start: 0;
   z-index: var(--z-raised);
-  padding: var(--space-3) var(--space-4);
   background-color: var(--color-surface);
-}
-
-.movement-table__row td {
-  padding: var(--space-3) var(--space-4);
 }
 
 .movement-table__date {
@@ -34,40 +35,41 @@
 @include bp.media-up('lg') {
   .movement-table {
     table-layout: fixed;
+    width: 100%;
   }
 
-  .movement-table__col--date {
-    inline-size: 15%;
-  }
-
-  .movement-table__col--type {
-    inline-size: 9%;
-  }
-
-  .movement-table__col--sku {
-    inline-size: 18%;
-  }
-
-  .movement-table__col--qty {
-    inline-size: 8%;
-  }
-
-  .movement-table__col--location {
-    inline-size: 14%;
-  }
-
-  .movement-table__col--reason {
-    inline-size: 20%;
-  }
-
-  .movement-table__col--actor {
-    inline-size: 16%;
+  .movement-table__col {
+    width: calc(100% / 7);
   }
 
   .movement-table__sku {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .movement-table__head th.movement-table__cell--sku,
+  .movement-table__row td.movement-table__sku {
+    padding-block: var(--space-3);
+    padding-inline-start: var(--space-2);
+    padding-inline-end: var(--space-4);
+  }
+
+  .movement-table__head th.movement-table__cell--qty,
+  .movement-table__row td.movement-table__cell--qty {
+    text-align: start;
+    white-space: nowrap;
+    padding-block: var(--space-3);
+    padding-inline-start: var(--space-8);
+    padding-inline-end: var(--space-12);
+  }
+
+  .movement-table__head th.movement-table__cell--location,
+  .movement-table__row td.movement-table__cell--location {
+    text-align: start;
+    padding-block: var(--space-3);
+    padding-inline-start: var(--space-12);
+    padding-inline-end: var(--space-4);
   }
 }
 
