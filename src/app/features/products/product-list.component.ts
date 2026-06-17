@@ -249,6 +249,10 @@ export class ProductListComponent {
     void this.router.navigateByUrl('/app/products/new');
   }
 
+  protected importProducts(): void {
+    void this.router.navigateByUrl('/app/products/import');
+  }
+
   /** Naviga solo modificando i param indicati (merge); null rimuove la chiave. */
   private updateParams(params: Record<string, string | number | null>, replace = false): void {
     void this.router.navigate([], {

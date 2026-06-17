@@ -13,6 +13,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
@@ -26,7 +27,9 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductMediaService } from './product-media.service';
+import { ProductsImportService } from './products-import.service';
 import { ProductsService, type ProductWithVariants } from './products.service';
+import { ImportProductsBodyDto } from './dto/import-products-body.dto';
 
 class SkuAvailabilityQueryDto {
   @IsString()
@@ -52,6 +55,7 @@ export class ProductsController {
   constructor(
     private readonly products: ProductsService,
     private readonly productMedia: ProductMediaService,
+    private readonly productsImport: ProductsImportService,
   ) {}
 
   @Get()
@@ -83,6 +87,37 @@ export class ProductsController {
     productName: string;
   }> {
     return this.products.findVariantByCode(tenantId, query.code);
+  }
+
+  @Post('import/preview')
+  @Roles(...MANAGER_ROLES)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
+  previewImport(@CurrentTenant() tenantId: string, @UploadedFile() file: Express.Multer.File) {
+    this.assertCsvFile(file);
+    return this.productsImport.previewCsv(tenantId, file.buffer.toString('utf-8'));
+  }
+
+  @Post('import')
+  @Roles(...MANAGER_ROLES)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
+  importProducts(
+    @CurrentTenant() tenantId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: ImportProductsBodyDto,
+  ) {
+    this.assertCsvFile(file);
+    const handles = body.handles?.filter((handle) => handle.trim().length > 0);
+    return this.productsImport.importCsv(tenantId, file.buffer.toString('utf-8'), {
+      handles,
+    });
   }
 
   @Get(':id')
@@ -152,5 +187,15 @@ export class ProductsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.products.delete(tenantId, id);
+  }
+
+  private assertCsvFile(file: Express.Multer.File | undefined): void {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Carica un file CSV valido.');
+    }
+    const name = file.originalname?.toLowerCase() ?? '';
+    if (!name.endsWith('.csv') && file.mimetype !== 'text/csv') {
+      throw new BadRequestException('Il file deve essere in formato CSV.');
+    }
   }
 }

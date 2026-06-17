@@ -4,6 +4,7 @@ import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 
 import { ProductDetailComponent } from './product-detail.component';
 import { ProductFormComponent } from './product-form.component';
+import { ProductImportComponent } from './product-import.component';
 import { ProductListComponent } from './product-list.component';
 
 // ProductService e' providedIn 'root' (catalogo condiviso cross-feature).
@@ -18,6 +19,11 @@ export const productsRoutes: Routes = [
         title: 'VestiFlow · Nuovo prodotto',
         component: ProductFormComponent,
         canDeactivate: [unsavedChangesGuard],
+      },
+      {
+        path: 'import',
+        title: 'VestiFlow · Importa prodotti CSV',
+        component: ProductImportComponent,
       },
       { path: ':id', title: 'VestiFlow · Dettaglio prodotto', component: ProductDetailComponent },
       {

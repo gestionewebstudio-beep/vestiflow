@@ -24,6 +24,11 @@ import type {
   VariantByCodeDto,
 } from '../models/product.dto';
 import type { ProductFilterOptions, ProductListQuery } from '../models/product-list-query.model';
+import type { ProductImportPreview, ProductImportResult } from '../models/product-import.model';
+import {
+  mapProductImportPreview,
+  type ImportPreviewApiResponse,
+} from '../models/product-import.mapper';
 import { variantTitle } from '../models/product-variant.util';
 import { toCreateProductBody, toUpdateProductBody } from './product-api.mapper';
 
@@ -215,6 +220,27 @@ export class ProductService {
         pushed: boolean;
         reason?: string;
       }>(this.url(`/products/${productId}/sync-shopify`), {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  previewProductImport(file: File): Observable<ProductImportPreview> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http
+      .post<ImportPreviewApiResponse>(this.url('/products/import/preview'), formData)
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapProductImportPreview));
+  }
+
+  importProducts(file: File, handles?: readonly string[]): Observable<ProductImportResult> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    if (handles?.length) {
+      for (const handle of handles) {
+        formData.append('handles[]', handle);
+      }
+    }
+    return this.http
+      .post<ProductImportResult>(this.url('/products/import'), formData)
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

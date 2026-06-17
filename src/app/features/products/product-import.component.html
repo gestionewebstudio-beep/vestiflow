@@ -1,0 +1,151 @@
+<section class="product-import">
+  <header class="product-import__header">
+    <div>
+      <a
+        class="product-import__back"
+        href="/app/products"
+        (click)="$event.preventDefault(); backToList()"
+      >
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        Prodotti
+      </a>
+      <h1 class="product-import__title">Importa prodotti da CSV</h1>
+      <p class="product-import__intro">
+        Carica un file CSV in formato Shopify. VestiFlow valida righe e SKU, crea prodotti e
+        varianti nel gestionale e tenta la sincronizzazione con Shopify se collegato.
+      </p>
+    </div>
+  </header>
+
+  @if (error(); as appError) {
+    <div class="product-import__alert" role="alert">{{ appError.message }}</div>
+  }
+
+  @if (phase() === 'upload') {
+    <div class="product-import__panel">
+      <label class="product-import__upload" for="product-csv-file">
+        <i class="pi pi-upload product-import__upload-icon" aria-hidden="true"></i>
+        <span class="product-import__upload-title">Seleziona file CSV</span>
+        <span class="product-import__upload-hint">Formato Shopify · max 15 MB · UTF-8</span>
+        <input
+          id="product-csv-file"
+          class="product-import__file-input"
+          type="file"
+          accept=".csv,text/csv"
+          (change)="onFileSelected($event)"
+        />
+      </label>
+
+      @if (selectedFile(); as file) {
+        <p class="product-import__file-name">
+          File selezionato: <strong>{{ file.name }}</strong>
+        </p>
+      }
+
+      <div class="product-import__actions">
+        <app-button type="button" variant="ghost" (click)="backToList()">Annulla</app-button>
+        <app-button type="button" [disabled]="!selectedFile() || loading()" (click)="analyzeFile()">
+          @if (loading()) {
+            Analisi in corso…
+          } @else {
+            Analizza file
+          }
+        </app-button>
+      </div>
+    </div>
+  }
+
+  @if (phase() === 'preview' && preview(); as data) {
+    <div class="product-import__summary">
+      <span>{{ data.summary.total }} prodotti</span>
+      <span>{{ data.summary.ready }} pronti</span>
+      <span>{{ data.summary.warnings }} con avvisi</span>
+      <span>{{ data.summary.errors }} con errori</span>
+    </div>
+
+    <div class="product-import__table-scroll">
+      <table class="product-import__table">
+        <thead>
+          <tr>
+            <th scope="col">Prodotto</th>
+            <th scope="col">Handle</th>
+            <th scope="col" class="product-import__col--numeric">Varianti</th>
+            <th scope="col">Stato</th>
+            <th scope="col">Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of data.products; track item.handle) {
+            <tr>
+              <td data-label="Prodotto">{{ item.name }}</td>
+              <td data-label="Handle">{{ item.handle }}</td>
+              <td class="product-import__numeric tabular-nums" data-label="Varianti">
+                {{ item.variantCount }}
+              </td>
+              <td data-label="Stato">
+                <app-badge [tone]="statusTone(item)">{{ statusLabel(item) }}</app-badge>
+              </td>
+              <td data-label="Note">
+                @if (item.issues.length === 0) {
+                  —
+                } @else {
+                  <ul class="product-import__issues">
+                    @for (issue of item.issues; track issue.message) {
+                      <li>{{ issue.message }}</li>
+                    }
+                  </ul>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="product-import__actions">
+      <app-button type="button" variant="ghost" (click)="phase.set('upload')">Indietro</app-button>
+      <app-button type="button" [disabled]="!canImport()" (click)="runImport()">
+        @if (loading()) {
+          Import in corso…
+        } @else {
+          Importa {{ readyHandles().length }} prodotti
+        }
+      </app-button>
+    </div>
+  }
+
+  @if (phase() === 'done' && result(); as importResult) {
+    <div class="product-import__done">
+      <p class="product-import__done-title">Import completato</p>
+      <p class="product-import__done-stats tabular-nums">
+        {{ importResult.imported }} importati · {{ importResult.skipped }} saltati ·
+        {{ importResult.failed }} falliti
+      </p>
+    </div>
+
+    <div class="product-import__table-scroll">
+      <table class="product-import__table">
+        <thead>
+          <tr>
+            <th scope="col">Prodotto</th>
+            <th scope="col">Esito</th>
+            <th scope="col">Dettaglio</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of importResult.products; track row.handle + row.status) {
+            <tr>
+              <td data-label="Prodotto">{{ row.name }}</td>
+              <td data-label="Esito">{{ row.status }}</td>
+              <td data-label="Dettaglio">{{ row.message ?? '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="product-import__actions">
+      <app-button type="button" (click)="backToList()">Vai ai prodotti</app-button>
+    </div>
+  }
+</section>
