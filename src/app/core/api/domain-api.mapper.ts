@@ -24,6 +24,7 @@ export interface ProductApiRow {
   readonly seoDescription?: string | null;
   readonly shopifyCollections?: unknown;
   readonly shopifyMetafields?: unknown;
+  readonly shopifyCategoryMetafields?: unknown;
   readonly status: Product['status'];
   readonly options: readonly ProductOption[];
   readonly shopifyProductId?: string | null;
@@ -168,6 +169,26 @@ function isShopifyMetafieldRef(item: unknown): item is {
   );
 }
 
+function isShopifyCategoryMetafieldValue(item: unknown): item is {
+  attributeId: string;
+  attributeName: string;
+  namespace: string;
+  key: string;
+  metafieldType: string;
+  values: readonly { id: string; name: string }[];
+} {
+  if (typeof item !== 'object' || item === null) {
+    return false;
+  }
+  const row = item as Record<string, unknown>;
+  return (
+    typeof row['attributeId'] === 'string' &&
+    typeof row['key'] === 'string' &&
+    typeof row['namespace'] === 'string' &&
+    Array.isArray(row['values'])
+  );
+}
+
 export function mapProductApiRow(row: ProductApiRow): Product {
   return {
     id: row.id,
@@ -184,6 +205,10 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     seoDescription: row.seoDescription ?? undefined,
     shopifyCollections: parseJsonArray(row.shopifyCollections, isShopifyCollectionRef),
     shopifyMetafields: parseJsonArray(row.shopifyMetafields, isShopifyMetafieldRef),
+    shopifyCategoryMetafields: parseJsonArray(
+      row.shopifyCategoryMetafields,
+      isShopifyCategoryMetafieldValue,
+    ),
     status: row.status,
     options: row.options ?? [],
     images: (row.images ?? []).map((image) => ({

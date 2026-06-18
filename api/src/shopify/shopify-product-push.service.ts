@@ -12,6 +12,8 @@ import { ShopifyConnectionService } from './shopify-connection.service';
 import { minorToShopifyDecimal } from './shopify-money.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
+import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
+import { parseCategoryMetafieldsJson } from './shopify-category-metafields.util';
 import {
   mergeShopifyScopes,
   SHOPIFY_WRITE_PRODUCTS_SCOPE,
@@ -63,6 +65,7 @@ export class ShopifyProductPushService {
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyTaxonomy: ShopifyTaxonomyService,
+    private readonly shopifyCategoryMetafields: ShopifyCategoryMetafieldsService,
   ) {}
 
   async pushProduct(tenantId: string, productId: string): Promise<ShopifyProductPushResult> {
@@ -129,6 +132,7 @@ export class ShopifyProductPushService {
         product.shopifyMetafields,
       );
       await this.pushTaxonomyCategory(tenantId, String(shopifyProduct.id), product);
+      await this.pushCategoryMetafields(tenantId, String(shopifyProduct.id), product);
       await this.pushVariantCosts(shopDomain, accessToken, product.variants);
       await this.shopifyConnection.touchSync(tenantId);
 
@@ -236,6 +240,30 @@ export class ShopifyProductPushService {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Push categoria taxonomy fallito';
       this.logger.warn(`Taxonomy prodotto non sincronizzata (${shopifyProductId}): ${message}`);
+    }
+  }
+
+  private async pushCategoryMetafields(
+    tenantId: string,
+    shopifyProductId: string,
+    product: ProductWithVariants,
+  ): Promise<void> {
+    const fields = parseCategoryMetafieldsJson(product.shopifyCategoryMetafields);
+    if (fields.length === 0) {
+      return;
+    }
+
+    try {
+      await this.shopifyCategoryMetafields.pushProductCategoryMetafields(
+        tenantId,
+        shopifyProductId,
+        fields,
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Push category metafields fallito';
+      this.logger.warn(
+        `Category metafields prodotto non sincronizzati (${shopifyProductId}): ${message}`,
+      );
     }
   }
 

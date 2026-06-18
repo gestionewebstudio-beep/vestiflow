@@ -54,6 +54,13 @@
   border-radius: var(--radius-md);
 }
 
+.review-step__attr-list {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  display: grid;
+  gap: var(--space-1);
+}
+
 .review-step__row {
   display: flex;
   align-items: baseline;

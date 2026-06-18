@@ -1,5 +1,6 @@
 import type { EntityId } from '@core/models/common.model';
 import type { ProductStatus, SelectedOption } from '@core/models/product.model';
+import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 
 /** Nomi opzione di default della UX conservativa (Taglia + Colore). */
 export const OPTION_NAME_SIZE = 'Taglia';
@@ -17,6 +18,7 @@ export interface ProductGeneralDraft {
   readonly category: string;
   readonly shopifyTaxonomyCategoryId: string;
   readonly shopifyTaxonomyCategoryFullName: string;
+  readonly shopifyCategoryMetafields: readonly ShopifyCategoryMetafieldValue[];
   readonly season: string;
   readonly tags: string;
   readonly status: ProductStatus;

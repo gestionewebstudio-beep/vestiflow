@@ -12,6 +12,7 @@ import {
 import { ProductStatus } from '@prisma/client';
 
 import { ProductOptionDto } from './create-product.dto';
+import { ShopifyCategoryMetafieldDto } from './shopify-category-metafield.dto';
 import { UpdateVariantDto } from './update-variant.dto';
 
 /** Aggiornamento prodotto: dati generali + sync opzionale del set varianti. */
@@ -46,6 +47,12 @@ export class UpdateProductDto {
   @IsString()
   @MaxLength(500)
   shopifyTaxonomyCategoryFullName?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ShopifyCategoryMetafieldDto)
+  shopifyCategoryMetafields?: ShopifyCategoryMetafieldDto[];
 
   @IsOptional()
   @IsString()

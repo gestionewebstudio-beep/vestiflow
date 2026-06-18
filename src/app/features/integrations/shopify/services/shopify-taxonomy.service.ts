@@ -11,8 +11,21 @@ export interface ShopifyTaxonomyCategory {
   readonly isLeaf: boolean;
 }
 
+export interface ShopifyTaxonomyCategoryAttribute {
+  readonly id: string;
+  readonly name: string;
+  readonly namespace: string;
+  readonly key: string;
+  readonly metafieldType: string;
+  readonly values: readonly { readonly id: string; readonly name: string }[];
+}
+
 interface TaxonomyCategoriesResponse {
   readonly items: readonly ShopifyTaxonomyCategory[];
+}
+
+interface CategoryAttributesResponse {
+  readonly items: readonly ShopifyTaxonomyCategoryAttribute[];
 }
 
 const HTTP_TIMEOUT_MS = 15_000;
@@ -38,6 +51,21 @@ export class ShopifyTaxonomyService {
       .get<TaxonomyCategoriesResponse>(`${this.config.apiBaseUrl}/shopify/taxonomy/categories`, {
         params,
       })
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((response) => response.items ?? []),
+      );
+  }
+
+  listCategoryAttributes(
+    categoryId: string,
+  ): Observable<readonly ShopifyTaxonomyCategoryAttribute[]> {
+    const params = new HttpParams().set('categoryId', categoryId.trim());
+    return this.http
+      .get<CategoryAttributesResponse>(
+        `${this.config.apiBaseUrl}/shopify/taxonomy/category-attributes`,
+        { params },
+      )
       .pipe(
         timeout(HTTP_TIMEOUT_MS),
         map((response) => response.items ?? []),

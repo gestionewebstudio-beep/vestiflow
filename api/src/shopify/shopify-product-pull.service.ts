@@ -202,6 +202,9 @@ export class ShopifyProductPullService {
       seoDescription: enrichment?.seoDescription ?? null,
       shopifyCollections: (enrichment?.collections ?? []) as unknown as Prisma.InputJsonValue,
       shopifyMetafields: (enrichment?.metafields ?? []) as unknown as Prisma.InputJsonValue,
+      shopifyCategoryMetafields: (enrichment?.categoryMetafields ??
+        existing?.shopifyCategoryMetafields ??
+        []) as unknown as Prisma.InputJsonValue,
       status,
       options: options as unknown as Prisma.InputJsonValue,
       shopifyProductId,

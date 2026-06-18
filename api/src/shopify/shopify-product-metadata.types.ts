@@ -1,3 +1,5 @@
+import type { ShopifyCategoryMetafieldValue } from './shopify-category-metafields.types';
+
 /** Riferimento collezione Shopify importato su Product.shopifyCollections. */
 export interface ShopifyCollectionRef {
   readonly id: string;
@@ -25,6 +27,7 @@ export interface ProductShopifyEnrichment {
   /** Categoria Standard Product Taxonomy (Google Ads / Shopping). */
   readonly taxonomyCategoryId: string | null;
   readonly taxonomyCategoryFullName: string | null;
+  readonly categoryMetafields: readonly ShopifyCategoryMetafieldValue[];
 }
 
 export const VESTIFLOW_METAFIELD_NAMESPACE = 'vestiflow';

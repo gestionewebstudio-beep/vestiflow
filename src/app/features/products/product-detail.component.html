@@ -92,6 +92,21 @@
           <dt class="product-detail__term">Tipo prodotto</dt>
           <dd class="product-detail__value">{{ p.category ?? '—' }}</dd>
         </div>
+        @if (p.shopifyCategoryMetafields && p.shopifyCategoryMetafields.length > 0) {
+          <div class="product-detail__fact product-detail__fact--wide">
+            <dt class="product-detail__term">Attributi categoria</dt>
+            <dd class="product-detail__value">
+              <ul class="product-detail__attr-list">
+                @for (field of p.shopifyCategoryMetafields; track field.attributeId) {
+                  <li>
+                    <span class="product-detail__attr-name">{{ field.attributeName }}:</span>
+                    {{ field.values.map((value) => value.name).join(', ') || '—' }}
+                  </li>
+                }
+              </ul>
+            </dd>
+          </div>
+        }
         <div class="product-detail__fact">
           <dt class="product-detail__term">Stagione</dt>
           <dd class="product-detail__value">{{ p.season ?? '—' }}</dd>

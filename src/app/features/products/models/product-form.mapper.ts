@@ -93,6 +93,7 @@ export function emptyProductFormDraft(): ProductFormDraft {
       category: '',
       shopifyTaxonomyCategoryId: '',
       shopifyTaxonomyCategoryFullName: '',
+      shopifyCategoryMetafields: [],
       season: '',
       tags: '',
       status: ProductStatus.Draft,
@@ -164,6 +165,10 @@ function generalToDto(
     category: trimmedOrUndefined(general.category),
     shopifyTaxonomyCategoryId: trimmedOrUndefined(general.shopifyTaxonomyCategoryId),
     shopifyTaxonomyCategoryFullName: trimmedOrUndefined(general.shopifyTaxonomyCategoryFullName),
+    shopifyCategoryMetafields:
+      general.shopifyCategoryMetafields.length > 0
+        ? [...general.shopifyCategoryMetafields]
+        : undefined,
     season: trimmedOrUndefined(general.season),
     tags: parseTagsInput(general.tags),
     status: general.status,
@@ -229,6 +234,9 @@ export function productToFormDraft(
     category: product.category ?? '',
     shopifyTaxonomyCategoryId: product.shopifyTaxonomyCategoryId ?? '',
     shopifyTaxonomyCategoryFullName: product.shopifyTaxonomyCategoryFullName ?? '',
+    shopifyCategoryMetafields: product.shopifyCategoryMetafields
+      ? [...product.shopifyCategoryMetafields]
+      : [],
     season: product.season ?? '',
     tags: formatTagsInput(product.tags),
     status: product.status,

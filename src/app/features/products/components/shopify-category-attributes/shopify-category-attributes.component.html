@@ -1,0 +1,36 @@
+@if (categoryId().trim()) {
+  <section class="category-attributes" aria-labelledby="category-attributes-title">
+    <h3 id="category-attributes-title" class="category-attributes__title">Attributi categoria</h3>
+    <p class="category-attributes__hint">
+      Metafield Shopify collegati alla categoria (colore, fascia d&apos;età, tessuto…).
+    </p>
+
+    @if (loading()) {
+      <app-inline-spinner label="Caricamento attributi…" />
+    } @else if (loadError(); as message) {
+      <p class="category-attributes__error" role="alert">{{ message }}</p>
+    } @else if (attributes().length === 0) {
+      <p class="category-attributes__empty">Nessun attributo per questa categoria.</p>
+    } @else {
+      <div class="category-attributes__grid">
+        @for (attribute of attributes(); track attribute.id) {
+          <div class="category-attributes__field">
+            <span class="category-attributes__label" [id]="'attr-label-' + attribute.id">
+              {{ attribute.name }}
+            </span>
+            <app-select-menu
+              [options]="attributeOptions(attribute)"
+              [value]="selectedValueId(attribute)"
+              [ariaLabel]="attribute.name"
+              placeholder="Seleziona…"
+              [compact]="true"
+              [fullWidth]="true"
+              [includeEmptyOption]="true"
+              (valueChange)="onAttributeSelect(attribute, $event)"
+            />
+          </div>
+        }
+      </div>
+    }
+  </section>
+}

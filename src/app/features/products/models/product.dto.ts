@@ -1,5 +1,6 @@
 import type { EntityId, Money } from '@core/models/common.model';
 import type { ProductStatus } from '@core/models/product.model';
+import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 
 // DTO di scrittura prodotto. Pensati per un backend NestJS (class-validator) +
 // PostgreSQL relazionale (Supabase): prodotto e varianti restano separati.
@@ -43,6 +44,7 @@ export interface CreateProductDto {
   readonly category?: string;
   readonly shopifyTaxonomyCategoryId?: string;
   readonly shopifyTaxonomyCategoryFullName?: string;
+  readonly shopifyCategoryMetafields?: readonly ShopifyCategoryMetafieldValue[];
   readonly season?: string;
   readonly tags?: readonly string[];
   readonly status: ProductStatus;
@@ -63,6 +65,7 @@ export interface UpdateProductDto {
   readonly category?: string;
   readonly shopifyTaxonomyCategoryId?: string;
   readonly shopifyTaxonomyCategoryFullName?: string;
+  readonly shopifyCategoryMetafields?: readonly ShopifyCategoryMetafieldValue[];
   readonly season?: string;
   readonly tags?: readonly string[];
   readonly status?: ProductStatus;

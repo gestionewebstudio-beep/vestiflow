@@ -2,7 +2,10 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { ShopifyConnectionStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import type { ShopifyTaxonomyCategory } from './shopify-graphql.client';
+import type {
+  ShopifyTaxonomyCategory,
+  ShopifyTaxonomyCategoryAttribute,
+} from './shopify-graphql.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 
@@ -51,6 +54,14 @@ export class ShopifyTaxonomyService {
       shopifyProductId,
       categoryGid,
     );
+  }
+
+  async getCategoryAttributes(
+    tenantId: string,
+    categoryGid: string,
+  ): Promise<readonly ShopifyTaxonomyCategoryAttribute[]> {
+    const { shopDomain, accessToken } = await this.requireConnectedShop(tenantId);
+    return this.shopifyGraphql.getCategoryAttributes(shopDomain, accessToken, categoryGid);
   }
 
   private async requireConnectedShop(

@@ -11,6 +11,7 @@ import {
 } from './shopify-product-metadata.util';
 import { shopifyDecimalToMinor } from './shopify-money.util';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
+import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
 
 export interface EnrichProductOptions {
   /** Su import catalogo massivo i costi varianti possono essere saltati (N chiamate API). */
@@ -29,6 +30,7 @@ const EMPTY_ENRICHMENT: ProductShopifyEnrichment = {
   variantPurchasePriceMinor: new Map(),
   taxonomyCategoryId: null,
   taxonomyCategoryFullName: null,
+  categoryMetafields: [],
 };
 
 @Injectable()
@@ -38,6 +40,7 @@ export class ShopifyProductEnrichmentService {
   constructor(
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyGraphql: ShopifyGraphqlClient,
+    private readonly categoryMetafieldsService: ShopifyCategoryMetafieldsService,
   ) {}
 
   async enrichProduct(
@@ -85,6 +88,10 @@ export class ShopifyProductEnrichmentService {
         ? await this.fetchVariantCosts(shopDomain, accessToken, remote)
         : new Map<number, number>();
 
+      const categoryMetafields = await this.categoryMetafieldsService
+        .parseFromProductMetafields(shopDomain, accessToken, metafields, taxonomy?.id ?? null)
+        .catch(() => []);
+
       return {
         tags,
         seoTitle,
@@ -95,6 +102,7 @@ export class ShopifyProductEnrichmentService {
         variantPurchasePriceMinor,
         taxonomyCategoryId: taxonomy?.id ?? null,
         taxonomyCategoryFullName: taxonomy?.fullName ?? null,
+        categoryMetafields,
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Enrichment fallito';

@@ -54,6 +54,16 @@
         }
       </div>
 
+      @if (form.controls.shopifyTaxonomyCategoryId.value.trim()) {
+        <div class="general-step__field general-step__field--full">
+          <app-shopify-category-attributes
+            [categoryId]="form.controls.shopifyTaxonomyCategoryId.value"
+            [values]="categoryMetafieldsValue()"
+            (valuesChange)="onCategoryMetafieldsChange($event)"
+          />
+        </div>
+      }
+
       <div class="general-step__field">
         <label class="general-step__label" for="product-type">
           Tipo prodotto

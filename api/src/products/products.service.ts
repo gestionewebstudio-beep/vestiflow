@@ -110,6 +110,8 @@ export class ProductsService {
         category: dto.category,
         shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
         shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
+        shopifyCategoryMetafields: (dto.shopifyCategoryMetafields ??
+          []) as unknown as Prisma.InputJsonValue,
         season: dto.season,
         tags: this.normalizeTags(dto.tags),
         status: dto.status,
@@ -149,6 +151,12 @@ export class ProductsService {
             ? {
                 shopifyTaxonomyCategoryFullName:
                   dto.shopifyTaxonomyCategoryFullName?.trim() || null,
+              }
+            : {}),
+          ...(dto.shopifyCategoryMetafields !== undefined
+            ? {
+                shopifyCategoryMetafields:
+                  dto.shopifyCategoryMetafields as unknown as Prisma.InputJsonValue,
               }
             : {}),
           season: dto.season,

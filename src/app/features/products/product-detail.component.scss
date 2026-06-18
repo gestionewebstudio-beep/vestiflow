@@ -175,6 +175,17 @@
   gap: var(--space-1);
 }
 
+.product-detail__attr-list {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.product-detail__attr-name {
+  font-weight: var(--font-weight-medium);
+}
+
 .product-detail__metafield-key {
   font-family: var(--font-sans);
   font-size: var(--text-sm);

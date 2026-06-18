@@ -1,0 +1,57 @@
+:host {
+  display: block;
+}
+
+.category-attributes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--card-pad-md);
+  background-color: var(--color-surface-muted);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.category-attributes__title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.category-attributes__hint,
+.category-attributes__empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.category-attributes__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.category-attributes__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+.category-attributes__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.category-attributes__label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.category-attributes__field ::ng-deep app-select-menu.select-menu-host--full {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}

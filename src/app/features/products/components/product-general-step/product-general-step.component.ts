@@ -16,11 +16,13 @@ import { startWith } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
 import { ProductStatus } from '@core/models/product.model';
+import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type { ProductGeneralDraft } from '../../models/product-form.model';
 import { productStatusLabel } from '../../models/product-status.util';
+import { ShopifyCategoryAttributesComponent } from '../shopify-category-attributes/shopify-category-attributes.component';
 import type { ShopifyTaxonomySelection } from '../shopify-taxonomy-picker/shopify-taxonomy-picker.component';
 import { ShopifyTaxonomyPickerComponent } from '../shopify-taxonomy-picker/shopify-taxonomy-picker.component';
 
@@ -43,7 +45,12 @@ const CUSTOM_OPTION_VALUE = '__custom__';
 @Component({
   selector: 'app-product-general-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, SelectMenuComponent, ShopifyTaxonomyPickerComponent],
+  imports: [
+    ReactiveFormsModule,
+    SelectMenuComponent,
+    ShopifyTaxonomyPickerComponent,
+    ShopifyCategoryAttributesComponent,
+  ],
   templateUrl: './product-general-step.component.html',
   styleUrl: './product-general-step.component.scss',
 })
@@ -111,6 +118,7 @@ export class ProductGeneralStepComponent implements OnInit {
     category: this.fb.control(''),
     shopifyTaxonomyCategoryId: this.fb.control(''),
     shopifyTaxonomyCategoryFullName: this.fb.control(''),
+    shopifyCategoryMetafields: this.fb.control<readonly ShopifyCategoryMetafieldValue[]>([]),
     season: this.fb.control('', [Validators.required]),
     tags: this.fb.control(''),
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
@@ -191,10 +199,23 @@ export class ProductGeneralStepComponent implements OnInit {
 
   protected onTaxonomyChange(selection: ShopifyTaxonomySelection | null): void {
     this.taxonomyTouched.set(true);
+    const previousCategoryId = this.form.controls.shopifyTaxonomyCategoryId.value.trim();
+    const nextCategoryId = selection?.id ?? '';
     this.form.patchValue({
-      shopifyTaxonomyCategoryId: selection?.id ?? '',
+      shopifyTaxonomyCategoryId: nextCategoryId,
       shopifyTaxonomyCategoryFullName: selection?.fullName ?? '',
+      ...(previousCategoryId !== nextCategoryId
+        ? { shopifyCategoryMetafields: [] as readonly ShopifyCategoryMetafieldValue[] }
+        : {}),
     });
+  }
+
+  protected onCategoryMetafieldsChange(values: readonly ShopifyCategoryMetafieldValue[]): void {
+    this.form.controls.shopifyCategoryMetafields.setValue(values);
+  }
+
+  protected categoryMetafieldsValue(): readonly ShopifyCategoryMetafieldValue[] {
+    return this.form.controls.shopifyCategoryMetafields.value;
   }
 
   protected useCategorySelect(): boolean {

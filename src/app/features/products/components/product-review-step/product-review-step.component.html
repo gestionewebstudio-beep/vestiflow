@@ -22,6 +22,21 @@
         <dt>Tipo prodotto</dt>
         <dd>{{ general().category || '—' }}</dd>
       </div>
+      @if (general().shopifyCategoryMetafields.length > 0) {
+        <div class="review-step__row review-step__row--block">
+          <dt>Attributi categoria</dt>
+          <dd>
+            <ul class="review-step__attr-list">
+              @for (field of general().shopifyCategoryMetafields; track field.attributeId) {
+                <li>
+                  <strong>{{ field.attributeName }}:</strong>
+                  {{ field.values.map((value) => value.name).join(', ') || '—' }}
+                </li>
+              }
+            </ul>
+          </dd>
+        </div>
+      }
       <div class="review-step__row">
         <dt>Stagione</dt>
         <dd>{{ general().season || '—' }}</dd>

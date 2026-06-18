@@ -22,6 +22,7 @@ import { ShopifyProductPullService } from './shopify-product-pull.service';
 import type { ShopifyCatalogSyncResult } from './shopify-product-pull.service';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ListTaxonomyCategoriesQueryDto } from './dto/list-taxonomy-categories.query.dto';
+import { ListCategoryAttributesQueryDto } from './dto/list-category-attributes.query.dto';
 
 @Controller('shopify')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -145,6 +146,15 @@ export class ShopifyController {
       query.search,
       query.childrenOf,
     );
+    return { items };
+  }
+
+  @Get('taxonomy/category-attributes')
+  async listCategoryAttributes(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ListCategoryAttributesQueryDto,
+  ) {
+    const items = await this.shopifyTaxonomy.getCategoryAttributes(tenantId, query.categoryId);
     return { items };
   }
 }

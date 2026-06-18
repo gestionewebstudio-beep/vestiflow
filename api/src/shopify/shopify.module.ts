@@ -18,6 +18,7 @@ import { ShopifyProductPushService } from './shopify-product-push.service';
 import { ShopifySyncService } from './shopify-sync.service';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
+import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
 import { ShopifyWebhookService } from './shopify-webhook.service';
 import { ShopifyWebhooksController } from './shopify-webhooks.controller';
 
@@ -40,6 +41,7 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
     ShopifyProductPullService,
     ShopifyProductEnrichmentService,
     ShopifyTaxonomyService,
+    ShopifyCategoryMetafieldsService,
     ShopifySyncService,
     ShopifyWebhookService,
   ],

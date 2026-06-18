@@ -235,7 +235,11 @@ model Product {
   name        String
   description String?
   brand       String?
+  /// Tipo prodotto Shopify (REST product_type) — organizzazione interna negozio.
   category    String?
+  /// Categoria Standard Product Taxonomy (GraphQL), es. gid://shopify/TaxonomyCategory/...
+  shopifyTaxonomyCategoryId       String? @map("shopify_taxonomy_category_id")
+  shopifyTaxonomyCategoryFullName String? @map("shopify_taxonomy_category_full_name")
   season      String?
   /// Tag prodotto (forma Shopify: lista normalizzata, es. ['estate','donna']).
   tags        String[]      @default([])
@@ -246,6 +250,8 @@ model Product {
   shopifyCollections Json @default("[]") @map("shopify_collections")
   /// Metafields Shopify importati [{ namespace, key, value, type? }] — snapshot.
   shopifyMetafields  Json @default("[]") @map("shopify_metafields")
+  /// Attributi categoria Shopify [{ attributeId, key, namespace, values: [{ id, name }] }].
+  shopifyCategoryMetafields Json @default("[]") @map("shopify_category_metafields")
   status      ProductStatus @default(draft)
   /// Assi opzione (max 3, vincolo Shopify): [{ name: 'Taglia', values: ['S','M'] }]
   options     Json          @default("[]")

@@ -13,6 +13,7 @@ import {
 import { ProductStatus } from '@prisma/client';
 
 import { MoneyDto } from './money.dto';
+import { ShopifyCategoryMetafieldDto } from './shopify-category-metafield.dto';
 
 /** Asse opzione (es. Taglia → S/M/L). Max 3 assi: vincolo Shopify. */
 export class ProductOptionDto {
@@ -100,6 +101,12 @@ export class CreateProductDto {
   @IsString()
   @MaxLength(500)
   shopifyTaxonomyCategoryFullName?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ShopifyCategoryMetafieldDto)
+  shopifyCategoryMetafields?: ShopifyCategoryMetafieldDto[];
 
   @IsOptional()
   @IsString()
