@@ -9,7 +9,15 @@ import prettier from 'eslint-config-prettier';
 export default tseslint.config(
   {
     // api/ è il backend NestJS: ha il proprio tsconfig e non segue le regole Angular.
-    ignores: ['dist/**', 'out-tsc/**', 'coverage/**', '.angular/**', 'api/**'],
+    ignores: [
+      'dist/**',
+      'out-tsc/**',
+      'coverage/**',
+      '.angular/**',
+      'api/**',
+      // HTML di stampa generati da docs/*.md (non template Angular).
+      'docs/**/*.html',
+    ],
   },
   {
     files: ['**/*.ts'],

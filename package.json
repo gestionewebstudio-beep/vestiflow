@@ -19,6 +19,9 @@
     "docs:guide": "node scripts/generate-guide-html.mjs",
     "docs:guide:pdf": "node scripts/generate-guide-pdf.mjs",
     "docs:guide:all": "npm run docs:guide && npm run docs:guide:pdf",
+    "docs:test-plan": "node scripts/generate-test-plan-html.mjs",
+    "docs:test-plan:pdf": "node scripts/generate-test-plan-pdf.mjs",
+    "docs:test-plan:all": "npm run docs:test-plan && npm run docs:test-plan:pdf",
     "prepare": "husky"
   },
   "private": true,
