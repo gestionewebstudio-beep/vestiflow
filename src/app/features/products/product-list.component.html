@@ -54,10 +54,16 @@
     [seasons]="filterOptions().seasons"
     [statusOptions]="statusOptions"
     [hasActiveFilters]="hasActiveFilters()"
+    [barcodeScannerEnabled]="barcodeScannerEnabled"
     (searchChange)="onSearchInput($event)"
     (filterChange)="onFilterChange($event)"
     (resetFilters)="onResetFilters()"
+    (barcodeScanned)="onBarcodeScanned($event)"
   />
+
+  @if (scanFeedback(); as message) {
+    <p class="product-list__scan-feedback" role="status">{{ message }}</p>
+  }
 
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />

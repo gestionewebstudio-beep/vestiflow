@@ -122,3 +122,9 @@
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
 }
+
+.inventory-levels__scan-feedback {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}

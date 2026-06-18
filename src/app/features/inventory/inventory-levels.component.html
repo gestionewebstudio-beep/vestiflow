@@ -56,11 +56,19 @@
         class="inventory-levels__input"
         type="search"
         [value]="search()"
-        placeholder="Cerca per prodotto o SKU…"
+        placeholder="Cerca per prodotto, SKU o barcode…"
         aria-label="Cerca giacenze"
         (input)="onSearchInput($event)"
       />
     </div>
+
+    @if (barcodeScannerEnabled) {
+      <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+    }
+
+    @if (scanFeedback(); as message) {
+      <p class="inventory-levels__scan-feedback" role="status">{{ message }}</p>
+    }
 
     <div class="inventory-levels__filters">
       <div class="inventory-levels__field">

@@ -21,6 +21,7 @@ import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -110,8 +111,12 @@ export class ProductListComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly config = inject(APP_CONFIG);
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  protected readonly scanFeedback = signal<string | null>(null);
 
   private lastFetchQueryKey = '';
 
@@ -237,7 +242,23 @@ export class ProductListComponent {
   }
 
   protected onSearchInput(value: string): void {
+    this.scanFeedback.set(null);
     this.searchDraft.set(value);
+  }
+
+  protected onBarcodeScanned(code: string): void {
+    this.scanFeedback.set(null);
+    this.service
+      .findVariantByCode(code)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (variant) => {
+          void this.router.navigate(['/app/products', variant.productId]);
+        },
+        error: () => {
+          this.scanFeedback.set('Nessun prodotto trovato per questo SKU o barcode.');
+        },
+      });
   }
 
   protected onFilterChange(change: ProductFilterChange): void {

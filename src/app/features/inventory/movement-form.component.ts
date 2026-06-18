@@ -13,10 +13,12 @@ import { of, switchMap } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import { AdjustmentDirection, StockMovementType } from '@core/models/stock-movement.model';
+import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
@@ -48,7 +50,7 @@ type SubmitState =
 @Component({
   selector: 'app-movement-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, ButtonComponent, SelectMenuComponent],
+  imports: [ReactiveFormsModule, BarcodeScannerComponent, ButtonComponent, SelectMenuComponent],
   templateUrl: './movement-form.component.html',
   styleUrl: './movement-form.component.scss',
 })
@@ -60,6 +62,10 @@ export class MovementFormComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly config = inject(APP_CONFIG);
+
+  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  protected readonly scanFeedback = signal<string | null>(null);
 
   protected readonly typeSelectOptions: readonly SelectMenuOption[] = MANUAL_TYPES.map(
     (option) => ({
@@ -202,6 +208,22 @@ export class MovementFormComponent {
   protected onVariantSelect(value: string | null): void {
     this.form.controls.variantId.setValue(value ?? '');
     this.form.controls.variantId.markAsTouched();
+  }
+
+  protected onScanned(code: string): void {
+    this.scanFeedback.set(null);
+    this.productService
+      .findVariantByCode(code)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (variant) => {
+          this.form.controls.variantId.setValue(variant.variantId);
+          this.form.controls.variantId.markAsTouched();
+        },
+        error: () => {
+          this.scanFeedback.set('Nessuna variante trovata per questo SKU o barcode.');
+        },
+      });
   }
 
   protected onLocationSelect(value: string | null): void {

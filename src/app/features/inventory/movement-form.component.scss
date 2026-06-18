@@ -132,6 +132,12 @@
   color: var(--status-error-fg);
 }
 
+.movement-form__scan-feedback {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
 .movement-form__actions {
   display: flex;
   justify-content: flex-end;

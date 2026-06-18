@@ -6,11 +6,15 @@
       class="product-toolbar__input"
       type="search"
       [value]="search()"
-      placeholder="Cerca per nome o brand…"
+      placeholder="Cerca per nome, brand, SKU…"
       aria-label="Cerca prodotti"
       (input)="onSearchInput($event)"
     />
   </div>
+
+  @if (barcodeScannerEnabled()) {
+    <app-barcode-scanner label="Scansiona barcode" (scanned)="barcodeScanned.emit($event)" />
+  }
 
   <div class="product-toolbar__filters">
     <div class="product-toolbar__field">

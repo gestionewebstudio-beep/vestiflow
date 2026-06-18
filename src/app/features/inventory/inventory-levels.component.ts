@@ -12,6 +12,7 @@ import { Router } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -21,6 +22,7 @@ import type { InventoryLevel } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
 import { stockStatusOf } from '@core/utils/inventory.util';
 import type { StockStatus } from '@core/models/inventory-level.model';
+import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -68,6 +70,7 @@ const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
   selector: 'app-inventory-levels',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BarcodeScannerComponent,
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -88,8 +91,12 @@ export class InventoryLevelsComponent {
   private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly config = inject(APP_CONFIG);
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  protected readonly scanFeedback = signal<string | null>(null);
 
   protected readonly skeletonColumns = 6;
 
@@ -105,6 +112,7 @@ export class InventoryLevelsComponent {
   // La location parte dal contesto globale (selettore topbar).
   protected readonly locationFilter = signal(this.locationContext.activeLocationId() ?? '');
   protected readonly statusFilter = signal('');
+  protected readonly variantIdFilter = signal('');
   protected readonly search = signal('');
   protected readonly shopifyInventoryLoading = signal(false);
   protected readonly exporting = signal(false);
@@ -209,7 +217,12 @@ export class InventoryLevelsComponent {
       ? (this.locations().find((candidate) => candidate.id === location)?.name ?? '')
       : '';
 
+    const variantId = this.variantIdFilter();
+
     return this.allRows().filter((row) => {
+      if (variantId && row.variantId !== variantId) {
+        return false;
+      }
       if (locationName && row.locationName !== locationName) {
         return false;
       }
@@ -228,10 +241,33 @@ export class InventoryLevelsComponent {
   );
 
   protected readonly hasActiveFilters = computed(() =>
-    Boolean(this.locationFilter() || this.statusFilter() || this.search().trim()),
+    Boolean(
+      this.locationFilter() ||
+      this.statusFilter() ||
+      this.search().trim() ||
+      this.variantIdFilter(),
+    ),
   );
 
+  protected onScanned(code: string): void {
+    this.scanFeedback.set(null);
+    this.productService
+      .findVariantByCode(code)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (variant) => {
+          this.variantIdFilter.set(variant.variantId);
+          this.search.set(variant.sku);
+        },
+        error: () => {
+          this.variantIdFilter.set('');
+          this.scanFeedback.set('Nessuna variante trovata per questo SKU o barcode.');
+        },
+      });
+  }
+
   protected onSearchInput(event: Event): void {
+    this.variantIdFilter.set('');
     this.search.set((event.target as HTMLInputElement).value);
   }
 
@@ -247,6 +283,8 @@ export class InventoryLevelsComponent {
     this.locationFilter.set('');
     this.statusFilter.set('');
     this.search.set('');
+    this.variantIdFilter.set('');
+    this.scanFeedback.set(null);
   }
 
   protected reload(): void {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
+import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
@@ -25,7 +26,7 @@ export interface ProductFilterChange {
 @Component({
   selector: 'app-product-toolbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, SelectMenuComponent],
+  imports: [BarcodeScannerComponent, ButtonComponent, SelectMenuComponent],
   templateUrl: './product-toolbar.component.html',
   styleUrl: './product-toolbar.component.scss',
 })
@@ -37,10 +38,12 @@ export class ProductToolbarComponent {
   readonly seasons = input.required<readonly string[]>();
   readonly statusOptions = input.required<readonly ProductStatusOption[]>();
   readonly hasActiveFilters = input<boolean>(false);
+  readonly barcodeScannerEnabled = input<boolean>(false);
 
   readonly searchChange = output<string>();
   readonly filterChange = output<ProductFilterChange>();
   readonly resetFilters = output<void>();
+  readonly barcodeScanned = output<string>();
 
   protected readonly categoryOptions = computed<readonly SelectMenuOption[]>(() =>
     this.categories().map((category) => ({ value: category, label: category })),
