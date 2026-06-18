@@ -99,7 +99,19 @@ export class ShellLayoutComponent {
     route: '/app/guide',
   };
 
-  readonly footerNavItems = computed((): readonly NavItem[] => [this.guideNavItem]);
+  private readonly adminGuideNavItem: NavItem = {
+    label: 'Guida Tecnica',
+    icon: 'pi-bookmark',
+    route: '/app/admin/guide',
+  };
+
+  readonly footerNavItems = computed((): readonly NavItem[] => {
+    const items: NavItem[] = [this.guideNavItem];
+    if (this.authService.currentUser()?.isPlatformAdmin) {
+      items.push(this.adminGuideNavItem);
+    }
+    return items;
+  });
 
   readonly navItems = computed((): readonly NavItem[] => {
     const items = [...this.baseNavItems];

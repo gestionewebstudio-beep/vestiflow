@@ -1,5 +1,5 @@
 /**
- * Genera docs/GUIDA-UTENTE-VESTIFLOW.pdf dall'HTML di stampa (guide-print.css).
+ * Genera PDF guida utente e guida tecnica (operatore) dall'HTML di stampa.
  * Richiede Google Chrome o Microsoft Edge installati.
  */
 import { spawnSync } from 'node:child_process';
@@ -8,8 +8,6 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const htmlPath = resolve(root, 'docs', 'GUIDA-UTENTE-VESTIFLOW.html');
-const pdfPath = resolve(root, 'docs', 'GUIDA-UTENTE-VESTIFLOW.pdf');
 
 const chromeCandidates = [
   process.env.CHROME_PATH,
@@ -27,37 +25,53 @@ const browser = chromeCandidates.find((path) => existsSync(path));
 
 if (!browser) {
   console.error(
-    'Browser Chromium non trovato. Imposta CHROME_PATH o installa Chrome/Edge, oppure stampa in PDF da GUIDA-UTENTE-VESTIFLOW.html.',
+    'Browser Chromium non trovato. Imposta CHROME_PATH o installa Chrome/Edge, oppure stampa in PDF dagli HTML in docs/.',
   );
   process.exit(1);
 }
 
-if (!existsSync(htmlPath)) {
-  console.error(`Manca ${htmlPath}. Esegui prima: npm run docs:guide`);
-  process.exit(1);
+function printPdf(htmlPath, pdfPath) {
+  if (!existsSync(htmlPath)) {
+    console.error(`Manca ${htmlPath}. Esegui prima: npm run docs:guide`);
+    process.exit(1);
+  }
+
+  const fileUrl = `file:///${resolve(htmlPath).replace(/\\/g, '/')}`;
+  const result = spawnSync(
+    browser,
+    [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-sandbox',
+      '--print-to-pdf-no-header',
+      `--print-to-pdf=${resolve(pdfPath)}`,
+      fileUrl,
+    ],
+    { stdio: 'inherit' },
+  );
+
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+
+  console.log(`Generato: ${pdfPath}`);
 }
 
-const fileUrl = `file:///${htmlPath.replace(/\\/g, '/')}`;
-const result = spawnSync(
-  browser,
-  [
-    '--headless=new',
-    '--disable-gpu',
-    '--no-sandbox',
-    '--print-to-pdf-no-header',
-    `--print-to-pdf=${pdfPath}`,
-    fileUrl,
-  ],
-  { stdio: 'inherit' },
-);
+const userHtml = resolve(root, 'docs', 'GUIDA-UTENTE-VESTIFLOW.html');
+const userPdf = resolve(root, 'docs', 'GUIDA-UTENTE-VESTIFLOW.pdf');
+const technicalHtml = resolve(root, 'docs', 'GUIDA-TECNICA-VESTIFLOW.html');
+const technicalPdf = resolve(root, 'docs', 'GUIDA-TECNICA-VESTIFLOW.pdf');
 
-if (result.status !== 0) {
-  process.exit(result.status ?? 1);
-}
+printPdf(userHtml, userPdf);
 
-console.log(`Generato: ${pdfPath}`);
+const publicUserPdf = resolve(root, 'public', 'guide', 'vestiflow-guida.pdf');
+mkdirSync(dirname(publicUserPdf), { recursive: true });
+copyFileSync(userPdf, publicUserPdf);
+console.log(`Copiato PDF utente in-app: ${publicUserPdf}`);
 
-const publicPdfPath = resolve(root, 'public', 'guide', 'vestiflow-guida.pdf');
-mkdirSync(dirname(publicPdfPath), { recursive: true });
-copyFileSync(pdfPath, publicPdfPath);
-console.log(`Copiato PDF in-app: ${publicPdfPath}`);
+printPdf(technicalHtml, technicalPdf);
+
+const adminPdf = resolve(root, 'src', 'assets', 'guide-admin', 'vestiflow-guida-tecnica.pdf');
+mkdirSync(dirname(adminPdf), { recursive: true });
+copyFileSync(technicalPdf, adminPdf);
+console.log(`Copiato PDF guida tecnica admin: ${adminPdf}`);

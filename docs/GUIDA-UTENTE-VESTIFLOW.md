@@ -166,20 +166,6 @@ Una **sede** è un luogo dove conti le giacenze (negozio, magazzino, secondo pun
 
 **Più sedi nello stesso shop Shopify** (es. Napoli + magazzino): supportato. **Due shop Shopify distinti** (due domini): servono **due account VestiFlow** separati — contatta il referente.
 
-<!-- vestiflow:exclude-in-app -->
-
-### Per l'operatore VestiFlow (onboarding nuovo cliente)
-
-Gli operatori piattaforma vedono **Nuovo cliente** nel menu:
-
-1. Compilare identificazione, anagrafica opzionale, primo accesso (ruolo, nome, email, password).
-2. Opzionalmente nome negozio e location iniziale.
-3. Consegnare le credenziali al titolare in modo sicuro.
-
-Dalla tabella **Clienti registrati** si può modificare anagrafica, titolare, negozio e location. L'email di accesso non si modifica da lì.
-
-<!-- /vestiflow:exclude-in-app -->
-
 ---
 
 ## 6. Collegare Shopify
@@ -519,34 +505,3 @@ La voce **Guida** in fondo al menu laterale apre questo manuale dentro l'app (`/
 La versione in-app è pensata per chi lavora nel negozio: passi operativi, dove cliccare e cosa aspettarsi. Per assistenza su configurazione o problemi di sync, contatta il tuo **referente VestiFlow**.
 
 ---
-
-<!-- vestiflow:exclude-in-app -->
-
-_Appendice riservata al PDF / operatori — non mostrata nella guida in-app._
-
-## Appendice tecnica (operatori)
-
-### Architettura
-
-| Componente  | Funzione                       |
-| ----------- | ------------------------------ |
-| Frontend    | Angular (Firebase App Hosting) |
-| Backend API | NestJS (Railway)               |
-| Database    | Supabase (PostgreSQL, Auth)    |
-| E-commerce  | Shopify (OAuth, webhook)       |
-
-Un **tenant** = un'azienda cliente = un shop Shopify. Più **location** nello stesso shop: supportate. Due shop distinti: due tenant.
-
-### Rate limiting Shopify (server)
-
-Il backend regola le chiamate API verso Shopify. Variabili in `api/.env`: `SHOPIFY_API_MIN_INTERVAL_MS`, `SHOPIFY_API_MAX_RETRIES`, ecc. Il frontend non contatta mai Shopify direttamente.
-
-### Permessi OAuth read_products
-
-Se l'import catalogo è bloccato: verificare scope app Partners, disinstallare app dal negozio Shopify, **Disconnetti** + **Connetti** in VestiFlow.
-
-## Contatti supporto
-
-Per onboarding o problemi tecnici: referente VestiFlow / operatore che ha attivato il tenant.
-
-<!-- /vestiflow:exclude-in-app -->

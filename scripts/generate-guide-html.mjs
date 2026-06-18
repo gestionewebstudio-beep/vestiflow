@@ -5,43 +5,55 @@ import { marked } from 'marked';
 import { gfmHeadingId } from 'marked-gfm-heading-id';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const mdPath = join(root, 'docs', 'GUIDA-UTENTE-VESTIFLOW.md');
+const userMdPath = join(root, 'docs', 'GUIDA-UTENTE-VESTIFLOW.md');
+const operatorMdPath = join(root, 'docs', 'GUIDA-OPERATORE-VESTIFLOW.md');
 const cssPath = join(root, 'docs', 'guide-print.css');
-const pdfHtmlPath = join(root, 'docs', 'GUIDA-UTENTE-VESTIFLOW.html');
+const userPdfHtmlPath = join(root, 'docs', 'GUIDA-UTENTE-VESTIFLOW.html');
+const technicalPdfHtmlPath = join(root, 'docs', 'GUIDA-TECNICA-VESTIFLOW.html');
 const inAppDir = join(root, 'public', 'guide');
 const inAppHtmlPath = join(inAppDir, 'content.html');
-
-const EXCLUDE_IN_APP =
-  /<!-- vestiflow:exclude-in-app -->[\s\S]*?<!-- \/vestiflow:exclude-in-app -->/g;
-
-function stripInAppOnlyBlocks(markdown) {
-  return markdown.replace(EXCLUDE_IN_APP, '').replace(/\n{3,}/g, '\n\n').trim();
-}
+const adminAssetsDir = join(root, 'src', 'assets', 'guide-admin');
+const adminHtmlPath = join(adminAssetsDir, 'content-tecnica.html');
 
 marked.use({ gfm: true });
 marked.use(gfmHeadingId());
 
-const md = readFileSync(mdPath, 'utf8');
 const css = readFileSync(cssPath, 'utf8');
-const pdfBody = marked.parse(md);
-const inAppBody = marked.parse(stripInAppOnlyBlocks(md));
+const userMd = readFileSync(userMdPath, 'utf8');
+const operatorMd = readFileSync(operatorMdPath, 'utf8');
 
-const pdfHtml = `<!DOCTYPE html>
+function wrapHtml(title, body) {
+  return `<!DOCTYPE html>
 <html lang="it">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>VestiFlow — Guida completa al gestionale</title>
+  <title>${title}</title>
   <style>${css}</style>
 </head>
 <body>
-${pdfBody}
+${body}
 </body>
 </html>`;
+}
 
-writeFileSync(pdfHtmlPath, pdfHtml, 'utf8');
-console.log(`Generato: ${pdfHtmlPath}`);
+const userBody = marked.parse(userMd);
+const technicalBody = marked.parse(operatorMd);
+
+writeFileSync(userPdfHtmlPath, wrapHtml('VestiFlow — Guida utente', userBody), 'utf8');
+console.log(`Generato: ${userPdfHtmlPath}`);
+
+writeFileSync(
+  technicalPdfHtmlPath,
+  wrapHtml('VestiFlow — Guida tecnica (operatore)', technicalBody),
+  'utf8',
+);
+console.log(`Generato: ${technicalPdfHtmlPath}`);
 
 mkdirSync(inAppDir, { recursive: true });
-writeFileSync(inAppHtmlPath, inAppBody, 'utf8');
+writeFileSync(inAppHtmlPath, userBody, 'utf8');
 console.log(`Generato: ${inAppHtmlPath}`);
+
+mkdirSync(adminAssetsDir, { recursive: true });
+writeFileSync(adminHtmlPath, technicalBody, 'utf8');
+console.log(`Generato: ${adminHtmlPath}`);

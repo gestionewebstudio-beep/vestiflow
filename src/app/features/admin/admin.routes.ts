@@ -17,4 +17,11 @@ export const adminRoutes: Routes = [
     loadComponent: () =>
       import('./pages/edit-client/edit-client.component').then((m) => m.EditClientComponent),
   },
+  {
+    path: 'guide',
+    title: 'VestiFlow · Guida tecnica',
+    canActivate: [platformAdminGuard],
+    loadComponent: () => import('@features/guide/guide.component').then((m) => m.GuideComponent),
+    data: { guideVariant: 'admin' },
+  },
 ];

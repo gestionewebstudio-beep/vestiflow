@@ -13,11 +13,14 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { catchError, of } from 'rxjs';
 
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+
+type GuideVariant = 'user' | 'admin';
 
 @Component({
   selector: 'app-guide',
@@ -32,11 +35,34 @@ export class GuideComponent {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
 
   private readonly contentHost = viewChild<ElementRef<HTMLElement>>('contentHost');
 
-  protected readonly pdfUrl = '/guide/vestiflow-guida.pdf';
-  protected readonly pdfFileName = 'VestiFlow-guida.pdf';
+  protected readonly variant =
+    (this.route.snapshot.data['guideVariant'] as GuideVariant | undefined) ?? 'user';
+
+  protected readonly isAdminGuide = this.variant === 'admin';
+
+  protected readonly pageTitle = computed(() =>
+    this.isAdminGuide ? 'Guida tecnica VestiFlow' : 'Guida VestiFlow',
+  );
+
+  protected readonly pageIntro = computed(() =>
+    this.isAdminGuide
+      ? 'Documentazione operatore, architettura, deploy e sviluppo (solo operatori piattaforma).'
+      : 'Manuale del gestionale: menu, Shopify, prodotti, magazzino, ordini, vendite e clienti.',
+  );
+
+  protected readonly pdfUrl = computed(() =>
+    this.isAdminGuide
+      ? '/assets/guide-admin/vestiflow-guida-tecnica.pdf'
+      : '/guide/vestiflow-guida.pdf',
+  );
+
+  protected readonly pdfFileName = computed(() =>
+    this.isAdminGuide ? 'VestiFlow-guida-tecnica.pdf' : 'VestiFlow-guida.pdf',
+  );
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -48,7 +74,7 @@ export class GuideComponent {
     if (!html) {
       return '';
     }
-    // REASON: HTML statico generato in build da docs/GUIDA-UTENTE-VESTIFLOW.md, non input utente.
+    // REASON: HTML statico generato in build da docs/*.md, non input utente.
     return this.sanitizer.bypassSecurityTrustHtml(html);
   });
 
@@ -89,8 +115,12 @@ export class GuideComponent {
     this.error.set(null);
     this.htmlContent.set('');
 
+    const contentUrl = this.isAdminGuide
+      ? '/assets/guide-admin/content-tecnica.html'
+      : '/guide/content.html';
+
     this.http
-      .get('/guide/content.html', { responseType: 'text' })
+      .get(contentUrl, { responseType: 'text' })
       .pipe(
         catchError(() => of(null)),
         takeUntilDestroyed(this.destroyRef),

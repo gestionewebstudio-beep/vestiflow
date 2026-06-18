@@ -1,0 +1,1245 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VestiFlow — Guida tecnica (operatore)</title>
+    <style>
+      @page {
+        margin: 18mm 16mm;
+        size: A4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 11pt;
+        line-height: 1.55;
+        color: #1a1a1a;
+        max-width: 210mm;
+        margin: 0 auto;
+        padding: 12mm 10mm;
+      }
+
+      h1 {
+        font-size: 22pt;
+        color: #1e3a5f;
+        border-bottom: 3px solid #2563eb;
+        padding-bottom: 8px;
+        margin-top: 0;
+        page-break-after: avoid;
+      }
+
+      h2 {
+        font-size: 15pt;
+        color: #1e3a5f;
+        margin-top: 28px;
+        border-bottom: 1px solid #cbd5e1;
+        padding-bottom: 4px;
+        page-break-after: avoid;
+      }
+
+      h3 {
+        font-size: 12pt;
+        color: #334155;
+        margin-top: 18px;
+        page-break-after: avoid;
+      }
+
+      p,
+      li {
+        orphans: 3;
+        widows: 3;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0 16px;
+        font-size: 10pt;
+        page-break-inside: avoid;
+      }
+
+      th,
+      td {
+        border: 1px solid #cbd5e1;
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f1f5f9;
+        font-weight: 600;
+      }
+
+      tr:nth-child(even) td {
+        background: #f8fafc;
+      }
+
+      code {
+        background: #f1f5f9;
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-size: 9.5pt;
+      }
+
+      pre {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        padding: 12px;
+        overflow-x: auto;
+        font-size: 9pt;
+        page-break-inside: avoid;
+      }
+
+      blockquote {
+        border-left: 4px solid #2563eb;
+        margin: 12px 0;
+        padding: 8px 16px;
+        background: #eff6ff;
+        color: #1e40af;
+      }
+
+      hr {
+        border: none;
+        border-top: 1px solid #e2e8f0;
+        margin: 24px 0;
+      }
+
+      a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+
+      .cover-meta {
+        color: #64748b;
+        font-size: 10pt;
+        margin-bottom: 24px;
+      }
+
+      @media print {
+        body {
+          padding: 0;
+        }
+
+        h2 {
+          page-break-before: auto;
+        }
+
+        a[href^='http']::after {
+          content: ' (' attr(href) ')';
+          font-size: 8pt;
+          color: #64748b;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">
+      VestiFlow — Guida operatore, proprietario e sviluppatore
+    </h1>
+    <p><strong>Versione documento:</strong> 1.1 — Giugno 2026</p>
+    <p>
+      <strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>),
+      proprietario del prodotto, sviluppatori che mantengono il gestionale.
+    </p>
+    <p>
+      <strong>Visibilità:</strong> accessibile solo come
+      <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in
+      <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce
+      <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.
+    </p>
+    <hr />
+    <h2 id="indice-operatore">Indice operatore</h2>
+    <ol>
+      <li><a href="#1-ruolo-operatore-piattaforma">Ruolo operatore piattaforma</a></li>
+      <li><a href="#2-architettura-e-stack">Architettura e stack</a></li>
+      <li><a href="#3-modello-multi-tenant">Modello multi-tenant</a></li>
+      <li><a href="#4-struttura-repository">Struttura repository</a></li>
+      <li><a href="#5-ambiente-di-sviluppo-locale">Ambiente di sviluppo locale</a></li>
+      <li><a href="#6-variabili-dambiente">Variabili d&#39;ambiente</a></li>
+      <li><a href="#7-onboarding-nuovo-cliente-tenant">Onboarding nuovo cliente (tenant)</a></li>
+      <li><a href="#8-autenticazione-e-ruoli">Autenticazione e ruoli</a></li>
+      <li><a href="#9-integrazione-shopify-tecnica">Integrazione Shopify (tecnica)</a></li>
+      <li>
+        <a href="#10-supabase-database-auth-storage-rls">Supabase: database, Auth, Storage, RLS</a>
+      </li>
+      <li><a href="#11-dominio-dati-principale">Dominio dati principale</a></li>
+      <li><a href="#12-api-e-permessi-tenant">API e permessi tenant</a></li>
+      <li><a href="#13-import-ed-export-csv">Import ed export CSV</a></li>
+      <li><a href="#14-scanner-barcode">Scanner barcode</a></li>
+      <li><a href="#15-generazione-guide-htmlpdf">Generazione guide (HTML/PDF)</a></li>
+      <li><a href="#16-build-test-e-ci">Build, test e CI</a></li>
+      <li><a href="#17-deploy-produzione">Deploy produzione</a></li>
+      <li><a href="#18-sicurezza-e-checklist-pre-release">Sicurezza e checklist pre-release</a></li>
+      <li><a href="#19-troubleshooting-tecnico">Troubleshooting tecnico</a></li>
+      <li><a href="#20-limitazioni-note-e-roadmap">Limitazioni note e roadmap</a></li>
+    </ol>
+    <hr />
+    <h2 id="1-ruolo-operatore-piattaforma">1. Ruolo operatore piattaforma</h2>
+    <p>
+      L&#39;<strong>operatore piattaforma</strong> (tu, come proprietario/sviluppatore) non coincide
+      con il <strong>Titolare</strong> di un tenant negozio.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Concetto</th>
+          <th>Dove vive</th>
+          <th>Come si ottiene</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Platform admin</strong></td>
+          <td>Flag <code>isPlatformAdmin</code> nel profilo utente API</td>
+          <td>Email in <code>PLATFORM_ADMIN_EMAILS</code> (backend)</td>
+        </tr>
+        <tr>
+          <td><strong>Titolare tenant</strong></td>
+          <td>Ruolo <code>owner</code> nel DB tenant</td>
+          <td>Scelto al provisioning in <strong>Nuovo cliente</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Ruoli negozio</strong></td>
+          <td><code>owner</code>, <code>admin</code>, <code>manager</code>, <code>clerk</code></td>
+          <td>Assegnati al create tenant; <strong>non</strong> modificabili self-service oggi</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="cosa-vede-un-platform-admin-in-ui">Cosa vede un platform admin in UI</h3>
+    <ul>
+      <li>Voce menu <strong>Nuovo cliente</strong> (<code>/app/admin/clients/new</code>)</li>
+      <li><strong>Guida tecnica</strong> in fondo alla sidebar (<code>/app/admin/guide</code>)</li>
+      <li>
+        Stesse schermate operative del tenant quando accedi con un account associato a un tenant
+      </li>
+    </ul>
+    <h3 id="backend">Backend</h3>
+    <p>
+      Endpoint sotto <code>/api/v1/admin/tenants</code> protetti da <code>JwtAuthGuard</code> +
+      <code>PlatformAdminGuard</code> (verifica email contro env).
+    </p>
+    <hr />
+    <h2 id="2-architettura-e-stack">2. Architettura e stack</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Componente</th>
+          <th>Tecnologia</th>
+          <th>Ruolo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Frontend</strong></td>
+          <td>Angular 21+ (standalone, signals, OnPush)</td>
+          <td>SPA/PWA gestionale</td>
+        </tr>
+        <tr>
+          <td><strong>Hosting frontend</strong></td>
+          <td>Firebase App Hosting (o equivalente static)</td>
+          <td>CDN + HTTPS</td>
+        </tr>
+        <tr>
+          <td><strong>Backend API</strong></td>
+          <td>NestJS</td>
+          <td>Business logic, Shopify OAuth, webhook</td>
+        </tr>
+        <tr>
+          <td><strong>Hosting API</strong></td>
+          <td>Railway (tipico)</td>
+          <td>Node 22, env secrets</td>
+        </tr>
+        <tr>
+          <td><strong>Database</strong></td>
+          <td>PostgreSQL via Supabase</td>
+          <td>Dati multi-tenant</td>
+        </tr>
+        <tr>
+          <td><strong>Auth</strong></td>
+          <td>Supabase Auth (JWT HS256)</td>
+          <td>Login email/password, MFA opzionale</td>
+        </tr>
+        <tr>
+          <td><strong>Storage immagini</strong></td>
+          <td>Supabase Storage bucket <code>product-media</code></td>
+          <td>Upload media prodotti</td>
+        </tr>
+        <tr>
+          <td><strong>E-commerce</strong></td>
+          <td>Shopify Admin API + webhook</td>
+          <td>Catalogo, stock, ordini, clienti</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>Regola:</strong> il frontend <strong>non</strong> contiene secret Shopify né service
+      role Supabase. Tutto passa dall&#39;API.
+    </p>
+    <hr />
+    <h2 id="3-modello-multi-tenant">3. Modello multi-tenant</h2>
+    <ul>
+      <li>
+        Ogni <strong>tenant</strong> = un&#39;azienda cliente =
+        <strong>un shop Shopify</strong> collegato.
+      </li>
+      <li>
+        Isolamento dati: colonna <code>tenantId</code> su entità business; filtro obbligatorio lato
+        API.
+      </li>
+      <li>
+        <strong>Location</strong> ≠ <strong>Store</strong>: lo stock è per location (semantica
+        Shopify); lo store è entità commerciale.
+      </li>
+      <li><strong>Variante</strong> = unità minima inventario (SKU univoco interno).</li>
+      <li>
+        <strong>Due shop Shopify distinti</strong> → <strong>due tenant</strong> VestiFlow separati.
+      </li>
+      <li>
+        <strong>Più location nello stesso shop</strong> → un tenant, N location sincronizzate.
+      </li>
+    </ul>
+    <hr />
+    <h2 id="4-struttura-repository">4. Struttura repository</h2>
+    <pre><code>vestiflow/
+├── src/app/              # Frontend Angular
+│   ├── core/             # Auth, guards, permissions, HTTP
+│   ├── shared/           # Componenti UI riutilizzabili
+│   ├── features/         # Feature lazy-loaded (products, inventory, admin, guide…)
+│   └── layout/           # Shell sidebar + topbar
+├── api/                  # Backend NestJS
+│   ├── src/admin/        # Provisioning tenant (platform admin)
+│   ├── src/products/     # Catalogo, CSV import/export
+│   ├── src/inventory/    # Giacenze, movimenti, CSV
+│   ├── src/shopify/      # OAuth, sync, webhook, rate limit
+│   └── prisma/           # Schema e migration PostgreSQL
+├── docs/                 # Guide Markdown + HTML/PDF
+├── public/guide/         # Guida utente in-app (pubblica)
+├── src/assets/guide-admin/ # Guida tecnica (solo route admin)
+└── scripts/              # generate-guide-*, check-rls, environment prod
+</code></pre>
+    <p>
+      Alias TypeScript: <code>@core/*</code>, <code>@shared/*</code>, <code>@features/*</code>,
+      <code>@env/*</code>.
+    </p>
+    <hr />
+    <h2 id="5-ambiente-di-sviluppo-locale">5. Ambiente di sviluppo locale</h2>
+    <h3 id="requisiti">Requisiti</h3>
+    <ul>
+      <li>Node.js <strong>22</strong> LTS (<code>.nvmrc</code>)</li>
+      <li>npm (lockfile committato)</li>
+      <li>Progetto Supabase (URL + anon key + service role per API)</li>
+      <li>Account Shopify Partners (app custom) per test OAuth</li>
+    </ul>
+    <h3 id="avvio">Avvio</h3>
+    <pre><code class="language-bash"># Frontend (porta 4200)
+npm install
+npm start
+
+# Backend (porta 3000)
+cd api
+cp .env.example .env   # compilare variabili
+npm install
+npx prisma migrate dev
+npm run start:dev
+</code></pre>
+    <h3 id="shopify-in-locale">Shopify in locale</h3>
+    <p>
+      Shopify richiede URL <strong>pubblici</strong> per OAuth callback e webhook. Usa
+      <strong>ngrok</strong> o <strong>cloudflared</strong>:
+    </p>
+    <ol>
+      <li>Tunnel verso <code>localhost:3000</code></li>
+      <li>
+        Imposta <code>SHOPIFY_APP_URL</code> e <code>FRONTEND_URL</code> nel <code>api/.env</code>
+      </li>
+      <li>Aggiorna redirect URL nell&#39;app Partners</li>
+    </ol>
+    <h3 id="pwa-locale">PWA locale</h3>
+    <pre><code class="language-bash">npm run build:pwa:local
+npm run serve:pwa
+</code></pre>
+    <hr />
+    <h2 id="6-variabili-dambiente">6. Variabili d&#39;ambiente</h2>
+    <h3 id="frontend-env--build-valori-pubblici">
+      Frontend (<code>.env</code> → build, valori <strong>pubblici</strong>)
+    </h3>
+    <p>Vedi <code>.env.example</code> in root:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Variabile</th>
+          <th>Significato</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>VESTIFLOW_API_BASE_URL</code></td>
+          <td>URL API produzione</td>
+        </tr>
+        <tr>
+          <td><code>VESTIFLOW_SUPABASE_URL</code></td>
+          <td>URL Supabase</td>
+        </tr>
+        <tr>
+          <td><code>VESTIFLOW_SUPABASE_ANON_KEY</code></td>
+          <td>Anon/publishable key</td>
+        </tr>
+        <tr>
+          <td><code>VESTIFLOW_ENABLE_BARCODE_SCANNER</code></td>
+          <td>Feature flag scanner</td>
+        </tr>
+        <tr>
+          <td><code>VESTIFLOW_ENABLE_SHOPIFY</code></td>
+          <td>Feature flag integrazione Shopify UI</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>Mai</strong> service role o secret Shopify nel frontend.</p>
+    <h3 id="backend-apienv">Backend (<code>api/.env</code>)</h3>
+    <p>Vedi <code>api/.env.example</code>:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Variabile</th>
+          <th>Significato</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>DATABASE_URL</code> / <code>DIRECT_URL</code></td>
+          <td>PostgreSQL Supabase</td>
+        </tr>
+        <tr>
+          <td>
+            <code>SUPABASE_URL</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code>,
+            <code>SUPABASE_JWT_SECRET</code>
+          </td>
+          <td>Auth e admin DB</td>
+        </tr>
+        <tr>
+          <td><code>CORS_ORIGINS</code></td>
+          <td>Origini frontend consentite</td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_*</code></td>
+          <td>OAuth, scope, cifratura token, rate limit</td>
+        </tr>
+        <tr>
+          <td><code>PLATFORM_ADMIN_EMAILS</code></td>
+          <td>Email operatori (virgola)</td>
+        </tr>
+        <tr>
+          <td><code>SUPABASE_PRODUCT_MEDIA_BUCKET</code></td>
+          <td>Bucket immagini (<code>product-media</code>)</td>
+        </tr>
+        <tr>
+          <td><code>FRONTEND_URL</code></td>
+          <td>Redirect post-OAuth</td>
+        </tr>
+      </tbody>
+    </table>
+    <hr />
+    <h2 id="7-onboarding-nuovo-cliente-tenant">7. Onboarding nuovo cliente (tenant)</h2>
+    <p><strong>UI:</strong> <code>/app/admin/clients/new</code> (solo platform admin).</p>
+    <h3 id="procedura">Procedura</h3>
+    <ol>
+      <li><strong>Identificazione</strong> — nome commerciale, ragione sociale opzionale</li>
+      <li><strong>Anagrafica</strong> — P.IVA, CF, sede, contatti (opzionali)</li>
+      <li>
+        <strong>Primo accesso</strong> — ruolo VestiFlow (<code>owner</code> default), nome, email,
+        password
+      </li>
+      <li>
+        <strong>Setup</strong> — nome negozio e location iniziale (opzionali; default «Negozio
+        principale»)
+      </li>
+    </ol>
+    <p>Il backend crea: tenant, utente Supabase Auth, store, location, profilo utente collegato.</p>
+    <h3 id="dopo-il-provisioning">Dopo il provisioning</h3>
+    <p>Consegna credenziali al titolare <strong>in modo sicuro</strong>. Il titolare completa:</p>
+    <ol>
+      <li>MFA (consigliato)</li>
+      <li>Collegamento Shopify</li>
+      <li>Sync location + webhook + import catalogo</li>
+    </ol>
+    <h3 id="modifica-tenant-esistente">Modifica tenant esistente</h3>
+    <p>
+      Tabella <strong>Clienti registrati</strong> → click riga →
+      <code>/app/admin/clients/:id</code>.
+    </p>
+    <p>
+      Modificabile: anagrafica, nome titolare, negozio, location. <strong>Non</strong> email accesso
+      (Supabase Auth) né ruolo utente da UI.
+    </p>
+    <h3 id="api">API</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Metodo</th>
+          <th>Path</th>
+          <th>Azione</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GET</td>
+          <td><code>/admin/tenants</code></td>
+          <td>Lista tenant</td>
+        </tr>
+        <tr>
+          <td>POST</td>
+          <td><code>/admin/tenants</code></td>
+          <td>Crea tenant + primo utente</td>
+        </tr>
+        <tr>
+          <td>GET</td>
+          <td><code>/admin/tenants/:id</code></td>
+          <td>Dettaglio</td>
+        </tr>
+        <tr>
+          <td>PATCH</td>
+          <td><code>/admin/tenants/:id</code></td>
+          <td>Aggiorna anagrafica/setup</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      Body create include <code>role</code> (<code>owner</code> | <code>admin</code> |
+      <code>manager</code> | <code>clerk</code>).
+    </p>
+    <hr />
+    <h2 id="8-autenticazione-e-ruoli">8. Autenticazione e ruoli</h2>
+    <h3 id="flusso-auth">Flusso auth</h3>
+    <ol>
+      <li>Login Supabase Auth (frontend)</li>
+      <li>JWT inviato all&#39;API (<code>Authorization: Bearer</code>)</li>
+      <li><code>JwtAuthGuard</code> valida firma con <code>SUPABASE_JWT_SECRET</code></li>
+      <li>
+        Profilo utente + <code>tenantId</code> + ruolo + <code>isPlatformAdmin</code> caricati
+      </li>
+    </ol>
+    <h3 id="ruoli-tenant-ui--api">Ruoli tenant (UI + API)</h3>
+    <p>
+      Implementati in <code>tenant-permissions.util.ts</code> (frontend) e guard analoghi lato API.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Permesso chiave</th>
+          <th>Ruoli</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Shopify sync / import catalogo</td>
+          <td>owner, admin</td>
+        </tr>
+        <tr>
+          <td>CRUD prodotti, CSV catalogo</td>
+          <td>owner, admin, manager</td>
+        </tr>
+        <tr>
+          <td>CSV giacenze, ordini fornitori</td>
+          <td>owner, admin, manager</td>
+        </tr>
+        <tr>
+          <td>Movimenti magazzino, inventario fisico</td>
+          <td>tutti</td>
+        </tr>
+        <tr>
+          <td>MFA settings</td>
+          <td>owner, admin, manager</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      Route Angular sensibili: <code>tenantRoleGuard</code> +
+      <code>data.tenantRoutePermission</code>.
+    </p>
+    <hr />
+    <h2 id="9-integrazione-shopify-tecnica">9. Integrazione Shopify (tecnica)</h2>
+    <h3 id="ownership-sync-riepilogo">Ownership sync (riepilogo)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Entità</th>
+          <th>Owner</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Prodotti/varianti</td>
+          <td>Condiviso write-through</td>
+          <td>Push al save da VestiFlow</td>
+        </tr>
+        <tr>
+          <td>Clienti, ordini online</td>
+          <td>Shopify</td>
+          <td>Read-only in VF</td>
+        </tr>
+        <tr>
+          <td>Giacenze</td>
+          <td>Condiviso</td>
+          <td>VF: carichi/rettifiche; Shopify: vendite</td>
+        </tr>
+        <tr>
+          <td>Location</td>
+          <td>Shopify master</td>
+          <td>Import + mapping</td>
+        </tr>
+        <tr>
+          <td>Ordini fornitori</td>
+          <td>Solo VestiFlow</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="oauth">OAuth</h3>
+    <ul>
+      <li>Scope default in <code>SHOPIFY_SCOPES</code> (<code>.env.example</code>)</li>
+      <li>Token cifrati at rest (<code>SHOPIFY_TOKEN_ENCRYPTION_KEY</code>)</li>
+      <li>Diagnostica scope in Impostazioni: richiesti vs concessi</li>
+    </ul>
+    <h3 id="webhook">Webhook</h3>
+    <p>
+      Registrati con <strong>Attiva aggiornamenti automatici</strong>. Idempotenza lato backend per
+      eventi duplicati/out-of-order.
+    </p>
+    <h3 id="limiti-shopify-admin-api--concetto">Limiti Shopify Admin API — concetto</h3>
+    <p>
+      Shopify <strong>non addebita le chiamate API</strong> a consumo. Il piano del negozio
+      definisce <strong>quanto velocemente</strong> puoi chiamare le Admin API prima di essere
+      <strong>rallentato</strong> (HTTP <strong>429 Too Many Requests</strong> / throttling). Non
+      esiste un contatore “a pagamento per chiamata”.
+    </p>
+    <p>
+      VestiFlow usa oggi soprattutto la <strong>REST Admin API</strong> (prodotti, location,
+      inventario, immagini).
+    </p>
+    <p><strong>Documentazione ufficiale Shopify:</strong></p>
+    <ul>
+      <li><a href="https://shopify.dev/docs/api/usage/limits">Limiti API (panoramica)</a></li>
+      <li>
+        <a href="https://shopify.dev/docs/api/admin-rest/usage/rate-limits"
+          >Rate limit REST Admin API</a
+        >
+      </li>
+    </ul>
+    <p><strong>Fasce tipiche REST (piano negozio → velocità massima):</strong></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Piano Shopify (indicativo)</th>
+          <th>REST Admin API</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Basic / Grow (Standard)</td>
+          <td>~<strong>2 richieste/sec</strong>, bucket <strong>40</strong></td>
+        </tr>
+        <tr>
+          <td>Advanced</td>
+          <td>~<strong>4 richieste/sec</strong>, bucket <strong>80</strong></td>
+        </tr>
+        <tr>
+          <td>Plus</td>
+          <td>limiti più alti (fascia Enterprise)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      Il header <code>X-Shopify-Shop-Api-Call-Limit</code> (es. <code>32/40</code>) indica quanto
+      del bucket è consumato.
+    </p>
+    <h3 id="cosa-fa-vestiflow-quando-si-avvicina-o-supera-il-limite">
+      Cosa fa VestiFlow quando si avvicina o supera il limite
+    </h3>
+    <p>Implementazione in <code>api/src/shopify/</code>:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Componente</th>
+          <th>Ruolo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>ShopifyRateLimiterService</code></td>
+          <td>Throttle <strong>per shop</strong> prima di ogni richiesta outbound</td>
+        </tr>
+        <tr>
+          <td><code>ShopifyAdminClient.request()</code></td>
+          <td>Applica throttle, legge header bucket, <strong>retry su 429</strong></td>
+        </tr>
+        <tr>
+          <td><code>ShopifyProductPullService</code></td>
+          <td>
+            <strong>Mutex</strong> import catalogo (un import per tenant alla volta, process-local)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>Comportamento:</strong></p>
+    <ol>
+      <li>
+        <strong>Intervallo minimo</strong> tra richieste (default 550 ms ≈ 1,8 req/s, sotto il
+        limite Basic 2/s).
+      </li>
+      <li>
+        Se <code>X-Shopify-Shop-Api-Call-Limit</code> ≥ soglia (<strong>85%</strong> del bucket),
+        pausa <strong>1 s</strong> prima delle richieste successive.
+      </li>
+      <li>
+        Su <strong>HTTP 429</strong>: legge <code>Retry-After</code>, backoff esponenziale, fino a
+        <strong>5</strong> retry; poi errore 429 con messaggio utente:
+        <em>«Shopify ha limitato temporaneamente le richieste API…»</em>.
+      </li>
+      <li>
+        <strong>Import catalogo</strong>: enrichment leggero (<code>skipRemoteMetadata: true</code>,
+        niente costi varianti extra) per ridurre chiamate;
+        <strong>non avviare due import</strong> sullo stesso tenant in parallelo.
+      </li>
+      <li>
+        <strong>Webhook</strong> prodotti/ordini/giacenze: <strong>0 chiamate outbound</strong> —
+        Shopify invia i dati a VestiFlow.
+      </li>
+    </ol>
+    <p><strong>Variabili env (REST outbound):</strong></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Variabile</th>
+          <th>Default</th>
+          <th>Effetto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>SHOPIFY_API_MIN_INTERVAL_MS</code></td>
+          <td>550</td>
+          <td>Pausa minima tra richieste</td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_API_MAX_RETRIES</code></td>
+          <td>5</td>
+          <td>Retry su HTTP 429</td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_API_BUCKET_HIGH_WATERMARK</code></td>
+          <td>0.85</td>
+          <td>Pausa se secchio pieno</td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_API_BUCKET_PAUSE_MS</code></td>
+          <td>1000</td>
+          <td>Durata pausa secchio</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>Nota deploy:</strong> il rate limiter Shopify è <strong>process-local</strong>. Con
+      più repliche Railway ogni istanza ha il proprio contatore (comportamento conservativo, non
+      centralizzato).
+    </p>
+    <p><strong>Chiamate indicative per operazione:</strong></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Operazione</th>
+          <th>Chiamate Shopify (ordine di grandezza)</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Import catalogo (Shopify → VF)</td>
+          <td>~4 per 1000 prodotti (pagine da 250)</td>
+          <td>Lento con cataloghi grandi: <strong>normale</strong></td>
+        </tr>
+        <tr>
+          <td>Webhook prodotti/giacenze/ordini</td>
+          <td>0 outbound</td>
+          <td>Event-driven</td>
+        </tr>
+        <tr>
+          <td>Push prodotto al save (VF → Shopify)</td>
+          <td>1–N per prodotto</td>
+          <td>Dipende da immagini/varianti</td>
+        </tr>
+        <tr>
+          <td>Push giacenza dopo movimento</td>
+          <td>~1 per movimento</td>
+          <td>Write-through inventario</td>
+        </tr>
+        <tr>
+          <td>Sync location</td>
+          <td>1</td>
+          <td>Trascurabile</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>Cosa fare se un cliente vede errori 429:</strong></p>
+    <ol>
+      <li>
+        Non ripremere import/sync in loop — attendere 1–2 minuti e <strong>un solo</strong> retry.
+      </li>
+      <li>Evitare import catalogo + sync massivo contemporanei sullo stesso negozio.</li>
+      <li>
+        In Railway, verificare env rate limit (non abbassare
+        <code>SHOPIFY_API_MIN_INTERVAL_MS</code> sotto 500 ms su piani Basic).
+      </li>
+      <li>
+        Cataloghi molto grandi: l’import può richiedere diversi minuti; il backend riprova da solo
+        fino al limite retry.
+      </li>
+    </ol>
+    <p>
+      <strong>Non ancora implementato (roadmap):</strong> coda lavori persistente in background per
+      bulk multi-tenant; oggi le operazioni massicce sono serializzate per shop/tenant ma restano
+      sincrone nella request HTTP.
+    </p>
+    <h3 id="rate-limiting-rest-admin-api--riferimento-rapido-env">
+      Rate limiting (REST Admin API) — riferimento rapido env
+    </h3>
+    <p>Vedi tabella variabili sopra. Valori in <code>api/.env.example</code>.</p>
+    <p>
+      Import catalogo: enrichment ridotto (<code>skipRemoteMetadata</code>) + mutex un import per
+      shop.
+    </p>
+    <h3 id="troubleshooting-read_products">Troubleshooting <code>read_products</code></h3>
+    <ol>
+      <li>
+        App Partners: versione attiva include <code>read_products</code>,
+        <code>read_inventory</code>
+      </li>
+      <li><code>SHOPIFY_API_KEY</code> Railway = Client ID app</li>
+      <li>Disinstalla app dal negozio Shopify</li>
+      <li>Disconnetti + riconnetti in VestiFlow</li>
+      <li>Verifica riga <strong>Catalogo prodotti → Lettura</strong> in Impostazioni</li>
+    </ol>
+    <h3 id="protected-customer-data">Protected customer data</h3>
+    <p>
+      Ordini/clienti webhook possono richiedere approvazione Partners. Catalogo/giacenze non
+      dipendono da questo.
+    </p>
+    <hr />
+    <h2 id="10-supabase-database-auth-storage-rls">10. Supabase: database, Auth, Storage, RLS</h2>
+    <h3 id="prisma">Prisma</h3>
+    <ul>
+      <li>Schema: <code>api/prisma/schema.prisma</code></li>
+      <li>Migration: <code>npx prisma migrate dev</code> (locale), deploy in CI/CD API</li>
+    </ul>
+    <h3 id="rls-obbligatoria">RLS obbligatoria</h3>
+    <p>
+      Ogni tabella business deve avere RLS attiva. CI esegue
+      <code>scripts/check-rls.mjs</code> (workflow <code>.github/workflows/security.yml</code>) con
+      anon key: <strong>zero righe</strong> leggibili.
+    </p>
+    <h3 id="storage">Storage</h3>
+    <ul>
+      <li>
+        Bucket <strong><code>product-media</code></strong> public per immagini prodotto
+      </li>
+      <li>Upload via API (sharp/metadata strip lato server se configurato)</li>
+    </ul>
+    <h3 id="auth">Auth</h3>
+    <ul>
+      <li>Utenti creati al provisioning (<code>admin-tenants.service</code>)</li>
+      <li>MFA: Supabase TOTP, UI in Impostazioni</li>
+    </ul>
+    <hr />
+    <h2 id="11-dominio-dati-principale">11. Dominio dati principale</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Entità</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>Tenant</code></td>
+          <td>Azienda cliente</td>
+        </tr>
+        <tr>
+          <td><code>User</code></td>
+          <td>Profilo app, <code>tenantId</code>, ruolo</td>
+        </tr>
+        <tr>
+          <td><code>Store</code> / <code>Location</code></td>
+          <td>Store commerciale; location per stock</td>
+        </tr>
+        <tr>
+          <td><code>Product</code> / <code>ProductVariant</code></td>
+          <td>Opzioni generiche; SKU univoco</td>
+        </tr>
+        <tr>
+          <td><code>InventoryLevel</code></td>
+          <td><code>variantId</code> × <code>locationId</code>, stati quantità</td>
+        </tr>
+        <tr>
+          <td><code>StockMovement</code></td>
+          <td>Audit trail obbligatorio</td>
+        </tr>
+        <tr>
+          <td><code>SupplierOrder</code></td>
+          <td>Solo VF</td>
+        </tr>
+        <tr>
+          <td><code>SalesOrder</code> / <code>Customer</code></td>
+          <td>Import Shopify, read-only UI</td>
+        </tr>
+        <tr>
+          <td><code>ShopifyConnection</code></td>
+          <td>Token, scope, stato sync per tenant</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Denaro: <strong>interi minor units</strong> (<code>Money.amountMinor</code>), mai float.</p>
+    <hr />
+    <h2 id="12-api-e-permessi-tenant">12. API e permessi tenant</h2>
+    <p>
+      Base URL: <code>/api/v1</code>. Header <code>Authorization</code> obbligatorio (salvo health).
+    </p>
+    <h3 id="rate-limiting-api-vestiflow-nestjs">Rate limiting API VestiFlow (NestJS)</h3>
+    <p>
+      Separato dai limiti Shopify: protezione anti brute-force / DoS sull’<strong
+        >API propria</strong
+      >.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Parametro</th>
+          <th>Valore</th>
+          <th>Dove</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Limite globale</td>
+          <td><strong>300 richieste / minuto / IP</strong></td>
+          <td><code>ThrottlerModule</code> in <code>api/src/app.module.ts</code></td>
+        </tr>
+        <tr>
+          <td>Guard</td>
+          <td><code>ThrottlerGuard</code> su tutte le route</td>
+          <td>Eccetto route marcate <code>@Public()</code></td>
+        </tr>
+        <tr>
+          <td>Webhook Shopify inbound</td>
+          <td><strong>Esclusi</strong> dal throttling globale</td>
+          <td><code>shopify-webhooks.controller.ts</code> — non perdere eventi legittimi</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      Se un client supera 300 req/min riceve <strong>429</strong>; il frontend lo mappa in
+      <code>AppError</code> kind <code>rate_limited</code> (<em
+        >«Troppe richieste, riprova tra poco»</em
+      >).
+    </p>
+    <p>Pattern service NestJS:</p>
+    <ul>
+      <li>Validazione DTO (<code>class-validator</code>)</li>
+      <li>Filtro <code>tenantId</code> da JWT</li>
+      <li>Errori → messaggi utente in italiano dove applicabile</li>
+    </ul>
+    <p>Frontend: <code>HttpClient</code> + interceptor auth/error; mock disabilitati in prod.</p>
+    <hr />
+    <h2 id="13-import-ed-export-csv">13. Import ed export CSV</h2>
+    <h3 id="catalogo-prodotti">Catalogo prodotti</h3>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Export</strong></td>
+          <td><code>GET /products/export/csv</code> — formato Shopify CSV</td>
+        </tr>
+        <tr>
+          <td><strong>Import</strong></td>
+          <td><code>POST /products/import/csv</code> — preview + commit</td>
+        </tr>
+        <tr>
+          <td><strong>UI</strong></td>
+          <td>Prodotti → Esporta / Importa CSV</td>
+        </tr>
+        <tr>
+          <td><strong>Permessi</strong></td>
+          <td>manager+</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="giacenze">Giacenze</h3>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Export</strong></td>
+          <td><code>GET /inventory/levels/export/csv</code></td>
+        </tr>
+        <tr>
+          <td><strong>Import</strong></td>
+          <td><code>POST /inventory/levels/import/csv</code> — rettifiche</td>
+        </tr>
+        <tr>
+          <td><strong>Colonne import</strong></td>
+          <td>SKU, Location (nome esatto), Disponibile</td>
+        </tr>
+        <tr>
+          <td><strong>UI</strong></td>
+          <td>Magazzino → Giacenze</td>
+        </tr>
+        <tr>
+          <td><strong>Permessi</strong></td>
+          <td>manager+</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="vendite-e-clienti">Vendite e clienti</h3>
+    <p>Export CSV dalle liste (filtri rispettati). Sync manuale Shopify: owner/admin.</p>
+    <hr />
+    <h2 id="14-scanner-barcode">14. Scanner barcode</h2>
+    <ul>
+      <li>Componente: <code>shared/components/barcode-scanner</code> (BarcodeDetector API)</li>
+      <li>Flag: <code>VESTIFLOW_ENABLE_BARCODE_SCANNER</code></li>
+      <li>Schermate: Cerca giacenza, Giacenze, Registra movimento, Inventario fisico, Prodotti</li>
+      <li>Lookup API: <code>GET /products/variants/by-code/:code</code> (SKU o barcode esatto)</li>
+      <li>Fallback iOS: input manuale</li>
+    </ul>
+    <hr />
+    <h2 id="15-generazione-guide-htmlpdf">15. Generazione guide (HTML/PDF)</h2>
+    <pre><code class="language-bash">npm run docs:guide:all
+</code></pre>
+    <p>Genera:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Output</th>
+          <th>Contenuto</th>
+          <th>Audience</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>public/guide/content.html</code></td>
+          <td>Solo guida utente</td>
+          <td>Tutti (<code>/app/guide</code>)</td>
+        </tr>
+        <tr>
+          <td><code>public/guide/vestiflow-guida.pdf</code></td>
+          <td>PDF utente</td>
+          <td>Download pubblico in-app</td>
+        </tr>
+        <tr>
+          <td><code>src/assets/guide-admin/content-tecnica.html</code></td>
+          <td>Solo guida operatore/tecnica</td>
+          <td>Platform admin</td>
+        </tr>
+        <tr>
+          <td><code>src/assets/guide-admin/vestiflow-guida-tecnica.pdf</code></td>
+          <td>PDF tecnico</td>
+          <td>Download admin</td>
+        </tr>
+        <tr>
+          <td><code>docs/GUIDA-*.html/pdf</code></td>
+          <td>Sorgenti in repo</td>
+          <td>Documentazione offline</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Markdown sorgenti:</p>
+    <ul>
+      <li><code>docs/GUIDA-UTENTE-VESTIFLOW.md</code></li>
+      <li><code>docs/GUIDA-OPERATORE-VESTIFLOW.md</code></li>
+    </ul>
+    <p>Dopo modifica guide: <strong>rigenerare</strong> e committare HTML/PDF prima del deploy.</p>
+    <hr />
+    <h2 id="16-build-test-e-ci">16. Build, test e CI</h2>
+    <h3 id="frontend">Frontend</h3>
+    <pre><code class="language-bash">npm run lint
+npm run build          # pre-push hook
+ng test                # Vitest
+</code></pre>
+    <h3 id="backend-1">Backend</h3>
+    <pre><code class="language-bash">cd api &amp;&amp; npm run lint &amp;&amp; npm run build
+</code></pre>
+    <h3 id="ci-github-actions">CI GitHub Actions</h3>
+    <ul>
+      <li>
+        <code>security.yml</code>: check RLS Supabase (set secrets <code>SUPABASE_URL</code>,
+        <code>SUPABASE_ANON_KEY</code>)
+      </li>
+    </ul>
+    <p>Estendere pipeline con lint + test + build su PR (best practice repo rules).</p>
+    <hr />
+    <h2 id="17-deploy-produzione">17. Deploy produzione</h2>
+    <h3 id="frontend-1">Frontend</h3>
+    <ol>
+      <li>Imposta env build (<code>VESTIFLOW_API_BASE_URL</code>, Supabase anon, flags)</li>
+      <li><code>npm run build</code></li>
+      <li>Deploy <code>dist/vestiflow</code> su Firebase App Hosting</li>
+      <li><code>CORS_ORIGINS</code> API deve includere dominio frontend</li>
+    </ol>
+    <h3 id="backend-2">Backend</h3>
+    <ol>
+      <li>Railway (o altro): env da <code>api/.env.example</code></li>
+      <li><code>prisma migrate deploy</code> in release</li>
+      <li>Verifica <code>PLATFORM_ADMIN_EMAILS</code> con la tua email operatore</li>
+      <li><code>SHOPIFY_APP_URL</code> = URL API pubblico HTTPS</li>
+    </ol>
+    <h3 id="post-deploy-smoke-test">Post-deploy smoke test</h3>
+    <ul>
+      <li><input disabled="" type="checkbox" /> Login tenant test</li>
+      <li><input disabled="" type="checkbox" /> Platform admin → Nuovo cliente (staging)</li>
+      <li><input disabled="" type="checkbox" /> OAuth Shopify su tenant test</li>
+      <li><input disabled="" type="checkbox" /> Import catalogo + webhook</li>
+      <li><input disabled="" type="checkbox" /> Upload immagine prodotto</li>
+      <li><input disabled="" type="checkbox" /> Guida utente + guida tecnica admin</li>
+    </ul>
+    <hr />
+    <h2 id="18-sicurezza-e-checklist-pre-release">18. Sicurezza e checklist pre-release</h2>
+    <ul>
+      <li>
+        <input disabled="" type="checkbox" /> Nessun secret in git (<code>.env</code> gitignored)
+      </li>
+      <li>
+        <input disabled="" type="checkbox" /> RLS attiva su tutte le tabelle (<code
+          >npm run check:rls</code
+        >
+        se script root)
+      </li>
+      <li>
+        <input disabled="" type="checkbox" /> <code>PLATFORM_ADMIN_EMAILS</code> limitato a
+        operatori fidati
+      </li>
+      <li><input disabled="" type="checkbox" /> CORS ristretto ai domini produzione</li>
+      <li><input disabled="" type="checkbox" /> Token Shopify cifrati; revoca su disconnessione</li>
+      <li><input disabled="" type="checkbox" /> MFA disponibile per admin negozio</li>
+      <li>
+        <input disabled="" type="checkbox" /> Dipendenze: <code>npm audit</code> senza high/critical
+      </li>
+      <li><input disabled="" type="checkbox" /> Guide rigenerate se modificate</li>
+    </ul>
+    <hr />
+    <h2 id="19-troubleshooting-tecnico">19. Troubleshooting tecnico</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Problema</th>
+          <th>Azione</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>isPlatformAdmin</code> false in UI</td>
+          <td>Verifica email in <code>PLATFORM_ADMIN_EMAILS</code>, ri-login</td>
+        </tr>
+        <tr>
+          <td>403 su <code>/admin/tenants</code></td>
+          <td>Stesso controllo email lato API</td>
+        </tr>
+        <tr>
+          <td>CORS error</td>
+          <td>Aggiungi origin frontend a <code>CORS_ORIGINS</code></td>
+        </tr>
+        <tr>
+          <td>JWT invalid</td>
+          <td>Allinea <code>SUPABASE_JWT_SECRET</code> con dashboard Supabase</td>
+        </tr>
+        <tr>
+          <td>Webhook non arrivano</td>
+          <td>URL tunnel/prod raggiungibile; HTTPS; webhook registrati</td>
+        </tr>
+        <tr>
+          <td>Import catalogo 429 / throttling Shopify</td>
+          <td>
+            Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env
+            <code>SHOPIFY_API_*</code>
+          </td>
+        </tr>
+        <tr>
+          <td>API VestiFlow 429 (troppi click)</td>
+          <td>Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop</td>
+        </tr>
+        <tr>
+          <td>Immagini 404</td>
+          <td>Bucket <code>product-media</code> esiste ed è public</td>
+        </tr>
+        <tr>
+          <td>Anon key legge dati</td>
+          <td><strong>Critico</strong> — RLS mancante, fix migration immediato</td>
+        </tr>
+      </tbody>
+    </table>
+    <hr />
+    <h2 id="20-limitazioni-note-e-roadmap">20. Limitazioni note e roadmap</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>Stato</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Multi-store commerciali in un tenant</td>
+          <td>Non supportato — un shop = un tenant</td>
+        </tr>
+        <tr>
+          <td>Invito utenti / cambio ruolo self-service</td>
+          <td>Non in UI — solo provisioning iniziale + richiesta operatore</td>
+        </tr>
+        <tr>
+          <td>Location manuale senza Shopify</td>
+          <td>Parziale (location onboarding); sync Shopify consigliato</td>
+        </tr>
+        <tr>
+          <td>Cassa / corrispettivi IT nativi</td>
+          <td>Non previsti — Shopify POS</td>
+        </tr>
+        <tr>
+          <td>Report server-side avanzati</td>
+          <td>In evoluzione</td>
+        </tr>
+        <tr>
+          <td>Coda bulk Shopify persistente (multi-tenant)</td>
+          <td>Non implementata — operazioni massicce sincrone HTTP</td>
+        </tr>
+        <tr>
+          <td>Notifiche email custom reset password</td>
+          <td>Config Supabase</td>
+        </tr>
+      </tbody>
+    </table>
+    <hr />
+    <h2 id="contatti">Contatti</h2>
+    <p>
+      Manutenzione prodotto: <strong>proprietario VestiFlow</strong> (questo documento è il
+      riferimento operativo interno).
+    </p>
+  </body>
+</html>

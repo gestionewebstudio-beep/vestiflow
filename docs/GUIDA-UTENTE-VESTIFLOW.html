@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>VestiFlow — Guida completa al gestionale</title>
+    <title>VestiFlow — Guida utente</title>
     <style>
       @page {
         margin: 18mm 16mm;
@@ -501,26 +501,6 @@
       <strong>Due shop Shopify distinti</strong> (due domini): servono
       <strong>due account VestiFlow</strong> separati — contatta il referente.
     </p>
-    <!-- vestiflow:exclude-in-app -->
-
-    <h3 id="per-loperatore-vestiflow-onboarding-nuovo-cliente">
-      Per l&#39;operatore VestiFlow (onboarding nuovo cliente)
-    </h3>
-    <p>Gli operatori piattaforma vedono <strong>Nuovo cliente</strong> nel menu:</p>
-    <ol>
-      <li>
-        Compilare identificazione, anagrafica opzionale, primo accesso (ruolo, nome, email,
-        password).
-      </li>
-      <li>Opzionalmente nome negozio e location iniziale.</li>
-      <li>Consegnare le credenziali al titolare in modo sicuro.</li>
-    </ol>
-    <p>
-      Dalla tabella <strong>Clienti registrati</strong> si può modificare anagrafica, titolare,
-      negozio e location. L&#39;email di accesso non si modifica da lì.
-    </p>
-    <!-- /vestiflow:exclude-in-app -->
-
     <hr />
     <h2 id="6-collegare-shopify">6. Collegare Shopify</h2>
     <h3 id="prerequisiti">Prerequisiti</h3>
@@ -1146,56 +1126,5 @@
       <strong>referente VestiFlow</strong>.
     </p>
     <hr />
-    <!-- vestiflow:exclude-in-app -->
-
-    <p><em>Appendice riservata al PDF / operatori — non mostrata nella guida in-app.</em></p>
-    <h2 id="appendice-tecnica-operatori">Appendice tecnica (operatori)</h2>
-    <h3 id="architettura">Architettura</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Componente</th>
-          <th>Funzione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Frontend</td>
-          <td>Angular (Firebase App Hosting)</td>
-        </tr>
-        <tr>
-          <td>Backend API</td>
-          <td>NestJS (Railway)</td>
-        </tr>
-        <tr>
-          <td>Database</td>
-          <td>Supabase (PostgreSQL, Auth)</td>
-        </tr>
-        <tr>
-          <td>E-commerce</td>
-          <td>Shopify (OAuth, webhook)</td>
-        </tr>
-      </tbody>
-    </table>
-    <p>
-      Un <strong>tenant</strong> = un&#39;azienda cliente = un shop Shopify. Più
-      <strong>location</strong> nello stesso shop: supportate. Due shop distinti: due tenant.
-    </p>
-    <h3 id="rate-limiting-shopify-server">Rate limiting Shopify (server)</h3>
-    <p>
-      Il backend regola le chiamate API verso Shopify. Variabili in <code>api/.env</code>:
-      <code>SHOPIFY_API_MIN_INTERVAL_MS</code>, <code>SHOPIFY_API_MAX_RETRIES</code>, ecc. Il
-      frontend non contatta mai Shopify direttamente.
-    </p>
-    <h3 id="permessi-oauth-read_products">Permessi OAuth read_products</h3>
-    <p>
-      Se l&#39;import catalogo è bloccato: verificare scope app Partners, disinstallare app dal
-      negozio Shopify, <strong>Disconnetti</strong> + <strong>Connetti</strong> in VestiFlow.
-    </p>
-    <h2 id="contatti-supporto">Contatti supporto</h2>
-    <p>
-      Per onboarding o problemi tecnici: referente VestiFlow / operatore che ha attivato il tenant.
-    </p>
-    <!-- /vestiflow:exclude-in-app -->
   </body>
 </html>

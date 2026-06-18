@@ -30,6 +30,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "**/*",
+                "input": "src/assets/guide-admin",
+                "output": "/assets/guide-admin"
               }
             ],
             "styles": [
