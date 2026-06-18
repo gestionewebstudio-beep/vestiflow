@@ -112,4 +112,15 @@
       </div>
     </footer>
   }
+
+  <app-confirm-dialog
+    [(open)]="leaveDialogOpen"
+    title="Modifiche non salvate"
+    message="Hai modifiche non salvate. Se esci ora andranno perse."
+    confirmLabel="Esci senza salvare"
+    cancelLabel="Resta nella pagina"
+    [danger]="true"
+    (confirmed)="confirmLeave()"
+    (dismissed)="cancelLeave()"
+  />
 </section>

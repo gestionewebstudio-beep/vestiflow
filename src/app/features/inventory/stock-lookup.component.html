@@ -32,11 +32,12 @@
         />
       </label>
 
-      @if (barcodeScannerEnabled) {
-        <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
-      }
-
-      <app-button type="submit">Cerca giacenza</app-button>
+      <div class="stock-lookup__actions">
+        @if (barcodeScannerEnabled) {
+          <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+        }
+        <app-button type="submit">Cerca giacenza</app-button>
+      </div>
     </form>
   </div>
 

@@ -24,8 +24,10 @@ import type { Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import type { ProductImage } from '@core/models/product-image.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -102,11 +104,12 @@ type FormLoadState =
     ProductOptionsStepComponent,
     ProductVariantsStepComponent,
     ProductReviewStepComponent,
+    ConfirmDialogComponent,
   ],
   templateUrl: './product-form.component.html',
   styleUrl: './product-form.component.scss',
 })
-export class ProductFormComponent {
+export class ProductFormComponent implements CanComponentDeactivate {
   private readonly service = inject(ProductService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -132,6 +135,9 @@ export class ProductFormComponent {
       !this.saved() &&
       (this.serialize(this.draft()) !== this.pristine() || this.pendingImageFiles().length > 0),
   );
+
+  protected readonly leaveDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
 
   protected readonly pendingImageFiles = signal<readonly File[]>([]);
   protected readonly existingImages = signal<readonly ProductImage[]>([]);
@@ -410,19 +416,33 @@ export class ProductFormComponent {
   }
 
   // ── Modifiche non salvate ─────────────────────────────────────────────────
-  /**
-   * Chiamato dal CanDeactivate guard. Consente l'uscita se non ci sono modifiche
-   * non salvate, altrimenti chiede conferma esplicita (soluzione minimale: nessun
-   * sistema di modali nel progetto).
-   */
-  canDeactivate(): boolean {
+  /** Chiamato dal CanDeactivate guard prima di lasciare la route. */
+  canDeactivate(): boolean | Promise<boolean> {
     if (!this.isDirty()) {
       return true;
     }
-    return window.confirm('Hai modifiche non salvate. Vuoi uscire dalla pagina e perderle?');
+
+    this.leaveDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
   }
 
-  // Protezione a livello browser (refresh/chiusura tab/back verso l'esterno).
+  protected confirmLeave(): void {
+    const resolve = this.pendingDeactivate;
+    this.pendingDeactivate = null;
+    this.leaveDialogOpen.set(false);
+    resolve?.(true);
+  }
+
+  protected cancelLeave(): void {
+    const resolve = this.pendingDeactivate;
+    this.pendingDeactivate = null;
+    this.leaveDialogOpen.set(false);
+    resolve?.(false);
+  }
+
+  // Protezione refresh/chiusura tab (il browser mostra solo il dialog nativo).
   @HostListener('window:beforeunload', ['$event'])
   protected onBeforeUnload(event: BeforeUnloadEvent): void {
     if (this.isDirty()) {

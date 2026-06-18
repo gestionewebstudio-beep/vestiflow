@@ -1,8 +1,10 @@
 import type { CanDeactivateFn } from '@angular/router';
 
+import type { Observable } from 'rxjs';
+
 /** Contratto per i componenti che proteggono l'uscita con modifiche non salvate. */
 export interface CanComponentDeactivate {
-  canDeactivate(): boolean;
+  canDeactivate(): boolean | Promise<boolean> | Observable<boolean>;
 }
 
 /**

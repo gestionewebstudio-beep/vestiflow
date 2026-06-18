@@ -121,6 +121,14 @@
   gap: var(--space-3);
 }
 
+@include bp.media-up('sm') {
+  .count-detail__scan-form {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+}
+
 .count-detail__scan-manual {
   display: flex;
   flex-direction: column;

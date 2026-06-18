@@ -59,6 +59,42 @@
   max-inline-size: var(--content-narrow);
 }
 
+.stock-lookup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-3);
+
+  app-barcode-scanner {
+    display: flex;
+    align-self: stretch;
+  }
+
+  ::ng-deep .app-button {
+    block-size: var(--btn-min-height);
+    min-block-size: var(--btn-min-height);
+  }
+}
+
+@include bp.media-up('md') {
+  .stock-lookup__form {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    max-inline-size: none;
+  }
+
+  .stock-lookup__field {
+    flex: 1 1 12rem;
+    min-inline-size: 12rem;
+    max-inline-size: var(--content-narrow);
+  }
+
+  .stock-lookup__actions {
+    flex: 0 0 auto;
+  }
+}
+
 .stock-lookup__field {
   display: flex;
   flex-direction: column;
@@ -71,6 +107,7 @@
 }
 
 .stock-lookup__input {
+  block-size: var(--btn-min-height);
   min-block-size: var(--btn-min-height);
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-base);
@@ -100,12 +137,6 @@
   margin: var(--space-1) 0 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
-}
-
-.stock-lookup__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
 }
 
 .stock-lookup__link {

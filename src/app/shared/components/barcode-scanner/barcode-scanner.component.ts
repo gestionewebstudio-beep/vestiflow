@@ -52,10 +52,12 @@ export class BarcodeScannerComponent {
   private detector: BarcodeDetectorLike | null = null;
 
   protected async startScan(): Promise<void> {
-    if (!window.BarcodeDetector) {
-      this.errorMessage.set(
-        'Scanner non supportato su questo browser. Inserisci SKU o barcode manualmente.',
-      );
+    if (!this.detectorSupported()) {
+      return;
+    }
+
+    const BarcodeDetectorCtor = window.BarcodeDetector;
+    if (!BarcodeDetectorCtor) {
       return;
     }
 
@@ -63,7 +65,7 @@ export class BarcodeScannerComponent {
     this.scanning.set(true);
 
     try {
-      this.detector = new window.BarcodeDetector({
+      this.detector = new BarcodeDetectorCtor({
         formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'],
       });
       this.stream = await navigator.mediaDevices.getUserMedia({

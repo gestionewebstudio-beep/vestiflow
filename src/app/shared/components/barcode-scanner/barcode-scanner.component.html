@@ -1,9 +1,11 @@
 <div class="barcode-scanner">
   @if (!scanning()) {
-    <app-button variant="secondary" (click)="startScan()">
-      <i class="pi pi-camera" aria-hidden="true"></i>
-      {{ label() }}
-    </app-button>
+    <div class="barcode-scanner__control">
+      <app-button variant="secondary" [disabled]="!detectorSupported()" (click)="startScan()">
+        <i class="pi pi-camera" aria-hidden="true"></i>
+        {{ label() }}
+      </app-button>
+    </div>
   } @else {
     <div class="barcode-scanner__viewport">
       <video
@@ -17,13 +19,7 @@
     </div>
   }
 
-  @if (!detectorSupported()) {
-    <p class="barcode-scanner__hint">
-      Scanner automatico non disponibile: usa SKU o barcode a mano.
-    </p>
-  }
-
   @if (errorMessage(); as message) {
-    <p class="barcode-scanner__error" role="alert">{{ message }}</p>
+    <p class="barcode-scanner__error barcode-scanner__caption" role="alert">{{ message }}</p>
   }
 </div>

@@ -36,6 +36,7 @@ export class ConfirmDialogComponent {
   readonly open = model<boolean>(false);
 
   readonly confirmed = output<void>();
+  readonly dismissed = output<void>();
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
@@ -57,12 +58,14 @@ export class ConfirmDialogComponent {
 
   protected onCancel(): void {
     this.open.set(false);
+    this.dismissed.emit();
   }
 
   /** ESC nativo del <dialog>: riallinea lo stato. */
   protected onNativeClose(): void {
     if (this.open()) {
       this.open.set(false);
+      this.dismissed.emit();
     }
   }
 }
