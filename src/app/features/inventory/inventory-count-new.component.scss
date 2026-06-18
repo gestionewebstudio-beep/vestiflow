@@ -1,12 +1,14 @@
 :host {
   display: block;
+  inline-size: 100%;
 }
 
 .count-new {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-inline-size: var(--content-narrow);
+  inline-size: 100%;
+  max-inline-size: none;
 }
 
 .count-new__back {
@@ -47,6 +49,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  inline-size: 100%;
 }
 
 .count-new__field {

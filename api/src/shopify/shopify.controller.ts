@@ -14,6 +14,10 @@ import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyInventoryPullService } from './shopify-inventory-pull.service';
 import type { ShopifyInventoryPullResult } from './shopify-inventory-pull.service';
+import { ShopifyCustomersPullService } from './shopify-customers-pull.service';
+import type { ShopifyCustomersPullResult } from './shopify-customers-pull.service';
+import { ShopifyOrdersPullService } from './shopify-orders-pull.service';
+import type { ShopifyOrdersPullResult } from './shopify-orders-pull.service';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 import type { ShopifyCatalogSyncResult } from './shopify-product-pull.service';
 
@@ -26,6 +30,8 @@ export class ShopifyController {
     private readonly shopifyConfig: ShopifyConfigService,
     private readonly shopifyProductPull: ShopifyProductPullService,
     private readonly shopifyInventoryPull: ShopifyInventoryPullService,
+    private readonly shopifyCustomersPull: ShopifyCustomersPullService,
+    private readonly shopifyOrdersPull: ShopifyOrdersPullService,
   ) {}
 
   @Get('connection')
@@ -99,6 +105,24 @@ export class ShopifyController {
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyInventoryPullResult> {
     const result = await this.shopifyInventoryPull.pullInventory(tenantId);
+    return { synced: true, ...result };
+  }
+
+  @Post('sync/customers')
+  @Roles(...ADMIN_ROLES)
+  async syncCustomers(
+    @CurrentTenant() tenantId: string,
+  ): Promise<{ synced: true } & ShopifyCustomersPullResult> {
+    const result = await this.shopifyCustomersPull.pullCustomers(tenantId);
+    return { synced: true, ...result };
+  }
+
+  @Post('sync/orders')
+  @Roles(...ADMIN_ROLES)
+  async syncOrders(
+    @CurrentTenant() tenantId: string,
+  ): Promise<{ synced: true } & ShopifyOrdersPullResult> {
+    const result = await this.shopifyOrdersPull.pullOrders(tenantId);
     return { synced: true, ...result };
   }
 

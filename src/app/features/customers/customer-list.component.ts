@@ -20,8 +20,10 @@ import {
 import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
+import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { Customer } from '@core/models/customer.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -29,6 +31,16 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
+import {
+  canManageShopifySync,
+  isShopifyConnected,
+} from '@features/integrations/shopify/models/shopify-page-sync.util';
+import {
+  formatShopifyCustomersSyncFeedback,
+  type ShopifySyncFeedback,
+} from '@features/integrations/shopify/models/shopify-sync-feedback.util';
+import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { CustomerTableComponent } from './components/customer-table/customer-table.component';
 import {
   CUSTOMER_PAGE_SIZE_OPTIONS,
@@ -38,6 +50,7 @@ import {
 import { CustomerService } from './services/customer.service';
 
 const SEARCH_DEBOUNCE_MS = 300;
+const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 
 const EMPTY_META: PageMeta = {
   page: 1,
@@ -66,6 +79,7 @@ type CustomerListState =
     PaginationComponent,
     TableSkeletonComponent,
     CustomerTableComponent,
+    ShopifySyncFeedbackComponent,
   ],
   templateUrl: './customer-list.component.html',
   styleUrl: './customer-list.component.scss',
@@ -75,6 +89,10 @@ export class CustomerListComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly authService = inject(AuthService);
+  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+
+  private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly skeletonColumns = 4;
   protected readonly pageSizeOptions = CUSTOMER_PAGE_SIZE_OPTIONS;
@@ -85,6 +103,20 @@ export class CustomerListComponent {
   private readonly refreshTick = signal(0);
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
+  protected readonly shopifyCustomersLoading = signal(false);
+  protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
+  protected readonly shopifySyncError = signal<string | null>(null);
+
+  private readonly shopifyConnection = toSignal(
+    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
+    { initialValue: null as ShopifyConnection | null },
+  );
+
+  protected readonly showShopifyCustomersSync = computed(
+    () =>
+      isShopifyConnected(this.shopifyConnection()) &&
+      canManageShopifySync(this.authService.currentUser()),
+  );
 
   private readonly request = computed(() => ({ query: this.query(), tick: this.refreshTick() }));
 
@@ -167,6 +199,35 @@ export class CustomerListComponent {
     this.refreshTick.update((tick) => tick + 1);
   }
 
+  protected syncCustomersFromShopify(): void {
+    if (this.shopifyCustomersLoading()) {
+      return;
+    }
+
+    this.shopifyCustomersLoading.set(true);
+    this.clearShopifyFeedback();
+    this.shopifySyncError.set(null);
+
+    this.shopifyConnectionService
+      .syncCustomers()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.shopifyCustomersLoading.set(false);
+          this.showShopifyFeedback(formatShopifyCustomersSyncFeedback(result));
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this.shopifyCustomersLoading.set(false);
+          this.shopifySyncError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected dismissShopifyFeedback(): void {
+    this.clearShopifyFeedback();
+  }
+
   protected openCustomer(customer: Customer): void {
     void this.router.navigate(['/app/customers', customer.id]);
   }
@@ -194,5 +255,29 @@ export class CustomerListComponent {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
+  }
+
+  private showShopifyFeedback(feedback: ShopifySyncFeedback): void {
+    this.clearShopifyFeedback();
+    this.shopifyFeedback.set(feedback);
+    this.shopifyFeedbackTimer = setTimeout(() => {
+      this.shopifyFeedback.set(null);
+      this.shopifyFeedbackTimer = null;
+    }, SHOPIFY_FEEDBACK_DISMISS_MS);
+  }
+
+  private clearShopifyFeedback(): void {
+    if (this.shopifyFeedbackTimer) {
+      clearTimeout(this.shopifyFeedbackTimer);
+      this.shopifyFeedbackTimer = null;
+    }
+    this.shopifyFeedback.set(null);
+  }
+
+  private extractErrorMessage(err: unknown): string {
+    if (isAppError(err)) {
+      return err.message;
+    }
+    return 'Operazione non riuscita. Riprova.';
   }
 }

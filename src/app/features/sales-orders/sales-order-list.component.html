@@ -1,10 +1,37 @@
 <section class="sales-list">
   <header class="sales-list__header">
-    <h1 class="sales-list__title">Vendite</h1>
-    <p class="sales-list__subtitle">
-      Ordini di vendita in sola lettura: la fonte autoritativa è Shopify/POS.
-    </p>
+    <div class="sales-list__heading">
+      <h1 class="sales-list__title">Vendite</h1>
+      <p class="sales-list__subtitle">
+        Ordini di vendita in sola lettura: la fonte autoritativa è Shopify/POS.
+      </p>
+    </div>
+    @if (showShopifyOrdersSync()) {
+      <div class="sales-list__actions">
+        <app-button
+          variant="secondary"
+          [loading]="shopifyOrdersLoading()"
+          [disabled]="shopifyOrdersLoading()"
+          (click)="syncOrdersFromShopify()"
+        >
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          Sincronizza vendite da Shopify
+        </app-button>
+      </div>
+    }
   </header>
+
+  @if (shopifySyncError(); as message) {
+    <p class="sales-list__shopify-error" role="alert">{{ message }}</p>
+  }
+
+  @if (shopifyFeedback(); as feedback) {
+    <app-shopify-sync-feedback
+      [message]="feedback.message"
+      [tone]="feedback.tone"
+      (dismissed)="dismissShopifyFeedback()"
+    />
+  }
 
   <div class="sales-list__toolbar">
     <div class="sales-list__search">

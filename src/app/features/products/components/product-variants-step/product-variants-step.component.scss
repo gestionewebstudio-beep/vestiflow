@@ -64,6 +64,16 @@
   color: var(--status-error-fg);
 }
 
+.variants-step__error-placeholder {
+  display: block;
+  min-block-size: calc(var(--text-xs) * 1.333333);
+}
+
+.variants-step__field--compare-at .variants-step__error,
+.variants-step__field--compare-at .variants-step__error-placeholder {
+  min-block-size: calc(var(--text-xs) * 2.666666);
+}
+
 .variants-step__input--numeric {
   text-align: start;
   font-variant-numeric: var(--numeric-tabular);
@@ -152,7 +162,7 @@
     display: table-cell;
     padding: var(--space-2) var(--space-3);
     border-block-end: var(--border-width) solid var(--color-border);
-    vertical-align: middle;
+    vertical-align: top;
   }
 
   .variants-step__row td::before {

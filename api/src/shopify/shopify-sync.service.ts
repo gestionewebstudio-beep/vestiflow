@@ -28,11 +28,11 @@ export class ShopifySyncService {
     switch (topic) {
       case 'customers/create':
       case 'customers/update':
-        await this.syncCustomer(tenantId, data);
+        await this.applyCustomerFromShopify(tenantId, data);
         break;
       case 'orders/create':
       case 'orders/updated':
-        await this.syncOrder(tenantId, data);
+        await this.applyOrderFromShopify(tenantId, data);
         break;
       case 'inventory_levels/update':
         await this.applyInventoryLevelFromShopify(
@@ -55,11 +55,20 @@ export class ShopifySyncService {
     await this.shopifyConnection.touchSync(tenantId);
   }
 
-  private async syncCustomer(tenantId: string, customer: Record<string, unknown>): Promise<void> {
+  /** Allinea un cliente Shopify in locale (webhook o import bulk). */
+  async applyCustomerFromShopify(
+    tenantId: string,
+    customer: Record<string, unknown>,
+  ): Promise<'created' | 'updated' | 'skipped'> {
     const shopifyId = this.shopifyCustomerId(customer);
     if (!shopifyId) {
-      return;
+      return 'skipped';
     }
+
+    const existing = await this.prisma.customer.findUnique({
+      where: { tenantId_shopifyCustomerId: { tenantId, shopifyCustomerId: shopifyId } },
+      select: { id: true },
+    });
 
     const address = customer.default_address as Record<string, unknown> | undefined;
 
@@ -94,19 +103,30 @@ export class ShopifySyncService {
         countryCode: (address?.country_code as string | undefined) ?? null,
       },
     });
+
+    return existing ? 'updated' : 'created';
   }
 
-  private async syncOrder(tenantId: string, order: Record<string, unknown>): Promise<void> {
+  /** Allinea un ordine Shopify in locale (webhook o import bulk). */
+  async applyOrderFromShopify(
+    tenantId: string,
+    order: Record<string, unknown>,
+  ): Promise<'created' | 'updated' | 'skipped'> {
     const shopifyOrderId = this.shopifyOrderId(order);
     if (!shopifyOrderId) {
-      return;
+      return 'skipped';
     }
+
+    const existingBefore = await this.prisma.salesOrder.findFirst({
+      where: { tenantId, shopifyOrderId },
+      select: { id: true },
+    });
 
     const customer = order.customer as Record<string, unknown> | undefined;
     let customerId: string | null = null;
     const shopifyCustomerId = customer ? this.shopifyCustomerId(customer) : null;
     if (shopifyCustomerId) {
-      await this.syncCustomer(tenantId, customer!);
+      await this.applyCustomerFromShopify(tenantId, customer!);
       const dbCustomer = await this.prisma.customer.findFirst({
         where: { tenantId, shopifyCustomerId },
         select: { id: true },
@@ -128,11 +148,6 @@ export class ShopifySyncService {
     const lines = (order.line_items as Record<string, unknown>[] | undefined) ?? [];
 
     await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.salesOrder.findFirst({
-        where: { tenantId, shopifyOrderId },
-        select: { id: true },
-      });
-
       const orderData = {
         orderNumber: String(order.name ?? order.order_number ?? shopifyOrderId),
         source: this.mapOrderSource(order),
@@ -148,9 +163,9 @@ export class ShopifySyncService {
         placedAt,
       };
 
-      const saved = existing
+      const saved = existingBefore
         ? await tx.salesOrder.update({
-            where: { id: existing.id },
+            where: { id: existingBefore.id },
             data: orderData,
           })
         : await tx.salesOrder.create({
@@ -184,6 +199,8 @@ export class ShopifySyncService {
         });
       }
     });
+
+    return existingBefore ? 'updated' : 'created';
   }
 
   /**

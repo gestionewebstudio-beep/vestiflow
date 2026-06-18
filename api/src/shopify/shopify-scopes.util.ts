@@ -42,6 +42,33 @@ export function shopifyHasInventoryReadScope(scopes: readonly string[]): boolean
   return shopifyHasScope(scopes, SHOPIFY_READ_INVENTORY_SCOPE);
 }
 
+export const SHOPIFY_READ_ORDERS_SCOPE = 'read_orders';
+export const SHOPIFY_READ_CUSTOMERS_SCOPE = 'read_customers';
+
+export function shopifyHasOrdersReadScope(scopes: readonly string[]): boolean {
+  return shopifyHasScope(scopes, SHOPIFY_READ_ORDERS_SCOPE);
+}
+
+export function shopifyHasCustomersReadScope(scopes: readonly string[]): boolean {
+  return shopifyHasScope(scopes, SHOPIFY_READ_CUSTOMERS_SCOPE);
+}
+
+/** Messaggio utente se manca read_orders (import vendite). */
+export function shopifyOrdersReadScopeError(scopes: readonly string[]): string | null {
+  if (shopifyHasOrdersReadScope(scopes)) {
+    return null;
+  }
+  return 'Mancano i permessi per leggere gli ordini su Shopify. Ricollega lo store da Impostazioni.';
+}
+
+/** Messaggio utente se manca read_customers (import clienti). */
+export function shopifyCustomersReadScopeError(scopes: readonly string[]): string | null {
+  if (shopifyHasCustomersReadScope(scopes)) {
+    return null;
+  }
+  return 'Mancano i permessi per leggere i clienti su Shopify. Ricollega lo store da Impostazioni.';
+}
+
 /** Messaggio utente se manca read_inventory (import giacenze). */
 export function shopifyInventoryReadScopeError(scopes: readonly string[]): string | null {
   if (shopifyHasInventoryReadScope(scopes)) {

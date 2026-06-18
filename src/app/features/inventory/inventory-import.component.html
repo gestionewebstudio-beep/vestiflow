@@ -1,0 +1,137 @@
+<section class="inventory-import">
+  <header class="inventory-import__header">
+    <div>
+      <a
+        class="inventory-import__back"
+        href="/app/inventory"
+        (click)="$event.preventDefault(); backToList()"
+      >
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        Magazzino
+      </a>
+      <h1 class="inventory-import__title">Importa giacenze da CSV</h1>
+      <p class="inventory-import__intro">
+        Carica un CSV con colonne SKU, Location e Disponibile. VestiFlow applica rettifiche
+        tracciate per allineare le giacenze; puoi anche riesportare da Giacenze e modificare il
+        file.
+      </p>
+    </div>
+  </header>
+
+  @if (error(); as appError) {
+    <div class="inventory-import__alert" role="alert">{{ appError.message }}</div>
+  }
+
+  @if (phase() === 'upload') {
+    <div class="inventory-import__panel">
+      <label class="inventory-import__upload" for="inventory-csv-file">
+        <i class="pi pi-upload inventory-import__upload-icon" aria-hidden="true"></i>
+        <span class="inventory-import__upload-title">Seleziona file CSV</span>
+        <span class="inventory-import__upload-hint">UTF-8 · max 15 MB</span>
+        <input
+          id="inventory-csv-file"
+          class="inventory-import__file-input"
+          type="file"
+          accept=".csv,text/csv"
+          (change)="onFileSelected($event)"
+        />
+      </label>
+
+      @if (selectedFile(); as file) {
+        <p class="inventory-import__file-name">
+          File selezionato: <strong>{{ file.name }}</strong>
+        </p>
+      }
+
+      <div class="inventory-import__actions">
+        <app-button type="button" variant="ghost" (click)="backToList()">Annulla</app-button>
+        <app-button type="button" [disabled]="!selectedFile() || loading()" (click)="analyzeFile()">
+          @if (loading()) {
+            Analisi in corso…
+          } @else {
+            Analizza file
+          }
+        </app-button>
+      </div>
+    </div>
+  }
+
+  @if (phase() === 'preview' && preview(); as data) {
+    <div class="inventory-import__summary">
+      <span>{{ data.summary.total }} righe</span>
+      <span>{{ data.summary.ready }} pronte</span>
+      <span>{{ data.summary.unchanged }} invariate</span>
+      <span>{{ data.summary.errors }} con errori</span>
+    </div>
+
+    <div class="inventory-import__table-scroll">
+      <table class="inventory-import__table">
+        <thead>
+          <tr>
+            <th scope="col">Variante</th>
+            <th scope="col">SKU</th>
+            <th scope="col">Location</th>
+            <th scope="col" class="inventory-import__col--numeric">Attuale</th>
+            <th scope="col" class="inventory-import__col--numeric">Nuovo</th>
+            <th scope="col" class="inventory-import__col--numeric">Delta</th>
+            <th scope="col">Stato</th>
+            <th scope="col">Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of data.rows; track item.key) {
+            <tr>
+              <td data-label="Variante">{{ item.variantTitle }}</td>
+              <td data-label="SKU">{{ item.sku }}</td>
+              <td data-label="Location">{{ item.locationName }}</td>
+              <td class="inventory-import__numeric tabular-nums" data-label="Attuale">
+                {{ item.currentAvailable ?? '—' }}
+              </td>
+              <td class="inventory-import__numeric tabular-nums" data-label="Nuovo">
+                {{ item.newAvailable ?? '—' }}
+              </td>
+              <td class="inventory-import__numeric tabular-nums" data-label="Delta">
+                @if (item.delta === null) {
+                  —
+                } @else if (item.delta > 0) {
+                  +{{ item.delta }}
+                } @else {
+                  {{ item.delta }}
+                }
+              </td>
+              <td data-label="Stato">
+                <app-badge [tone]="statusTone(item)">{{ statusLabel(item) }}</app-badge>
+              </td>
+              <td data-label="Note">{{ item.message ?? '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="inventory-import__actions">
+      <app-button type="button" variant="ghost" (click)="phase.set('upload')">Indietro</app-button>
+      <app-button type="button" [disabled]="!canImport()" (click)="runImport()">
+        @if (loading()) {
+          Import in corso…
+        } @else {
+          Importa {{ readyKeys().length }} righe
+        }
+      </app-button>
+    </div>
+  }
+
+  @if (phase() === 'done' && result(); as importResult) {
+    <div class="inventory-import__done">
+      <p class="inventory-import__done-title">Import completato</p>
+      <p class="inventory-import__done-stats tabular-nums">
+        {{ importResult.updated }} aggiornate · {{ importResult.unchanged }} invariate ·
+        {{ importResult.skipped }} saltate · {{ importResult.failed }} fallite
+      </p>
+    </div>
+
+    <div class="inventory-import__actions">
+      <app-button type="button" (click)="backToList()">Vai alle giacenze</app-button>
+    </div>
+  }
+</section>

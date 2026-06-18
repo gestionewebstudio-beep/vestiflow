@@ -134,6 +134,8 @@
               />
               @if (lineFieldInvalid(i, 'variantId')) {
                 <p class="po-form__error">Seleziona la variante.</p>
+              } @else {
+                <span class="po-form__error-placeholder" aria-hidden="true"></span>
               }
             </div>
 
@@ -151,6 +153,8 @@
               />
               @if (lineFieldInvalid(i, 'orderedQuantity')) {
                 <p class="po-form__error">Intero ≥ 1.</p>
+              } @else {
+                <span class="po-form__error-placeholder" aria-hidden="true"></span>
               }
             </div>
 
@@ -167,6 +171,8 @@
               />
               @if (unitCostInvalid(i)) {
                 <p class="po-form__error">Importo non valido.</p>
+              } @else {
+                <span class="po-form__error-placeholder" aria-hidden="true"></span>
               }
             </div>
 

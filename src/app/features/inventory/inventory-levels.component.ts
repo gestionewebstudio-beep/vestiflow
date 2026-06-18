@@ -106,6 +106,7 @@ export class InventoryLevelsComponent {
   protected readonly statusFilter = signal('');
   protected readonly search = signal('');
   protected readonly shopifyInventoryLoading = signal(false);
+  protected readonly exporting = signal(false);
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
 
@@ -249,6 +250,44 @@ export class InventoryLevelsComponent {
 
   protected newMovement(): void {
     void this.router.navigateByUrl('/app/inventory/movements/new');
+  }
+
+  protected importInventory(): void {
+    void this.router.navigateByUrl('/app/inventory/import');
+  }
+
+  protected exportInventory(): void {
+    if (this.exporting()) {
+      return;
+    }
+
+    this.exporting.set(true);
+    this.inventoryService
+      .exportInventoryCsv({
+        locationId: this.locationFilter() || undefined,
+        search: this.search().trim() || undefined,
+        stockStatus: this.statusFilter() || undefined,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          this.exporting.set(false);
+          this.downloadCsvBlob(blob);
+        },
+        error: () => {
+          this.exporting.set(false);
+        },
+      });
+  }
+
+  private downloadCsvBlob(blob: Blob): void {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `giacenze-vestiflow-${stamp}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   protected syncInventoryFromShopify(): void {

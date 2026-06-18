@@ -20,8 +20,10 @@ import {
 import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
+import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -31,6 +33,16 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
+import {
+  canManageShopifySync,
+  isShopifyConnected,
+} from '@features/integrations/shopify/models/shopify-page-sync.util';
+import {
+  formatShopifyOrdersSyncFeedback,
+  type ShopifySyncFeedback,
+} from '@features/integrations/shopify/models/shopify-sync-feedback.util';
+import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { SalesOrderTableComponent } from './components/sales-order-table/sales-order-table.component';
 import {
   DEFAULT_SALES_PAGE_SIZE,
@@ -40,6 +52,7 @@ import {
 import { SalesOrderService } from './services/sales-order.service';
 
 const SEARCH_DEBOUNCE_MS = 300;
+const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 
 const EMPTY_META: PageMeta = {
   page: 1,
@@ -69,6 +82,7 @@ type SalesListState =
     SelectMenuComponent,
     TableSkeletonComponent,
     SalesOrderTableComponent,
+    ShopifySyncFeedbackComponent,
   ],
   templateUrl: './sales-order-list.component.html',
   styleUrl: './sales-order-list.component.scss',
@@ -78,6 +92,10 @@ export class SalesOrderListComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly authService = inject(AuthService);
+  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+
+  private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly skeletonColumns = 6;
   protected readonly pageSizeOptions = SALES_PAGE_SIZE_OPTIONS;
@@ -101,6 +119,20 @@ export class SalesOrderListComponent {
   private readonly refreshTick = signal(0);
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
+  protected readonly shopifyOrdersLoading = signal(false);
+  protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
+  protected readonly shopifySyncError = signal<string | null>(null);
+
+  private readonly shopifyConnection = toSignal(
+    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
+    { initialValue: null as ShopifyConnection | null },
+  );
+
+  protected readonly showShopifyOrdersSync = computed(
+    () =>
+      isShopifyConnected(this.shopifyConnection()) &&
+      canManageShopifySync(this.authService.currentUser()),
+  );
 
   private readonly request = computed(() => ({ query: this.query(), tick: this.refreshTick() }));
 
@@ -194,6 +226,35 @@ export class SalesOrderListComponent {
     this.refreshTick.update((tick) => tick + 1);
   }
 
+  protected syncOrdersFromShopify(): void {
+    if (this.shopifyOrdersLoading()) {
+      return;
+    }
+
+    this.shopifyOrdersLoading.set(true);
+    this.clearShopifyFeedback();
+    this.shopifySyncError.set(null);
+
+    this.shopifyConnectionService
+      .syncOrders()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.shopifyOrdersLoading.set(false);
+          this.showShopifyFeedback(formatShopifyOrdersSyncFeedback(result));
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this.shopifyOrdersLoading.set(false);
+          this.shopifySyncError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected dismissShopifyFeedback(): void {
+    this.clearShopifyFeedback();
+  }
+
   protected openOrder(order: SalesOrder): void {
     void this.router.navigate(['/app/sales', order.id]);
   }
@@ -221,5 +282,29 @@ export class SalesOrderListComponent {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
+  }
+
+  private showShopifyFeedback(feedback: ShopifySyncFeedback): void {
+    this.clearShopifyFeedback();
+    this.shopifyFeedback.set(feedback);
+    this.shopifyFeedbackTimer = setTimeout(() => {
+      this.shopifyFeedback.set(null);
+      this.shopifyFeedbackTimer = null;
+    }, SHOPIFY_FEEDBACK_DISMISS_MS);
+  }
+
+  private clearShopifyFeedback(): void {
+    if (this.shopifyFeedbackTimer) {
+      clearTimeout(this.shopifyFeedbackTimer);
+      this.shopifyFeedbackTimer = null;
+    }
+    this.shopifyFeedback.set(null);
+  }
+
+  private extractErrorMessage(err: unknown): string {
+    if (isAppError(err)) {
+      return err.message;
+    }
+    return 'Operazione non riuscita. Riprova.';
   }
 }

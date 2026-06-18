@@ -56,6 +56,8 @@
                   <p class="variants-step__error" role="alert">
                     SKU già in uso da un altro prodotto.
                   </p>
+                } @else {
+                  <span class="variants-step__error-placeholder" aria-hidden="true"></span>
                 }
               </div>
             </td>
@@ -79,6 +81,8 @@
                       Il prezzo non può essere negativo.
                     }
                   </p>
+                } @else {
+                  <span class="variants-step__error-placeholder" aria-hidden="true"></span>
                 }
               </div>
             </td>
@@ -98,11 +102,13 @@
                   <p class="variants-step__error" role="alert">
                     Il prezzo non può essere negativo.
                   </p>
+                } @else {
+                  <span class="variants-step__error-placeholder" aria-hidden="true"></span>
                 }
               </div>
             </td>
             <td data-label="Prezzo barrato">
-              <div class="variants-step__field">
+              <div class="variants-step__field variants-step__field--compare-at">
                 <input
                   class="variants-step__input variants-step__input--numeric"
                   type="text"
@@ -124,6 +130,8 @@
                       Il prezzo barrato deve essere maggiore del prezzo di vendita.
                     }
                   </p>
+                } @else {
+                  <span class="variants-step__error-placeholder" aria-hidden="true"></span>
                 }
               </div>
             </td>
@@ -141,6 +149,8 @@
                   <p class="variants-step__error" role="alert">
                     Il barcode deve essere diverso dallo SKU.
                   </p>
+                } @else {
+                  <span class="variants-step__error-placeholder" aria-hidden="true"></span>
                 }
               </div>
             </td>

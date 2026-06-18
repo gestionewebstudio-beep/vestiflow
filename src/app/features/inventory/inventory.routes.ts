@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { InventoryCountDetailComponent } from './inventory-count-detail.component';
 import { InventoryCountListComponent } from './inventory-count-list.component';
 import { InventoryCountNewComponent } from './inventory-count-new.component';
+import { InventoryImportComponent } from './inventory-import.component';
 import { InventoryLevelsComponent } from './inventory-levels.component';
 import { MovementFormComponent } from './movement-form.component';
 import { StockLookupComponent } from './stock-lookup.component';
@@ -24,6 +25,11 @@ export const inventoryRoutes: Routes = [
     path: 'movements/new',
     title: 'VestiFlow · Registra movimento',
     component: MovementFormComponent,
+  },
+  {
+    path: 'import',
+    title: 'VestiFlow · Importa giacenze CSV',
+    component: InventoryImportComponent,
   },
   {
     path: 'counts/new',

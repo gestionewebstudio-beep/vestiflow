@@ -2,13 +2,15 @@
 
 :host {
   display: block;
+  inline-size: 100%;
 }
 
 .po-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  max-inline-size: var(--content-default);
+  inline-size: 100%;
+  max-inline-size: none;
 }
 
 .po-form__back {
@@ -35,6 +37,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  inline-size: 100%;
   padding: var(--space-5);
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
@@ -143,6 +146,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  inline-size: 100%;
 }
 
 .po-form__lines-head {
@@ -156,21 +160,24 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  inline-size: 100%;
 }
 
 .po-form__line {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-3);
+  inline-size: 100%;
   padding: var(--space-3);
   background-color: var(--color-surface-sunken);
   border-radius: var(--radius-md);
+  --po-form-line-control-offset: calc(var(--text-xs) * 1.333333 + var(--space-1));
 }
 
 @include bp.media-up('md') {
   .po-form__line {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 1fr) auto;
-    align-items: end;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 0.85fr) minmax(0, 1.1fr) minmax(0, 1fr) auto;
+    align-items: start;
   }
 }
 
@@ -178,6 +185,25 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.po-form__line-field--qty .po-form__input {
+  text-align: start;
+  font-variant-numeric: tabular-nums;
+}
+
+.po-form__line-field--variant ::ng-deep .select-menu__trigger-label,
+.po-form__line-field--variant ::ng-deep .select-menu__option-label {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.po-form__error-placeholder {
+  display: block;
+  min-block-size: calc(var(--text-xs) * 1.333333);
 }
 
 .po-form__line-total {
@@ -201,6 +227,10 @@
   border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-md);
   cursor: pointer;
+
+  @include bp.media-up('md') {
+    margin-block-start: var(--po-form-line-control-offset);
+  }
 }
 
 .po-form__line-remove:hover:not(:disabled) {

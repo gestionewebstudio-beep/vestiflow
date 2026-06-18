@@ -20,6 +20,7 @@
 
 .level-table__row td {
   padding: var(--space-3) var(--space-4);
+  vertical-align: top;
 }
 
 .level-table__title {
@@ -41,11 +42,11 @@
   }
 
   .level-table__col--variant {
-    inline-size: 25%;
+    inline-size: 28%;
   }
 
   .level-table__col--sku {
-    inline-size: 14%;
+    inline-size: 12%;
   }
 
   .level-table__col--location {
@@ -73,9 +74,15 @@
   }
 
   .level-table__title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  .level-table__sku {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
   }
 
   .level-table tbody td.level-table__cell--status,

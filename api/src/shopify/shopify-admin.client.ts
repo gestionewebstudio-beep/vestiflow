@@ -339,6 +339,60 @@ export class ShopifyAdminClient {
     return products;
   }
 
+  async listAllCustomers(
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<readonly Record<string, unknown>[]> {
+    const customers: Record<string, unknown>[] = [];
+    let sinceId = 0;
+
+    for (;;) {
+      const page = await this.request<{ customers: Record<string, unknown>[] }>(
+        shopDomain,
+        accessToken,
+        `/customers.json?limit=250&since_id=${sinceId}`,
+      );
+      const batch = page.customers ?? [];
+      if (batch.length === 0) {
+        break;
+      }
+      customers.push(...batch);
+      sinceId = Number(batch[batch.length - 1]!['id']);
+      if (batch.length < 250) {
+        break;
+      }
+    }
+
+    return customers;
+  }
+
+  async listAllOrders(
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<readonly Record<string, unknown>[]> {
+    const orders: Record<string, unknown>[] = [];
+    let sinceId = 0;
+
+    for (;;) {
+      const page = await this.request<{ orders: Record<string, unknown>[] }>(
+        shopDomain,
+        accessToken,
+        `/orders.json?status=any&limit=250&since_id=${sinceId}`,
+      );
+      const batch = page.orders ?? [];
+      if (batch.length === 0) {
+        break;
+      }
+      orders.push(...batch);
+      sinceId = Number(batch[batch.length - 1]!['id']);
+      if (batch.length < 250) {
+        break;
+      }
+    }
+
+    return orders;
+  }
+
   async createProductImage(
     shopDomain: string,
     accessToken: string,

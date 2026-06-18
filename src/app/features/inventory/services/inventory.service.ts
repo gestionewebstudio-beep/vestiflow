@@ -25,6 +25,12 @@ import type {
 import type { Location } from '@core/models/location.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 
+import type {
+  InventoryExportQuery,
+  InventoryImportPreview,
+  InventoryImportResult,
+} from '../models/inventory-import.model';
+
 import {
   mapInventoryCountLineApiRow,
   mapInventoryCountSessionApiRow,
@@ -48,6 +54,7 @@ export interface RegisterMovementInput {
 }
 
 const HTTP_TIMEOUT_MS = 15000;
+const EXPORT_HTTP_TIMEOUT_MS = 120000;
 const LIST_PAGE_SIZE = 100;
 const LOCATIONS_CACHE_MS = 5 * 60_000;
 
@@ -190,6 +197,44 @@ export class InventoryService {
     return this.http
       .post<InventoryCountSessionApiRow>(this.url(`/inventory/counts/${sessionId}/cancel`), {})
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapInventoryCountSessionApiRow));
+  }
+
+  previewInventoryImport(file: File): Observable<InventoryImportPreview> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http
+      .post<InventoryImportPreview>(this.url('/inventory/levels/import/preview'), formData)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  importInventoryCsv(file: File, keys?: readonly string[]): Observable<InventoryImportResult> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    if (keys?.length) {
+      for (const key of keys) {
+        formData.append('keys[]', key);
+      }
+    }
+    return this.http
+      .post<InventoryImportResult>(this.url('/inventory/levels/import'), formData)
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
+  }
+
+  exportInventoryCsv(query: InventoryExportQuery): Observable<Blob> {
+    let params = new HttpParams();
+    if (query.locationId) {
+      params = params.set('locationId', query.locationId);
+    }
+    if (query.search) {
+      params = params.set('search', query.search);
+    }
+    if (query.stockStatus) {
+      params = params.set('stockStatus', query.stockStatus);
+    }
+
+    return this.http
+      .get(this.url('/inventory/levels/export/csv'), { params, responseType: 'blob' })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 
   private url(path: string): string {

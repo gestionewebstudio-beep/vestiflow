@@ -1,10 +1,38 @@
 <section class="customer-list">
   <header class="customer-list__header">
-    <h1 class="customer-list__title">Clienti</h1>
-    <p class="customer-list__subtitle">
-      Anagrafica in sola lettura: con l'integrazione attiva i clienti ecommerce arrivano da Shopify.
-    </p>
+    <div class="customer-list__heading">
+      <h1 class="customer-list__title">Clienti</h1>
+      <p class="customer-list__subtitle">
+        Anagrafica in sola lettura: con l'integrazione attiva i clienti ecommerce arrivano da
+        Shopify.
+      </p>
+    </div>
+    @if (showShopifyCustomersSync()) {
+      <div class="customer-list__actions">
+        <app-button
+          variant="secondary"
+          [loading]="shopifyCustomersLoading()"
+          [disabled]="shopifyCustomersLoading()"
+          (click)="syncCustomersFromShopify()"
+        >
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          Sincronizza clienti da Shopify
+        </app-button>
+      </div>
+    }
   </header>
+
+  @if (shopifySyncError(); as message) {
+    <p class="customer-list__shopify-error" role="alert">{{ message }}</p>
+  }
+
+  @if (shopifyFeedback(); as feedback) {
+    <app-shopify-sync-feedback
+      [message]="feedback.message"
+      [tone]="feedback.tone"
+      (dismissed)="dismissShopifyFeedback()"
+    />
+  }
 
   <div class="customer-list__toolbar">
     <div class="customer-list__search">

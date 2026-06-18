@@ -6,6 +6,8 @@ import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyController } from './shopify.controller';
 import { ShopifyCryptoService } from './shopify-crypto.service';
 import { ShopifyInventoryPullService } from './shopify-inventory-pull.service';
+import { ShopifyCustomersPullService } from './shopify-customers-pull.service';
+import { ShopifyOrdersPullService } from './shopify-orders-pull.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyLocationSyncService } from './shopify-location-sync.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
@@ -28,6 +30,8 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
     ShopifyOAuthService,
     ShopifyLocationSyncService,
     ShopifyInventoryPullService,
+    ShopifyCustomersPullService,
+    ShopifyOrdersPullService,
     ShopifyInventoryPushService,
     ShopifyProductPushService,
     ShopifyProductPullService,

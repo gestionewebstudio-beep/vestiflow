@@ -30,6 +30,7 @@
         <div class="movement-form__field movement-form__field--wide">
           <span class="movement-form__label">Variante</span>
           <app-select-menu
+            class="movement-form__variant-select"
             [options]="variantSelectOptions()"
             [value]="form.controls.variantId.value"
             ariaLabel="Variante prodotto"

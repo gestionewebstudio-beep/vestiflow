@@ -1,0 +1,134 @@
+@use 'responsive-table' as rt;
+
+:host {
+  display: block;
+  inline-size: 100%;
+}
+
+.inventory-import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+}
+
+.inventory-import__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.inventory-import__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.inventory-import__intro {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.inventory-import__alert {
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+  border: var(--border-width) solid var(--status-error-border);
+  border-radius: var(--radius-md);
+}
+
+.inventory-import__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
+.inventory-import__upload {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  border: var(--border-width) dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-sunken);
+  cursor: pointer;
+}
+
+.inventory-import__upload:hover {
+  border-color: var(--color-interactive);
+}
+
+.inventory-import__upload-icon {
+  font-size: var(--text-xl);
+  color: var(--color-interactive);
+}
+
+.inventory-import__upload-title {
+  font-weight: var(--font-weight-medium);
+}
+
+.inventory-import__upload-hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.inventory-import__file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.inventory-import__file-name {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.inventory-import__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.inventory-import__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.inventory-import__table-scroll {
+  overflow-x: auto;
+}
+
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('inventory-import__table');
+@include rt.data-table-mobile-cards('inventory-import__table');
+
+.inventory-import__col--numeric,
+.inventory-import__numeric {
+  text-align: end;
+}
+
+.inventory-import__done-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.inventory-import__done-stats {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
