@@ -9,10 +9,11 @@ import type { PaginatedResponse } from '@core/models/api.model';
 import type { Customer } from '@core/models/customer.model';
 import type { EntityId } from '@core/models/common.model';
 
-import type { CustomerListQuery } from '../models/customer-list-query.model';
+import type { CustomerListQuery, CustomerExportQuery } from '../models/customer-list-query.model';
 import { mapCustomerApiRow, type CustomerApiRow } from './customer-api.mapper';
 
 const HTTP_TIMEOUT_MS = 15000;
+const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
 /**
  * Anagrafica clienti read-only via NestJS. Owner Shopify per ecommerce:
@@ -48,6 +49,17 @@ export class CustomerService {
     return this.http
       .get<CustomerApiRow>(this.url(`/customers/${id}`))
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapCustomerApiRow));
+  }
+
+  exportCustomersCsv(query: CustomerExportQuery): Observable<Blob> {
+    let params = new HttpParams();
+    if (query.search) {
+      params = params.set('search', query.search);
+    }
+
+    return this.http
+      .get(this.url('/customers/export/csv'), { params, responseType: 'blob' })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 
   private url(path: string): string {

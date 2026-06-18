@@ -82,3 +82,36 @@ export function fromPrismaFulfillment(
       return 'unfulfilled';
   }
 }
+
+export function sourceDisplayLabel(source: PrismaSource): string {
+  return source === PrismaSource.shopify_pos ? 'Negozio' : 'Online';
+}
+
+export function financialStatusDisplayLabel(status: PrismaFinancial): string {
+  switch (status) {
+    case PrismaFinancial.paid:
+      return 'Pagato';
+    case PrismaFinancial.partially_refunded:
+      return 'Rimborso parziale';
+    case PrismaFinancial.refunded:
+      return 'Rimborsato';
+    case PrismaFinancial.voided:
+      return 'Annullato';
+    case PrismaFinancial.authorized:
+    case PrismaFinancial.pending:
+    default:
+      return 'In attesa';
+  }
+}
+
+export function fulfillmentStatusDisplayLabel(status: PrismaFulfillment): string {
+  switch (status) {
+    case PrismaFulfillment.partially_fulfilled:
+      return 'Evasione parziale';
+    case PrismaFulfillment.fulfilled:
+      return 'Evaso';
+    case PrismaFulfillment.unfulfilled:
+    default:
+      return 'Da evadere';
+  }
+}

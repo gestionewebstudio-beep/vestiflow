@@ -1,16 +1,32 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  Param,
+  ParseUUIDPipe,
+  Query,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import type { Customer } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
+import { CustomersExportService } from './customers-export.service';
 import { CustomersService } from './customers.service';
+import { ExportCustomersQueryDto } from './dto/export-customers.query.dto';
 import { ListCustomersQueryDto } from './dto/list-customers.query.dto';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard)
 export class CustomersController {
-  constructor(private readonly customers: CustomersService) {}
+  constructor(
+    private readonly customers: CustomersService,
+    private readonly customersExport: CustomersExportService,
+  ) {}
 
   @Get()
   list(
@@ -18,6 +34,22 @@ export class CustomersController {
     @Query() query: ListCustomersQueryDto,
   ): Promise<Paginated<Customer>> {
     return this.customers.list(tenantId, query);
+  }
+
+  @Get('export/csv')
+  @UseGuards(RolesGuard)
+  @Roles(...MANAGER_ROLES)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async exportCsv(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ExportCustomersQueryDto,
+  ): Promise<StreamableFile> {
+    const csv = await this.customersExport.exportCsv(tenantId, query);
+    const stamp = new Date().toISOString().slice(0, 10);
+    return new StreamableFile(Buffer.from(csv, 'utf-8'), {
+      type: 'text/csv; charset=utf-8',
+      disposition: `attachment; filename="clienti-vestiflow-${stamp}.csv"`,
+    });
   }
 
   @Get(':id')

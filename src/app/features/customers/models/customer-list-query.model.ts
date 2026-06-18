@@ -11,6 +11,9 @@ export interface CustomerListQuery {
   readonly search?: string;
 }
 
+/** Filtri export CSV (stessi filtri lista, senza paginazione). */
+export type CustomerExportQuery = Omit<CustomerListQuery, 'page' | 'pageSize'>;
+
 /** Parsing difensivo dei query param URL (URL = fonte di verita' della lista). */
 export function parseCustomerListQuery(params: ParamMap): CustomerListQuery {
   const page = Number(params.get('page'));

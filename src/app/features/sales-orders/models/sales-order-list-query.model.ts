@@ -18,6 +18,9 @@ export interface SalesOrderListQuery {
   readonly source?: SalesOrderSource;
 }
 
+/** Filtri export CSV (stessi filtri lista, senza paginazione). */
+export type SalesOrderExportQuery = Omit<SalesOrderListQuery, 'page' | 'pageSize'>;
+
 const FINANCIAL_VALUES = new Set<string>(Object.values(SalesOrderFinancialStatus));
 const SOURCE_VALUES = new Set<string>(Object.values(SalesOrderSource));
 

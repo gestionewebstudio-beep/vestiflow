@@ -6,8 +6,8 @@
         Ordini di vendita in sola lettura: la fonte autoritativa è Shopify/POS.
       </p>
     </div>
-    @if (showShopifyOrdersSync()) {
-      <div class="sales-list__actions">
+    <div class="sales-list__actions">
+      @if (showShopifyOrdersSync()) {
         <app-button
           variant="secondary"
           [loading]="shopifyOrdersLoading()"
@@ -17,8 +17,16 @@
           <i class="pi pi-sync" aria-hidden="true"></i>
           Sincronizza vendite da Shopify
         </app-button>
-      </div>
-    }
+      }
+      <app-button variant="secondary" [disabled]="exporting()" (click)="exportSalesOrders()">
+        <i class="pi pi-download" aria-hidden="true"></i>
+        @if (exporting()) {
+          Export in corso…
+        } @else {
+          Esporta CSV
+        }
+      </app-button>
+    </div>
   </header>
 
   @if (shopifySyncError(); as message) {

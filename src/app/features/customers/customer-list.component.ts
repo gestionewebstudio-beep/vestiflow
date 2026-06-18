@@ -104,6 +104,7 @@ export class CustomerListComponent {
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
   protected readonly shopifyCustomersLoading = signal(false);
+  protected readonly exporting = signal(false);
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
 
@@ -224,6 +225,28 @@ export class CustomerListComponent {
       });
   }
 
+  protected exportCustomers(): void {
+    if (this.exporting()) {
+      return;
+    }
+
+    const { page: _page, pageSize: _pageSize, ...filters } = this.query();
+
+    this.exporting.set(true);
+    this.service
+      .exportCustomersCsv(filters)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          this.exporting.set(false);
+          this.downloadCsvBlob(blob);
+        },
+        error: () => {
+          this.exporting.set(false);
+        },
+      });
+  }
+
   protected dismissShopifyFeedback(): void {
     this.clearShopifyFeedback();
   }
@@ -279,5 +302,15 @@ export class CustomerListComponent {
       return err.message;
     }
     return 'Operazione non riuscita. Riprova.';
+  }
+
+  private downloadCsvBlob(blob: Blob): void {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `clienti-vestiflow-${stamp}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 }

@@ -120,6 +120,7 @@ export class SalesOrderListComponent {
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
   protected readonly shopifyOrdersLoading = signal(false);
+  protected readonly exporting = signal(false);
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
 
@@ -251,6 +252,28 @@ export class SalesOrderListComponent {
       });
   }
 
+  protected exportSalesOrders(): void {
+    if (this.exporting()) {
+      return;
+    }
+
+    const { page: _page, pageSize: _pageSize, ...filters } = this.query();
+
+    this.exporting.set(true);
+    this.service
+      .exportSalesOrdersCsv(filters)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          this.exporting.set(false);
+          this.downloadCsvBlob(blob, 'vendite');
+        },
+        error: () => {
+          this.exporting.set(false);
+        },
+      });
+  }
+
   protected dismissShopifyFeedback(): void {
     this.clearShopifyFeedback();
   }
@@ -306,5 +329,15 @@ export class SalesOrderListComponent {
       return err.message;
     }
     return 'Operazione non riuscita. Riprova.';
+  }
+
+  private downloadCsvBlob(blob: Blob, prefix: string): void {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${prefix}-vestiflow-${stamp}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 }

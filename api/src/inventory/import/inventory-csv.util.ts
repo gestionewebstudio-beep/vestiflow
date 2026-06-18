@@ -1,3 +1,5 @@
+import { escapeCsvField } from '../../common/csv.util';
+
 export const INVENTORY_EXPORT_HEADERS = [
   'Variante',
   'SKU',
@@ -95,13 +97,6 @@ export function parseCsvText(content: string): string[][] {
   }
 
   return rows;
-}
-
-export function escapeCsvField(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
 }
 
 function normalizeHeader(value: string): string {

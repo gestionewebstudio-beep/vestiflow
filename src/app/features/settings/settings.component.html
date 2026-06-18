@@ -126,10 +126,6 @@
           <h3 id="settings-shopify-permissions" class="settings__permissions-title">
             Accesso a Shopify
           </h3>
-          <p class="settings__muted">
-            Permessi concessi al collegamento. «Solo lettura» = VestiFlow importa da Shopify;
-            «Lettura e scrittura» = può anche inviare modifiche.
-          </p>
           <ul class="settings__permissions-list">
             @for (scope of conn.scopes; track scope) {
               @let display = shopifyScopeDisplay(scope);
@@ -292,14 +288,6 @@
           </app-button>
         </div>
       }
-
-      <p class="settings__muted">
-        Le credenziali Shopify restano sul server, mai nel browser. «Attiva aggiornamenti
-        automatici» registra i webhook per ordini, clienti, prodotti e giacenze in tempo reale;
-        «Disattiva» li rimuove e ignora gli eventi in arrivo. Per l’import iniziale usa «Importa
-        catalogo da Shopify» in Prodotti e «Sincronizza giacenze da Shopify» in Magazzino →
-        Giacenze.
-      </p>
     }
   </section>
 

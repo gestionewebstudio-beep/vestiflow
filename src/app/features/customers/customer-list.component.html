@@ -7,8 +7,8 @@
         Shopify.
       </p>
     </div>
-    @if (showShopifyCustomersSync()) {
-      <div class="customer-list__actions">
+    <div class="customer-list__actions">
+      @if (showShopifyCustomersSync()) {
         <app-button
           variant="secondary"
           [loading]="shopifyCustomersLoading()"
@@ -18,8 +18,16 @@
           <i class="pi pi-sync" aria-hidden="true"></i>
           Sincronizza clienti da Shopify
         </app-button>
-      </div>
-    }
+      }
+      <app-button variant="secondary" [disabled]="exporting()" (click)="exportCustomers()">
+        <i class="pi pi-download" aria-hidden="true"></i>
+        @if (exporting()) {
+          Export in corso…
+        } @else {
+          Esporta CSV
+        }
+      </app-button>
+    </div>
   </header>
 
   @if (shopifySyncError(); as message) {

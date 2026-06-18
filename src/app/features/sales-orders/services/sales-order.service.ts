@@ -9,10 +9,14 @@ import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
 
-import type { SalesOrderListQuery } from '../models/sales-order-list-query.model';
+import type {
+  SalesOrderListQuery,
+  SalesOrderExportQuery,
+} from '../models/sales-order-list-query.model';
 import { mapSalesOrderApiRow, type SalesOrderApiRow } from './sales-order-api.mapper';
 
 const HTTP_TIMEOUT_MS = 15000;
+const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
 /**
  * Accesso read-only alle vendite via NestJS. Shopify è owner: nessuna scrittura
@@ -56,6 +60,23 @@ export class SalesOrderService {
     return this.http
       .get<SalesOrderApiRow>(this.url(`/sales-orders/${id}`))
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSalesOrderApiRow));
+  }
+
+  exportSalesOrdersCsv(query: SalesOrderExportQuery): Observable<Blob> {
+    let params = new HttpParams();
+    if (query.search) {
+      params = params.set('search', query.search);
+    }
+    if (query.financialStatus) {
+      params = params.set('financialStatus', query.financialStatus);
+    }
+    if (query.source) {
+      params = params.set('source', query.source);
+    }
+
+    return this.http
+      .get(this.url('/sales-orders/export/csv'), { params, responseType: 'blob' })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 
   private url(path: string): string {
