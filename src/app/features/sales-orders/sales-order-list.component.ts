@@ -21,6 +21,7 @@ import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
+import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
@@ -133,6 +134,10 @@ export class SalesOrderListComponent {
     () =>
       isShopifyConnected(this.shopifyConnection()) &&
       canManageShopifySync(this.authService.currentUser()),
+  );
+
+  protected readonly canExportData = computed(() =>
+    canExportOperationalData(this.authService.currentUser()),
   );
 
   private readonly request = computed(() => ({ query: this.query(), tick: this.refreshTick() }));

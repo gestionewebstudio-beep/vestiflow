@@ -13,22 +13,24 @@
           Importa catalogo da Shopify
         </app-button>
       }
-      <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
-        <i class="pi pi-download" aria-hidden="true"></i>
-        @if (exporting()) {
-          Export in corso…
-        } @else {
-          Esporta CSV
-        }
-      </app-button>
-      <app-button variant="secondary" (click)="importProducts()">
-        <i class="pi pi-upload" aria-hidden="true"></i>
-        Importa CSV
-      </app-button>
-      <app-button (click)="createProduct()">
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Aggiungi prodotto
-      </app-button>
+      @if (canManageCatalog()) {
+        <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
+          <i class="pi pi-download" aria-hidden="true"></i>
+          @if (exporting()) {
+            Export in corso…
+          } @else {
+            Esporta CSV
+          }
+        </app-button>
+        <app-button variant="secondary" (click)="importProducts()">
+          <i class="pi pi-upload" aria-hidden="true"></i>
+          Importa CSV
+        </app-button>
+        <app-button (click)="createProduct()">
+          <i class="pi pi-plus" aria-hidden="true"></i>
+          Aggiungi prodotto
+        </app-button>
+      }
     </div>
   </header>
 

@@ -1,0 +1,204 @@
+@use 'breakpoints' as bp;
+
+.guide-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: var(--content-wide);
+}
+
+.guide-page__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@include bp.media-up('md') {
+  .guide-page__header {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-5);
+  }
+}
+
+.guide-page__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.guide-page__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.guide-page__intro {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  max-inline-size: var(--content-default);
+}
+
+.guide-page__download {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  text-decoration: none;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    border-color var(--transition-fast) var(--ease-standard);
+}
+
+.guide-page__download:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.guide-page__download:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.guide-page__content {
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.guide-content {
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text);
+}
+
+.guide-content > :first-child {
+  margin-block-start: 0;
+}
+
+.guide-content > h1:first-child {
+  display: none;
+}
+
+.guide-content > p:nth-child(-n + 3) {
+  margin-block: var(--space-3);
+  line-height: var(--leading-relaxed);
+}
+
+.guide-content h1 {
+  margin-block: 0 var(--space-4);
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.guide-content h2 {
+  margin-block: var(--space-8) var(--space-3);
+  padding-block-end: var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  border-block-end: var(--border-width) solid var(--color-border);
+  scroll-margin-block-start: var(--space-6);
+}
+
+.guide-content h2#indice {
+  margin-block-start: var(--space-6);
+}
+
+.guide-content h3 {
+  margin-block: var(--space-5) var(--space-2);
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  scroll-margin-block-start: var(--space-6);
+}
+
+.guide-content p,
+.guide-content li {
+  color: var(--color-text);
+}
+
+.guide-content p {
+  margin-block: var(--space-3);
+}
+
+.guide-content ul,
+.guide-content ol {
+  margin-block: var(--space-3);
+  padding-inline-start: var(--space-5);
+}
+
+.guide-content li + li {
+  margin-block-start: var(--space-2);
+}
+
+.guide-content a {
+  color: var(--color-link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.guide-content a:hover {
+  color: var(--color-link-hover);
+}
+
+.guide-content table {
+  inline-size: 100%;
+  margin-block: var(--space-4);
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.guide-content th,
+.guide-content td {
+  padding: var(--space-3);
+  text-align: start;
+  vertical-align: top;
+  border: var(--border-width) solid var(--color-border);
+}
+
+.guide-content th {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-sunken);
+}
+
+.guide-content code {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  background-color: var(--color-surface-sunken);
+  border-radius: var(--radius-sm);
+}
+
+.guide-content hr {
+  margin-block: var(--space-6);
+  border: none;
+  border-block-start: var(--border-width) solid var(--color-border);
+}
+
+.guide-content blockquote {
+  margin-block: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-sunken);
+  border-inline-start: var(--space-1) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.guide-content strong {
+  font-weight: var(--font-weight-semibold);
+}

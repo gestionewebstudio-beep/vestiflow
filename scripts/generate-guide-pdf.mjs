@@ -3,7 +3,7 @@
  * Richiede Google Chrome o Microsoft Edge installati.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -56,3 +56,8 @@ if (result.status !== 0) {
 }
 
 console.log(`Generato: ${pdfPath}`);
+
+const publicPdfPath = resolve(root, 'public', 'guide', 'vestiflow-guida.pdf');
+mkdirSync(dirname(publicPdfPath), { recursive: true });
+copyFileSync(pdfPath, publicPdfPath);
+console.log(`Copiato PDF in-app: ${publicPdfPath}`);

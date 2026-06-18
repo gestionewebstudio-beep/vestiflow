@@ -21,6 +21,7 @@ import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
+import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
@@ -143,6 +144,10 @@ export class ProductListComponent {
     () =>
       isShopifyConnected(this.shopifyConnection()) &&
       canManageShopifySync(this.authService.currentUser()),
+  );
+
+  protected readonly canManageCatalog = computed(() =>
+    canManageCatalog(this.authService.currentUser()),
   );
 
   protected readonly filterOptions = toSignal(this.service.getFilterOptions(), {

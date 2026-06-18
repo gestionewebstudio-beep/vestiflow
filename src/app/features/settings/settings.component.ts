@@ -17,6 +17,10 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
+import {
+  canManageMfa as userCanManageMfa,
+  canManageShopifyConnection,
+} from '@core/permissions/tenant-permissions.util';
 import { UserRole } from '@core/models/user.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import type { IsoDateString } from '@core/models/common.model';
@@ -183,18 +187,11 @@ export class SettingsComponent {
     return current.status === 'success' ? current.connection : null;
   });
 
-  protected readonly canManageShopify = computed(() => {
-    const user = this.currentUser();
-    return user?.role === UserRole.Owner || user?.role === UserRole.Admin;
-  });
+  protected readonly canManageShopify = computed(() =>
+    canManageShopifyConnection(this.currentUser()),
+  );
 
-  protected readonly canManageMfa = computed(() => {
-    const user = this.currentUser();
-    if (!user) {
-      return false;
-    }
-    return user.role === UserRole.Owner || user.role === UserRole.Admin || user.isPlatformAdmin;
-  });
+  protected readonly canManageMfa = computed(() => userCanManageMfa(this.currentUser()));
 
   protected readonly locations = toSignal(
     toObservable(this.locationTick).pipe(switchMap(() => this.inventoryService.getLocations())),

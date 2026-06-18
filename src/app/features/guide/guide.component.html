@@ -1,0 +1,27 @@
+<section class="guide-page">
+  <header class="guide-page__header">
+    <div class="guide-page__heading">
+      <h1 class="guide-page__title">Guida VestiFlow</h1>
+      <p class="guide-page__intro">
+        Manuale completo del gestionale: menu, configurazione Shopify, prodotti, magazzino, ordini,
+        vendite e clienti.
+      </p>
+    </div>
+    <a class="guide-page__download" [href]="pdfUrl" [download]="pdfFileName" rel="noopener">
+      <i class="pi pi-download" aria-hidden="true"></i>
+      Scarica guida in PDF
+    </a>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="1" [rows]="10" />
+  } @else if (error(); as message) {
+    <app-error-state [description]="message" retryLabel="Riprova" (retry)="reload()" />
+  } @else {
+    <article
+      #contentHost
+      class="guide-page__content guide-content"
+      [innerHTML]="safeContent()"
+    ></article>
+  }
+</section>

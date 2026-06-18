@@ -70,6 +70,11 @@ export const routes: Routes = [
         loadChildren: () => import('@features/reports/reports.routes').then((m) => m.reportsRoutes),
       },
       {
+        path: 'guide',
+        data: { reuse: true },
+        loadChildren: () => import('@features/guide/guide.routes').then((m) => m.guideRoutes),
+      },
+      {
         path: 'settings',
         loadChildren: () =>
           import('@features/settings/settings.routes').then((m) => m.settingsRoutes),

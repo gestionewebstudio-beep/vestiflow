@@ -24,7 +24,7 @@
       </div>
       <div class="product-detail__actions">
         <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
-        @if (p.shopify) {
+        @if (p.shopify && canSyncProductToShopify()) {
           <app-button
             variant="secondary"
             [loading]="syncingShopify()"
@@ -35,14 +35,18 @@
             Sincronizza con Shopify
           </app-button>
         }
-        <app-button variant="secondary" (click)="goToEdit(p.id)">
-          <i class="pi pi-pencil" aria-hidden="true"></i>
-          Modifica
-        </app-button>
-        <app-button variant="ghost" [disabled]="deleting()" (click)="askDelete()">
-          <i class="pi pi-trash" aria-hidden="true"></i>
-          Elimina
-        </app-button>
+        @if (canManageCatalog()) {
+          <app-button variant="secondary" (click)="goToEdit(p.id)">
+            <i class="pi pi-pencil" aria-hidden="true"></i>
+            Modifica
+          </app-button>
+        }
+        @if (canDeleteProduct()) {
+          <app-button variant="ghost" [disabled]="deleting()" (click)="askDelete()">
+            <i class="pi pi-trash" aria-hidden="true"></i>
+            Elimina
+          </app-button>
+        }
       </div>
     </header>
 

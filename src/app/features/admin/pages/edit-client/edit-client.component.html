@@ -46,10 +46,10 @@
         <app-admin-tenant-profile-fields [form]="form" [showError]="showError.bind(this)" />
 
         <section class="create-client__section" aria-labelledby="edit-client-access">
-          <h3 id="edit-client-access" class="create-client__section-title">Titolare</h3>
+          <h3 id="edit-client-access" class="create-client__section-title">Primo utente</h3>
 
           <label class="create-client__field" for="edit-owner-name">
-            <span class="create-client__field-label">Nome titolare</span>
+            <span class="create-client__field-label">Nome utente</span>
             <input
               id="edit-owner-name"
               class="create-client__input"
@@ -58,9 +58,15 @@
               [attr.aria-invalid]="showError('ownerDisplayName')"
             />
             @if (showError('ownerDisplayName')) {
-              <span class="create-client__field-error">Inserisci il nome del titolare.</span>
+              <span class="create-client__field-error">Inserisci il nome dell’utente.</span>
             }
           </label>
+
+          <div class="create-client__field">
+            <span class="create-client__field-label">Ruolo VestiFlow</span>
+            <p class="create-client__readonly">{{ tenantRoleLabel(detail.owner?.role) }}</p>
+            <span class="create-client__hint">Il ruolo non si modifica da qui.</span>
+          </div>
 
           <div class="create-client__field">
             <span class="create-client__field-label">Email accesso</span>

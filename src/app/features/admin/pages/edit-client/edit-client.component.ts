@@ -25,6 +25,7 @@ import {
   patchTenantProfileForm,
   profilePayloadFromForm,
 } from '../../models/admin-tenant-profile.form';
+import { tenantRoleLabel } from '../../models/admin-tenant-role.util';
 import { AdminTenantsService } from '../../services/admin-tenants.service';
 
 type TenantLoadState =
@@ -54,6 +55,7 @@ export class EditClientComponent {
   private readonly router = inject(Router);
 
   protected readonly formatDateTime = formatDateTime;
+  protected readonly tenantRoleLabel = tenantRoleLabel;
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   private readonly tenantId = computed(() => this.params().get('tenantId') ?? '');

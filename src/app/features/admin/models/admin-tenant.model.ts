@@ -1,3 +1,5 @@
+import type { UserRole } from '@core/models/user.model';
+
 export interface TenantProfileFields {
   readonly legalName?: string;
   readonly vatNumber?: string;
@@ -18,6 +20,7 @@ export interface CreateTenantPayload extends TenantProfileFields {
   readonly ownerDisplayName: string;
   readonly ownerEmail: string;
   readonly ownerPassword: string;
+  readonly role?: UserRole;
   readonly storeName?: string;
   readonly locationName?: string;
 }
@@ -35,6 +38,7 @@ export interface ProvisionedTenant {
   readonly ownerUserId: string;
   readonly ownerEmail: string;
   readonly ownerDisplayName: string;
+  readonly role: UserRole;
   readonly storeId: string;
   readonly storeName: string;
   readonly locationId: string;
@@ -72,6 +76,7 @@ export interface TenantDetail {
     readonly id: string;
     readonly email: string;
     readonly displayName: string;
+    readonly role: UserRole;
   } | null;
   readonly store: {
     readonly id: string;

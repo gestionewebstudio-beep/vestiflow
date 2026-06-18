@@ -1,5 +1,8 @@
 import { Routes } from '@angular/router';
 
+import { tenantRoleGuard } from '@core/guards/tenant-role.guard';
+import { TENANT_ROUTE_PERMISSION_KEY } from '@core/permissions/tenant-permissions.util';
+
 import { InventoryCountDetailComponent } from './inventory-count-detail.component';
 import { InventoryCountListComponent } from './inventory-count-list.component';
 import { InventoryCountNewComponent } from './inventory-count-new.component';
@@ -30,6 +33,8 @@ export const inventoryRoutes: Routes = [
     path: 'import',
     title: 'VestiFlow · Importa giacenze CSV',
     component: InventoryImportComponent,
+    canActivate: [tenantRoleGuard],
+    data: { [TENANT_ROUTE_PERMISSION_KEY]: 'manager' },
   },
   {
     path: 'counts/new',

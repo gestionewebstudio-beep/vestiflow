@@ -144,14 +144,15 @@
     </style>
   </head>
   <body>
-    <h1>VestiFlow — Guida completa al gestionale</h1>
+    <h1 id="vestiflow--guida-completa-al-gestionale">VestiFlow — Guida completa al gestionale</h1>
+    <p><strong>Versione documento:</strong> 1.4 — Giugno 2026</p>
+    <p><strong>Destinatari:</strong> titolari di negozio, responsabili magazzino, amministratori</p>
     <p>
-      <strong>Versione documento:</strong> 1.2 — Giugno 2026<br /><strong>Destinatari:</strong>
-      titolari di negozio, responsabili magazzino, amministratori<br /><strong>Prodotto:</strong>
-      VestiFlow — gestionale web multi-negozio per boutique di abbigliamento, integrato con Shopify
+      <strong>Prodotto:</strong> VestiFlow — gestionale web multi-location per boutique di
+      abbigliamento, integrato con Shopify
     </p>
     <hr />
-    <h2>Indice</h2>
+    <h2 id="indice">Indice</h2>
     <ol>
       <li><a href="#1-cos%C3%A8-vestiflow">Cos&#39;è VestiFlow</a></li>
       <li><a href="#2-come-accedere-al-gestionale">Come accedere al gestionale</a></li>
@@ -185,17 +186,15 @@
       <li><a href="#14-cassa-pos-e-negozio-fisico">Cassa, POS e negozio fisico</a></li>
       <li><a href="#15-sicurezza-account-mfa">Sicurezza account (MFA)</a></li>
       <li>
-        <a href="#16-configurazione-tecnica-riferimento">Configurazione tecnica (riferimento)</a>
-      </li>
-      <li>
         <a href="#17-domande-frequenti-e-risoluzione-problemi"
           >Domande frequenti e risoluzione problemi</a
         >
       </li>
       <li><a href="#18-funzionalit%C3%A0-in-arrivo">Funzionalità in arrivo</a></li>
+      <li><a href="#19-guida-integrata-nel-gestionale">Guida integrata nel gestionale</a></li>
     </ol>
     <hr />
-    <h2>1. Cos&#39;è VestiFlow</h2>
+    <h2 id="1-cosè-vestiflow">1. Cos&#39;è VestiFlow</h2>
     <p>
       VestiFlow è un <strong>gestionale cloud</strong> pensato per negozi di abbigliamento che
       vendono anche online con <strong>Shopify</strong>.
@@ -220,7 +219,7 @@
       VestiFlow <strong>non sostituisce</strong> il sito e-commerce Shopify: lo
       <strong>affianca</strong> come strumento operativo per chi lavora in negozio e in magazzino.
     </p>
-    <h3>Cosa serve per usarlo</h3>
+    <h3 id="cosa-serve-per-usarlo">Cosa serve per usarlo</h3>
     <table>
       <thead>
         <tr>
@@ -248,13 +247,13 @@
       </tbody>
     </table>
     <hr />
-    <h2>2. Come accedere al gestionale</h2>
-    <h3>URL</h3>
+    <h2 id="2-come-accedere-al-gestionale">2. Come accedere al gestionale</h2>
+    <h3 id="url">URL</h3>
     <p>
       L&#39;indirizzo del gestionale ti viene comunicato al momento dell&#39;attivazione (es.
       dominio Firebase App Hosting del tuo tenant VestiFlow).
     </p>
-    <h3>Login</h3>
+    <h3 id="login">Login</h3>
     <ol>
       <li>Apri l&#39;URL del gestionale.</li>
       <li>Inserisci <strong>email</strong> e <strong>password</strong>.</li>
@@ -264,17 +263,17 @@
       </li>
       <li>Sei reindirizzato alla <strong>Dashboard</strong>.</li>
     </ol>
-    <h3>Password dimenticata</h3>
+    <h3 id="password-dimenticata">Password dimenticata</h3>
     <ol>
       <li>Dalla schermata di login clicca <strong>Password dimenticata</strong>.</li>
       <li>Inserisci la tua email.</li>
       <li>Controlla la casella di posta e segui il link per impostare una nuova password.</li>
     </ol>
-    <h3>Logout</h3>
+    <h3 id="logout">Logout</h3>
     <p>Dalla <strong>barra in alto</strong> (topbar) usa il menu utente e conferma l&#39;uscita.</p>
     <hr />
-    <h2>3. Panoramica dell&#39;interfaccia</h2>
-    <h3>Barra laterale (sidebar)</h3>
+    <h2 id="3-panoramica-dellinterfaccia">3. Panoramica dell&#39;interfaccia</h2>
+    <h3 id="barra-laterale-sidebar">Barra laterale (sidebar)</h3>
     <p>
       Menu principale, sempre disponibile su desktop; su smartphone si apre come
       <strong>drawer</strong> dal pulsante menu.
@@ -293,11 +292,13 @@
         </tr>
         <tr>
           <td><strong>Prodotti</strong></td>
-          <td>Catalogo, creazione e modifica prodotti</td>
+          <td>Catalogo, creazione, modifica, import/export CSV, sync Shopify</td>
         </tr>
         <tr>
           <td><strong>Magazzino</strong></td>
-          <td>Ricerca giacenze (punto di ingresso mobile)</td>
+          <td>
+            Apre <strong>Cerca giacenza</strong> (ricerca rapida SKU/barcode, ideale su mobile)
+          </td>
         </tr>
         <tr>
           <td><strong>Ordini Fornitori</strong></td>
@@ -305,27 +306,32 @@
         </tr>
         <tr>
           <td><strong>Vendite</strong></td>
-          <td>Ordini di vendita (da Shopify, sola lettura)</td>
+          <td>Ordini di vendita da Shopify (sola lettura), sync ed export CSV</td>
         </tr>
         <tr>
           <td><strong>Clienti</strong></td>
-          <td>Anagrafica clienti (da Shopify, sola lettura)</td>
+          <td>Anagrafica da Shopify (sola lettura), sync ed export CSV</td>
         </tr>
         <tr>
           <td><strong>Report</strong></td>
           <td>Indicatori e tabelle riepilogative</td>
         </tr>
         <tr>
+          <td><strong>Guida</strong></td>
+          <td>Manuale completo del gestionale (questo documento, versione in-app)</td>
+        </tr>
+        <tr>
           <td><strong>Impostazioni</strong></td>
           <td>Shopify, location, tema, sicurezza account</td>
         </tr>
-        <tr>
-          <td><strong>Nuovo cliente</strong></td>
-          <td>Solo operatori VestiFlow — creazione nuovo tenant</td>
-        </tr>
       </tbody>
     </table>
-    <h3>Barra superiore (topbar)</h3>
+    <p>
+      Dal menu <strong>Magazzino</strong> accedi subito alla ricerca; le altre sezioni magazzino
+      (Giacenze, Movimenti, Inventario fisico) si raggiungono dai <strong>tab</strong> in alto nelle
+      pagine del magazzino oppure da link interni.
+    </p>
+    <h3 id="barra-superiore-topbar">Barra superiore (topbar)</h3>
     <ul>
       <li><strong>Titolo / breadcrumb</strong> della sezione corrente</li>
       <li>
@@ -338,7 +344,7 @@
       <li><strong>Tema</strong> chiaro / scuro / sistema</li>
       <li><strong>Profilo utente</strong> e logout</li>
     </ul>
-    <h3>Stati comuni nelle pagine</h3>
+    <h3 id="stati-comuni-nelle-pagine">Stati comuni nelle pagine</h3>
     <p>Ogni area dati mostra in modo esplicito:</p>
     <ul>
       <li><strong>Caricamento</strong> — skeleton o spinner</li>
@@ -346,64 +352,211 @@
       <li><strong>Errore</strong> — descrizione + pulsante Riprova</li>
     </ul>
     <hr />
-    <h2>4. Ruoli utente e permessi</h2>
+    <h2 id="4-ruoli-utente-e-permessi">4. Ruoli utente e permessi</h2>
     <p>
-      Ogni utente appartiene a un <strong>tenant</strong> (la tua azienda/negozio) e ha un
-      <strong>ruolo</strong>.
+      Ogni utente appartiene a un <strong>tenant</strong> (la tua azienda) e ha un
+      <strong>ruolo VestiFlow</strong> assegnato quando l&#39;account viene creato nel gestionale.
     </p>
     <table>
       <thead>
         <tr>
           <th>Ruolo</th>
           <th>Descrizione tipica</th>
-          <th>Permessi principali</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td><strong>Titolare (owner)</strong></td>
           <td>Proprietario del negozio</td>
-          <td>Accesso completo, connessione Shopify, MFA</td>
         </tr>
         <tr>
           <td><strong>Amministratore (admin)</strong></td>
-          <td>Store manager, IT</td>
-          <td>Come titolare su configurazione e Shopify</td>
+          <td>Store manager, referente IT</td>
         </tr>
         <tr>
           <td><strong>Manager</strong></td>
           <td>Responsabile magazzino / acquisti</td>
-          <td>Prodotti, magazzino, ordini fornitori</td>
         </tr>
         <tr>
           <td><strong>Commesso (clerk)</strong></td>
-          <td>Operatore negozio</td>
-          <td>Consultazione e operazioni magazzino base</td>
+          <td>Operatore negozio / magazzino</td>
         </tr>
       </tbody>
     </table>
-    <h3>Operazioni riservate a titolare e amministratore</h3>
-    <ul>
-      <li>Collegare / disconnettere <strong>Shopify</strong></li>
-      <li>
-        <strong>Sincronizzare location</strong> e <strong>attivare aggiornamenti automatici</strong>
-      </li>
-      <li><strong>Importare catalogo</strong> da Shopify</li>
-      <li><strong>Eliminare prodotti</strong></li>
-      <li>Gestire <strong>MFA</strong> (verifica in due passaggi)</li>
-    </ul>
-    <h3>Nota importante</h3>
+    <h3 id="da-dove-viene-il-ruolo-vestiflow--shopify">
+      Da dove viene il ruolo (VestiFlow ≠ Shopify)
+    </h3>
+    <p>Il ruolo <strong>non</strong> viene da Shopify. Sono due sistemi separati:</p>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th><strong>VestiFlow</strong></th>
+          <th><strong>Shopify Admin</strong></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Cosa regola</strong></td>
+          <td>
+            Chi può fare cosa <strong>nel gestionale</strong> (prodotti, magazzino, ordini
+            fornitori, sync…)
+          </td>
+          <td>
+            Chi può fare cosa <strong>nel pannello Shopify</strong> (tema, checkout, staff del
+            negozio online…)
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Dove si assegna</strong></td>
+          <td>
+            Database VestiFlow, al momento della creazione account (oggi tramite
+            <strong>operatore VestiFlow</strong>)
+          </td>
+          <td>Shopify → Impostazioni → Utenti e permessi</td>
+        </tr>
+        <tr>
+          <td><strong>Sincronizzazione</strong></td>
+          <td>
+            <strong>Nessuna</strong> — il ruolo Shopify di un dipendente non cambia automaticamente
+            il ruolo in VestiFlow
+          </td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
     <p>
-      I controlli in interfaccia <strong>migliorano l&#39;esperienza</strong> ma la sicurezza reale
-      è garantita dal <strong>server</strong>. Non condividere le credenziali tra più persone:
-      creare un account per ogni operatore.
+      Esempio: una persona può essere <strong>Amministratore</strong> su Shopify ma
+      <strong>Commesso</strong> in VestiFlow, o viceversa. Per un nuovo collega servono
+      <strong>due account distinti</strong> (email/password VestiFlow + eventuale accesso Shopify),
+      salvo diversa indicazione del referente.
+    </p>
+    <p>
+      Al <strong>primo onboarding</strong> del negozio, l&#39;operatore VestiFlow crea il tenant e
+      il <strong>primo utente</strong>, scegliendo il ruolo (di default <strong>Titolare</strong>).
+      Per <strong>ulteriori utenti</strong> dello stesso negozio non c&#39;è ancora una schermata
+      self-service: vanno richiesti al referente VestiFlow.
+    </p>
+    <h3 id="cosa-può-fare-ogni-ruolo">Cosa può fare ogni ruolo</h3>
+    <p>
+      VestiFlow applica i permessi <strong>sul server</strong> (API) e
+      <strong>in interfaccia</strong>: pulsanti, form e route riservate non compaiono se il tuo
+      ruolo non le consente. Se provi ad aprire un URL diretto senza permesso, vieni reindirizzato
+      alla dashboard.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Operazione</th>
+          <th>Titolare / Admin</th>
+          <th>Manager</th>
+          <th>Commesso</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Collegare Shopify, sync location, webhook, import catalogo da Shopify</td>
+          <td>Sì</td>
+          <td>No</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Sync manuale vendite / clienti / giacenze da Shopify (liste)</td>
+          <td>Sì</td>
+          <td>No</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Creare e modificare prodotti, import/export CSV prodotti</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Sincronizzare un singolo prodotto verso Shopify (dettaglio prodotto)</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Eliminare prodotti</td>
+          <td>Sì</td>
+          <td>No</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Export/import CSV giacenze</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Export CSV vendite e clienti</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Creare e inviare ordini fornitori</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Ricevere merce su ordine fornitore</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>Sì</td>
+        </tr>
+        <tr>
+          <td>Consultare giacenze, movimenti, vendite, clienti</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>Sì</td>
+        </tr>
+        <tr>
+          <td>Registrare movimenti di magazzino</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>Sì</td>
+        </tr>
+        <tr>
+          <td>Inventario fisico (sessioni di conteggio)</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>Sì</td>
+        </tr>
+        <tr>
+          <td>Configurare MFA (Impostazioni)</td>
+          <td>Sì</td>
+          <td>Sì</td>
+          <td>No</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="cosa-non-fa-ancora-il-gestionale">Cosa non fa ancora il gestionale</h3>
+    <ul>
+      <li>
+        <strong>Non</strong> c&#39;è una schermata per invitare <strong>ulteriori</strong> utenti o
+        cambiare ruolo a un account esistente: oltre al primo utente creato in onboarding, i nuovi
+        account vanno richiesti al <strong>referente VestiFlow</strong>.
+      </li>
+      <li>
+        Le voci di menu restano visibili a tutti i ruoli (consultazione); le
+        <strong>azioni</strong> sensibili sono nascoste o bloccate come nella tabella sopra.
+      </li>
+    </ul>
+    <h3 id="buone-pratiche">Buone pratiche</h3>
+    <p>
+      Non condividere le credenziali tra più persone: ogni operatore dovrebbe avere il proprio
+      account con il ruolo adeguato.
     </p>
     <hr />
-    <h2>5. Configurazione iniziale del negozio</h2>
+    <h2 id="5-configurazione-iniziale-del-negozio">5. Configurazione iniziale del negozio</h2>
     <p>
       Questa sezione descrive il percorso consigliato <strong>dopo la prima attivazione</strong>.
     </p>
-    <h3>Per il titolare del negozio</h3>
+    <h3 id="per-il-titolare-del-negozio">Per il titolare del negozio</h3>
     <table>
       <thead>
         <tr>
@@ -455,15 +608,33 @@
         </tr>
       </tbody>
     </table>
-    <h3>Per l&#39;operatore VestiFlow (onboarding nuovo cliente)</h3>
-    <p>Gli operatori autorizzati vedono <strong>Nuovo cliente</strong> nel menu:</p>
+    <!-- vestiflow:exclude-in-app -->
+
+    <h3 id="per-loperatore-vestiflow-onboarding-nuovo-cliente">
+      Per l&#39;operatore VestiFlow (onboarding nuovo cliente)
+    </h3>
+    <p>
+      Gli operatori piattaforma autorizzati vedono <strong>Nuovo cliente</strong> nel menu (non
+      visibile ai clienti):
+    </p>
     <ol>
-      <li>Compilare nome tenant, email e password del titolare.</li>
+      <li>
+        Compilare <strong>identificazione</strong> (nome commerciale),
+        <strong>anagrafica</strong> opzionale (ragione sociale, P.IVA, CF, sede, PEC, SDI,
+        telefono), <strong>primo accesso</strong> (ruolo VestiFlow, nome, email, password).
+      </li>
       <li>Opzionalmente nome negozio e location iniziale.</li>
-      <li>Consegnare le credenziali al cliente in modo sicuro.</li>
-      <li>Il cliente completa i passi Shopify sopra.</li>
+      <li>Consegnare le credenziali al titolare in modo sicuro.</li>
+      <li>Il titolare completa i passi Shopify sopra.</li>
     </ol>
-    <h3>Location (punti di stock)</h3>
+    <p>
+      Dalla tabella <strong>Clienti registrati</strong> (stessa pagina) puoi aprire un tenant
+      esistente per <strong>modificare</strong> anagrafica, titolare, negozio e location.
+      L&#39;email di accesso del titolare non si modifica da lì (Supabase Auth).
+    </p>
+    <!-- /vestiflow:exclude-in-app -->
+
+    <h3 id="location-punti-di-stock">Location (punti di stock)</h3>
     <p>
       Una <strong>location</strong> è un luogo fisico o logico dove si contano le giacenze (negozio
       in centro, secondo punto vendita, magazzino, ecc.).<br />Non coincide necessariamente con il
@@ -486,7 +657,7 @@
       principale»). Se su Shopify hai già più sedi, al sync ne compariranno tutte in
       <strong>Impostazioni → Location</strong> e nel <strong>selettore sede</strong> in topbar.
     </p>
-    <h4>Più sedi nello stesso shop Shopify</h4>
+    <h4 id="più-sedi-nello-stesso-shop-shopify">Più sedi nello stesso shop Shopify</h4>
     <table>
       <thead>
         <tr>
@@ -524,8 +695,8 @@
       </p>
     </blockquote>
     <hr />
-    <h2>6. Collegamento con Shopify</h2>
-    <h3>Prerequisiti</h3>
+    <h2 id="6-collegamento-con-shopify">6. Collegamento con Shopify</h2>
+    <h3 id="prerequisiti">Prerequisiti</h3>
     <ul>
       <li>Avere un negozio Shopify attivo (<code>nome-negozio.myshopify.com</code>)</li>
       <li>Essere <strong>titolare o amministratore</strong> in VestiFlow</li>
@@ -534,7 +705,7 @@
         VestiFlow)
       </li>
     </ul>
-    <h3>Procedura di collegamento</h3>
+    <h3 id="procedura-di-collegamento">Procedura di collegamento</h3>
     <ol>
       <li>Vai in <strong>Impostazioni</strong>.</li>
       <li>
@@ -547,7 +718,7 @@
       </li>
       <li>Al ritorno in VestiFlow lo stato deve essere <strong>Connesso</strong>.</li>
     </ol>
-    <h3>Permessi richiesti (in sintesi)</h3>
+    <h3 id="permessi-richiesti-in-sintesi">Permessi richiesti (in sintesi)</h3>
     <table>
       <thead>
         <tr>
@@ -588,8 +759,10 @@
       Se modifichi i permessi sull&#39;app Shopify, potrebbe essere necessario
       <strong>riconnettere</strong> il negozio.
     </p>
-    <h3>Dopo la connessione: tre azioni importanti</h3>
-    <h4>A) Sincronizza location</h4>
+    <h3 id="dopo-la-connessione-tre-azioni-importanti">
+      Dopo la connessione: tre azioni importanti
+    </h3>
+    <h4 id="a-sincronizza-location">A) Sincronizza location</h4>
     <p>Importa e collega le <strong>sedi</strong> presenti su Shopify a VestiFlow.</p>
     <ul>
       <li>
@@ -618,7 +791,7 @@
       Senza questo passaggio le variazioni giacenza da Shopify (vendite online, POS, rettifiche in
       Shopify Admin) <strong>non</strong> aggiornano correttamente il gestionale.
     </p>
-    <h4>B) Attiva aggiornamenti automatici</h4>
+    <h4 id="b-attiva-aggiornamenti-automatici">B) Attiva aggiornamenti automatici</h4>
     <p>Registra i <strong>webhook</strong> su Shopify affinché VestiFlow riceva in tempo reale:</p>
     <ul>
       <li>nuovi/aggiornati <strong>prodotti</strong>;</li>
@@ -632,7 +805,7 @@
         giacenze funzionano comunque; vendite e clienti potrebbero non arrivare automaticamente.
       </p>
     </blockquote>
-    <h4>C) Importa catalogo da Shopify</h4>
+    <h4 id="c-importa-catalogo-da-shopify">C) Importa catalogo da Shopify</h4>
     <p>
       Scarica <strong>tutti i prodotti</strong> già presenti su Shopify nel gestionale.<br />Utile
       al primo collegamento o per un allineamento manuale completo.
@@ -645,7 +818,9 @@
         premere più volte il pulsante.
       </p>
     </blockquote>
-    <h3>Schermata «Integrazione Shopify» (dopo il collegamento)</h3>
+    <h3 id="schermata-integrazione-shopify-dopo-il-collegamento">
+      Schermata «Integrazione Shopify» (dopo il collegamento)
+    </h3>
     <p>Quando il negozio è <strong>Connesso</strong>, la sezione mostra:</p>
     <table>
       <thead>
@@ -687,7 +862,7 @@
         </tr>
       </tbody>
     </table>
-    <h3>Accesso a Shopify — «Lettura» e «Scrittura»</h3>
+    <h3 id="accesso-a-shopify--lettura-e-scrittura">Accesso a Shopify — «Lettura» e «Scrittura»</h3>
     <p>
       Sotto <strong>Accesso a Shopify</strong> ogni riga corrisponde a
       <strong>un permesso OAuth</strong> concesso al collegamento, non a un modulo generico
@@ -747,7 +922,7 @@
       catalogo è bloccato: vedi
       <a href="#permessi-mancanti-read_products">Permessi mancanti (read_products)</a>.
     </p>
-    <h3>Pulsanti di sincronizzazione</h3>
+    <h3 id="pulsanti-di-sincronizzazione">Pulsanti di sincronizzazione</h3>
     <table>
       <thead>
         <tr>
@@ -790,7 +965,7 @@
       </tbody>
     </table>
     <p>Solo <strong>titolare</strong> e <strong>amministratore</strong> vedono questi pulsanti.</p>
-    <h3>Indicatori di avanzamento (loader)</h3>
+    <h3 id="indicatori-di-avanzamento-loader">Indicatori di avanzamento (loader)</h3>
     <p>
       Quando premi un pulsante di sync (location, catalogo, webhook, disconnessione, ripristino):
     </p>
@@ -824,7 +999,7 @@
       Dopo un import catalogo riuscito, la <strong>lista Prodotti</strong> si aggiorna
       automaticamente quando torni su quella sezione (senza refresh manuale della pagina).
     </p>
-    <h3>Ripristina connessione</h3>
+    <h3 id="ripristina-connessione">Ripristina connessione</h3>
     <p>
       Compare se la connessione segnala <strong>Errore</strong> o un
       <strong>messaggio di avviso</strong> persistente, ma il negozio Shopify è ancora
@@ -844,7 +1019,7 @@
       <strong>disconnettere</strong> e <strong>riconnettere</strong> — non basta «Ripristina
       connessione».
     </p>
-    <h3>Disattiva aggiornamenti automatici</h3>
+    <h3 id="disattiva-aggiornamenti-automatici">Disattiva aggiornamenti automatici</h3>
     <p>
       Disattivare i webhook <strong>non</strong> cancella i dati già importati. Da quel momento:
     </p>
@@ -863,7 +1038,7 @@
         automatici.
       </li>
     </ul>
-    <h3>Limiti delle chiamate API Shopify</h3>
+    <h3 id="limiti-delle-chiamate-api-shopify">Limiti delle chiamate API Shopify</h3>
     <p>
       Shopify applica un <strong>limite al numero di richieste</strong> che un&#39;app può fare al
       minuto/secondo verso ogni negozio (piano <strong>Basic</strong>: circa
@@ -940,7 +1115,7 @@
       I dettagli tecnici (variabili server) sono in
       <a href="#rate-limiting-shopify-lato-server">§16 — Rate limiting Shopify</a>.
     </p>
-    <h3>Permessi mancanti (read_products)</h3>
+    <h3 id="permessi-mancanti-read_products">Permessi mancanti (read_products)</h3>
     <p>
       Se compare un avviso che <strong>manca <code>read_products</code></strong> (o l&#39;import
       catalogo è bloccato):
@@ -969,14 +1144,14 @@
       <strong>Ambiti concessi dal negozio</strong> per capire se il problema è configurazione server
       o autorizzazione Shopify.
     </p>
-    <h3>Disconnessione</h3>
+    <h3 id="disconnessione">Disconnessione</h3>
     <p>
       In Impostazioni puoi <strong>Disconnetti Shopify</strong>. Il server
       <strong>revoca</strong> il token su Shopify (non basta rimuovere i dati locali). I dati già
       importati restano in VestiFlow; la sync si interrompe fino a una nuova connessione OAuth.
     </p>
     <hr />
-    <h2>7. Sincronizzazione dati: cosa va dove</h2>
+    <h2 id="7-sincronizzazione-dati-cosa-va-dove">7. Sincronizzazione dati: cosa va dove</h2>
     <p>
       Regola fondamentale: con Shopify connesso, ogni tipo di dato ha un
       <strong>proprietario</strong> della sincronizzazione.
@@ -1041,7 +1216,7 @@
         </tr>
       </tbody>
     </table>
-    <h3>Sync manuale (quando usarla)</h3>
+    <h3 id="sync-manuale-quando-usarla">Sync manuale (quando usarla)</h3>
     <table>
       <thead>
         <tr>
@@ -1083,7 +1258,7 @@
         </tr>
       </tbody>
     </table>
-    <h3>Badge sync sui prodotti</h3>
+    <h3 id="badge-sync-sui-prodotti">Badge sync sui prodotti</h3>
     <p>Nel dettaglio prodotto compare lo stato Shopify:</p>
     <table>
       <thead>
@@ -1112,8 +1287,8 @@
       </tbody>
     </table>
     <hr />
-    <h2>8. Prodotti e catalogo</h2>
-    <h3>Concetti base</h3>
+    <h2 id="8-prodotti-e-catalogo">8. Prodotti e catalogo</h2>
+    <h3 id="concetti-base">Concetti base</h3>
     <ul>
       <li>
         <strong>Prodotto</strong> = scheda di catalogo (nome, brand, categoria, stagione,
@@ -1132,7 +1307,7 @@
       Lo <strong>stock non vive sul prodotto</strong>: vive per
       <strong>variante × location</strong> (vedi Magazzino).
     </p>
-    <h3>Creare un prodotto (wizard)</h3>
+    <h3 id="creare-un-prodotto-wizard">Creare un prodotto (wizard)</h3>
     <ol>
       <li><strong>Prodotti → Nuovo prodotto</strong></li>
       <li>
@@ -1158,22 +1333,116 @@
         inviate a Shopify se connesso.
       </p>
     </blockquote>
-    <h3>Modificare un prodotto</h3>
+    <h3 id="modificare-un-prodotto">Modificare un prodotto</h3>
     <p>
       Dalla lista → prodotto → <strong>Modifica</strong>. Le modifiche al salvataggio vengono
       <strong>inviate a Shopify</strong> se il negozio è connesso.
     </p>
-    <h3>Eliminare un prodotto</h3>
+    <h3 id="eliminare-un-prodotto">Eliminare un prodotto</h3>
     <p>Solo <strong>titolare/amministratore</strong>. Azione irreversibile: richiede conferma.</p>
-    <h3>Import da Shopify</h3>
+    <h3 id="import-da-shopify">Import da Shopify</h3>
     <p>Prodotti creati <strong>solo su Shopify</strong> compaiono in VestiFlow dopo:</p>
     <ul>
       <li><strong>Importa catalogo da Shopify</strong> (Impostazioni), oppure</li>
       <li>webhook automatici (se attivati).</li>
     </ul>
+    <h3 id="import-ed-export-csv-catalogo">Import ed export CSV (catalogo)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Azione</th>
+          <th>Dove</th>
+          <th>Cosa fa</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Esporta CSV</strong></td>
+          <td>Prodotti (lista)</td>
+          <td>Scarica catalogo con SKU, varianti, prezzi e metadati principali</td>
+        </tr>
+        <tr>
+          <td><strong>Importa CSV</strong></td>
+          <td>Prodotti → Importa CSV</td>
+          <td>
+            Carica prodotti/varianti da foglio di calcolo (controlla il template indicato in pagina)
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Importa catalogo da Shopify</strong></td>
+          <td>Prodotti (lista) o Impostazioni</td>
+          <td>Sync massiva da shop collegato (non è un CSV locale)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      L&#39;export CSV è utile per backup, analisi in Excel o preparazione di import controllati.
+      L&#39;import CSV <strong>non</strong> sostituisce il sync Shopify: usa il percorso adatto al
+      tuo flusso (CSV manuale vs allineamento ecommerce).
+    </p>
     <hr />
-    <h2>9. Magazzino e giacenze</h2>
-    <h3>Sezioni Magazzino</h3>
+    <h2 id="9-magazzino-e-giacenze">9. Magazzino e giacenze</h2>
+    <h3 id="tab-magazzino">Tab Magazzino</h3>
+    <p>Nelle pagine del magazzino, i <strong>tab</strong> in alto permettono di passare tra:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Tab</th>
+          <th>Percorso</th>
+          <th>Funzione</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Giacenze</strong></td>
+          <td><code>/app/inventory</code></td>
+          <td>Tabella livelli stock per location, filtri, soglie, export/import CSV</td>
+        </tr>
+        <tr>
+          <td><strong>Cerca</strong></td>
+          <td><code>/app/inventory/lookup</code></td>
+          <td>Ricerca rapida SKU/barcode — ottimizzata per smartphone</td>
+        </tr>
+        <tr>
+          <td><strong>Movimenti</strong></td>
+          <td><code>/app/inventory/movements</code></td>
+          <td>Storico carichi, scarichi, trasferimenti, rettifiche</td>
+        </tr>
+        <tr>
+          <td><strong>Inventario fisico</strong></td>
+          <td><code>/app/inventory/counts</code></td>
+          <td>Sessioni di conteggio periodico con chiusura e rettifiche</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="azioni-principali-pagina-giacenze">Azioni principali (pagina Giacenze)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Pulsante</th>
+          <th>Funzione</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Sincronizza giacenze da Shopify</strong></td>
+          <td>Allinea le quantità da Shopify (titolare/admin, shop connesso)</td>
+        </tr>
+        <tr>
+          <td><strong>Esporta CSV</strong></td>
+          <td>Scarica giacenze (SKU, location, quantità)</td>
+        </tr>
+        <tr>
+          <td><strong>Importa CSV</strong></td>
+          <td>Carica rettifiche da file con colonne SKU, Location, Disponibile</td>
+        </tr>
+        <tr>
+          <td><strong>Registra movimento</strong></td>
+          <td>Apre il form per carico/scarico/trasferimento/rettifica</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="sezioni-magazzino-dettaglio">Sezioni Magazzino (dettaglio)</h3>
     <table>
       <thead>
         <tr>
@@ -1183,24 +1452,75 @@
       </thead>
       <tbody>
         <tr>
-          <td><strong>Cerca giacenza</strong></td>
-          <td>Ricerca rapida per SKU o barcode — ottimizzata per smartphone</td>
-        </tr>
-        <tr>
           <td><strong>Giacenze</strong></td>
           <td>Tabella livelli stock per location, filtri e soglie</td>
+        </tr>
+        <tr>
+          <td><strong>Cerca giacenza</strong></td>
+          <td>Ricerca rapida per SKU o barcode — ottimizzata per smartphone</td>
         </tr>
         <tr>
           <td><strong>Movimenti</strong></td>
           <td>Storico di carichi, scarichi, trasferimenti, rettifiche</td>
         </tr>
         <tr>
+          <td><strong>Inventario fisico</strong></td>
+          <td>Conteggio periodico in negozio/magazzino con chiusura controllata</td>
+        </tr>
+        <tr>
           <td><strong>Nuovo movimento</strong></td>
-          <td>Registra un&#39;operazione inventariale</td>
+          <td>Registra un&#39;operazione inventariale (da Giacenze o Movimenti)</td>
         </tr>
       </tbody>
     </table>
-    <h3>Tipi di movimento</h3>
+    <h3 id="inventario-fisico-conteggio">Inventario fisico (conteggio)</h3>
+    <p>
+      Serve per il <strong>conteggio periodico</strong> (es. annuale o spot): confronti quantità di
+      sistema vs quantità contate in negozio.
+    </p>
+    <ol>
+      <li>
+        <strong>Magazzino → Inventario fisico → Nuova sessione</strong> — scegli location e avvia.
+      </li>
+      <li>
+        Durante la sessione inserisci le quantità contate per variante (anche con
+        <strong>scanner barcode</strong> dove supportato).
+      </li>
+      <li>In <strong>revisione</strong> controlli le differenze rispetto al sistema.</li>
+      <li>
+        Alla <strong>chiusura</strong> VestiFlow genera <strong>rettifiche tracciate</strong> e
+        aggiorna le giacenze (con push verso Shopify se configurato).
+      </li>
+    </ol>
+    <p>Ogni sessione resta nello storico con operatore, data e location.</p>
+    <h3 id="import-giacenze-da-csv">Import giacenze da CSV</h3>
+    <ol>
+      <li>
+        <strong>Magazzino → Giacenze → Importa CSV</strong> (o <code>/app/inventory/import</code>).
+      </li>
+      <li>
+        Prepara un file con colonne <strong>SKU</strong>, <strong>Location</strong> (nome esatto
+        come in Impostazioni), <strong>Disponibile</strong>.
+      </li>
+      <li>
+        Carica il file: l&#39;anteprima segnala errori (SKU sconosciuto, location errata, righe
+        duplicate).
+      </li>
+      <li>
+        Conferma l&#39;import: ogni riga valida produce una <strong>rettifica</strong> con traccia
+        nello storico movimenti.
+      </li>
+    </ol>
+    <p>
+      Usa questo strumento per allineamenti massivi dopo un inventario cartaceo o migrazione dati —
+      non per vendite quotidiane (quelle arrivano da Shopify POS/online).
+    </p>
+    <h3 id="export-giacenze-csv">Export giacenze CSV</h3>
+    <p>
+      Da <strong>Giacenze → Esporta CSV</strong> ottieni uno snapshot delle quantità per SKU e
+      location, rispettando i filtri attivi (location, stato stock, ricerca).
+    </p>
+    <h3 id="tipi-di-movimento">Tipi di movimento</h3>
     <table>
       <thead>
         <tr>
@@ -1231,7 +1551,7 @@
       Ogni movimento genera una <strong>riga nello storico</strong> con operatore, data, quantità e
       origine (gestionale o Shopify).
     </p>
-    <h3>Ricerca con barcode (mobile)</h3>
+    <h3 id="ricerca-con-barcode-mobile">Ricerca con barcode (mobile)</h3>
     <ol>
       <li>Apri <strong>Magazzino</strong> (Cerca giacenza).</li>
       <li>
@@ -1240,12 +1560,12 @@
       </li>
       <li>Visualizzi giacenze per location e prezzo.</li>
     </ol>
-    <h3>Installazione PWA da questa pagina</h3>
+    <h3 id="installazione-pwa-da-questa-pagina">Installazione PWA da questa pagina</h3>
     <p>
       Su smartphone, la pagina <strong>Cerca giacenza</strong> può mostrare il prompt
       <strong>Installa app</strong> per aggiungere VestiFlow alla home del telefono.
     </p>
-    <h3>Sync giacenze con Shopify</h3>
+    <h3 id="sync-giacenze-con-shopify">Sync giacenze con Shopify</h3>
     <ul>
       <li>
         Movimenti registrati in VestiFlow → <strong>push</strong> verso Shopify (location mappate,
@@ -1262,9 +1582,9 @@
       </li>
     </ul>
     <hr />
-    <h2>10. Ordini fornitori</h2>
+    <h2 id="10-ordini-fornitori">10. Ordini fornitori</h2>
     <p>Gestiti <strong>interamente in VestiFlow</strong> (non passano da Shopify).</p>
-    <h3>Flusso tipico</h3>
+    <h3 id="flusso-tipico">Flusso tipico</h3>
     <ol>
       <li>
         <strong>Ordini Fornitori → Nuovo ordine</strong> — fornitore, righe (variante, quantità,
@@ -1276,7 +1596,7 @@
         di carico
       </li>
     </ol>
-    <h3>Chi può fare cosa</h3>
+    <h3 id="chi-può-fare-cosa">Chi può fare cosa</h3>
     <ul>
       <li>Creazione e modifica: <strong>manager</strong> e superiori</li>
       <li>
@@ -1284,16 +1604,44 @@
       </li>
     </ul>
     <hr />
-    <h2>11. Vendite e clienti (Shopify)</h2>
-    <h3>Vendite</h3>
+    <h2 id="11-vendite-e-clienti-shopify">11. Vendite e clienti (Shopify)</h2>
+    <h3 id="vendite">Vendite</h3>
     <ul>
       <li>
         Origine: <strong>Shopify Online</strong> o <strong>Shopify POS</strong> (cassa Shopify).
       </li>
       <li>In VestiFlow sono <strong>sola lettura</strong>: non si modificano da qui.</li>
-      <li>Filtri disponibili: stato pagamento, canale (online / negozio).</li>
+      <li>
+        Filtri disponibili: stato pagamento, canale (online / negozio), ricerca per numero ordine o
+        cliente.
+      </li>
     </ul>
-    <h3>Clienti</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Azione</th>
+          <th>Dove</th>
+          <th>Chi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Sincronizza vendite da Shopify</strong></td>
+          <td>Vendite (lista)</td>
+          <td>Titolare / amministratore, shop connesso</td>
+        </tr>
+        <tr>
+          <td><strong>Esporta CSV</strong></td>
+          <td>Vendite (lista)</td>
+          <td>Titolare, admin, manager</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      La sync manuale importa ordini non ancora presenti o aggiorna quelli esistenti. L&#39;export
+      CSV rispetta i filtri applicati in lista.
+    </p>
+    <h3 id="clienti">Clienti</h3>
     <ul>
       <li>Anagrafica importata da Shopify.</li>
       <li><strong>Sola lettura</strong> in VestiFlow.</li>
@@ -1301,28 +1649,53 @@
         Utile per consultare storico e riferimenti; le modifiche vanno fatte in Shopify Admin.
       </li>
     </ul>
+    <table>
+      <thead>
+        <tr>
+          <th>Azione</th>
+          <th>Dove</th>
+          <th>Chi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Sincronizza clienti da Shopify</strong></td>
+          <td>Clienti (lista)</td>
+          <td>Titolare / amministratore, shop connesso</td>
+        </tr>
+        <tr>
+          <td><strong>Esporta CSV</strong></td>
+          <td>Clienti (lista)</td>
+          <td>Titolare, admin, manager</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      Il dettaglio cliente mostra email, telefono, indirizzo e badge <strong>Shopify</strong> se
+      collegato all&#39;ecommerce.
+    </p>
     <hr />
-    <h2>12. Report e dashboard</h2>
-    <h3>Dashboard</h3>
+    <h2 id="12-report-e-dashboard">12. Report e dashboard</h2>
+    <h3 id="dashboard">Dashboard</h3>
     <p>Pagina iniziale dopo il login: riepilogo vendite recenti e indicatori sintetici.</p>
-    <h3>Report</h3>
+    <h3 id="report">Report</h3>
     <p>
       Tabelle e KPI calcolati sui dati del gestionale (prodotti, giacenze, ordini).<br />In
       evoluzione: report server-side dedicati per dataset molto grandi.
     </p>
     <hr />
-    <h2>13. App PWA: installazione su smartphone</h2>
+    <h2 id="13-app-pwa-installazione-su-smartphone">13. App PWA: installazione su smartphone</h2>
     <p>
       VestiFlow è una <strong>Progressive Web App (PWA)</strong>: si usa dal browser ma può essere
       <strong>installata</strong> come app sulla home del telefono, senza App Store.
     </p>
-    <h3>Vantaggi</h3>
+    <h3 id="vantaggi">Vantaggi</h3>
     <ul>
       <li>Icona dedicata sulla home</li>
       <li>Apertura a schermo intero (senza barra del browser)</li>
       <li>Aggiornamenti automatici con banner &quot;Nuova versione disponibile&quot;</li>
     </ul>
-    <h3>Come installare</h3>
+    <h3 id="come-installare">Come installare</h3>
     <p><strong>Android (Chrome):</strong></p>
     <ol>
       <li>Apri VestiFlow in Chrome.</li>
@@ -1339,7 +1712,7 @@
       <li>Apri VestiFlow in Safari.</li>
       <li>Tocca <strong>Condividi</strong> → <strong>Aggiungi a Home</strong>.</li>
     </ol>
-    <h3>Limitazioni PWA</h3>
+    <h3 id="limitazioni-pwa">Limitazioni PWA</h3>
     <ul>
       <li>Richiede connessione internet per i dati (non è un gestionale offline completo).</li>
       <li>
@@ -1349,8 +1722,8 @@
       <li>Orientamento consigliato: <strong>verticale</strong> (portrait).</li>
     </ul>
     <hr />
-    <h2>14. Cassa, POS e negozio fisico</h2>
-    <h3>Cosa VestiFlow fa oggi</h3>
+    <h2 id="14-cassa-pos-e-negozio-fisico">14. Cassa, POS e negozio fisico</h2>
+    <h3 id="cosa-vestiflow-fa-oggi">Cosa VestiFlow fa oggi</h3>
     <p>
       VestiFlow <strong>non include una cassa nativa</strong> né un registratore di corrispettivi
       italiano.
@@ -1384,7 +1757,9 @@
         </tr>
       </tbody>
     </table>
-    <h3>Flusso vendita in negozio (con Shopify POS)</h3>
+    <h3 id="flusso-vendita-in-negozio-con-shopify-pos">
+      Flusso vendita in negozio (con Shopify POS)
+    </h3>
     <pre><code>Cliente paga in negozio (Shopify POS)
         ↓
 Shopify aggiorna giacenza
@@ -1393,7 +1768,7 @@ Webhook → VestiFlow (movimento + ordine vendita)
         ↓
 Consultabile in Vendite e Magazzino
 </code></pre>
-    <h3>Cosa NON fa VestiFlow (oggi)</h3>
+    <h3 id="cosa-non-fa-vestiflow-oggi">Cosa NON fa VestiFlow (oggi)</h3>
     <ul>
       <li>Non gestisce pagamenti con carta/contanti direttamente</li>
       <li>
@@ -1402,7 +1777,7 @@ Consultabile in Vendite e Magazzino
       </li>
       <li>Non sostituisce software cassa italiano certificato</li>
     </ul>
-    <h3>Scenario consigliato per boutique</h3>
+    <h3 id="scenario-consigliato-per-boutique">Scenario consigliato per boutique</h3>
     <ol>
       <li><strong>Shopify</strong> = ecommerce + POS negozio</li>
       <li>
@@ -1414,12 +1789,12 @@ Consultabile in Vendite e Magazzino
       </li>
     </ol>
     <hr />
-    <h2>15. Sicurezza account (MFA)</h2>
+    <h2 id="15-sicurezza-account-mfa">15. Sicurezza account (MFA)</h2>
     <p>
       La <strong>verifica in due passaggi (MFA)</strong> protegge l&#39;account anche se la password
       viene compromessa.
     </p>
-    <h3>Attivazione</h3>
+    <h3 id="attivazione">Attivazione</h3>
     <ol>
       <li><strong>Impostazioni → Sicurezza account</strong></li>
       <li>Segui la procedura con app authenticator (Google Authenticator, Authy, ecc.)</li>
@@ -1427,12 +1802,17 @@ Consultabile in Vendite e Magazzino
     </ol>
     <p>Consigliato per <strong>titolari e amministratori</strong>.</p>
     <hr />
-    <h2>16. Configurazione tecnica (riferimento)</h2>
+    <!-- vestiflow:exclude-in-app -->
+
+    <p><em>Appendice riservata al PDF / operatori — non mostrata nella guida in-app.</em></p>
+    <h2 id="16-configurazione-tecnica-riferimento">16. Configurazione tecnica (riferimento)</h2>
     <p>
       Questa sezione è per titolari tecnici e per l&#39;operatore VestiFlow.
       <strong>Il cliente finale di norma non deve fare nulla qui.</strong>
     </p>
-    <h3>Architettura (un tenant = un negozio cliente)</h3>
+    <h3 id="architettura-un-tenant--un-negozio-cliente">
+      Architettura (un tenant = un negozio cliente)
+    </h3>
     <p>
       Ogni <strong>tenant</strong> VestiFlow corrisponde a <strong>un&#39;azienda cliente</strong> e
       a <strong>un solo shop Shopify</strong> collegato.<br />All&#39;interno di quello shop puoi
@@ -1465,12 +1845,12 @@ Consultabile in Vendite e Magazzino
         </tr>
       </tbody>
     </table>
-    <h3>Cosa è condiviso tra tutti i clienti</h3>
+    <h3 id="cosa-è-condiviso-tra-tutti-i-clienti">Cosa è condiviso tra tutti i clienti</h3>
     <p>
       Un solo progetto Supabase, un solo servizio Railway, un&#39;app Shopify Partners — i dati sono
       isolati per <strong>tenant</strong> (multi-tenant).
     </p>
-    <h3>Cosa fa ogni nuovo cliente</h3>
+    <h3 id="cosa-fa-ogni-nuovo-cliente">Cosa fa ogni nuovo cliente</h3>
     <ol>
       <li>Creazione tenant (operatore VestiFlow o procedura interna)</li>
       <li>Login titolare</li>
@@ -1482,13 +1862,13 @@ Consultabile in Vendite e Magazzino
       possiede <strong>due shop Shopify distinti</strong> (due domini), servono
       <strong>due tenant</strong> VestiFlow separati.
     </p>
-    <h3>Bucket immagini Supabase</h3>
+    <h3 id="bucket-immagini-supabase">Bucket immagini Supabase</h3>
     <p>
       Per caricare foto dal gestionale il progetto Supabase deve avere un bucket public
       <strong><code>product-media</code></strong
       >. Configurazione una tantum a cura dell&#39;operatore VestiFlow.
     </p>
-    <h3>Rate limiting Shopify (lato server)</h3>
+    <h3 id="rate-limiting-shopify-lato-server">Rate limiting Shopify (lato server)</h3>
     <p>
       Il backend VestiFlow regola tutte le chiamate <strong>REST Admin API</strong> verso ogni shop.
       Il frontend <strong>non</strong> contatta mai Shopify direttamente.
@@ -1554,9 +1934,15 @@ Consultabile in Vendite e Magazzino
         alla risposta token, per diagnostica più accurata in Impostazioni.
       </li>
     </ul>
+    <!-- /vestiflow:exclude-in-app -->
+
     <hr />
-    <h2>17. Domande frequenti e risoluzione problemi</h2>
-    <h3>Il prodotto creato in VestiFlow non compare su Shopify</h3>
+    <h2 id="17-domande-frequenti-e-risoluzione-problemi">
+      17. Domande frequenti e risoluzione problemi
+    </h2>
+    <h3 id="il-prodotto-creato-in-vestiflow-non-compare-su-shopify">
+      Il prodotto creato in VestiFlow non compare su Shopify
+    </h3>
     <ol>
       <li>Impostazioni → Shopify è <strong>Connesso</strong>?</li>
       <li>
@@ -1565,7 +1951,9 @@ Consultabile in Vendite e Magazzino
       <li>Dettaglio prodotto → badge sync: c&#39;è <strong>Errore</strong>?</li>
       <li>Prova <strong>Sincronizza con Shopify</strong> nel dettaglio prodotto</li>
     </ol>
-    <h3>Il prodotto su Shopify non compare in VestiFlow</h3>
+    <h3 id="il-prodotto-su-shopify-non-compare-in-vestiflow">
+      Il prodotto su Shopify non compare in VestiFlow
+    </h3>
     <ol>
       <li>
         <strong>Importa catalogo da Shopify</strong> in Impostazioni (attendi la fine del loader)
@@ -1575,7 +1963,9 @@ Consultabile in Vendite e Magazzino
         Controlla che <strong>Catalogo prodotti → Lettura</strong> sia presente in Accesso a Shopify
       </li>
     </ol>
-    <h3>L&#39;import catalogo impiega molto tempo o sembra bloccato</h3>
+    <h3 id="limport-catalogo-impiega-molto-tempo-o-sembra-bloccato">
+      L&#39;import catalogo impiega molto tempo o sembra bloccato
+    </h3>
     <ul>
       <li>
         È <strong>normale</strong> con molti prodotti: ogni articolo richiede almeno una chiamata
@@ -1593,13 +1983,15 @@ Consultabile in Vendite e Magazzino
         una sola volta.
       </li>
     </ul>
-    <h3>Messaggio su permessi read_products</h3>
+    <h3 id="messaggio-su-permessi-read_products">Messaggio su permessi read_products</h3>
     <p>
       Vedi <a href="#permessi-mancanti-read_products">Permessi mancanti (read_products)</a>. Di
       solito serve riconnessione OAuth dopo aver verificato app Partners e
       <code>SHOPIFY_API_KEY</code> su Railway.
     </p>
-    <h3>Ho più negozi / sedi: le vedo tutte in VestiFlow?</h3>
+    <h3 id="ho-più-negozi--sedi-le-vedo-tutte-in-vestiflow">
+      Ho più negozi / sedi: le vedo tutte in VestiFlow?
+    </h3>
     <p>
       <strong>Sì</strong>, se intendi <strong>più location nello stesso shop Shopify</strong> (es.
       due punti vendita + magazzino):
@@ -1617,7 +2009,7 @@ Consultabile in Vendite e Magazzino
       <code>*.myshopify.com</code>), oggi servono <strong>due account VestiFlow</strong> (due
       tenant). Contatta l&#39;operatore VestiFlow per il secondo tenant.
     </p>
-    <h3>Le giacenze non si allineano</h3>
+    <h3 id="le-giacenze-non-si-allineano">Le giacenze non si allineano</h3>
     <ol>
       <li>Hai fatto <strong>Sincronizza location</strong>?</li>
       <li>
@@ -1631,25 +2023,25 @@ Consultabile in Vendite e Magazzino
         topbar
       </li>
     </ol>
-    <h3>L&#39;upload immagine fallisce</h3>
+    <h3 id="lupload-immagine-fallisce">L&#39;upload immagine fallisce</h3>
     <ol>
       <li>Formato JPEG/PNG/WebP, max 5 MB</li>
       <li>Bucket Supabase <code>product-media</code> creato e public</li>
       <li>Riprova dopo qualche minuto se il server era in deploy</li>
     </ol>
-    <h3>Vendite o clienti non arrivano</h3>
+    <h3 id="vendite-o-clienti-non-arrivano">Vendite o clienti non arrivano</h3>
     <p>
       Probabilmente manca approvazione <strong>Protected customer data</strong> su Shopify Partners.
       Catalogo e giacenze non dipendono da questo.
     </p>
-    <h3>Non riesco a connettere Shopify</h3>
+    <h3 id="non-riesco-a-connettere-shopify">Non riesco a connettere Shopify</h3>
     <ul>
       <li>Verifica dominio <code>*.myshopify.com</code></li>
       <li>Devi essere <strong>titolare o admin</strong> in VestiFlow</li>
       <li>Controlla che l&#39;URL API Railway sia raggiungibile (problema temporaneo hosting)</li>
     </ul>
     <hr />
-    <h2>18. Funzionalità in arrivo</h2>
+    <h2 id="18-funzionalità-in-arrivo">18. Funzionalità in arrivo</h2>
     <table>
       <thead>
         <tr>
@@ -1675,6 +2067,26 @@ Consultabile in Vendite e Magazzino
           <td>In roadmap</td>
         </tr>
         <tr>
+          <td>Export/import CSV catalogo e giacenze</td>
+          <td><strong>Attivo</strong></td>
+        </tr>
+        <tr>
+          <td>Sync manuale vendite/clienti/giacenze dalle liste</td>
+          <td><strong>Attivo</strong></td>
+        </tr>
+        <tr>
+          <td>Inventario fisico (sessioni di conteggio)</td>
+          <td><strong>Attivo</strong></td>
+        </tr>
+        <tr>
+          <td>Guida integrata nel menu <strong>Guida</strong></td>
+          <td><strong>Attivo</strong></td>
+        </tr>
+        <tr>
+          <td>Anagrafica tenant estesa (operatore piattaforma)</td>
+          <td><strong>Attivo</strong> (solo admin VestiFlow)</td>
+        </tr>
+        <tr>
           <td>Messaggi errore Shopify tradotti in italiano</td>
           <td>Attivo (sync, OAuth, import)</td>
         </tr>
@@ -1695,24 +2107,43 @@ Consultabile in Vendite e Magazzino
           <td>Configurazione Supabase</td>
         </tr>
         <tr>
-          <td>Nascondere azioni UI per ruolo commesso</td>
-          <td>Miglioramento UX</td>
+          <td>Permessi per ruolo in interfaccia (pulsanti e route)</td>
+          <td><strong>Attivo</strong></td>
         </tr>
       </tbody>
     </table>
     <hr />
-    <h2>Contatti e supporto</h2>
+    <h2 id="19-guida-integrata-nel-gestionale">19. Guida integrata nel gestionale</h2>
+    <p>
+      Oltre a questo documento PDF, VestiFlow include la <strong>Guida</strong> nel menu laterale
+      (<code>/app/guide</code>):
+    </p>
+    <ul>
+      <li>spiega <strong>ogni voce di menu</strong> e le schermate principali;</li>
+      <li>descrive <strong>configurazione Shopify</strong>, location, sync e permessi;</li>
+      <li>
+        illustra
+        <strong>prodotti, magazzino, ordini fornitori, vendite, clienti, report</strong> passo
+        passo.
+      </li>
+    </ul>
+    <p>
+      La guida in-app è pensata per <strong>titolari e staff del negozio</strong>: non include la
+      creazione di nuovi clienti VestiFlow (operazione riservata all&#39;operatore piattaforma).
+    </p>
+    <p>
+      Usa l&#39;<strong>Indice</strong> all&#39;inizio del documento per saltare alle sezioni. In
+      alto puoi anche <strong>scaricare la versione PDF</strong> completa (include l&#39;appendice
+      tecnica per operatori).
+    </p>
+    <hr />
+    <!-- vestiflow:exclude-in-app -->
+
+    <h2 id="contatti-e-supporto">Contatti e supporto</h2>
     <p>
       Per assistenza su configurazione, onboarding o problemi di sync, contatta il tuo
       <strong>referente VestiFlow</strong> o l&#39;operatore che ha attivato il tenant.
     </p>
-    <hr />
-    <p>
-      <em
-        >Documento generato per VestiFlow — Gestione Web Studio.<br />Per la versione PDF: aprire
-        <code>docs/GUIDA-UTENTE-VESTIFLOW.pdf</code> o stampare questo documento da un
-        visualizzatore Markdown.</em
-      >
-    </p>
+    <!-- /vestiflow:exclude-in-app -->
   </body>
 </html>

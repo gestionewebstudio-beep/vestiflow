@@ -20,6 +20,8 @@ import {
 import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
+import { AuthService } from '@core/auth';
+import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
@@ -78,9 +80,14 @@ type OrderListState =
 })
 export class SupplierOrderListComponent {
   private readonly service = inject(SupplierOrderService);
+  private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly canManageSupplierOrders = computed(() =>
+    canManageSupplierOrders(this.authService.currentUser()),
+  );
 
   protected readonly skeletonColumns = 5;
   protected readonly pageSizeOptions = SUPPLIER_ORDER_PAGE_SIZE_OPTIONS;

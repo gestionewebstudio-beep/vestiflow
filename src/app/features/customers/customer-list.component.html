@@ -19,14 +19,16 @@
           Sincronizza clienti da Shopify
         </app-button>
       }
-      <app-button variant="secondary" [disabled]="exporting()" (click)="exportCustomers()">
-        <i class="pi pi-download" aria-hidden="true"></i>
-        @if (exporting()) {
-          Export in corso…
-        } @else {
-          Esporta CSV
-        }
-      </app-button>
+      @if (canExportData()) {
+        <app-button variant="secondary" [disabled]="exporting()" (click)="exportCustomers()">
+          <i class="pi pi-download" aria-hidden="true"></i>
+          @if (exporting()) {
+            Export in corso…
+          } @else {
+            Esporta CSV
+          }
+        </app-button>
+      }
     </div>
   </header>
 

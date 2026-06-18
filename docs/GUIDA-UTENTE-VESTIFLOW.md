@@ -1,8 +1,10 @@
 # VestiFlow — Guida completa al gestionale
 
-**Versione documento:** 1.2 — Giugno 2026  
-**Destinatari:** titolari di negozio, responsabili magazzino, amministratori  
-**Prodotto:** VestiFlow — gestionale web multi-negozio per boutique di abbigliamento, integrato con Shopify
+**Versione documento:** 1.4 — Giugno 2026
+
+**Destinatari:** titolari di negozio, responsabili magazzino, amministratori
+
+**Prodotto:** VestiFlow — gestionale web multi-location per boutique di abbigliamento, integrato con Shopify
 
 ---
 
@@ -25,9 +27,9 @@
 13. [App PWA: installazione su smartphone](#13-app-pwa-installazione-su-smartphone)
 14. [Cassa, POS e negozio fisico](#14-cassa-pos-e-negozio-fisico)
 15. [Sicurezza account (MFA)](#15-sicurezza-account-mfa)
-16. [Configurazione tecnica (riferimento)](#16-configurazione-tecnica-riferimento)
-17. [Domande frequenti e risoluzione problemi](#17-domande-frequenti-e-risoluzione-problemi)
-18. [Funzionalità in arrivo](#18-funzionalità-in-arrivo)
+16. [Domande frequenti e risoluzione problemi](#17-domande-frequenti-e-risoluzione-problemi)
+17. [Funzionalità in arrivo](#18-funzionalità-in-arrivo)
+18. [Guida integrata nel gestionale](#19-guida-integrata-nel-gestionale)
 
 ---
 
@@ -88,17 +90,19 @@ Dalla **barra in alto** (topbar) usa il menu utente e conferma l'uscita.
 
 Menu principale, sempre disponibile su desktop; su smartphone si apre come **drawer** dal pulsante menu.
 
-| Voce menu            | Funzione                                          |
-| -------------------- | ------------------------------------------------- |
-| **Dashboard**        | Riepilogo attività e indicatori principali        |
-| **Prodotti**         | Catalogo, creazione e modifica prodotti           |
-| **Magazzino**        | Ricerca giacenze (punto di ingresso mobile)       |
-| **Ordini Fornitori** | Ordini di acquisto dai fornitori                  |
-| **Vendite**          | Ordini di vendita (da Shopify, sola lettura)      |
-| **Clienti**          | Anagrafica clienti (da Shopify, sola lettura)     |
-| **Report**           | Indicatori e tabelle riepilogative                |
-| **Impostazioni**     | Shopify, location, tema, sicurezza account        |
-| **Nuovo cliente**    | Solo operatori VestiFlow — creazione nuovo tenant |
+| Voce menu            | Funzione                                                               |
+| -------------------- | ---------------------------------------------------------------------- |
+| **Dashboard**        | Riepilogo attività e indicatori principali                             |
+| **Prodotti**         | Catalogo, creazione, modifica, import/export CSV, sync Shopify         |
+| **Magazzino**        | Apre **Cerca giacenza** (ricerca rapida SKU/barcode, ideale su mobile) |
+| **Ordini Fornitori** | Ordini di acquisto dai fornitori                                       |
+| **Vendite**          | Ordini di vendita da Shopify (sola lettura), sync ed export CSV        |
+| **Clienti**          | Anagrafica da Shopify (sola lettura), sync ed export CSV               |
+| **Report**           | Indicatori e tabelle riepilogative                                     |
+| **Guida**            | Manuale completo del gestionale (questo documento, versione in-app)    |
+| **Impostazioni**     | Shopify, location, tema, sicurezza account                             |
+
+Dal menu **Magazzino** accedi subito alla ricerca; le altre sezioni magazzino (Giacenze, Movimenti, Inventario fisico) si raggiungono dai **tab** in alto nelle pagine del magazzino oppure da link interni.
 
 ### Barra superiore (topbar)
 
@@ -120,26 +124,57 @@ Ogni area dati mostra in modo esplicito:
 
 ## 4. Ruoli utente e permessi
 
-Ogni utente appartiene a un **tenant** (la tua azienda/negozio) e ha un **ruolo**.
+Ogni utente appartiene a un **tenant** (la tua azienda) e ha un **ruolo VestiFlow** assegnato quando l'account viene creato nel gestionale.
 
-| Ruolo                      | Descrizione tipica                | Permessi principali                        |
-| -------------------------- | --------------------------------- | ------------------------------------------ |
-| **Titolare (owner)**       | Proprietario del negozio          | Accesso completo, connessione Shopify, MFA |
-| **Amministratore (admin)** | Store manager, IT                 | Come titolare su configurazione e Shopify  |
-| **Manager**                | Responsabile magazzino / acquisti | Prodotti, magazzino, ordini fornitori      |
-| **Commesso (clerk)**       | Operatore negozio                 | Consultazione e operazioni magazzino base  |
+| Ruolo                      | Descrizione tipica                |
+| -------------------------- | --------------------------------- |
+| **Titolare (owner)**       | Proprietario del negozio          |
+| **Amministratore (admin)** | Store manager, referente IT       |
+| **Manager**                | Responsabile magazzino / acquisti |
+| **Commesso (clerk)**       | Operatore negozio / magazzino     |
 
-### Operazioni riservate a titolare e amministratore
+### Da dove viene il ruolo (VestiFlow ≠ Shopify)
 
-- Collegare / disconnettere **Shopify**
-- **Sincronizzare location** e **attivare aggiornamenti automatici**
-- **Importare catalogo** da Shopify
-- **Eliminare prodotti**
-- Gestire **MFA** (verifica in due passaggi)
+Il ruolo **non** viene da Shopify. Sono due sistemi separati:
 
-### Nota importante
+|                      | **VestiFlow**                                                                                    | **Shopify Admin**                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| **Cosa regola**      | Chi può fare cosa **nel gestionale** (prodotti, magazzino, ordini fornitori, sync…)              | Chi può fare cosa **nel pannello Shopify** (tema, checkout, staff del negozio online…) |
+| **Dove si assegna**  | Database VestiFlow, al momento della creazione account (oggi tramite **operatore VestiFlow**)    | Shopify → Impostazioni → Utenti e permessi                                             |
+| **Sincronizzazione** | **Nessuna** — il ruolo Shopify di un dipendente non cambia automaticamente il ruolo in VestiFlow |
 
-I controlli in interfaccia **migliorano l'esperienza** ma la sicurezza reale è garantita dal **server**. Non condividere le credenziali tra più persone: creare un account per ogni operatore.
+Esempio: una persona può essere **Amministratore** su Shopify ma **Commesso** in VestiFlow, o viceversa. Per un nuovo collega servono **due account distinti** (email/password VestiFlow + eventuale accesso Shopify), salvo diversa indicazione del referente.
+
+Al **primo onboarding** del negozio, l'operatore VestiFlow crea il tenant e il **primo utente**, scegliendo il ruolo (di default **Titolare**). Per **ulteriori utenti** dello stesso negozio non c'è ancora una schermata self-service: vanno richiesti al referente VestiFlow.
+
+### Cosa può fare ogni ruolo
+
+VestiFlow applica i permessi **sul server** (API) e **in interfaccia**: pulsanti, form e route riservate non compaiono se il tuo ruolo non le consente. Se provi ad aprire un URL diretto senza permesso, vieni reindirizzato alla dashboard.
+
+| Operazione                                                            | Titolare / Admin | Manager | Commesso |
+| --------------------------------------------------------------------- | ---------------- | ------- | -------- |
+| Collegare Shopify, sync location, webhook, import catalogo da Shopify | Sì               | No      | No       |
+| Sync manuale vendite / clienti / giacenze da Shopify (liste)          | Sì               | No      | No       |
+| Creare e modificare prodotti, import/export CSV prodotti              | Sì               | Sì      | No       |
+| Sincronizzare un singolo prodotto verso Shopify (dettaglio prodotto)  | Sì               | Sì      | No       |
+| Eliminare prodotti                                                    | Sì               | No      | No       |
+| Export/import CSV giacenze                                            | Sì               | Sì      | No       |
+| Export CSV vendite e clienti                                          | Sì               | Sì      | No       |
+| Creare e inviare ordini fornitori                                     | Sì               | Sì      | No       |
+| Ricevere merce su ordine fornitore                                    | Sì               | Sì      | Sì       |
+| Consultare giacenze, movimenti, vendite, clienti                      | Sì               | Sì      | Sì       |
+| Registrare movimenti di magazzino                                     | Sì               | Sì      | Sì       |
+| Inventario fisico (sessioni di conteggio)                             | Sì               | Sì      | Sì       |
+| Configurare MFA (Impostazioni)                                        | Sì               | Sì      | No       |
+
+### Cosa non fa ancora il gestionale
+
+- **Non** c'è una schermata per invitare **ulteriori** utenti o cambiare ruolo a un account esistente: oltre al primo utente creato in onboarding, i nuovi account vanno richiesti al **referente VestiFlow**.
+- Le voci di menu restano visibili a tutti i ruoli (consultazione); le **azioni** sensibili sono nascoste o bloccate come nella tabella sopra.
+
+### Buone pratiche
+
+Non condividere le credenziali tra più persone: ogni operatore dovrebbe avere il proprio account con il ruolo adeguato.
 
 ---
 
@@ -160,14 +195,20 @@ Questa sezione descrive il percorso consigliato **dopo la prima attivazione**.
 | 7    | Prodotti                 | Verifica / completa il catalogo                              |
 | 8    | Magazzino                | Controlla giacenze e registra eventuali rettifiche iniziali  |
 
+<!-- vestiflow:exclude-in-app -->
+
 ### Per l'operatore VestiFlow (onboarding nuovo cliente)
 
-Gli operatori autorizzati vedono **Nuovo cliente** nel menu:
+Gli operatori piattaforma autorizzati vedono **Nuovo cliente** nel menu (non visibile ai clienti):
 
-1. Compilare nome tenant, email e password del titolare.
+1. Compilare **identificazione** (nome commerciale), **anagrafica** opzionale (ragione sociale, P.IVA, CF, sede, PEC, SDI, telefono), **primo accesso** (ruolo VestiFlow, nome, email, password).
 2. Opzionalmente nome negozio e location iniziale.
-3. Consegnare le credenziali al cliente in modo sicuro.
-4. Il cliente completa i passi Shopify sopra.
+3. Consegnare le credenziali al titolare in modo sicuro.
+4. Il titolare completa i passi Shopify sopra.
+
+Dalla tabella **Clienti registrati** (stessa pagina) puoi aprire un tenant esistente per **modificare** anagrafica, titolare, negozio e location. L'email di accesso del titolare non si modifica da lì (Supabase Auth).
+
+<!-- /vestiflow:exclude-in-app -->
 
 ### Location (punti di stock)
 
@@ -454,18 +495,73 @@ Prodotti creati **solo su Shopify** compaiono in VestiFlow dopo:
 - **Importa catalogo da Shopify** (Impostazioni), oppure
 - webhook automatici (se attivati).
 
+### Import ed export CSV (catalogo)
+
+| Azione                          | Dove                            | Cosa fa                                                                                  |
+| ------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Esporta CSV**                 | Prodotti (lista)                | Scarica catalogo con SKU, varianti, prezzi e metadati principali                         |
+| **Importa CSV**                 | Prodotti → Importa CSV          | Carica prodotti/varianti da foglio di calcolo (controlla il template indicato in pagina) |
+| **Importa catalogo da Shopify** | Prodotti (lista) o Impostazioni | Sync massiva da shop collegato (non è un CSV locale)                                     |
+
+L'export CSV è utile per backup, analisi in Excel o preparazione di import controllati. L'import CSV **non** sostituisce il sync Shopify: usa il percorso adatto al tuo flusso (CSV manuale vs allineamento ecommerce).
+
 ---
 
 ## 9. Magazzino e giacenze
 
-### Sezioni Magazzino
+### Tab Magazzino
 
-| Tab / pagina        | Funzione                                                      |
-| ------------------- | ------------------------------------------------------------- |
-| **Cerca giacenza**  | Ricerca rapida per SKU o barcode — ottimizzata per smartphone |
-| **Giacenze**        | Tabella livelli stock per location, filtri e soglie           |
-| **Movimenti**       | Storico di carichi, scarichi, trasferimenti, rettifiche       |
-| **Nuovo movimento** | Registra un'operazione inventariale                           |
+Nelle pagine del magazzino, i **tab** in alto permettono di passare tra:
+
+| Tab                   | Percorso                   | Funzione                                                              |
+| --------------------- | -------------------------- | --------------------------------------------------------------------- |
+| **Giacenze**          | `/app/inventory`           | Tabella livelli stock per location, filtri, soglie, export/import CSV |
+| **Cerca**             | `/app/inventory/lookup`    | Ricerca rapida SKU/barcode — ottimizzata per smartphone               |
+| **Movimenti**         | `/app/inventory/movements` | Storico carichi, scarichi, trasferimenti, rettifiche                  |
+| **Inventario fisico** | `/app/inventory/counts`    | Sessioni di conteggio periodico con chiusura e rettifiche             |
+
+### Azioni principali (pagina Giacenze)
+
+| Pulsante                            | Funzione                                                         |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| **Sincronizza giacenze da Shopify** | Allinea le quantità da Shopify (titolare/admin, shop connesso)   |
+| **Esporta CSV**                     | Scarica giacenze (SKU, location, quantità)                       |
+| **Importa CSV**                     | Carica rettifiche da file con colonne SKU, Location, Disponibile |
+| **Registra movimento**              | Apre il form per carico/scarico/trasferimento/rettifica          |
+
+### Sezioni Magazzino (dettaglio)
+
+| Tab / pagina          | Funzione                                                          |
+| --------------------- | ----------------------------------------------------------------- |
+| **Giacenze**          | Tabella livelli stock per location, filtri e soglie               |
+| **Cerca giacenza**    | Ricerca rapida per SKU o barcode — ottimizzata per smartphone     |
+| **Movimenti**         | Storico di carichi, scarichi, trasferimenti, rettifiche           |
+| **Inventario fisico** | Conteggio periodico in negozio/magazzino con chiusura controllata |
+| **Nuovo movimento**   | Registra un'operazione inventariale (da Giacenze o Movimenti)     |
+
+### Inventario fisico (conteggio)
+
+Serve per il **conteggio periodico** (es. annuale o spot): confronti quantità di sistema vs quantità contate in negozio.
+
+1. **Magazzino → Inventario fisico → Nuova sessione** — scegli location e avvia.
+2. Durante la sessione inserisci le quantità contate per variante (anche con **scanner barcode** dove supportato).
+3. In **revisione** controlli le differenze rispetto al sistema.
+4. Alla **chiusura** VestiFlow genera **rettifiche tracciate** e aggiorna le giacenze (con push verso Shopify se configurato).
+
+Ogni sessione resta nello storico con operatore, data e location.
+
+### Import giacenze da CSV
+
+1. **Magazzino → Giacenze → Importa CSV** (o `/app/inventory/import`).
+2. Prepara un file con colonne **SKU**, **Location** (nome esatto come in Impostazioni), **Disponibile**.
+3. Carica il file: l'anteprima segnala errori (SKU sconosciuto, location errata, righe duplicate).
+4. Conferma l'import: ogni riga valida produce una **rettifica** con traccia nello storico movimenti.
+
+Usa questo strumento per allineamenti massivi dopo un inventario cartaceo o migrazione dati — non per vendite quotidiane (quelle arrivano da Shopify POS/online).
+
+### Export giacenze CSV
+
+Da **Giacenze → Esporta CSV** ottieni uno snapshot delle quantità per SKU e location, rispettando i filtri attivi (location, stato stock, ricerca).
 
 ### Tipi di movimento
 
@@ -519,13 +615,27 @@ Gestiti **interamente in VestiFlow** (non passano da Shopify).
 
 - Origine: **Shopify Online** o **Shopify POS** (cassa Shopify).
 - In VestiFlow sono **sola lettura**: non si modificano da qui.
-- Filtri disponibili: stato pagamento, canale (online / negozio).
+- Filtri disponibili: stato pagamento, canale (online / negozio), ricerca per numero ordine o cliente.
+
+| Azione                             | Dove            | Chi                                      |
+| ---------------------------------- | --------------- | ---------------------------------------- |
+| **Sincronizza vendite da Shopify** | Vendite (lista) | Titolare / amministratore, shop connesso |
+| **Esporta CSV**                    | Vendite (lista) | Titolare, admin, manager                 |
+
+La sync manuale importa ordini non ancora presenti o aggiorna quelli esistenti. L'export CSV rispetta i filtri applicati in lista.
 
 ### Clienti
 
 - Anagrafica importata da Shopify.
 - **Sola lettura** in VestiFlow.
 - Utile per consultare storico e riferimenti; le modifiche vanno fatte in Shopify Admin.
+
+| Azione                             | Dove            | Chi                                      |
+| ---------------------------------- | --------------- | ---------------------------------------- |
+| **Sincronizza clienti da Shopify** | Clienti (lista) | Titolare / amministratore, shop connesso |
+| **Esporta CSV**                    | Clienti (lista) | Titolare, admin, manager                 |
+
+Il dettaglio cliente mostra email, telefono, indirizzo e badge **Shopify** se collegato all'ecommerce.
 
 ---
 
@@ -627,6 +737,10 @@ Consigliato per **titolari e amministratori**.
 
 ---
 
+<!-- vestiflow:exclude-in-app -->
+
+_Appendice riservata al PDF / operatori — non mostrata nella guida in-app._
+
 ## 16. Configurazione tecnica (riferimento)
 
 Questa sezione è per titolari tecnici e per l'operatore VestiFlow. **Il cliente finale di norma non deve fare nulla qui.**
@@ -679,6 +793,8 @@ Il backend VestiFlow regola tutte le chiamate **REST Admin API** verso ogni shop
 - L'**import catalogo** usa enrichment ridotto (`skipRemoteMetadata`) per limitare le chiamate per prodotto; metadati avanzati possono essere arricchiti in sync successive.
 - In **disconnessione**, VestiFlow **revoca** il token OAuth su Shopify così la riconnessione richiede permessi aggiornati.
 - Dopo OAuth il server legge gli scope effettivi da Shopify (`access_scopes`) oltre alla risposta token, per diagnostica più accurata in Impostazioni.
+
+<!-- /vestiflow:exclude-in-app -->
 
 ---
 
@@ -746,26 +862,44 @@ Probabilmente manca approvazione **Protected customer data** su Shopify Partners
 
 ## 18. Funzionalità in arrivo
 
-| Area                                                       | Stato                            |
-| ---------------------------------------------------------- | -------------------------------- |
-| Gestione multi-store (più negozi commerciali in un tenant) | In roadmap                       |
-| Creazione manuale location senza Shopify                   | In roadmap                       |
-| Report aggregati lato server                               | In roadmap                       |
-| Scanner barcode su più schermate                           | In roadmap                       |
-| Messaggi errore Shopify tradotti in italiano               | Attivo (sync, OAuth, import)     |
-| Loader e feedback operazioni sync in Impostazioni          | Attivo                           |
-| Diagnostica scope OAuth (richiesti vs concessi)            | Attivo                           |
-| Integrazione cassa nativa / fiscale IT                     | Non prevista — usare Shopify POS |
-| Notifiche email personalizzate (reset password IT)         | Configurazione Supabase          |
-| Nascondere azioni UI per ruolo commesso                    | Miglioramento UX                 |
+| Area                                                       | Stato                             |
+| ---------------------------------------------------------- | --------------------------------- |
+| Gestione multi-store (più negozi commerciali in un tenant) | In roadmap                        |
+| Creazione manuale location senza Shopify                   | In roadmap                        |
+| Report aggregati lato server                               | In roadmap                        |
+| Scanner barcode su più schermate                           | In roadmap                        |
+| Export/import CSV catalogo e giacenze                      | **Attivo**                        |
+| Sync manuale vendite/clienti/giacenze dalle liste          | **Attivo**                        |
+| Inventario fisico (sessioni di conteggio)                  | **Attivo**                        |
+| Guida integrata nel menu **Guida**                         | **Attivo**                        |
+| Anagrafica tenant estesa (operatore piattaforma)           | **Attivo** (solo admin VestiFlow) |
+| Messaggi errore Shopify tradotti in italiano               | Attivo (sync, OAuth, import)      |
+| Loader e feedback operazioni sync in Impostazioni          | Attivo                            |
+| Diagnostica scope OAuth (richiesti vs concessi)            | Attivo                            |
+| Integrazione cassa nativa / fiscale IT                     | Non prevista — usare Shopify POS  |
+| Notifiche email personalizzate (reset password IT)         | Configurazione Supabase           |
+| Permessi per ruolo in interfaccia (pulsanti e route)       | **Attivo**                        |
 
 ---
+
+## 19. Guida integrata nel gestionale
+
+Oltre a questo documento PDF, VestiFlow include la **Guida** nel menu laterale (`/app/guide`):
+
+- spiega **ogni voce di menu** e le schermate principali;
+- descrive **configurazione Shopify**, location, sync e permessi;
+- illustra **prodotti, magazzino, ordini fornitori, vendite, clienti, report** passo passo.
+
+La guida in-app è pensata per **titolari e staff del negozio**: non include la creazione di nuovi clienti VestiFlow (operazione riservata all'operatore piattaforma).
+
+Usa l'**Indice** all'inizio del documento per saltare alle sezioni. In alto puoi anche **scaricare la versione PDF** completa (include l'appendice tecnica per operatori).
+
+---
+
+<!-- vestiflow:exclude-in-app -->
 
 ## Contatti e supporto
 
 Per assistenza su configurazione, onboarding o problemi di sync, contatta il tuo **referente VestiFlow** o l'operatore che ha attivato il tenant.
 
----
-
-_Documento generato per VestiFlow — Gestione Web Studio.  
-Per la versione PDF: aprire `docs/GUIDA-UTENTE-VESTIFLOW.pdf` o stampare questo documento da un visualizzatore Markdown._
+<!-- /vestiflow:exclude-in-app -->

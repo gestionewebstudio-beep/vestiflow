@@ -14,6 +14,8 @@ import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { AuthService } from '@core/auth';
+import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
 import type { Location } from '@core/models/location.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import type { SupplierOrder, SupplierOrderLine } from '@core/models/supplier-order.model';
@@ -73,6 +75,7 @@ type DetailState =
 export class SupplierOrderDetailComponent {
   private readonly service = inject(SupplierOrderService);
   private readonly inventoryService = inject(InventoryService);
+  private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly fb = inject(NonNullableFormBuilder);
@@ -145,7 +148,11 @@ export class SupplierOrderDetailComponent {
     ];
   });
 
-  protected readonly canSend = computed(() => this.order()?.status === SupplierOrderStatus.Draft);
+  protected readonly canSend = computed(
+    () =>
+      this.order()?.status === SupplierOrderStatus.Draft &&
+      canManageSupplierOrders(this.authService.currentUser()),
+  );
   protected readonly canReceive = computed(() => {
     const status = this.order()?.status;
     return status === SupplierOrderStatus.Sent || status === SupplierOrderStatus.PartiallyReceived;

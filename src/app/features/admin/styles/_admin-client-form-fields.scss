@@ -54,6 +54,10 @@
   border-radius: var(--radius-md);
 }
 
+select.create-client__input {
+  cursor: pointer;
+}
+
 .create-client__input:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);

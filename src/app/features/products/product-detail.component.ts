@@ -12,6 +12,12 @@ import { catchError, forkJoin, map, of, startWith, switchMap, type Subscription 
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { AuthService } from '@core/auth';
+import {
+  canDeleteProducts,
+  canManageCatalog,
+  canSyncProductToShopify,
+} from '@core/permissions/tenant-permissions.util';
 import type { IsoDateString } from '@core/models/common.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import type { Product, ProductStatus } from '@core/models/product.model';
@@ -81,12 +87,23 @@ type ProductDetailState =
 })
 export class ProductDetailComponent {
   private readonly service = inject(ProductService);
+  private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly listPath = PRODUCTS_LIST_PATH;
   protected readonly skeletonColumns = 5;
+
+  protected readonly canManageCatalog = computed(() =>
+    canManageCatalog(this.authService.currentUser()),
+  );
+  protected readonly canDeleteProduct = computed(() =>
+    canDeleteProducts(this.authService.currentUser()),
+  );
+  protected readonly canSyncProductToShopify = computed(() =>
+    canSyncProductToShopify(this.authService.currentUser()),
+  );
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   private readonly productId = computed(() => this.paramMap().get('id'));

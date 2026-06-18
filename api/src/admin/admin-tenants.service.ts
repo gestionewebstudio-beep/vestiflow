@@ -31,7 +31,6 @@ export class AdminTenantsService {
       orderBy: { createdAt: 'desc' },
       include: {
         users: {
-          where: { role: 'owner' },
           orderBy: { createdAt: 'asc' },
           take: 1,
         },
@@ -53,7 +52,6 @@ export class AdminTenantsService {
       where: { id: tenantId },
       include: {
         users: {
-          where: { role: 'owner' },
           orderBy: { createdAt: 'asc' },
           take: 1,
         },
@@ -93,6 +91,7 @@ export class AdminTenantsService {
             id: owner.id,
             email: owner.email,
             displayName: owner.displayName,
+            role: owner.role,
           }
         : null,
       store: store ? { id: store.id, name: store.name } : null,
@@ -115,7 +114,7 @@ export class AdminTenantsService {
     const existing = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
       include: {
-        users: { where: { role: 'owner' }, orderBy: { createdAt: 'asc' }, take: 1 },
+        users: { orderBy: { createdAt: 'asc' }, take: 1 },
         stores: { orderBy: { createdAt: 'asc' }, take: 1 },
         locations: { orderBy: { createdAt: 'asc' }, take: 1 },
       },
@@ -173,6 +172,7 @@ export class AdminTenantsService {
     }
 
     const ownerEmail = dto.ownerEmail.trim().toLowerCase();
+    const role = dto.role ?? 'owner';
     const storeName = dto.storeName?.trim() || 'Negozio principale';
     const locationName = dto.locationName?.trim() || storeName;
     const profileData = tenantProfileCreateData(dto);
@@ -229,7 +229,7 @@ export class AdminTenantsService {
             authUserId,
             email: ownerEmail,
             displayName: dto.ownerDisplayName.trim(),
-            role: 'owner',
+            role,
             stores: { create: { storeId: store.id } },
           },
         });
@@ -240,6 +240,7 @@ export class AdminTenantsService {
           ownerUserId: owner.id,
           ownerEmail: owner.email,
           ownerDisplayName: owner.displayName,
+          role: owner.role,
           storeId: store.id,
           storeName: store.name,
           locationId: location.id,

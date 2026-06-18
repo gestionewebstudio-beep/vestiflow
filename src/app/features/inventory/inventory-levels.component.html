@@ -13,18 +13,20 @@
           Sincronizza giacenze da Shopify
         </app-button>
       }
-      <app-button variant="secondary" [disabled]="exporting()" (click)="exportInventory()">
-        <i class="pi pi-download" aria-hidden="true"></i>
-        @if (exporting()) {
-          Export in corso…
-        } @else {
-          Esporta CSV
-        }
-      </app-button>
-      <app-button variant="secondary" (click)="importInventory()">
-        <i class="pi pi-upload" aria-hidden="true"></i>
-        Importa CSV
-      </app-button>
+      @if (canManageCatalog()) {
+        <app-button variant="secondary" [disabled]="exporting()" (click)="exportInventory()">
+          <i class="pi pi-download" aria-hidden="true"></i>
+          @if (exporting()) {
+            Export in corso…
+          } @else {
+            Esporta CSV
+          }
+        </app-button>
+        <app-button variant="secondary" (click)="importInventory()">
+          <i class="pi pi-upload" aria-hidden="true"></i>
+          Importa CSV
+        </app-button>
+      }
       <app-button (click)="newMovement()">
         <i class="pi pi-plus" aria-hidden="true"></i>
         Registra movimento

@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { UserRole } from '@prisma/client';
 
 import { TenantProfileFieldsDto } from './tenant-profile-fields.dto';
 
@@ -30,6 +31,10 @@ export class CreateTenantDto extends TenantProfileFieldsDto {
   @MinLength(8)
   @MaxLength(128)
   ownerPassword!: string;
+
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 
   @IsOptional()
   @IsString()

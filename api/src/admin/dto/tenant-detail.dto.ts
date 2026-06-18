@@ -22,6 +22,7 @@ export interface TenantDetailDto {
     readonly id: string;
     readonly email: string;
     readonly displayName: string;
+    readonly role: string;
   } | null;
   readonly store: {
     readonly id: string;

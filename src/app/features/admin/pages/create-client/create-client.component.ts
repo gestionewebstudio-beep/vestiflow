@@ -4,6 +4,7 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { Router } from '@angular/router';
 
 import { isAppError } from '@core/models/app-error.model';
+import { UserRole } from '@core/models/user.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -14,6 +15,7 @@ import {
   createTenantProfileControls,
   profilePayloadFromForm,
 } from '../../models/admin-tenant-profile.form';
+import { TENANT_ROLE_OPTIONS, tenantRoleLabel } from '../../models/admin-tenant-role.util';
 import { AdminTenantsService } from '../../services/admin-tenants.service';
 
 /**
@@ -39,6 +41,8 @@ export class CreateClientComponent {
   private readonly router = inject(Router);
 
   protected readonly formatDateTime = formatDateTime;
+  protected readonly tenantRoleOptions = TENANT_ROLE_OPTIONS;
+  protected readonly tenantRoleLabel = tenantRoleLabel;
 
   protected readonly tenantsLoading = signal(true);
   protected readonly tenants = signal<readonly TenantSummary[]>([]);
@@ -63,6 +67,7 @@ export class CreateClientComponent {
     ownerPassword: this.fb.control('', {
       validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
     }),
+    role: this.fb.control(UserRole.Owner, { validators: [Validators.required] }),
     storeName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
     locationName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
   });
@@ -103,6 +108,7 @@ export class CreateClientComponent {
         ownerDisplayName: raw.ownerDisplayName.trim(),
         ownerEmail: raw.ownerEmail.trim(),
         ownerPassword: raw.ownerPassword,
+        role: raw.role,
         ...(storeName ? { storeName } : {}),
         ...(locationName ? { locationName } : {}),
         ...profilePayloadFromForm(raw),
@@ -112,7 +118,7 @@ export class CreateClientComponent {
         next: (result) => {
           this.submitLoading.set(false);
           this.created.set(result);
-          this.form.reset({ countryCode: 'IT' });
+          this.form.reset({ countryCode: 'IT', role: UserRole.Owner });
           this.loadTenants();
         },
         error: (err: unknown) => {

@@ -4,6 +4,7 @@ export interface ProvisionedTenantDto {
   readonly ownerUserId: string;
   readonly ownerEmail: string;
   readonly ownerDisplayName: string;
+  readonly role: string;
   readonly storeId: string;
   readonly storeName: string;
   readonly locationId: string;

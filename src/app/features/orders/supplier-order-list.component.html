@@ -6,10 +6,12 @@
         Ordini di acquisto verso i fornitori: crea un ordine, invialo e registra la ricezione merce.
       </p>
     </div>
-    <app-button (click)="createOrder()">
-      <i class="pi pi-plus" aria-hidden="true"></i>
-      Nuovo ordine
-    </app-button>
+    @if (canManageSupplierOrders()) {
+      <app-button (click)="createOrder()">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+        Nuovo ordine
+      </app-button>
+    }
   </header>
 
   <div class="po-list__toolbar">

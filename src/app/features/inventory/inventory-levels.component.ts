@@ -12,6 +12,7 @@ import { Router } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthService } from '@core/auth';
+import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -119,6 +120,10 @@ export class InventoryLevelsComponent {
     () =>
       isShopifyConnected(this.shopifyConnection()) &&
       canManageShopifySync(this.authService.currentUser()),
+  );
+
+  protected readonly canManageCatalog = computed(() =>
+    canManageCatalog(this.authService.currentUser()),
   );
 
   constructor() {
