@@ -41,6 +41,17 @@
               >
             }
           </label>
+
+          <label class="create-client__field" for="edit-legal-name">
+            <span class="create-client__field-label">Ragione sociale (opzionale)</span>
+            <input
+              id="edit-legal-name"
+              class="create-client__input"
+              type="text"
+              formControlName="legalName"
+              autocomplete="organization"
+            />
+          </label>
         </section>
 
         <app-admin-tenant-profile-fields [form]="form" [showError]="showError.bind(this)" />

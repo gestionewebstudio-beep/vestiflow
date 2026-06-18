@@ -70,6 +70,17 @@
               >
             }
           </label>
+
+          <label class="create-client__field" for="client-legal-name">
+            <span class="create-client__field-label">Ragione sociale (opzionale)</span>
+            <input
+              id="client-legal-name"
+              class="create-client__input"
+              type="text"
+              formControlName="legalName"
+              autocomplete="organization"
+            />
+          </label>
         </section>
 
         <app-admin-tenant-profile-fields [form]="form" [showError]="showError.bind(this)" />
@@ -77,23 +88,22 @@
         <section class="create-client__section" aria-labelledby="create-client-access">
           <h3 id="create-client-access" class="create-client__section-title">Primo accesso</h3>
 
-          <label class="create-client__field" for="client-user-role">
-            <span class="create-client__field-label">Ruolo VestiFlow</span>
-            <select
-              id="client-user-role"
-              class="create-client__input"
-              formControlName="role"
-              [attr.aria-invalid]="showError('role')"
+          <div class="create-client__field">
+            <span class="create-client__field-label" id="client-user-role-label"
+              >Ruolo VestiFlow</span
             >
-              @for (option of tenantRoleOptions; track option.value) {
-                <option [value]="option.value">{{ option.label }}</option>
-              }
-            </select>
-            <span class="create-client__hint">
-              Di default Titolare. Per negozi reali usa Titolare o Amministratore per chi gestisce
-              Shopify e impostazioni.
-            </span>
-          </label>
+            <app-select-menu
+              [options]="tenantRoleOptions"
+              [value]="form.controls.role.value"
+              ariaLabel="Ruolo VestiFlow"
+              placeholder="Seleziona un ruolo…"
+              [includeEmptyOption]="false"
+              [fullWidth]="true"
+              [invalid]="showError('role')"
+              describedBy="client-user-role-hint"
+              (valueChange)="onRoleSelect($event)"
+            />
+          </div>
 
           <label class="create-client__field" for="client-owner-name">
             <span class="create-client__field-label">Nome utente</span>
@@ -110,6 +120,11 @@
               <span class="create-client__field-error">Inserisci il nome dell’utente.</span>
             }
           </label>
+
+          <p id="client-user-role-hint" class="create-client__hint create-client__field--span-full">
+            Di default Titolare. Per negozi reali usa Titolare o Amministratore per chi gestisce
+            Shopify e impostazioni.
+          </p>
 
           <label class="create-client__field" for="client-owner-email">
             <span class="create-client__field-label">Email accesso</span>

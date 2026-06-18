@@ -4,9 +4,11 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { Router } from '@angular/router';
 
 import { isAppError } from '@core/models/app-error.model';
+import type { UserRole as UserRoleType } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { AdminTenantProfileFieldsComponent } from '../../components/admin-tenant-profile-fields/admin-tenant-profile-fields.component';
@@ -28,6 +30,7 @@ import { AdminTenantsService } from '../../services/admin-tenants.service';
   imports: [
     ReactiveFormsModule,
     ButtonComponent,
+    SelectMenuComponent,
     TableSkeletonComponent,
     AdminTenantProfileFieldsComponent,
   ],
@@ -67,7 +70,7 @@ export class CreateClientComponent {
     ownerPassword: this.fb.control('', {
       validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
     }),
-    role: this.fb.control(UserRole.Owner, { validators: [Validators.required] }),
+    role: this.fb.control<UserRoleType>(UserRole.Owner, { validators: [Validators.required] }),
     storeName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
     locationName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
   });
@@ -83,6 +86,18 @@ export class CreateClientComponent {
 
   protected togglePasswordVisibility(): void {
     this.passwordVisible.update((visible) => !visible);
+  }
+
+  protected onRoleSelect(value: string | null): void {
+    if (!value || !this.isUserRole(value)) {
+      return;
+    }
+    this.form.controls.role.setValue(value);
+    this.form.controls.role.markAsTouched();
+  }
+
+  private isUserRole(value: string): value is UserRoleType {
+    return (Object.values(UserRole) as readonly string[]).includes(value);
   }
 
   protected openTenant(tenant: TenantSummary): void {

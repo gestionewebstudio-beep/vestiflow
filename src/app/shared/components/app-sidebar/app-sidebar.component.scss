@@ -47,7 +47,22 @@
   inline-size: 100%;
 }
 
-.app-sidebar__list li {
+.app-sidebar__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  margin: 0;
+  margin-block-start: auto;
+  padding-block-start: var(--space-3);
+  padding-inline: 0;
+  list-style: none;
+  inline-size: 100%;
+  border-block-start: var(--border-width) solid var(--color-border);
+}
+
+.app-sidebar__list li,
+.app-sidebar__footer li {
   inline-size: 100%;
 }
 

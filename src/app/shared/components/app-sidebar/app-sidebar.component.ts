@@ -17,6 +17,8 @@ import type { NavItem } from '@shared/models/nav-item.model';
 })
 export class AppSidebarComponent {
   readonly items = input.required<readonly NavItem[]>();
+  /** Voci ancorate in fondo alla sidebar (es. Guida), separate dal menu operativo. */
+  readonly footerItems = input<readonly NavItem[]>([]);
   /** Stato del drawer (mobile): mostra il pulsante di chiusura quando aperto. */
   readonly drawerOpen = input<boolean>(false);
 

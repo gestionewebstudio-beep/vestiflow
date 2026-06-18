@@ -29,6 +29,7 @@
   <aside id="shell-sidebar" class="shell__sidebar">
     <app-sidebar
       [items]="navItems()"
+      [footerItems]="footerNavItems()"
       [drawerOpen]="drawerOpen()"
       (closeRequested)="closeDrawer()"
     />

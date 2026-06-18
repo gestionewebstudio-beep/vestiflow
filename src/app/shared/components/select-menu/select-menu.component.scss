@@ -72,7 +72,7 @@
 
 .select-menu--compact .select-menu__trigger {
   min-block-size: var(--field-height);
-  gap: var(--space-1);
+  gap: var(--space-2);
   padding-inline: var(--space-2);
 }
 
@@ -89,6 +89,7 @@
   flex-shrink: 0;
   color: var(--color-text-subtle);
   font-size: var(--text-md);
+  margin-inline-end: var(--space-1);
 }
 
 .select-menu__trigger-label {

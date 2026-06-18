@@ -2,17 +2,6 @@
   <section class="create-client__section" aria-labelledby="tenant-profile-company">
     <h3 id="tenant-profile-company" class="create-client__section-title">Azienda</h3>
 
-    <label class="create-client__field" for="tenant-legal-name">
-      <span class="create-client__field-label">Ragione sociale (opzionale)</span>
-      <input
-        id="tenant-legal-name"
-        class="create-client__input"
-        type="text"
-        formControlName="legalName"
-        autocomplete="organization"
-      />
-    </label>
-
     <div class="create-client__field-row">
       <label class="create-client__field" for="tenant-vat">
         <span class="create-client__field-label">Partita IVA (opzionale)</span>
@@ -46,27 +35,29 @@
   <section class="create-client__section" aria-labelledby="tenant-profile-address">
     <h3 id="tenant-profile-address" class="create-client__section-title">Sede (opzionale)</h3>
 
-    <label class="create-client__field" for="tenant-address-1">
-      <span class="create-client__field-label">Indirizzo</span>
-      <input
-        id="tenant-address-1"
-        class="create-client__input"
-        type="text"
-        formControlName="addressLine1"
-        autocomplete="street-address"
-      />
-    </label>
+    <div class="create-client__field-row">
+      <label class="create-client__field" for="tenant-address-1">
+        <span class="create-client__field-label">Indirizzo</span>
+        <input
+          id="tenant-address-1"
+          class="create-client__input"
+          type="text"
+          formControlName="addressLine1"
+          autocomplete="street-address"
+        />
+      </label>
 
-    <label class="create-client__field" for="tenant-address-2">
-      <span class="create-client__field-label">Indirizzo (riga 2)</span>
-      <input
-        id="tenant-address-2"
-        class="create-client__input"
-        type="text"
-        formControlName="addressLine2"
-        autocomplete="off"
-      />
-    </label>
+      <label class="create-client__field" for="tenant-address-2">
+        <span class="create-client__field-label">Indirizzo (riga 2)</span>
+        <input
+          id="tenant-address-2"
+          class="create-client__input"
+          type="text"
+          formControlName="addressLine2"
+          autocomplete="off"
+        />
+      </label>
+    </div>
 
     <div class="create-client__field-row">
       <label class="create-client__field" for="tenant-city">
@@ -142,9 +133,11 @@
       </label>
     </div>
 
-    <label class="create-client__field" for="tenant-sdi">
-      <span class="create-client__field-label">Codice destinatario SDI</span>
-      <input id="tenant-sdi" class="create-client__input" type="text" formControlName="sdiCode" />
-    </label>
+    <div class="create-client__field-row">
+      <label class="create-client__field" for="tenant-sdi">
+        <span class="create-client__field-label">Codice destinatario SDI</span>
+        <input id="tenant-sdi" class="create-client__input" type="text" formControlName="sdiCode" />
+      </label>
+    </div>
   </section>
 </div>

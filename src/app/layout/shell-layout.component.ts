@@ -90,9 +90,16 @@ export class ShellLayoutComponent {
     { label: 'Vendite', icon: 'pi-shopping-cart', route: '/app/sales' },
     { label: 'Clienti', icon: 'pi-users', route: '/app/customers' },
     { label: 'Report', icon: 'pi-chart-line', route: '/app/reports' },
-    { label: 'Guida', icon: 'pi-book', route: '/app/guide' },
     { label: 'Impostazioni', icon: 'pi-cog', route: '/app/settings' },
   ];
+
+  private readonly guideNavItem: NavItem = {
+    label: 'Guida',
+    icon: 'pi-book',
+    route: '/app/guide',
+  };
+
+  readonly footerNavItems = computed((): readonly NavItem[] => [this.guideNavItem]);
 
   readonly navItems = computed((): readonly NavItem[] => {
     const items = [...this.baseNavItems];
