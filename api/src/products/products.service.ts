@@ -108,6 +108,8 @@ export class ProductsService {
         description: normalizeProductDescription(dto.description),
         brand: dto.brand,
         category: dto.category,
+        shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
+        shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
         season: dto.season,
         tags: this.normalizeTags(dto.tags),
         status: dto.status,
@@ -138,6 +140,17 @@ export class ProductsService {
           description: normalizeProductDescription(dto.description),
           brand: dto.brand,
           category: dto.category,
+          ...(dto.shopifyTaxonomyCategoryId !== undefined
+            ? {
+                shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
+              }
+            : {}),
+          ...(dto.shopifyTaxonomyCategoryFullName !== undefined
+            ? {
+                shopifyTaxonomyCategoryFullName:
+                  dto.shopifyTaxonomyCategoryFullName?.trim() || null,
+              }
+            : {}),
           season: dto.season,
           tags: dto.tags !== undefined ? this.normalizeTags(dto.tags) : undefined,
           status: dto.status,

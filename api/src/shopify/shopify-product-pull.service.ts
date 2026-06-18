@@ -192,6 +192,10 @@ export class ShopifyProductPullService {
       description: shopifyBodyHtmlToPlainText(remote.body_html),
       brand: remote.vendor?.trim() || null,
       category: remote.product_type?.trim() || null,
+      shopifyTaxonomyCategoryId:
+        enrichment?.taxonomyCategoryId ?? existing?.shopifyTaxonomyCategoryId ?? null,
+      shopifyTaxonomyCategoryFullName:
+        enrichment?.taxonomyCategoryFullName ?? existing?.shopifyTaxonomyCategoryFullName ?? null,
       season: enrichment?.season ?? existing?.season ?? null,
       tags: [...tags],
       seoTitle: enrichment?.seoTitle ?? null,

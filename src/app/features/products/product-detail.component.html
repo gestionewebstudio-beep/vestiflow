@@ -85,7 +85,11 @@
           <dd class="product-detail__value">{{ p.brand ?? '—' }}</dd>
         </div>
         <div class="product-detail__fact">
-          <dt class="product-detail__term">Categoria</dt>
+          <dt class="product-detail__term">Categoria Shopify</dt>
+          <dd class="product-detail__value">{{ p.shopifyTaxonomyCategoryFullName ?? '—' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Tipo prodotto</dt>
           <dd class="product-detail__value">{{ p.category ?? '—' }}</dd>
         </div>
         <div class="product-detail__fact">

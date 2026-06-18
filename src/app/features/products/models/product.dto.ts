@@ -41,6 +41,8 @@ export interface CreateProductDto {
   readonly description?: string;
   readonly brand?: string;
   readonly category?: string;
+  readonly shopifyTaxonomyCategoryId?: string;
+  readonly shopifyTaxonomyCategoryFullName?: string;
   readonly season?: string;
   readonly tags?: readonly string[];
   readonly status: ProductStatus;
@@ -59,6 +61,8 @@ export interface UpdateProductDto {
   readonly description?: string;
   readonly brand?: string;
   readonly category?: string;
+  readonly shopifyTaxonomyCategoryId?: string;
+  readonly shopifyTaxonomyCategoryFullName?: string;
   readonly season?: string;
   readonly tags?: readonly string[];
   readonly status?: ProductStatus;

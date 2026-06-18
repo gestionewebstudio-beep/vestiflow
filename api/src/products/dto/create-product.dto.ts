@@ -90,6 +90,17 @@ export class CreateProductDto {
   @MaxLength(100)
   category?: string;
 
+  /** GID Shopify Standard Product Taxonomy (gid://shopify/TaxonomyCategory/...). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  shopifyTaxonomyCategoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  shopifyTaxonomyCategoryFullName?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)

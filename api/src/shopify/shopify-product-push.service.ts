@@ -11,6 +11,7 @@ import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { minorToShopifyDecimal } from './shopify-money.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import {
   mergeShopifyScopes,
   SHOPIFY_WRITE_PRODUCTS_SCOPE,
@@ -61,6 +62,7 @@ export class ShopifyProductPushService {
     private readonly shopifyOAuth: ShopifyOAuthService,
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyConnection: ShopifyConnectionService,
+    private readonly shopifyTaxonomy: ShopifyTaxonomyService,
   ) {}
 
   async pushProduct(tenantId: string, productId: string): Promise<ShopifyProductPushResult> {
@@ -126,6 +128,7 @@ export class ShopifyProductPushService {
         product.season,
         product.shopifyMetafields,
       );
+      await this.pushTaxonomyCategory(tenantId, String(shopifyProduct.id), product);
       await this.pushVariantCosts(shopDomain, accessToken, product.variants);
       await this.shopifyConnection.touchSync(tenantId);
 
@@ -203,6 +206,37 @@ export class ShopifyProductPushService {
       options: shopifyOptions,
       variants: variantRows,
     };
+  }
+
+  private async pushTaxonomyCategory(
+    tenantId: string,
+    shopifyProductId: string,
+    product: ProductWithVariants,
+  ): Promise<void> {
+    const categoryGid = product.shopifyTaxonomyCategoryId?.trim() || null;
+    if (!categoryGid) {
+      return;
+    }
+
+    try {
+      const updated = await this.shopifyTaxonomy.pushProductCategory(
+        tenantId,
+        shopifyProductId,
+        categoryGid,
+      );
+      if (updated) {
+        await this.prisma.product.update({
+          where: { id: product.id },
+          data: {
+            shopifyTaxonomyCategoryId: updated.id,
+            shopifyTaxonomyCategoryFullName: updated.fullName,
+          },
+        });
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Push categoria taxonomy fallito';
+      this.logger.warn(`Taxonomy prodotto non sincronizzata (${shopifyProductId}): ${message}`);
+    }
   }
 
   private async pushSeasonMetafield(

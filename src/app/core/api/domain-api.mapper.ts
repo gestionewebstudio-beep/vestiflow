@@ -16,6 +16,8 @@ export interface ProductApiRow {
   readonly description?: string | null;
   readonly brand?: string | null;
   readonly category?: string | null;
+  readonly shopifyTaxonomyCategoryId?: string | null;
+  readonly shopifyTaxonomyCategoryFullName?: string | null;
   readonly season?: string | null;
   readonly tags?: readonly string[];
   readonly seoTitle?: string | null;
@@ -174,6 +176,8 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     description: stripHtmlToPlainText(row.description),
     brand: row.brand ?? undefined,
     category: row.category ?? undefined,
+    shopifyTaxonomyCategoryId: row.shopifyTaxonomyCategoryId ?? undefined,
+    shopifyTaxonomyCategoryFullName: row.shopifyTaxonomyCategoryFullName ?? undefined,
     season: row.season ?? undefined,
     tags: row.tags?.length ? [...row.tags] : undefined,
     seoTitle: row.seoTitle ?? undefined,

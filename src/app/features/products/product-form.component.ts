@@ -60,6 +60,8 @@ import {
 } from './models/product-form.validators';
 import type { ProductFilterOptions } from './models/product-list-query.model';
 import { ProductService } from './services/product.service';
+import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
+import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 
 const EMPTY_FILTER_OPTIONS: ProductFilterOptions = { categories: [], brands: [], seasons: [] };
 
@@ -111,6 +113,7 @@ type FormLoadState =
 })
 export class ProductFormComponent implements CanComponentDeactivate {
   private readonly service = inject(ProductService);
+  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -180,6 +183,15 @@ export class ProductFormComponent implements CanComponentDeactivate {
     { initialValue: null },
   );
   protected readonly filtersReady = computed(() => this.filterOptions() !== null);
+
+  private readonly shopifyConnection = toSignal(
+    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
+    { initialValue: null },
+  );
+  protected readonly shopifyConnected = computed(
+    () => this.shopifyConnection()?.status === ShopifyConnectionStatus.Connected,
+  );
+
   protected readonly categories = computed(() => this.filterOptions()?.categories ?? []);
   protected readonly seasons = computed(() => this.filterOptions()?.seasons ?? []);
 
@@ -229,10 +241,12 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // Validità "Dati generali": tutti i campi obbligatori valorizzati (trim).
   // Gli step 8.5-8.7 aggiungeranno le proprie regole nella catena di gating.
   private readonly generalValid = computed(() => {
-    const { name, brand, category, season } = this.draft().general;
-    return (
-      name.trim() !== '' && brand.trim() !== '' && category.trim() !== '' && season.trim() !== ''
-    );
+    const { name, brand, category, season, shopifyTaxonomyCategoryId } = this.draft().general;
+    const base = name.trim() !== '' && brand.trim() !== '' && season.trim() !== '';
+    if (this.shopifyConnected()) {
+      return base && shopifyTaxonomyCategoryId.trim() !== '';
+    }
+    return base && category.trim() !== '';
   });
 
   // Step "Opzioni" valido se: c'è almeno una combinazione generata e i nomi degli

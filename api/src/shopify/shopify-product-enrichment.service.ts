@@ -10,6 +10,7 @@ import {
   parseShopifyTags,
 } from './shopify-product-metadata.util';
 import { shopifyDecimalToMinor } from './shopify-money.util';
+import { ShopifyGraphqlClient } from './shopify-graphql.client';
 
 export interface EnrichProductOptions {
   /** Su import catalogo massivo i costi varianti possono essere saltati (N chiamate API). */
@@ -26,13 +27,18 @@ const EMPTY_ENRICHMENT: ProductShopifyEnrichment = {
   collections: [],
   metafields: [],
   variantPurchasePriceMinor: new Map(),
+  taxonomyCategoryId: null,
+  taxonomyCategoryFullName: null,
 };
 
 @Injectable()
 export class ShopifyProductEnrichmentService {
   private readonly logger = new Logger(ShopifyProductEnrichmentService.name);
 
-  constructor(private readonly shopifyAdmin: ShopifyAdminClient) {}
+  constructor(
+    private readonly shopifyAdmin: ShopifyAdminClient,
+    private readonly shopifyGraphql: ShopifyGraphqlClient,
+  ) {}
 
   async enrichProduct(
     shopDomain: string,
@@ -42,9 +48,19 @@ export class ShopifyProductEnrichmentService {
   ): Promise<ProductShopifyEnrichment> {
     const shopifyProductId = String(remote.id);
     const tags = parseShopifyTags(remote.tags);
+    const taxonomy = await this.fetchTaxonomyCategorySafe(
+      shopDomain,
+      accessToken,
+      shopifyProductId,
+    );
 
     if (options.skipRemoteMetadata) {
-      return { ...EMPTY_ENRICHMENT, tags };
+      return {
+        ...EMPTY_ENRICHMENT,
+        tags,
+        taxonomyCategoryId: taxonomy?.id ?? null,
+        taxonomyCategoryFullName: taxonomy?.fullName ?? null,
+      };
     }
 
     try {
@@ -77,11 +93,36 @@ export class ShopifyProductEnrichmentService {
         collections,
         metafields,
         variantPurchasePriceMinor,
+        taxonomyCategoryId: taxonomy?.id ?? null,
+        taxonomyCategoryFullName: taxonomy?.fullName ?? null,
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Enrichment fallito';
       this.logger.warn(`Enrichment prodotto ${shopifyProductId} parziale: ${message}`);
-      return { ...EMPTY_ENRICHMENT, tags };
+      return {
+        ...EMPTY_ENRICHMENT,
+        tags,
+        taxonomyCategoryId: taxonomy?.id ?? null,
+        taxonomyCategoryFullName: taxonomy?.fullName ?? null,
+      };
+    }
+  }
+
+  private async fetchTaxonomyCategorySafe(
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+  ) {
+    try {
+      return await this.shopifyGraphql.getProductTaxonomyCategory(
+        shopDomain,
+        accessToken,
+        shopifyProductId,
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Taxonomy non disponibile';
+      this.logger.warn(`Taxonomy prodotto ${shopifyProductId}: ${message}`);
+      return null;
     }
   }
 

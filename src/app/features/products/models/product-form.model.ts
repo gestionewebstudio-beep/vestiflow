@@ -15,6 +15,8 @@ export interface ProductGeneralDraft {
   readonly description: string;
   readonly brand: string;
   readonly category: string;
+  readonly shopifyTaxonomyCategoryId: string;
+  readonly shopifyTaxonomyCategoryFullName: string;
   readonly season: string;
   readonly tags: string;
   readonly status: ProductStatus;

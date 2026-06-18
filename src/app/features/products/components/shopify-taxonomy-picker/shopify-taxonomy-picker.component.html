@@ -1,0 +1,70 @@
+<div
+  class="taxonomy-picker"
+  [class.taxonomy-picker--invalid]="invalid()"
+  [attr.aria-describedby]="describedBy() ?? null"
+>
+  @if (hasSelection()) {
+    <div class="taxonomy-picker__selected">
+      <p class="taxonomy-picker__selected-label">Categoria selezionata</p>
+      <p class="taxonomy-picker__selected-value">{{ categoryFullName() }}</p>
+      <button type="button" class="taxonomy-picker__clear" (click)="clearSelection()">
+        Cambia categoria
+      </button>
+    </div>
+  } @else {
+    <label class="taxonomy-picker__search-label" for="taxonomy-search">Cerca categorie</label>
+    <input
+      id="taxonomy-search"
+      class="taxonomy-picker__search"
+      type="search"
+      placeholder="Es. reggiseni, magliette, scarpe…"
+      [ngModel]="searchQuery()"
+      (ngModelChange)="onSearchInput($event)"
+      autocomplete="off"
+    />
+
+    <div class="taxonomy-picker__nav">
+      @if (parentStack().length > 0) {
+        <button type="button" class="taxonomy-picker__back" (click)="goBack()">
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+          Indietro
+        </button>
+      }
+      <span class="taxonomy-picker__breadcrumb">{{ breadcrumbLabel() }}</span>
+    </div>
+
+    @if (loadError(); as message) {
+      <p class="taxonomy-picker__error" role="alert">{{ message }}</p>
+    }
+
+    @if (loading()) {
+      <div class="taxonomy-picker__loading">
+        <app-inline-spinner size="sm" />
+        <span>Caricamento categorie…</span>
+      </div>
+    } @else if (items().length === 0) {
+      <p class="taxonomy-picker__empty">Nessuna categoria trovata.</p>
+    } @else {
+      <ul class="taxonomy-picker__list" role="listbox" aria-label="Categorie Shopify">
+        @for (item of items(); track item.id) {
+          <li>
+            <button
+              type="button"
+              class="taxonomy-picker__item"
+              role="option"
+              [attr.aria-selected]="item.isLeaf && item.id === categoryId()"
+              (click)="onCategoryClick(item)"
+            >
+              <span class="taxonomy-picker__item-name">{{ item.name }}</span>
+              @if (!item.isLeaf) {
+                <i class="pi pi-chevron-right taxonomy-picker__item-chevron" aria-hidden="true"></i>
+              } @else {
+                <span class="taxonomy-picker__item-hint">Seleziona</span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  }
+</div>

@@ -22,6 +22,9 @@ export interface ProductShopifyEnrichment {
   readonly metafields: readonly ShopifyMetafieldRef[];
   /** Chiave = shopify variant id numerico; valore = costo in unità minori. */
   readonly variantPurchasePriceMinor: ReadonlyMap<number, number>;
+  /** Categoria Standard Product Taxonomy (Google Ads / Shopping). */
+  readonly taxonomyCategoryId: string | null;
+  readonly taxonomyCategoryFullName: string | null;
 }
 
 export const VESTIFLOW_METAFIELD_NAMESPACE = 'vestiflow';

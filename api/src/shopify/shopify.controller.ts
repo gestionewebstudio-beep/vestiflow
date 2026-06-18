@@ -20,6 +20,8 @@ import { ShopifyOrdersPullService } from './shopify-orders-pull.service';
 import type { ShopifyOrdersPullResult } from './shopify-orders-pull.service';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 import type { ShopifyCatalogSyncResult } from './shopify-product-pull.service';
+import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
+import { ListTaxonomyCategoriesQueryDto } from './dto/list-taxonomy-categories.query.dto';
 
 @Controller('shopify')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,6 +34,7 @@ export class ShopifyController {
     private readonly shopifyInventoryPull: ShopifyInventoryPullService,
     private readonly shopifyCustomersPull: ShopifyCustomersPullService,
     private readonly shopifyOrdersPull: ShopifyOrdersPullService,
+    private readonly shopifyTaxonomy: ShopifyTaxonomyService,
   ) {}
 
   @Get('connection')
@@ -130,5 +133,18 @@ export class ShopifyController {
   @Roles(...ADMIN_ROLES)
   async clearErrors(@CurrentTenant() tenantId: string): Promise<ClearShopifyErrorsResult> {
     return this.shopifyConnection.clearErrors(tenantId);
+  }
+
+  @Get('taxonomy/categories')
+  async listTaxonomyCategories(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ListTaxonomyCategoriesQueryDto,
+  ) {
+    const items = await this.shopifyTaxonomy.listCategories(
+      tenantId,
+      query.search,
+      query.childrenOf,
+    );
+    return { items };
   }
 }

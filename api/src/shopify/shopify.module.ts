@@ -16,6 +16,8 @@ import { ShopifyProductEnrichmentService } from './shopify-product-enrichment.se
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 import { ShopifyProductPushService } from './shopify-product-push.service';
 import { ShopifySyncService } from './shopify-sync.service';
+import { ShopifyGraphqlClient } from './shopify-graphql.client';
+import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyWebhookService } from './shopify-webhook.service';
 import { ShopifyWebhooksController } from './shopify-webhooks.controller';
 
@@ -25,6 +27,7 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
     ShopifyConfigService,
     ShopifyCryptoService,
     ShopifyAdminClient,
+    ShopifyGraphqlClient,
     ShopifyRateLimiterService,
     ShopifyConnectionService,
     ShopifyOAuthService,
@@ -36,6 +39,7 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
     ShopifyProductPushService,
     ShopifyProductPullService,
     ShopifyProductEnrichmentService,
+    ShopifyTaxonomyService,
     ShopifySyncService,
     ShopifyWebhookService,
   ],

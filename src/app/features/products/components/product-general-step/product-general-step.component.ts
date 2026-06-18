@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   input,
   OnInit,
@@ -20,6 +21,8 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 
 import type { ProductGeneralDraft } from '../../models/product-form.model';
 import { productStatusLabel } from '../../models/product-status.util';
+import type { ShopifyTaxonomySelection } from '../shopify-taxonomy-picker/shopify-taxonomy-picker.component';
+import { ShopifyTaxonomyPickerComponent } from '../shopify-taxonomy-picker/shopify-taxonomy-picker.component';
 
 type RequiredField = 'name' | 'brand' | 'category' | 'season';
 
@@ -37,16 +40,10 @@ const STATUS_OPTIONS: readonly StatusOption[] = [
 /** Valore speciale select: apre l'inserimento manuale di categoria/stagione. */
 const CUSTOM_OPTION_VALUE = '__custom__';
 
-/**
- * Step "Dati generali" del wizard prodotto (presentazionale).
- * Possiede un Reactive Form tipizzato e comunica le modifiche al wizard via
- * `valueChange`. Il gating (validità dello step) è derivato dal wizard sul draft,
- * così questo componente resta privo di stato globale e logica di navigazione.
- */
 @Component({
   selector: 'app-product-general-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, SelectMenuComponent],
+  imports: [ReactiveFormsModule, SelectMenuComponent, ShopifyTaxonomyPickerComponent],
   templateUrl: './product-general-step.component.html',
   styleUrl: './product-general-step.component.scss',
 })
@@ -54,13 +51,12 @@ export class ProductGeneralStepComponent implements OnInit {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
-  /** Valore iniziale dello step (dal draft del wizard). Seedato una volta al load. */
   readonly value = input.required<ProductGeneralDraft>();
   readonly valueChange = output<ProductGeneralDraft>();
 
-  /** Sorgenti select (facets da getFilterOptions, fornite dal wizard). */
   readonly categories = input<readonly string[]>([]);
   readonly seasons = input<readonly string[]>([]);
+  readonly shopifyConnected = input(false);
 
   protected readonly statusSelectOptions: readonly SelectMenuOption[] = STATUS_OPTIONS.map(
     (option) => ({
@@ -71,6 +67,7 @@ export class ProductGeneralStepComponent implements OnInit {
 
   protected readonly customCategory = signal(false);
   protected readonly customSeason = signal(false);
+  protected readonly taxonomyTouched = signal(false);
 
   protected readonly categorySelectOptions = computed((): readonly SelectMenuOption[] => {
     const values = this.withCurrent(this.categories(), this.categoryValue());
@@ -98,13 +95,22 @@ export class ProductGeneralStepComponent implements OnInit {
     this.customSeason() ? CUSTOM_OPTION_VALUE : this.seasonValue(),
   );
 
+  protected readonly taxonomyInvalid = computed(
+    () =>
+      this.shopifyConnected() &&
+      this.taxonomyTouched() &&
+      !this.value().shopifyTaxonomyCategoryId.trim(),
+  );
+
   private readonly categoryValue = signal('');
   private readonly seasonValue = signal('');
 
   protected readonly form = this.fb.group({
     name: this.fb.control('', [Validators.required]),
     brand: this.fb.control('', [Validators.required]),
-    category: this.fb.control('', [Validators.required]),
+    category: this.fb.control(''),
+    shopifyTaxonomyCategoryId: this.fb.control(''),
+    shopifyTaxonomyCategoryFullName: this.fb.control(''),
     season: this.fb.control('', [Validators.required]),
     tags: this.fb.control(''),
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
@@ -112,6 +118,18 @@ export class ProductGeneralStepComponent implements OnInit {
   });
 
   private valueChangesSub: Subscription | null = null;
+
+  constructor() {
+    effect(() => {
+      const control = this.form.controls.category;
+      if (this.shopifyConnected()) {
+        control.clearValidators();
+      } else {
+        control.setValidators([Validators.required]);
+      }
+      control.updateValueAndValidity({ emitEvent: false });
+    });
+  }
 
   ngOnInit(): void {
     const initial = this.value();
@@ -171,21 +189,27 @@ export class ProductGeneralStepComponent implements OnInit {
     }
   }
 
+  protected onTaxonomyChange(selection: ShopifyTaxonomySelection | null): void {
+    this.taxonomyTouched.set(true);
+    this.form.patchValue({
+      shopifyTaxonomyCategoryId: selection?.id ?? '',
+      shopifyTaxonomyCategoryFullName: selection?.fullName ?? '',
+    });
+  }
+
   protected useCategorySelect(): boolean {
-    return this.categories().length > 0 && !this.customCategory();
+    return !this.shopifyConnected() && this.categories().length > 0 && !this.customCategory();
   }
 
   protected useSeasonSelect(): boolean {
     return this.seasons().length > 0 && !this.customSeason();
   }
 
-  /** Include il valore corrente tra le opzioni se non gia' presente (edit legacy). */
   private withCurrent(list: readonly string[], current: string): readonly string[] {
     const value = current.trim();
     return value && !list.includes(value) ? [value, ...list] : list;
   }
 
-  /** Input libero se non ci sono facets o il valore salvato non e' nell'elenco. */
   private shouldUseCustomField(value: string, facets: readonly string[]): boolean {
     if (facets.length === 0) {
       return true;

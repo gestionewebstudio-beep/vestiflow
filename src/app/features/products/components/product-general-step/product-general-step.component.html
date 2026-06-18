@@ -32,40 +32,78 @@
       }
     </div>
 
-    <div class="general-step__field">
-      @if (useCategorySelect()) {
-        <span class="general-step__label" id="product-category-label">Categoria</span>
-        <app-select-menu
-          [options]="categorySelectOptions()"
-          [value]="categorySelectValue()"
-          ariaLabel="Categoria prodotto"
-          placeholder="Seleziona categoria"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="false"
-          [invalid]="showError('category')"
-          [describedBy]="showError('category') ? 'product-category-error' : undefined"
-          (valueChange)="onCategorySelect($event)"
+    @if (shopifyConnected()) {
+      <div class="general-step__field general-step__field--full">
+        <span class="general-step__label" id="product-shopify-category-label">
+          Categoria Shopify
+        </span>
+        <p class="general-step__hint">
+          Stessa tassonomia usata in Shopify Admin per Google Ads e category metafields.
+        </p>
+        <app-shopify-taxonomy-picker
+          [categoryId]="form.controls.shopifyTaxonomyCategoryId.value"
+          [categoryFullName]="form.controls.shopifyTaxonomyCategoryFullName.value"
+          [invalid]="taxonomyInvalid()"
+          describedBy="product-shopify-category-error"
+          (selectionChange)="onTaxonomyChange($event)"
         />
-      } @else {
-        <label class="general-step__label" for="product-category">Categoria</label>
+        @if (taxonomyInvalid()) {
+          <p id="product-shopify-category-error" class="general-step__error">
+            Seleziona la categoria prodotto Shopify.
+          </p>
+        }
+      </div>
+
+      <div class="general-step__field">
+        <label class="general-step__label" for="product-type">
+          Tipo prodotto
+          <span class="general-step__optional">(opzionale)</span>
+        </label>
         <input
-          id="product-category"
+          id="product-type"
           class="general-step__control"
           type="text"
           formControlName="category"
           autocomplete="off"
-          placeholder="Es. Abbigliamento, Accessori…"
-          [attr.aria-invalid]="showError('category')"
-          [attr.aria-describedby]="showError('category') ? 'product-category-error' : null"
+          placeholder="Es. Maglieria, Accessori…"
         />
-      }
-      @if (showError('category')) {
-        <p id="product-category-error" class="general-step__error">
-          Indica la categoria del prodotto.
-        </p>
-      }
-    </div>
+      </div>
+    } @else {
+      <div class="general-step__field">
+        @if (useCategorySelect()) {
+          <span class="general-step__label" id="product-category-label">Categoria</span>
+          <app-select-menu
+            [options]="categorySelectOptions()"
+            [value]="categorySelectValue()"
+            ariaLabel="Categoria prodotto"
+            placeholder="Seleziona categoria"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            [invalid]="showError('category')"
+            [describedBy]="showError('category') ? 'product-category-error' : undefined"
+            (valueChange)="onCategorySelect($event)"
+          />
+        } @else {
+          <label class="general-step__label" for="product-category">Categoria</label>
+          <input
+            id="product-category"
+            class="general-step__control"
+            type="text"
+            formControlName="category"
+            autocomplete="off"
+            placeholder="Es. Abbigliamento, Accessori…"
+            [attr.aria-invalid]="showError('category')"
+            [attr.aria-describedby]="showError('category') ? 'product-category-error' : null"
+          />
+        }
+        @if (showError('category')) {
+          <p id="product-category-error" class="general-step__error">
+            Indica la categoria del prodotto.
+          </p>
+        }
+      </div>
+    }
 
     <div class="general-step__field">
       @if (useSeasonSelect()) {
