@@ -10,4 +10,11 @@ export const adminRoutes: Routes = [
     loadComponent: () =>
       import('./pages/create-client/create-client.component').then((m) => m.CreateClientComponent),
   },
+  {
+    path: 'clients/:tenantId',
+    title: 'VestiFlow · Modifica cliente',
+    canActivate: [platformAdminGuard],
+    loadComponent: () =>
+      import('./pages/edit-client/edit-client.component').then((m) => m.EditClientComponent),
+  },
 ];

@@ -4,4 +4,5 @@ export interface TenantSummaryDto {
   readonly createdAt: string;
   readonly ownerEmail: string | null;
   readonly ownerDisplayName: string | null;
+  readonly vatNumber: string | null;
 }

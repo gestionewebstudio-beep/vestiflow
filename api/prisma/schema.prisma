@@ -105,6 +105,18 @@ enum InventoryCountStatus {
 model Tenant {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
+  legalName    String? @map("legal_name")
+  vatNumber    String? @map("vat_number")
+  fiscalCode   String? @map("fiscal_code")
+  phone        String?
+  pec          String?
+  sdiCode      String? @map("sdi_code")
+  addressLine1 String? @map("address_line1")
+  addressLine2 String? @map("address_line2")
+  city         String?
+  province     String?
+  postalCode   String? @map("postal_code")
+  countryCode  String? @map("country_code")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

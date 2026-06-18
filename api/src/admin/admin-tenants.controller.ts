@@ -1,11 +1,22 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../common/platform-admin/platform-admin.guard';
 import { AdminTenantsService } from './admin-tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import type { ProvisionedTenantDto } from './dto/provisioned-tenant.dto';
+import type { TenantDetailDto } from './dto/tenant-detail.dto';
 import type { TenantSummaryDto } from './dto/tenant-summary.dto';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
 
 @Controller('admin/tenants')
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
@@ -20,5 +31,18 @@ export class AdminTenantsController {
   @Post()
   createTenant(@Body() dto: CreateTenantDto): Promise<ProvisionedTenantDto> {
     return this.adminTenants.createTenant(dto);
+  }
+
+  @Get(':id')
+  getTenantById(@Param('id', ParseUUIDPipe) id: string): Promise<TenantDetailDto> {
+    return this.adminTenants.getTenantById(id);
+  }
+
+  @Patch(':id')
+  updateTenant(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTenantDto,
+  ): Promise<TenantDetailDto> {
+    return this.adminTenants.updateTenant(id, dto);
   }
 }

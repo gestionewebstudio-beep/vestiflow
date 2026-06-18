@@ -1,53 +1,97 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { isAppError } from '@core/models/app-error.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { AdminTenantProfileFieldsComponent } from '../../components/admin-tenant-profile-fields/admin-tenant-profile-fields.component';
-import type { ProvisionedTenant, TenantSummary } from '../../models/admin-tenant.model';
+import type { TenantDetail } from '../../models/admin-tenant.model';
 import {
   createTenantProfileControls,
+  patchTenantProfileForm,
   profilePayloadFromForm,
 } from '../../models/admin-tenant-profile.form';
 import { AdminTenantsService } from '../../services/admin-tenants.service';
 
-/**
- * Provisioning di un nuovo cliente (tenant + owner + negozio/location base).
- * Visibile solo agli operatori piattaforma (`isPlatformAdmin`).
- */
+type TenantLoadState =
+  | { readonly status: 'loading' }
+  | { readonly status: 'success'; readonly tenant: TenantDetail }
+  | { readonly status: 'error'; readonly message: string };
+
 @Component({
-  selector: 'app-create-client',
+  selector: 'app-edit-client',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    RouterLink,
     ButtonComponent,
+    ErrorStateComponent,
     TableSkeletonComponent,
     AdminTenantProfileFieldsComponent,
   ],
-  templateUrl: './create-client.component.html',
-  styleUrl: './create-client.component.scss',
+  templateUrl: './edit-client.component.html',
+  styleUrl: '../create-client/create-client.component.scss',
 })
-export class CreateClientComponent {
+export class EditClientComponent {
   private readonly adminTenants = inject(AdminTenantsService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   protected readonly formatDateTime = formatDateTime;
 
-  protected readonly tenantsLoading = signal(true);
-  protected readonly tenants = signal<readonly TenantSummary[]>([]);
-  protected readonly tenantsError = signal<string | null>(null);
+  private readonly params = toSignal(this.route.paramMap, { requireSync: true });
+  private readonly tenantId = computed(() => this.params().get('tenantId') ?? '');
+
+  private readonly loadState = toSignal(
+    toObservable(this.tenantId).pipe(
+      switchMap((id) => {
+        if (!id) {
+          return of({ status: 'error' as const, message: 'Cliente non valido.' });
+        }
+        return this.adminTenants.getTenant(id).pipe(
+          map((tenant): TenantLoadState => ({ status: 'success', tenant })),
+          startWith<TenantLoadState>({ status: 'loading' }),
+          catchError((err: unknown) =>
+            of({
+              status: 'error' as const,
+              message: isAppError(err) ? err.message : 'Impossibile caricare il cliente.',
+            }),
+          ),
+        );
+      }),
+    ),
+    { initialValue: { status: 'loading' } satisfies TenantLoadState },
+  );
+
+  protected readonly loading = computed(() => this.loadState().status === 'loading');
+  protected readonly error = computed(() => {
+    const state = this.loadState();
+    return state.status === 'error' ? state.message : null;
+  });
+  protected readonly tenant = computed((): TenantDetail | null => {
+    const state = this.loadState();
+    return state.status === 'success' ? state.tenant : null;
+  });
 
   protected readonly submitLoading = signal(false);
   protected readonly submitError = signal<string | null>(null);
-  protected readonly created = signal<ProvisionedTenant | null>(null);
-  protected readonly passwordVisible = signal(false);
+  protected readonly saved = signal(false);
 
   protected readonly form = this.fb.group({
     tenantName: this.fb.control('', {
@@ -57,18 +101,17 @@ export class CreateClientComponent {
     ownerDisplayName: this.fb.control('', {
       validators: [Validators.required, Validators.minLength(2), Validators.maxLength(120)],
     }),
-    ownerEmail: this.fb.control('', {
-      validators: [Validators.required, Validators.email, Validators.maxLength(255)],
-    }),
-    ownerPassword: this.fb.control('', {
-      validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
-    }),
     storeName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
     locationName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
   });
 
   constructor() {
-    this.loadTenants();
+    effect(() => {
+      const detail = this.tenant();
+      if (detail) {
+        patchTenantProfileForm(this.form, detail);
+      }
+    });
   }
 
   protected showError(controlName: string): boolean {
@@ -76,44 +119,34 @@ export class CreateClientComponent {
     return control.invalid && control.touched;
   }
 
-  protected togglePasswordVisibility(): void {
-    this.passwordVisible.update((visible) => !visible);
-  }
-
-  protected openTenant(tenant: TenantSummary): void {
-    void this.router.navigate(['/app/admin/clients', tenant.id]);
-  }
-
   protected onSubmit(): void {
     this.form.markAllAsTouched();
-    if (this.form.invalid || this.submitLoading()) {
+    const detail = this.tenant();
+    if (this.form.invalid || this.submitLoading() || !detail) {
       return;
     }
 
     this.submitLoading.set(true);
     this.submitError.set(null);
+    this.saved.set(false);
 
     const raw = this.form.getRawValue();
     const storeName = raw.storeName.trim();
     const locationName = raw.locationName.trim();
 
     this.adminTenants
-      .createTenant({
+      .updateTenant(detail.id, {
         tenantName: raw.tenantName.trim(),
         ownerDisplayName: raw.ownerDisplayName.trim(),
-        ownerEmail: raw.ownerEmail.trim(),
-        ownerPassword: raw.ownerPassword,
         ...(storeName ? { storeName } : {}),
         ...(locationName ? { locationName } : {}),
         ...profilePayloadFromForm(raw),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (result) => {
+        next: () => {
           this.submitLoading.set(false);
-          this.created.set(result);
-          this.form.reset({ countryCode: 'IT' });
-          this.loadTenants();
+          this.saved.set(true);
         },
         error: (err: unknown) => {
           this.submitLoading.set(false);
@@ -121,32 +154,14 @@ export class CreateClientComponent {
             this.submitError.set(err.message);
             return;
           }
-          this.submitError.set('Creazione cliente non riuscita. Riprova.');
+          this.submitError.set('Salvataggio non riuscito. Riprova.');
         },
       });
   }
 
-  protected resetForm(): void {
-    this.created.set(null);
+  protected reload(): void {
+    this.saved.set(false);
     this.submitError.set(null);
-  }
-
-  private loadTenants(): void {
-    this.tenantsLoading.set(true);
-    this.tenantsError.set(null);
-
-    this.adminTenants
-      .listTenants()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (items) => {
-          this.tenants.set(items);
-          this.tenantsLoading.set(false);
-        },
-        error: () => {
-          this.tenantsLoading.set(false);
-          this.tenantsError.set('Impossibile caricare l’elenco clienti.');
-        },
-      });
+    void this.router.navigateByUrl(this.router.url, { onSameUrlNavigation: 'reload' });
   }
 }

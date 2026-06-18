@@ -1,5 +1,5 @@
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 import { TenantProfileFieldsDto } from './tenant-profile-fields.dto';
 
@@ -11,25 +11,20 @@ function trimToUndefined({ value }: { value: unknown }): unknown {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export class CreateTenantDto extends TenantProfileFieldsDto {
+export class UpdateTenantDto extends TenantProfileFieldsDto {
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(120)
-  tenantName!: string;
+  @Transform(trimToUndefined)
+  tenantName?: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(120)
-  ownerDisplayName!: string;
-
-  @IsEmail()
-  @MaxLength(255)
-  ownerEmail!: string;
-
-  @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  ownerPassword!: string;
+  @Transform(trimToUndefined)
+  ownerDisplayName?: string;
 
   @IsOptional()
   @IsString()

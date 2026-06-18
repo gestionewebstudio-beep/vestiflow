@@ -1,8 +1,30 @@
-export interface CreateTenantPayload {
+export interface TenantProfileFields {
+  readonly legalName?: string;
+  readonly vatNumber?: string;
+  readonly fiscalCode?: string;
+  readonly phone?: string;
+  readonly pec?: string;
+  readonly sdiCode?: string;
+  readonly addressLine1?: string;
+  readonly addressLine2?: string;
+  readonly city?: string;
+  readonly province?: string;
+  readonly postalCode?: string;
+  readonly countryCode?: string;
+}
+
+export interface CreateTenantPayload extends TenantProfileFields {
   readonly tenantName: string;
   readonly ownerDisplayName: string;
   readonly ownerEmail: string;
   readonly ownerPassword: string;
+  readonly storeName?: string;
+  readonly locationName?: string;
+}
+
+export interface UpdateTenantPayload extends TenantProfileFields {
+  readonly tenantName?: string;
+  readonly ownerDisplayName?: string;
   readonly storeName?: string;
   readonly locationName?: string;
 }
@@ -25,4 +47,44 @@ export interface TenantSummary {
   readonly createdAt: string;
   readonly ownerEmail: string | null;
   readonly ownerDisplayName: string | null;
+  readonly vatNumber: string | null;
+}
+
+export interface TenantDetail {
+  readonly id: string;
+  readonly name: string;
+  readonly createdAt: string;
+  readonly profile: {
+    readonly legalName: string | null;
+    readonly vatNumber: string | null;
+    readonly fiscalCode: string | null;
+    readonly phone: string | null;
+    readonly pec: string | null;
+    readonly sdiCode: string | null;
+    readonly addressLine1: string | null;
+    readonly addressLine2: string | null;
+    readonly city: string | null;
+    readonly province: string | null;
+    readonly postalCode: string | null;
+    readonly countryCode: string | null;
+  };
+  readonly owner: {
+    readonly id: string;
+    readonly email: string;
+    readonly displayName: string;
+  } | null;
+  readonly store: {
+    readonly id: string;
+    readonly name: string;
+  } | null;
+  readonly location: {
+    readonly id: string;
+    readonly name: string;
+    readonly addressLine1: string | null;
+    readonly addressLine2: string | null;
+    readonly city: string | null;
+    readonly province: string | null;
+    readonly postalCode: string | null;
+    readonly countryCode: string | null;
+  } | null;
 }

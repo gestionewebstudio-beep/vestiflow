@@ -1,0 +1,110 @@
+<section class="create-client">
+  <header class="create-client__header">
+    <p class="create-client__back">
+      <a routerLink="/app/admin/clients/new" class="create-client__back-link">← Nuovo cliente</a>
+    </p>
+    <h1 class="create-client__title">Modifica cliente</h1>
+    @if (tenant(); as detail) {
+      <p class="create-client__subtitle">
+        {{ detail.name }} · creato il {{ formatDateTime(detail.createdAt) }}
+      </p>
+    }
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="1" [rows]="8" />
+  } @else if (error(); as message) {
+    <app-error-state [description]="message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (tenant(); as detail) {
+    <section class="create-client__panel" aria-labelledby="edit-client-form-title">
+      <h2 id="edit-client-form-title" class="create-client__panel-title">Anagrafica</h2>
+
+      @if (saved()) {
+        <p class="create-client__success" role="status">Modifiche salvate.</p>
+      }
+
+      <form class="create-client__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+        <section class="create-client__section" aria-labelledby="edit-client-company">
+          <h3 id="edit-client-company" class="create-client__section-title">Identificazione</h3>
+          <label class="create-client__field" for="edit-tenant-name">
+            <span class="create-client__field-label">Nome commerciale</span>
+            <input
+              id="edit-tenant-name"
+              class="create-client__input"
+              type="text"
+              formControlName="tenantName"
+              [attr.aria-invalid]="showError('tenantName')"
+            />
+            @if (showError('tenantName')) {
+              <span class="create-client__field-error"
+                >Inserisci il nome dell’azienda (min. 2 caratteri).</span
+              >
+            }
+          </label>
+        </section>
+
+        <app-admin-tenant-profile-fields [form]="form" [showError]="showError.bind(this)" />
+
+        <section class="create-client__section" aria-labelledby="edit-client-access">
+          <h3 id="edit-client-access" class="create-client__section-title">Titolare</h3>
+
+          <label class="create-client__field" for="edit-owner-name">
+            <span class="create-client__field-label">Nome titolare</span>
+            <input
+              id="edit-owner-name"
+              class="create-client__input"
+              type="text"
+              formControlName="ownerDisplayName"
+              [attr.aria-invalid]="showError('ownerDisplayName')"
+            />
+            @if (showError('ownerDisplayName')) {
+              <span class="create-client__field-error">Inserisci il nome del titolare.</span>
+            }
+          </label>
+
+          <div class="create-client__field">
+            <span class="create-client__field-label">Email accesso</span>
+            <p class="create-client__readonly">{{ detail.owner?.email ?? '—' }}</p>
+            <span class="create-client__hint"
+              >L’email di accesso non si modifica da qui (Supabase Auth).</span
+            >
+          </div>
+        </section>
+
+        <section class="create-client__section" aria-labelledby="edit-client-setup">
+          <h3 id="edit-client-setup" class="create-client__section-title">Negozio e location</h3>
+
+          <label class="create-client__field" for="edit-store-name">
+            <span class="create-client__field-label">Nome negozio</span>
+            <input
+              id="edit-store-name"
+              class="create-client__input"
+              type="text"
+              formControlName="storeName"
+            />
+          </label>
+
+          <label class="create-client__field" for="edit-location-name">
+            <span class="create-client__field-label">Nome location</span>
+            <input
+              id="edit-location-name"
+              class="create-client__input"
+              type="text"
+              formControlName="locationName"
+            />
+          </label>
+        </section>
+
+        @if (submitError(); as message) {
+          <p class="create-client__alert" role="alert">{{ message }}</p>
+        }
+
+        <div class="create-client__actions">
+          <app-button type="submit" [loading]="submitLoading()" [disabled]="submitLoading()">
+            Salva modifiche
+          </app-button>
+        </div>
+      </form>
+    </section>
+  }
+</section>

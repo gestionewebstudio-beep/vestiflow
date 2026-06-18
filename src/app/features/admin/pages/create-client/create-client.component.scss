@@ -1,4 +1,5 @@
 @use 'breakpoints' as bp;
+@use '../../styles/admin-client-form-fields';
 
 :host {
   display: block;
@@ -8,7 +9,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  max-inline-size: var(--content-default);
+  max-inline-size: var(--content-wide);
+}
+
+.create-client__back {
+  margin: 0;
+}
+
+.create-client__back-link {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.create-client__back-link:hover {
+  color: var(--color-text);
+  text-decoration: underline;
 }
 
 .create-client__title {
@@ -60,39 +76,20 @@
 .create-client__form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  max-inline-size: var(--content-narrow);
+  gap: var(--space-5);
+  max-inline-size: none;
 }
 
-.create-client__field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.create-client__field-label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text);
-}
-
-.create-client__input {
-  min-block-size: var(--btn-min-height);
-  padding: var(--space-2) var(--space-3);
+.create-client__readonly {
+  margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
 }
 
-.create-client__input:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.create-client__input[aria-invalid='true'] {
-  border-color: var(--status-error-border);
+.create-client__success {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-success-fg);
 }
 
 .create-client__password {
@@ -131,11 +128,6 @@
 .create-client__password-toggle:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-offset));
-}
-
-.create-client__field-error {
-  font-size: var(--text-xs);
-  color: var(--status-error-fg);
 }
 
 .create-client__alert {
@@ -206,6 +198,10 @@
 
 .create-client__table tbody tr:hover {
   background-color: var(--color-surface-hover);
+}
+
+.create-client__table-row {
+  cursor: pointer;
 }
 
 .create-client__table td:last-child {

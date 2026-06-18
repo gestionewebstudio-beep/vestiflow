@@ -1,0 +1,69 @@
+@use 'breakpoints' as bp;
+
+// Campi form condivisi tra create-client e admin-tenant-profile-fields.
+.create-client__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.create-client__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.create-client__section-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.create-client__field-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+@include bp.media-up('md') {
+  .create-client__field-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.create-client__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.create-client__field-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.create-client__input {
+  min-block-size: var(--btn-min-height);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.create-client__input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.create-client__input[aria-invalid='true'] {
+  border-color: var(--status-error-border);
+}
+
+.create-client__field-error {
+  font-size: var(--text-xs);
+  color: var(--status-error-fg);
+}
