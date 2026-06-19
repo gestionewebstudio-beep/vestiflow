@@ -168,7 +168,7 @@ export class ProductsImportService {
     });
 
     try {
-      await this.shopifyProductPush.pushProduct(tenantId, created.id);
+      void this.shopifyProductPush.enqueuePush(tenantId, created.id);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Push Shopify fallito';
       this.logger.warn(`Push prodotto import CSV (${tenantId}, ${created.id}): ${message}`);

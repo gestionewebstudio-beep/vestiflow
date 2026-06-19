@@ -73,7 +73,7 @@ export class ProductMediaService {
       },
     });
 
-    await this.shopifyProductPush.pushProduct(tenantId, productId);
+    void this.shopifyProductPush.enqueuePush(tenantId, productId);
     return image;
   }
 
@@ -95,7 +95,7 @@ export class ProductMediaService {
     }
 
     await this.prisma.productImage.delete({ where: { id: imageId } });
-    await this.shopifyProductPush.pushProduct(tenantId, productId);
+    void this.shopifyProductPush.enqueuePush(tenantId, productId);
   }
 
   private async assertProduct(tenantId: string, productId: string): Promise<void> {

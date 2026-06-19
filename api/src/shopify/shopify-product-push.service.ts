@@ -66,6 +66,8 @@ export interface ShopifyProductDeleteResult {
 @Injectable()
 export class ShopifyProductPushService {
   private readonly logger = new Logger(ShopifyProductPushService.name);
+  /** Evita push concorrenti sullo stesso prodotto (sync manuale + webhook + save). */
+  private readonly pushInFlight = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -103,9 +105,20 @@ export class ShopifyProductPushService {
     }
 
     await this.markProductSyncing(productId);
+
+    const lockKey = this.pushLockKey(tenantId, productId);
+    if (this.pushInFlight.has(lockKey)) {
+      this.logger.debug(`Push Shopify già in corso (${tenantId}/${productId})`);
+      return { pushed: true, followUpInBackground: true };
+    }
+
     void this.executePushWork(tenantId, productId);
 
     return { pushed: true, followUpInBackground: true };
+  }
+
+  private pushLockKey(tenantId: string, productId: string): string {
+    return `${tenantId}:${productId}`;
   }
 
   private async evaluatePushGuard(
@@ -168,12 +181,25 @@ export class ShopifyProductPushService {
   }
 
   private async executePushWork(tenantId: string, productId: string): Promise<void> {
+    const lockKey = this.pushLockKey(tenantId, productId);
+    if (this.pushInFlight.has(lockKey)) {
+      return;
+    }
+    this.pushInFlight.add(lockKey);
+
     try {
       const product = await this.prisma.product.findFirst({
         where: { id: productId, tenantId },
         include: { variants: true, images: { orderBy: { sortOrder: 'asc' } } },
       });
       if (!product || product.status === ProductStatus.archived) {
+        await this.prisma.product.update({
+          where: { id: productId },
+          data: {
+            shopifySyncStatus: ShopifySyncStatus.out_of_sync,
+            shopifyLastError: 'Push Shopify interrotto: prodotto non più disponibile.',
+          },
+        });
         return;
       }
 
@@ -256,6 +282,8 @@ export class ShopifyProductPushService {
           shopifyLastError: message.slice(0, 500),
         },
       });
+    } finally {
+      this.pushInFlight.delete(lockKey);
     }
   }
 

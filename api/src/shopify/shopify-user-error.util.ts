@@ -59,6 +59,8 @@ export function toShopifyUserMessage(code: string | undefined, rawMessage: strin
       'standardmetaobject',
       'campo taxonomy obbligatorio',
       'nessun campo metaobject',
+      'assenti su shopify',
+      'sincronizza con shopify',
     ])
   ) {
     return raw.length > 500 ? `${raw.slice(0, 497)}…` : raw;

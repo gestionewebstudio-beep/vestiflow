@@ -200,6 +200,19 @@ export class ShopifyProductPullService {
       enrichment?.categoryMetafields,
       existing?.shopifyCategoryMetafields,
     );
+
+    if (existing?.shopifySyncStatus === ShopifySyncStatus.syncing) {
+      this.logger.debug(
+        `Import webhook saltato: sync VestiFlow→Shopify in corso (${shopifyProductId})`,
+      );
+      return 'skipped';
+    }
+
+    const categorySyncError = categoryMetafieldsSyncErrorMessage(
+      localCategoryMetafields.length,
+      importedCategoryMetafields.length,
+      existing?.shopifyLastError,
+    );
     const productData = {
       name: remote.title.trim() || 'Prodotto Shopify',
       description: shopifyBodyHtmlToPlainText(remote.body_html),
@@ -222,13 +235,11 @@ export class ShopifyProductPullService {
       status,
       options: options as unknown as Prisma.InputJsonValue,
       shopifyProductId,
-      shopifySyncStatus: ShopifySyncStatus.synced,
+      shopifySyncStatus: categorySyncError
+        ? ShopifySyncStatus.out_of_sync
+        : ShopifySyncStatus.synced,
       shopifyLastSyncAt: new Date(),
-      shopifyLastError: categoryMetafieldsSyncErrorMessage(
-        localCategoryMetafields.length,
-        importedCategoryMetafields.length,
-        existing?.shopifyLastError,
-      ),
+      shopifyLastError: categorySyncError,
     };
 
     if (!existing) {

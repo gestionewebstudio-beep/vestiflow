@@ -510,13 +510,11 @@ export class ProductsService {
     });
   }
 
-  private async pushProductToShopifySafe(tenantId: string, productId: string): Promise<void> {
-    try {
-      await this.shopifyProductPush.pushProduct(tenantId, productId);
-    } catch (error: unknown) {
+  private pushProductToShopifySafe(tenantId: string, productId: string): void {
+    void this.shopifyProductPush.enqueuePush(tenantId, productId).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Push prodotto Shopify fallito';
       this.logger.warn(`Push prodotto Shopify non riuscito (${tenantId}): ${message}`);
-    }
+    });
   }
 
   async syncToShopify(tenantId: string, id: string): Promise<ShopifyProductPushResult> {
