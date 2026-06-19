@@ -21,12 +21,17 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type { ProductGeneralDraft } from '../../models/product-form.model';
+import {
+  buildProductSeasonSelectOptions,
+  isStandardProductSeason,
+  PRODUCT_SEASON_CUSTOM_OPTION,
+} from '../../models/product-season.options';
 import { productStatusLabel } from '../../models/product-status.util';
 import { ShopifyCategoryAttributesComponent } from '../shopify-category-attributes/shopify-category-attributes.component';
 import type { ShopifyTaxonomySelection } from '../shopify-taxonomy-picker/shopify-taxonomy-picker.component';
 import { ShopifyTaxonomyPickerComponent } from '../shopify-taxonomy-picker/shopify-taxonomy-picker.component';
 
-type RequiredField = 'name' | 'brand' | 'category' | 'season';
+type RequiredField = 'name' | 'brand' | 'category';
 
 interface StatusOption {
   readonly value: ProductStatus;
@@ -62,7 +67,6 @@ export class ProductGeneralStepComponent implements OnInit {
   readonly valueChange = output<ProductGeneralDraft>();
 
   readonly categories = input<readonly string[]>([]);
-  readonly seasons = input<readonly string[]>([]);
   readonly shopifyConnected = input(false);
 
   protected readonly statusSelectOptions: readonly SelectMenuOption[] = STATUS_OPTIONS.map(
@@ -85,21 +89,16 @@ export class ProductGeneralStepComponent implements OnInit {
     return options;
   });
 
-  protected readonly seasonSelectOptions = computed((): readonly SelectMenuOption[] => {
-    const values = this.withCurrent(this.seasons(), this.seasonValue());
-    const options = values.map((value) => ({ value, label: value }));
-    if (this.seasons().length > 0) {
-      return [...options, { value: CUSTOM_OPTION_VALUE, label: 'Altra stagione…' }];
-    }
-    return options;
-  });
+  protected readonly seasonSelectOptions = computed((): readonly SelectMenuOption[] =>
+    buildProductSeasonSelectOptions(this.seasonValue()),
+  );
 
   protected readonly categorySelectValue = computed(() =>
     this.customCategory() ? CUSTOM_OPTION_VALUE : this.categoryValue(),
   );
 
   protected readonly seasonSelectValue = computed(() =>
-    this.customSeason() ? CUSTOM_OPTION_VALUE : this.seasonValue(),
+    this.customSeason() ? PRODUCT_SEASON_CUSTOM_OPTION : this.seasonValue(),
   );
 
   protected readonly taxonomyInvalid = computed(
@@ -119,7 +118,7 @@ export class ProductGeneralStepComponent implements OnInit {
     shopifyTaxonomyCategoryId: this.fb.control(''),
     shopifyTaxonomyCategoryFullName: this.fb.control(''),
     shopifyCategoryMetafields: this.fb.control<readonly ShopifyCategoryMetafieldValue[]>([]),
-    season: this.fb.control('', [Validators.required]),
+    season: this.fb.control(''),
     tags: this.fb.control(''),
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
     description: this.fb.control(''),
@@ -144,7 +143,7 @@ export class ProductGeneralStepComponent implements OnInit {
     this.categoryValue.set(initial.category);
     this.seasonValue.set(initial.season);
     this.customCategory.set(this.shouldUseCustomField(initial.category, this.categories()));
-    this.customSeason.set(this.shouldUseCustomField(initial.season, this.seasons()));
+    this.customSeason.set(initial.season.trim() !== '' && !isStandardProductSeason(initial.season));
     this.form.setValue(initial, { emitEvent: false });
 
     this.form.controls.category.valueChanges
@@ -185,16 +184,18 @@ export class ProductGeneralStepComponent implements OnInit {
   }
 
   protected onSeasonSelect(value: string | null): void {
-    if (value === CUSTOM_OPTION_VALUE) {
+    if (value === PRODUCT_SEASON_CUSTOM_OPTION) {
       this.customSeason.set(true);
       this.form.controls.season.setValue('');
-      this.form.controls.season.markAsTouched();
       return;
     }
-    if (value) {
+    if (value === null || value === '') {
       this.customSeason.set(false);
-      this.form.controls.season.setValue(value);
+      this.form.controls.season.setValue('');
+      return;
     }
+    this.customSeason.set(false);
+    this.form.controls.season.setValue(value);
   }
 
   protected onTaxonomyChange(selection: ShopifyTaxonomySelection | null): void {
@@ -223,7 +224,7 @@ export class ProductGeneralStepComponent implements OnInit {
   }
 
   protected useSeasonSelect(): boolean {
-    return this.seasons().length > 0 && !this.customSeason();
+    return !this.customSeason();
   }
 
   private withCurrent(list: readonly string[], current: string): readonly string[] {

@@ -193,10 +193,8 @@ export class ProductFormComponent implements CanComponentDeactivate {
   );
 
   protected readonly categories = computed(() => this.filterOptions()?.categories ?? []);
-  protected readonly seasons = computed(() => this.filterOptions()?.seasons ?? []);
 
   // Validità del formato compareAtPrice (testo libero) riportata dallo step
-  // varianti: non rappresentabile nel draft numerico, quindi gating dedicato.
   private readonly variantsStepValid = signal(true);
 
   // SKU non vuoti delle varianti correnti, per la verifica di disponibilita'.
@@ -241,8 +239,8 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // Validità "Dati generali": tutti i campi obbligatori valorizzati (trim).
   // Gli step 8.5-8.7 aggiungeranno le proprie regole nella catena di gating.
   private readonly generalValid = computed(() => {
-    const { name, brand, category, season, shopifyTaxonomyCategoryId } = this.draft().general;
-    const base = name.trim() !== '' && brand.trim() !== '' && season.trim() !== '';
+    const { name, brand, category, shopifyTaxonomyCategoryId } = this.draft().general;
+    const base = name.trim() !== '' && brand.trim() !== '';
     if (this.shopifyConnected()) {
       return base && shopifyTaxonomyCategoryId.trim() !== '';
     }

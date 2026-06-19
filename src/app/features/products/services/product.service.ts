@@ -33,6 +33,7 @@ import {
   mapProductImportPreview,
   type ImportPreviewApiResponse,
 } from '../models/product-import.mapper';
+import { PRODUCT_SEASON_STANDARD_VALUES } from '../models/product-season.options';
 import { variantTitle } from '../models/product-variant.util';
 import { toCreateProductBody, toUpdateProductBody } from './product-api.mapper';
 
@@ -269,7 +270,10 @@ export class ProductService {
   private deriveFilterOptions(products: readonly Product[]): ProductFilterOptions {
     const categories = this.distinctSorted(products.map((product) => product.category));
     const brands = this.distinctSorted(products.map((product) => product.brand));
-    const seasons = this.distinctSorted(products.map((product) => product.season));
+    const seasons = this.distinctSorted([
+      ...PRODUCT_SEASON_STANDARD_VALUES,
+      ...products.map((product) => product.season),
+    ]);
     return { categories, brands, seasons };
   }
 
