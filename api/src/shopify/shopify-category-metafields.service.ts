@@ -11,6 +11,7 @@ import {
   pickMetaobjectTaxonomyFieldKey,
   serializeMetaobjectGidList,
   serializeTaxonomyValueListGids,
+  standardMetafieldDefinitionTemplateGid,
 } from './shopify-category-metafields.util';
 import type { MetafieldsSetInput } from './shopify-graphql.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
@@ -28,6 +29,7 @@ export interface ShopifyCategoryMetafieldsPushResult {
 export class ShopifyCategoryMetafieldsService {
   private readonly logger = new Logger(ShopifyCategoryMetafieldsService.name);
   private readonly metaobjectFieldKeyCache = new Map<string, string>();
+  private readonly metafieldDefinitionEnabledCache = new Set<string>();
 
   constructor(
     private readonly shopifyOAuth: ShopifyOAuthService,
@@ -172,6 +174,8 @@ export class ShopifyCategoryMetafieldsService {
     shopifyProductId: string,
     field: ShopifyCategoryMetafieldValue,
   ): Promise<MetafieldsSetInput | null> {
+    await this.ensureCategoryMetafieldDefinitionEnabled(shopDomain, accessToken, field);
+
     const type = field.metafieldType || 'list.metaobject_reference';
 
     if (isDirectTaxonomyMetafieldType(type)) {
@@ -274,6 +278,32 @@ export class ShopifyCategoryMetafieldsService {
       this.metaobjectFieldKeyCache.set(cacheKey, picked);
     }
     return picked;
+  }
+
+  private async ensureCategoryMetafieldDefinitionEnabled(
+    shopDomain: string,
+    accessToken: string,
+    field: ShopifyCategoryMetafieldValue,
+  ): Promise<void> {
+    const templateGid = standardMetafieldDefinitionTemplateGid(field.attributeId);
+    if (!templateGid) {
+      this.logger.warn(
+        `Definizione metafield categoria non abilitata (${field.key}): attributeId non taxonomy (${field.attributeId})`,
+      );
+      return;
+    }
+
+    const cacheKey = `${shopDomain}:${templateGid}`;
+    if (this.metafieldDefinitionEnabledCache.has(cacheKey)) {
+      return;
+    }
+
+    await this.shopifyGraphql.ensureStandardMetafieldDefinitionEnabled(
+      shopDomain,
+      accessToken,
+      templateGid,
+    );
+    this.metafieldDefinitionEnabledCache.add(cacheKey);
   }
 
   private extractTaxonomyValues(

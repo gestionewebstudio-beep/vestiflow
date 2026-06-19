@@ -400,6 +400,44 @@ export class ShopifyGraphqlClient {
     }));
   }
 
+  async ensureStandardMetafieldDefinitionEnabled(
+    shopDomain: string,
+    accessToken: string,
+    templateGid: string,
+  ): Promise<void> {
+    const mutation = `
+      mutation StandardMetafieldDefinitionEnable($id: ID!, $ownerType: MetafieldOwnerType!) {
+        standardMetafieldDefinitionEnable(id: $id, ownerType: $ownerType) {
+          createdDefinition {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const data = await this.graphql<{
+      standardMetafieldDefinitionEnable: {
+        createdDefinition: { id: string } | null;
+        userErrors: readonly { field: string[] | null; message: string }[];
+      };
+    }>(shopDomain, accessToken, mutation, { id: templateGid, ownerType: 'PRODUCT' });
+
+    const userErrors = data.standardMetafieldDefinitionEnable?.userErrors ?? [];
+    const blockingErrors = userErrors.filter(
+      (entry) => !isIgnorableStandardMetafieldDefinitionEnableError(entry.message),
+    );
+    if (blockingErrors.length > 0) {
+      const message = blockingErrors.map((entry) => entry.message).join('; ');
+      throw new InternalServerErrorException(
+        `Shopify standardMetafieldDefinitionEnable (${templateGid}): ${message}`,
+      );
+    }
+  }
+
   async ensureStandardMetaobjectDefinitionEnabled(
     shopDomain: string,
     accessToken: string,
@@ -570,4 +608,14 @@ function toProductGid(shopifyProductId: string): string {
   return shopifyProductId.startsWith('gid://')
     ? shopifyProductId
     : `gid://shopify/Product/${shopifyProductId}`;
+}
+
+function isIgnorableStandardMetafieldDefinitionEnableError(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  return (
+    normalized.includes('already') ||
+    normalized.includes('enabled') ||
+    normalized.includes('exists') ||
+    normalized.includes('has been taken')
+  );
 }
