@@ -8,7 +8,20 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith, switchMap, type Subscription } from 'rxjs';
+import {
+  catchError,
+  filter,
+  forkJoin,
+  map,
+  of,
+  startWith,
+  switchMap,
+  take,
+  timer,
+  type Observable,
+  type Subscription,
+  timeout as rxTimeout,
+} from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -36,6 +49,8 @@ import { productStatusLabel, productStatusTone } from './models/product-status.u
 import { ProductService } from './services/product.service';
 
 const PRODUCTS_LIST_PATH = '/app/products';
+const SHOPIFY_FOLLOW_UP_POLL_MS = 2000;
+const SHOPIFY_FOLLOW_UP_MAX_WAIT_MS = 120_000;
 
 const DATE_FORMAT = new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -253,22 +268,67 @@ export class ProductDetailComponent {
     this.shopifySyncMessage.set(null);
     this.service
       .syncProductToShopify(productId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          this.syncingShopify.set(false);
+      .pipe(
+        switchMap((result) => {
+          if (!result.pushed || !result.followUpInBackground) {
+            return of({ result, followUp: null as 'completed' | 'timeout' | null });
+          }
           this.shopifySyncMessage.set(
-            result.pushed
-              ? 'Prodotto inviato a Shopify con successo.'
-              : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
+            'Prodotto inviato a Shopify. Sincronizzazione metafield in corso…',
           );
           this.reload();
-        },
-        error: () => {
+          return this.pollShopifyFollowUpComplete(productId).pipe(
+            map((followUp) => ({ result, followUp })),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: ({ result, followUp }) => {
           this.syncingShopify.set(false);
-          this.shopifySyncMessage.set('Errore durante la sincronizzazione con Shopify.');
+          if (followUp === 'timeout') {
+            this.shopifySyncMessage.set(
+              'Prodotto inviato a Shopify. I metafield di categoria possono richiedere ancora qualche istante: aggiorna tra poco.',
+            );
+          } else if (result.followUpInBackground) {
+            this.shopifySyncMessage.set(
+              result.pushed
+                ? 'Sincronizzazione Shopify completata.'
+                : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
+            );
+          } else {
+            this.shopifySyncMessage.set(
+              result.pushed
+                ? 'Prodotto inviato a Shopify con successo.'
+                : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
+            );
+          }
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this.syncingShopify.set(false);
+          this.shopifySyncMessage.set(this.syncErrorMessage(err));
         },
       });
+  }
+
+  private pollShopifyFollowUpComplete(productId: string): Observable<'completed' | 'timeout'> {
+    return timer(SHOPIFY_FOLLOW_UP_POLL_MS, SHOPIFY_FOLLOW_UP_POLL_MS).pipe(
+      switchMap(() => this.service.getProductById(productId)),
+      filter((product) => product.shopify?.status !== ShopifySyncStatus.Syncing),
+      take(1),
+      map(() => 'completed' as const),
+      rxTimeout(SHOPIFY_FOLLOW_UP_MAX_WAIT_MS),
+      catchError(() => of('timeout' as const)),
+    );
+  }
+
+  private syncErrorMessage(err: unknown): string {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/504|gateway timeout|timeout/i.test(message)) {
+      return 'La sincronizzazione ha impiegato troppo tempo. Controlla lo stato Shopify tra qualche istante.';
+    }
+    return 'Errore durante la sincronizzazione con Shopify.';
   }
 
   protected goToList(): void {

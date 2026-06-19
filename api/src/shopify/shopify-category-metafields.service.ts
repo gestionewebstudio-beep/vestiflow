@@ -163,6 +163,21 @@ export class ShopifyCategoryMetafieldsService {
       );
     }
 
+    const activeFields = categoryMetafields.filter((field) => field.values.length > 0);
+    for (const field of activeFields) {
+      await this.ensureCategoryMetafieldDefinitionEnabled(shopDomain, accessToken, field);
+    }
+    const metaobjectTypes = new Set(
+      activeFields
+        .filter((field) =>
+          isMetaobjectReferenceMetafieldType(field.metafieldType || 'list.metaobject_reference'),
+        )
+        .map((field) => buildStandardMetaobjectType(field.key)),
+    );
+    for (const metaobjectType of metaobjectTypes) {
+      await this.loadMetaobjectFieldDefinitions(shopDomain, accessToken, metaobjectType);
+    }
+
     for (const field of categoryMetafields) {
       if (field.values.length === 0) {
         continue;

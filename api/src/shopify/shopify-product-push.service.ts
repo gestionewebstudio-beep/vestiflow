@@ -45,6 +45,8 @@ export type ShopifyProductPushSkipReason =
 export interface ShopifyProductPushResult {
   readonly pushed: boolean;
   readonly reason?: ShopifyProductPushSkipReason | 'shopify_error';
+  /** Metafield categoria e refresh metadata proseguono in background (evita timeout gateway). */
+  readonly followUpInBackground?: boolean;
 }
 
 export type ShopifyProductDeleteSkipReason =
@@ -109,6 +111,11 @@ export class ShopifyProductPushService {
       return { pushed: false, reason: 'archived' };
     }
 
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { shopifySyncStatus: ShopifySyncStatus.syncing, shopifyLastError: null },
+    });
+
     try {
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
       const payload = this.buildShopifyProductPayload(product);
@@ -138,36 +145,19 @@ export class ShopifyProductPushService {
         product.shopifyMetafields,
       );
       await this.pushTaxonomyCategory(tenantId, String(shopifyProduct.id), product);
-      const categoryMetafieldsWarning = await this.pushCategoryMetafields(
+
+      this.scheduleProductPushFollowUp(
         tenantId,
-        String(shopifyProduct.id),
-        product,
-      );
-      await this.refreshLocalShopifyMetadata(
-        product.id,
+        productId,
         shopDomain,
         accessToken,
         String(shopifyProduct.id),
-        product.shopifyTaxonomyCategoryId,
-        product.shopifyCategoryMetafields,
-        product.shopifyMetafields,
       );
-      await this.pushVariantCosts(shopDomain, accessToken, product.variants);
-      if (categoryMetafieldsWarning) {
-        await this.prisma.product.update({
-          where: { id: productId },
-          data: {
-            shopifyLastError: categoryMetafieldsWarning.slice(0, 500),
-            shopifySyncStatus: ShopifySyncStatus.out_of_sync,
-          },
-        });
-      }
-      await this.shopifyConnection.touchSync(tenantId);
 
       this.logger.log(
-        `Prodotto Shopify sincronizzato (${tenantId}): ${product.name} → ${shopifyProduct.id}`,
+        `Prodotto Shopify inviato (${tenantId}): ${product.name} → ${shopifyProduct.id} (follow-up in background)`,
       );
-      return { pushed: true };
+      return { pushed: true, followUpInBackground: true };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Errore push prodotto Shopify';
       this.logger.warn(`Push prodotto Shopify fallito (${tenantId}/${productId}): ${message}`);
@@ -529,6 +519,80 @@ export class ShopifyProductPushService {
     }
   }
 
+  /**
+   * Metafield categoria, refresh metadata e costi varianti: troppo lenti per restare
+   * nella stessa richiesta HTTP (Railway ~60s). Eseguiti in background dopo il core push.
+   */
+  private scheduleProductPushFollowUp(
+    tenantId: string,
+    productId: string,
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+  ): void {
+    void (async () => {
+      try {
+        const product = await this.prisma.product.findFirst({
+          where: { id: productId, tenantId },
+          include: { variants: true },
+        });
+        if (!product) {
+          return;
+        }
+
+        const categoryMetafieldsWarning = await this.pushCategoryMetafields(
+          tenantId,
+          shopifyProductId,
+          product,
+        );
+        await this.refreshLocalShopifyMetadata(
+          product.id,
+          shopDomain,
+          accessToken,
+          shopifyProductId,
+          product.shopifyTaxonomyCategoryId,
+          product.shopifyCategoryMetafields,
+          product.shopifyMetafields,
+        );
+        await this.pushVariantCosts(shopDomain, accessToken, product.variants);
+
+        if (categoryMetafieldsWarning) {
+          await this.prisma.product.update({
+            where: { id: productId },
+            data: {
+              shopifyLastError: categoryMetafieldsWarning.slice(0, 500),
+              shopifySyncStatus: ShopifySyncStatus.out_of_sync,
+              shopifyLastSyncAt: new Date(),
+            },
+          });
+        } else {
+          await this.prisma.product.update({
+            where: { id: productId },
+            data: {
+              shopifySyncStatus: ShopifySyncStatus.synced,
+              shopifyLastError: null,
+              shopifyLastSyncAt: new Date(),
+            },
+          });
+        }
+
+        await this.shopifyConnection.touchSync(tenantId);
+        this.logger.log(`Follow-up Shopify completato (${tenantId}/${productId})`);
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : 'Errore follow-up sincronizzazione Shopify';
+        this.logger.warn(`Follow-up Shopify fallito (${tenantId}/${productId}): ${message}`);
+        await this.prisma.product.update({
+          where: { id: productId },
+          data: {
+            shopifySyncStatus: ShopifySyncStatus.error,
+            shopifyLastError: message.slice(0, 500),
+          },
+        });
+      }
+    })();
+  }
+
   private async persistShopifyIds(
     product: ProductWithVariants,
     shopifyProduct: {
@@ -563,9 +627,6 @@ export class ShopifyProductPushService {
         where: { id: product.id },
         data: {
           shopifyProductId: String(shopifyProduct.id),
-          shopifySyncStatus: ShopifySyncStatus.synced,
-          shopifyLastSyncAt: new Date(),
-          shopifyLastError: null,
         },
       }),
       ...variantUpdates,

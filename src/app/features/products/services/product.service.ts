@@ -220,13 +220,16 @@ export class ProductService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
-  syncProductToShopify(
-    productId: EntityId,
-  ): Observable<{ readonly pushed: boolean; readonly reason?: string }> {
+  syncProductToShopify(productId: EntityId): Observable<{
+    readonly pushed: boolean;
+    readonly reason?: string;
+    readonly followUpInBackground?: boolean;
+  }> {
     return this.http
       .post<{
         pushed: boolean;
         reason?: string;
+        followUpInBackground?: boolean;
       }>(this.url(`/products/${productId}/sync-shopify`), {})
       .pipe(timeout(SHOPIFY_SYNC_HTTP_TIMEOUT_MS));
   }
