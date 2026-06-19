@@ -113,14 +113,20 @@
   color: var(--color-interactive);
 }
 
+.taxonomy-picker__selected {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .taxonomy-picker__selected-label {
-  margin: 0;
+  margin: 0 0 var(--space-2);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
 
 .taxonomy-picker__selected-value {
-  margin: 0;
+  margin: 0 0 var(--space-3);
   font-size: var(--text-sm);
   color: var(--color-text);
 }
