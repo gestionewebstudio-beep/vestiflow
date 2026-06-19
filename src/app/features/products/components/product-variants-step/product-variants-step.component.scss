@@ -58,6 +58,18 @@
   inline-size: 100%;
 }
 
+.variants-step__barcode {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  inline-size: 100%;
+}
+
+.variants-step__input--barcode {
+  flex: 1;
+  min-inline-size: 0;
+}
+
 .variants-step__error {
   margin: 0;
   font-size: var(--text-xs);

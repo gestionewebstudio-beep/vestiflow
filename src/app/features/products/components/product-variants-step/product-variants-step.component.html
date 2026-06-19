@@ -137,14 +137,25 @@
             </td>
             <td data-label="Barcode">
               <div class="variants-step__field">
-                <input
-                  class="variants-step__input"
-                  type="text"
-                  formControlName="barcode"
-                  autocomplete="off"
-                  [attr.aria-invalid]="isBarcodeInvalid(group) ? true : null"
-                  [attr.aria-label]="'Barcode per ' + rowTitle(i)"
-                />
+                <div class="variants-step__barcode">
+                  <input
+                    class="variants-step__input variants-step__input--barcode"
+                    type="text"
+                    formControlName="barcode"
+                    autocomplete="off"
+                    inputmode="numeric"
+                    [attr.aria-invalid]="isBarcodeInvalid(group) ? true : null"
+                    [attr.aria-label]="'Barcode per ' + rowTitle(i)"
+                  />
+                  <app-button
+                    type="button"
+                    variant="secondary"
+                    [attr.aria-label]="'Genera barcode EAN-13 per ' + rowTitle(i)"
+                    (click)="generateBarcode(i)"
+                  >
+                    Genera
+                  </app-button>
+                </div>
                 @if (isBarcodeInvalid(group)) {
                   <p class="variants-step__error" role="alert">
                     Il barcode deve essere diverso dallo SKU.

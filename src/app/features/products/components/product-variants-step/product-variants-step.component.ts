@@ -29,7 +29,10 @@ import {
   parseMoneyInput,
 } from '@core/utils/money.util';
 
+import { ButtonComponent } from '@shared/components/button/button.component';
+
 import type { VariantDraft } from '../../models/product-form.model';
+import { generateDistinctEan13Barcode } from '../../models/barcode.util';
 import type { CompareAtError } from '../../models/product-form.validators';
 import {
   compareAtPriceError,
@@ -72,7 +75,7 @@ const EMPTY_META: VariantRowMeta = { key: '', optionValues: [] };
 @Component({
   selector: 'app-product-variants-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ButtonComponent, ReactiveFormsModule],
   templateUrl: './product-variants-step.component.html',
   styleUrl: './product-variants-step.component.scss',
 })
@@ -208,6 +211,19 @@ export class ProductVariantsStepComponent {
   /** Barcode valorizzato ma uguale allo SKU (devono essere distinti). */
   protected isBarcodeInvalid(group: FormGroup<VariantRowControls>): boolean {
     return !isBarcodeDistinct(group.controls.sku.value, group.controls.barcode.value);
+  }
+
+  /** Genera un barcode EAN-13 (13 cifre) distinto dallo SKU della riga. */
+  protected generateBarcode(index: number): void {
+    const group = this.variantsArray.at(index);
+    if (!group) {
+      return;
+    }
+
+    const barcode = generateDistinctEan13Barcode(group.controls.sku.value);
+    group.controls.barcode.setValue(barcode);
+    group.controls.barcode.markAsDirty();
+    group.controls.barcode.markAsTouched();
   }
 
   /** Esito della regola compareAtPrice per la riga (delegata all'helper puro). */
