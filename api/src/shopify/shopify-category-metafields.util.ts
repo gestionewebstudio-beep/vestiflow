@@ -76,12 +76,24 @@ export function taxonomyAttributeNumericId(attributeGid: string): number | null 
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function standardMetafieldDefinitionGid(attributeGid: string): string | null {
+export function standardMetafieldDefinitionTemplateGid(attributeGid: string): string | null {
   const numericId = taxonomyAttributeNumericId(attributeGid);
   if (numericId == null) {
     return null;
   }
-  return `gid://shopify/StandardMetafieldDefinition/${numericId + 10_000}`;
+  return `gid://shopify/StandardMetafieldDefinitionTemplate/${numericId + 10_000}`;
+}
+
+export function templateNumericIdToAttributeNumericId(templateGid: string): number | null {
+  const match = /StandardMetafieldDefinitionTemplate\/(\d+)/.exec(templateGid);
+  if (!match?.[1]) {
+    return null;
+  }
+  const templateNumericId = Number.parseInt(match[1], 10);
+  if (!Number.isFinite(templateNumericId) || templateNumericId < 10_000) {
+    return null;
+  }
+  return templateNumericId - 10_000;
 }
 
 export function serializeTaxonomyValueListGids(values: readonly { readonly id: string }[]): string {

@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 
 import { ShopifyConfigService } from './shopify-config.service';
+import {
+  standardMetafieldDefinitionTemplateGid,
+  templateNumericIdToAttributeNumericId,
+} from './shopify-category-metafields.util';
 import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
 import { parseShopifyRetryAfterHeader } from './shopify-rate-limiter.util';
 
@@ -219,31 +223,38 @@ export class ShopifyGraphqlClient {
     }>(shopDomain, accessToken, query, { id: categoryGid });
 
     const nodes = data.node?.attributes?.nodes ?? [];
-    const attributes: ShopifyTaxonomyCategoryAttribute[] = [];
+    const choiceListNodes = nodes.flatMap((node) =>
+      node.id && node.name
+        ? [{ id: node.id, name: node.name, values: node.values?.nodes ?? [] }]
+        : [],
+    );
 
-    for (const node of nodes) {
-      if (!node.id || !node.name) {
-        continue;
-      }
-      const definition = await this.getStandardMetafieldDefinitionForAttribute(
-        shopDomain,
-        accessToken,
-        node.id,
-      );
-      if (!definition) {
-        continue;
-      }
-      attributes.push({
-        id: node.id,
-        name: node.name,
-        namespace: definition.namespace,
-        key: definition.key,
-        metafieldType: definition.typeName,
-        values: node.values?.nodes ?? [],
-      });
+    if (choiceListNodes.length === 0) {
+      return [];
     }
 
-    return attributes;
+    const templateByAttributeId = await this.resolveStandardMetafieldTemplatesForAttributes(
+      shopDomain,
+      accessToken,
+      choiceListNodes.map((node) => node.id),
+    );
+
+    return choiceListNodes.flatMap((node) => {
+      const definition = templateByAttributeId.get(node.id);
+      if (!definition) {
+        return [];
+      }
+      return [
+        {
+          id: node.id,
+          name: node.name,
+          namespace: definition.namespace,
+          key: definition.key,
+          metafieldType: definition.typeName,
+          values: node.values,
+        },
+      ];
+    });
   }
 
   async getStandardMetafieldDefinitionForAttribute(
@@ -251,16 +262,38 @@ export class ShopifyGraphqlClient {
     accessToken: string,
     attributeGid: string,
   ): Promise<ShopifyStandardMetafieldDefinition | null> {
-    const match = /TaxonomyAttribute\/(\d+)/.exec(attributeGid);
-    if (!match?.[1]) {
+    const templateGid = standardMetafieldDefinitionTemplateGid(attributeGid);
+    if (!templateGid) {
       return null;
     }
-    const definitionGid = `gid://shopify/StandardMetafieldDefinition/${Number.parseInt(match[1], 10) + 10_000}`;
+
+    const templates = await this.resolveStandardMetafieldTemplatesForAttributes(
+      shopDomain,
+      accessToken,
+      [attributeGid],
+    );
+
+    return templates.get(attributeGid) ?? null;
+  }
+
+  private async resolveStandardMetafieldTemplatesForAttributes(
+    shopDomain: string,
+    accessToken: string,
+    attributeGids: readonly string[],
+  ): Promise<Map<string, ShopifyStandardMetafieldDefinition>> {
+    const templateGids = attributeGids.flatMap((attributeGid) => {
+      const templateGid = standardMetafieldDefinitionTemplateGid(attributeGid);
+      return templateGid ? [templateGid] : [];
+    });
+
+    if (templateGids.length === 0) {
+      return new Map();
+    }
 
     const query = `
-      query StandardMetafieldDefinition($id: ID!) {
-        node(id: $id) {
-          ... on StandardMetafieldDefinition {
+      query StandardMetafieldDefinitionTemplates($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on StandardMetafieldDefinitionTemplate {
             id
             name
             key
@@ -274,26 +307,36 @@ export class ShopifyGraphqlClient {
     `;
 
     const data = await this.graphql<{
-      node: {
+      nodes: readonly ({
         id: string;
         name: string;
         key: string;
         namespace: string;
         type: { name: string };
-      } | null;
-    }>(shopDomain, accessToken, query, { id: definitionGid });
+      } | null)[];
+    }>(shopDomain, accessToken, query, { ids: [...templateGids] });
 
-    if (!data.node) {
-      return null;
+    const templateByAttributeId = new Map<string, ShopifyStandardMetafieldDefinition>();
+
+    for (const node of data.nodes ?? []) {
+      if (!node?.id) {
+        continue;
+      }
+      const attributeNumericId = templateNumericIdToAttributeNumericId(node.id);
+      if (attributeNumericId == null) {
+        continue;
+      }
+      const attributeGid = `gid://shopify/TaxonomyAttribute/${attributeNumericId}`;
+      templateByAttributeId.set(attributeGid, {
+        id: node.id,
+        name: node.name,
+        key: node.key,
+        namespace: node.namespace,
+        typeName: node.type.name,
+      });
     }
 
-    return {
-      id: data.node.id,
-      name: data.node.name,
-      key: data.node.key,
-      namespace: data.node.namespace,
-      typeName: data.node.type.name,
-    };
+    return templateByAttributeId;
   }
 
   async resolveMetaobjects(
