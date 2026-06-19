@@ -22,6 +22,8 @@ import { detectBarcodeFormat } from '@core/utils/barcode.util';
 export class BarcodeSvgComponent {
   readonly value = input.required<string>();
   readonly ariaLabel = input<string>('Codice a barre');
+  readonly barHeight = input(40);
+  readonly barWidth = input(1.8);
 
   private readonly svgRef = viewChild.required<ElementRef<SVGSVGElement>>('svg');
 
@@ -33,11 +35,16 @@ export class BarcodeSvgComponent {
         svg.innerHTML = '';
         return;
       }
-      void this.renderBarcode(svg, trimmed);
+      void this.renderBarcode(svg, trimmed, this.barHeight(), this.barWidth());
     });
   }
 
-  private async renderBarcode(svg: SVGSVGElement, value: string): Promise<void> {
+  private async renderBarcode(
+    svg: SVGSVGElement,
+    value: string,
+    height: number,
+    width: number,
+  ): Promise<void> {
     const { default: JsBarcode } = await import('jsbarcode');
     const format = detectBarcodeFormat(value);
     svg.innerHTML = '';
@@ -47,8 +54,8 @@ export class BarcodeSvgComponent {
         format,
         displayValue: false,
         margin: 0,
-        height: 40,
-        width: 1.8,
+        height,
+        width,
       });
       return;
     } catch {
@@ -60,8 +67,8 @@ export class BarcodeSvgComponent {
         format: 'CODE128',
         displayValue: false,
         margin: 0,
-        height: 40,
-        width: 1.8,
+        height,
+        width,
       });
     } catch {
       svg.innerHTML = '';

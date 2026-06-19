@@ -1,6 +1,11 @@
 import { detectBarcodeFormat } from '@core/utils/barcode.util';
 import { formatMoney } from '@core/utils/money.util';
 
+import {
+  PRODUCT_LABEL_BARCODE,
+  PRODUCT_LABEL_LAYOUT,
+  PRODUCT_LABEL_PRINT_FONTS,
+} from './product-label.constants';
 import type { ProductLabelViewModel } from './product-label.model';
 
 function escapeHtml(value: string): string {
@@ -24,8 +29,8 @@ async function renderBarcodeSvg(documentRef: Document, value: string): Promise<s
   const options = {
     displayValue: false,
     margin: 0,
-    height: 40,
-    width: 1.8,
+    height: PRODUCT_LABEL_BARCODE.height,
+    width: PRODUCT_LABEL_BARCODE.width,
   };
 
   try {
@@ -70,13 +75,13 @@ const LABEL_PRINT_STYLES = `
   .sheet {
     display: flex;
     flex-wrap: wrap;
-    gap: 8mm;
-    padding: 8mm;
+    gap: ${PRODUCT_LABEL_LAYOUT.sheetGapMm}mm;
+    padding: ${PRODUCT_LABEL_LAYOUT.sheetPaddingMm}mm;
   }
   .label {
-    width: 62mm;
-    min-height: 40mm;
-    padding: 4mm;
+    width: ${PRODUCT_LABEL_LAYOUT.widthMm}mm;
+    min-height: ${PRODUCT_LABEL_LAYOUT.minHeightMm}mm;
+    padding: ${PRODUCT_LABEL_LAYOUT.paddingMm}mm;
     background: #fff;
     color: #000;
     break-inside: avoid;
@@ -84,51 +89,59 @@ const LABEL_PRINT_STYLES = `
   }
   .label__name {
     margin: 0;
-    font-size: 11pt;
+    font-size: ${PRODUCT_LABEL_PRINT_FONTS.namePt}pt;
     font-weight: 600;
-    line-height: 1.2;
+    line-height: 1.15;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .label__brand {
-    margin: 2mm 0 0;
-    font-size: 9pt;
+    margin: 1mm 0 0;
+    font-size: ${PRODUCT_LABEL_PRINT_FONTS.bodyPt}pt;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .label__sku {
-    margin: 3mm 0 0;
-    font-size: 9pt;
+    margin: 1.5mm 0 0;
+    font-size: ${PRODUCT_LABEL_PRINT_FONTS.bodyPt}pt;
   }
   .label__sku-label { font-weight: 600; }
-  .label__barcode-block { margin-top: 3mm; }
+  .label__barcode-block { margin-top: 1.5mm; }
   .label__barcode {
-    margin: 2mm 0 0;
-    font-size: 9pt;
+    margin: 1mm 0 0;
+    font-size: ${PRODUCT_LABEL_PRINT_FONTS.bodyPt}pt;
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
   .label__barcode-missing {
-    margin: 3mm 0 0;
-    font-size: 9pt;
+    margin: 1.5mm 0 0;
+    font-size: ${PRODUCT_LABEL_PRINT_FONTS.bodyPt}pt;
     color: #666;
   }
   .label__prices {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 3mm;
-    margin-top: 3mm;
+    gap: 2mm;
+    margin-top: 1.5mm;
   }
   .label__compare-at {
-    font-size: 10pt;
+    font-size: ${PRODUCT_LABEL_PRINT_FONTS.comparePt}pt;
     color: #666;
     text-decoration: line-through;
     font-variant-numeric: tabular-nums;
   }
   .label__price {
-    font-size: 14pt;
+    font-size: ${PRODUCT_LABEL_PRINT_FONTS.pricePt}pt;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
   svg { display: block; width: 100%; height: auto; }
-  @page { margin: 8mm; }
+  @page { margin: ${PRODUCT_LABEL_LAYOUT.pageMarginMm}mm; }
 `;
 
 /** Documento HTML completo per la stampa diretta (iframe/popup). */

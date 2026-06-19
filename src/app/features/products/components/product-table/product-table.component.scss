@@ -150,8 +150,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: var(--btn-min-height);
-  block-size: var(--btn-min-height);
+  inline-size: var(--field-height);
+  block-size: var(--field-height);
   padding: 0;
   color: var(--color-text);
   text-decoration: none;
@@ -159,10 +159,20 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background-color: var(--color-surface);
+
+  i {
+    font-size: var(--text-sm);
+  }
 }
 
 .product-table__print-link:hover {
   background-color: var(--color-surface-hover);
+}
+
+@include bp.media-down('lg') {
+  .product-table__cell-value .product-table__print-link {
+    flex-shrink: 0;
+  }
 }
 
 .product-table__cell--actions {

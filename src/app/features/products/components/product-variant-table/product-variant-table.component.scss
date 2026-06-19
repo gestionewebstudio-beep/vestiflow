@@ -27,7 +27,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  min-block-size: var(--btn-min-height);
+  inline-size: auto;
+  min-block-size: var(--field-height);
   padding-inline: var(--space-2);
   font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
@@ -36,10 +37,20 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background-color: var(--color-surface);
+
+  i {
+    font-size: var(--text-sm);
+  }
 }
 
 .variant-table__print-link:hover {
   background-color: var(--color-surface-hover);
+}
+
+@include bp.media-down('lg') {
+  .variant-table__cell-value .variant-table__print-link {
+    flex-shrink: 0;
+  }
 }
 
 .variant-table__cell--actions {

@@ -76,6 +76,11 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
+
+  @include bp.media-down('md') {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .product-detail__title {
@@ -91,8 +96,93 @@
 
 .product-detail__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+
+  @include bp.media-down('md') {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    inline-size: 100%;
+  }
+}
+
+.product-detail__actions-row {
+  @include bp.media-up('md') {
+    display: contents;
+  }
+
+  @include bp.media-down('md') {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    align-items: stretch;
+  }
+}
+
+.product-detail__action-cell {
+  @include bp.media-up('md') {
+    display: contents;
+  }
+
+  @include bp.media-down('md') {
+    display: flex;
+    align-items: stretch;
+    min-block-size: var(--btn-min-height);
+
+    ::ng-deep .app-button {
+      inline-size: 100%;
+      min-block-size: var(--btn-min-height);
+    }
+  }
+}
+
+.product-detail__action-cell--solo {
+  @include bp.media-down('md') {
+    grid-column: 1 / -1;
+  }
+}
+
+.product-detail__action-cell--badge {
+  @include bp.media-up('md') {
+    app-badge {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    ::ng-deep .app-badge {
+      min-block-size: var(--field-height);
+      padding-block: 0;
+      padding-inline: var(--space-3);
+      font-size: var(--text-sm);
+      border-radius: var(--radius-md);
+    }
+  }
+
+  @include bp.media-down('md') {
+    align-items: center;
+    justify-content: center;
+
+    app-badge {
+      display: flex;
+      inline-size: 100%;
+      block-size: 100%;
+      align-items: stretch;
+    }
+
+    ::ng-deep .app-badge {
+      display: flex;
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+      inline-size: 100%;
+      min-block-size: var(--btn-min-height);
+      padding-block: 0;
+      font-size: var(--text-sm);
+      border-radius: var(--radius-md);
+    }
+  }
 }
 
 // ── Pannelli ──────────────────────────────────────────────────────────────

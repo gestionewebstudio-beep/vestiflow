@@ -8,7 +8,12 @@
 
   @if (barcode().trim()) {
     <div class="product-label__barcode-block">
-      <app-barcode-svg [value]="barcode()" [ariaLabel]="'Barcode ' + barcode()" />
+      <app-barcode-svg
+        [value]="barcode()"
+        [barHeight]="barcodeHeight"
+        [barWidth]="barcodeWidth"
+        [ariaLabel]="'Barcode ' + barcode()"
+      />
       <p class="product-label__barcode tabular-nums">{{ barcode() }}</p>
     </div>
   } @else {

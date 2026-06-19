@@ -23,30 +23,54 @@
         <p class="product-detail__brand">{{ p.brand ?? 'Senza brand' }}</p>
       </div>
       <div class="product-detail__actions">
-        <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
-        @if (p.shopify && canSyncProductToShopify()) {
-          <app-button
-            variant="secondary"
-            loadingIndicator="icon"
-            [loading]="syncingShopify()"
-            [disabled]="syncingShopify()"
-            (click)="syncWithShopify(p.id)"
+        <div class="product-detail__actions-row">
+          <div
+            class="product-detail__action-cell product-detail__action-cell--badge"
+            [class.product-detail__action-cell--solo]="!(p.shopify && canSyncProductToShopify())"
           >
-            <i class="pi pi-sync" aria-hidden="true"></i>
-            Sincronizza con Shopify
-          </app-button>
-        }
-        @if (canManageCatalog()) {
-          <app-button variant="secondary" (click)="goToEdit(p.id)">
-            <i class="pi pi-pencil" aria-hidden="true"></i>
-            Modifica
-          </app-button>
-        }
-        @if (canDeleteProduct()) {
-          <app-button variant="ghost" [disabled]="deleting()" (click)="askDelete()">
-            <i class="pi pi-trash" aria-hidden="true"></i>
-            Elimina
-          </app-button>
+            <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
+          </div>
+          @if (p.shopify && canSyncProductToShopify()) {
+            <div class="product-detail__action-cell">
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncingShopify()"
+                [disabled]="syncingShopify()"
+                (click)="syncWithShopify(p.id)"
+              >
+                <i class="pi pi-sync" aria-hidden="true"></i>
+                Sincronizza con Shopify
+              </app-button>
+            </div>
+          }
+        </div>
+
+        @if (canManageCatalog() || canDeleteProduct()) {
+          <div class="product-detail__actions-row">
+            @if (canManageCatalog()) {
+              <div
+                class="product-detail__action-cell"
+                [class.product-detail__action-cell--solo]="!canDeleteProduct()"
+              >
+                <app-button variant="secondary" (click)="goToEdit(p.id)">
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                  Modifica
+                </app-button>
+              </div>
+            }
+            @if (canDeleteProduct()) {
+              <div
+                class="product-detail__action-cell"
+                [class.product-detail__action-cell--solo]="!canManageCatalog()"
+              >
+                <app-button variant="ghost" [disabled]="deleting()" (click)="askDelete()">
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                  Elimina
+                </app-button>
+              </div>
+            }
+          </div>
         }
       </div>
     </header>

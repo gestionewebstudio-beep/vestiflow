@@ -101,15 +101,17 @@
             </span>
           </td>
           <td class="product-table__cell--actions" data-label="Etichetta">
-            <button
-              type="button"
-              class="product-table__print-link"
-              [attr.aria-label]="'Stampa etichette per ' + product.name"
-              [attr.title]="'Stampa etichette'"
-              (click)="onPrintClick($event, product)"
-            >
-              <i class="pi pi-print" aria-hidden="true"></i>
-            </button>
+            <span class="product-table__cell-value">
+              <button
+                type="button"
+                class="product-table__print-link"
+                [attr.aria-label]="'Stampa etichette per ' + product.name"
+                [attr.title]="'Stampa etichette'"
+                (click)="onPrintClick($event, product)"
+              >
+                <i class="pi pi-print" aria-hidden="true"></i>
+              </button>
+            </span>
           </td>
         </tr>
       }

@@ -125,6 +125,7 @@
     .#{$block}__row td .#{$block}__status-value {
       display: flex;
       justify-content: flex-end;
+      align-items: center;
       inline-size: 100%;
       grid-column: 2;
     }

@@ -29,15 +29,17 @@
         <td class="tabular-nums" data-label="Barcode">{{ variant.barcode ?? '—' }}</td>
         @if (productId(); as id) {
           <td class="variant-table__cell--actions" data-label="Etichetta">
-            <a
-              class="variant-table__print-link"
-              [routerLink]="['/app/products', id, 'print-label']"
-              [queryParams]="{ variantId: variant.id }"
-              [attr.aria-label]="'Stampa etichetta per ' + variant.sku"
-            >
-              <i class="pi pi-print" aria-hidden="true"></i>
-              Stampa
-            </a>
+            <span class="variant-table__cell-value">
+              <a
+                class="variant-table__print-link"
+                [routerLink]="['/app/products', id, 'print-label']"
+                [queryParams]="{ variantId: variant.id }"
+                [attr.aria-label]="'Stampa etichetta per ' + variant.sku"
+              >
+                <i class="pi pi-print" aria-hidden="true"></i>
+                Stampa
+              </a>
+            </span>
           </td>
         }
       </tr>
