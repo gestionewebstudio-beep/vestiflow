@@ -150,3 +150,76 @@ export function serializeTaxonomyValueListGids(values: readonly { readonly id: s
 export function serializeMetaobjectGidList(gids: readonly string[]): string {
   return JSON.stringify([...gids]);
 }
+
+export function buildStandardMetaobjectType(metafieldKey: string): string {
+  return `shopify--${metafieldKey.trim()}`;
+}
+
+export function isDirectTaxonomyMetafieldType(type: string): boolean {
+  const normalized = type.trim().toLowerCase();
+  return (
+    normalized.includes('product_taxonomy_value_reference') ||
+    normalized.includes('taxonomy_value_reference')
+  );
+}
+
+export function isMetaobjectReferenceMetafieldType(type: string): boolean {
+  return type.trim().toLowerCase().includes('metaobject_reference');
+}
+
+export interface MetaobjectTaxonomyFieldCandidate {
+  readonly key: string;
+  readonly typeName: string;
+}
+
+function isTaxonomyReferenceMetaobjectField(typeName: string): boolean {
+  return typeName.trim().toLowerCase().includes('taxonomy');
+}
+
+/** Sceglie il campo taxonomy dentro uno standard metaobject (es. color_taxonomy_reference). */
+export function pickMetaobjectTaxonomyFieldKey(
+  attributeKey: string,
+  attributeName: string,
+  candidates: readonly MetaobjectTaxonomyFieldCandidate[],
+): string | null {
+  const taxonomyFields = candidates.filter((field) =>
+    isTaxonomyReferenceMetaobjectField(field.typeName),
+  );
+  if (taxonomyFields.length === 0) {
+    return null;
+  }
+  if (taxonomyFields.length === 1) {
+    return taxonomyFields[0]?.key ?? null;
+  }
+
+  const keyTokens = attributeKey
+    .toLowerCase()
+    .split('-')
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const nameTokens = attributeName
+    .toLowerCase()
+    .split(/[\s-/]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const tokens = [...new Set([...keyTokens, ...nameTokens])];
+
+  let bestKey: string | null = null;
+  let bestScore = -1;
+
+  for (const field of taxonomyFields) {
+    const fieldNorm = field.key.toLowerCase().replace(/_/g, '-');
+    let score = 0;
+    for (const token of tokens) {
+      if (fieldNorm.includes(token)) {
+        score += 1;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestKey = field.key;
+    }
+  }
+
+  return bestKey ?? taxonomyFields[0]?.key ?? null;
+}

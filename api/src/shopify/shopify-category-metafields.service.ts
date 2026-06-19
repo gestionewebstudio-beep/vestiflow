@@ -2,9 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import type { ShopifyCategoryMetafieldValue } from './shopify-category-metafields.types';
 import {
+  buildStandardMetaobjectType,
+  isDirectTaxonomyMetafieldType,
+  isMetaobjectReferenceMetafieldType,
   isShopifyCategoryMetafield,
   parseCategoryMetafieldsJson,
   parseMetafieldGidList,
+  pickMetaobjectTaxonomyFieldKey,
   serializeMetaobjectGidList,
   serializeTaxonomyValueListGids,
 } from './shopify-category-metafields.util';
@@ -12,10 +16,12 @@ import type { MetafieldsSetInput } from './shopify-graphql.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import type { ShopifyMetafieldRef } from './shopify-product-metadata.types';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import { SHOPIFY_WRITE_METAOBJECTS_SCOPE, shopifyHasScope } from './shopify-scopes.util';
 
 @Injectable()
 export class ShopifyCategoryMetafieldsService {
   private readonly logger = new Logger(ShopifyCategoryMetafieldsService.name);
+  private readonly metaobjectFieldKeyCache = new Map<string, string>();
 
   constructor(
     private readonly shopifyOAuth: ShopifyOAuthService,
@@ -87,12 +93,21 @@ export class ShopifyCategoryMetafieldsService {
       return;
     }
 
-    const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
+    const { shopDomain, accessToken, scopes } =
+      await this.shopifyOAuth.getAccessTokenWithScopes(tenantId);
+    if (!shopifyHasScope(scopes, SHOPIFY_WRITE_METAOBJECTS_SCOPE)) {
+      this.logger.warn(
+        `Category metafields non sincronizzati (${shopifyProductId}): scope ${SHOPIFY_WRITE_METAOBJECTS_SCOPE} assente. Riconnetti Shopify.`,
+      );
+      return;
+    }
+
     const productGid = shopifyProductId.startsWith('gid://')
       ? shopifyProductId
       : `gid://shopify/Product/${shopifyProductId}`;
 
     const inputs: MetafieldsSetInput[] = [];
+    const skipped: string[] = [];
 
     for (const field of categoryMetafields) {
       if (field.values.length === 0) {
@@ -109,6 +124,8 @@ export class ShopifyCategoryMetafieldsService {
         );
         if (payload) {
           inputs.push(payload);
+        } else {
+          skipped.push(field.key);
         }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Push category metafield fallito';
@@ -118,8 +135,18 @@ export class ShopifyCategoryMetafieldsService {
       }
     }
 
+    if (skipped.length > 0) {
+      this.logger.warn(
+        `Category metafields saltati (${shopifyProductId}): ${skipped.join(', ')} (tipo non supportato o metaobject non creato)`,
+      );
+    }
+
     if (inputs.length > 0) {
       await this.shopifyGraphql.setProductMetafields(shopDomain, accessToken, inputs);
+    } else if (categoryMetafields.some((field) => field.values.length > 0)) {
+      this.logger.warn(
+        `Nessun category metafield inviato a Shopify per prodotto ${shopifyProductId}`,
+      );
     }
   }
 
@@ -132,7 +159,7 @@ export class ShopifyCategoryMetafieldsService {
   ): Promise<MetafieldsSetInput | null> {
     const type = field.metafieldType || 'list.metaobject_reference';
 
-    if (type.includes('product_taxonomy_value_reference')) {
+    if (isDirectTaxonomyMetafieldType(type)) {
       return {
         ownerId: productGid,
         namespace: field.namespace,
@@ -142,11 +169,25 @@ export class ShopifyCategoryMetafieldsService {
       };
     }
 
-    if (!type.includes('metaobject_reference')) {
+    if (!isMetaobjectReferenceMetafieldType(type)) {
+      this.logger.warn(
+        `Tipo metafield categoria non gestito (${field.key}: ${type}) per prodotto ${shopifyProductId}`,
+      );
       return null;
     }
 
-    const metaobjectType = `shopify--${field.key}`;
+    const metaobjectType = buildStandardMetaobjectType(field.key);
+    const taxonomyFieldKey = await this.resolveMetaobjectTaxonomyFieldKey(
+      shopDomain,
+      accessToken,
+      metaobjectType,
+      field.key,
+      field.attributeName,
+    );
+    if (!taxonomyFieldKey) {
+      throw new Error(`Campo taxonomy non trovato per metaobject ${metaobjectType}`);
+    }
+
     const metaobjectGids: string[] = [];
 
     for (const taxonomyValue of field.values) {
@@ -156,7 +197,12 @@ export class ShopifyCategoryMetafieldsService {
         accessToken,
         metaobjectType,
         handle.slice(0, 240),
-        [{ key: 'taxonomy_reference', value: taxonomyValue.id }],
+        [
+          {
+            key: taxonomyFieldKey,
+            value: serializeTaxonomyValueListGids([taxonomyValue]),
+          },
+        ],
       );
       if (metaobjectId) {
         metaobjectGids.push(metaobjectId);
@@ -174,6 +220,45 @@ export class ShopifyCategoryMetafieldsService {
       type,
       value: serializeMetaobjectGidList(metaobjectGids),
     };
+  }
+
+  private async resolveMetaobjectTaxonomyFieldKey(
+    shopDomain: string,
+    accessToken: string,
+    metaobjectType: string,
+    attributeKey: string,
+    attributeName: string,
+  ): Promise<string | null> {
+    const cacheKey = `${shopDomain}:${metaobjectType}:${attributeKey}:${attributeName}`;
+    const cached = this.metaobjectFieldKeyCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    let fieldDefinitions = await this.shopifyGraphql.getMetaobjectDefinitionFieldDefinitions(
+      shopDomain,
+      accessToken,
+      metaobjectType,
+    );
+
+    if (fieldDefinitions.length === 0) {
+      await this.shopifyGraphql.ensureStandardMetaobjectDefinitionEnabled(
+        shopDomain,
+        accessToken,
+        metaobjectType,
+      );
+      fieldDefinitions = await this.shopifyGraphql.getMetaobjectDefinitionFieldDefinitions(
+        shopDomain,
+        accessToken,
+        metaobjectType,
+      );
+    }
+
+    const picked = pickMetaobjectTaxonomyFieldKey(attributeKey, attributeName, fieldDefinitions);
+    if (picked) {
+      this.metaobjectFieldKeyCache.set(cacheKey, picked);
+    }
+    return picked;
   }
 
   private extractTaxonomyValues(
@@ -207,7 +292,7 @@ export class ShopifyCategoryMetafieldsService {
       }
 
       for (const metaField of metaobject.fields) {
-        if (!metaField.key.includes('taxonomy_reference') || !metaField.value) {
+        if (!metaField.key.toLowerCase().includes('taxonomy') || !metaField.value) {
           continue;
         }
         const taxonomyGids = parseMetafieldGidList(metaField.value);

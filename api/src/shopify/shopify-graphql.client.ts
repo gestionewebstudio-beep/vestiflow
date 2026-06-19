@@ -370,6 +370,67 @@ export class ShopifyGraphqlClient {
     return (data.nodes ?? []).flatMap((node) => (node?.id ? [node] : []));
   }
 
+  async getMetaobjectDefinitionFieldDefinitions(
+    shopDomain: string,
+    accessToken: string,
+    metaobjectType: string,
+  ): Promise<readonly { readonly key: string; readonly typeName: string }[]> {
+    const query = `
+      query MetaobjectDefinitionByType($type: String!) {
+        metaobjectDefinitionByType(type: $type) {
+          fieldDefinitions {
+            key
+            type {
+              name
+            }
+          }
+        }
+      }
+    `;
+
+    const data = await this.graphql<{
+      metaobjectDefinitionByType: {
+        fieldDefinitions: readonly { key: string; type: { name: string } }[];
+      } | null;
+    }>(shopDomain, accessToken, query, { type: metaobjectType });
+
+    return (data.metaobjectDefinitionByType?.fieldDefinitions ?? []).map((field) => ({
+      key: field.key,
+      typeName: field.type.name,
+    }));
+  }
+
+  async ensureStandardMetaobjectDefinitionEnabled(
+    shopDomain: string,
+    accessToken: string,
+    metaobjectType: string,
+  ): Promise<void> {
+    const mutation = `
+      mutation StandardMetaobjectDefinitionEnable($type: String!) {
+        standardMetaobjectDefinitionEnable(type: $type) {
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const data = await this.graphql<{
+      standardMetaobjectDefinitionEnable: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      };
+    }>(shopDomain, accessToken, mutation, { type: metaobjectType });
+
+    const userErrors = data.standardMetaobjectDefinitionEnable?.userErrors ?? [];
+    if (userErrors.length > 0) {
+      const message = userErrors.map((entry) => entry.message).join('; ');
+      throw new InternalServerErrorException(
+        `Shopify standardMetaobjectDefinitionEnable (${metaobjectType}): ${message}`,
+      );
+    }
+  }
+
   async upsertCategoryMetaobject(
     shopDomain: string,
     accessToken: string,

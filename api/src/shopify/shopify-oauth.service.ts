@@ -24,6 +24,7 @@ import {
 } from './shopify-location-sync.service';
 import {
   buildShopifyScopeDiagnostics,
+  mergeShopifyScopes,
   parseShopifyScopesString,
   shopifyCatalogImportBlockMessage,
 } from './shopify-scopes.util';
@@ -227,6 +228,26 @@ export class ShopifyOAuthService {
     return {
       shopDomain: credential.shopDomain,
       accessToken: this.shopifyCrypto.decrypt(credential.accessTokenEnc),
+    };
+  }
+
+  async getAccessTokenWithScopes(
+    tenantId: string,
+  ): Promise<{ shopDomain: string; accessToken: string; scopes: readonly string[] }> {
+    const [credential, connection] = await Promise.all([
+      this.prisma.shopifyCredential.findUnique({ where: { tenantId } }),
+      this.prisma.shopifyConnection.findUnique({
+        where: { tenantId },
+        select: { scopes: true },
+      }),
+    ]);
+    if (!credential) {
+      throw new NotFoundException('Shopify non connesso per questo tenant');
+    }
+    return {
+      shopDomain: credential.shopDomain,
+      accessToken: this.shopifyCrypto.decrypt(credential.accessTokenEnc),
+      scopes: mergeShopifyScopes(connection?.scopes, credential.scopes),
     };
   }
 
