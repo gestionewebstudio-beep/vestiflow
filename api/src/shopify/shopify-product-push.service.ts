@@ -77,13 +77,51 @@ export class ShopifyProductPushService {
   ) {}
 
   async pushProduct(tenantId: string, productId: string): Promise<ShopifyProductPushResult> {
+    const guard = await this.evaluatePushGuard(tenantId, productId);
+    if (!guard.ok) {
+      return { pushed: false, reason: guard.reason };
+    }
+
+    await this.markProductSyncing(productId);
+    await this.executePushWork(tenantId, productId);
+
+    const status = await this.readProductSyncStatus(productId);
+    if (status === ShopifySyncStatus.error) {
+      return { pushed: false, reason: 'shopify_error' };
+    }
+    return { pushed: true };
+  }
+
+  /**
+   * Avvia sync completa in background e risponde subito (evita 504 gateway su Railway).
+   * Usato dal pulsante «Sincronizza con Shopify» nel dettaglio prodotto.
+   */
+  async enqueuePush(tenantId: string, productId: string): Promise<ShopifyProductPushResult> {
+    const guard = await this.evaluatePushGuard(tenantId, productId);
+    if (!guard.ok) {
+      return { pushed: false, reason: guard.reason };
+    }
+
+    await this.markProductSyncing(productId);
+    void this.executePushWork(tenantId, productId);
+
+    return { pushed: true, followUpInBackground: true };
+  }
+
+  private async evaluatePushGuard(
+    tenantId: string,
+    productId: string,
+  ): Promise<
+    | { readonly ok: true }
+    | { readonly ok: false; readonly reason: ShopifyProductPushSkipReason | 'shopify_error' }
+  > {
     const connection = await this.prisma.shopifyConnection.findUnique({
       where: { tenantId },
       select: { status: true, scopes: true },
     });
 
     if (!connection || connection.status !== ShopifyConnectionStatus.connected) {
-      return { pushed: false, reason: 'not_connected' };
+      return { ok: false, reason: 'not_connected' };
     }
 
     const credential = await this.prisma.shopifyCredential.findUnique({
@@ -96,27 +134,49 @@ export class ShopifyProductPushService {
       this.logger.debug(
         `Push prodotto saltato (${tenantId}): scope ${SHOPIFY_WRITE_PRODUCTS_SCOPE} assente`,
       );
-      return { pushed: false, reason: 'missing_write_products_scope' };
+      return { ok: false, reason: 'missing_write_products_scope' };
     }
 
     const product = await this.prisma.product.findFirst({
       where: { id: productId, tenantId },
-      include: { variants: true, images: { orderBy: { sortOrder: 'asc' } } },
+      select: { id: true, status: true },
     });
     if (!product) {
-      return { pushed: false, reason: 'shopify_error' };
+      return { ok: false, reason: 'shopify_error' };
     }
 
     if (product.status === ProductStatus.archived) {
-      return { pushed: false, reason: 'archived' };
+      return { ok: false, reason: 'archived' };
     }
 
+    return { ok: true };
+  }
+
+  private async markProductSyncing(productId: string): Promise<void> {
     await this.prisma.product.update({
       where: { id: productId },
       data: { shopifySyncStatus: ShopifySyncStatus.syncing, shopifyLastError: null },
     });
+  }
 
+  private async readProductSyncStatus(productId: string): Promise<ShopifySyncStatus | null> {
+    const row = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { shopifySyncStatus: true },
+    });
+    return row?.shopifySyncStatus ?? null;
+  }
+
+  private async executePushWork(tenantId: string, productId: string): Promise<void> {
     try {
+      const product = await this.prisma.product.findFirst({
+        where: { id: productId, tenantId },
+        include: { variants: true, images: { orderBy: { sortOrder: 'asc' } } },
+      });
+      if (!product || product.status === ProductStatus.archived) {
+        return;
+      }
+
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
       const payload = this.buildShopifyProductPayload(product);
 
@@ -146,18 +206,46 @@ export class ShopifyProductPushService {
       );
       await this.pushTaxonomyCategory(tenantId, String(shopifyProduct.id), product);
 
-      this.scheduleProductPushFollowUp(
+      const categoryMetafieldsWarning = await this.pushCategoryMetafields(
         tenantId,
-        productId,
+        String(shopifyProduct.id),
+        product,
+      );
+      await this.refreshLocalShopifyMetadata(
+        product.id,
         shopDomain,
         accessToken,
         String(shopifyProduct.id),
+        product.shopifyTaxonomyCategoryId,
+        product.shopifyCategoryMetafields,
+        product.shopifyMetafields,
       );
+      await this.pushVariantCosts(shopDomain, accessToken, product.variants);
 
+      if (categoryMetafieldsWarning) {
+        await this.prisma.product.update({
+          where: { id: productId },
+          data: {
+            shopifyLastError: categoryMetafieldsWarning.slice(0, 500),
+            shopifySyncStatus: ShopifySyncStatus.out_of_sync,
+            shopifyLastSyncAt: new Date(),
+          },
+        });
+      } else {
+        await this.prisma.product.update({
+          where: { id: productId },
+          data: {
+            shopifySyncStatus: ShopifySyncStatus.synced,
+            shopifyLastError: null,
+            shopifyLastSyncAt: new Date(),
+          },
+        });
+      }
+
+      await this.shopifyConnection.touchSync(tenantId);
       this.logger.log(
-        `Prodotto Shopify inviato (${tenantId}): ${product.name} → ${shopifyProduct.id} (follow-up in background)`,
+        `Prodotto Shopify sincronizzato (${tenantId}): ${product.name} → ${shopifyProduct.id}`,
       );
-      return { pushed: true, followUpInBackground: true };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Errore push prodotto Shopify';
       this.logger.warn(`Push prodotto Shopify fallito (${tenantId}/${productId}): ${message}`);
@@ -168,7 +256,6 @@ export class ShopifyProductPushService {
           shopifyLastError: message.slice(0, 500),
         },
       });
-      return { pushed: false, reason: 'shopify_error' };
     }
   }
 
@@ -517,80 +604,6 @@ export class ShopifyProductPushService {
         this.logger.warn(`Push immagine Shopify fallito (${productId}/${image.id}): ${message}`);
       }
     }
-  }
-
-  /**
-   * Metafield categoria, refresh metadata e costi varianti: troppo lenti per restare
-   * nella stessa richiesta HTTP (Railway ~60s). Eseguiti in background dopo il core push.
-   */
-  private scheduleProductPushFollowUp(
-    tenantId: string,
-    productId: string,
-    shopDomain: string,
-    accessToken: string,
-    shopifyProductId: string,
-  ): void {
-    void (async () => {
-      try {
-        const product = await this.prisma.product.findFirst({
-          where: { id: productId, tenantId },
-          include: { variants: true },
-        });
-        if (!product) {
-          return;
-        }
-
-        const categoryMetafieldsWarning = await this.pushCategoryMetafields(
-          tenantId,
-          shopifyProductId,
-          product,
-        );
-        await this.refreshLocalShopifyMetadata(
-          product.id,
-          shopDomain,
-          accessToken,
-          shopifyProductId,
-          product.shopifyTaxonomyCategoryId,
-          product.shopifyCategoryMetafields,
-          product.shopifyMetafields,
-        );
-        await this.pushVariantCosts(shopDomain, accessToken, product.variants);
-
-        if (categoryMetafieldsWarning) {
-          await this.prisma.product.update({
-            where: { id: productId },
-            data: {
-              shopifyLastError: categoryMetafieldsWarning.slice(0, 500),
-              shopifySyncStatus: ShopifySyncStatus.out_of_sync,
-              shopifyLastSyncAt: new Date(),
-            },
-          });
-        } else {
-          await this.prisma.product.update({
-            where: { id: productId },
-            data: {
-              shopifySyncStatus: ShopifySyncStatus.synced,
-              shopifyLastError: null,
-              shopifyLastSyncAt: new Date(),
-            },
-          });
-        }
-
-        await this.shopifyConnection.touchSync(tenantId);
-        this.logger.log(`Follow-up Shopify completato (${tenantId}/${productId})`);
-      } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : 'Errore follow-up sincronizzazione Shopify';
-        this.logger.warn(`Follow-up Shopify fallito (${tenantId}/${productId}): ${message}`);
-        await this.prisma.product.update({
-          where: { id: productId },
-          data: {
-            shopifySyncStatus: ShopifySyncStatus.error,
-            shopifyLastError: message.slice(0, 500),
-          },
-        });
-      }
-    })();
   }
 
   private async persistShopifyIds(

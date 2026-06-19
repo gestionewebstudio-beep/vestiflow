@@ -521,7 +521,7 @@ export class ProductsService {
 
   async syncToShopify(tenantId: string, id: string): Promise<ShopifyProductPushResult> {
     await this.getById(tenantId, id);
-    return this.shopifyProductPush.pushProduct(tenantId, id);
+    return this.shopifyProductPush.enqueuePush(tenantId, id);
   }
 }
 

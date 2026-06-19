@@ -54,6 +54,11 @@ export function toShopifyUserMessage(code: string | undefined, rawMessage: strin
       'write_metaobjects',
       'nessun attributo categoria',
       'category metafield',
+      'metaobjectupsert',
+      'metafieldsset',
+      'standardmetaobject',
+      'campo taxonomy obbligatorio',
+      'nessun campo metaobject',
     ])
   ) {
     return raw.length > 500 ? `${raw.slice(0, 497)}…` : raw;

@@ -271,36 +271,36 @@ export class ProductDetailComponent {
       .pipe(
         switchMap((result) => {
           if (!result.pushed || !result.followUpInBackground) {
-            return of({ result, followUp: null as 'completed' | 'timeout' | null });
+            return of({ result, product: null as Product | null });
           }
           this.shopifySyncMessage.set(
-            'Prodotto inviato a Shopify. Sincronizzazione metafield in corso…',
+            'Sincronizzazione con Shopify in corso… attendi qualche istante.',
           );
           this.reload();
           return this.pollShopifyFollowUpComplete(productId).pipe(
-            map((followUp) => ({ result, followUp })),
+            map((product) => ({ result, product })),
           );
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ result, followUp }) => {
+        next: ({ result, product }) => {
           this.syncingShopify.set(false);
-          if (followUp === 'timeout') {
+          if (!result.pushed) {
             this.shopifySyncMessage.set(
-              'Prodotto inviato a Shopify. I metafield di categoria possono richiedere ancora qualche istante: aggiorna tra poco.',
+              'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
             );
-          } else if (result.followUpInBackground) {
+          } else if (product?.shopify?.status === ShopifySyncStatus.Synced) {
+            this.shopifySyncMessage.set('Sincronizzazione Shopify completata.');
+          } else if (product?.shopify?.lastError) {
+            this.shopifySyncMessage.set(product.shopify.lastError);
+          } else if (product?.shopify?.status === ShopifySyncStatus.Syncing) {
             this.shopifySyncMessage.set(
-              result.pushed
-                ? 'Sincronizzazione Shopify completata.'
-                : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
+              'La sincronizzazione è ancora in corso. Aggiorna la pagina tra qualche istante.',
             );
           } else {
             this.shopifySyncMessage.set(
-              result.pushed
-                ? 'Prodotto inviato a Shopify con successo.'
-                : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
+              'Sync non completata. Verifica i metafield di categoria su Shopify Admin.',
             );
           }
           this.reload();
@@ -312,14 +312,13 @@ export class ProductDetailComponent {
       });
   }
 
-  private pollShopifyFollowUpComplete(productId: string): Observable<'completed' | 'timeout'> {
+  private pollShopifyFollowUpComplete(productId: string): Observable<Product | null> {
     return timer(SHOPIFY_FOLLOW_UP_POLL_MS, SHOPIFY_FOLLOW_UP_POLL_MS).pipe(
       switchMap(() => this.service.getProductById(productId)),
       filter((product) => product.shopify?.status !== ShopifySyncStatus.Syncing),
       take(1),
-      map(() => 'completed' as const),
       rxTimeout(SHOPIFY_FOLLOW_UP_MAX_WAIT_MS),
-      catchError(() => of('timeout' as const)),
+      catchError(() => this.service.getProductById(productId)),
     );
   }
 
