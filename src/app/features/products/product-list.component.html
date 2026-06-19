@@ -82,6 +82,7 @@
       [sortField]="query().sort"
       [sortOrder]="query().order"
       (rowClick)="openProduct($event)"
+      (printLabel)="printProductLabels($event)"
       (sortChange)="onSortChange($event)"
     />
     <app-pagination

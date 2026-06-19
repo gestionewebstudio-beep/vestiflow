@@ -176,6 +176,29 @@ button:disabled {
 }
 
 // -----------------------------------------------------------------------------
+// STAMPA — nasconde la shell per le pagine di stampa etichette
+// -----------------------------------------------------------------------------
+@media print {
+  app-shell-layout .shell__topbar,
+  app-shell-layout .shell__sidebar,
+  app-shell-layout .shell__backdrop,
+  app-shell-layout app-pwa-update-banner {
+    display: none !important;
+  }
+
+  app-shell-layout .shell__content {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  app-shell-layout .shell {
+    display: block !important;
+    block-size: auto !important;
+    overflow: visible !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
 // PREFERENZE UTENTE — riduzione movimento
 // -----------------------------------------------------------------------------
 @media (prefers-reduced-motion: reduce) {

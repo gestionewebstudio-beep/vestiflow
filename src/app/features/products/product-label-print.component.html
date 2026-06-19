@@ -1,0 +1,61 @@
+<section class="label-print">
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="4" />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-search"
+      title="Prodotto non trovato"
+      description="Il prodotto richiesto non esiste o è stato rimosso."
+      ctaLabel="Torna ai prodotti"
+      (ctaClick)="goToList()"
+    />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (product()) {
+    @if (autoPrint()) {
+      <p class="label-print__auto-status" aria-live="polite">Apertura finestra di stampa…</p>
+    }
+
+    <header class="label-print__toolbar">
+      <a class="label-print__back" [routerLink]="detailPath()">
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        Torna al prodotto
+      </a>
+      <div class="label-print__actions">
+        <app-button variant="secondary" (click)="print()">
+          <i class="pi pi-print" aria-hidden="true"></i>
+          Stampa etichetta
+        </app-button>
+      </div>
+    </header>
+
+    <p class="label-print__hint">
+      Anteprima etichetta per la cassa. Usa <strong>Stampa etichetta</strong> e seleziona la
+      stampante (A4 per test o etichettatrice). Imposta margini minimi e disattiva intestazioni del
+      browser se compaiono.
+    </p>
+
+    @if (labels().length === 0) {
+      <app-empty-state
+        icon="pi-box"
+        title="Nessuna variante da stampare"
+        description="La variante richiesta non esiste oppure il prodotto non ha varianti."
+        ctaLabel="Torna al prodotto"
+        (ctaClick)="goToDetail()"
+      />
+    } @else {
+      <div class="label-print__sheet" aria-label="Etichette prodotto">
+        @for (label of labels(); track label.variantId) {
+          <app-product-label
+            [productName]="label.productName"
+            [brand]="label.brand"
+            [sku]="label.sku"
+            [barcode]="label.barcode"
+            [sellingPrice]="label.sellingPrice"
+            [compareAtPrice]="label.compareAtPrice"
+          />
+        }
+      </div>
+    }
+  }
+</section>

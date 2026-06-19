@@ -1,0 +1,79 @@
+.product-label {
+  box-sizing: border-box;
+  inline-size: 62mm;
+  min-block-size: 40mm;
+  padding: var(--space-2);
+  font-family: var(--font-sans);
+  // REASON: etichetta stampata sempre bianca con testo nero ad alto contrasto.
+  color: #000;
+  background: #fff;
+  border: var(--border-width) dashed var(--color-border);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.product-label__name {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.product-label__brand {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.product-label__sku {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+}
+
+.product-label__sku-label {
+  font-weight: var(--font-weight-medium);
+}
+
+.product-label__barcode-block {
+  margin-block-start: var(--space-2);
+}
+
+.product-label__barcode {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.product-label__barcode-missing {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.product-label__prices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.product-label__compare-at {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.product-label__price {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+@media print {
+  .product-label {
+    border: none;
+  }
+}

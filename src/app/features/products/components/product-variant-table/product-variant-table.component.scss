@@ -23,6 +23,29 @@
   text-decoration: line-through;
 }
 
+.variant-table__print-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  text-decoration: none;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.variant-table__print-link:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.variant-table__cell--actions {
+  white-space: nowrap;
+}
+
 @include bp.media-down('lg') {
   .variant-table__row {
     margin-block-end: var(--space-2);

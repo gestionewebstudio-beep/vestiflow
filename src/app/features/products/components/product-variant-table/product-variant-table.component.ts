@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
+import type { EntityId } from '@core/models/common.model';
 import type { Money } from '@core/models/common.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import type { ProductOption } from '@core/models/product.model';
@@ -16,6 +18,7 @@ import { selectedOptionValue } from '../../models/product-variant.util';
 @Component({
   selector: 'app-product-variant-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink],
   templateUrl: './product-variant-table.component.html',
   styleUrl: './product-variant-table.component.scss',
 })
@@ -23,6 +26,8 @@ export class ProductVariantTableComponent {
   readonly variants = input.required<readonly ProductVariant[]>();
   /** Opzioni del prodotto: definiscono le colonne (nome) in ordine. */
   readonly options = input<readonly ProductOption[]>([]);
+  /** Se valorizzato, mostra il link stampa etichetta per ogni variante. */
+  readonly productId = input<EntityId | null>(null);
 
   protected readonly optionNames = computed(() => this.options().map((option) => option.name));
 

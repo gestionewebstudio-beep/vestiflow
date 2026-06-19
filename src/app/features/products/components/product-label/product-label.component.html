@@ -1,0 +1,24 @@
+<article class="product-label">
+  <p class="product-label__name">{{ productName() }}</p>
+  <p class="product-label__brand">{{ brand() }}</p>
+  <p class="product-label__sku">
+    <span class="product-label__sku-label">SKU</span>
+    <span class="product-label__sku-value tabular-nums">{{ sku() }}</span>
+  </p>
+
+  @if (barcode().trim()) {
+    <div class="product-label__barcode-block">
+      <app-barcode-svg [value]="barcode()" [ariaLabel]="'Barcode ' + barcode()" />
+      <p class="product-label__barcode tabular-nums">{{ barcode() }}</p>
+    </div>
+  } @else {
+    <p class="product-label__barcode-missing">Barcode non impostato</p>
+  }
+
+  <div class="product-label__prices">
+    @if (compareAtPrice(); as compareAt) {
+      <span class="product-label__compare-at tabular-nums">{{ formatPrice(compareAt) }}</span>
+    }
+    <span class="product-label__price tabular-nums">{{ formatPrice(sellingPrice()) }}</span>
+  </div>
+</article>

@@ -1,0 +1,111 @@
+:host {
+  display: block;
+}
+
+.label-print {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-inline-size: var(--content-wide);
+}
+
+.label-print__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.label-print__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.label-print__back:hover {
+  color: var(--color-text);
+}
+
+.label-print__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.label-print__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.label-print__sheet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background-color: var(--color-surface-sunken);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+@media print {
+  .label-print__toolbar,
+  .label-print__hint,
+  .label-print__auto-status {
+    display: none !important;
+  }
+
+  .label-print__sheet {
+    display: block;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+  }
+
+  .label-print {
+    gap: 0;
+    max-inline-size: none;
+  }
+}
+
+:host.product-label-print--auto {
+  .label-print__toolbar,
+  .label-print__hint {
+    display: none;
+  }
+
+  .label-print__auto-status {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .label-print__sheet {
+    position: fixed;
+    inset-inline-start: -100vw;
+    inset-block-start: 0;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+}
+
+@media print {
+  :host.product-label-print--auto .label-print__sheet {
+    position: static;
+    inset: auto;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    padding: 0;
+  }
+}

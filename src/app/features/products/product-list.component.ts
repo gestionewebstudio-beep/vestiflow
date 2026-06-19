@@ -36,6 +36,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { ProductTableComponent } from './components/product-table/product-table.component';
 import { ProductToolbarComponent } from './components/product-toolbar/product-toolbar.component';
+import { ProductLabelPrintService } from './services/product-label-print.service';
 import type {
   ProductFilterChange,
   ProductStatusOption,
@@ -109,6 +110,7 @@ export class ProductListComponent {
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
@@ -302,6 +304,10 @@ export class ProductListComponent {
 
   protected openProduct(product: Product): void {
     void this.router.navigate(['/app/products', product.id]);
+  }
+
+  protected printProductLabels(product: Product): void {
+    this.labelPrintService.triggerDirectPrint(product.id);
   }
 
   protected createProduct(): void {

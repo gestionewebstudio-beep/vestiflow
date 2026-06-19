@@ -28,6 +28,7 @@ export class ProductTableComponent {
 
   readonly rowClick = output<Product>();
   readonly sortChange = output<ProductSortField>();
+  readonly printLabel = output<Product>();
 
   /** Numero di combinazioni di varianti derivato dalle opzioni del prodotto. */
   protected variantCount(product: Product): number {
@@ -67,5 +68,11 @@ export class ProductTableComponent {
 
   protected categoryLabel(product: Product): string {
     return productDisplayCategoryShort(product);
+  }
+
+  protected onPrintClick(event: Event, product: Product): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.printLabel.emit(product);
   }
 }

@@ -239,7 +239,11 @@
           description="Questo prodotto non ha ancora varianti."
         />
       } @else {
-        <app-product-variant-table [variants]="variants()" [options]="p.options" />
+        <app-product-variant-table
+          [variants]="variants()"
+          [options]="p.options"
+          [productId]="p.id"
+        />
       }
 
       <p class="product-detail__hint">

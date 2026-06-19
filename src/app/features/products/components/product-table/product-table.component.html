@@ -7,6 +7,7 @@
       <col class="product-table__col product-table__col--season" />
       <col class="product-table__col product-table__col--numeric" />
       <col class="product-table__col product-table__col--status" />
+      <col class="product-table__col product-table__col--actions" />
     </colgroup>
     <thead class="product-table__head">
       <tr>
@@ -66,6 +67,10 @@
             <i class="pi {{ sortIcon('status') }}" aria-hidden="true"></i>
           </button>
         </th>
+        <th scope="col" class="product-table__cell--actions">
+          <span class="sr-only">Etichetta</span>
+          <i class="pi pi-print" aria-hidden="true"></i>
+        </th>
       </tr>
     </thead>
 
@@ -94,6 +99,17 @@
                 statusLabel(product.status)
               }}</app-badge>
             </span>
+          </td>
+          <td class="product-table__cell--actions" data-label="Etichetta">
+            <button
+              type="button"
+              class="product-table__print-link"
+              [attr.aria-label]="'Stampa etichette per ' + product.name"
+              [attr.title]="'Stampa etichette'"
+              (click)="onPrintClick($event, product)"
+            >
+              <i class="pi pi-print" aria-hidden="true"></i>
+            </button>
           </td>
         </tr>
       }

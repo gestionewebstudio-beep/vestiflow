@@ -7,6 +7,7 @@ import { TENANT_ROUTE_PERMISSION_KEY } from '@core/permissions/tenant-permission
 import { ProductDetailComponent } from './product-detail.component';
 import { ProductFormComponent } from './product-form.component';
 import { ProductImportComponent } from './product-import.component';
+import { ProductLabelPrintComponent } from './product-label-print.component';
 import { ProductListComponent } from './product-list.component';
 
 // ProductService e' providedIn 'root' (catalogo condiviso cross-feature).
@@ -30,6 +31,11 @@ export const productsRoutes: Routes = [
         component: ProductImportComponent,
         canActivate: [tenantRoleGuard],
         data: { [TENANT_ROUTE_PERMISSION_KEY]: 'manager' },
+      },
+      {
+        path: ':id/print-label',
+        title: 'VestiFlow · Stampa etichetta',
+        component: ProductLabelPrintComponent,
       },
       { path: ':id', title: 'VestiFlow · Dettaglio prodotto', component: ProductDetailComponent },
       {
