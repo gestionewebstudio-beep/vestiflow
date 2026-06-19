@@ -156,7 +156,10 @@ export class ShopifyProductPushService {
       if (categoryMetafieldsWarning) {
         await this.prisma.product.update({
           where: { id: productId },
-          data: { shopifyLastError: categoryMetafieldsWarning.slice(0, 500) },
+          data: {
+            shopifyLastError: categoryMetafieldsWarning.slice(0, 500),
+            shopifySyncStatus: ShopifySyncStatus.out_of_sync,
+          },
         });
       }
       await this.shopifyConnection.touchSync(tenantId);

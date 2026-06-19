@@ -39,6 +39,8 @@ import { toCreateProductBody, toUpdateProductBody } from './product-api.mapper';
 
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 120_000;
+/** Push Shopify con metaobject categoria: può richiedere decine di secondi. */
+const SHOPIFY_SYNC_HTTP_TIMEOUT_MS = 120_000;
 const FACET_PAGE_SIZE = 100;
 const VARIANT_SUMMARIES_CACHE_MS = 60_000;
 const FILTER_OPTIONS_CACHE_MS = 5 * 60_000;
@@ -226,7 +228,7 @@ export class ProductService {
         pushed: boolean;
         reason?: string;
       }>(this.url(`/products/${productId}/sync-shopify`), {})
-      .pipe(timeout(HTTP_TIMEOUT_MS));
+      .pipe(timeout(SHOPIFY_SYNC_HTTP_TIMEOUT_MS));
   }
 
   previewProductImport(file: File): Observable<ProductImportPreview> {

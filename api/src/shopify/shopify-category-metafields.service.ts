@@ -28,11 +28,26 @@ export interface ShopifyCategoryMetafieldsPushResult {
   readonly warning: string | null;
 }
 
+interface MetaobjectFieldDefinition {
+  readonly key: string;
+  readonly typeName: string;
+  readonly required: boolean;
+}
+
+interface CategoryMetafieldsPushContext {
+  readonly taxonomySearchCache: Map<string, string | null>;
+  defaultSolidPatternGid?: string | null;
+}
+
 @Injectable()
 export class ShopifyCategoryMetafieldsService {
   private readonly logger = new Logger(ShopifyCategoryMetafieldsService.name);
   private readonly metaobjectFieldKeyCache = new Map<string, string>();
   private readonly metafieldDefinitionEnabledCache = new Set<string>();
+  private readonly metaobjectDefinitionsCache = new Map<
+    string,
+    readonly MetaobjectFieldDefinition[]
+  >();
 
   constructor(
     private readonly shopifyOAuth: ShopifyOAuthService,
@@ -131,6 +146,23 @@ export class ShopifyCategoryMetafieldsService {
     const skipped: string[] = [];
     const failed: string[] = [];
 
+    const pushContext: CategoryMetafieldsPushContext = {
+      taxonomySearchCache: new Map(),
+    };
+    const hasMetaobjectFields = categoryMetafields.some(
+      (field) =>
+        field.values.length > 0 &&
+        isMetaobjectReferenceMetafieldType(field.metafieldType || 'list.metaobject_reference'),
+    );
+    if (hasMetaobjectFields) {
+      pushContext.defaultSolidPatternGid = await this.searchTaxonomyCached(
+        shopDomain,
+        accessToken,
+        'solid',
+        pushContext,
+      );
+    }
+
     for (const field of categoryMetafields) {
       if (field.values.length === 0) {
         continue;
@@ -144,6 +176,7 @@ export class ShopifyCategoryMetafieldsService {
           shopifyProductId,
           field,
           categoryAttributes,
+          pushContext,
         );
         if (payload) {
           inputs.push(payload);
@@ -199,6 +232,7 @@ export class ShopifyCategoryMetafieldsService {
       readonly metafieldType: string;
       readonly values: readonly { readonly id: string; readonly name: string }[];
     }[],
+    pushContext: CategoryMetafieldsPushContext,
   ): Promise<MetafieldsSetInput | null> {
     await this.ensureCategoryMetafieldDefinitionEnabled(shopDomain, accessToken, field);
 
@@ -270,6 +304,7 @@ export class ShopifyCategoryMetafieldsService {
           shopDomain,
           accessToken,
           definition.key,
+          pushContext,
         );
         if (fallbackGid) {
           secondaryTaxonomyByFieldKey.set(definition.key, fallbackGid);
@@ -312,9 +347,13 @@ export class ShopifyCategoryMetafieldsService {
     shopDomain: string,
     accessToken: string,
     metaobjectType: string,
-  ): Promise<
-    readonly { readonly key: string; readonly typeName: string; readonly required: boolean }[]
-  > {
+  ): Promise<readonly MetaobjectFieldDefinition[]> {
+    const cacheKey = `${shopDomain}:${metaobjectType}`;
+    const cached = this.metaobjectDefinitionsCache.get(cacheKey);
+    if (cached && cached.length > 0) {
+      return cached;
+    }
+
     let fieldDefinitions = await this.shopifyGraphql.getMetaobjectDefinitionFieldDefinitions(
       shopDomain,
       accessToken,
@@ -332,6 +371,10 @@ export class ShopifyCategoryMetafieldsService {
         accessToken,
         metaobjectType,
       );
+    }
+
+    if (fieldDefinitions.length > 0) {
+      this.metaobjectDefinitionsCache.set(cacheKey, fieldDefinitions);
     }
 
     return fieldDefinitions;
@@ -386,21 +429,49 @@ export class ShopifyCategoryMetafieldsService {
     shopDomain: string,
     accessToken: string,
     fieldKey: string,
+    pushContext: CategoryMetafieldsPushContext,
   ): Promise<string | null> {
     const fieldNorm = fieldKey.toLowerCase();
-    const searchTerms = fieldNorm.includes('pattern')
-      ? ['solid', 'plain', 'unicolor']
-      : [fieldKey.replace(/_/g, ' ')];
+    if (fieldNorm.includes('pattern')) {
+      if (pushContext.defaultSolidPatternGid !== undefined) {
+        return pushContext.defaultSolidPatternGid;
+      }
+      pushContext.defaultSolidPatternGid = await this.searchTaxonomyCached(
+        shopDomain,
+        accessToken,
+        'solid',
+        pushContext,
+      );
+      return pushContext.defaultSolidPatternGid;
+    }
+
+    const searchTerms = [fieldKey.replace(/_/g, ' ')];
 
     for (const term of searchTerms) {
-      const values = await this.shopifyGraphql.searchTaxonomyValues(shopDomain, accessToken, term);
-      const picked = pickPreferredTaxonomyValueId(values, [term, 'solid', 'plain']);
-      if (picked) {
-        return picked;
+      const gid = await this.searchTaxonomyCached(shopDomain, accessToken, term, pushContext);
+      if (gid) {
+        return gid;
       }
     }
 
     return null;
+  }
+
+  private async searchTaxonomyCached(
+    shopDomain: string,
+    accessToken: string,
+    term: string,
+    pushContext: CategoryMetafieldsPushContext,
+  ): Promise<string | null> {
+    const cacheKey = term.toLowerCase();
+    if (pushContext.taxonomySearchCache.has(cacheKey)) {
+      return pushContext.taxonomySearchCache.get(cacheKey)!;
+    }
+
+    const values = await this.shopifyGraphql.searchTaxonomyValues(shopDomain, accessToken, term);
+    const picked = pickPreferredTaxonomyValueId(values, [term, 'solid', 'plain']);
+    pushContext.taxonomySearchCache.set(cacheKey, picked);
+    return picked;
   }
 
   private extractTaxonomyValues(

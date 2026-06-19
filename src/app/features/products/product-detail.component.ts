@@ -204,29 +204,36 @@ export class ProductDetailComponent {
     );
   }
 
-  /** Elenco unificato metafield: attributi categoria (shopify.*) + custom (es. vestiflow.season). */
+  /** Metafield di categoria Shopify (namespace shopify.*), allineato a Shopify Admin. */
+  protected shopifyCategoryMetafieldsForDisplay(
+    product: Product,
+  ): readonly ProductDetailShopifyMetafieldRow[] {
+    return (product.shopifyCategoryMetafields ?? []).map((field) => ({
+      trackId: `category:${field.namespace}.${field.key}`,
+      label: field.attributeName,
+      value: field.values.map((entry) => entry.name).join(', ') || '—',
+    }));
+  }
+
+  /** Metafield prodotto custom (es. vestiflow.season), esclusi quelli di categoria. */
+  protected shopifyCustomMetafieldsForDisplay(
+    product: Product,
+  ): readonly ProductDetailShopifyMetafieldRow[] {
+    return this.supplementaryShopifyMetafields(product).map((field) => ({
+      trackId: `custom:${field.namespace}.${field.key}`,
+      label: shopifyCustomMetafieldLabel(field.namespace, field.key),
+      value: field.value,
+    }));
+  }
+
+  /** @deprecated Usare shopifyCategoryMetafieldsForDisplay + shopifyCustomMetafieldsForDisplay. */
   protected shopifyMetafieldsForDisplay(
     product: Product,
   ): readonly ProductDetailShopifyMetafieldRow[] {
-    const rows: ProductDetailShopifyMetafieldRow[] = [];
-
-    for (const field of product.shopifyCategoryMetafields ?? []) {
-      rows.push({
-        trackId: `category:${field.namespace}.${field.key}`,
-        label: field.attributeName,
-        value: field.values.map((entry) => entry.name).join(', ') || '—',
-      });
-    }
-
-    for (const field of this.supplementaryShopifyMetafields(product)) {
-      rows.push({
-        trackId: `custom:${field.namespace}.${field.key}`,
-        label: shopifyCustomMetafieldLabel(field.namespace, field.key),
-        value: field.value,
-      });
-    }
-
-    return rows;
+    return [
+      ...this.shopifyCategoryMetafieldsForDisplay(product),
+      ...this.shopifyCustomMetafieldsForDisplay(product),
+    ];
   }
 
   protected formatDate(value: IsoDateString): string {

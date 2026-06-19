@@ -43,6 +43,22 @@ export function toShopifyUserMessage(code: string | undefined, rawMessage: strin
     return 'L’operazione con Shopify ha impiegato troppo tempo. Riprova: di solito al secondo tentativo va a buon fine.';
   }
 
+  if (includesAny(raw, ['504', 'gateway timeout', 'gateway time-out'])) {
+    return 'La sincronizzazione con Shopify ha impiegato troppo tempo (timeout). Riprova tra qualche istante.';
+  }
+
+  if (
+    includesAny(raw, [
+      'attributi categoria',
+      'metafield categoria',
+      'write_metaobjects',
+      'nessun attributo categoria',
+      'category metafield',
+    ])
+  ) {
+    return raw.length > 500 ? `${raw.slice(0, 497)}…` : raw;
+  }
+
   if (includesAny(raw, ['429', 'rate limit', 'too many requests'])) {
     return 'Shopify ha limitato temporaneamente le richieste. Attendi un minuto e riprova.';
   }

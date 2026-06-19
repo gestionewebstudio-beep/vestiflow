@@ -17,7 +17,8 @@
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (product(); as p) {
-    @let shopifyMetafields = shopifyMetafieldsForDisplay(p);
+    @let categoryShopifyMetafields = shopifyCategoryMetafieldsForDisplay(p);
+    @let customShopifyMetafields = shopifyCustomMetafieldsForDisplay(p);
     <header class="product-detail__header">
       <div class="product-detail__heading">
         <h1 class="product-detail__title">{{ p.name }}</h1>
@@ -179,7 +180,8 @@
       p.seoTitle ||
       p.seoDescription ||
       (p.shopifyCollections && p.shopifyCollections.length > 0) ||
-      shopifyMetafields.length > 0
+      categoryShopifyMetafields.length > 0 ||
+      customShopifyMetafields.length > 0
     ) {
       <section class="product-detail__panel" aria-labelledby="detail-shopify-meta">
         <h2 id="detail-shopify-meta" class="product-detail__panel-title">Dati Shopify</h2>
@@ -209,12 +211,27 @@
               </dd>
             </div>
           }
-          @if (shopifyMetafields.length > 0) {
+          @if (categoryShopifyMetafields.length > 0) {
             <div class="product-detail__fact product-detail__fact--wide">
-              <dt class="product-detail__term">Attributi prodotto</dt>
+              <dt class="product-detail__term">Metafield di categoria</dt>
               <dd class="product-detail__value">
                 <ul class="product-detail__attr-list">
-                  @for (field of shopifyMetafields; track field.trackId) {
+                  @for (field of categoryShopifyMetafields; track field.trackId) {
+                    <li>
+                      <span class="product-detail__attr-name">{{ field.label }}:</span>
+                      {{ field.value }}
+                    </li>
+                  }
+                </ul>
+              </dd>
+            </div>
+          }
+          @if (customShopifyMetafields.length > 0) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Metafield prodotto</dt>
+              <dd class="product-detail__value">
+                <ul class="product-detail__attr-list">
+                  @for (field of customShopifyMetafields; track field.trackId) {
                     <li>
                       <span class="product-detail__attr-name">{{ field.label }}:</span>
                       {{ field.value }}
