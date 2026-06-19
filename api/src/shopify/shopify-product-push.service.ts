@@ -325,6 +325,7 @@ export class ShopifyProductPushService {
         tenantId,
         shopifyProductId,
         fields,
+        product.shopifyTaxonomyCategoryId,
       );
       return result.warning;
     } catch (error: unknown) {

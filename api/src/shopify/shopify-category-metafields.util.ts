@@ -170,9 +170,18 @@ export function isMetaobjectReferenceMetafieldType(type: string): boolean {
 export interface MetaobjectTaxonomyFieldCandidate {
   readonly key: string;
   readonly typeName: string;
+  readonly required?: boolean;
 }
 
-function isTaxonomyReferenceMetaobjectField(typeName: string): boolean {
+const DEFAULT_SECONDARY_TAXONOMY_VALUE_NAMES = [
+  'solid',
+  'plain',
+  'unicolor',
+  'uni',
+  'tinta unita',
+] as const;
+
+function isTaxonomyReferenceMetaobjectFieldType(typeName: string): boolean {
   return typeName.trim().toLowerCase().includes('taxonomy');
 }
 
@@ -183,7 +192,7 @@ export function pickMetaobjectTaxonomyFieldKey(
   candidates: readonly MetaobjectTaxonomyFieldCandidate[],
 ): string | null {
   const taxonomyFields = candidates.filter((field) =>
-    isTaxonomyReferenceMetaobjectField(field.typeName),
+    isTaxonomyReferenceMetaobjectFieldType(field.typeName),
   );
   if (taxonomyFields.length === 0) {
     return null;
@@ -222,4 +231,125 @@ export function pickMetaobjectTaxonomyFieldKey(
   }
 
   return bestKey ?? taxonomyFields[0]?.key ?? null;
+}
+
+function isTextMetaobjectFieldType(typeName: string): boolean {
+  const normalized = typeName.trim().toLowerCase();
+  return normalized.includes('single_line_text') || normalized.includes('multi_line_text');
+}
+
+export function serializeMetaobjectTaxonomyReferenceValue(
+  typeName: string,
+  taxonomyGid: string,
+): string {
+  const normalized = typeName.trim().toLowerCase();
+  if (normalized.startsWith('list.')) {
+    return serializeTaxonomyValueListGids([{ id: taxonomyGid }]);
+  }
+  return taxonomyGid;
+}
+
+export function pickPreferredTaxonomyValueId(
+  values: readonly { readonly id: string; readonly name: string }[],
+  preferredNames: readonly string[] = DEFAULT_SECONDARY_TAXONOMY_VALUE_NAMES,
+): string | null {
+  for (const preferred of preferredNames) {
+    const match = values.find((entry) => entry.name.toLowerCase().includes(preferred));
+    if (match) {
+      return match.id;
+    }
+  }
+  return values[0]?.id ?? null;
+}
+
+/** Risolve un valore taxonomy di default per campi metaobject secondari (es. pattern). */
+export function resolveSecondaryTaxonomyGidForMetaobjectField(
+  fieldKey: string,
+  categoryAttributes: readonly {
+    readonly key: string;
+    readonly name: string;
+    readonly values: readonly { readonly id: string; readonly name: string }[];
+  }[],
+): string | null {
+  const fieldNorm = fieldKey.toLowerCase().replace(/_/g, '-');
+
+  for (const attribute of categoryAttributes) {
+    const attributeKeyNorm = attribute.key.toLowerCase();
+    const attributeNameNorm = attribute.name.toLowerCase();
+    const matchesPattern =
+      fieldNorm.includes('pattern') &&
+      (attributeKeyNorm.includes('pattern') || attributeNameNorm.includes('pattern'));
+    const matchesFabric =
+      fieldNorm.includes('fabric') &&
+      (attributeKeyNorm.includes('fabric') ||
+        attributeNameNorm.includes('fabric') ||
+        attributeNameNorm.includes('tessuto'));
+
+    if (matchesPattern || matchesFabric) {
+      return pickPreferredTaxonomyValueId(attribute.values);
+    }
+  }
+
+  return null;
+}
+
+/** Costruisce tutti i campi richiesti da uno standard metaobject categoria Shopify. */
+export function buildCategoryMetaobjectFieldsPayload(
+  fieldDefinitions: readonly MetaobjectTaxonomyFieldCandidate[],
+  primaryTaxonomyFieldKey: string,
+  taxonomyValue: { readonly id: string; readonly name: string },
+  secondaryTaxonomyByFieldKey: ReadonlyMap<string, string>,
+): { readonly key: string; readonly value: string }[] {
+  const payload: { key: string; value: string }[] = [];
+
+  for (const definition of fieldDefinitions) {
+    const typeName = definition.typeName;
+    const typeNorm = typeName.trim().toLowerCase();
+
+    if (definition.key === 'label' || isTextMetaobjectFieldType(typeName)) {
+      payload.push({ key: definition.key, value: taxonomyValue.name });
+      continue;
+    }
+
+    if (!isTaxonomyReferenceMetaobjectFieldType(typeName)) {
+      continue;
+    }
+
+    const taxonomyGid =
+      definition.key === primaryTaxonomyFieldKey
+        ? taxonomyValue.id
+        : secondaryTaxonomyByFieldKey.get(definition.key);
+
+    if (!taxonomyGid) {
+      if (definition.required) {
+        throw new Error(`Campo taxonomy obbligatorio mancante per metaobject: ${definition.key}`);
+      }
+      continue;
+    }
+
+    payload.push({
+      key: definition.key,
+      value: serializeMetaobjectTaxonomyReferenceValue(typeName, taxonomyGid),
+    });
+  }
+
+  if (payload.length === 0) {
+    throw new Error(`Nessun campo metaobject compilabile per taxonomy ${primaryTaxonomyFieldKey}`);
+  }
+
+  return payload;
+}
+
+export function categoryMetafieldsSyncErrorMessage(
+  localCount: number,
+  remoteCount: number,
+  existingError?: string | null,
+): string | null {
+  if (localCount === 0 || remoteCount > 0) {
+    return null;
+  }
+  return (
+    existingError ??
+    'Attributi categoria presenti in VestiFlow ma assenti su Shopify. Usa "Sincronizza con Shopify".'
+  );
 }

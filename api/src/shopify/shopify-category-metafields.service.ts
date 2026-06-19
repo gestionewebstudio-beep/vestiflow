@@ -3,12 +3,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { ShopifyCategoryMetafieldValue } from './shopify-category-metafields.types';
 import {
   buildStandardMetaobjectType,
+  buildCategoryMetaobjectFieldsPayload,
   isDirectTaxonomyMetafieldType,
   isMetaobjectReferenceMetafieldType,
   isShopifyCategoryMetafield,
   parseCategoryMetafieldsJson,
   parseMetafieldGidList,
   pickMetaobjectTaxonomyFieldKey,
+  pickPreferredTaxonomyValueId,
+  resolveSecondaryTaxonomyGidForMetaobjectField,
   serializeMetaobjectGidList,
   serializeTaxonomyValueListGids,
   standardMetafieldDefinitionTemplateGid,
@@ -96,6 +99,7 @@ export class ShopifyCategoryMetafieldsService {
     tenantId: string,
     shopifyProductId: string,
     categoryMetafields: readonly ShopifyCategoryMetafieldValue[],
+    categoryGid: string | null,
   ): Promise<ShopifyCategoryMetafieldsPushResult> {
     const attempted = categoryMetafields.filter((field) => field.values.length > 0).length;
     if (attempted === 0) {
@@ -116,8 +120,16 @@ export class ShopifyCategoryMetafieldsService {
       ? shopifyProductId
       : `gid://shopify/Product/${shopifyProductId}`;
 
+    const categoryAttributes =
+      categoryGid != null
+        ? await this.shopifyGraphql
+            .getCategoryAttributes(shopDomain, accessToken, categoryGid)
+            .catch(() => [])
+        : [];
+
     const inputs: MetafieldsSetInput[] = [];
     const skipped: string[] = [];
+    const failed: string[] = [];
 
     for (const field of categoryMetafields) {
       if (field.values.length === 0) {
@@ -131,6 +143,7 @@ export class ShopifyCategoryMetafieldsService {
           productGid,
           shopifyProductId,
           field,
+          categoryAttributes,
         );
         if (payload) {
           inputs.push(payload);
@@ -139,6 +152,7 @@ export class ShopifyCategoryMetafieldsService {
         }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Push category metafield fallito';
+        failed.push(field.key);
         this.logger.warn(
           `Category metafield ${field.key} non sincronizzato (${shopifyProductId}): ${message}`,
         );
@@ -150,6 +164,9 @@ export class ShopifyCategoryMetafieldsService {
         `Category metafields saltati (${shopifyProductId}): ${skipped.join(', ')} (tipo non supportato o metaobject non creato)`,
       );
     }
+    if (failed.length > 0) {
+      this.logger.warn(`Category metafields falliti (${shopifyProductId}): ${failed.join(', ')}`);
+    }
 
     if (inputs.length > 0) {
       await this.shopifyGraphql.setProductMetafields(shopDomain, accessToken, inputs);
@@ -160,8 +177,9 @@ export class ShopifyCategoryMetafieldsService {
       warning =
         'Nessun attributo categoria inviato a Shopify. Verifica permessi write_metaobjects e ri-sincronizza.';
       this.logger.warn(`${warning} (${shopifyProductId})`);
-    } else if (skipped.length > 0 || inputs.length < attempted) {
-      warning = `Alcuni attributi categoria non sono stati sincronizzati su Shopify (${skipped.join(', ') || 'parziale'}).`;
+    } else if (skipped.length > 0 || failed.length > 0 || inputs.length < attempted) {
+      const parts = [...failed, ...skipped];
+      warning = `Alcuni attributi categoria non sono stati sincronizzati su Shopify (${parts.join(', ') || 'parziale'}).`;
     }
 
     return { attempted, synced: inputs.length, warning };
@@ -173,6 +191,14 @@ export class ShopifyCategoryMetafieldsService {
     productGid: string,
     shopifyProductId: string,
     field: ShopifyCategoryMetafieldValue,
+    categoryAttributes: readonly {
+      readonly id: string;
+      readonly name: string;
+      readonly key: string;
+      readonly namespace: string;
+      readonly metafieldType: string;
+      readonly values: readonly { readonly id: string; readonly name: string }[];
+    }[],
   ): Promise<MetafieldsSetInput | null> {
     await this.ensureCategoryMetafieldDefinitionEnabled(shopDomain, accessToken, field);
 
@@ -196,12 +222,15 @@ export class ShopifyCategoryMetafieldsService {
     }
 
     const metaobjectType = buildStandardMetaobjectType(field.key);
-    const taxonomyFieldKey = await this.resolveMetaobjectTaxonomyFieldKey(
+    const fieldDefinitions = await this.loadMetaobjectFieldDefinitions(
       shopDomain,
       accessToken,
       metaobjectType,
+    );
+    const taxonomyFieldKey = pickMetaobjectTaxonomyFieldKey(
       field.key,
       field.attributeName,
+      fieldDefinitions,
     );
     if (!taxonomyFieldKey) {
       throw new Error(`Campo taxonomy non trovato per metaobject ${metaobjectType}`);
@@ -210,18 +239,56 @@ export class ShopifyCategoryMetafieldsService {
     const metaobjectGids: string[] = [];
 
     for (const taxonomyValue of field.values) {
+      const secondaryTaxonomyByFieldKey = new Map<string, string>();
+      for (const definition of fieldDefinitions) {
+        if (definition.key === taxonomyFieldKey) {
+          continue;
+        }
+        if (!definition.typeName.toLowerCase().includes('taxonomy')) {
+          continue;
+        }
+        const secondaryGid = resolveSecondaryTaxonomyGidForMetaobjectField(
+          definition.key,
+          categoryAttributes,
+        );
+        if (secondaryGid) {
+          secondaryTaxonomyByFieldKey.set(definition.key, secondaryGid);
+        }
+      }
+
+      for (const definition of fieldDefinitions) {
+        if (
+          definition.key === taxonomyFieldKey ||
+          !definition.typeName.toLowerCase().includes('taxonomy')
+        ) {
+          continue;
+        }
+        if (secondaryTaxonomyByFieldKey.has(definition.key)) {
+          continue;
+        }
+        const fallbackGid = await this.resolveFallbackSecondaryTaxonomyGid(
+          shopDomain,
+          accessToken,
+          definition.key,
+        );
+        if (fallbackGid) {
+          secondaryTaxonomyByFieldKey.set(definition.key, fallbackGid);
+        }
+      }
+
+      const metaobjectFields = buildCategoryMetaobjectFieldsPayload(
+        fieldDefinitions,
+        taxonomyFieldKey,
+        taxonomyValue,
+        secondaryTaxonomyByFieldKey,
+      );
       const handle = `${field.key}-${taxonomyValue.id.replace(/\W+/g, '-')}-${shopifyProductId.slice(0, 8)}`;
       const metaobjectId = await this.shopifyGraphql.upsertCategoryMetaobject(
         shopDomain,
         accessToken,
         metaobjectType,
         handle.slice(0, 240),
-        [
-          {
-            key: taxonomyFieldKey,
-            value: serializeTaxonomyValueListGids([taxonomyValue]),
-          },
-        ],
+        metaobjectFields,
       );
       if (metaobjectId) {
         metaobjectGids.push(metaobjectId);
@@ -241,19 +308,13 @@ export class ShopifyCategoryMetafieldsService {
     };
   }
 
-  private async resolveMetaobjectTaxonomyFieldKey(
+  private async loadMetaobjectFieldDefinitions(
     shopDomain: string,
     accessToken: string,
     metaobjectType: string,
-    attributeKey: string,
-    attributeName: string,
-  ): Promise<string | null> {
-    const cacheKey = `${shopDomain}:${metaobjectType}:${attributeKey}:${attributeName}`;
-    const cached = this.metaobjectFieldKeyCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
+  ): Promise<
+    readonly { readonly key: string; readonly typeName: string; readonly required: boolean }[]
+  > {
     let fieldDefinitions = await this.shopifyGraphql.getMetaobjectDefinitionFieldDefinitions(
       shopDomain,
       accessToken,
@@ -273,6 +334,28 @@ export class ShopifyCategoryMetafieldsService {
       );
     }
 
+    return fieldDefinitions;
+  }
+
+  private async resolveMetaobjectTaxonomyFieldKey(
+    shopDomain: string,
+    accessToken: string,
+    metaobjectType: string,
+    attributeKey: string,
+    attributeName: string,
+  ): Promise<string | null> {
+    const cacheKey = `${shopDomain}:${metaobjectType}:${attributeKey}:${attributeName}`;
+    const cached = this.metaobjectFieldKeyCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const fieldDefinitions = await this.loadMetaobjectFieldDefinitions(
+      shopDomain,
+      accessToken,
+      metaobjectType,
+    );
+
     const picked = pickMetaobjectTaxonomyFieldKey(attributeKey, attributeName, fieldDefinitions);
     if (picked) {
       this.metaobjectFieldKeyCache.set(cacheKey, picked);
@@ -286,24 +369,38 @@ export class ShopifyCategoryMetafieldsService {
     field: ShopifyCategoryMetafieldValue,
   ): Promise<void> {
     const templateGid = standardMetafieldDefinitionTemplateGid(field.attributeId);
-    if (!templateGid) {
-      this.logger.warn(
-        `Definizione metafield categoria non abilitata (${field.key}): attributeId non taxonomy (${field.attributeId})`,
-      );
-      return;
-    }
-
-    const cacheKey = `${shopDomain}:${templateGid}`;
+    const cacheKey = `${shopDomain}:${field.namespace}.${field.key}:${templateGid ?? 'key'}`;
     if (this.metafieldDefinitionEnabledCache.has(cacheKey)) {
       return;
     }
 
-    await this.shopifyGraphql.ensureStandardMetafieldDefinitionEnabled(
-      shopDomain,
-      accessToken,
-      templateGid,
-    );
+    await this.shopifyGraphql.ensureStandardMetafieldDefinitionEnabled(shopDomain, accessToken, {
+      templateGid: templateGid ?? undefined,
+      namespace: field.namespace,
+      key: field.key,
+    });
     this.metafieldDefinitionEnabledCache.add(cacheKey);
+  }
+
+  private async resolveFallbackSecondaryTaxonomyGid(
+    shopDomain: string,
+    accessToken: string,
+    fieldKey: string,
+  ): Promise<string | null> {
+    const fieldNorm = fieldKey.toLowerCase();
+    const searchTerms = fieldNorm.includes('pattern')
+      ? ['solid', 'plain', 'unicolor']
+      : [fieldKey.replace(/_/g, ' ')];
+
+    for (const term of searchTerms) {
+      const values = await this.shopifyGraphql.searchTaxonomyValues(shopDomain, accessToken, term);
+      const picked = pickPreferredTaxonomyValueId(values, [term, 'solid', 'plain']);
+      if (picked) {
+        return picked;
+      }
+    }
+
+    return null;
   }
 
   private extractTaxonomyValues(

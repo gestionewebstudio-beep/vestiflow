@@ -15,6 +15,8 @@ import { ShopifyProductEnrichmentService } from './shopify-product-enrichment.se
 import type { ProductShopifyEnrichment } from './shopify-product-metadata.types';
 import { PRODUCT_IMPORT_TX } from './shopify-product-metadata.types';
 import {
+  categoryMetafieldsSyncErrorMessage,
+  parseCategoryMetafieldsJson,
   resolveImportedShopifyCategoryMetafields,
   resolveImportedShopifyMetafields,
 } from './shopify-category-metafields.util';
@@ -191,6 +193,13 @@ export class ShopifyProductPullService {
     const options = this.mapOptions(remote);
     const status = this.mapStatus(remote.status);
     const tags = enrichment?.tags ?? parseShopifyTags(remote.tags);
+    const localCategoryMetafields = parseCategoryMetafieldsJson(
+      existing?.shopifyCategoryMetafields,
+    );
+    const importedCategoryMetafields = resolveImportedShopifyCategoryMetafields(
+      enrichment?.categoryMetafields,
+      existing?.shopifyCategoryMetafields,
+    );
     const productData = {
       name: remote.title.trim() || 'Prodotto Shopify',
       description: shopifyBodyHtmlToPlainText(remote.body_html),
@@ -209,16 +218,17 @@ export class ShopifyProductPullService {
         enrichment?.metafields,
         existing?.shopifyMetafields,
       ) as unknown as Prisma.InputJsonValue,
-      shopifyCategoryMetafields: resolveImportedShopifyCategoryMetafields(
-        enrichment?.categoryMetafields,
-        existing?.shopifyCategoryMetafields,
-      ) as unknown as Prisma.InputJsonValue,
+      shopifyCategoryMetafields: importedCategoryMetafields as unknown as Prisma.InputJsonValue,
       status,
       options: options as unknown as Prisma.InputJsonValue,
       shopifyProductId,
       shopifySyncStatus: ShopifySyncStatus.synced,
       shopifyLastSyncAt: new Date(),
-      shopifyLastError: null,
+      shopifyLastError: categoryMetafieldsSyncErrorMessage(
+        localCategoryMetafields.length,
+        importedCategoryMetafields.length,
+        existing?.shopifyLastError,
+      ),
     };
 
     if (!existing) {

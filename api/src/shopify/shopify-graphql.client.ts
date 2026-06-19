@@ -108,6 +108,31 @@ export class ShopifyGraphqlClient {
     return data.taxonomy?.categories?.nodes ?? [];
   }
 
+  async searchTaxonomyValues(
+    shopDomain: string,
+    accessToken: string,
+    search: string,
+  ): Promise<readonly ShopifyTaxonomyAttributeValue[]> {
+    const query = `
+      query TaxonomyValues($search: String!) {
+        taxonomy {
+          values(first: 25, search: $search) {
+            nodes {
+              id
+              name
+            }
+          }
+        }
+      }
+    `;
+
+    const data = await this.graphql<{
+      taxonomy: { values: { nodes: ShopifyTaxonomyAttributeValue[] } } | null;
+    }>(shopDomain, accessToken, query, { search: search.trim() });
+
+    return data.taxonomy?.values?.nodes ?? [];
+  }
+
   async getProductTaxonomyCategory(
     shopDomain: string,
     accessToken: string,
@@ -374,12 +399,15 @@ export class ShopifyGraphqlClient {
     shopDomain: string,
     accessToken: string,
     metaobjectType: string,
-  ): Promise<readonly { readonly key: string; readonly typeName: string }[]> {
+  ): Promise<
+    readonly { readonly key: string; readonly typeName: string; readonly required: boolean }[]
+  > {
     const query = `
       query MetaobjectDefinitionByType($type: String!) {
         metaobjectDefinitionByType(type: $type) {
           fieldDefinitions {
             key
+            required
             type {
               name
             }
@@ -390,23 +418,32 @@ export class ShopifyGraphqlClient {
 
     const data = await this.graphql<{
       metaobjectDefinitionByType: {
-        fieldDefinitions: readonly { key: string; type: { name: string } }[];
+        fieldDefinitions: readonly {
+          key: string;
+          required: boolean;
+          type: { name: string };
+        }[];
       } | null;
     }>(shopDomain, accessToken, query, { type: metaobjectType });
 
     return (data.metaobjectDefinitionByType?.fieldDefinitions ?? []).map((field) => ({
       key: field.key,
       typeName: field.type.name,
+      required: field.required,
     }));
   }
 
   async ensureStandardMetafieldDefinitionEnabled(
     shopDomain: string,
     accessToken: string,
-    templateGid: string,
+    options: {
+      readonly templateGid?: string;
+      readonly namespace?: string;
+      readonly key?: string;
+    },
   ): Promise<void> {
-    const mutation = `
-      mutation StandardMetafieldDefinitionEnable($id: ID!, $ownerType: MetafieldOwnerType!) {
+    const mutationById = `
+      mutation StandardMetafieldDefinitionEnableById($id: ID!, $ownerType: MetafieldOwnerType!) {
         standardMetafieldDefinitionEnable(id: $id, ownerType: $ownerType) {
           createdDefinition {
             id
@@ -418,24 +455,80 @@ export class ShopifyGraphqlClient {
         }
       }
     `;
+    const mutationByKey = `
+      mutation StandardMetafieldDefinitionEnableByKey(
+        $namespace: String!
+        $key: String!
+        $ownerType: MetafieldOwnerType!
+      ) {
+        standardMetafieldDefinitionEnable(namespace: $namespace, key: $key, ownerType: $ownerType) {
+          createdDefinition {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
 
-    const data = await this.graphql<{
-      standardMetafieldDefinitionEnable: {
-        createdDefinition: { id: string } | null;
-        userErrors: readonly { field: string[] | null; message: string }[];
-      };
-    }>(shopDomain, accessToken, mutation, { id: templateGid, ownerType: 'PRODUCT' });
+    if (options.templateGid) {
+      const data = await this.graphql<{
+        standardMetafieldDefinitionEnable: {
+          createdDefinition: { id: string } | null;
+          userErrors: readonly { field: string[] | null; message: string }[];
+        };
+      }>(shopDomain, accessToken, mutationById, {
+        id: options.templateGid,
+        ownerType: 'PRODUCT',
+      });
+      if (
+        !this.hasBlockingStandardMetafieldDefinitionErrors(data.standardMetafieldDefinitionEnable)
+      ) {
+        return;
+      }
+    }
 
-    const userErrors = data.standardMetafieldDefinitionEnable?.userErrors ?? [];
+    if (options.namespace && options.key) {
+      const data = await this.graphql<{
+        standardMetafieldDefinitionEnable: {
+          createdDefinition: { id: string } | null;
+          userErrors: readonly { field: string[] | null; message: string }[];
+        };
+      }>(shopDomain, accessToken, mutationByKey, {
+        namespace: options.namespace,
+        key: options.key,
+        ownerType: 'PRODUCT',
+      });
+      if (
+        this.hasBlockingStandardMetafieldDefinitionErrors(data.standardMetafieldDefinitionEnable)
+      ) {
+        const message = (data.standardMetafieldDefinitionEnable?.userErrors ?? [])
+          .map((entry) => entry.message)
+          .join('; ');
+        throw new InternalServerErrorException(
+          `Shopify standardMetafieldDefinitionEnable (${options.namespace}.${options.key}): ${message}`,
+        );
+      }
+      return;
+    }
+
+    throw new InternalServerErrorException(
+      'Shopify standardMetafieldDefinitionEnable: template o namespace/key mancanti',
+    );
+  }
+
+  private hasBlockingStandardMetafieldDefinitionErrors(
+    payload: {
+      userErrors: readonly { message: string }[];
+    } | null,
+  ): boolean {
+    const userErrors = payload?.userErrors ?? [];
     const blockingErrors = userErrors.filter(
       (entry) => !isIgnorableStandardMetafieldDefinitionEnableError(entry.message),
     );
-    if (blockingErrors.length > 0) {
-      const message = blockingErrors.map((entry) => entry.message).join('; ');
-      throw new InternalServerErrorException(
-        `Shopify standardMetafieldDefinitionEnable (${templateGid}): ${message}`,
-      );
-    }
+    return blockingErrors.length > 0;
   }
 
   async ensureStandardMetaobjectDefinitionEnabled(
