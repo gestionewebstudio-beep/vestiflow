@@ -2,12 +2,7 @@
 // (reactive forms, step 8.6) sia dal mock service. La validazione autoritativa
 // vivra' comunque lato backend NestJS.
 
-import {
-  DEFAULT_CURRENCY,
-  isValidCompareAt,
-  moneyFromMajor,
-  parseMoneyInput,
-} from '@core/utils/money.util';
+import { DEFAULT_CURRENCY, isValidCompareAt, moneyFromMajor } from '@core/utils/money.util';
 
 /** SKU: alfanumerico con trattini, senza spazi, prima lettera/numero. */
 export const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
@@ -72,31 +67,24 @@ export function findDuplicateAxisNames(names: readonly string[]): readonly strin
   return [...duplicates];
 }
 
-/** Esito di validazione del prezzo barrato: nessun errore, formato, o non maggiore. */
-export type CompareAtError = 'format' | 'notHigher' | null;
+/** Esito di validazione del prezzo barrato: nessun errore o non maggiore del prezzo vendita. */
+export type CompareAtError = 'notHigher' | null;
 
 /**
- * Regola unica e centralizzata del prezzo "barrato" (compareAtPrice) a partire
- * dall'input utente (stringa) e dal prezzo di vendita in unità maggiori:
- * - testo vuoto      -> null  (campo opzionale, nessun errore)
- * - non parsabile    -> 'format'
+ * Regola unica e centralizzata del prezzo "barrato" (compareAtPrice):
+ * - null / assente -> null (campo opzionale, nessun errore)
  * - <= prezzo vendita -> 'notHigher'
- * - altrimenti       -> null  (valido)
- * Il parsing passa per parseMoneyInput (niente float); il confronto per
- * isValidCompareAt sul value object Money. Nessun hardcode valuta: DEFAULT_CURRENCY.
+ * - altrimenti -> null (valido)
  */
 export function compareAtPriceError(
   sellingPriceMajor: number,
-  compareAtText: string,
+  compareAtMajor: number | null,
 ): CompareAtError {
-  if (compareAtText.trim() === '') {
+  if (compareAtMajor === null) {
     return null;
   }
-  const compareAt = parseMoneyInput(compareAtText, DEFAULT_CURRENCY);
-  if (compareAt === null) {
-    return 'format';
-  }
   const price = moneyFromMajor(sellingPriceMajor, DEFAULT_CURRENCY);
+  const compareAt = moneyFromMajor(compareAtMajor, DEFAULT_CURRENCY);
   return isValidCompareAt(price, compareAt) ? null : 'notHigher';
 }
 

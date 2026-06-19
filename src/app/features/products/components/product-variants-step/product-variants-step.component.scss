@@ -37,8 +37,26 @@
 @include rt.data-table-desktop('variants-step-table');
 @include rt.data-table-mobile-cards('variants-step-table');
 
+.variants-step-table tbody td,
 .variants-step-table__row td {
   vertical-align: top;
+}
+
+.variants-step-table__row td.variants-step__fixed {
+  vertical-align: top;
+}
+
+.variants-step-table__row td .variants-step__field {
+  min-block-size: calc(var(--field-height) + var(--space-1) + calc(var(--text-xs) * 1.333333));
+}
+
+.variants-step__option-value {
+  display: flex;
+  align-items: center;
+  block-size: var(--field-height);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
 }
 
 .variants-step__input {
@@ -96,21 +114,18 @@
   min-block-size: calc(var(--text-xs) * 1.333333);
 }
 
-.variants-step__field--compare-at .variants-step__error,
-.variants-step__field--compare-at .variants-step__error-placeholder {
-  min-block-size: calc(var(--text-xs) * 2.666666);
-}
-
 .variants-step__input--numeric {
-  text-align: end;
+  text-align: start;
   font-variant-numeric: var(--numeric-tabular);
 }
 
-.variants-step-table__row td.variants-step-table__cell--numeric .variants-step__field {
-  max-inline-size: 10rem;
-  margin-inline-start: auto;
+.variants-step-table th.variants-step-table__cell--numeric,
+.variants-step-table__row td.variants-step-table__cell--numeric {
+  text-align: start;
 }
 
-.variants-step__fixed {
-  font-weight: var(--font-weight-medium);
+.variants-step-table__row td.variants-step-table__cell--numeric .variants-step__field {
+  inline-size: 100%;
+  max-inline-size: none;
+  margin-inline-start: 0;
 }

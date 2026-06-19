@@ -53,21 +53,16 @@ describe('isValidAxisName / findDuplicateAxisNames', () => {
 
 describe('compareAtPriceError', () => {
   it('campo vuoto: opzionale, nessun errore', () => {
-    expect(compareAtPriceError(19.9, '')).toBeNull();
-    expect(compareAtPriceError(19.9, '   ')).toBeNull();
-  });
-
-  it('input non parsabile: errore di formato', () => {
-    expect(compareAtPriceError(19.9, 'abc')).toBe('format');
+    expect(compareAtPriceError(19.9, null)).toBeNull();
   });
 
   it('non maggiore del prezzo: notHigher', () => {
-    expect(compareAtPriceError(19.9, '19,90')).toBe('notHigher');
-    expect(compareAtPriceError(19.9, '15,00')).toBe('notHigher');
+    expect(compareAtPriceError(19.9, 19.9)).toBe('notHigher');
+    expect(compareAtPriceError(19.9, 15)).toBe('notHigher');
   });
 
   it('valido se strettamente maggiore', () => {
-    expect(compareAtPriceError(19.9, '29,90')).toBeNull();
+    expect(compareAtPriceError(19.9, 29.9)).toBeNull();
   });
 });
 

@@ -24,7 +24,10 @@
             <tr class="variants-step-table__row" [formGroupName]="i">
               @for (name of optionNames(); track name) {
                 <td class="variants-step__fixed" [attr.data-label]="name">
-                  {{ metaValue(i, name) || '—' }}
+                  <div class="variants-step__field variants-step__field--readonly">
+                    <span class="variants-step__option-value">{{ metaValue(i, name) || '—' }}</span>
+                    <span class="variants-step__error-placeholder" aria-hidden="true"></span>
+                  </div>
                 </td>
               }
               <td data-label="SKU">
@@ -109,14 +112,14 @@
                 </div>
               </td>
               <td data-label="Prezzo barrato" class="variants-step-table__cell--numeric">
-                <div class="variants-step__field variants-step__field--compare-at">
+                <div class="variants-step__field">
                   <input
                     class="variants-step__input variants-step__input--numeric"
-                    type="text"
+                    type="number"
                     inputmode="decimal"
+                    min="0"
+                    step="0.01"
                     formControlName="compareAtPrice"
-                    autocomplete="off"
-                    placeholder="—"
                     [attr.aria-invalid]="isCompareAtInvalid(group) ? true : null"
                     [attr.aria-describedby]="
                       isCompareAtInvalid(group) ? 'compare-at-error-' + i : null
@@ -125,11 +128,7 @@
                   />
                   @if (isCompareAtInvalid(group)) {
                     <p class="variants-step__error" role="alert" [id]="'compare-at-error-' + i">
-                      @if (compareAtError(group) === 'format') {
-                        Inserisci un importo valido (es. 29,90).
-                      } @else {
-                        Il prezzo barrato deve essere maggiore del prezzo di vendita.
-                      }
+                      Il prezzo barrato deve essere maggiore del prezzo di vendita.
                     </p>
                   } @else {
                     <span class="variants-step__error-placeholder" aria-hidden="true"></span>

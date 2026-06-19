@@ -211,23 +211,12 @@
           }
           @if (shopifyMetafields.length > 0) {
             <div class="product-detail__fact product-detail__fact--wide">
-              <dt class="product-detail__term">Metafields</dt>
+              <dt class="product-detail__term">Attributi prodotto</dt>
               <dd class="product-detail__value">
-                <p class="product-detail__metafields-hint">
-                  Gli attributi con namespace
-                  <code>shopify</code>
-                  compaiono in Shopify Admin come Metafield di categoria.
-                </p>
-                <ul class="product-detail__metafields">
+                <ul class="product-detail__attr-list">
                   @for (field of shopifyMetafields; track field.trackId) {
                     <li>
-                      <span class="product-detail__metafield-key"
-                        >{{ field.namespace }}.{{ field.key }}</span
-                      >
-                      @if (field.isCategory) {
-                        <span class="product-detail__metafield-label">({{ field.label }})</span>
-                      }
-                      :
+                      <span class="product-detail__attr-name">{{ field.label }}:</span>
                       {{ field.value }}
                     </li>
                   }

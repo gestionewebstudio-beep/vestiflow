@@ -67,11 +67,25 @@ type ProductDetailState =
 
 interface ProductDetailShopifyMetafieldRow {
   readonly trackId: string;
-  readonly namespace: string;
-  readonly key: string;
   readonly label: string;
   readonly value: string;
-  readonly isCategory: boolean;
+}
+
+/** Etichette leggibili per metafield custom (non taxonomy categoria). */
+const CUSTOM_SHOPIFY_METAFIELD_LABELS: Readonly<Record<string, string>> = {
+  'vestiflow.season': 'Stagione',
+};
+
+function shopifyCustomMetafieldLabel(namespace: string, key: string): string {
+  const mapped = CUSTOM_SHOPIFY_METAFIELD_LABELS[`${namespace}.${key}`];
+  if (mapped) {
+    return mapped;
+  }
+  return key
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 /**
@@ -199,22 +213,16 @@ export class ProductDetailComponent {
     for (const field of product.shopifyCategoryMetafields ?? []) {
       rows.push({
         trackId: `category:${field.namespace}.${field.key}`,
-        namespace: field.namespace,
-        key: field.key,
         label: field.attributeName,
         value: field.values.map((entry) => entry.name).join(', ') || '—',
-        isCategory: true,
       });
     }
 
     for (const field of this.supplementaryShopifyMetafields(product)) {
       rows.push({
         trackId: `custom:${field.namespace}.${field.key}`,
-        namespace: field.namespace,
-        key: field.key,
-        label: field.key,
+        label: shopifyCustomMetafieldLabel(field.namespace, field.key),
         value: field.value,
-        isCategory: false,
       });
     }
 
