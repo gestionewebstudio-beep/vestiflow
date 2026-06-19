@@ -282,6 +282,18 @@
   color: var(--color-text-muted);
 }
 
+.product-detail__metafield-label {
+  margin-inline-start: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.product-detail__metafields-hint {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 // ── Hint inventory (hook tecnico, non una sezione stock) ─────────────────────
 .product-detail__hint {
   display: flex;

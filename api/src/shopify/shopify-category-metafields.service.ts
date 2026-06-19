@@ -18,6 +18,12 @@ import type { ShopifyMetafieldRef } from './shopify-product-metadata.types';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { SHOPIFY_WRITE_METAOBJECTS_SCOPE, shopifyHasScope } from './shopify-scopes.util';
 
+export interface ShopifyCategoryMetafieldsPushResult {
+  readonly attempted: number;
+  readonly synced: number;
+  readonly warning: string | null;
+}
+
 @Injectable()
 export class ShopifyCategoryMetafieldsService {
   private readonly logger = new Logger(ShopifyCategoryMetafieldsService.name);
@@ -88,18 +94,20 @@ export class ShopifyCategoryMetafieldsService {
     tenantId: string,
     shopifyProductId: string,
     categoryMetafields: readonly ShopifyCategoryMetafieldValue[],
-  ): Promise<void> {
-    if (categoryMetafields.length === 0) {
-      return;
+  ): Promise<ShopifyCategoryMetafieldsPushResult> {
+    const attempted = categoryMetafields.filter((field) => field.values.length > 0).length;
+    if (attempted === 0) {
+      return { attempted: 0, synced: 0, warning: null };
     }
 
     const { shopDomain, accessToken, scopes } =
       await this.shopifyOAuth.getAccessTokenWithScopes(tenantId);
     if (!shopifyHasScope(scopes, SHOPIFY_WRITE_METAOBJECTS_SCOPE)) {
-      this.logger.warn(
-        `Category metafields non sincronizzati (${shopifyProductId}): scope ${SHOPIFY_WRITE_METAOBJECTS_SCOPE} assente. Riconnetti Shopify.`,
-      );
-      return;
+      const warning =
+        `Attributi categoria non sincronizzati: manca il permesso ${SHOPIFY_WRITE_METAOBJECTS_SCOPE}. ` +
+        'Aggiorna SHOPIFY_SCOPES, riconnetti Shopify da Impostazioni e ri-sincronizza.';
+      this.logger.warn(`Category metafields non sincronizzati (${shopifyProductId}): ${warning}`);
+      return { attempted, synced: 0, warning };
     }
 
     const productGid = shopifyProductId.startsWith('gid://')
@@ -143,11 +151,18 @@ export class ShopifyCategoryMetafieldsService {
 
     if (inputs.length > 0) {
       await this.shopifyGraphql.setProductMetafields(shopDomain, accessToken, inputs);
-    } else if (categoryMetafields.some((field) => field.values.length > 0)) {
-      this.logger.warn(
-        `Nessun category metafield inviato a Shopify per prodotto ${shopifyProductId}`,
-      );
     }
+
+    let warning: string | null = null;
+    if (inputs.length === 0) {
+      warning =
+        'Nessun attributo categoria inviato a Shopify. Verifica permessi write_metaobjects e ri-sincronizza.';
+      this.logger.warn(`${warning} (${shopifyProductId})`);
+    } else if (skipped.length > 0 || inputs.length < attempted) {
+      warning = `Alcuni attributi categoria non sono stati sincronizzati su Shopify (${skipped.join(', ') || 'parziale'}).`;
+    }
+
+    return { attempted, synced: inputs.length, warning };
   }
 
   private async buildMetafieldSetInput(

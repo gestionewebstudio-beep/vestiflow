@@ -65,6 +65,15 @@ type ProductDetailState =
   | { readonly status: 'notFound' }
   | { readonly status: 'error'; readonly error: AppError };
 
+interface ProductDetailShopifyMetafieldRow {
+  readonly trackId: string;
+  readonly namespace: string;
+  readonly key: string;
+  readonly label: string;
+  readonly value: string;
+  readonly isCategory: boolean;
+}
+
 /**
  * Dettaglio prodotto (smart, read-only). Anagrafica + varianti. Stesso pattern
  * di stato della lista (loading/error), con stato not-found dedicato.
@@ -179,6 +188,37 @@ export class ProductDetailComponent {
     return (product.shopifyMetafields ?? []).filter(
       (field) => !categoryKeys.has(`${field.namespace}.${field.key}`),
     );
+  }
+
+  /** Elenco unificato metafield: attributi categoria (shopify.*) + custom (es. vestiflow.season). */
+  protected shopifyMetafieldsForDisplay(
+    product: Product,
+  ): readonly ProductDetailShopifyMetafieldRow[] {
+    const rows: ProductDetailShopifyMetafieldRow[] = [];
+
+    for (const field of product.shopifyCategoryMetafields ?? []) {
+      rows.push({
+        trackId: `category:${field.namespace}.${field.key}`,
+        namespace: field.namespace,
+        key: field.key,
+        label: field.attributeName,
+        value: field.values.map((entry) => entry.name).join(', ') || '—',
+        isCategory: true,
+      });
+    }
+
+    for (const field of this.supplementaryShopifyMetafields(product)) {
+      rows.push({
+        trackId: `custom:${field.namespace}.${field.key}`,
+        namespace: field.namespace,
+        key: field.key,
+        label: field.key,
+        value: field.value,
+        isCategory: false,
+      });
+    }
+
+    return rows;
   }
 
   protected formatDate(value: IsoDateString): string {

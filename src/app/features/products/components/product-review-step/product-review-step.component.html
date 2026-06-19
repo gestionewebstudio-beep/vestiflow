@@ -87,40 +87,45 @@
       <span class="review-step__count tabular-nums">({{ variantCount() }})</span>
     </h2>
 
-    <table class="review-step__table">
-      <thead class="review-step__table-head">
-        <tr>
-          <th scope="col">SKU</th>
-          @for (name of optionNames(); track name) {
-            <th scope="col">{{ name }}</th>
-          }
-          <th scope="col" class="review-step__col--numeric">Prezzo vendita</th>
-          <th scope="col" class="review-step__col--numeric">Prezzo acquisto</th>
-          <th scope="col">Barcode</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (variant of variants(); track variant.key) {
-          <tr class="review-step__table-row">
-            <td class="review-step__sku" data-label="SKU">{{ variant.sku || '—' }}</td>
+    <div class="review-step__table-scroll">
+      <table class="review-step-table">
+        <thead class="review-step-table__head">
+          <tr>
+            <th scope="col">SKU</th>
             @for (name of optionNames(); track name) {
-              <td [attr.data-label]="name">{{ optionValue(variant, name) || '—' }}</td>
+              <th scope="col">{{ name }}</th>
             }
-            <td class="review-step__numeric" data-label="Prezzo vendita">
-              @if (variant.compareAtPrice !== null && compareAtVisible(variant)) {
-                <span class="review-step__compare-at">{{
-                  formatPrice(variant.compareAtPrice)
-                }}</span>
-              }
-              {{ formatPrice(variant.sellingPrice) }}
-            </td>
-            <td class="review-step__numeric" data-label="Prezzo acquisto">
-              {{ variant.purchasePrice !== null ? formatPrice(variant.purchasePrice) : '—' }}
-            </td>
-            <td data-label="Barcode">{{ variant.barcode || '—' }}</td>
+            <th scope="col" class="review-step-table__cell--numeric">Prezzo vendita</th>
+            <th scope="col" class="review-step-table__cell--numeric">Prezzo acquisto</th>
+            <th scope="col">Barcode</th>
           </tr>
-        }
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          @for (variant of variants(); track variant.key) {
+            <tr class="review-step-table__row">
+              <td class="review-step-table__sku" data-label="SKU">{{ variant.sku || '—' }}</td>
+              @for (name of optionNames(); track name) {
+                <td [attr.data-label]="name">{{ optionValue(variant, name) || '—' }}</td>
+              }
+              <td class="review-step-table__cell--numeric tabular-nums" data-label="Prezzo vendita">
+                @if (variant.compareAtPrice !== null && compareAtVisible(variant)) {
+                  <span class="review-step__compare-at">{{
+                    formatPrice(variant.compareAtPrice)
+                  }}</span>
+                }
+                {{ formatPrice(variant.sellingPrice) }}
+              </td>
+              <td
+                class="review-step-table__cell--numeric tabular-nums"
+                data-label="Prezzo acquisto"
+              >
+                {{ variant.purchasePrice !== null ? formatPrice(variant.purchasePrice) : '—' }}
+              </td>
+              <td data-label="Barcode">{{ variant.barcode || '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   </section>
 </div>

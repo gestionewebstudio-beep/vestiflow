@@ -138,7 +138,11 @@ export class ShopifyProductPushService {
         product.shopifyMetafields,
       );
       await this.pushTaxonomyCategory(tenantId, String(shopifyProduct.id), product);
-      await this.pushCategoryMetafields(tenantId, String(shopifyProduct.id), product);
+      const categoryMetafieldsWarning = await this.pushCategoryMetafields(
+        tenantId,
+        String(shopifyProduct.id),
+        product,
+      );
       await this.refreshLocalShopifyMetadata(
         product.id,
         shopDomain,
@@ -149,6 +153,12 @@ export class ShopifyProductPushService {
         product.shopifyMetafields,
       );
       await this.pushVariantCosts(shopDomain, accessToken, product.variants);
+      if (categoryMetafieldsWarning) {
+        await this.prisma.product.update({
+          where: { id: productId },
+          data: { shopifyLastError: categoryMetafieldsWarning.slice(0, 500) },
+        });
+      }
       await this.shopifyConnection.touchSync(tenantId);
 
       this.logger.log(
@@ -304,23 +314,25 @@ export class ShopifyProductPushService {
     tenantId: string,
     shopifyProductId: string,
     product: ProductWithVariants,
-  ): Promise<void> {
+  ): Promise<string | null> {
     const fields = parseCategoryMetafieldsJson(product.shopifyCategoryMetafields);
     if (fields.length === 0) {
-      return;
+      return null;
     }
 
     try {
-      await this.shopifyCategoryMetafields.pushProductCategoryMetafields(
+      const result = await this.shopifyCategoryMetafields.pushProductCategoryMetafields(
         tenantId,
         shopifyProductId,
         fields,
       );
+      return result.warning;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Push category metafields fallito';
       this.logger.warn(
         `Category metafields prodotto non sincronizzati (${shopifyProductId}): ${message}`,
       );
+      return message.slice(0, 500);
     }
   }
 

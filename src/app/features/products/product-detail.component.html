@@ -17,7 +17,7 @@
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (product(); as p) {
-    @let extraShopifyMetafields = supplementaryShopifyMetafields(p);
+    @let shopifyMetafields = shopifyMetafieldsForDisplay(p);
     <header class="product-detail__header">
       <div class="product-detail__heading">
         <h1 class="product-detail__title">{{ p.name }}</h1>
@@ -179,8 +179,7 @@
       p.seoTitle ||
       p.seoDescription ||
       (p.shopifyCollections && p.shopifyCollections.length > 0) ||
-      (p.shopifyCategoryMetafields && p.shopifyCategoryMetafields.length > 0) ||
-      extraShopifyMetafields.length > 0
+      shopifyMetafields.length > 0
     ) {
       <section class="product-detail__panel" aria-labelledby="detail-shopify-meta">
         <h2 id="detail-shopify-meta" class="product-detail__panel-title">Dati Shopify</h2>
@@ -210,31 +209,25 @@
               </dd>
             </div>
           }
-          @if (p.shopifyCategoryMetafields && p.shopifyCategoryMetafields.length > 0) {
-            <div class="product-detail__fact product-detail__fact--wide">
-              <dt class="product-detail__term">Attributi categoria Shopify</dt>
-              <dd class="product-detail__value">
-                <ul class="product-detail__attr-list">
-                  @for (field of p.shopifyCategoryMetafields; track field.attributeId) {
-                    <li>
-                      <span class="product-detail__attr-name">{{ field.attributeName }}:</span>
-                      {{ field.values.map((value) => value.name).join(', ') || '—' }}
-                    </li>
-                  }
-                </ul>
-              </dd>
-            </div>
-          }
-          @if (extraShopifyMetafields.length > 0) {
+          @if (shopifyMetafields.length > 0) {
             <div class="product-detail__fact product-detail__fact--wide">
               <dt class="product-detail__term">Metafields</dt>
               <dd class="product-detail__value">
+                <p class="product-detail__metafields-hint">
+                  Gli attributi con namespace
+                  <code>shopify</code>
+                  compaiono in Shopify Admin come Metafield di categoria.
+                </p>
                 <ul class="product-detail__metafields">
-                  @for (field of extraShopifyMetafields; track field.namespace + field.key) {
+                  @for (field of shopifyMetafields; track field.trackId) {
                     <li>
                       <span class="product-detail__metafield-key"
                         >{{ field.namespace }}.{{ field.key }}</span
-                      >:
+                      >
+                      @if (field.isCategory) {
+                        <span class="product-detail__metafield-label">({{ field.label }})</span>
+                      }
+                      :
                       {{ field.value }}
                     </li>
                   }

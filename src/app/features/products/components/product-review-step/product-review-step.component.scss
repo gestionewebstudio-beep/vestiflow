@@ -1,7 +1,9 @@
-@use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
 :host {
   display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
 }
 
 .review-step {
@@ -108,47 +110,17 @@
   border-radius: var(--radius-full);
 }
 
-// ── Tabella varianti: mobile-first card, desktop tabella ─────────────────────
-.review-step__table {
-  display: block;
+.review-step__table-scroll {
+  overflow-x: auto;
   inline-size: 100%;
-  font-size: var(--text-sm);
+  max-inline-size: 100%;
 }
 
-.review-step__table-head {
-  display: none;
-}
+@include rt.data-table-desktop('review-step-table');
+@include rt.data-table-mobile-cards('review-step-table');
 
-.review-step__table-row {
-  display: block;
-  margin-block-end: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.review-step__table-row td {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding-block: var(--space-1);
-  color: var(--color-text);
-}
-
-.review-step__table-row td::before {
-  content: attr(data-label);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
-}
-
-.review-step__sku {
+.review-step-table__sku {
   font-weight: var(--font-weight-semibold);
-}
-
-.review-step__numeric {
-  font-variant-numeric: var(--numeric-tabular);
 }
 
 .review-step__compare-at {
@@ -157,53 +129,6 @@
   text-decoration: line-through;
 }
 
-@include bp.media-up('lg') {
-  .review-step__table {
-    display: table;
-    border-collapse: collapse;
-  }
-
-  .review-step__table-head {
-    display: table-header-group;
-  }
-
-  .review-step__table-head tr,
-  .review-step__table-row {
-    display: table-row;
-  }
-
-  .review-step__table-head th {
-    padding: var(--space-3) var(--space-4);
-    text-align: start;
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-muted);
-    border-block-end: var(--border-width) solid var(--color-border);
-  }
-
-  .review-step__col--numeric {
-    text-align: end;
-  }
-
-  .review-step__table-row {
-    margin-block-end: 0;
-    padding: 0;
-    background-color: transparent;
-    border: none;
-    border-radius: 0;
-  }
-
-  .review-step__table-row td {
-    display: table-cell;
-    padding: var(--space-3) var(--space-4);
-    border-block-end: var(--border-width) solid var(--color-border);
-    vertical-align: middle;
-  }
-
-  .review-step__table-row td::before {
-    display: none;
-  }
-
-  .review-step__numeric {
-    text-align: end;
-  }
+.review-step-table__row td.review-step-table__cell--numeric {
+  white-space: nowrap;
 }
