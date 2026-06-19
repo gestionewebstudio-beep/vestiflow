@@ -178,6 +178,12 @@
   --space-16: 4rem; // 64px
   --space-32: 8rem; // 128px
 
+  // ── 4. CARD — padding interno pannelli e card ───────────────────────────────
+  --card-pad-sm: var(--space-3);
+  --card-pad-md: var(--space-4);
+  --card-pad-lg: var(--space-6);
+  --card-gap: var(--space-4);
+
   // ── 4. RADIUS — Polaris default 8px su controlli e card ─────────────────────
   --radius-xs: 0.125rem; // 2px
   --radius-sm: 0.25rem; // 4px

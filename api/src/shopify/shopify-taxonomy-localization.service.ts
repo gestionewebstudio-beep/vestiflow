@@ -25,9 +25,6 @@ export class ShopifyTaxonomyLocalizationService {
   private attributesLoadedAt = 0;
   private attributesByGid = new Map<string, string>();
 
-  private valuesLoadedAt = 0;
-  private valuesByGid = new Map<string, string>();
-
   async localizeCategory(
     category: ShopifyTaxonomyCategory | null,
   ): Promise<ShopifyTaxonomyCategory | null> {
@@ -66,18 +63,11 @@ export class ShopifyTaxonomyLocalizationService {
   async localizeCategoryAttributes(
     attributes: readonly ShopifyTaxonomyCategoryAttribute[],
   ): Promise<readonly ShopifyTaxonomyCategoryAttribute[]> {
-    await Promise.all([this.ensureAttributesLoaded(), this.ensureValuesLoaded()]);
-    return attributes.map((attribute) => {
-      const attributeName = this.attributesByGid.get(attribute.id) ?? attribute.name;
-      return {
-        ...attribute,
-        name: attributeName,
-        values: attribute.values.map((value) => ({
-          ...value,
-          name: this.valuesByGid.get(value.id) ?? value.name,
-        })),
-      };
-    });
+    await this.ensureAttributesLoaded();
+    return attributes.map((attribute) => ({
+      ...attribute,
+      name: this.attributesByGid.get(attribute.id) ?? attribute.name,
+    }));
   }
 
   async prepareCategories(): Promise<void> {
@@ -144,24 +134,6 @@ export class ShopifyTaxonomyLocalizationService {
     this.logger.log(`Taxonomy attributi IT caricati (${map.size})`);
   }
 
-  private async ensureValuesLoaded(): Promise<void> {
-    if (this.isFresh(this.valuesLoadedAt) && this.valuesByGid.size > 0) {
-      return;
-    }
-    const text = await this.fetchDistFile('attribute_values.txt');
-    const map = new Map<string, string>();
-    for (const line of text.split('\n')) {
-      const parsed = parseDistLine(line);
-      if (!parsed) {
-        continue;
-      }
-      map.set(parsed.gid, stripAttributeValueContext(parsed.label));
-    }
-    this.valuesByGid = map;
-    this.valuesLoadedAt = Date.now();
-    this.logger.log(`Taxonomy valori IT caricati (${map.size})`);
-  }
-
   private isFresh(loadedAt: number): boolean {
     return loadedAt > 0 && Date.now() - loadedAt < CACHE_TTL_MS;
   }
@@ -195,9 +167,4 @@ function parseDistLine(line: string): { gid: string; label: string } | null {
     gid: trimmed.slice(0, separatorIndex).trim(),
     label: trimmed.slice(separatorIndex + 3).trim(),
   };
-}
-
-function stripAttributeValueContext(label: string): string {
-  const bracketIndex = label.lastIndexOf(' [');
-  return bracketIndex > 0 ? label.slice(0, bracketIndex).trim() : label.trim();
 }
