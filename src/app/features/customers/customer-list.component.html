@@ -11,6 +11,7 @@
       @if (showShopifyCustomersSync()) {
         <app-button
           variant="secondary"
+          loadingIndicator="icon"
           [loading]="shopifyCustomersLoading()"
           [disabled]="shopifyCustomersLoading()"
           (click)="syncCustomersFromShopify()"

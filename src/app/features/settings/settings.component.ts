@@ -276,14 +276,6 @@ export class SettingsComponent {
     if (this.disconnectLoading()) {
       return 'Disconnessione Shopify in corso…';
     }
-    if (this.syncLocationsLoading()) {
-      return 'Sincronizzazione location in corso…';
-    }
-    if (this.syncWebhooksLoading()) {
-      return this.autoSyncEnabled()
-        ? 'Disattivazione aggiornamenti automatici…'
-        : 'Attivazione aggiornamenti automatici…';
-    }
     if (this.clearErrorsLoading()) {
       return 'Ripristino connessione in corso…';
     }

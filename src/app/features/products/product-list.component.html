@@ -5,6 +5,7 @@
       @if (showShopifyCatalogImport()) {
         <app-button
           variant="secondary"
+          loadingIndicator="icon"
           [loading]="shopifyCatalogLoading()"
           [disabled]="shopifyCatalogLoading()"
           (click)="importCatalogFromShopify()"

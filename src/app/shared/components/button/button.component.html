@@ -5,12 +5,15 @@
   [class.app-button--ghost]="variant() === 'ghost'"
   [class.app-button--block]="fullWidth()"
   [class.app-button--loading]="loading()"
+  [class.app-button--loading-icon]="loading() && loadingIndicator() === 'icon'"
   [type]="type()"
   [disabled]="disabled() || loading()"
   [attr.aria-busy]="loading() ? true : null"
 >
   @if (loading()) {
-    <app-inline-spinner />
+    @if (loadingIndicator() === 'spinner') {
+      <app-inline-spinner />
+    }
     <span class="sr-only">Caricamento in corso</span>
   }
   <ng-content />

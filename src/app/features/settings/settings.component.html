@@ -265,18 +265,26 @@
           }
           <app-button
             variant="secondary"
+            loadingIndicator="icon"
             [loading]="syncLocationsLoading()"
             [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
             (click)="syncShopifyLocations()"
           >
+            @if (syncLocationsLoading()) {
+              <i class="pi pi-sync" aria-hidden="true"></i>
+            }
             Sincronizza location
           </app-button>
           <app-button
             variant="secondary"
+            loadingIndicator="icon"
             [loading]="syncWebhooksLoading()"
             [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
             (click)="toggleAutoSync()"
           >
+            @if (syncWebhooksLoading()) {
+              <i class="pi pi-sync" aria-hidden="true"></i>
+            }
             {{ autoSyncButtonLabel() }}
           </app-button>
           <app-button

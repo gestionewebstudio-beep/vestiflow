@@ -162,6 +162,20 @@ button:disabled {
 }
 
 // -----------------------------------------------------------------------------
+// APP BUTTON — animazione icona in loading (ng-content non eredita encapsulation)
+// -----------------------------------------------------------------------------
+.app-button--loading-icon i {
+  display: inline-block;
+  animation: app-button-icon-spin var(--transition-slow) linear infinite;
+}
+
+@keyframes app-button-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// -----------------------------------------------------------------------------
 // PREFERENZE UTENTE — riduzione movimento
 // -----------------------------------------------------------------------------
 @media (prefers-reduced-motion: reduce) {

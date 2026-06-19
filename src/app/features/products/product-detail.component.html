@@ -27,6 +27,7 @@
         @if (p.shopify && canSyncProductToShopify()) {
           <app-button
             variant="secondary"
+            loadingIndicator="icon"
             [loading]="syncingShopify()"
             [disabled]="syncingShopify()"
             (click)="syncWithShopify(p.id)"

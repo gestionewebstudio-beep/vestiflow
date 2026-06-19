@@ -5,6 +5,7 @@
       @if (showShopifyInventorySync()) {
         <app-button
           variant="secondary"
+          loadingIndicator="icon"
           [loading]="shopifyInventoryLoading()"
           [disabled]="shopifyInventoryLoading()"
           (click)="syncInventoryFromShopify()"

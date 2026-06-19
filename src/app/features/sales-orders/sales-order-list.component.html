@@ -10,6 +10,7 @@
       @if (showShopifyOrdersSync()) {
         <app-button
           variant="secondary"
+          loadingIndicator="icon"
           [loading]="shopifyOrdersLoading()"
           [disabled]="shopifyOrdersLoading()"
           (click)="syncOrdersFromShopify()"
