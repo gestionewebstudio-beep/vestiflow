@@ -82,7 +82,7 @@
           <td class="product-table__name" data-label="Nome">{{ product.name }}</td>
           <td class="product-table__brand" data-label="Brand">{{ product.brand ?? '—' }}</td>
           <td class="product-table__category" data-label="Categoria">
-            {{ product.category ?? '—' }}
+            {{ categoryLabel(product) }}
           </td>
           <td class="product-table__season" data-label="Stagione">{{ product.season ?? '—' }}</td>
           <td class="product-table__cell--numeric tabular-nums" data-label="Varianti">

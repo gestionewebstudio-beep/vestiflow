@@ -6,6 +6,7 @@ import type { Product } from '@core/models/product.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
+import { productDisplayCategoryShort } from '../../models/product-display.util';
 import { productStatusLabel, productStatusTone } from '../../models/product-status.util';
 import type { ProductSortField } from '../../models/product-list-query.model';
 
@@ -62,5 +63,9 @@ export class ProductTableComponent {
 
   protected rowLabel(product: Product): string {
     return `${product.name}, apri dettaglio`;
+  }
+
+  protected categoryLabel(product: Product): string {
+    return productDisplayCategoryShort(product);
   }
 }

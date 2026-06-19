@@ -12,6 +12,7 @@ import {
 import { shopifyDecimalToMinor } from './shopify-money.util';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
+import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localization.service';
 
 export interface EnrichProductOptions {
   /** Su import catalogo massivo i costi varianti possono essere saltati (N chiamate API). */
@@ -41,6 +42,7 @@ export class ShopifyProductEnrichmentService {
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyGraphql: ShopifyGraphqlClient,
     private readonly categoryMetafieldsService: ShopifyCategoryMetafieldsService,
+    private readonly taxonomyLocalization: ShopifyTaxonomyLocalizationService,
   ) {}
 
   async enrichProduct(
@@ -122,10 +124,12 @@ export class ShopifyProductEnrichmentService {
     shopifyProductId: string,
   ) {
     try {
-      return await this.shopifyGraphql.getProductTaxonomyCategory(
-        shopDomain,
-        accessToken,
-        shopifyProductId,
+      return await this.taxonomyLocalization.localizeCategory(
+        await this.shopifyGraphql.getProductTaxonomyCategory(
+          shopDomain,
+          accessToken,
+          shopifyProductId,
+        ),
       );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Taxonomy non disponibile';

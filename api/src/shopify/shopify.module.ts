@@ -19,6 +19,7 @@ import { ShopifySyncService } from './shopify-sync.service';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
+import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localization.service';
 import { ShopifyWebhookService } from './shopify-webhook.service';
 import { ShopifyWebhooksController } from './shopify-webhooks.controller';
 
@@ -41,6 +42,7 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
     ShopifyProductPullService,
     ShopifyProductEnrichmentService,
     ShopifyTaxonomyService,
+    ShopifyTaxonomyLocalizationService,
     ShopifyCategoryMetafieldsService,
     ShopifySyncService,
     ShopifyWebhookService,
@@ -50,6 +52,7 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
     ShopifyInventoryPushService,
     ShopifyProductPushService,
     ShopifyProductPullService,
+    ShopifyTaxonomyLocalizationService,
   ],
 })
 export class ShopifyModule {}

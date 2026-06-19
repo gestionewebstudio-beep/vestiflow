@@ -14,6 +14,7 @@ import {
   ShopifyProductPushService,
   type ShopifyProductPushResult,
 } from '../shopify/shopify-product-push.service';
+import { ShopifyTaxonomyLocalizationService } from '../shopify/shopify-taxonomy-localization.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import type { ListProductsQueryDto } from './dto/list-products.query.dto';
@@ -37,6 +38,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly shopifyProductPush: ShopifyProductPushService,
+    private readonly taxonomyLocalization: ShopifyTaxonomyLocalizationService,
   ) {}
 
   async list(
@@ -71,8 +73,12 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
+    await this.taxonomyLocalization.prepareCategories();
+
     return {
-      items: items.map((item) => withReadableShopifyErrors(item)),
+      items: items.map((item) =>
+        withReadableShopifyErrors(this.taxonomyLocalization.localizeProductTaxonomySync(item)),
+      ),
       total,
       page: query.page,
       pageSize: query.pageSize,
@@ -88,7 +94,10 @@ export class ProductsService {
       throw new NotFoundException('Prodotto non trovato');
     }
 
-    const normalized = withReadableShopifyErrors(product);
+    await this.taxonomyLocalization.prepareCategories();
+    const normalized = withReadableShopifyErrors(
+      this.taxonomyLocalization.localizeProductTaxonomySync(product),
+    );
     await this.healProductDescriptionIfNeeded(id, product.description, normalized.description);
     return normalized;
   }

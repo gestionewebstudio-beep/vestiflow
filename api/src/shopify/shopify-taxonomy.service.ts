@@ -8,6 +8,7 @@ import type {
 } from './shopify-graphql.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localization.service';
 
 @Injectable()
 export class ShopifyTaxonomyService {
@@ -15,6 +16,7 @@ export class ShopifyTaxonomyService {
     private readonly prisma: PrismaService,
     private readonly shopifyOAuth: ShopifyOAuthService,
     private readonly shopifyGraphql: ShopifyGraphqlClient,
+    private readonly taxonomyLocalization: ShopifyTaxonomyLocalizationService,
   ) {}
 
   async listCategories(
@@ -23,11 +25,12 @@ export class ShopifyTaxonomyService {
     childrenOf?: string,
   ): Promise<readonly ShopifyTaxonomyCategory[]> {
     const { shopDomain, accessToken } = await this.requireConnectedShop(tenantId);
-    return this.shopifyGraphql.listTaxonomyCategories(shopDomain, accessToken, {
+    const categories = await this.shopifyGraphql.listTaxonomyCategories(shopDomain, accessToken, {
       search,
       childrenOf,
       first: 50,
     });
+    return this.taxonomyLocalization.localizeCategories(categories);
   }
 
   async fetchProductCategory(
@@ -35,11 +38,12 @@ export class ShopifyTaxonomyService {
     shopifyProductId: string,
   ): Promise<ShopifyTaxonomyCategory | null> {
     const { shopDomain, accessToken } = await this.requireConnectedShop(tenantId);
-    return this.shopifyGraphql.getProductTaxonomyCategory(
+    const category = await this.shopifyGraphql.getProductTaxonomyCategory(
       shopDomain,
       accessToken,
       shopifyProductId,
     );
+    return this.taxonomyLocalization.localizeCategory(category);
   }
 
   async pushProductCategory(
@@ -48,12 +52,13 @@ export class ShopifyTaxonomyService {
     categoryGid: string | null,
   ): Promise<ShopifyTaxonomyCategory | null> {
     const { shopDomain, accessToken } = await this.requireConnectedShop(tenantId);
-    return this.shopifyGraphql.updateProductTaxonomyCategory(
+    const category = await this.shopifyGraphql.updateProductTaxonomyCategory(
       shopDomain,
       accessToken,
       shopifyProductId,
       categoryGid,
     );
+    return this.taxonomyLocalization.localizeCategory(category);
   }
 
   async getCategoryAttributes(
@@ -61,7 +66,12 @@ export class ShopifyTaxonomyService {
     categoryGid: string,
   ): Promise<readonly ShopifyTaxonomyCategoryAttribute[]> {
     const { shopDomain, accessToken } = await this.requireConnectedShop(tenantId);
-    return this.shopifyGraphql.getCategoryAttributes(shopDomain, accessToken, categoryGid);
+    const attributes = await this.shopifyGraphql.getCategoryAttributes(
+      shopDomain,
+      accessToken,
+      categoryGid,
+    );
+    return this.taxonomyLocalization.localizeCategoryAttributes(attributes);
   }
 
   private async requireConnectedShop(
