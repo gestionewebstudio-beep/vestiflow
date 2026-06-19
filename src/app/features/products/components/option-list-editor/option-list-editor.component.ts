@@ -22,6 +22,8 @@ export class OptionListEditorComponent {
   readonly label = input.required<string>();
   readonly values = input.required<readonly string[]>();
   readonly placeholder = input<string>('');
+  /** Testo esplicativo sotto l'etichetta (opzionale). */
+  readonly hint = input<string>();
   readonly valuesChange = output<readonly string[]>();
 
   protected readonly inputId = `option-list-editor-${uniqueId++}`;

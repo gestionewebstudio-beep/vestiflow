@@ -1,23 +1,53 @@
 <div class="options-step">
   <p class="options-step__intro">
-    Definisci le opzioni del prodotto: le varianti vengono generate automaticamente combinando i
-    valori inseriti.
+    Definisci le opzioni che generano le varianti vendibili: ogni combinazione di valori diventa un
+    SKU con giacenza, prezzo ed etichetta propri.
   </p>
+
+  @if (shopifyConnected()) {
+    <aside class="options-step__notice" role="note" aria-labelledby="options-step-notice-title">
+      <i class="pi pi-info-circle options-step__notice-icon" aria-hidden="true"></i>
+      <div class="options-step__notice-body">
+        <p id="options-step-notice-title" class="options-step__notice-title">
+          Varianti vs attributi categoria (passo 1)
+        </p>
+        <p class="options-step__notice-text">
+          Gli attributi categoria Shopify descrivono il prodotto per tassonomia e canali (Google,
+          category metafield). Qui definisci invece le opzioni che creano SKU distinti in magazzino.
+        </p>
+        @if (categoryColorSelection(); as categoryColor) {
+          <p class="options-step__notice-context">
+            Attributo categoria
+            <span class="options-step__notice-em">{{ categoryColor.attributeName }}</span
+            >: <span class="options-step__notice-em">{{ categoryColor.valueLabel }}</span
+            >. Aggiungi colori varianti sotto solo se vendi lo stesso modello in più colori con SKU
+            separati.
+          </p>
+        }
+      </div>
+    </aside>
+  }
 
   <div class="options-step__editors">
     <app-option-list-editor
       label="Taglie"
       placeholder="Aggiungi taglia (es. M)"
+      [hint]="sizeHint()"
       [values]="sizes()"
       (valuesChange)="onSizesChange($event)"
     />
     <app-option-list-editor
-      label="Colori"
+      [label]="variantColorLabel()"
       placeholder="Aggiungi colore (es. Rosso)"
+      [hint]="variantColorHint()"
       [values]="colors()"
       (valuesChange)="onColorsChange($event)"
     />
   </div>
+
+  @if (monoVariantHint(); as hint) {
+    <p class="options-step__mono-hint">{{ hint }}</p>
+  }
 
   <section class="options-step__third" aria-labelledby="third-axis-title">
     <div class="options-step__third-header">
@@ -99,7 +129,11 @@
       </table>
     } @else {
       <p class="options-step__preview-empty">
-        Aggiungi almeno un valore di opzione per generare le varianti.
+        @if (monoVariantHint(); as hint) {
+          {{ hint }}
+        } @else {
+          Aggiungi almeno un valore di opzione per generare le varianti.
+        }
       </p>
     }
   </section>

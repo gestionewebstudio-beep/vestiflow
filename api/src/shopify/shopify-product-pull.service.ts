@@ -14,6 +14,10 @@ import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyProductEnrichmentService } from './shopify-product-enrichment.service';
 import type { ProductShopifyEnrichment } from './shopify-product-metadata.types';
 import { PRODUCT_IMPORT_TX } from './shopify-product-metadata.types';
+import {
+  resolveImportedShopifyCategoryMetafields,
+  resolveImportedShopifyMetafields,
+} from './shopify-category-metafields.util';
 import { parseShopifyTags } from './shopify-product-metadata.util';
 import { shopifyDecimalToMinor } from './shopify-money.util';
 import { shopifyBodyHtmlToPlainText } from './shopify-html.util';
@@ -201,10 +205,14 @@ export class ShopifyProductPullService {
       seoTitle: enrichment?.seoTitle ?? null,
       seoDescription: enrichment?.seoDescription ?? null,
       shopifyCollections: (enrichment?.collections ?? []) as unknown as Prisma.InputJsonValue,
-      shopifyMetafields: (enrichment?.metafields ?? []) as unknown as Prisma.InputJsonValue,
-      shopifyCategoryMetafields: (enrichment?.categoryMetafields ??
-        existing?.shopifyCategoryMetafields ??
-        []) as unknown as Prisma.InputJsonValue,
+      shopifyMetafields: resolveImportedShopifyMetafields(
+        enrichment?.metafields,
+        existing?.shopifyMetafields,
+      ) as unknown as Prisma.InputJsonValue,
+      shopifyCategoryMetafields: resolveImportedShopifyCategoryMetafields(
+        enrichment?.categoryMetafields,
+        existing?.shopifyCategoryMetafields,
+      ) as unknown as Prisma.InputJsonValue,
       status,
       options: options as unknown as Prisma.InputJsonValue,
       shopifyProductId,

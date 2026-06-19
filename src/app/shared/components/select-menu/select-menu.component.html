@@ -17,6 +17,14 @@
     @if (triggerIcon(); as icon) {
       <i class="select-menu__trigger-icon pi {{ icon }}" aria-hidden="true"></i>
     }
+    @if (selectedSwatchCssColor(); as swatchColor) {
+      <span
+        class="select-menu__swatch"
+        [class.select-menu__swatch--clear]="swatchColor === 'transparent'"
+        [style.background]="swatchColor === 'transparent' ? null : swatchColor"
+        aria-hidden="true"
+      ></span>
+    }
     <span class="select-menu__trigger-label">{{ selectedLabel() }}</span>
     <i class="select-menu__chevron pi pi-chevron-down" aria-hidden="true"></i>
   </button>
@@ -54,6 +62,14 @@
               <i class="select-menu__check pi pi-check" aria-hidden="true"></i>
             } @else {
               <span class="select-menu__check-placeholder" aria-hidden="true"></span>
+            }
+            @if (option.swatchCssColor; as swatchColor) {
+              <span
+                class="select-menu__swatch"
+                [class.select-menu__swatch--clear]="swatchColor === 'transparent'"
+                [style.background]="swatchColor === 'transparent' ? null : swatchColor"
+                aria-hidden="true"
+              ></span>
             }
             <span class="select-menu__option-label">{{ option.label }}</span>
           </button>

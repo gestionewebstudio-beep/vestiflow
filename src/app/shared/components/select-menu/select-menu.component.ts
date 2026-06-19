@@ -52,11 +52,16 @@ export class SelectMenuComponent {
 
   protected readonly open = signal(false);
 
-  protected readonly selectedLabel = computed(() => {
+  protected readonly selectedOption = computed(() => {
     const current = this.value() ?? '';
-    const match = this.options().find((option) => option.value === current);
-    return match?.label ?? this.placeholder();
+    return this.options().find((option) => option.value === current) ?? null;
   });
+
+  protected readonly selectedLabel = computed(
+    () => this.selectedOption()?.label ?? this.placeholder(),
+  );
+
+  protected readonly selectedSwatchCssColor = computed(() => this.selectedOption()?.swatchCssColor);
 
   protected readonly isEmptySelected = computed(() => (this.value() ?? '') === '');
 

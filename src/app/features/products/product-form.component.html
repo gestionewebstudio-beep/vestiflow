@@ -59,6 +59,8 @@
           <app-product-options-step
             [options]="draft().options"
             [variants]="draft().variants"
+            [shopifyConnected]="shopifyConnected()"
+            [categoryMetafields]="draft().general.shopifyCategoryMetafields"
             (optionsChange)="onOptionsChange($event)"
           />
         }

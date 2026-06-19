@@ -2,6 +2,53 @@ import type { ShopifyMetafieldRef } from './shopify-product-metadata.types';
 import type { ShopifyCategoryMetafieldValue } from './shopify-category-metafields.types';
 import { SHOPIFY_CATEGORY_METAFIELD_NAMESPACE } from './shopify-category-metafields.types';
 
+function parseStoredShopifyMetafields(raw: unknown): ShopifyMetafieldRef[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null) {
+      return [];
+    }
+    const row = entry as Record<string, unknown>;
+    const namespace = typeof row['namespace'] === 'string' ? row['namespace'] : '';
+    const key = typeof row['key'] === 'string' ? row['key'] : '';
+    const value = typeof row['value'] === 'string' ? row['value'] : '';
+    const type = typeof row['type'] === 'string' ? row['type'] : undefined;
+    if (!namespace || !key) {
+      return [];
+    }
+    return [{ namespace, key, value, type }];
+  });
+}
+
+/**
+ * Durante import/webhook l'enrichment può tornare `[]` se il webhook arriva prima
+ * del push dei category metafields: in quel caso conserviamo i valori già salvati
+ * in VestiFlow invece di cancellarli.
+ */
+export function resolveImportedShopifyCategoryMetafields(
+  enrichmentCategoryMetafields: readonly ShopifyCategoryMetafieldValue[] | undefined,
+  existingRaw: unknown,
+): ShopifyCategoryMetafieldValue[] {
+  if (enrichmentCategoryMetafields && enrichmentCategoryMetafields.length > 0) {
+    return [...enrichmentCategoryMetafields];
+  }
+  return parseCategoryMetafieldsJson(existingRaw);
+}
+
+/** Stessa logica del merge category metafields, applicata allo snapshot metafield grezzo. */
+export function resolveImportedShopifyMetafields(
+  enrichmentMetafields: readonly ShopifyMetafieldRef[] | undefined,
+  existingRaw: unknown,
+): ShopifyMetafieldRef[] {
+  if (enrichmentMetafields && enrichmentMetafields.length > 0) {
+    return [...enrichmentMetafields];
+  }
+  return parseStoredShopifyMetafields(existingRaw);
+}
+
 export function isShopifyCategoryMetafield(metafield: ShopifyMetafieldRef): boolean {
   return metafield.namespace === SHOPIFY_CATEGORY_METAFIELD_NAMESPACE;
 }

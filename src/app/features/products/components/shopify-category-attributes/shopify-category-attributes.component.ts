@@ -18,6 +18,10 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 
 import type { ShopifyTaxonomyCategoryAttribute } from '@features/integrations/shopify/services/shopify-taxonomy.service';
 import { ShopifyTaxonomyService } from '@features/integrations/shopify/services/shopify-taxonomy.service';
+import {
+  isShopifyColorCategoryAttribute,
+  shopifyTaxonomyColorSwatch,
+} from '../../utils/shopify-taxonomy-color.util';
 
 @Component({
   selector: 'app-shopify-category-attributes',
@@ -80,7 +84,15 @@ export class ShopifyCategoryAttributesComponent {
   protected attributeOptions(
     attribute: ShopifyTaxonomyCategoryAttribute,
   ): readonly SelectMenuOption[] {
-    return attribute.values.map((value) => ({ value: value.id, label: value.name }));
+    const withSwatches = isShopifyColorCategoryAttribute(attribute);
+    return attribute.values.map((value) => {
+      const option: SelectMenuOption = { value: value.id, label: value.name };
+      if (!withSwatches) {
+        return option;
+      }
+      const swatchCssColor = shopifyTaxonomyColorSwatch(value.name);
+      return swatchCssColor ? { ...option, swatchCssColor } : option;
+    });
   }
 
   protected selectedValueId(attribute: ShopifyTaxonomyCategoryAttribute): string | null {

@@ -3,6 +3,7 @@ import {
   ProductStatus,
   ShopifyConnectionStatus,
   ShopifySyncStatus,
+  type Prisma,
   type Product,
   type ProductVariant,
 } from '@prisma/client';
@@ -13,7 +14,12 @@ import { minorToShopifyDecimal } from './shopify-money.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
-import { parseCategoryMetafieldsJson } from './shopify-category-metafields.util';
+import {
+  parseCategoryMetafieldsJson,
+  resolveImportedShopifyCategoryMetafields,
+  resolveImportedShopifyMetafields,
+} from './shopify-category-metafields.util';
+import { mapMetafieldRows } from './shopify-product-metadata.util';
 import {
   mergeShopifyScopes,
   SHOPIFY_WRITE_PRODUCTS_SCOPE,
@@ -133,6 +139,15 @@ export class ShopifyProductPushService {
       );
       await this.pushTaxonomyCategory(tenantId, String(shopifyProduct.id), product);
       await this.pushCategoryMetafields(tenantId, String(shopifyProduct.id), product);
+      await this.refreshLocalShopifyMetadata(
+        product.id,
+        shopDomain,
+        accessToken,
+        String(shopifyProduct.id),
+        product.shopifyTaxonomyCategoryId,
+        product.shopifyCategoryMetafields,
+        product.shopifyMetafields,
+      );
       await this.pushVariantCosts(shopDomain, accessToken, product.variants);
       await this.shopifyConnection.touchSync(tenantId);
 
@@ -240,6 +255,48 @@ export class ShopifyProductPushService {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Push categoria taxonomy fallito';
       this.logger.warn(`Taxonomy prodotto non sincronizzata (${shopifyProductId}): ${message}`);
+    }
+  }
+
+  private async refreshLocalShopifyMetadata(
+    productId: string,
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+    taxonomyCategoryId: string | null,
+    existingCategoryMetafieldsRaw: unknown,
+    existingMetafieldsRaw: unknown,
+  ): Promise<void> {
+    try {
+      const metafieldRows = await this.shopifyAdmin.listProductMetafields(
+        shopDomain,
+        accessToken,
+        shopifyProductId,
+      );
+      const metafields = mapMetafieldRows(metafieldRows);
+      const categoryMetafields = await this.shopifyCategoryMetafields.parseFromProductMetafields(
+        shopDomain,
+        accessToken,
+        metafields,
+        taxonomyCategoryId,
+      );
+
+      await this.prisma.product.update({
+        where: { id: productId },
+        data: {
+          shopifyMetafields: resolveImportedShopifyMetafields(
+            metafields,
+            existingMetafieldsRaw,
+          ) as unknown as Prisma.InputJsonValue,
+          shopifyCategoryMetafields: resolveImportedShopifyCategoryMetafields(
+            categoryMetafields,
+            existingCategoryMetafieldsRaw,
+          ) as unknown as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Refresh metadati Shopify fallito';
+      this.logger.warn(`Snapshot metafield non aggiornato (${shopifyProductId}): ${message}`);
     }
   }
 

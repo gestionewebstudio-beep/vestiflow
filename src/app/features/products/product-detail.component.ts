@@ -21,6 +21,7 @@ import {
 import type { IsoDateString } from '@core/models/common.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import type { Product, ProductStatus } from '@core/models/product.model';
+import type { ShopifyMetafieldRef } from '@core/models/shopify-product-metadata.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
@@ -168,6 +169,16 @@ export class ProductDetailComponent {
 
   protected shopifyTone(status: ShopifySyncStatus): BadgeTone {
     return SHOPIFY_TONES[status];
+  }
+
+  /** Metafield Shopify non già mostrati come attributi categoria strutturati. */
+  protected supplementaryShopifyMetafields(product: Product): readonly ShopifyMetafieldRef[] {
+    const categoryKeys = new Set(
+      (product.shopifyCategoryMetafields ?? []).map((field) => `${field.namespace}.${field.key}`),
+    );
+    return (product.shopifyMetafields ?? []).filter(
+      (field) => !categoryKeys.has(`${field.namespace}.${field.key}`),
+    );
   }
 
   protected formatDate(value: IsoDateString): string {

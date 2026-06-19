@@ -1,5 +1,8 @@
 <div class="option-list">
   <label class="option-list__label" [for]="inputId">{{ label() }}</label>
+  @if (hint(); as hintText) {
+    <p class="option-list__hint">{{ hintText }}</p>
+  }
 
   <div class="option-list__row">
     <input
