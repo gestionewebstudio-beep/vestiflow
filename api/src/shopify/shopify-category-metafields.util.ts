@@ -534,29 +534,15 @@ export function countCategoryMetafieldsWithValues(
 }
 
 export function categoryMetafieldsSyncErrorMessage(
-  localFields: readonly ShopifyCategoryMetafieldValue[],
-  remoteFields: readonly ShopifyCategoryMetafieldValue[],
+  localCount: number,
+  remoteCount: number,
   existingError?: string | null,
 ): string | null {
-  if (existingError?.trim()) {
-    return existingError.trim();
-  }
-
-  const localWithValues = localFields.filter((field) => field.values.length > 0);
-  if (localWithValues.length === 0) {
+  if (localCount === 0 || remoteCount > 0) {
     return null;
   }
-
-  const remoteKeys = new Set(
-    remoteFields.filter((field) => field.values.length > 0).map((field) => field.key),
+  return (
+    existingError ??
+    'Attributi categoria presenti in VestiFlow ma assenti su Shopify. Usa "Sincronizza con Shopify".'
   );
-  const missingKeys = localWithValues
-    .filter((field) => !remoteKeys.has(field.key))
-    .map((field) => field.key);
-
-  if (missingKeys.length === 0) {
-    return null;
-  }
-
-  return `Alcuni attributi categoria non sono stati sincronizzati su Shopify (${missingKeys.join(', ')}).`;
 }

@@ -246,40 +246,11 @@ describe('qualifyMetaobjectReferenceMetafieldType', () => {
 });
 
 describe('categoryMetafieldsSyncErrorMessage', () => {
-  const localColorField = {
-    attributeId: 'a1',
-    attributeName: 'Color',
-    namespace: 'shopify',
-    key: 'color-pattern',
-    metafieldType: 'list.metaobject_reference',
-    values: [{ id: 'gid://shopify/TaxonomyValue/1', name: 'Blue' }],
-  };
-  const localFabricField = {
-    attributeId: 'a2',
-    attributeName: 'Fabric',
-    namespace: 'shopify',
-    key: 'fabric',
-    metafieldType: 'list.product_taxonomy_value_reference',
-    values: [{ id: 'gid://shopify/TaxonomyValue/2', name: 'Cashmere' }],
-  };
-
-  it('segnala chiavi mancanti su Shopify', () => {
-    expect(
-      categoryMetafieldsSyncErrorMessage(
-        [localColorField, localFabricField],
-        [localFabricField],
-        null,
-      ),
-    ).toContain('color-pattern');
+  it('segnala mismatch locale/remoto', () => {
+    expect(categoryMetafieldsSyncErrorMessage(2, 0, null)).toContain('assenti su Shopify');
   });
 
-  it('non segnala errore quando Shopify ha tutti gli attributi', () => {
-    expect(
-      categoryMetafieldsSyncErrorMessage(
-        [localColorField, localFabricField],
-        [localColorField, localFabricField],
-        null,
-      ),
-    ).toBeNull();
+  it('non segnala errore quando Shopify ha attributi', () => {
+    expect(categoryMetafieldsSyncErrorMessage(2, 2, null)).toBeNull();
   });
 });

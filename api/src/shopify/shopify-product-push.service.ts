@@ -426,7 +426,12 @@ export class ShopifyProductPushService {
         metafields,
         taxonomyCategoryId,
       );
-      return categoryMetafieldsSyncErrorMessage(localFields, remoteFields, null);
+      const remoteCount = countCategoryMetafieldsWithValues(remoteFields);
+      return categoryMetafieldsSyncErrorMessage(
+        countCategoryMetafieldsWithValues(localFields),
+        remoteCount,
+        null,
+      );
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Verifica metafield categoria Shopify fallita';
