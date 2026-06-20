@@ -1,4 +1,4 @@
-import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import type { ShopifyCategoryMetafieldValue } from './shopify-category-metafields.types';
 import { SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID } from './shopify-category-metafields.types';
@@ -12,7 +12,6 @@ import {
   parseMetafieldGidList,
   pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
-  qualifyMetaobjectReferenceMetafieldType,
   reconcileCategoryMetafieldsWithAttributes,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   searchTaxonomyValuesInCategoryAttributes,
@@ -225,7 +224,7 @@ export class ShopifyCategoryMetafieldsService {
           skipped.push(field.key);
         }
       } catch (error: unknown) {
-        const message = this.extractErrorMessage(error);
+        const message = error instanceof Error ? error.message : 'Push category metafield fallito';
         failed.push(field.key);
         this.logger.warn(
           `Category metafield ${field.key} non sincronizzato (${shopifyProductId}): ${message}`,
@@ -249,7 +248,7 @@ export class ShopifyCategoryMetafieldsService {
         synced += 1;
       } catch (error: unknown) {
         failed.push(input.key);
-        const message = this.extractErrorMessage(error);
+        const message = error instanceof Error ? error.message : 'metafieldsSet fallito';
         this.logger.warn(
           `Category metafield ${input.key} non sincronizzato (${shopifyProductId}): ${message}`,
         );
@@ -385,28 +384,9 @@ export class ShopifyCategoryMetafieldsService {
       ownerId: productGid,
       namespace: field.namespace,
       key: field.key,
-      type: qualifyMetaobjectReferenceMetafieldType(type, metaobjectType),
+      type,
       value: serializeMetaobjectGidList(metaobjectGids),
     };
-  }
-
-  private extractErrorMessage(error: unknown): string {
-    if (error instanceof HttpException) {
-      const response = error.getResponse();
-      if (typeof response === 'string') {
-        return response;
-      }
-      if (typeof response === 'object' && response !== null && 'message' in response) {
-        const message = (response as { message: unknown }).message;
-        if (typeof message === 'string') {
-          return message;
-        }
-        if (Array.isArray(message)) {
-          return message.filter((entry): entry is string => typeof entry === 'string').join('; ');
-        }
-      }
-    }
-    return error instanceof Error ? error.message : 'Push category metafield fallito';
   }
 
   private async loadMetaobjectFieldDefinitions(

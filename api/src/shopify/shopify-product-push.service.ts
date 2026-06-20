@@ -409,7 +409,8 @@ export class ShopifyProductPushService {
     existingCategoryMetafieldsRaw: unknown,
   ): Promise<string | null> {
     const localFields = parseCategoryMetafieldsJson(existingCategoryMetafieldsRaw);
-    if (countCategoryMetafieldsWithValues(localFields) === 0) {
+    const localCount = countCategoryMetafieldsWithValues(localFields);
+    if (localCount === 0) {
       return null;
     }
 
@@ -427,11 +428,7 @@ export class ShopifyProductPushService {
         taxonomyCategoryId,
       );
       const remoteCount = countCategoryMetafieldsWithValues(remoteFields);
-      return categoryMetafieldsSyncErrorMessage(
-        countCategoryMetafieldsWithValues(localFields),
-        remoteCount,
-        null,
-      );
+      return categoryMetafieldsSyncErrorMessage(localCount, remoteCount, null);
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Verifica metafield categoria Shopify fallita';

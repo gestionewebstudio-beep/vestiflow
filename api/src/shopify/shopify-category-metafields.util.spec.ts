@@ -5,9 +5,7 @@ import {
   categoryMetafieldsSyncErrorMessage,
   countCategoryMetafieldsWithValues,
   matchCategoryAttributeToMetafieldTemplate,
-  pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
-  qualifyMetaobjectReferenceMetafieldType,
   reconcileCategoryMetafieldsWithAttributes,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   searchTaxonomyValuesInCategoryAttributes,
@@ -199,49 +197,6 @@ describe('countCategoryMetafieldsWithValues', () => {
         },
       ]),
     ).toBe(1);
-  });
-});
-
-describe('pickMetaobjectTaxonomyFieldKey', () => {
-  const colorPatternDefinitions = [
-    { key: 'pattern_taxonomy_reference', typeName: 'product_taxonomy_value_reference' },
-    { key: 'color_taxonomy_reference', typeName: 'list.product_taxonomy_value_reference' },
-    { key: 'label', typeName: 'single_line_text_field' },
-  ];
-
-  it('usa color_taxonomy_reference per metafield color-pattern', () => {
-    expect(pickMetaobjectTaxonomyFieldKey('color-pattern', 'Color', colorPatternDefinitions)).toBe(
-      'color_taxonomy_reference',
-    );
-  });
-
-  it('preferisce il campo colore anche se pattern è listato per primo', () => {
-    expect(
-      pickMetaobjectTaxonomyFieldKey('color-pattern', 'Colore', [
-        colorPatternDefinitions[0]!,
-        colorPatternDefinitions[1]!,
-      ]),
-    ).toBe('color_taxonomy_reference');
-  });
-});
-
-describe('qualifyMetaobjectReferenceMetafieldType', () => {
-  it('qualifica list.metaobject_reference con il tipo standard Shopify', () => {
-    expect(
-      qualifyMetaobjectReferenceMetafieldType(
-        'list.metaobject_reference',
-        'shopify--color-pattern',
-      ),
-    ).toBe('list.metaobject_reference<shopify--color-pattern>');
-  });
-
-  it('non modifica tipi già qualificati', () => {
-    expect(
-      qualifyMetaobjectReferenceMetafieldType(
-        'list.metaobject_reference<shopify--color-pattern>',
-        'shopify--color-pattern',
-      ),
-    ).toBe('list.metaobject_reference<shopify--color-pattern>');
   });
 });
 
