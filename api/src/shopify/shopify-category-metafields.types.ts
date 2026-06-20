@@ -25,3 +25,7 @@ export interface ShopifyTaxonomyCategoryAttribute {
 }
 
 export const SHOPIFY_CATEGORY_METAFIELD_NAMESPACE = 'shopify';
+
+/** GID taxonomy Shopify globalmente stabile (product-taxonomy: pattern > Solid). */
+export const SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID =
+  'gid://shopify/TaxonomyValue/2874' as const;

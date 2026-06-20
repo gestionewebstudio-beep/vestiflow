@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import type { ShopifyCategoryMetafieldValue } from './shopify-category-metafields.types';
+import { SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID } from './shopify-category-metafields.types';
 import {
   buildStandardMetaobjectType,
   buildCategoryMetaobjectFieldsPayload,
@@ -182,7 +183,9 @@ export class ShopifyCategoryMetafieldsService {
         isMetaobjectReferenceMetafieldType(field.metafieldType || 'list.metaobject_reference'),
     );
     if (hasMetaobjectFields) {
-      pushContext.defaultSolidPatternGid = this.searchTaxonomyCached('solid', pushContext);
+      pushContext.defaultSolidPatternGid =
+        this.searchTaxonomyCached('solid', pushContext) ??
+        SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID;
     }
 
     const activeFields = reconciledMetafields.filter((field) => field.values.length > 0);
@@ -367,9 +370,10 @@ export class ShopifyCategoryMetafieldsService {
         handle.slice(0, 240),
         metaobjectFields,
       );
-      if (metaobjectId) {
-        metaobjectGids.push(metaobjectId);
+      if (!metaobjectId) {
+        throw new Error(`Metaobject ${metaobjectType} non creato per valore ${taxonomyValue.name}`);
       }
+      metaobjectGids.push(metaobjectId);
     }
 
     if (metaobjectGids.length === 0) {
@@ -474,7 +478,9 @@ export class ShopifyCategoryMetafieldsService {
       if (pushContext.defaultSolidPatternGid !== undefined) {
         return pushContext.defaultSolidPatternGid;
       }
-      pushContext.defaultSolidPatternGid = this.searchTaxonomyCached('solid', pushContext);
+      pushContext.defaultSolidPatternGid =
+        this.searchTaxonomyCached('solid', pushContext) ??
+        SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID;
       return pushContext.defaultSolidPatternGid;
     }
 
@@ -516,8 +522,13 @@ export class ShopifyCategoryMetafieldsService {
       'plain',
     ]);
     const picked = pickPreferredTaxonomyValueId(values, [term, 'solid', 'plain']);
-    pushContext.taxonomySearchCache.set(cacheKey, picked);
-    return picked;
+    const resolved =
+      picked ??
+      (cacheKey === 'solid' || cacheKey.includes('pattern')
+        ? SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID
+        : null);
+    pushContext.taxonomySearchCache.set(cacheKey, resolved);
+    return resolved;
   }
 
   private extractTaxonomyValues(
