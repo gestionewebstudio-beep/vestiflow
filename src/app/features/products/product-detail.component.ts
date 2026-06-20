@@ -134,6 +134,7 @@ export class ProductDetailComponent {
 
   protected readonly listPath = PRODUCTS_LIST_PATH;
   protected readonly skeletonColumns = 5;
+  protected readonly shopifySyncStatus = ShopifySyncStatus;
 
   protected readonly canManageCatalog = computed(() =>
     canManageCatalog(this.authService.currentUser()),

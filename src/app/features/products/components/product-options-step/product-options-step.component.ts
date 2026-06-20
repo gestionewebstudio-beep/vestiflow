@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 
 import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '../../models/product-form.model';
@@ -14,7 +13,6 @@ import {
   selectedOptionValue,
   variantOptionNames,
 } from '../../models/product-variant.util';
-import { findShopifyColorCategoryMetafield } from '../../utils/shopify-taxonomy-color.util';
 import { OptionListEditorComponent } from '../option-list-editor/option-list-editor.component';
 
 // Nome di default proposto per il 3° asse opzionale (editabile dall'utente).
@@ -41,7 +39,6 @@ export class ProductOptionsStepComponent {
   /** Anteprima (read-only) delle varianti generate dal wizard. */
   readonly variants = input<readonly VariantDraft[]>([]);
   readonly shopifyConnected = input(false);
-  readonly categoryMetafields = input<readonly ShopifyCategoryMetafieldValue[]>([]);
   readonly optionsChange = output<ProductOptionsDraft>();
 
   protected readonly sizeName = OPTION_NAME_SIZE;
@@ -49,10 +46,6 @@ export class ProductOptionsStepComponent {
 
   protected readonly sizes = computed(() => axisValues(this.options().axes, OPTION_NAME_SIZE));
   protected readonly colors = computed(() => axisValues(this.options().axes, OPTION_NAME_COLOR));
-
-  protected readonly categoryColorSelection = computed(() =>
-    findShopifyColorCategoryMetafield(this.categoryMetafields()),
-  );
 
   protected readonly variantColorLabel = computed(() =>
     this.shopifyConnected() ? 'Colori varianti' : 'Colori',
@@ -75,16 +68,6 @@ export class ProductOptionsStepComponent {
   protected readonly thirdAxis = computed<OptionAxisDraft | null>(
     () => this.options().axes[THIRD_AXIS_INDEX] ?? null,
   );
-  protected readonly hasThirdAxisValues = computed(
-    () => (this.thirdAxis()?.values.length ?? 0) > 0,
-  );
-
-  protected readonly monoVariantHint = computed((): string | null => {
-    if (this.sizes().length > 0 || this.colors().length > 0 || this.hasThirdAxisValues()) {
-      return null;
-    }
-    return 'Prodotto mono-variante? Puoi lasciare taglie e colori vuoti: verrà creata una variante predefinita.';
-  });
 
   protected readonly hasThirdAxis = computed(() => this.thirdAxis() !== null);
   protected readonly thirdAxisName = computed(() => this.thirdAxis()?.name ?? '');

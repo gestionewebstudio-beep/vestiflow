@@ -32,6 +32,17 @@
   color: var(--status-error-fg);
 }
 
+.product-detail__shopify-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.product-detail__shopify-sync-icon {
+  display: inline-block;
+  animation: app-button-icon-spin var(--transition-slow) linear infinite;
+}
+
 .product-detail__images {
   display: flex;
   flex-wrap: wrap;

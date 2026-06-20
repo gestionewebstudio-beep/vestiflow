@@ -165,7 +165,12 @@
             <dt class="product-detail__term">Shopify</dt>
             <dd class="product-detail__value">
               <app-badge [tone]="shopifyTone(shopify.status)">
-                {{ shopifyLabel(shopify.status) }}
+                <span class="product-detail__shopify-badge">
+                  @if (shopify.status === shopifySyncStatus.Syncing) {
+                    <i class="pi pi-sync product-detail__shopify-sync-icon" aria-hidden="true"></i>
+                  }
+                  {{ shopifyLabel(shopify.status) }}
+                </span>
               </app-badge>
               @if (shopify.lastError) {
                 <span class="product-detail__sync-error">{{ shopify.lastError }}</span>

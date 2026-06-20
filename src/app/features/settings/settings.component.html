@@ -288,10 +288,12 @@
             {{ autoSyncButtonLabel() }}
           </app-button>
           <app-button
+            loadingIndicator="icon"
             [loading]="disconnectLoading()"
             [disabled]="disconnectLoading() || syncLocationsLoading() || syncWebhooksLoading()"
             (click)="disconnectShopify()"
           >
+            <i class="pi pi-sync" aria-hidden="true"></i>
             Disconnetti Shopify
           </app-button>
         </div>

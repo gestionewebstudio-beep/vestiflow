@@ -268,13 +268,10 @@ export class SettingsComponent {
       : 'Attiva aggiornamenti automatici',
   );
 
-  /** Messaggio visibile mentre un'azione Shopify è in corso. */
+  /** Messaggio visibile mentre un'azione Shopify è in corso (esclusa disconnessione: feedback sul bottone). */
   protected readonly shopifyActionProgress = computed((): string | null => {
     if (this.connectLoading()) {
       return 'Reindirizzamento a Shopify…';
-    }
-    if (this.disconnectLoading()) {
-      return 'Disconnessione Shopify in corso…';
     }
     if (this.clearErrorsLoading()) {
       return 'Ripristino connessione in corso…';
