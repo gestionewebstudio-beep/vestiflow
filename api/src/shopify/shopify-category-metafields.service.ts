@@ -12,6 +12,7 @@ import {
   parseMetafieldGidList,
   pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
+  qualifyMetaobjectReferenceMetafieldType,
   reconcileCategoryMetafieldsWithAttributes,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   searchTaxonomyValuesInCategoryAttributes,
@@ -384,7 +385,7 @@ export class ShopifyCategoryMetafieldsService {
       ownerId: productGid,
       namespace: field.namespace,
       key: field.key,
-      type,
+      type: qualifyMetaobjectReferenceMetafieldType(type, metaobjectType),
       value: serializeMetaobjectGidList(metaobjectGids),
     };
   }

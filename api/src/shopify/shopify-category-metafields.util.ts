@@ -275,6 +275,25 @@ export function isMetaobjectReferenceMetafieldType(type: string): boolean {
   return type.trim().toLowerCase().includes('metaobject_reference');
 }
 
+/** Qualifica list.metaobject_reference per metafieldsSet (solo metaobject standard Shopify). */
+export function qualifyMetaobjectReferenceMetafieldType(
+  metafieldType: string,
+  metaobjectType: string,
+): string {
+  const normalized = metafieldType.trim();
+  if (normalized.includes('<')) {
+    return normalized;
+  }
+  const lower = normalized.toLowerCase();
+  if (lower === 'list.metaobject_reference') {
+    return `list.metaobject_reference<${metaobjectType}>`;
+  }
+  if (lower === 'metaobject_reference') {
+    return `metaobject_reference<${metaobjectType}>`;
+  }
+  return normalized;
+}
+
 export interface MetaobjectTaxonomyFieldCandidate {
   readonly key: string;
   readonly typeName: string;
@@ -293,6 +312,11 @@ function isTaxonomyReferenceMetaobjectFieldType(typeName: string): boolean {
   return typeName.trim().toLowerCase().includes('taxonomy');
 }
 
+/** Campo taxonomy primario per metaobject standard (solo casi noti). */
+const PRIMARY_TAXONOMY_FIELD_BY_METAFIELD_KEY: Readonly<Record<string, string>> = {
+  'color-pattern': 'color_taxonomy_reference',
+};
+
 /** Sceglie il campo taxonomy dentro uno standard metaobject (es. color_taxonomy_reference). */
 export function pickMetaobjectTaxonomyFieldKey(
   attributeKey: string,
@@ -307,6 +331,11 @@ export function pickMetaobjectTaxonomyFieldKey(
   }
   if (taxonomyFields.length === 1) {
     return taxonomyFields[0]?.key ?? null;
+  }
+
+  const explicitPrimary = PRIMARY_TAXONOMY_FIELD_BY_METAFIELD_KEY[attributeKey.toLowerCase()];
+  if (explicitPrimary && taxonomyFields.some((field) => field.key === explicitPrimary)) {
+    return explicitPrimary;
   }
 
   const keyTokens = attributeKey

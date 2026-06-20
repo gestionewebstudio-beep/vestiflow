@@ -5,7 +5,9 @@ import {
   categoryMetafieldsSyncErrorMessage,
   countCategoryMetafieldsWithValues,
   matchCategoryAttributeToMetafieldTemplate,
+  pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
+  qualifyMetaobjectReferenceMetafieldType,
   reconcileCategoryMetafieldsWithAttributes,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   searchTaxonomyValuesInCategoryAttributes,
@@ -197,6 +199,28 @@ describe('countCategoryMetafieldsWithValues', () => {
         },
       ]),
     ).toBe(1);
+  });
+});
+
+describe('pickMetaobjectTaxonomyFieldKey', () => {
+  it('usa color_taxonomy_reference per metafield color-pattern', () => {
+    expect(
+      pickMetaobjectTaxonomyFieldKey('color-pattern', 'Color', [
+        { key: 'pattern_taxonomy_reference', typeName: 'product_taxonomy_value_reference' },
+        { key: 'color_taxonomy_reference', typeName: 'list.product_taxonomy_value_reference' },
+      ]),
+    ).toBe('color_taxonomy_reference');
+  });
+});
+
+describe('qualifyMetaobjectReferenceMetafieldType', () => {
+  it('qualifica list.metaobject_reference con shopify--color-pattern', () => {
+    expect(
+      qualifyMetaobjectReferenceMetafieldType(
+        'list.metaobject_reference',
+        'shopify--color-pattern',
+      ),
+    ).toBe('list.metaobject_reference<shopify--color-pattern>');
   });
 });
 
