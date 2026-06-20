@@ -2,15 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCategoryMetaobjectFieldsPayload,
-  buildColorPatternMetaobjectHandle,
   categoryMetafieldsSyncErrorMessage,
   countCategoryMetafieldsWithValues,
-  extractCategoryMetafieldTaxonomyValues,
   matchCategoryAttributeToMetafieldTemplate,
-  orderCategoryMetafieldsForPush,
-  pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
-  qualifyMetaobjectReferenceMetafieldType,
   reconcileCategoryMetafieldsWithAttributes,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   searchTaxonomyValuesInCategoryAttributes,
@@ -202,77 +197,6 @@ describe('countCategoryMetafieldsWithValues', () => {
         },
       ]),
     ).toBe(1);
-  });
-});
-
-describe('extractCategoryMetafieldTaxonomyValues', () => {
-  it('ignora pattern_taxonomy_reference per color-pattern', () => {
-    const values = extractCategoryMetafieldTaxonomyValues(
-      'color-pattern',
-      ['gid://shopify/Metaobject/1'],
-      [
-        {
-          id: 'gid://shopify/Metaobject/1',
-          fields: [
-            {
-              key: 'color_taxonomy_reference',
-              value: '["gid://shopify/TaxonomyValue/4"]',
-            },
-            {
-              key: 'pattern_taxonomy_reference',
-              value: 'gid://shopify/TaxonomyValue/2874',
-            },
-          ],
-        },
-      ],
-      new Map([['gid://shopify/TaxonomyValue/4', 'Gold']]),
-    );
-
-    expect(values).toEqual([{ id: 'gid://shopify/TaxonomyValue/4', name: 'Gold' }]);
-  });
-});
-
-describe('buildColorPatternMetaobjectHandle', () => {
-  it('normalizza il nome colore come handle Shopify', () => {
-    expect(buildColorPatternMetaobjectHandle('Gold')).toBe('gold');
-  });
-});
-
-describe('orderCategoryMetafieldsForPush', () => {
-  it('invia color-pattern per ultimo', () => {
-    const ordered = orderCategoryMetafieldsForPush([
-      {
-        key: 'color-pattern',
-        values: [{ id: 'gid://shopify/TaxonomyValue/1' }],
-      },
-      {
-        key: 'fabric',
-        values: [{ id: 'gid://shopify/TaxonomyValue/2' }],
-      },
-    ]);
-    expect(ordered.map((field) => field.key)).toEqual(['fabric', 'color-pattern']);
-  });
-});
-
-describe('pickMetaobjectTaxonomyFieldKey', () => {
-  it('usa color_taxonomy_reference per metafield color-pattern', () => {
-    expect(
-      pickMetaobjectTaxonomyFieldKey('color-pattern', 'Color', [
-        { key: 'pattern_taxonomy_reference', typeName: 'product_taxonomy_value_reference' },
-        { key: 'color_taxonomy_reference', typeName: 'list.product_taxonomy_value_reference' },
-      ]),
-    ).toBe('color_taxonomy_reference');
-  });
-});
-
-describe('qualifyMetaobjectReferenceMetafieldType', () => {
-  it('qualifica list.metaobject_reference con shopify--color-pattern', () => {
-    expect(
-      qualifyMetaobjectReferenceMetafieldType(
-        'list.metaobject_reference',
-        'shopify--color-pattern',
-      ),
-    ).toBe('list.metaobject_reference<shopify--color-pattern>');
   });
 });
 
