@@ -108,31 +108,6 @@ export class ShopifyGraphqlClient {
     return data.taxonomy?.categories?.nodes ?? [];
   }
 
-  async searchTaxonomyValues(
-    shopDomain: string,
-    accessToken: string,
-    search: string,
-  ): Promise<readonly ShopifyTaxonomyAttributeValue[]> {
-    const query = `
-      query TaxonomyValues($search: String!) {
-        taxonomy {
-          values(first: 25, search: $search) {
-            nodes {
-              id
-              name
-            }
-          }
-        }
-      }
-    `;
-
-    const data = await this.graphql<{
-      taxonomy: { values: { nodes: ShopifyTaxonomyAttributeValue[] } } | null;
-    }>(shopDomain, accessToken, query, { search: search.trim() });
-
-    return data.taxonomy?.values?.nodes ?? [];
-  }
-
   async getProductTaxonomyCategory(
     shopDomain: string,
     accessToken: string,

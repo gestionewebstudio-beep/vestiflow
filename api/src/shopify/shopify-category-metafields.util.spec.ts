@@ -6,6 +6,7 @@ import {
   countCategoryMetafieldsWithValues,
   pickPreferredTaxonomyValueId,
   resolveSecondaryTaxonomyGidForMetaobjectField,
+  searchTaxonomyValuesInCategoryAttributes,
   serializeMetaobjectTaxonomyReferenceValue,
 } from './shopify-category-metafields.util';
 
@@ -57,6 +58,26 @@ describe('buildCategoryMetaobjectFieldsPayload', () => {
       },
       { key: 'label', value: 'Brown' },
     ]);
+  });
+});
+
+describe('searchTaxonomyValuesInCategoryAttributes', () => {
+  it('trova valori taxonomy per termine negli attributi categoria', () => {
+    expect(
+      searchTaxonomyValuesInCategoryAttributes(
+        [
+          {
+            key: 'pattern',
+            name: 'Pattern',
+            values: [
+              { id: 'gid://shopify/TaxonomyValue/1', name: 'Striped' },
+              { id: 'gid://shopify/TaxonomyValue/2', name: 'Solid' },
+            ],
+          },
+        ],
+        ['solid'],
+      ),
+    ).toEqual([{ id: 'gid://shopify/TaxonomyValue/2', name: 'Solid' }]);
   });
 });
 

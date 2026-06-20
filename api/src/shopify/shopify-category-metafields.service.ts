@@ -12,6 +12,7 @@ import {
   pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
   resolveSecondaryTaxonomyGidForMetaobjectField,
+  searchTaxonomyValuesInCategoryAttributes,
   serializeMetaobjectGidList,
   serializeTaxonomyValueListGids,
   standardMetafieldDefinitionTemplateGid,
@@ -36,6 +37,11 @@ interface MetaobjectFieldDefinition {
 
 interface CategoryMetafieldsPushContext {
   readonly taxonomySearchCache: Map<string, string | null>;
+  readonly categoryAttributes: readonly {
+    readonly key: string;
+    readonly name: string;
+    readonly values: readonly { readonly id: string; readonly name: string }[];
+  }[];
   defaultSolidPatternGid?: string | null;
 }
 
@@ -148,6 +154,7 @@ export class ShopifyCategoryMetafieldsService {
 
     const pushContext: CategoryMetafieldsPushContext = {
       taxonomySearchCache: new Map(),
+      categoryAttributes,
     };
     const hasMetaobjectFields = categoryMetafields.some(
       (field) =>
@@ -155,12 +162,7 @@ export class ShopifyCategoryMetafieldsService {
         isMetaobjectReferenceMetafieldType(field.metafieldType || 'list.metaobject_reference'),
     );
     if (hasMetaobjectFields) {
-      pushContext.defaultSolidPatternGid = await this.searchTaxonomyCached(
-        shopDomain,
-        accessToken,
-        'solid',
-        pushContext,
-      );
+      pushContext.defaultSolidPatternGid = this.searchTaxonomyCached('solid', pushContext);
     }
 
     const activeFields = categoryMetafields.filter((field) => field.values.length > 0);
@@ -325,12 +327,7 @@ export class ShopifyCategoryMetafieldsService {
         if (secondaryTaxonomyByFieldKey.has(definition.key)) {
           continue;
         }
-        const fallbackGid = await this.resolveFallbackSecondaryTaxonomyGid(
-          shopDomain,
-          accessToken,
-          definition.key,
-          pushContext,
-        );
+        const fallbackGid = this.resolveFallbackSecondaryTaxonomyGid(definition.key, pushContext);
         if (fallbackGid) {
           secondaryTaxonomyByFieldKey.set(definition.key, fallbackGid);
         }
@@ -450,30 +447,23 @@ export class ShopifyCategoryMetafieldsService {
     this.metafieldDefinitionEnabledCache.add(cacheKey);
   }
 
-  private async resolveFallbackSecondaryTaxonomyGid(
-    shopDomain: string,
-    accessToken: string,
+  private resolveFallbackSecondaryTaxonomyGid(
     fieldKey: string,
     pushContext: CategoryMetafieldsPushContext,
-  ): Promise<string | null> {
+  ): string | null {
     const fieldNorm = fieldKey.toLowerCase();
     if (fieldNorm.includes('pattern')) {
       if (pushContext.defaultSolidPatternGid !== undefined) {
         return pushContext.defaultSolidPatternGid;
       }
-      pushContext.defaultSolidPatternGid = await this.searchTaxonomyCached(
-        shopDomain,
-        accessToken,
-        'solid',
-        pushContext,
-      );
+      pushContext.defaultSolidPatternGid = this.searchTaxonomyCached('solid', pushContext);
       return pushContext.defaultSolidPatternGid;
     }
 
     const searchTerms = [fieldKey.replace(/_/g, ' ')];
 
     for (const term of searchTerms) {
-      const gid = await this.searchTaxonomyCached(shopDomain, accessToken, term, pushContext);
+      const gid = this.searchTaxonomyCached(term, pushContext);
       if (gid) {
         return gid;
       }
@@ -482,18 +472,31 @@ export class ShopifyCategoryMetafieldsService {
     return null;
   }
 
-  private async searchTaxonomyCached(
-    shopDomain: string,
-    accessToken: string,
+  private searchTaxonomyCached(
     term: string,
     pushContext: CategoryMetafieldsPushContext,
-  ): Promise<string | null> {
+  ): string | null {
     const cacheKey = term.toLowerCase();
     if (pushContext.taxonomySearchCache.has(cacheKey)) {
       return pushContext.taxonomySearchCache.get(cacheKey)!;
     }
 
-    const values = await this.shopifyGraphql.searchTaxonomyValues(shopDomain, accessToken, term);
+    for (const patternKey of ['pattern_taxonomy_reference', 'pattern']) {
+      const fromAttribute = resolveSecondaryTaxonomyGidForMetaobjectField(
+        patternKey,
+        pushContext.categoryAttributes,
+      );
+      if (fromAttribute) {
+        pushContext.taxonomySearchCache.set(cacheKey, fromAttribute);
+        return fromAttribute;
+      }
+    }
+
+    const values = searchTaxonomyValuesInCategoryAttributes(pushContext.categoryAttributes, [
+      term,
+      'solid',
+      'plain',
+    ]);
     const picked = pickPreferredTaxonomyValueId(values, [term, 'solid', 'plain']);
     pushContext.taxonomySearchCache.set(cacheKey, picked);
     return picked;

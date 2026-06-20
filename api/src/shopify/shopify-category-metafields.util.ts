@@ -249,6 +249,42 @@ export function serializeMetaobjectTaxonomyReferenceValue(
   return taxonomyGid;
 }
 
+/** Cerca valori taxonomy per nome negli attributi già caricati per la categoria prodotto. */
+export function searchTaxonomyValuesInCategoryAttributes(
+  attributes: readonly {
+    readonly key: string;
+    readonly name: string;
+    readonly values: readonly { readonly id: string; readonly name: string }[];
+  }[],
+  searchTerms: readonly string[],
+): readonly { readonly id: string; readonly name: string }[] {
+  const normalizedTerms = searchTerms.map((term) => term.trim().toLowerCase()).filter(Boolean);
+  if (normalizedTerms.length === 0) {
+    return [];
+  }
+
+  const matches: { id: string; name: string }[] = [];
+  const seen = new Set<string>();
+
+  for (const attribute of attributes) {
+    const attributeTokens = [attribute.key.toLowerCase(), attribute.name.toLowerCase()];
+    for (const value of attribute.values) {
+      const valueNorm = value.name.toLowerCase();
+      const matched = normalizedTerms.some(
+        (term) =>
+          valueNorm.includes(term) ||
+          attributeTokens.some((token) => token.includes(term) || term.includes(token)),
+      );
+      if (matched && !seen.has(value.id)) {
+        seen.add(value.id);
+        matches.push({ id: value.id, name: value.name });
+      }
+    }
+  }
+
+  return matches;
+}
+
 export function pickPreferredTaxonomyValueId(
   values: readonly { readonly id: string; readonly name: string }[],
   preferredNames: readonly string[] = DEFAULT_SECONDARY_TAXONOMY_VALUE_NAMES,
