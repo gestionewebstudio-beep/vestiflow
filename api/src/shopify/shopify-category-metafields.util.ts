@@ -275,6 +275,26 @@ export function isMetaobjectReferenceMetafieldType(type: string): boolean {
   return type.trim().toLowerCase().includes('metaobject_reference');
 }
 
+/** Qualifica il tipo metafield con il metaobject standard Shopify (richiesto da metafieldsSet). */
+export function qualifyMetaobjectReferenceMetafieldType(
+  metafieldType: string,
+  metaobjectType: string,
+): string {
+  const normalized = metafieldType.trim();
+  if (normalized.includes('<')) {
+    return normalized;
+  }
+
+  const lower = normalized.toLowerCase();
+  if (lower === 'list.metaobject_reference') {
+    return `list.metaobject_reference<${metaobjectType}>`;
+  }
+  if (lower === 'metaobject_reference') {
+    return `metaobject_reference<${metaobjectType}>`;
+  }
+  return normalized;
+}
+
 export interface MetaobjectTaxonomyFieldCandidate {
   readonly key: string;
   readonly typeName: string;
@@ -293,6 +313,11 @@ function isTaxonomyReferenceMetaobjectFieldType(typeName: string): boolean {
   return typeName.trim().toLowerCase().includes('taxonomy');
 }
 
+/** Campo taxonomy primario noto per metaobject standard Shopify (metafield key → field key). */
+const PRIMARY_TAXONOMY_FIELD_BY_METAFIELD_KEY: Readonly<Record<string, string>> = {
+  'color-pattern': 'color_taxonomy_reference',
+};
+
 /** Sceglie il campo taxonomy dentro uno standard metaobject (es. color_taxonomy_reference). */
 export function pickMetaobjectTaxonomyFieldKey(
   attributeKey: string,
@@ -309,6 +334,11 @@ export function pickMetaobjectTaxonomyFieldKey(
     return taxonomyFields[0]?.key ?? null;
   }
 
+  const explicitPrimary = PRIMARY_TAXONOMY_FIELD_BY_METAFIELD_KEY[attributeKey.toLowerCase()];
+  if (explicitPrimary && taxonomyFields.some((field) => field.key === explicitPrimary)) {
+    return explicitPrimary;
+  }
+
   const keyTokens = attributeKey
     .toLowerCase()
     .split('-')
@@ -319,7 +349,12 @@ export function pickMetaobjectTaxonomyFieldKey(
     .split(/[\s-/]+/)
     .map((token) => token.trim())
     .filter(Boolean);
-  const tokens = [...new Set([...keyTokens, ...nameTokens])];
+  const attributeKeyNorm = attributeKey.toLowerCase();
+  const attributeNameNorm = attributeName.toLowerCase();
+  const isColorAttribute =
+    attributeKeyNorm.includes('color') ||
+    attributeNameNorm.includes('color') ||
+    attributeNameNorm.includes('colore');
 
   let bestKey: string | null = null;
   let bestScore = -1;
@@ -327,10 +362,18 @@ export function pickMetaobjectTaxonomyFieldKey(
   for (const field of taxonomyFields) {
     const fieldNorm = field.key.toLowerCase().replace(/_/g, '-');
     let score = 0;
-    for (const token of tokens) {
+    for (const token of nameTokens) {
+      if (fieldNorm.includes(token)) {
+        score += 2;
+      }
+    }
+    for (const token of keyTokens) {
       if (fieldNorm.includes(token)) {
         score += 1;
       }
+    }
+    if (isColorAttribute && fieldNorm.includes('pattern') && !fieldNorm.includes('color')) {
+      score -= 4;
     }
     if (score > bestScore) {
       bestScore = score;
@@ -491,15 +534,29 @@ export function countCategoryMetafieldsWithValues(
 }
 
 export function categoryMetafieldsSyncErrorMessage(
-  localCount: number,
-  remoteCount: number,
+  localFields: readonly ShopifyCategoryMetafieldValue[],
+  remoteFields: readonly ShopifyCategoryMetafieldValue[],
   existingError?: string | null,
 ): string | null {
-  if (localCount === 0 || remoteCount > 0) {
+  if (existingError?.trim()) {
+    return existingError.trim();
+  }
+
+  const localWithValues = localFields.filter((field) => field.values.length > 0);
+  if (localWithValues.length === 0) {
     return null;
   }
-  return (
-    existingError ??
-    'Attributi categoria presenti in VestiFlow ma assenti su Shopify. Usa "Sincronizza con Shopify".'
+
+  const remoteKeys = new Set(
+    remoteFields.filter((field) => field.values.length > 0).map((field) => field.key),
   );
+  const missingKeys = localWithValues
+    .filter((field) => !remoteKeys.has(field.key))
+    .map((field) => field.key);
+
+  if (missingKeys.length === 0) {
+    return null;
+  }
+
+  return `Alcuni attributi categoria non sono stati sincronizzati su Shopify (${missingKeys.join(', ')}).`;
 }

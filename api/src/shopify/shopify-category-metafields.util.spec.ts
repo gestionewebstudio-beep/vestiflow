@@ -5,7 +5,9 @@ import {
   categoryMetafieldsSyncErrorMessage,
   countCategoryMetafieldsWithValues,
   matchCategoryAttributeToMetafieldTemplate,
+  pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
+  qualifyMetaobjectReferenceMetafieldType,
   reconcileCategoryMetafieldsWithAttributes,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   searchTaxonomyValuesInCategoryAttributes,
@@ -200,12 +202,84 @@ describe('countCategoryMetafieldsWithValues', () => {
   });
 });
 
-describe('categoryMetafieldsSyncErrorMessage', () => {
-  it('segnala mismatch locale/remoto', () => {
-    expect(categoryMetafieldsSyncErrorMessage(2, 0, null)).toContain('assenti su Shopify');
+describe('pickMetaobjectTaxonomyFieldKey', () => {
+  const colorPatternDefinitions = [
+    { key: 'pattern_taxonomy_reference', typeName: 'product_taxonomy_value_reference' },
+    { key: 'color_taxonomy_reference', typeName: 'list.product_taxonomy_value_reference' },
+    { key: 'label', typeName: 'single_line_text_field' },
+  ];
+
+  it('usa color_taxonomy_reference per metafield color-pattern', () => {
+    expect(pickMetaobjectTaxonomyFieldKey('color-pattern', 'Color', colorPatternDefinitions)).toBe(
+      'color_taxonomy_reference',
+    );
   });
 
-  it('non segnala errore quando Shopify ha attributi', () => {
-    expect(categoryMetafieldsSyncErrorMessage(2, 2, null)).toBeNull();
+  it('preferisce il campo colore anche se pattern è listato per primo', () => {
+    expect(
+      pickMetaobjectTaxonomyFieldKey('color-pattern', 'Colore', [
+        colorPatternDefinitions[0]!,
+        colorPatternDefinitions[1]!,
+      ]),
+    ).toBe('color_taxonomy_reference');
+  });
+});
+
+describe('qualifyMetaobjectReferenceMetafieldType', () => {
+  it('qualifica list.metaobject_reference con il tipo standard Shopify', () => {
+    expect(
+      qualifyMetaobjectReferenceMetafieldType(
+        'list.metaobject_reference',
+        'shopify--color-pattern',
+      ),
+    ).toBe('list.metaobject_reference<shopify--color-pattern>');
+  });
+
+  it('non modifica tipi già qualificati', () => {
+    expect(
+      qualifyMetaobjectReferenceMetafieldType(
+        'list.metaobject_reference<shopify--color-pattern>',
+        'shopify--color-pattern',
+      ),
+    ).toBe('list.metaobject_reference<shopify--color-pattern>');
+  });
+});
+
+describe('categoryMetafieldsSyncErrorMessage', () => {
+  const localColorField = {
+    attributeId: 'a1',
+    attributeName: 'Color',
+    namespace: 'shopify',
+    key: 'color-pattern',
+    metafieldType: 'list.metaobject_reference',
+    values: [{ id: 'gid://shopify/TaxonomyValue/1', name: 'Blue' }],
+  };
+  const localFabricField = {
+    attributeId: 'a2',
+    attributeName: 'Fabric',
+    namespace: 'shopify',
+    key: 'fabric',
+    metafieldType: 'list.product_taxonomy_value_reference',
+    values: [{ id: 'gid://shopify/TaxonomyValue/2', name: 'Cashmere' }],
+  };
+
+  it('segnala chiavi mancanti su Shopify', () => {
+    expect(
+      categoryMetafieldsSyncErrorMessage(
+        [localColorField, localFabricField],
+        [localFabricField],
+        null,
+      ),
+    ).toContain('color-pattern');
+  });
+
+  it('non segnala errore quando Shopify ha tutti gli attributi', () => {
+    expect(
+      categoryMetafieldsSyncErrorMessage(
+        [localColorField, localFabricField],
+        [localColorField, localFabricField],
+        null,
+      ),
+    ).toBeNull();
   });
 });

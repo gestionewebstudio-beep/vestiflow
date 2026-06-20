@@ -1,5 +1,5 @@
 /** Attributi taxonomy Shopify il cui metafield key/name identifica il colore. */
-const COLOR_ATTRIBUTE_KEYS = new Set(['color', 'colour']);
+const COLOR_ATTRIBUTE_KEYS = new Set(['color', 'colour', 'color-pattern']);
 const COLOR_ATTRIBUTE_NAMES = new Set(['color', 'colore', 'colour']);
 
 /** Valori standard taxonomy Shopify (EN) → CSS color / gradient. */
