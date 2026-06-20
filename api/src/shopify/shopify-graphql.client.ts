@@ -9,6 +9,7 @@ import { ShopifyConfigService } from './shopify-config.service';
 import {
   standardMetafieldDefinitionTemplateGid,
   templateNumericIdToAttributeNumericId,
+  matchCategoryAttributeToMetafieldTemplate,
 } from './shopify-category-metafields.util';
 import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
 import { parseShopifyRetryAfterHeader } from './shopify-rate-limiter.util';
@@ -233,14 +234,14 @@ export class ShopifyGraphqlClient {
       return [];
     }
 
-    const templateByAttributeId = await this.resolveStandardMetafieldTemplatesForAttributes(
+    const categoryTemplates = await this.listStandardMetafieldTemplatesForCategory(
       shopDomain,
       accessToken,
-      choiceListNodes.map((node) => node.id),
+      categoryGid,
     );
 
     return choiceListNodes.flatMap((node) => {
-      const definition = templateByAttributeId.get(node.id);
+      const definition = matchCategoryAttributeToMetafieldTemplate(node.name, categoryTemplates);
       if (!definition) {
         return [];
       }
@@ -255,6 +256,51 @@ export class ShopifyGraphqlClient {
         },
       ];
     });
+  }
+
+  async listStandardMetafieldTemplatesForCategory(
+    shopDomain: string,
+    accessToken: string,
+    categoryGid: string,
+  ): Promise<readonly ShopifyStandardMetafieldDefinition[]> {
+    const query = `
+      query CategoryStandardMetafieldTemplates($categoryGid: String!) {
+        standardMetafieldDefinitionTemplates(
+          first: 50,
+          constraintSubtype: { key: "category", value: $categoryGid }
+        ) {
+          nodes {
+            id
+            name
+            key
+            namespace
+            type {
+              name
+            }
+          }
+        }
+      }
+    `;
+
+    const data = await this.graphql<{
+      standardMetafieldDefinitionTemplates: {
+        nodes: readonly {
+          id: string;
+          name: string;
+          key: string;
+          namespace: string;
+          type: { name: string };
+        }[];
+      };
+    }>(shopDomain, accessToken, query, { categoryGid });
+
+    return (data.standardMetafieldDefinitionTemplates?.nodes ?? []).map((node) => ({
+      id: node.id,
+      name: node.name,
+      key: node.key,
+      namespace: node.namespace,
+      typeName: node.type.name,
+    }));
   }
 
   async getStandardMetafieldDefinitionForAttribute(

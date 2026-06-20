@@ -11,11 +11,11 @@ import {
   parseMetafieldGidList,
   pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
+  reconcileCategoryMetafieldsWithAttributes,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   searchTaxonomyValuesInCategoryAttributes,
   serializeMetaobjectGidList,
   serializeTaxonomyValueListGids,
-  standardMetafieldDefinitionTemplateGid,
 } from './shopify-category-metafields.util';
 import type { MetafieldsSetInput } from './shopify-graphql.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
@@ -126,7 +126,7 @@ export class ShopifyCategoryMetafieldsService {
     categoryMetafields: readonly ShopifyCategoryMetafieldValue[],
     categoryGid: string | null,
   ): Promise<ShopifyCategoryMetafieldsPushResult> {
-    const attempted = categoryMetafields.filter((field) => field.values.length > 0).length;
+    const attempted = reconciledMetafields.filter((field) => field.values.length > 0).length;
     if (attempted === 0) {
       return { attempted: 0, synced: 0, warning: null };
     }
@@ -159,6 +159,11 @@ export class ShopifyCategoryMetafieldsService {
             .catch(() => [])
         : [];
 
+    const reconciledMetafields = reconcileCategoryMetafieldsWithAttributes(
+      categoryMetafields,
+      categoryAttributes,
+    );
+
     const inputs: MetafieldsSetInput[] = [];
     const skipped: string[] = [];
     const failed: string[] = [];
@@ -167,7 +172,7 @@ export class ShopifyCategoryMetafieldsService {
       taxonomySearchCache: new Map(),
       categoryAttributes,
     };
-    const hasMetaobjectFields = categoryMetafields.some(
+    const hasMetaobjectFields = reconciledMetafields.some(
       (field) =>
         field.values.length > 0 &&
         isMetaobjectReferenceMetafieldType(field.metafieldType || 'list.metaobject_reference'),
@@ -176,7 +181,7 @@ export class ShopifyCategoryMetafieldsService {
       pushContext.defaultSolidPatternGid = this.searchTaxonomyCached('solid', pushContext);
     }
 
-    const activeFields = categoryMetafields.filter((field) => field.values.length > 0);
+    const activeFields = reconciledMetafields.filter((field) => field.values.length > 0);
     for (const field of activeFields) {
       await this.ensureCategoryMetafieldDefinitionEnabled(shopDomain, accessToken, field);
     }
@@ -191,7 +196,7 @@ export class ShopifyCategoryMetafieldsService {
       await this.loadMetaobjectFieldDefinitions(shopDomain, accessToken, metaobjectType);
     }
 
-    for (const field of categoryMetafields) {
+    for (const field of reconciledMetafields) {
       if (field.values.length === 0) {
         continue;
       }
@@ -444,14 +449,12 @@ export class ShopifyCategoryMetafieldsService {
     accessToken: string,
     field: ShopifyCategoryMetafieldValue,
   ): Promise<void> {
-    const templateGid = standardMetafieldDefinitionTemplateGid(field.attributeId);
-    const cacheKey = `${shopDomain}:${field.namespace}.${field.key}:${templateGid ?? 'key'}`;
+    const cacheKey = `${shopDomain}:${field.namespace}.${field.key}`;
     if (this.metafieldDefinitionEnabledCache.has(cacheKey)) {
       return;
     }
 
     await this.shopifyGraphql.ensureStandardMetafieldDefinitionEnabled(shopDomain, accessToken, {
-      templateGid: templateGid ?? undefined,
       namespace: field.namespace,
       key: field.key,
     });

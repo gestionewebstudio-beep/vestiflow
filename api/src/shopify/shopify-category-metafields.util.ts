@@ -155,6 +155,114 @@ export function buildStandardMetaobjectType(metafieldKey: string): string {
   return `shopify--${metafieldKey.trim()}`;
 }
 
+function normalizeTaxonomyLabel(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/** Abbina un attributo taxonomy al template metafield standard della categoria. */
+export function matchCategoryAttributeToMetafieldTemplate(
+  attributeName: string,
+  templates: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly key: string;
+    readonly namespace: string;
+    readonly typeName: string;
+  }[],
+): {
+  readonly id: string;
+  readonly name: string;
+  readonly key: string;
+  readonly namespace: string;
+  readonly typeName: string;
+} | null {
+  const attributeNorm = normalizeTaxonomyLabel(attributeName);
+  if (!attributeNorm) {
+    return null;
+  }
+
+  const shopifyTemplates = templates.filter(
+    (template) => template.namespace === SHOPIFY_CATEGORY_METAFIELD_NAMESPACE,
+  );
+  if (shopifyTemplates.length === 0) {
+    return null;
+  }
+
+  let best: (typeof shopifyTemplates)[number] | null = null;
+  let bestScore = 0;
+
+  for (const template of shopifyTemplates) {
+    const templateNorm = normalizeTaxonomyLabel(template.name);
+    if (!templateNorm) {
+      continue;
+    }
+
+    if (templateNorm === attributeNorm) {
+      return template;
+    }
+
+    let score = 0;
+    if (templateNorm.includes(attributeNorm) || attributeNorm.includes(templateNorm)) {
+      score = Math.min(templateNorm.length, attributeNorm.length) + 10;
+    } else {
+      const attributeTokens = attributeNorm.split(' ').filter(Boolean);
+      const templateTokens = templateNorm.split(' ').filter(Boolean);
+      score = attributeTokens.filter((token) =>
+        templateTokens.some((entry) => entry.includes(token) || token.includes(entry)),
+      ).length;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = template;
+    }
+  }
+
+  return bestScore > 0 ? best : null;
+}
+
+/**
+ * Allinea metafield salvati (namespace/key/type) alle definizioni corrette della categoria.
+ * Ripara prodotti creati con mapping template obsoleto (attributeId + 10000).
+ */
+export function reconcileCategoryMetafieldsWithAttributes(
+  stored: readonly ShopifyCategoryMetafieldValue[],
+  attributes: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly namespace: string;
+    readonly key: string;
+    readonly metafieldType: string;
+  }[],
+): ShopifyCategoryMetafieldValue[] {
+  const attributeById = new Map(attributes.map((entry) => [entry.id, entry]));
+
+  return stored.flatMap((field) => {
+    if (field.values.length === 0) {
+      return [];
+    }
+    const attribute = attributeById.get(field.attributeId);
+    if (!attribute) {
+      return [field];
+    }
+    return [
+      {
+        ...field,
+        attributeName: attribute.name,
+        namespace: attribute.namespace,
+        key: attribute.key,
+        metafieldType: attribute.metafieldType,
+      },
+    ];
+  });
+}
+
 export function isDirectTaxonomyMetafieldType(type: string): boolean {
   const normalized = type.trim().toLowerCase();
   return (

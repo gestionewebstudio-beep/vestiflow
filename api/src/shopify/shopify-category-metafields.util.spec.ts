@@ -4,7 +4,9 @@ import {
   buildCategoryMetaobjectFieldsPayload,
   categoryMetafieldsSyncErrorMessage,
   countCategoryMetafieldsWithValues,
+  matchCategoryAttributeToMetafieldTemplate,
   pickPreferredTaxonomyValueId,
+  reconcileCategoryMetafieldsWithAttributes,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   searchTaxonomyValuesInCategoryAttributes,
   serializeMetaobjectTaxonomyReferenceValue,
@@ -57,6 +59,73 @@ describe('buildCategoryMetaobjectFieldsPayload', () => {
         value: 'gid://shopify/TaxonomyValue/2874',
       },
       { key: 'label', value: 'Brown' },
+    ]);
+  });
+});
+
+describe('matchCategoryAttributeToMetafieldTemplate', () => {
+  it('abbina attributo e template per nome', () => {
+    expect(
+      matchCategoryAttributeToMetafieldTemplate('Fabric', [
+        {
+          id: 'gid://shopify/StandardMetafieldDefinitionTemplate/1',
+          name: 'Fabric',
+          namespace: 'shopify',
+          key: 'fabric',
+          typeName: 'list.product_taxonomy_value_reference',
+        },
+      ]),
+    ).toMatchObject({ key: 'fabric' });
+  });
+
+  it('ignora template fuori namespace shopify', () => {
+    expect(
+      matchCategoryAttributeToMetafieldTemplate('Fabric', [
+        {
+          id: 'gid://shopify/StandardMetafieldDefinitionTemplate/1',
+          name: 'Fabric',
+          namespace: 'custom',
+          key: 'fabric',
+          typeName: 'single_line_text_field',
+        },
+      ]),
+    ).toBeNull();
+  });
+});
+
+describe('reconcileCategoryMetafieldsWithAttributes', () => {
+  it('corregge namespace/key/type dal mapping categoria aggiornato', () => {
+    expect(
+      reconcileCategoryMetafieldsWithAttributes(
+        [
+          {
+            attributeId: 'gid://shopify/TaxonomyAttribute/10',
+            attributeName: 'Tessuto',
+            namespace: 'shopify',
+            key: 'small-animal-dietary-requirements',
+            metafieldType: 'list.metaobject_reference',
+            values: [{ id: 'gid://shopify/TaxonomyValue/1', name: 'Bamboo' }],
+          },
+        ],
+        [
+          {
+            id: 'gid://shopify/TaxonomyAttribute/10',
+            name: 'Fabric',
+            namespace: 'shopify',
+            key: 'fabric',
+            metafieldType: 'list.product_taxonomy_value_reference',
+          },
+        ],
+      ),
+    ).toEqual([
+      {
+        attributeId: 'gid://shopify/TaxonomyAttribute/10',
+        attributeName: 'Fabric',
+        namespace: 'shopify',
+        key: 'fabric',
+        metafieldType: 'list.product_taxonomy_value_reference',
+        values: [{ id: 'gid://shopify/TaxonomyValue/1', name: 'Bamboo' }],
+      },
     ]);
   });
 });
