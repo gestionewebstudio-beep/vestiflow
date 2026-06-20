@@ -38,6 +38,7 @@ export const SHOPIFY_READ_INVENTORY_SCOPE = 'read_inventory';
 export const SHOPIFY_WRITE_PRODUCTS_SCOPE = 'write_products';
 export const SHOPIFY_READ_PRODUCTS_SCOPE = 'read_products';
 export const SHOPIFY_WRITE_METAOBJECTS_SCOPE = 'write_metaobjects';
+export const SHOPIFY_READ_METAOBJECT_DEFINITIONS_SCOPE = 'read_metaobject_definitions';
 
 export function shopifyHasInventoryReadScope(scopes: readonly string[]): boolean {
   return shopifyHasScope(scopes, SHOPIFY_READ_INVENTORY_SCOPE);

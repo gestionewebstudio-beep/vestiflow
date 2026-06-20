@@ -65,7 +65,7 @@ export class ShopifyConfigService {
   get scopes(): string {
     return (
       this.config.get<string>('SHOPIFY_SCOPES') ??
-      'read_orders,read_customers,read_inventory,write_inventory,read_locations,read_products,write_products,write_metaobjects'
+      'read_orders,read_customers,read_inventory,write_inventory,read_locations,read_products,write_products,read_metaobject_definitions,write_metaobjects'
     );
   }
 

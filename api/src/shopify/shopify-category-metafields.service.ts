@@ -21,7 +21,11 @@ import type { MetafieldsSetInput } from './shopify-graphql.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import type { ShopifyMetafieldRef } from './shopify-product-metadata.types';
 import { ShopifyOAuthService } from './shopify-oauth.service';
-import { SHOPIFY_WRITE_METAOBJECTS_SCOPE, shopifyHasScope } from './shopify-scopes.util';
+import {
+  SHOPIFY_READ_METAOBJECT_DEFINITIONS_SCOPE,
+  SHOPIFY_WRITE_METAOBJECTS_SCOPE,
+  shopifyHasScope,
+} from './shopify-scopes.util';
 
 export interface ShopifyCategoryMetafieldsPushResult {
   readonly attempted: number;
@@ -133,6 +137,13 @@ export class ShopifyCategoryMetafieldsService {
       const warning =
         `Attributi categoria non sincronizzati: manca il permesso ${SHOPIFY_WRITE_METAOBJECTS_SCOPE}. ` +
         'Aggiorna SHOPIFY_SCOPES, riconnetti Shopify da Impostazioni e ri-sincronizza.';
+      this.logger.warn(`Category metafields non sincronizzati (${shopifyProductId}): ${warning}`);
+      return { attempted, synced: 0, warning };
+    }
+    if (!shopifyHasScope(scopes, SHOPIFY_READ_METAOBJECT_DEFINITIONS_SCOPE)) {
+      const warning =
+        `Attributi categoria non sincronizzati: manca il permesso ${SHOPIFY_READ_METAOBJECT_DEFINITIONS_SCOPE}. ` +
+        'Aggiungilo in SHOPIFY_SCOPES su Railway, abilitalo in Shopify Partners, riconnetti lo store e ri-sincronizza.';
       this.logger.warn(`Category metafields non sincronizzati (${shopifyProductId}): ${warning}`);
       return { attempted, synced: 0, warning };
     }

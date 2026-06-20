@@ -56,6 +56,8 @@ export function toShopifyUserMessage(code: string | undefined, rawMessage: strin
       'attributi categoria',
       'metafield categoria',
       'write_metaobjects',
+      'read_metaobject_definitions',
+      'metaobjectdefinitionbytype',
       'nessun attributo categoria',
       'category metafield',
       'metaobjectupsert',
