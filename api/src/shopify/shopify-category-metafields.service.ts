@@ -126,8 +126,8 @@ export class ShopifyCategoryMetafieldsService {
     categoryMetafields: readonly ShopifyCategoryMetafieldValue[],
     categoryGid: string | null,
   ): Promise<ShopifyCategoryMetafieldsPushResult> {
-    const attempted = reconciledMetafields.filter((field) => field.values.length > 0).length;
-    if (attempted === 0) {
+    const localAttempted = categoryMetafields.filter((field) => field.values.length > 0).length;
+    if (localAttempted === 0) {
       return { attempted: 0, synced: 0, warning: null };
     }
 
@@ -138,14 +138,14 @@ export class ShopifyCategoryMetafieldsService {
         `Attributi categoria non sincronizzati: manca il permesso ${SHOPIFY_WRITE_METAOBJECTS_SCOPE}. ` +
         'Aggiorna SHOPIFY_SCOPES, riconnetti Shopify da Impostazioni e ri-sincronizza.';
       this.logger.warn(`Category metafields non sincronizzati (${shopifyProductId}): ${warning}`);
-      return { attempted, synced: 0, warning };
+      return { attempted: localAttempted, synced: 0, warning };
     }
     if (!shopifyHasScope(scopes, SHOPIFY_READ_METAOBJECT_DEFINITIONS_SCOPE)) {
       const warning =
         `Attributi categoria non sincronizzati: manca il permesso ${SHOPIFY_READ_METAOBJECT_DEFINITIONS_SCOPE}. ` +
         'Aggiungilo in SHOPIFY_SCOPES su Railway, abilitalo in Shopify Partners, riconnetti lo store e ri-sincronizza.';
       this.logger.warn(`Category metafields non sincronizzati (${shopifyProductId}): ${warning}`);
-      return { attempted, synced: 0, warning };
+      return { attempted: localAttempted, synced: 0, warning };
     }
 
     const productGid = shopifyProductId.startsWith('gid://')
@@ -163,6 +163,10 @@ export class ShopifyCategoryMetafieldsService {
       categoryMetafields,
       categoryAttributes,
     );
+    const attempted = reconciledMetafields.filter((field) => field.values.length > 0).length;
+    if (attempted === 0) {
+      return { attempted: 0, synced: 0, warning: null };
+    }
 
     const inputs: MetafieldsSetInput[] = [];
     const skipped: string[] = [];
