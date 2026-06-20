@@ -4,16 +4,19 @@ import type {
   ShopifyTaxonomyCategory,
   ShopifyTaxonomyCategoryAttribute,
 } from './shopify-graphql.client';
+import {
+  buildTaxonomyParentFullNames,
+  searchLocalizedTaxonomyCategories,
+  toLocalizedTaxonomyCategoryEntry,
+  type LocalizedTaxonomyCategoryEntry,
+} from './shopify-taxonomy-search.util';
 
 const TAXONOMY_DIST_BASE =
   'https://raw.githubusercontent.com/Shopify/product-taxonomy/main/dist/it';
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-interface LocalizedCategory {
-  readonly fullName: string;
-  readonly name: string;
-}
+interface LocalizedCategory extends LocalizedTaxonomyCategoryEntry {}
 
 @Injectable()
 export class ShopifyTaxonomyLocalizationService {
@@ -40,7 +43,13 @@ export class ShopifyTaxonomyLocalizationService {
       ...category,
       name: localized.name,
       fullName: localized.fullName,
+      isLeaf: localized.isLeaf,
     };
+  }
+
+  async searchCategories(query: string, limit = 50): Promise<readonly ShopifyTaxonomyCategory[]> {
+    await this.ensureCategoriesLoaded();
+    return searchLocalizedTaxonomyCategories(this.categoriesByGid, query, limit);
   }
 
   async localizeCategories(
@@ -56,6 +65,7 @@ export class ShopifyTaxonomyLocalizationService {
         ...category,
         name: localized.name,
         fullName: localized.fullName,
+        isLeaf: localized.isLeaf,
       };
     });
   }
@@ -99,17 +109,19 @@ export class ShopifyTaxonomyLocalizationService {
       return;
     }
     const text = await this.fetchDistFile('categories.txt');
-    const map = new Map<string, LocalizedCategory>();
+    const parsedLines: { readonly gid: string; readonly label: string }[] = [];
     for (const line of text.split('\n')) {
       const parsed = parseDistLine(line);
       if (!parsed) {
         continue;
       }
-      const segments = parsed.label.split(' > ').map((segment) => segment.trim());
-      map.set(parsed.gid, {
-        fullName: parsed.label,
-        name: segments.at(-1) ?? parsed.label,
-      });
+      parsedLines.push(parsed);
+    }
+
+    const parentFullNames = buildTaxonomyParentFullNames(parsedLines.map((entry) => entry.label));
+    const map = new Map<string, LocalizedCategory>();
+    for (const parsed of parsedLines) {
+      map.set(parsed.gid, toLocalizedTaxonomyCategoryEntry(parsed.label, parentFullNames));
     }
     this.categoriesByGid = map;
     this.categoriesLoadedAt = Date.now();

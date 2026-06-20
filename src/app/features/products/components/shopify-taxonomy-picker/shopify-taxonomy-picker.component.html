@@ -17,7 +17,7 @@
       id="taxonomy-search"
       class="taxonomy-picker__search"
       type="search"
-      placeholder="Es. jeans, t-shirt, scarpe…"
+      placeholder="Es. abbigliamento, t-shirt, scarpe…"
       [ngModel]="searchQuery()"
       (ngModelChange)="onSearchInput($event)"
       autocomplete="off"
@@ -55,7 +55,12 @@
               [attr.aria-selected]="item.isLeaf && item.id === categoryId()"
               (click)="onCategoryClick(item)"
             >
-              <span class="taxonomy-picker__item-name">{{ item.name }}</span>
+              <span class="taxonomy-picker__item-text">
+                <span class="taxonomy-picker__item-name">{{ item.name }}</span>
+                @if (searchQuery().trim()) {
+                  <span class="taxonomy-picker__item-path">{{ item.fullName }}</span>
+                }
+              </span>
               @if (!item.isLeaf) {
                 <i class="pi pi-chevron-right taxonomy-picker__item-chevron" aria-hidden="true"></i>
               } @else {

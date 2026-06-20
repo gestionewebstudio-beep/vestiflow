@@ -10,6 +10,23 @@ import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localization.service';
 
+function mergeTaxonomyCategoryResults(
+  primary: readonly ShopifyTaxonomyCategory[],
+  secondary: readonly ShopifyTaxonomyCategory[],
+  limit: number,
+): readonly ShopifyTaxonomyCategory[] {
+  const byId = new Map<string, ShopifyTaxonomyCategory>();
+  for (const category of primary) {
+    byId.set(category.id, category);
+  }
+  for (const category of secondary) {
+    if (!byId.has(category.id)) {
+      byId.set(category.id, category);
+    }
+  }
+  return [...byId.values()].slice(0, limit);
+}
+
 @Injectable()
 export class ShopifyTaxonomyService {
   constructor(
@@ -25,8 +42,24 @@ export class ShopifyTaxonomyService {
     childrenOf?: string,
   ): Promise<readonly ShopifyTaxonomyCategory[]> {
     const { shopDomain, accessToken } = await this.requireConnectedShop(tenantId);
+    const trimmedSearch = search?.trim();
+
+    if (trimmedSearch) {
+      const localizedMatches = await this.taxonomyLocalization.searchCategories(trimmedSearch, 50);
+      const shopifyMatches = await this.shopifyGraphql.listTaxonomyCategories(
+        shopDomain,
+        accessToken,
+        {
+          search: trimmedSearch,
+          first: 50,
+        },
+      );
+      const localizedShopifyMatches =
+        await this.taxonomyLocalization.localizeCategories(shopifyMatches);
+      return mergeTaxonomyCategoryResults(localizedMatches, localizedShopifyMatches, 50);
+    }
+
     const categories = await this.shopifyGraphql.listTaxonomyCategories(shopDomain, accessToken, {
-      search,
       childrenOf,
       first: 50,
     });

@@ -104,6 +104,22 @@
   flex: 1;
 }
 
+.taxonomy-picker__item-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.taxonomy-picker__item-path {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .taxonomy-picker__item-chevron {
   color: var(--color-text-muted);
 }
