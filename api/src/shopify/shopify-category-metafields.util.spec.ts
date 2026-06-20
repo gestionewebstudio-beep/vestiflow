@@ -5,6 +5,7 @@ import {
   categoryMetafieldsSyncErrorMessage,
   countCategoryMetafieldsWithValues,
   matchCategoryAttributeToMetafieldTemplate,
+  orderCategoryMetafieldsForPush,
   pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
   qualifyMetaobjectReferenceMetafieldType,
@@ -199,6 +200,22 @@ describe('countCategoryMetafieldsWithValues', () => {
         },
       ]),
     ).toBe(1);
+  });
+});
+
+describe('orderCategoryMetafieldsForPush', () => {
+  it('invia color-pattern per ultimo', () => {
+    const ordered = orderCategoryMetafieldsForPush([
+      {
+        key: 'color-pattern',
+        values: [{ id: 'gid://shopify/TaxonomyValue/1' }],
+      },
+      {
+        key: 'fabric',
+        values: [{ id: 'gid://shopify/TaxonomyValue/2' }],
+      },
+    ]);
+    expect(ordered.map((field) => field.key)).toEqual(['fabric', 'color-pattern']);
   });
 });
 

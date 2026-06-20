@@ -8,6 +8,7 @@ import {
   isDirectTaxonomyMetafieldType,
   isMetaobjectReferenceMetafieldType,
   isShopifyCategoryMetafield,
+  orderCategoryMetafieldsForPush,
   parseCategoryMetafieldsJson,
   parseMetafieldGidList,
   pickMetaobjectTaxonomyFieldKey,
@@ -18,6 +19,7 @@ import {
   searchTaxonomyValuesInCategoryAttributes,
   serializeMetaobjectGidList,
   serializeTaxonomyValueListGids,
+  SHOPIFY_COLOR_PATTERN_METAFIELD_KEY,
 } from './shopify-category-metafields.util';
 import type { MetafieldsSetInput } from './shopify-graphql.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
@@ -204,11 +206,9 @@ export class ShopifyCategoryMetafieldsService {
       await this.loadMetaobjectFieldDefinitions(shopDomain, accessToken, metaobjectType);
     }
 
-    for (const field of reconciledMetafields) {
-      if (field.values.length === 0) {
-        continue;
-      }
+    const fieldsInPushOrder = orderCategoryMetafieldsForPush(reconciledMetafields);
 
+    for (const field of fieldsInPushOrder) {
       try {
         const payload = await this.buildMetafieldSetInput(
           shopDomain,
@@ -385,7 +385,10 @@ export class ShopifyCategoryMetafieldsService {
       ownerId: productGid,
       namespace: field.namespace,
       key: field.key,
-      type: qualifyMetaobjectReferenceMetafieldType(type, metaobjectType),
+      type:
+        field.key === SHOPIFY_COLOR_PATTERN_METAFIELD_KEY
+          ? qualifyMetaobjectReferenceMetafieldType(type, metaobjectType)
+          : type,
       value: serializeMetaobjectGidList(metaobjectGids),
     };
   }

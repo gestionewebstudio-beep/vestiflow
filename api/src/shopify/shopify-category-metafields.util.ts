@@ -275,7 +275,7 @@ export function isMetaobjectReferenceMetafieldType(type: string): boolean {
   return type.trim().toLowerCase().includes('metaobject_reference');
 }
 
-/** Qualifica list.metaobject_reference per metafieldsSet (solo metaobject standard Shopify). */
+/** Qualifica list.metaobject_reference per metafieldsSet (color-pattern). */
 export function qualifyMetaobjectReferenceMetafieldType(
   metafieldType: string,
   metaobjectType: string,
@@ -293,6 +293,8 @@ export function qualifyMetaobjectReferenceMetafieldType(
   }
   return normalized;
 }
+
+export const SHOPIFY_COLOR_PATTERN_METAFIELD_KEY = 'color-pattern';
 
 export interface MetaobjectTaxonomyFieldCandidate {
   readonly key: string;
@@ -312,10 +314,20 @@ function isTaxonomyReferenceMetaobjectFieldType(typeName: string): boolean {
   return typeName.trim().toLowerCase().includes('taxonomy');
 }
 
-/** Campo taxonomy primario per metaobject standard (solo casi noti). */
+/** Campo taxonomy primario per metaobject standard (solo color-pattern). */
 const PRIMARY_TAXONOMY_FIELD_BY_METAFIELD_KEY: Readonly<Record<string, string>> = {
-  'color-pattern': 'color_taxonomy_reference',
+  [SHOPIFY_COLOR_PATTERN_METAFIELD_KEY]: 'color_taxonomy_reference',
 };
+
+/** Metafield categoria da inviare per ultimo (metaobject lento, evita timeout sul resto). */
+export function orderCategoryMetafieldsForPush<
+  T extends { readonly key: string; readonly values: readonly unknown[] },
+>(fields: readonly T[]): T[] {
+  const withValues = fields.filter((field) => field.values.length > 0);
+  const others = withValues.filter((field) => field.key !== SHOPIFY_COLOR_PATTERN_METAFIELD_KEY);
+  const color = withValues.filter((field) => field.key === SHOPIFY_COLOR_PATTERN_METAFIELD_KEY);
+  return [...others, ...color];
+}
 
 /** Sceglie il campo taxonomy dentro uno standard metaobject (es. color_taxonomy_reference). */
 export function pickMetaobjectTaxonomyFieldKey(
