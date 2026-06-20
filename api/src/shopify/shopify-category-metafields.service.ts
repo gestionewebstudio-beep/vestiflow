@@ -216,8 +216,18 @@ export class ShopifyCategoryMetafieldsService {
       this.logger.warn(`Category metafields falliti (${shopifyProductId}): ${failed.join(', ')}`);
     }
 
-    if (inputs.length > 0) {
-      await this.shopifyGraphql.setProductMetafields(shopDomain, accessToken, inputs);
+    let synced = 0;
+    for (const input of inputs) {
+      try {
+        await this.shopifyGraphql.setProductMetafields(shopDomain, accessToken, [input]);
+        synced += 1;
+      } catch (error: unknown) {
+        failed.push(input.key);
+        const message = error instanceof Error ? error.message : 'metafieldsSet fallito';
+        this.logger.warn(
+          `Category metafield ${input.key} non sincronizzato (${shopifyProductId}): ${message}`,
+        );
+      }
     }
 
     let warning: string | null = null;
@@ -225,12 +235,12 @@ export class ShopifyCategoryMetafieldsService {
       warning =
         'Nessun attributo categoria inviato a Shopify. Verifica permessi write_metaobjects e ri-sincronizza.';
       this.logger.warn(`${warning} (${shopifyProductId})`);
-    } else if (skipped.length > 0 || failed.length > 0 || inputs.length < attempted) {
+    } else if (synced < attempted) {
       const parts = [...failed, ...skipped];
       warning = `Alcuni attributi categoria non sono stati sincronizzati su Shopify (${parts.join(', ') || 'parziale'}).`;
     }
 
-    return { attempted, synced: inputs.length, warning };
+    return { attempted, synced, warning };
   }
 
   private async buildMetafieldSetInput(

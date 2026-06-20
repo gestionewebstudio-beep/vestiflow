@@ -16,6 +16,7 @@ import type { ProductShopifyEnrichment } from './shopify-product-metadata.types'
 import { PRODUCT_IMPORT_TX } from './shopify-product-metadata.types';
 import {
   categoryMetafieldsSyncErrorMessage,
+  countCategoryMetafieldsWithValues,
   parseCategoryMetafieldsJson,
   resolveImportedShopifyCategoryMetafields,
   resolveImportedShopifyMetafields,
@@ -209,8 +210,8 @@ export class ShopifyProductPullService {
     }
 
     const categorySyncError = categoryMetafieldsSyncErrorMessage(
-      localCategoryMetafields.length,
-      importedCategoryMetafields.length,
+      countCategoryMetafieldsWithValues(localCategoryMetafields),
+      countCategoryMetafieldsWithValues(importedCategoryMetafields),
       existing?.shopifyLastError,
     );
     const productData = {

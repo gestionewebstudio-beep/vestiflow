@@ -340,6 +340,12 @@ export function buildCategoryMetaobjectFieldsPayload(
   return payload;
 }
 
+export function countCategoryMetafieldsWithValues(
+  fields: readonly ShopifyCategoryMetafieldValue[],
+): number {
+  return fields.filter((field) => field.values.length > 0).length;
+}
+
 export function categoryMetafieldsSyncErrorMessage(
   localCount: number,
   remoteCount: number,

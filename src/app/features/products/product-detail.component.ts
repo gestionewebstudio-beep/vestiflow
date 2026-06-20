@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -147,6 +148,7 @@ export class ProductDetailComponent {
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   private readonly productId = computed(() => this.paramMap().get('id'));
   private readonly refreshTick = signal(0);
+  private readonly autoPollShopifyProductId = signal<string | null>(null);
 
   private readonly request = computed(() => ({ id: this.productId(), tick: this.refreshTick() }));
 
@@ -256,7 +258,6 @@ export class ProductDetailComponent {
   }
 
   protected reload(): void {
-    this.shopifySyncMessage.set(null);
     this.refreshTick.update((tick) => tick + 1);
   }
 
@@ -344,6 +345,43 @@ export class ProductDetailComponent {
   protected readonly deleteError = signal<string | null>(null);
   protected readonly syncingShopify = signal(false);
   protected readonly shopifySyncMessage = signal<string | null>(null);
+
+  constructor() {
+    effect(() => {
+      const current = this.state();
+      if (current.status !== 'success') {
+        this.autoPollShopifyProductId.set(null);
+        return;
+      }
+
+      const product = current.product;
+      if (product.shopify?.status !== ShopifySyncStatus.Syncing) {
+        this.autoPollShopifyProductId.set(null);
+        return;
+      }
+
+      if (this.syncingShopify() || this.autoPollShopifyProductId() === product.id) {
+        return;
+      }
+
+      this.autoPollShopifyProductId.set(product.id);
+      this.pollShopifyFollowUpComplete(product.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (refreshed) => {
+            if (refreshed?.shopify?.lastError) {
+              this.shopifySyncMessage.set(refreshed.shopify.lastError);
+            } else if (refreshed?.shopify?.status === ShopifySyncStatus.Synced) {
+              this.shopifySyncMessage.set('Sincronizzazione Shopify completata.');
+            }
+            this.refreshTick.update((tick) => tick + 1);
+          },
+          error: () => {
+            this.refreshTick.update((tick) => tick + 1);
+          },
+        });
+    });
+  }
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private deleteSubscription: Subscription | null = null;

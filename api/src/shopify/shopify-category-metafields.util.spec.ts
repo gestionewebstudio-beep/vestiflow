@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCategoryMetaobjectFieldsPayload,
   categoryMetafieldsSyncErrorMessage,
+  countCategoryMetafieldsWithValues,
   pickPreferredTaxonomyValueId,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   serializeMetaobjectTaxonomyReferenceValue,
@@ -81,6 +82,31 @@ describe('resolveSecondaryTaxonomyGidForMetaobjectField', () => {
         },
       ]),
     ).toBe('gid://shopify/TaxonomyValue/99');
+  });
+});
+
+describe('countCategoryMetafieldsWithValues', () => {
+  it('conta solo attributi con valori selezionati', () => {
+    expect(
+      countCategoryMetafieldsWithValues([
+        {
+          attributeId: 'a1',
+          attributeName: 'Color',
+          namespace: 'shopify',
+          key: 'color-pattern',
+          metafieldType: 'list.metaobject_reference',
+          values: [{ id: 'gid://shopify/TaxonomyValue/1', name: 'Blue' }],
+        },
+        {
+          attributeId: 'a2',
+          attributeName: 'Age',
+          namespace: 'shopify',
+          key: 'age-group',
+          metafieldType: 'list.product_taxonomy_value_reference',
+          values: [],
+        },
+      ]),
+    ).toBe(1);
   });
 });
 

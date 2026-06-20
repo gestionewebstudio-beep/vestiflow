@@ -39,6 +39,10 @@ export function toShopifyUserMessage(code: string | undefined, rawMessage: strin
     return 'Si è verificato un problema con Shopify. Riprova tra qualche istante.';
   }
 
+  if (raw.startsWith('Shopify ') || includesAny(raw, ['shopify graphql'])) {
+    return raw.length > 500 ? `${raw.slice(0, 497)}…` : raw;
+  }
+
   if (includesAny(raw, ['transaction already closed', 'expired transaction', 'timeout'])) {
     return 'L’operazione con Shopify ha impiegato troppo tempo. Riprova: di solito al secondo tentativo va a buon fine.';
   }
@@ -104,6 +108,10 @@ export function toShopifyUserMessage(code: string | undefined, rawMessage: strin
 
   if (includesAny(raw, ['sync prodotto shopify'])) {
     return CODE_MESSAGES.product_webhook_failed!;
+  }
+
+  if (raw.length > 0 && raw.length <= 500) {
+    return raw;
   }
 
   return 'Si è verificato un problema con Shopify. Riprova o contatta il supporto se l’errore continua.';

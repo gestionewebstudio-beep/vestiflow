@@ -15,6 +15,8 @@ import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
 import {
+  categoryMetafieldsSyncErrorMessage,
+  countCategoryMetafieldsWithValues,
   parseCategoryMetafieldsJson,
   resolveImportedShopifyCategoryMetafields,
   resolveImportedShopifyMetafields,
@@ -104,14 +106,13 @@ export class ShopifyProductPushService {
       return { pushed: false, reason: guard.reason };
     }
 
-    await this.markProductSyncing(productId);
-
     const lockKey = this.pushLockKey(tenantId, productId);
     if (this.pushInFlight.has(lockKey)) {
       this.logger.debug(`Push Shopify già in corso (${tenantId}/${productId})`);
       return { pushed: true, followUpInBackground: true };
     }
 
+    await this.markProductSyncing(productId);
     void this.executePushWork(tenantId, productId);
 
     return { pushed: true, followUpInBackground: true };
@@ -230,8 +231,11 @@ export class ShopifyProductPushService {
         product.season,
         product.shopifyMetafields,
       );
-      await this.pushTaxonomyCategory(tenantId, String(shopifyProduct.id), product);
-
+      const taxonomyWarning = await this.pushTaxonomyCategory(
+        tenantId,
+        String(shopifyProduct.id),
+        product,
+      );
       const categoryMetafieldsWarning = await this.pushCategoryMetafields(
         tenantId,
         String(shopifyProduct.id),
@@ -246,13 +250,24 @@ export class ShopifyProductPushService {
         product.shopifyCategoryMetafields,
         product.shopifyMetafields,
       );
+      const verifyWarning = await this.verifyRemoteCategoryMetafields(
+        shopDomain,
+        accessToken,
+        String(shopifyProduct.id),
+        product.shopifyTaxonomyCategoryId,
+        product.shopifyCategoryMetafields,
+      );
       await this.pushVariantCosts(shopDomain, accessToken, product.variants);
 
-      if (categoryMetafieldsWarning) {
+      const syncWarning = [taxonomyWarning, categoryMetafieldsWarning, verifyWarning]
+        .filter((entry): entry is string => Boolean(entry?.trim()))
+        .join(' ');
+
+      if (syncWarning) {
         await this.prisma.product.update({
           where: { id: productId },
           data: {
-            shopifyLastError: categoryMetafieldsWarning.slice(0, 500),
+            shopifyLastError: syncWarning.slice(0, 500),
             shopifySyncStatus: ShopifySyncStatus.out_of_sync,
             shopifyLastSyncAt: new Date(),
           },
@@ -349,10 +364,16 @@ export class ShopifyProductPushService {
     tenantId: string,
     shopifyProductId: string,
     product: ProductWithVariants,
-  ): Promise<void> {
+  ): Promise<string | null> {
     const categoryGid = product.shopifyTaxonomyCategoryId?.trim() || null;
+    const localCategoryFields = parseCategoryMetafieldsJson(product.shopifyCategoryMetafields);
+    const localCategoryCount = countCategoryMetafieldsWithValues(localCategoryFields);
+
     if (!categoryGid) {
-      return;
+      if (localCategoryCount > 0) {
+        return 'Attributi categoria presenti ma categoria Shopify non impostata. Seleziona una categoria taxonomy nel form prodotto.';
+      }
+      return null;
     }
 
     try {
@@ -361,18 +382,58 @@ export class ShopifyProductPushService {
         shopifyProductId,
         categoryGid,
       );
-      if (updated) {
-        await this.prisma.product.update({
-          where: { id: product.id },
-          data: {
-            shopifyTaxonomyCategoryId: updated.id,
-            shopifyTaxonomyCategoryFullName: updated.fullName,
-          },
-        });
+      if (!updated) {
+        return 'Categoria Shopify non assegnata. Verifica la categoria prodotto selezionata.';
       }
+
+      await this.prisma.product.update({
+        where: { id: product.id },
+        data: {
+          shopifyTaxonomyCategoryId: updated.id,
+          shopifyTaxonomyCategoryFullName: updated.fullName,
+        },
+      });
+      return null;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Push categoria taxonomy fallito';
       this.logger.warn(`Taxonomy prodotto non sincronizzata (${shopifyProductId}): ${message}`);
+      return message.slice(0, 500);
+    }
+  }
+
+  private async verifyRemoteCategoryMetafields(
+    shopDomain: string,
+    accessToken: string,
+    shopifyProductId: string,
+    taxonomyCategoryId: string | null,
+    existingCategoryMetafieldsRaw: unknown,
+  ): Promise<string | null> {
+    const localFields = parseCategoryMetafieldsJson(existingCategoryMetafieldsRaw);
+    const localCount = countCategoryMetafieldsWithValues(localFields);
+    if (localCount === 0) {
+      return null;
+    }
+
+    try {
+      const metafieldRows = await this.shopifyAdmin.listProductMetafields(
+        shopDomain,
+        accessToken,
+        shopifyProductId,
+      );
+      const metafields = mapMetafieldRows(metafieldRows);
+      const remoteFields = await this.shopifyCategoryMetafields.parseFromProductMetafields(
+        shopDomain,
+        accessToken,
+        metafields,
+        taxonomyCategoryId,
+      );
+      const remoteCount = countCategoryMetafieldsWithValues(remoteFields);
+      return categoryMetafieldsSyncErrorMessage(localCount, remoteCount, null);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Verifica metafield categoria Shopify fallita';
+      this.logger.warn(`Verifica metafield categoria fallita (${shopifyProductId}): ${message}`);
+      return `Impossibile verificare i metafield di categoria su Shopify: ${message}`.slice(0, 500);
     }
   }
 
@@ -424,7 +485,7 @@ export class ShopifyProductPushService {
     product: ProductWithVariants,
   ): Promise<string | null> {
     const fields = parseCategoryMetafieldsJson(product.shopifyCategoryMetafields);
-    if (fields.length === 0) {
+    if (countCategoryMetafieldsWithValues(fields) === 0) {
       return null;
     }
 
@@ -435,7 +496,13 @@ export class ShopifyProductPushService {
         fields,
         product.shopifyTaxonomyCategoryId,
       );
-      return result.warning;
+      if (result.warning) {
+        return result.warning;
+      }
+      if (result.synced < result.attempted) {
+        return `Alcuni metafield di categoria non sono stati sincronizzati su Shopify (${result.synced}/${result.attempted}).`;
+      }
+      return null;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Push category metafields fallito';
       this.logger.warn(
