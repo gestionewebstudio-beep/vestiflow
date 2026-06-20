@@ -5,9 +5,12 @@ import { SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID } from './shopify-category-
 import {
   buildStandardMetaobjectType,
   buildCategoryMetaobjectFieldsPayload,
+  buildColorPatternMetaobjectHandle,
+  extractCategoryMetafieldTaxonomyValues,
   isDirectTaxonomyMetafieldType,
   isMetaobjectReferenceMetafieldType,
   isShopifyCategoryMetafield,
+  orderCategoryMetafieldsForPush,
   parseCategoryMetafieldsJson,
   parseMetafieldGidList,
   pickMetaobjectTaxonomyFieldKey,
@@ -17,9 +20,11 @@ import {
   searchTaxonomyValuesInCategoryAttributes,
   serializeMetaobjectGidList,
   serializeTaxonomyValueListGids,
+  SHOPIFY_COLOR_PATTERN_METAFIELD_KEY,
 } from './shopify-category-metafields.util';
 import type { MetafieldsSetInput } from './shopify-graphql.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
+import { resolveGlobalColorTaxonomyGid } from './shopify-color-taxonomy-gids';
 import type { ShopifyMetafieldRef } from './shopify-product-metadata.types';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import {
@@ -102,7 +107,12 @@ export class ShopifyCategoryMetafieldsService {
     return categoryFields.flatMap((field) => {
       const attribute = attributeByKey.get(field.key);
       const gids = parseMetafieldGidList(field.value);
-      const taxonomyValues = this.extractTaxonomyValues(gids, metaobjects, taxonomyNamesById);
+      const taxonomyValues = extractCategoryMetafieldTaxonomyValues(
+        field.key,
+        gids,
+        metaobjects,
+        taxonomyNamesById,
+      );
 
       if (taxonomyValues.length === 0) {
         return [];
@@ -203,11 +213,9 @@ export class ShopifyCategoryMetafieldsService {
       await this.loadMetaobjectFieldDefinitions(shopDomain, accessToken, metaobjectType);
     }
 
-    for (const field of reconciledMetafields) {
-      if (field.values.length === 0) {
-        continue;
-      }
+    const fieldsInPushOrder = orderCategoryMetafieldsForPush(reconciledMetafields);
 
+    for (const field of fieldsInPushOrder) {
       try {
         const payload = await this.buildMetafieldSetInput(
           shopDomain,
@@ -323,6 +331,18 @@ export class ShopifyCategoryMetafieldsService {
     const metaobjectGids: string[] = [];
 
     for (const taxonomyValue of field.values) {
+      const isColorPattern = field.key === SHOPIFY_COLOR_PATTERN_METAFIELD_KEY;
+      const colorForMetaobject = isColorPattern
+        ? {
+            id: resolveGlobalColorTaxonomyGid(
+              taxonomyValue.name,
+              taxonomyValue.id,
+              categoryAttributes,
+            ),
+            name: taxonomyValue.name,
+          }
+        : taxonomyValue;
+
       const secondaryTaxonomyByFieldKey = new Map<string, string>();
       for (const definition of fieldDefinitions) {
         if (definition.key === taxonomyFieldKey) {
@@ -359,17 +379,32 @@ export class ShopifyCategoryMetafieldsService {
       const metaobjectFields = buildCategoryMetaobjectFieldsPayload(
         fieldDefinitions,
         taxonomyFieldKey,
-        taxonomyValue,
+        colorForMetaobject,
         secondaryTaxonomyByFieldKey,
       );
-      const handle = `${field.key}-${taxonomyValue.id.replace(/\W+/g, '-')}-${shopifyProductId.slice(0, 8)}`;
-      const metaobjectId = await this.shopifyGraphql.upsertCategoryMetaobject(
-        shopDomain,
-        accessToken,
-        metaobjectType,
-        handle.slice(0, 240),
-        metaobjectFields,
-      );
+      const handle = isColorPattern
+        ? buildColorPatternMetaobjectHandle(taxonomyValue.name)
+        : `${field.key}-${taxonomyValue.id.replace(/\W+/g, '-')}-${shopifyProductId.slice(0, 8)}`;
+
+      let metaobjectId: string | null = null;
+      if (isColorPattern) {
+        metaobjectId = await this.shopifyGraphql.getMetaobjectIdByHandle(
+          shopDomain,
+          accessToken,
+          metaobjectType,
+          handle.slice(0, 240),
+        );
+      }
+
+      if (!metaobjectId) {
+        metaobjectId = await this.shopifyGraphql.upsertCategoryMetaobject(
+          shopDomain,
+          accessToken,
+          metaobjectType,
+          handle.slice(0, 240),
+          metaobjectFields,
+        );
+      }
       if (!metaobjectId) {
         throw new Error(`Metaobject ${metaobjectType} non creato per valore ${taxonomyValue.name}`);
       }
@@ -529,55 +564,5 @@ export class ShopifyCategoryMetafieldsService {
         : null);
     pushContext.taxonomySearchCache.set(cacheKey, resolved);
     return resolved;
-  }
-
-  private extractTaxonomyValues(
-    gids: readonly string[],
-    metaobjects: readonly {
-      readonly id: string;
-      readonly fields: readonly { readonly key: string; readonly value: string | null }[];
-    }[],
-    taxonomyNamesById: ReadonlyMap<string, string>,
-  ): { id: string; name: string }[] {
-    const metaobjectById = new Map(metaobjects.map((entry) => [entry.id, entry]));
-    const results: { id: string; name: string }[] = [];
-    const seen = new Set<string>();
-
-    for (const gid of gids) {
-      if (gid.includes('/TaxonomyValue/')) {
-        if (!seen.has(gid)) {
-          seen.add(gid);
-          results.push({ id: gid, name: taxonomyNamesById.get(gid) ?? gid });
-        }
-        continue;
-      }
-
-      if (!gid.includes('/Metaobject/')) {
-        continue;
-      }
-
-      const metaobject = metaobjectById.get(gid);
-      if (!metaobject) {
-        continue;
-      }
-
-      for (const metaField of metaobject.fields) {
-        if (!metaField.key.toLowerCase().includes('taxonomy') || !metaField.value) {
-          continue;
-        }
-        const taxonomyGids = parseMetafieldGidList(metaField.value);
-        for (const taxonomyGid of taxonomyGids) {
-          if (!seen.has(taxonomyGid)) {
-            seen.add(taxonomyGid);
-            results.push({
-              id: taxonomyGid,
-              name: taxonomyNamesById.get(taxonomyGid) ?? taxonomyGid,
-            });
-          }
-        }
-      }
-    }
-
-    return results;
   }
 }

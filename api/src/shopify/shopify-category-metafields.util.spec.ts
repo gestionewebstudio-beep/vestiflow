@@ -2,15 +2,20 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCategoryMetaobjectFieldsPayload,
+  buildColorPatternMetaobjectHandle,
   categoryMetafieldsSyncErrorMessage,
   countCategoryMetafieldsWithValues,
+  extractCategoryMetafieldTaxonomyValues,
   matchCategoryAttributeToMetafieldTemplate,
+  orderCategoryMetafieldsForPush,
+  pickMetaobjectTaxonomyFieldKey,
   pickPreferredTaxonomyValueId,
   reconcileCategoryMetafieldsWithAttributes,
   resolveSecondaryTaxonomyGidForMetaobjectField,
   searchTaxonomyValuesInCategoryAttributes,
   serializeMetaobjectTaxonomyReferenceValue,
 } from './shopify-category-metafields.util';
+import { SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID } from './shopify-category-metafields.types';
 
 describe('serializeMetaobjectTaxonomyReferenceValue', () => {
   it('serializza liste taxonomy come JSON array', () => {
@@ -162,7 +167,25 @@ describe('pickPreferredTaxonomyValueId', () => {
 });
 
 describe('resolveSecondaryTaxonomyGidForMetaobjectField', () => {
-  it('risolve pattern da attributi categoria', () => {
+  it('usa Solid globale per pattern_taxonomy_reference', () => {
+    expect(resolveSecondaryTaxonomyGidForMetaobjectField('pattern_taxonomy_reference', [])).toBe(
+      SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID,
+    );
+  });
+
+  it('non confonde attributo color-pattern con pattern taxonomy', () => {
+    expect(
+      resolveSecondaryTaxonomyGidForMetaobjectField('pattern_taxonomy_reference', [
+        {
+          key: 'color-pattern',
+          name: 'Color',
+          values: [{ id: 'gid://shopify/TaxonomyValue/10', name: 'Blue' }],
+        },
+      ]),
+    ).toBe(SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID);
+  });
+
+  it('risolve pattern da attributi categoria dedicati', () => {
     expect(
       resolveSecondaryTaxonomyGidForMetaobjectField('pattern_taxonomy_reference', [
         {
@@ -171,7 +194,7 @@ describe('resolveSecondaryTaxonomyGidForMetaobjectField', () => {
           values: [{ id: 'gid://shopify/TaxonomyValue/99', name: 'Solid' }],
         },
       ]),
-    ).toBe('gid://shopify/TaxonomyValue/99');
+    ).toBe(SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID);
   });
 });
 
@@ -197,6 +220,66 @@ describe('countCategoryMetafieldsWithValues', () => {
         },
       ]),
     ).toBe(1);
+  });
+});
+
+describe('orderCategoryMetafieldsForPush', () => {
+  it('invia color-pattern per ultimo', () => {
+    const ordered = orderCategoryMetafieldsForPush([
+      {
+        key: 'color-pattern',
+        values: [{ id: 'gid://shopify/TaxonomyValue/1' }],
+      },
+      {
+        key: 'fabric',
+        values: [{ id: 'gid://shopify/TaxonomyValue/2' }],
+      },
+    ]);
+    expect(ordered.map((field) => field.key)).toEqual(['fabric', 'color-pattern']);
+  });
+});
+
+describe('pickMetaobjectTaxonomyFieldKey', () => {
+  it('usa color_taxonomy_reference per metafield color-pattern', () => {
+    expect(
+      pickMetaobjectTaxonomyFieldKey('color-pattern', 'Color', [
+        { key: 'pattern_taxonomy_reference', typeName: 'product_taxonomy_value_reference' },
+        { key: 'color_taxonomy_reference', typeName: 'list.product_taxonomy_value_reference' },
+      ]),
+    ).toBe('color_taxonomy_reference');
+  });
+});
+
+describe('buildColorPatternMetaobjectHandle', () => {
+  it('normalizza il nome colore in handle Shopify', () => {
+    expect(buildColorPatternMetaobjectHandle('Gold')).toBe('gold');
+  });
+});
+
+describe('extractCategoryMetafieldTaxonomyValues', () => {
+  it('legge solo color_taxonomy_reference per color-pattern', () => {
+    expect(
+      extractCategoryMetafieldTaxonomyValues(
+        'color-pattern',
+        ['gid://shopify/Metaobject/1'],
+        [
+          {
+            id: 'gid://shopify/Metaobject/1',
+            fields: [
+              {
+                key: 'color_taxonomy_reference',
+                value: '["gid://shopify/TaxonomyValue/10"]',
+              },
+              {
+                key: 'pattern_taxonomy_reference',
+                value: SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID,
+              },
+            ],
+          },
+        ],
+        new Map([['gid://shopify/TaxonomyValue/10', 'Blue']]),
+      ),
+    ).toEqual([{ id: 'gid://shopify/TaxonomyValue/10', name: 'Blue' }]);
   });
 });
 

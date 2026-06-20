@@ -623,6 +623,29 @@ export class ShopifyGraphqlClient {
     return data.metaobjectUpsert?.metaobject?.id ?? null;
   }
 
+  async getMetaobjectIdByHandle(
+    shopDomain: string,
+    accessToken: string,
+    metaobjectType: string,
+    handle: string,
+  ): Promise<string | null> {
+    const query = `
+      query MetaobjectByHandle($handle: MetaobjectHandleInput!) {
+        metaobjectByHandle(handle: $handle) {
+          id
+        }
+      }
+    `;
+
+    const data = await this.graphql<{
+      metaobjectByHandle: { id: string } | null;
+    }>(shopDomain, accessToken, query, {
+      handle: { type: metaobjectType, handle },
+    });
+
+    return data.metaobjectByHandle?.id ?? null;
+  }
+
   async setProductMetafields(
     shopDomain: string,
     accessToken: string,
