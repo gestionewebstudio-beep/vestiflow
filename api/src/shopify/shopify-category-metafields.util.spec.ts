@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCategoryMetaobjectFieldsPayload,
+  buildColorPatternMetaobjectHandle,
   categoryMetafieldsSyncErrorMessage,
   countCategoryMetafieldsWithValues,
+  extractCategoryMetafieldTaxonomyValues,
   matchCategoryAttributeToMetafieldTemplate,
   orderCategoryMetafieldsForPush,
   pickMetaobjectTaxonomyFieldKey,
@@ -200,6 +202,39 @@ describe('countCategoryMetafieldsWithValues', () => {
         },
       ]),
     ).toBe(1);
+  });
+});
+
+describe('extractCategoryMetafieldTaxonomyValues', () => {
+  it('ignora pattern_taxonomy_reference per color-pattern', () => {
+    const values = extractCategoryMetafieldTaxonomyValues(
+      'color-pattern',
+      ['gid://shopify/Metaobject/1'],
+      [
+        {
+          id: 'gid://shopify/Metaobject/1',
+          fields: [
+            {
+              key: 'color_taxonomy_reference',
+              value: '["gid://shopify/TaxonomyValue/4"]',
+            },
+            {
+              key: 'pattern_taxonomy_reference',
+              value: 'gid://shopify/TaxonomyValue/2874',
+            },
+          ],
+        },
+      ],
+      new Map([['gid://shopify/TaxonomyValue/4', 'Gold']]),
+    );
+
+    expect(values).toEqual([{ id: 'gid://shopify/TaxonomyValue/4', name: 'Gold' }]);
+  });
+});
+
+describe('buildColorPatternMetaobjectHandle', () => {
+  it('normalizza il nome colore come handle Shopify', () => {
+    expect(buildColorPatternMetaobjectHandle('Gold')).toBe('gold');
   });
 });
 

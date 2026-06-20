@@ -611,7 +611,14 @@ export class ShopifyGraphqlClient {
       };
     }>(shopDomain, accessToken, mutation, {
       handle: { type: metaobjectType, handle },
-      metaobject: { fields: [...fields] },
+      metaobject: {
+        fields: [...fields],
+        capabilities: {
+          publishable: {
+            status: 'ACTIVE',
+          },
+        },
+      },
     });
 
     const userErrors = data.metaobjectUpsert?.userErrors ?? [];

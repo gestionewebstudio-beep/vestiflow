@@ -5,6 +5,8 @@ import { SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID } from './shopify-category-
 import {
   buildStandardMetaobjectType,
   buildCategoryMetaobjectFieldsPayload,
+  buildColorPatternMetaobjectHandle,
+  extractCategoryMetafieldTaxonomyValues,
   isDirectTaxonomyMetafieldType,
   isMetaobjectReferenceMetafieldType,
   isShopifyCategoryMetafield,
@@ -105,7 +107,12 @@ export class ShopifyCategoryMetafieldsService {
     return categoryFields.flatMap((field) => {
       const attribute = attributeByKey.get(field.key);
       const gids = parseMetafieldGidList(field.value);
-      const taxonomyValues = this.extractTaxonomyValues(gids, metaobjects, taxonomyNamesById);
+      const taxonomyValues = extractCategoryMetafieldTaxonomyValues(
+        field.key,
+        gids,
+        metaobjects,
+        taxonomyNamesById,
+      );
 
       if (taxonomyValues.length === 0) {
         return [];
@@ -363,7 +370,10 @@ export class ShopifyCategoryMetafieldsService {
         taxonomyValue,
         secondaryTaxonomyByFieldKey,
       );
-      const handle = `${field.key}-${taxonomyValue.id.replace(/\W+/g, '-')}-${shopifyProductId.slice(0, 8)}`;
+      const handle =
+        field.key === SHOPIFY_COLOR_PATTERN_METAFIELD_KEY
+          ? buildColorPatternMetaobjectHandle(taxonomyValue.name)
+          : `${field.key}-${taxonomyValue.id.replace(/\W+/g, '-')}-${shopifyProductId.slice(0, 8)}`;
       const metaobjectId = await this.shopifyGraphql.upsertCategoryMetaobject(
         shopDomain,
         accessToken,
@@ -533,55 +543,5 @@ export class ShopifyCategoryMetafieldsService {
         : null);
     pushContext.taxonomySearchCache.set(cacheKey, resolved);
     return resolved;
-  }
-
-  private extractTaxonomyValues(
-    gids: readonly string[],
-    metaobjects: readonly {
-      readonly id: string;
-      readonly fields: readonly { readonly key: string; readonly value: string | null }[];
-    }[],
-    taxonomyNamesById: ReadonlyMap<string, string>,
-  ): { id: string; name: string }[] {
-    const metaobjectById = new Map(metaobjects.map((entry) => [entry.id, entry]));
-    const results: { id: string; name: string }[] = [];
-    const seen = new Set<string>();
-
-    for (const gid of gids) {
-      if (gid.includes('/TaxonomyValue/')) {
-        if (!seen.has(gid)) {
-          seen.add(gid);
-          results.push({ id: gid, name: taxonomyNamesById.get(gid) ?? gid });
-        }
-        continue;
-      }
-
-      if (!gid.includes('/Metaobject/')) {
-        continue;
-      }
-
-      const metaobject = metaobjectById.get(gid);
-      if (!metaobject) {
-        continue;
-      }
-
-      for (const metaField of metaobject.fields) {
-        if (!metaField.key.toLowerCase().includes('taxonomy') || !metaField.value) {
-          continue;
-        }
-        const taxonomyGids = parseMetafieldGidList(metaField.value);
-        for (const taxonomyGid of taxonomyGids) {
-          if (!seen.has(taxonomyGid)) {
-            seen.add(taxonomyGid);
-            results.push({
-              id: taxonomyGid,
-              name: taxonomyNamesById.get(taxonomyGid) ?? taxonomyGid,
-            });
-          }
-        }
-      }
-    }
-
-    return results;
   }
 }

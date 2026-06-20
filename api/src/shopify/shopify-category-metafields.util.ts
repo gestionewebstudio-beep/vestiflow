@@ -1,6 +1,9 @@
 import type { ShopifyMetafieldRef } from './shopify-product-metadata.types';
 import type { ShopifyCategoryMetafieldValue } from './shopify-category-metafields.types';
-import { SHOPIFY_CATEGORY_METAFIELD_NAMESPACE } from './shopify-category-metafields.types';
+import {
+  SHOPIFY_CATEGORY_METAFIELD_NAMESPACE,
+  SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID,
+} from './shopify-category-metafields.types';
 
 function parseStoredShopifyMetafields(raw: unknown): ShopifyMetafieldRef[] {
   if (!Array.isArray(raw)) {
@@ -296,6 +299,8 @@ export function qualifyMetaobjectReferenceMetafieldType(
 
 export const SHOPIFY_COLOR_PATTERN_METAFIELD_KEY = 'color-pattern';
 
+export const SHOPIFY_COLOR_PATTERN_PRIMARY_TAXONOMY_FIELD_KEY = 'color_taxonomy_reference';
+
 export interface MetaobjectTaxonomyFieldCandidate {
   readonly key: string;
   readonly typeName: string;
@@ -476,6 +481,120 @@ export function resolveSecondaryTaxonomyGidForMetaobjectField(
   }
 
   return null;
+}
+
+export function buildColorPatternMetaobjectHandle(colorName: string): string {
+  const slug = normalizeTaxonomyLabel(colorName).replace(/\s+/g, '-');
+  return slug || 'color';
+}
+
+/** Legge i valori taxonomy da un metafield categoria Shopify (import/push verify). */
+export function extractCategoryMetafieldTaxonomyValues(
+  metafieldKey: string,
+  gids: readonly string[],
+  metaobjects: readonly {
+    readonly id: string;
+    readonly fields: readonly { readonly key: string; readonly value: string | null }[];
+  }[],
+  taxonomyNamesById: ReadonlyMap<string, string>,
+): { readonly id: string; readonly name: string }[] {
+  if (metafieldKey === SHOPIFY_COLOR_PATTERN_METAFIELD_KEY) {
+    return extractColorPatternTaxonomyValues(gids, metaobjects, taxonomyNamesById);
+  }
+
+  const metaobjectById = new Map(metaobjects.map((entry) => [entry.id, entry]));
+  const results: { id: string; name: string }[] = [];
+  const seen = new Set<string>();
+
+  for (const gid of gids) {
+    if (gid.includes('/TaxonomyValue/')) {
+      if (!seen.has(gid)) {
+        seen.add(gid);
+        results.push({ id: gid, name: taxonomyNamesById.get(gid) ?? gid });
+      }
+      continue;
+    }
+
+    if (!gid.includes('/Metaobject/')) {
+      continue;
+    }
+
+    const metaobject = metaobjectById.get(gid);
+    if (!metaobject) {
+      continue;
+    }
+
+    for (const metaField of metaobject.fields) {
+      if (!metaField.key.toLowerCase().includes('taxonomy') || !metaField.value) {
+        continue;
+      }
+      const taxonomyGids = parseMetafieldGidList(metaField.value);
+      for (const taxonomyGid of taxonomyGids) {
+        if (!seen.has(taxonomyGid)) {
+          seen.add(taxonomyGid);
+          results.push({
+            id: taxonomyGid,
+            name: taxonomyNamesById.get(taxonomyGid) ?? taxonomyGid,
+          });
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+function extractColorPatternTaxonomyValues(
+  gids: readonly string[],
+  metaobjects: readonly {
+    readonly id: string;
+    readonly fields: readonly { readonly key: string; readonly value: string | null }[];
+  }[],
+  taxonomyNamesById: ReadonlyMap<string, string>,
+): { readonly id: string; readonly name: string }[] {
+  const metaobjectById = new Map(metaobjects.map((entry) => [entry.id, entry]));
+  const results: { id: string; name: string }[] = [];
+  const seen = new Set<string>();
+
+  for (const gid of gids) {
+    if (gid.includes('/TaxonomyValue/')) {
+      if (gid === SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID || seen.has(gid)) {
+        continue;
+      }
+      seen.add(gid);
+      results.push({ id: gid, name: taxonomyNamesById.get(gid) ?? gid });
+      continue;
+    }
+
+    if (!gid.includes('/Metaobject/')) {
+      continue;
+    }
+
+    const metaobject = metaobjectById.get(gid);
+    if (!metaobject) {
+      continue;
+    }
+
+    const colorField = metaobject.fields.find(
+      (field) => field.key === SHOPIFY_COLOR_PATTERN_PRIMARY_TAXONOMY_FIELD_KEY,
+    );
+    if (!colorField?.value) {
+      continue;
+    }
+
+    for (const taxonomyGid of parseMetafieldGidList(colorField.value)) {
+      if (taxonomyGid === SHOPIFY_STANDARD_SOLID_PATTERN_TAXONOMY_GID || seen.has(taxonomyGid)) {
+        continue;
+      }
+      seen.add(taxonomyGid);
+      results.push({
+        id: taxonomyGid,
+        name: taxonomyNamesById.get(taxonomyGid) ?? taxonomyGid,
+      });
+    }
+  }
+
+  return results;
 }
 
 /** Costruisce tutti i campi richiesti da uno standard metaobject categoria Shopify. */
