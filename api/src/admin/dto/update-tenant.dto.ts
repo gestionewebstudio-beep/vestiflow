@@ -1,5 +1,6 @@
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { TenantChannelProfile } from '@prisma/client';
 
 import { TenantProfileFieldsDto } from './tenant-profile-fields.dto';
 
@@ -32,6 +33,10 @@ export class UpdateTenantDto extends TenantProfileFieldsDto {
   @MaxLength(120)
   @Transform(trimToUndefined)
   storeName?: string;
+
+  @IsOptional()
+  @IsEnum(TenantChannelProfile)
+  channelProfile?: TenantChannelProfile;
 
   @IsOptional()
   @IsString()

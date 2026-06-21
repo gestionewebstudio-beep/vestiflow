@@ -1,7 +1,7 @@
 <section class="create-client">
   <header class="create-client__header">
     <p class="create-client__back">
-      <a routerLink="/app/admin/clients/new" class="create-client__back-link">← Nuovo cliente</a>
+      <a routerLink="/app/admin/clients" class="create-client__back-link">← Clienti registrati</a>
     </p>
     <h1 class="create-client__title">Modifica cliente</h1>
     @if (tenant(); as detail) {
@@ -88,6 +88,29 @@
           </div>
         </section>
 
+        <section class="create-client__section" aria-labelledby="edit-client-channel">
+          <h3 id="edit-client-channel" class="create-client__section-title">Profilo canale</h3>
+
+          <div class="create-client__field create-client__field--channel-profile">
+            <span class="create-client__field-label" id="edit-channel-profile-label"
+              >Tipo cliente</span
+            >
+            <app-select-menu
+              ariaLabel="Tipo cliente"
+              placeholder="Seleziona profilo canale…"
+              [options]="channelProfileOptions"
+              [value]="form.controls.channelProfile.value"
+              [includeEmptyOption]="false"
+              [fullWidth]="true"
+              (valueChange)="onChannelProfileSelect($event)"
+            />
+            <span class="create-client__hint"
+              >Determina quale integrazione compare in Impostazioni. Se il cliente ha già collegato
+              un canale, disconnettilo prima di cambiare profilo.</span
+            >
+          </div>
+        </section>
+
         <section class="create-client__section" aria-labelledby="edit-client-setup">
           <h3 id="edit-client-setup" class="create-client__section-title">Negozio e location</h3>
 
@@ -123,5 +146,33 @@
         </div>
       </form>
     </section>
+
+    <section
+      class="create-client__panel create-client__panel--danger"
+      aria-labelledby="edit-client-danger-title"
+    >
+      <h2 id="edit-client-danger-title" class="create-client__panel-title">Zona pericolosa</h2>
+      <p class="create-client__muted">
+        Elimina il cliente e tutti i dati associati (catalogo, magazzino, utenti, integrazioni).
+      </p>
+      @if (deleteError(); as message) {
+        <p class="create-client__alert" role="alert">{{ message }}</p>
+      }
+      <div class="create-client__danger-actions">
+        <app-button type="button" variant="danger" (click)="openDeleteDialog()">
+          Elimina cliente
+        </app-button>
+      </div>
+    </section>
+
+    <app-confirm-dialog
+      [(open)]="deleteDialogOpen"
+      title="Eliminare il cliente?"
+      [message]="deleteConfirmMessage()"
+      confirmLabel="Elimina definitivamente"
+      [danger]="true"
+      [busy]="deleteLoading()"
+      (confirmed)="confirmDelete()"
+    />
   }
 </section>

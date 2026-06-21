@@ -10,7 +10,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
+import { catchError, combineLatest, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -21,7 +21,7 @@ import {
   canManageMfa as userCanManageMfa,
   canManageShopifyConnection,
 } from '@core/permissions/tenant-permissions.util';
-import { UserRole } from '@core/models/user.model';
+import { resolveUserAccessLabel } from '@core/models/user-role-labels.util';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import type { IsoDateString } from '@core/models/common.model';
 import { APP_CONFIG } from '@core/config/app-config.token';
@@ -55,9 +55,14 @@ import type {
   ShopifySyncWebhooksDto,
 } from '@features/integrations/shopify/models/shopify-sync.dto';
 import { InventoryService } from '@features/inventory/services/inventory.service';
+import {
+  showShopifyIntegration,
+  showTikTokIntegration,
+} from '@core/models/tenant-channel-profile.model';
 
 import { LocationTableComponent } from './components/location-table/location-table.component';
 import { MfaSettingsComponent } from './components/mfa-settings/mfa-settings.component';
+import { TikTokIntegrationPanelComponent } from './components/tiktok-integration-panel/tiktok-integration-panel.component';
 
 type ConnectionState =
   | { readonly status: 'loading' }
@@ -81,13 +86,6 @@ interface SetupStatusItem {
 
 const ACTION_SUCCESS_DISMISS_MS = 8000;
 
-const ROLE_LABELS: Record<UserRole, string> = {
-  [UserRole.Owner]: 'Titolare',
-  [UserRole.Admin]: 'Amministratore',
-  [UserRole.Manager]: 'Manager',
-  [UserRole.Clerk]: 'Commesso/a',
-};
-
 const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: string }[] = [
   { value: 'light', label: 'Chiaro' },
   { value: 'dark', label: 'Scuro' },
@@ -110,6 +108,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     TableSkeletonComponent,
     LocationTableComponent,
     MfaSettingsComponent,
+    TikTokIntegrationPanelComponent,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
@@ -129,6 +128,25 @@ export class SettingsComponent {
   protected readonly themeMode = this.themeService.mode;
   protected readonly currentUser = this.authService.currentUser;
   protected readonly mfaAvailable = Boolean(this.appConfig.supabase?.anonKey);
+
+  protected readonly tenantChannelProfile = computed(
+    () => this.currentUser()?.tenantChannelProfile,
+  );
+  protected readonly showShopifyPanel = computed(() =>
+    showShopifyIntegration(this.tenantChannelProfile()),
+  );
+  protected readonly showTikTokPanel = computed(() =>
+    showTikTokIntegration(this.tenantChannelProfile()),
+  );
+  protected readonly settingsSubtitle = computed(() => {
+    if (this.showShopifyPanel()) {
+      return 'Integrazione Shopify, aspetto, profilo e location.';
+    }
+    if (this.showTikTokPanel()) {
+      return 'Integrazione TikTok Shop, aspetto, profilo e location.';
+    }
+    return 'Aspetto, profilo e location.';
+  });
 
   protected readonly connectionStatusLabel = shopifyConnectionStatusLabel;
   protected readonly connectionStatusTone = shopifyConnectionStatusTone;
@@ -157,14 +175,17 @@ export class SettingsComponent {
   private readonly locationTick = signal(0);
 
   private readonly connectionState = toSignal(
-    toObservable(this.connectionTick).pipe(
-      switchMap(() =>
-        this.shopifyConnectionService.getConnection().pipe(
+    combineLatest([toObservable(this.connectionTick), toObservable(this.showShopifyPanel)]).pipe(
+      switchMap(([, showShopify]) => {
+        if (!showShopify) {
+          return of({ status: 'not-found' } satisfies ConnectionState);
+        }
+        return this.shopifyConnectionService.getConnection().pipe(
           map((connection): ConnectionState => ({ status: 'success', connection })),
           startWith<ConnectionState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.connectionErrorToState(err))),
-        ),
-      ),
+        );
+      }),
     ),
     { initialValue: { status: 'loading' } satisfies ConnectionState },
   );
@@ -185,6 +206,13 @@ export class SettingsComponent {
   protected readonly connection = computed(() => {
     const current = this.connectionState();
     return current.status === 'success' ? current.connection : null;
+  });
+
+  protected readonly showShopifyLocationColumn = computed(() => {
+    if (!this.showShopifyPanel()) {
+      return false;
+    }
+    return this.connection()?.status === ShopifyConnectionStatus.Connected;
   });
 
   protected readonly canManageShopify = computed(() =>
@@ -295,10 +323,7 @@ export class SettingsComponent {
     shopifyScopeDiagnosticsDetail(this.connection()?.scopeDiagnostics),
   );
 
-  protected readonly roleLabel = computed(() => {
-    const user = this.currentUser();
-    return user ? ROLE_LABELS[user.role] : '—';
-  });
+  protected readonly roleLabel = computed(() => resolveUserAccessLabel(this.currentUser()));
 
   constructor() {
     this.destroyRef.onDestroy(() => {

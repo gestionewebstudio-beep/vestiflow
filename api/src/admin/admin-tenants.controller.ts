@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -44,5 +45,10 @@ export class AdminTenantsController {
     @Body() dto: UpdateTenantDto,
   ): Promise<TenantDetailDto> {
     return this.adminTenants.updateTenant(id, dto);
+  }
+
+  @Delete(':id')
+  deleteTenant(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.adminTenants.deleteTenant(id);
   }
 }

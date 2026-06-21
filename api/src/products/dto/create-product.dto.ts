@@ -108,6 +108,12 @@ export class CreateProductDto {
   @Type(() => ShopifyCategoryMetafieldDto)
   shopifyCategoryMetafields?: ShopifyCategoryMetafieldDto[];
 
+  /** Categoria TikTok Shop (id Partner API) per sync catalogo. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  tiktokCategoryId?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)

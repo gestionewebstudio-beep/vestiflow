@@ -1,0 +1,60 @@
+<section class="settings">
+  <header class="settings__header">
+    <h1 class="settings__title">Account operatore</h1>
+    <p class="settings__subtitle">
+      Preferenze del tuo accesso piattaforma. I dati negozio dei clienti si gestiscono accedendo con
+      l'account del cliente.
+    </p>
+  </header>
+
+  <section class="settings__panel" aria-labelledby="operator-profile">
+    <h2 id="operator-profile" class="settings__panel-title">Profilo</h2>
+    @if (currentUser(); as user) {
+      <dl class="settings__facts">
+        <div class="settings__fact">
+          <dt>Nome</dt>
+          <dd>{{ user.displayName }}</dd>
+        </div>
+        <div class="settings__fact">
+          <dt>Email</dt>
+          <dd>{{ user.email }}</dd>
+        </div>
+        <div class="settings__fact">
+          <dt>Accesso</dt>
+          <dd>
+            <app-badge tone="info">{{ platformOperatorRoleLabel }}</app-badge>
+          </dd>
+        </div>
+      </dl>
+    }
+  </section>
+
+  @if (mfaAvailable && canManageMfa()) {
+    <section class="settings__panel" aria-labelledby="operator-mfa">
+      <h2 id="operator-mfa" class="settings__panel-title">Sicurezza account</h2>
+      <app-mfa-settings />
+    </section>
+  }
+
+  <section class="settings__panel" aria-labelledby="operator-theme">
+    <h2 id="operator-theme" class="settings__panel-title">Aspetto</h2>
+    <fieldset class="settings__theme-group">
+      <legend class="settings__muted">Tema dell'interfaccia</legend>
+      <div class="settings__theme-options">
+        @for (option of themeOptions; track option.value) {
+          <label class="settings__theme-option" [class.is-active]="themeMode() === option.value">
+            <input
+              class="settings__theme-radio"
+              type="radio"
+              name="operator-theme-mode"
+              [value]="option.value"
+              [checked]="themeMode() === option.value"
+              (change)="onThemeChange(option.value)"
+            />
+            {{ option.label }}
+          </label>
+        }
+      </div>
+    </fieldset>
+  </section>
+</section>

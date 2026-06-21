@@ -1,21 +1,20 @@
 <section class="create-client">
-  <header class="create-client__header">
-    <h1 class="create-client__title">Nuovo cliente</h1>
-    <p class="create-client__subtitle">
-      Crea tenant, primo utente con ruolo e location iniziale. Il cliente potrà collegare Shopify da
-      Impostazioni dopo il primo accesso (se il ruolo lo consente).
-    </p>
-  </header>
-
   @if (created(); as result) {
-    <section class="create-client__panel create-client__panel--success" aria-live="polite">
-      <h2 class="create-client__panel-title">Cliente creato</h2>
-      <p class="create-client__muted">
-        Comunica email, password e ruolo assegnato. Se il ruolo lo consente, al primo login potrà
-        andare in <strong>Impostazioni → Connetti Shopify</strong>.
+    <header class="create-client__header">
+      <h1 class="create-client__title">Cliente creato</h1>
+      <p class="create-client__subtitle">
+        Comunica email, password e ruolo assegnato. In Impostazioni il cliente vedrà solo il profilo
+        <strong>{{ tenantChannelProfileLabel(result.channelProfile) }}</strong
+        >.
       </p>
+    </header>
 
+    <section class="create-client__panel create-client__panel--success" aria-live="polite">
       <dl class="create-client__facts">
+        <div class="create-client__fact">
+          <dt>Profilo canale</dt>
+          <dd>{{ tenantChannelProfileLabel(result.channelProfile) }}</dd>
+        </div>
         <div class="create-client__fact">
           <dt>Azienda</dt>
           <dd>{{ result.tenantName }}</dd>
@@ -43,10 +42,26 @@
       </dl>
 
       <div class="create-client__actions">
+        <app-button type="button" variant="secondary" (click)="backToList()">
+          Torna all'elenco
+        </app-button>
         <app-button type="button" (click)="resetForm()">Crea un altro cliente</app-button>
       </div>
     </section>
-  } @else {
+  } @else if (showCreateForm()) {
+    <header class="create-client__header">
+      <p class="create-client__back">
+        <button type="button" class="create-client__back-link" (click)="closeCreateForm()">
+          ← Clienti registrati
+        </button>
+      </p>
+      <h1 class="create-client__title">Nuovo cliente</h1>
+      <p class="create-client__subtitle">
+        Crea tenant, primo utente con ruolo e location iniziale. Scegli il profilo canale: il
+        cliente vedrà in Impostazioni solo l’integrazione prevista (o nessuna, per solo gestionale).
+      </p>
+    </header>
+
     <section class="create-client__panel" aria-labelledby="create-client-form-title">
       <h2 id="create-client-form-title" class="create-client__panel-title">Dati cliente</h2>
 
@@ -122,8 +137,8 @@
           </label>
 
           <p id="client-user-role-hint" class="create-client__hint create-client__field--span-full">
-            Di default Titolare. Per negozi reali usa Titolare o Amministratore per chi gestisce
-            Shopify e impostazioni.
+            Di default Titolare. Per negozi reali usa Titolare o Amministratore negozio per chi
+            gestisce Shopify e impostazioni.
           </p>
 
           <label class="create-client__field" for="client-owner-email">
@@ -177,6 +192,26 @@
           </div>
         </section>
 
+        <section class="create-client__section" aria-labelledby="create-client-channel">
+          <h3 id="create-client-channel" class="create-client__section-title">Profilo canale</h3>
+
+          <div class="create-client__field create-client__field--channel-profile">
+            <span class="create-client__field-label" id="client-channel-profile-label"
+              >Tipo cliente</span
+            >
+            <app-select-menu
+              ariaLabel="Tipo cliente"
+              placeholder="Seleziona profilo canale…"
+              [options]="channelProfileOptions"
+              [value]="form.controls.channelProfile.value"
+              [includeEmptyOption]="false"
+              [fullWidth]="true"
+              (valueChange)="onChannelProfileSelect($event)"
+            />
+            <span class="create-client__hint">{{ selectedChannelProfileDescription() }}</span>
+          </div>
+        </section>
+
         <section class="create-client__section" aria-labelledby="create-client-setup">
           <h3 id="create-client-setup" class="create-client__section-title">Setup iniziale</h3>
 
@@ -211,56 +246,75 @@
         }
 
         <div class="create-client__actions">
+          <app-button type="button" variant="secondary" (click)="closeCreateForm()"
+            >Annulla</app-button
+          >
           <app-button type="submit" [loading]="submitLoading()" [disabled]="submitLoading()">
             Crea cliente
           </app-button>
         </div>
       </form>
     </section>
-  }
+  } @else {
+    <header class="create-client__header">
+      <h1 class="create-client__title">Clienti</h1>
+      <p class="create-client__subtitle">
+        Tenant registrati sulla piattaforma. Clicca una riga per modificare i dati di un cliente.
+      </p>
+    </header>
 
-  <section class="create-client__panel" aria-labelledby="create-client-list-title">
-    <h2 id="create-client-list-title" class="create-client__panel-title">Clienti registrati</h2>
-    <p class="create-client__muted">Clicca una riga per aprire e modificare i dati del cliente.</p>
-
-    @if (tenantsLoading()) {
-      <app-table-skeleton [columns]="4" [rows]="4" />
-    } @else if (tenantsError(); as message) {
-      <p class="create-client__alert" role="alert">{{ message }}</p>
-    } @else if (tenants().length === 0) {
-      <p class="create-client__muted">Nessun altro cliente registrato.</p>
-    } @else {
-      <div class="create-client__table-wrap">
-        <table class="create-client__table">
-          <thead>
-            <tr>
-              <th scope="col">Azienda</th>
-              <th scope="col">P.IVA</th>
-              <th scope="col">Utente</th>
-              <th scope="col">Email</th>
-              <th scope="col">Creato</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (tenant of tenants(); track tenant.id) {
-              <tr
-                class="create-client__table-row"
-                tabindex="0"
-                [attr.aria-label]="'Modifica cliente ' + tenant.name"
-                (click)="openTenant(tenant)"
-                (keydown.enter)="openTenant(tenant)"
-                (keydown.space)="$event.preventDefault(); openTenant(tenant)"
-              >
-                <td>{{ tenant.name }}</td>
-                <td class="tabular-nums">{{ tenant.vatNumber ?? '—' }}</td>
-                <td>{{ tenant.ownerDisplayName ?? '—' }}</td>
-                <td>{{ tenant.ownerEmail ?? '—' }}</td>
-                <td class="tabular-nums">{{ formatDateTime(tenant.createdAt) }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+    <section
+      class="create-client__panel create-client__panel--list"
+      aria-labelledby="create-client-list-title"
+    >
+      <div class="create-client__panel-header">
+        <h2 id="create-client-list-title" class="create-client__panel-title">Clienti registrati</h2>
+        <div class="create-client__panel-toolbar">
+          <app-button type="button" (click)="openCreateForm()">Nuovo cliente</app-button>
+        </div>
       </div>
-    }
-  </section>
+
+      @if (tenantsLoading()) {
+        <app-table-skeleton [columns]="5" [rows]="4" />
+      } @else if (tenantsError(); as message) {
+        <p class="create-client__alert" role="alert">{{ message }}</p>
+      } @else if (tenants().length === 0) {
+        <p class="create-client__muted">Nessun cliente registrato.</p>
+      } @else {
+        <div class="create-client__table-wrap">
+          <table class="create-client__table">
+            <thead>
+              <tr>
+                <th scope="col">Azienda</th>
+                <th scope="col">Profilo</th>
+                <th scope="col">P.IVA</th>
+                <th scope="col">Utente</th>
+                <th scope="col">Email</th>
+                <th scope="col">Creato</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (tenant of tenants(); track tenant.id) {
+                <tr
+                  class="create-client__table-row"
+                  tabindex="0"
+                  [attr.aria-label]="'Modifica cliente ' + tenant.name"
+                  (click)="openTenant(tenant)"
+                  (keydown.enter)="openTenant(tenant)"
+                  (keydown.space)="$event.preventDefault(); openTenant(tenant)"
+                >
+                  <td>{{ tenant.name }}</td>
+                  <td>{{ tenantChannelProfileLabel(tenant.channelProfile) }}</td>
+                  <td class="tabular-nums">{{ tenant.vatNumber ?? '—' }}</td>
+                  <td>{{ tenant.ownerDisplayName ?? '—' }}</td>
+                  <td>{{ tenant.ownerEmail ?? '—' }}</td>
+                  <td class="tabular-nums">{{ formatDateTime(tenant.createdAt) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
 </section>

@@ -6,7 +6,9 @@
         <th scope="col">Indirizzo</th>
         <th scope="col">Codice</th>
         <th scope="col">Stato</th>
-        <th scope="col">Shopify</th>
+        @if (showShopifyColumn()) {
+          <th scope="col">Shopify</th>
+        }
       </tr>
     </thead>
     <tbody>
@@ -24,11 +26,13 @@
               </app-badge>
             </span>
           </td>
-          <td data-label="Shopify">
-            <span class="location-table__cell-value">
-              <app-badge [tone]="shopifyTone(location)">{{ shopifyLabel(location) }}</app-badge>
-            </span>
-          </td>
+          @if (showShopifyColumn()) {
+            <td data-label="Shopify">
+              <span class="location-table__cell-value">
+                <app-badge [tone]="shopifyTone(location)">{{ shopifyLabel(location) }}</app-badge>
+              </span>
+            </td>
+          }
         </tr>
       }
     </tbody>

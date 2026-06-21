@@ -257,6 +257,7 @@
   --btn-min-height: 2.75rem; // 44px — touch target minimo (a11y)
   --field-height: 2.25rem; // 36px — input Polaris
   --select-menu-width: 14rem; // larghezza uniforme trigger + pannello in tutta l'app
+  --select-menu-width-wide: 22rem; // select con etichette lunghe (es. profilo canale admin)
   --select-menu-panel-max-height: 16rem; // scroll solo con molte voci
   --container-pad-inline: var(--space-4);
 

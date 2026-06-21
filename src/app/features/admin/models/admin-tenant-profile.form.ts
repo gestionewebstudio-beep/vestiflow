@@ -38,6 +38,7 @@ export function patchTenantProfileForm(form: FormGroup, detail: TenantDetail): v
     postalCode: detail.profile.postalCode ?? '',
     countryCode: detail.profile.countryCode ?? 'IT',
     ownerDisplayName: detail.owner?.displayName ?? '',
+    channelProfile: detail.channelProfile,
     storeName: detail.store?.name ?? '',
     locationName: detail.location?.name ?? '',
   });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { User } from '../models/user.model';
 import { UserRole } from '../models/user.model';
+import { TenantChannelProfile } from '../models/tenant-channel-profile.model';
 
 import {
   canDeleteProducts,
@@ -24,6 +25,7 @@ function userWithRole(role: User['role']): User {
     storeIds: [],
     isActive: true,
     isPlatformAdmin: false,
+    tenantChannelProfile: TenantChannelProfile.Shopify,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };

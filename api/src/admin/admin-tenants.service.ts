@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 
 import { SupabaseService } from '../auth/supabase.service';
+import { assertTenantChannelProfileChangeAllowed } from '../common/tenant-channel-profile.util';
+import { PlatformAdminService } from '../common/platform-admin/platform-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateTenantDto } from './dto/create-tenant.dto';
 import type { ProvisionedTenantDto } from './dto/provisioned-tenant.dto';
@@ -18,12 +20,14 @@ import {
   tenantProfileCreateData,
   tenantProfileReplaceData,
 } from './tenant-profile.util';
+import { deleteTenantData } from './tenant-delete.util';
 
 @Injectable()
 export class AdminTenantsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
+    private readonly platformAdmin: PlatformAdminService,
   ) {}
 
   async listTenants(): Promise<TenantSummaryDto[]> {
@@ -32,22 +36,43 @@ export class AdminTenantsService {
       include: {
         users: {
           orderBy: { createdAt: 'asc' },
-          take: 1,
+          select: { email: true, displayName: true, createdAt: true },
         },
       },
     });
 
-    return tenants.map((tenant) => ({
-      id: tenant.id,
-      name: tenant.name,
-      createdAt: tenant.createdAt.toISOString(),
-      ownerEmail: tenant.users[0]?.email ?? null,
-      ownerDisplayName: tenant.users[0]?.displayName ?? null,
-      vatNumber: tenant.vatNumber,
-    }));
+    return tenants
+      .filter((tenant) => !this.isOperatorTenant(tenant.users))
+      .map((tenant) => ({
+        id: tenant.id,
+        name: tenant.name,
+        channelProfile: tenant.channelProfile,
+        createdAt: tenant.createdAt.toISOString(),
+        ownerEmail: tenant.users[0]?.email ?? null,
+        ownerDisplayName: tenant.users[0]?.displayName ?? null,
+        vatNumber: tenant.vatNumber,
+      }));
+  }
+
+  /** Tenant di test/operatore: almeno un utente ha email platform admin. */
+  private isOperatorTenant(users: readonly { email: string }[]): boolean {
+    return users.some((user) => this.platformAdmin.isPlatformAdmin(user.email));
+  }
+
+  private async assertProvisionedClientTenant(tenantId: string): Promise<void> {
+    const users = await this.prisma.user.findMany({
+      where: { tenantId },
+      select: { email: true },
+    });
+
+    if (this.isOperatorTenant(users)) {
+      throw new NotFoundException('Cliente non trovato');
+    }
   }
 
   async getTenantById(tenantId: string): Promise<TenantDetailDto> {
+    await this.assertProvisionedClientTenant(tenantId);
+
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
       include: {
@@ -71,6 +96,7 @@ export class AdminTenantsService {
     return {
       id: tenant.id,
       name: tenant.name,
+      channelProfile: tenant.channelProfile,
       createdAt: tenant.createdAt.toISOString(),
       profile: {
         legalName: tenant.legalName,
@@ -111,6 +137,8 @@ export class AdminTenantsService {
   }
 
   async updateTenant(tenantId: string, dto: UpdateTenantDto): Promise<TenantDetailDto> {
+    await this.assertProvisionedClientTenant(tenantId);
+
     const existing = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
       include: {
@@ -124,6 +152,10 @@ export class AdminTenantsService {
       throw new NotFoundException('Cliente non trovato');
     }
 
+    if (dto.channelProfile) {
+      await assertTenantChannelProfileChangeAllowed(this.prisma, tenantId, dto.channelProfile);
+    }
+
     const profileUpdate = tenantProfileReplaceData(dto);
     const locationAddress = locationAddressFromProfile(dto);
 
@@ -132,6 +164,7 @@ export class AdminTenantsService {
         where: { id: tenantId },
         data: {
           ...(dto.tenantName ? { name: dto.tenantName.trim() } : {}),
+          ...(dto.channelProfile ? { channelProfile: dto.channelProfile } : {}),
           ...profileUpdate,
         },
       });
@@ -164,6 +197,38 @@ export class AdminTenantsService {
     return this.getTenantById(tenantId);
   }
 
+  async deleteTenant(tenantId: string): Promise<void> {
+    await this.assertProvisionedClientTenant(tenantId);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        id: true,
+        users: { select: { authUserId: true } },
+      },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Cliente non trovato');
+    }
+
+    const authUserIds = tenant.users
+      .map((user) => user.authUserId)
+      .filter((id): id is string => Boolean(id));
+
+    await this.prisma.$transaction(async (tx) => {
+      await deleteTenantData(tx, tenantId);
+    });
+
+    if (this.supabase.isConfigured()) {
+      await Promise.all(
+        authUserIds.map((authUserId) =>
+          this.supabase.deleteAuthUser(authUserId).catch(() => undefined),
+        ),
+      );
+    }
+  }
+
   async createTenant(dto: CreateTenantDto): Promise<ProvisionedTenantDto> {
     if (!this.supabase.isConfigured()) {
       throw new BadRequestException(
@@ -172,7 +237,11 @@ export class AdminTenantsService {
     }
 
     const ownerEmail = dto.ownerEmail.trim().toLowerCase();
+    if (this.platformAdmin.isPlatformAdmin(ownerEmail)) {
+      throw new BadRequestException('Non puoi provisionare un cliente con email Admin Vestiflow');
+    }
     const role = dto.role ?? 'owner';
+    const channelProfile = dto.channelProfile ?? 'shopify';
     const storeName = dto.storeName?.trim() || 'Negozio principale';
     const locationName = dto.locationName?.trim() || storeName;
     const profileData = tenantProfileCreateData(dto);
@@ -201,6 +270,7 @@ export class AdminTenantsService {
         const tenant = await tx.tenant.create({
           data: {
             name: dto.tenantName.trim(),
+            channelProfile,
             ...profileData,
           },
         });
@@ -237,6 +307,7 @@ export class AdminTenantsService {
         return {
           tenantId: tenant.id,
           tenantName: tenant.name,
+          channelProfile: tenant.channelProfile,
           ownerUserId: owner.id,
           ownerEmail: owner.email,
           ownerDisplayName: owner.displayName,

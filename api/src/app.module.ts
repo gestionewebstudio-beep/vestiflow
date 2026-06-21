@@ -9,6 +9,7 @@ import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SalesOrdersModule } from './sales-orders/sales-orders.module';
 import { ShopifyModule } from './shopify/shopify.module';
+import { TikTokModule } from './tiktok/tiktok.module';
 import { validateEnv } from './config/env.validation';
 import { PlatformAdminModule } from './common/platform-admin/platform-admin.module';
 import { HealthModule } from './health/health.module';
@@ -36,6 +37,7 @@ import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
     CustomersModule,
     SalesOrdersModule,
     ShopifyModule,
+    TikTokModule,
     DashboardModule,
     AdminModule,
   ],

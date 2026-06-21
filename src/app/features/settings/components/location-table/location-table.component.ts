@@ -15,6 +15,7 @@ import type { BadgeTone } from '@shared/components/badge/badge.component';
 })
 export class LocationTableComponent {
   readonly locations = input.required<readonly Location[]>();
+  readonly showShopifyColumn = input(true);
 
   protected formatAddress(location: Location): string {
     const address = location.address;

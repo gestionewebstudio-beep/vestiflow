@@ -1,305 +1,314 @@
 <section class="settings">
   <header class="settings__header">
     <h1 class="settings__title">Impostazioni</h1>
-    <p class="settings__subtitle">Integrazione Shopify, aspetto, profilo e location.</p>
+    <p class="settings__subtitle">{{ settingsSubtitle() }}</p>
   </header>
 
-  <!-- ── Shopify ─────────────────────────────────────────────────────────── -->
-  <section class="settings__panel" aria-labelledby="settings-shopify">
-    <h2 id="settings-shopify" class="settings__panel-title">Integrazione Shopify</h2>
+  @if (showShopifyPanel()) {
+    <!-- ── Shopify ─────────────────────────────────────────────────────────── -->
+    <section class="settings__panel" aria-labelledby="settings-shopify">
+      <h2 id="settings-shopify" class="settings__panel-title">Integrazione Shopify</h2>
 
-    @if (shopifyBanner(); as banner) {
-      <div
-        class="settings__banner"
-        [class.settings__banner--success]="banner === 'connected' || banner === 'connected-warn'"
-        [class.settings__banner--error]="banner === 'error'"
-        [class.settings__banner--warning]="banner === 'connected-warn'"
-        role="status"
-      >
-        @switch (banner) {
-          @case ('connected') {
-            Negozio collegato. Ordini, clienti e giacenze si aggiorneranno automaticamente quando
-            attivi gli aggiornamenti automatici.
-          }
-          @case ('connected-warn') {
-            Negozio collegato. Verifica in basso eventuali avvisi su location o aggiornamenti
-            automatici: la sync potrebbe essere incompleta finché non risolvi.
-          }
-          @case ('error') {
-            Autorizzazione Shopify non riuscita. Verifica dominio shop e configurazione app.
-          }
-          @case ('disconnected') {
-            Connessione Shopify rimossa.
-          }
-        }
-        <button type="button" class="settings__banner-dismiss" (click)="dismissBanner()">
-          Chiudi
-        </button>
-      </div>
-    }
-
-    @if (connectionLoading()) {
-      <app-table-skeleton [columns]="2" [rows]="3" />
-    } @else if (connectionNotFound()) {
-      <p class="settings__muted">
-        Nessuna connessione Shopify attiva. Inserisci il dominio dello shop e avvia l'autorizzazione
-        OAuth: i token restano solo sul server.
-      </p>
-
-      @if (canManageShopify()) {
-        <form
-          class="settings__connect-form"
-          [formGroup]="connectForm"
-          (ngSubmit)="connectShopify()"
-        >
-          <label class="settings__field" for="shopify-shop">
-            <span class="settings__field-label">Dominio shop</span>
-            <input
-              id="shopify-shop"
-              class="settings__input"
-              type="text"
-              formControlName="shop"
-              placeholder="mio-negozio.myshopify.com"
-              autocomplete="off"
-              spellcheck="false"
-              [attr.aria-invalid]="
-                connectForm.controls.shop.invalid && connectForm.controls.shop.touched
-              "
-            />
-            @if (connectForm.controls.shop.invalid && connectForm.controls.shop.touched) {
-              <span class="settings__field-error">Inserisci il dominio dello shop.</span>
-            }
-          </label>
-
-          @if (connectError(); as message) {
-            <p class="settings__shopify-error" role="alert">{{ message }}</p>
-          }
-
-          <app-button type="submit" [loading]="connectLoading()" [disabled]="connectLoading()">
-            Connetti Shopify
-          </app-button>
-        </form>
-      } @else {
-        <p class="settings__muted">Solo titolare o amministratore possono collegare Shopify.</p>
-      }
-    } @else if (connectionError(); as appError) {
-      <app-error-state
-        [description]="appError.message"
-        retryLabel="Riprova"
-        (retry)="reloadConnection()"
-      />
-    } @else if (connection(); as conn) {
-      <div class="settings__shopify-status">
-        <app-badge [tone]="connectionStatusTone(conn.status)">
-          {{ connectionStatusLabel(conn.status) }}
-        </app-badge>
-        @if (conn.shopDomain) {
-          <span class="settings__shopify-domain tabular-nums">{{ conn.shopDomain }}</span>
-        }
-      </div>
-
-      <dl class="settings__facts">
-        <div class="settings__fact">
-          <dt>Nome shop</dt>
-          <dd>{{ conn.displayName ?? '—' }}</dd>
-        </div>
-        <div class="settings__fact">
-          <dt>Versione API</dt>
-          <dd class="tabular-nums">{{ conn.apiVersion ?? '—' }}</dd>
-        </div>
-        <div class="settings__fact">
-          <dt>Ultima connessione</dt>
-          <dd class="tabular-nums">
-            {{ conn.lastConnectedAt ? formatDateTime(conn.lastConnectedAt) : '—' }}
-          </dd>
-        </div>
-        <div class="settings__fact">
-          <dt>Ultimo sync</dt>
-          <dd class="tabular-nums">
-            {{ conn.lastSyncAt ? formatDateTime(conn.lastSyncAt) : '—' }}
-          </dd>
-        </div>
-      </dl>
-
-      @if (conn.scopes?.length) {
-        <div class="settings__permissions" aria-labelledby="settings-shopify-permissions">
-          <h3 id="settings-shopify-permissions" class="settings__permissions-title">
-            Accesso a Shopify
-          </h3>
-          <ul class="settings__permissions-list">
-            @for (scope of conn.scopes; track scope) {
-              @let display = shopifyScopeDisplay(scope);
-              <li class="settings__permission">
-                <div class="settings__permission-copy">
-                  <span class="settings__permission-label">{{ display.label }}</span>
-                  <span class="settings__permission-desc">{{ display.description }}</span>
-                </div>
-                <app-badge [tone]="display.access === 'write' ? 'success' : 'neutral'">
-                  {{ shopifyScopeAccessLabel(display.access) }}
-                </app-badge>
-              </li>
-            }
-          </ul>
-        </div>
-      }
-
-      @if (catalogReadScopeWarning(); as scopeWarning) {
-        <div class="settings__shopify-error-block">
-          <p class="settings__shopify-error" role="alert">
-            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-            {{ scopeWarning }}
-          </p>
-          @if (catalogScopeDiagnosticsDetail(); as scopeDetail) {
-            <p class="settings__muted">{{ scopeDetail }}</p>
-          }
-        </div>
-      }
-
-      @if (conn.lastError; as lastError) {
-        <div class="settings__shopify-error-block">
-          <p class="settings__shopify-error" role="alert">
-            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-            {{ lastError.message }}
-            <span class="settings__muted tabular-nums">
-              ({{ formatDateTime(lastError.occurredAt) }})
-            </span>
-          </p>
-        </div>
-      } @else if (conn.status === 'error') {
-        <div class="settings__shopify-error-block">
-          <p class="settings__shopify-error" role="alert">
-            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-            La connessione Shopify segnala un errore. Se il negozio funziona, puoi ripristinare la
-            connessione e riprovare la sincronizzazione.
-          </p>
-        </div>
-      }
-
-      @if (connectError(); as message) {
-        <p class="settings__shopify-error" role="alert">{{ message }}</p>
-      }
-
-      @if (actionFeedback(); as feedback) {
+      @if (shopifyBanner(); as banner) {
         <div
-          class="settings__action-feedback"
-          [class.settings__action-feedback--success]="feedback.tone === 'success'"
-          [class.settings__action-feedback--warning]="feedback.tone === 'warning'"
+          class="settings__banner"
+          [class.settings__banner--success]="banner === 'connected' || banner === 'connected-warn'"
+          [class.settings__banner--error]="banner === 'error'"
+          [class.settings__banner--warning]="banner === 'connected-warn'"
           role="status"
         >
-          <span>{{ feedback.message }}</span>
-          <button
-            type="button"
-            class="settings__action-feedback-dismiss"
-            (click)="dismissActionFeedback()"
-          >
+          @switch (banner) {
+            @case ('connected') {
+              Negozio collegato. Ordini, clienti e giacenze si aggiorneranno automaticamente quando
+              attivi gli aggiornamenti automatici.
+            }
+            @case ('connected-warn') {
+              Negozio collegato. Verifica in basso eventuali avvisi su location o aggiornamenti
+              automatici: la sync potrebbe essere incompleta finché non risolvi.
+            }
+            @case ('error') {
+              Autorizzazione Shopify non riuscita. Verifica dominio shop e configurazione app.
+            }
+            @case ('disconnected') {
+              Connessione Shopify rimossa.
+            }
+          }
+          <button type="button" class="settings__banner-dismiss" (click)="dismissBanner()">
             Chiudi
           </button>
         </div>
       }
 
-      @if (canManageShopify()) {
-        <div class="settings__setup-status" aria-label="Stato configurazione Shopify">
-          <div
-            class="settings__setup-item"
-            [class.settings__setup-item--active]="locationSetupStatus().active"
+      @if (connectionLoading()) {
+        <app-table-skeleton [columns]="2" [rows]="3" />
+      } @else if (connectionNotFound()) {
+        <p class="settings__muted">
+          Nessuna connessione Shopify attiva. Inserisci il dominio dello shop e avvia
+          l'autorizzazione OAuth: i token restano solo sul server.
+        </p>
+
+        @if (canManageShopify()) {
+          <form
+            class="settings__connect-form"
+            [formGroup]="connectForm"
+            (ngSubmit)="connectShopify()"
           >
-            <app-badge [tone]="locationSetupStatus().active ? 'success' : 'neutral'">
-              {{ locationSetupStatus().active ? 'Attivo' : 'Da fare' }}
-            </app-badge>
-            <div class="settings__setup-copy">
-              <span class="settings__setup-label">{{ locationSetupStatus().label }}</span>
-              <span class="settings__setup-detail">{{ locationSetupStatus().detail }}</span>
-            </div>
-          </div>
-          <div
-            class="settings__setup-item"
-            [class.settings__setup-item--active]="webhooksSetupStatus().active"
-            [class.settings__setup-item--partial]="webhooksSetupStatus().partial"
-          >
-            <app-badge
-              [tone]="
-                webhooksSetupStatus().partial
-                  ? 'warning'
-                  : webhooksSetupStatus().active
-                    ? 'success'
-                    : 'neutral'
-              "
-            >
-              {{
-                webhooksSetupStatus().partial
-                  ? 'Parziale'
-                  : webhooksSetupStatus().active
-                    ? 'Attivo'
-                    : 'Da fare'
-              }}
-            </app-badge>
-            <div class="settings__setup-copy">
-              <span class="settings__setup-label">{{ webhooksSetupStatus().label }}</span>
-              <span class="settings__setup-detail">{{ webhooksSetupStatus().detail }}</span>
-            </div>
-          </div>
+            <label class="settings__field" for="shopify-shop">
+              <span class="settings__field-label">Dominio shop</span>
+              <input
+                id="shopify-shop"
+                class="settings__input"
+                type="text"
+                formControlName="shop"
+                placeholder="mio-negozio.myshopify.com"
+                autocomplete="off"
+                spellcheck="false"
+                [attr.aria-invalid]="
+                  connectForm.controls.shop.invalid && connectForm.controls.shop.touched
+                "
+              />
+              @if (connectForm.controls.shop.invalid && connectForm.controls.shop.touched) {
+                <span class="settings__field-error">Inserisci il dominio dello shop.</span>
+              }
+            </label>
+
+            @if (connectError(); as message) {
+              <p class="settings__shopify-error" role="alert">{{ message }}</p>
+            }
+
+            <app-button type="submit" [loading]="connectLoading()" [disabled]="connectLoading()">
+              Connetti Shopify
+            </app-button>
+          </form>
+        } @else {
+          <p class="settings__muted">Solo titolare o amministratore possono collegare Shopify.</p>
+        }
+      } @else if (connectionError(); as appError) {
+        <app-error-state
+          [description]="appError.message"
+          retryLabel="Riprova"
+          (retry)="reloadConnection()"
+        />
+      } @else if (connection(); as conn) {
+        <div class="settings__shopify-status">
+          <app-badge [tone]="connectionStatusTone(conn.status)">
+            {{ connectionStatusLabel(conn.status) }}
+          </app-badge>
+          @if (conn.shopDomain) {
+            <span class="settings__shopify-domain tabular-nums">{{ conn.shopDomain }}</span>
+          }
         </div>
 
-        @if (shopifyActionProgress(); as progressMessage) {
-          <div class="settings__action-progress" role="status" aria-live="polite">
-            <app-inline-spinner size="md" />
-            <span>{{ progressMessage }}</span>
+        <dl class="settings__facts">
+          <div class="settings__fact">
+            <dt>Nome shop</dt>
+            <dd>{{ conn.displayName ?? '—' }}</dd>
+          </div>
+          <div class="settings__fact">
+            <dt>Versione API</dt>
+            <dd class="tabular-nums">{{ conn.apiVersion ?? '—' }}</dd>
+          </div>
+          <div class="settings__fact">
+            <dt>Ultima connessione</dt>
+            <dd class="tabular-nums">
+              {{ conn.lastConnectedAt ? formatDateTime(conn.lastConnectedAt) : '—' }}
+            </dd>
+          </div>
+          <div class="settings__fact">
+            <dt>Ultimo sync</dt>
+            <dd class="tabular-nums">
+              {{ conn.lastSyncAt ? formatDateTime(conn.lastSyncAt) : '—' }}
+            </dd>
+          </div>
+        </dl>
+
+        @if (conn.scopes?.length) {
+          <div class="settings__permissions" aria-labelledby="settings-shopify-permissions">
+            <h3 id="settings-shopify-permissions" class="settings__permissions-title">
+              Accesso a Shopify
+            </h3>
+            <ul class="settings__permissions-list">
+              @for (scope of conn.scopes; track scope) {
+                @let display = shopifyScopeDisplay(scope);
+                <li class="settings__permission">
+                  <div class="settings__permission-copy">
+                    <span class="settings__permission-label">{{ display.label }}</span>
+                    <span class="settings__permission-desc">{{ display.description }}</span>
+                  </div>
+                  <app-badge [tone]="display.access === 'write' ? 'success' : 'neutral'">
+                    {{ shopifyScopeAccessLabel(display.access) }}
+                  </app-badge>
+                </li>
+              }
+            </ul>
           </div>
         }
 
-        <div class="settings__shopify-actions">
-          @if (showClearShopifyErrors()) {
-            <app-button
-              variant="ghost"
-              [loading]="clearErrorsLoading()"
-              [disabled]="
-                clearErrorsLoading() ||
-                syncLocationsLoading() ||
-                syncWebhooksLoading() ||
-                disconnectLoading()
-              "
-              (click)="clearShopifyErrors()"
+        @if (catalogReadScopeWarning(); as scopeWarning) {
+          <div class="settings__shopify-error-block">
+            <p class="settings__shopify-error" role="alert">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+              {{ scopeWarning }}
+            </p>
+            @if (catalogScopeDiagnosticsDetail(); as scopeDetail) {
+              <p class="settings__muted">{{ scopeDetail }}</p>
+            }
+          </div>
+        }
+
+        @if (conn.lastError; as lastError) {
+          <div class="settings__shopify-error-block">
+            <p class="settings__shopify-error" role="alert">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+              {{ lastError.message }}
+              <span class="settings__muted tabular-nums">
+                ({{ formatDateTime(lastError.occurredAt) }})
+              </span>
+            </p>
+          </div>
+        } @else if (conn.status === 'error') {
+          <div class="settings__shopify-error-block">
+            <p class="settings__shopify-error" role="alert">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+              La connessione Shopify segnala un errore. Se il negozio funziona, puoi ripristinare la
+              connessione e riprovare la sincronizzazione.
+            </p>
+          </div>
+        }
+
+        @if (connectError(); as message) {
+          <p class="settings__shopify-error" role="alert">{{ message }}</p>
+        }
+
+        @if (actionFeedback(); as feedback) {
+          <div
+            class="settings__action-feedback"
+            [class.settings__action-feedback--success]="feedback.tone === 'success'"
+            [class.settings__action-feedback--warning]="feedback.tone === 'warning'"
+            role="status"
+          >
+            <span>{{ feedback.message }}</span>
+            <button
+              type="button"
+              class="settings__action-feedback-dismiss"
+              (click)="dismissActionFeedback()"
             >
-              Ripristina connessione
-            </app-button>
+              Chiudi
+            </button>
+          </div>
+        }
+
+        @if (canManageShopify()) {
+          <div class="settings__setup-status" aria-label="Stato configurazione Shopify">
+            <div
+              class="settings__setup-item"
+              [class.settings__setup-item--active]="locationSetupStatus().active"
+            >
+              <app-badge [tone]="locationSetupStatus().active ? 'success' : 'neutral'">
+                {{ locationSetupStatus().active ? 'Attivo' : 'Da fare' }}
+              </app-badge>
+              <div class="settings__setup-copy">
+                <span class="settings__setup-label">{{ locationSetupStatus().label }}</span>
+                <span class="settings__setup-detail">{{ locationSetupStatus().detail }}</span>
+              </div>
+            </div>
+            <div
+              class="settings__setup-item"
+              [class.settings__setup-item--active]="webhooksSetupStatus().active"
+              [class.settings__setup-item--partial]="webhooksSetupStatus().partial"
+            >
+              <app-badge
+                [tone]="
+                  webhooksSetupStatus().partial
+                    ? 'warning'
+                    : webhooksSetupStatus().active
+                      ? 'success'
+                      : 'neutral'
+                "
+              >
+                {{
+                  webhooksSetupStatus().partial
+                    ? 'Parziale'
+                    : webhooksSetupStatus().active
+                      ? 'Attivo'
+                      : 'Da fare'
+                }}
+              </app-badge>
+              <div class="settings__setup-copy">
+                <span class="settings__setup-label">{{ webhooksSetupStatus().label }}</span>
+                <span class="settings__setup-detail">{{ webhooksSetupStatus().detail }}</span>
+              </div>
+            </div>
+          </div>
+
+          @if (shopifyActionProgress(); as progressMessage) {
+            <div class="settings__action-progress" role="status" aria-live="polite">
+              <app-inline-spinner size="md" />
+              <span>{{ progressMessage }}</span>
+            </div>
           }
-          <app-button
-            variant="secondary"
-            loadingIndicator="icon"
-            [loading]="syncLocationsLoading()"
-            [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
-            (click)="syncShopifyLocations()"
-          >
-            @if (syncLocationsLoading()) {
-              <i class="pi pi-sync" aria-hidden="true"></i>
+
+          <div class="settings__shopify-actions">
+            @if (showClearShopifyErrors()) {
+              <app-button
+                variant="ghost"
+                [loading]="clearErrorsLoading()"
+                [disabled]="
+                  clearErrorsLoading() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading()
+                "
+                (click)="clearShopifyErrors()"
+              >
+                Ripristina connessione
+              </app-button>
             }
-            Sincronizza location
-          </app-button>
-          <app-button
-            variant="secondary"
-            loadingIndicator="icon"
-            [loading]="syncWebhooksLoading()"
-            [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
-            (click)="toggleAutoSync()"
-          >
-            @if (syncWebhooksLoading()) {
+            <app-button
+              variant="secondary"
+              loadingIndicator="icon"
+              [loading]="syncLocationsLoading()"
+              [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
+              (click)="syncShopifyLocations()"
+            >
+              @if (syncLocationsLoading()) {
+                <i class="pi pi-sync" aria-hidden="true"></i>
+              }
+              Sincronizza location
+            </app-button>
+            <app-button
+              variant="secondary"
+              loadingIndicator="icon"
+              [loading]="syncWebhooksLoading()"
+              [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
+              (click)="toggleAutoSync()"
+            >
+              @if (syncWebhooksLoading()) {
+                <i class="pi pi-sync" aria-hidden="true"></i>
+              }
+              {{ autoSyncButtonLabel() }}
+            </app-button>
+            <app-button
+              loadingIndicator="icon"
+              [loading]="disconnectLoading()"
+              [disabled]="disconnectLoading() || syncLocationsLoading() || syncWebhooksLoading()"
+              (click)="disconnectShopify()"
+            >
               <i class="pi pi-sync" aria-hidden="true"></i>
-            }
-            {{ autoSyncButtonLabel() }}
-          </app-button>
-          <app-button
-            loadingIndicator="icon"
-            [loading]="disconnectLoading()"
-            [disabled]="disconnectLoading() || syncLocationsLoading() || syncWebhooksLoading()"
-            (click)="disconnectShopify()"
-          >
-            <i class="pi pi-sync" aria-hidden="true"></i>
-            Disconnetti Shopify
-          </app-button>
-        </div>
+              Disconnetti Shopify
+            </app-button>
+          </div>
+        }
       }
-    }
-  </section>
+    </section>
+  }
+
+  @if (showTikTokPanel()) {
+    <!-- ── TikTok Shop ─────────────────────────────────────────────────────── -->
+    <section class="settings__panel" aria-labelledby="settings-tiktok">
+      <app-tiktok-integration-panel />
+    </section>
+  }
 
   <!-- ── Sicurezza account ─────────────────────────────────────────────────── -->
   @if (mfaAvailable && canManageMfa()) {
@@ -359,7 +368,10 @@
   <section class="settings__panel" aria-labelledby="settings-locations">
     <h2 id="settings-locations" class="settings__panel-title">Location</h2>
     @if (locations().length > 0) {
-      <app-location-table [locations]="locations()" />
+      <app-location-table
+        [locations]="locations()"
+        [showShopifyColumn]="showShopifyLocationColumn()"
+      />
     } @else {
       <app-table-skeleton [columns]="4" [rows]="3" />
     }

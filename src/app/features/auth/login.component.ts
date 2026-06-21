@@ -8,9 +8,9 @@ import { AuthService } from '@core/auth';
 import { PASSWORD_MIN_LENGTH } from '@core/auth/auth-password.constants';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { User } from '@core/models/user.model';
+import { resolvePlatformOperatorReturnUrl } from '@core/permissions/platform-operator.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
-
-const DEFAULT_REDIRECT = '/app/dashboard';
 
 /**
  * Pagina di accesso (smart). Reactive Form tipizzato, validazione inline,
@@ -101,8 +101,8 @@ export class LoginComponent {
       .login(this.form.getRawValue())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
-          void this.router.navigateByUrl(this.resolveReturnUrl());
+        next: (user) => {
+          void this.router.navigateByUrl(this.resolvePostLoginUrl(user));
         },
         error: (err: unknown) => {
           if (isAppError(err) && err.kind === AppErrorKind.MfaRequired) {
@@ -135,8 +135,8 @@ export class LoginComponent {
       .verifyMfa(this.mfaForm.controls.code.value)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
-          void this.router.navigateByUrl(this.resolveReturnUrl());
+        next: (user) => {
+          void this.router.navigateByUrl(this.resolvePostLoginUrl(user));
         },
         error: (err: unknown) => {
           this._loading.set(false);
@@ -172,11 +172,8 @@ export class LoginComponent {
     return null;
   }
 
-  private resolveReturnUrl(): string {
+  private resolvePostLoginUrl(user: User): string {
     const raw = this.route.snapshot.queryParamMap.get('returnUrl');
-    if (raw && raw.startsWith('/') && !raw.startsWith('//')) {
-      return raw;
-    }
-    return DEFAULT_REDIRECT;
+    return resolvePlatformOperatorReturnUrl(user, raw);
   }
 }

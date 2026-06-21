@@ -16,6 +16,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { InventoryCountLine, Location, StockMovement } from '@prisma/client';
 
+import { csvUploadMulterOptions } from '../common/upload/multer-upload.options';
+
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
@@ -73,11 +75,7 @@ export class InventoryController {
   @Post('levels/import/preview')
   @UseGuards(RolesGuard)
   @Roles(...MANAGER_ROLES)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 15 * 1024 * 1024 },
-    }),
-  )
+  @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   previewLevelsImport(
     @CurrentTenant() tenantId: string,
     @UploadedFile() file: Express.Multer.File,
@@ -89,11 +87,7 @@ export class InventoryController {
   @Post('levels/import')
   @UseGuards(RolesGuard)
   @Roles(...MANAGER_ROLES)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 15 * 1024 * 1024 },
-    }),
-  )
+  @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   importLevels(
     @CurrentTenant() tenantId: string,
     @UploadedFile() file: Express.Multer.File,

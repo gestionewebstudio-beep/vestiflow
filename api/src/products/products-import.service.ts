@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
-import { ShopifyProductPushService } from '../shopify/shopify-product-push.service';
+import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { CreateVariantDto } from './dto/create-product.dto';
 import {
   buildImportPreview,
@@ -42,7 +42,7 @@ export class ProductsImportService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly shopifyProductPush: ShopifyProductPushService,
+    private readonly channelSync: ChannelSyncFacade,
   ) {}
 
   async previewCsv(tenantId: string, csvText: string): Promise<ImportPreviewResult> {
@@ -168,7 +168,7 @@ export class ProductsImportService {
     });
 
     try {
-      void this.shopifyProductPush.enqueuePush(tenantId, created.id);
+      this.channelSync.enqueueProductPush(tenantId, created.id);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Push Shopify fallito';
       this.logger.warn(`Push prodotto import CSV (${tenantId}, ${created.id}): ${message}`);

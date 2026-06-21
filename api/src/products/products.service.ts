@@ -8,6 +8,7 @@ import {
 import { Prisma, type Product, type ProductImage, type ProductVariant } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
 import {
@@ -38,6 +39,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly shopifyProductPush: ShopifyProductPushService,
+    private readonly channelSync: ChannelSyncFacade,
     private readonly taxonomyLocalization: ShopifyTaxonomyLocalizationService,
   ) {}
 
@@ -121,6 +123,7 @@ export class ProductsService {
         shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
         shopifyCategoryMetafields: (dto.shopifyCategoryMetafields ??
           []) as unknown as Prisma.InputJsonValue,
+        tiktokCategoryId: dto.tiktokCategoryId?.trim() || null,
         season: dto.season,
         tags: this.normalizeTags(dto.tags),
         status: dto.status,
@@ -167,6 +170,9 @@ export class ProductsService {
                 shopifyCategoryMetafields:
                   dto.shopifyCategoryMetafields as unknown as Prisma.InputJsonValue,
               }
+            : {}),
+          ...(dto.tiktokCategoryId !== undefined
+            ? { tiktokCategoryId: dto.tiktokCategoryId?.trim() || null }
             : {}),
           season: dto.season,
           tags: dto.tags !== undefined ? this.normalizeTags(dto.tags) : undefined,
@@ -511,10 +517,7 @@ export class ProductsService {
   }
 
   private pushProductToShopifySafe(tenantId: string, productId: string): void {
-    void this.shopifyProductPush.enqueuePush(tenantId, productId).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : 'Push prodotto Shopify fallito';
-      this.logger.warn(`Push prodotto Shopify non riuscito (${tenantId}): ${message}`);
-    });
+    this.channelSync.enqueueProductPush(tenantId, productId);
   }
 
   async syncToShopify(tenantId: string, id: string): Promise<ShopifyProductPushResult> {

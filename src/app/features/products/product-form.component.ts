@@ -24,7 +24,9 @@ import type { Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { AuthService } from '@core/auth';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { ProductImage } from '@core/models/product-image.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -114,6 +116,7 @@ type FormLoadState =
 export class ProductFormComponent implements CanComponentDeactivate {
   private readonly service = inject(ProductService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -188,9 +191,13 @@ export class ProductFormComponent implements CanComponentDeactivate {
     this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
     { initialValue: null },
   );
-  protected readonly shopifyConnected = computed(
-    () => this.shopifyConnection()?.status === ShopifyConnectionStatus.Connected,
-  );
+  protected readonly shopifyConnected = computed(() => {
+    const profile = this.authService.currentUser()?.tenantChannelProfile;
+    if (profile !== TenantChannelProfile.Shopify) {
+      return false;
+    }
+    return this.shopifyConnection()?.status === ShopifyConnectionStatus.Connected;
+  });
 
   protected readonly categories = computed(() => this.filterOptions()?.categories ?? []);
 

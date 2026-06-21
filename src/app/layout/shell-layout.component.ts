@@ -6,14 +6,17 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { catchError, filter, map, merge, of, switchMap, type Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
 import { ThemeService } from '@core/services/theme.service';
+import { isPlatformOperator } from '@core/permissions/platform-operator.util';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { EntityId } from '@core/models/common.model';
+import type { Location } from '@core/models/location.model';
 import type { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import { AppSidebarComponent } from '@shared/components/app-sidebar/app-sidebar.component';
 import { AppTopbarComponent } from '@shared/components/app-topbar/app-topbar.component';
@@ -58,21 +61,39 @@ export class ShellLayoutComponent {
   readonly currentUser = this.authService.currentUser;
   readonly activeLocationId = this.locationContext.activeLocationId;
 
-  /** Location per il selettore topbar (in errore: selettore nascosto). */
+  readonly isPlatformOperator = computed(() => isPlatformOperator(this.currentUser()));
+
+  /** Location per il selettore topbar (solo gestionale negozio; operatore: nascosto). */
   readonly locations = toSignal(
-    this.inventoryService.getLocations().pipe(catchError(() => of([]))),
-    { initialValue: [] },
+    toObservable(this.currentUser).pipe(
+      switchMap((user) => {
+        if (isPlatformOperator(user)) {
+          return of([] as readonly Location[]);
+        }
+        return this.inventoryService
+          .getLocations()
+          .pipe(catchError(() => of([] as readonly Location[])));
+      }),
+    ),
+    { initialValue: [] as readonly Location[] },
   );
 
-  /** Stato connessione Shopify per l'indicatore sync (null finche' non risolto). */
+  /** Stato connessione Shopify per l'indicatore sync (null = nascosto o non risolto). */
   readonly shopifySyncStatus = toSignal<ShopifyConnectionStatus | null>(
     merge(of(void 0), this.shopifySyncWatch.watchSyncCompleted()).pipe(
-      switchMap(() =>
-        this.shopifyConnectionService.getConnection().pipe(
+      switchMap(() => {
+        if (isPlatformOperator(this.authService.currentUser())) {
+          return of(null);
+        }
+        const profile = this.authService.currentUser()?.tenantChannelProfile;
+        if (profile !== TenantChannelProfile.Shopify) {
+          return of(null);
+        }
+        return this.shopifyConnectionService.getConnection().pipe(
           map((connection) => connection.status),
           catchError(() => of(null)),
-        ),
-      ),
+        );
+      }),
     ),
     { initialValue: null },
   );
@@ -82,7 +103,7 @@ export class ShellLayoutComponent {
 
   protected readonly logoutDialogOpen = signal(false);
 
-  private readonly baseNavItems: readonly NavItem[] = [
+  private readonly tenantNavItems: readonly NavItem[] = [
     { label: 'Dashboard', icon: 'pi-th-large', route: '/app/dashboard' },
     { label: 'Prodotti', icon: 'pi-tags', route: '/app/products' },
     { label: 'Magazzino', icon: 'pi-box', route: '/app/inventory/lookup' },
@@ -91,6 +112,21 @@ export class ShellLayoutComponent {
     { label: 'Clienti', icon: 'pi-users', route: '/app/customers' },
     { label: 'Report', icon: 'pi-chart-line', route: '/app/reports' },
     { label: 'Impostazioni', icon: 'pi-cog', route: '/app/settings' },
+  ];
+
+  private readonly operatorNavItems: readonly NavItem[] = [
+    {
+      label: 'Clienti',
+      icon: 'pi-users',
+      route: '/app/admin/clients',
+      linkActiveOptions: {
+        paths: 'subset',
+        queryParams: 'ignored',
+        matrixParams: 'ignored',
+        fragment: 'ignored',
+      },
+    },
+    { label: 'Account', icon: 'pi-user', route: '/app/admin/account' },
   ];
 
   private readonly guideNavItem: NavItem = {
@@ -106,23 +142,17 @@ export class ShellLayoutComponent {
   };
 
   readonly footerNavItems = computed((): readonly NavItem[] => {
-    const items: NavItem[] = [this.guideNavItem];
-    if (this.authService.currentUser()?.isPlatformAdmin) {
-      items.push(this.adminGuideNavItem);
+    if (this.isPlatformOperator()) {
+      return [this.adminGuideNavItem];
     }
-    return items;
+    return [this.guideNavItem];
   });
 
   readonly navItems = computed((): readonly NavItem[] => {
-    const items = [...this.baseNavItems];
-    if (this.authService.currentUser()?.isPlatformAdmin) {
-      items.splice(items.length - 1, 0, {
-        label: 'Nuovo cliente',
-        icon: 'pi-user-plus',
-        route: '/app/admin/clients/new',
-      });
+    if (this.isPlatformOperator()) {
+      return this.operatorNavItems;
     }
-    return items;
+    return this.tenantNavItems;
   });
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).
@@ -151,6 +181,9 @@ export class ShellLayoutComponent {
   }
 
   onSyncClick(): void {
+    if (this.isPlatformOperator()) {
+      return;
+    }
     void this.router.navigateByUrl('/app/settings');
   }
 

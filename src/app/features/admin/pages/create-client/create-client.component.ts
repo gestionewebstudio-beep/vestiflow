@@ -1,11 +1,24 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  inject,
+  signal,
+  computed,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, map, startWith } from 'rxjs';
 
 import { isAppError } from '@core/models/app-error.model';
 import type { UserRole as UserRoleType } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
+import {
+  TENANT_CHANNEL_PROFILE_OPTIONS,
+  TenantChannelProfile,
+  tenantChannelProfileLabel,
+} from '@core/models/tenant-channel-profile.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -43,9 +56,29 @@ export class CreateClientComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
 
+  protected readonly showCreateForm = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => event.urlAfterRedirects.includes('/clients/new')),
+      startWith(this.router.url.includes('/clients/new')),
+    ),
+    { initialValue: this.router.url.includes('/clients/new') },
+  );
+
   protected readonly formatDateTime = formatDateTime;
   protected readonly tenantRoleOptions = TENANT_ROLE_OPTIONS;
   protected readonly tenantRoleLabel = tenantRoleLabel;
+  protected readonly channelProfileOptions = TENANT_CHANNEL_PROFILE_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
+  protected readonly tenantChannelProfileLabel = tenantChannelProfileLabel;
+  protected readonly selectedChannelProfileDescription = computed(() => {
+    const value = this.form.controls.channelProfile.value;
+    return (
+      TENANT_CHANNEL_PROFILE_OPTIONS.find((option) => option.value === value)?.description ?? ''
+    );
+  });
 
   protected readonly tenantsLoading = signal(true);
   protected readonly tenants = signal<readonly TenantSummary[]>([]);
@@ -71,6 +104,9 @@ export class CreateClientComponent {
       validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
     }),
     role: this.fb.control<UserRoleType>(UserRole.Owner, { validators: [Validators.required] }),
+    channelProfile: this.fb.control<TenantChannelProfile>(TenantChannelProfile.Gestionale, {
+      validators: [Validators.required],
+    }),
     storeName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
     locationName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
   });
@@ -88,6 +124,18 @@ export class CreateClientComponent {
     this.passwordVisible.update((visible) => !visible);
   }
 
+  protected onChannelProfileSelect(value: string | null): void {
+    if (!value || !this.isChannelProfile(value)) {
+      return;
+    }
+    this.form.controls.channelProfile.setValue(value);
+    this.form.controls.channelProfile.markAsTouched();
+  }
+
+  private isChannelProfile(value: string): value is TenantChannelProfile {
+    return (Object.values(TenantChannelProfile) as readonly string[]).includes(value);
+  }
+
   protected onRoleSelect(value: string | null): void {
     if (!value || !this.isUserRole(value)) {
       return;
@@ -98,6 +146,16 @@ export class CreateClientComponent {
 
   private isUserRole(value: string): value is UserRoleType {
     return (Object.values(UserRole) as readonly string[]).includes(value);
+  }
+
+  protected openCreateForm(): void {
+    void this.router.navigate(['/app/admin/clients/new']);
+  }
+
+  protected closeCreateForm(): void {
+    this.created.set(null);
+    this.submitError.set(null);
+    void this.router.navigate(['/app/admin/clients']);
   }
 
   protected openTenant(tenant: TenantSummary): void {
@@ -124,6 +182,7 @@ export class CreateClientComponent {
         ownerEmail: raw.ownerEmail.trim(),
         ownerPassword: raw.ownerPassword,
         role: raw.role,
+        channelProfile: raw.channelProfile,
         ...(storeName ? { storeName } : {}),
         ...(locationName ? { locationName } : {}),
         ...profilePayloadFromForm(raw),
@@ -133,7 +192,11 @@ export class CreateClientComponent {
         next: (result) => {
           this.submitLoading.set(false);
           this.created.set(result);
-          this.form.reset({ countryCode: 'IT', role: UserRole.Owner });
+          this.form.reset({
+            countryCode: 'IT',
+            role: UserRole.Owner,
+            channelProfile: TenantChannelProfile.Gestionale,
+          });
           this.loadTenants();
         },
         error: (err: unknown) => {
@@ -150,6 +213,10 @@ export class CreateClientComponent {
   protected resetForm(): void {
     this.created.set(null);
     this.submitError.set(null);
+  }
+
+  protected backToList(): void {
+    this.closeCreateForm();
   }
 
   private loadTenants(): void {

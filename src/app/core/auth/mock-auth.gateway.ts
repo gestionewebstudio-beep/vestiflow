@@ -4,6 +4,7 @@ import { type Observable, delay, map, of, switchMap, throwError } from 'rxjs';
 import { AppErrorKind } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { EntityId, IsoDateString } from '@core/models/common.model';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import { UserRole } from '@core/models/user.model';
 import type { User } from '@core/models/user.model';
 
@@ -36,6 +37,7 @@ const MOCK_USERS: readonly MockCredential[] = [
       storeIds: ['store-milano', 'store-napoli'],
       isActive: true,
       isPlatformAdmin: true,
+      tenantChannelProfile: TenantChannelProfile.Shopify,
       createdAt: SEED_DATE,
       updatedAt: SEED_DATE,
     },
@@ -51,6 +53,7 @@ const MOCK_USERS: readonly MockCredential[] = [
       storeIds: ['store-milano'],
       isActive: true,
       isPlatformAdmin: false,
+      tenantChannelProfile: TenantChannelProfile.Shopify,
       createdAt: SEED_DATE,
       updatedAt: SEED_DATE,
     },
@@ -66,6 +69,7 @@ const MOCK_USERS: readonly MockCredential[] = [
       storeIds: ['store-napoli'],
       isActive: true,
       isPlatformAdmin: false,
+      tenantChannelProfile: TenantChannelProfile.Shopify,
       createdAt: SEED_DATE,
       updatedAt: SEED_DATE,
     },

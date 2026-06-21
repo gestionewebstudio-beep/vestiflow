@@ -22,6 +22,13 @@ enum UserRole {
   clerk
 }
 
+/// Canale ecommerce abilitato per il tenant (scelto in provisioning piattaforma).
+enum TenantChannelProfile {
+  gestionale
+  shopify
+  tiktok_shop
+}
+
 enum ProductStatus {
   draft
   active
@@ -42,10 +49,11 @@ enum AdjustmentDirection {
   decrease
 }
 
-/// Origine del movimento: manuale (utente gestionale) o sync Shopify.
+/// Origine del movimento: manuale (utente gestionale) o sync canale vendita.
 enum MovementOrigin {
   manual
   shopify
+  tiktok
 }
 
 enum ShopifySyncStatus {
@@ -60,6 +68,21 @@ enum ShopifyConnectionStatus {
   not_connected
   connected
   reauth_required
+  error
+}
+
+enum TikTokConnectionStatus {
+  not_connected
+  connected
+  reauth_required
+  error
+}
+
+enum TikTokSyncStatus {
+  not_connected
+  synced
+  out_of_sync
+  syncing
   error
 }
 
@@ -105,6 +128,7 @@ enum InventoryCountStatus {
 model Tenant {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
+  channelProfile TenantChannelProfile @default(shopify) @map("channel_profile")
   legalName    String? @map("legal_name")
   vatNumber    String? @map("vat_number")
   fiscalCode   String? @map("fiscal_code")
@@ -136,6 +160,9 @@ model Tenant {
   shopifyConnection  ShopifyConnection?
   shopifyCredential  ShopifyCredential?
   shopifyOAuthStates ShopifyOAuthState[]
+  tiktokConnection   TikTokConnection?
+  tiktokCredential   TikTokCredential?
+  tiktokOAuthStates  TikTokOAuthState[]
 
   @@map("tenants")
 }
@@ -260,6 +287,12 @@ model Product {
   shopifySyncStatus ShopifySyncStatus @default(not_connected) @map("shopify_sync_status")
   shopifyLastSyncAt DateTime?         @map("shopify_last_sync_at")
   shopifyLastError  String?           @map("shopify_last_error")
+  /// Categoria TikTok Shop (id Partner API) — obbligatoria per push catalogo.
+  tiktokCategoryId  String?           @map("tiktok_category_id")
+  tiktokProductId   String?           @map("tiktok_product_id")
+  tiktokSyncStatus  TikTokSyncStatus  @default(not_connected) @map("tiktok_sync_status")
+  tiktokLastSyncAt  DateTime?         @map("tiktok_last_sync_at")
+  tiktokLastError   String?           @map("tiktok_last_error")
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
@@ -270,6 +303,7 @@ model Product {
   @@index([tenantId, status])
   @@index([tenantId, name])
   @@index([tenantId, shopifyProductId])
+  @@index([tenantId, tiktokProductId])
   @@map("products")
 }
 
@@ -314,6 +348,8 @@ model ProductVariant {
   // Collegamento Shopify: variante e inventory item.
   shopifyVariantId         String? @map("shopify_variant_id")
   shopifyInventoryItemId   String? @map("shopify_inventory_item_id")
+  /// SKU id TikTok Shop (Partner API) per sync giacenze.
+  tiktokSkuId              String? @map("tiktok_sku_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -627,4 +663,58 @@ model ShopifyOAuthState {
 
   @@index([expiresAt])
   @@map("shopify_oauth_states")
+}
+
+// ── Integrazione TikTok Shop (stato connessione, MAI token nel modello API) ─
+
+model TikTokConnection {
+  id              String                 @id @default(uuid()) @db.Uuid
+  tenantId        String                 @unique @map("tenant_id") @db.Uuid
+  status          TikTokConnectionStatus @default(not_connected)
+  shopId          String?                @map("shop_id")
+  shopCipher      String?                @map("shop_cipher")
+  displayName     String?                @map("display_name")
+  region          String?
+  scopes          String[]               @default([])
+  lastConnectedAt DateTime?              @map("last_connected_at")
+  lastSyncAt      DateTime?              @map("last_sync_at")
+  lastErrorMessage String?               @map("last_error_message")
+  lastErrorCode    String?               @map("last_error_code")
+  lastErrorAt      DateTime?             @map("last_error_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("tiktok_connections")
+}
+
+model TikTokCredential {
+  tenantId        String   @id @map("tenant_id") @db.Uuid
+  shopId          String   @map("shop_id")
+  shopCipher      String   @map("shop_cipher")
+  accessTokenEnc  String   @map("access_token_enc")
+  refreshTokenEnc String   @map("refresh_token_enc")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scopes          String[] @default([])
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tiktok_credentials")
+}
+
+model TikTokOAuthState {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  state     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("tiktok_oauth_states")
 }

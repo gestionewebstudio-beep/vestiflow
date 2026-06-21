@@ -15,7 +15,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { ShopifyInventoryPushService } from '../shopify/shopify-inventory-push.service';
+import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
@@ -30,7 +30,7 @@ export class SupplierOrdersService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly shopifyInventoryPush: ShopifyInventoryPushService,
+    private readonly channelSync: ChannelSyncFacade,
   ) {}
 
   listSuppliers(tenantId: string): Promise<Supplier[]> {
@@ -272,7 +272,7 @@ export class SupplierOrdersService {
 
     for (const entry of receivedVariants) {
       try {
-        await this.shopifyInventoryPush.pushLevel(tenantId, entry.variantId, entry.locationId);
+        await this.channelSync.pushInventoryLevels(tenantId, entry.variantId, [entry.locationId]);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Push inventario Shopify fallito';
         this.logger.warn(`Push inventario Shopify non riuscito (${tenantId}): ${message}`);

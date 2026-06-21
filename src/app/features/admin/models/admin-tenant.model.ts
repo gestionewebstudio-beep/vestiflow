@@ -1,4 +1,5 @@
 import type { UserRole } from '@core/models/user.model';
+import type { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 
 export interface TenantProfileFields {
   readonly legalName?: string;
@@ -17,6 +18,7 @@ export interface TenantProfileFields {
 
 export interface CreateTenantPayload extends TenantProfileFields {
   readonly tenantName: string;
+  readonly channelProfile: TenantChannelProfile;
   readonly ownerDisplayName: string;
   readonly ownerEmail: string;
   readonly ownerPassword: string;
@@ -27,6 +29,7 @@ export interface CreateTenantPayload extends TenantProfileFields {
 
 export interface UpdateTenantPayload extends TenantProfileFields {
   readonly tenantName?: string;
+  readonly channelProfile?: TenantChannelProfile;
   readonly ownerDisplayName?: string;
   readonly storeName?: string;
   readonly locationName?: string;
@@ -35,6 +38,7 @@ export interface UpdateTenantPayload extends TenantProfileFields {
 export interface ProvisionedTenant {
   readonly tenantId: string;
   readonly tenantName: string;
+  readonly channelProfile: TenantChannelProfile;
   readonly ownerUserId: string;
   readonly ownerEmail: string;
   readonly ownerDisplayName: string;
@@ -48,6 +52,7 @@ export interface ProvisionedTenant {
 export interface TenantSummary {
   readonly id: string;
   readonly name: string;
+  readonly channelProfile: TenantChannelProfile;
   readonly createdAt: string;
   readonly ownerEmail: string | null;
   readonly ownerDisplayName: string | null;
@@ -57,6 +62,7 @@ export interface TenantSummary {
 export interface TenantDetail {
   readonly id: string;
   readonly name: string;
+  readonly channelProfile: TenantChannelProfile;
   readonly createdAt: string;
   readonly profile: {
     readonly legalName: string | null;

@@ -20,6 +20,11 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
+import {
+  csvUploadMulterOptions,
+  productImageUploadMulterOptions,
+} from '../common/upload/multer-upload.options';
+
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ADMIN_ROLES, MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
@@ -96,11 +101,7 @@ export class ProductsController {
 
   @Post('import/preview')
   @Roles(...MANAGER_ROLES)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 15 * 1024 * 1024 },
-    }),
-  )
+  @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   previewImport(@CurrentTenant() tenantId: string, @UploadedFile() file: Express.Multer.File) {
     this.assertCsvFile(file);
     return this.productsImport.previewCsv(tenantId, file.buffer.toString('utf-8'));
@@ -108,11 +109,7 @@ export class ProductsController {
 
   @Post('import')
   @Roles(...MANAGER_ROLES)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 15 * 1024 * 1024 },
-    }),
-  )
+  @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   importProducts(
     @CurrentTenant() tenantId: string,
     @UploadedFile() file: Express.Multer.File,
@@ -175,11 +172,7 @@ export class ProductsController {
 
   @Post(':id/images')
   @Roles(...MANAGER_ROLES)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 5 * 1024 * 1024 },
-    }),
-  )
+  @UseInterceptors(FileInterceptor('file', productImageUploadMulterOptions))
   uploadImage(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,

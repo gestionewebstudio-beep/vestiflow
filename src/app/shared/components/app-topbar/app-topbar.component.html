@@ -13,64 +13,66 @@
     <span class="app-topbar__brand">VestiFlow</span>
   </div>
 
-  @if (locations().length > 0) {
-    <div class="app-topbar__store">
-      <app-select-menu
-        [options]="locationOptions()"
-        [value]="activeLocationValue()"
-        ariaLabel="Location attiva"
-        placeholder="Tutte le location"
-        triggerIcon="pi-shop"
-        [compact]="true"
-        (valueChange)="onLocationChange($event)"
-      />
-    </div>
-  }
-
-  <div class="app-topbar__actions">
-    @if (syncStatus(); as status) {
-      <button
-        type="button"
-        class="app-topbar__sync"
-        [attr.aria-label]="syncLabel()"
-        [title]="syncLabel()"
-        (click)="syncClick.emit()"
-      >
-        <i class="pi pi-sync" aria-hidden="true"></i>
-        <span class="app-topbar__sync-dot" [ngClass]="syncToneClass()" aria-hidden="true"></span>
-      </button>
-    }
-
-    <div class="app-topbar__theme" role="group" aria-label="Modalità tema">
-      @for (option of themeOptions; track option.mode) {
-        <button
-          type="button"
-          class="app-topbar__theme-btn"
-          [class.app-topbar__theme-btn--active]="themeMode() === option.mode"
-          [attr.aria-pressed]="themeMode() === option.mode"
-          [attr.aria-label]="option.label"
-          [title]="option.label"
-          (click)="themeModeChange.emit(option.mode)"
-        >
-          <i class="pi" [ngClass]="option.icon" aria-hidden="true"></i>
-        </button>
-      }
-    </div>
-
-    @if (user()) {
-      <div class="app-topbar__user">
-        <span class="app-topbar__avatar" [title]="displayName()" aria-hidden="true">{{
-          initials()
-        }}</span>
-        <button
-          type="button"
-          class="app-topbar__logout"
-          [attr.aria-label]="'Esci (' + displayName() + ')'"
-          (click)="logout.emit()"
-        >
-          <i class="pi pi-sign-out" aria-hidden="true"></i>
-        </button>
+  <div class="app-topbar__end">
+    @if (locations().length > 0) {
+      <div class="app-topbar__store">
+        <app-select-menu
+          [options]="locationOptions()"
+          [value]="activeLocationValue()"
+          ariaLabel="Location attiva"
+          placeholder="Tutte le location"
+          triggerIcon="pi-shop"
+          [compact]="true"
+          (valueChange)="onLocationChange($event)"
+        />
       </div>
     }
+
+    <div class="app-topbar__actions">
+      @if (syncStatus(); as status) {
+        <button
+          type="button"
+          class="app-topbar__sync"
+          [attr.aria-label]="syncLabel()"
+          [title]="syncLabel()"
+          (click)="syncClick.emit()"
+        >
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          <span class="app-topbar__sync-dot" [ngClass]="syncToneClass()" aria-hidden="true"></span>
+        </button>
+      }
+
+      <div class="app-topbar__theme" role="group" aria-label="Modalità tema">
+        @for (option of themeOptions; track option.mode) {
+          <button
+            type="button"
+            class="app-topbar__theme-btn"
+            [class.app-topbar__theme-btn--active]="themeMode() === option.mode"
+            [attr.aria-pressed]="themeMode() === option.mode"
+            [attr.aria-label]="option.label"
+            [title]="option.label"
+            (click)="themeModeChange.emit(option.mode)"
+          >
+            <i class="pi" [ngClass]="option.icon" aria-hidden="true"></i>
+          </button>
+        }
+      </div>
+
+      @if (user()) {
+        <div class="app-topbar__user">
+          <span class="app-topbar__avatar" [title]="displayName()" aria-hidden="true">{{
+            initials()
+          }}</span>
+          <button
+            type="button"
+            class="app-topbar__logout"
+            [attr.aria-label]="'Esci (' + displayName() + ')'"
+            (click)="logout.emit()"
+          >
+            <i class="pi pi-sign-out" aria-hidden="true"></i>
+          </button>
+        </div>
+      }
+    </div>
   </div>
 </div>

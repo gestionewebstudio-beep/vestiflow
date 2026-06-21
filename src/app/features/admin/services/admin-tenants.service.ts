@@ -42,4 +42,10 @@ export class AdminTenantsService {
       .patch<TenantDetail>(`${this.config.apiBaseUrl}/admin/tenants/${id}`, payload)
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
+
+  deleteTenant(id: string): Observable<void> {
+    return this.http
+      .delete<void>(`${this.config.apiBaseUrl}/admin/tenants/${id}`)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
 }

@@ -1,0 +1,138 @@
+<h2 id="settings-tiktok" class="tiktok-integration__title">Integrazione TikTok Shop</h2>
+
+@if (tiktokBanner(); as banner) {
+  <div
+    class="tiktok-integration__banner"
+    [class.tiktok-integration__banner--success]="
+      banner === 'connected' || banner === 'connected-warn'
+    "
+    [class.tiktok-integration__banner--error]="banner === 'error'"
+    [class.tiktok-integration__banner--warning]="banner === 'connected-warn'"
+    role="status"
+  >
+    @switch (banner) {
+      @case ('connected') {
+        Negozio TikTok collegato. I prodotti creati o modificati e i movimenti di carico/scarico
+        verranno sincronizzati con TikTok Shop.
+      }
+      @case ('connected-warn') {
+        Negozio TikTok collegato. Verifica eventuali avvisi sotto: la sync potrebbe essere
+        incompleta.
+      }
+      @case ('error') {
+        Autorizzazione TikTok Shop non riuscita. Verifica configurazione app Partner Center.
+      }
+      @case ('disconnected') {
+        Connessione TikTok Shop rimossa.
+      }
+    }
+    <button type="button" class="tiktok-integration__banner-dismiss" (click)="dismissBanner()">
+      Chiudi
+    </button>
+  </div>
+}
+
+@if (connectionLoading()) {
+  <app-table-skeleton [columns]="2" [rows]="3" />
+} @else if (connectionNotFound()) {
+  <p class="tiktok-integration__muted">
+    Nessuna connessione TikTok Shop attiva. Collega il negozio con OAuth: i token restano solo sul
+    server. In questa fase VestiFlow sincronizza catalogo (create/update) e giacenze dopo
+    carico/scarico.
+  </p>
+
+  @if (canManageTikTok()) {
+    @if (connectError(); as message) {
+      <p class="tiktok-integration__error" role="alert">{{ message }}</p>
+    }
+
+    <app-button
+      [loading]="connectLoading()"
+      [disabled]="connectLoading()"
+      (click)="connectTikTok()"
+    >
+      Connetti TikTok Shop
+    </app-button>
+  } @else {
+    <p class="tiktok-integration__muted">
+      Solo titolare o amministratore possono collegare TikTok Shop.
+    </p>
+  }
+} @else if (connectionError(); as appError) {
+  <app-error-state
+    [description]="appError.message"
+    retryLabel="Riprova"
+    (retry)="reloadConnection()"
+  />
+} @else if (connection(); as conn) {
+  <div class="tiktok-integration__status">
+    <app-badge [tone]="connectionStatusTone(conn.status)">
+      {{ connectionStatusLabel(conn.status) }}
+    </app-badge>
+    @if (conn.shopId) {
+      <span class="tiktok-integration__shop-id tabular-nums">Shop {{ conn.shopId }}</span>
+    }
+  </div>
+
+  <dl class="tiktok-integration__facts">
+    <div class="tiktok-integration__fact">
+      <dt>Nome negozio</dt>
+      <dd>{{ conn.displayName ?? '—' }}</dd>
+    </div>
+    <div class="tiktok-integration__fact">
+      <dt>Regione</dt>
+      <dd>{{ conn.region ?? '—' }}</dd>
+    </div>
+    <div class="tiktok-integration__fact">
+      <dt>Ultima connessione</dt>
+      <dd class="tabular-nums">
+        {{ conn.lastConnectedAt ? formatDateTime(conn.lastConnectedAt) : '—' }}
+      </dd>
+    </div>
+    <div class="tiktok-integration__fact">
+      <dt>Ultimo sync</dt>
+      <dd class="tabular-nums">
+        {{ conn.lastSyncAt ? formatDateTime(conn.lastSyncAt) : '—' }}
+      </dd>
+    </div>
+  </dl>
+
+  @if (conn.lastError; as lastError) {
+    <div class="tiktok-integration__error-block">
+      <p class="tiktok-integration__error" role="alert">
+        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+        {{ lastError.message }}
+        <span class="tiktok-integration__muted tabular-nums">
+          ({{ formatDateTime(lastError.occurredAt) }})
+        </span>
+      </p>
+    </div>
+  }
+
+  @if (connectError(); as message) {
+    <p class="tiktok-integration__error" role="alert">{{ message }}</p>
+  }
+
+  @if (canManageTikTok()) {
+    <div class="tiktok-integration__actions">
+      @if (showClearErrors()) {
+        <app-button
+          variant="ghost"
+          [loading]="clearErrorsLoading()"
+          [disabled]="clearErrorsLoading() || disconnectLoading()"
+          (click)="clearTikTokErrors()"
+        >
+          Ripristina connessione
+        </app-button>
+      }
+      <app-button
+        variant="secondary"
+        [loading]="disconnectLoading()"
+        [disabled]="disconnectLoading() || clearErrorsLoading()"
+        (click)="disconnectTikTok()"
+      >
+        Disconnetti TikTok Shop
+      </app-button>
+    </div>
+  }
+}

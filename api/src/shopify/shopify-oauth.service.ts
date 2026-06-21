@@ -11,8 +11,11 @@ import {
   SalesOrderFulfillmentStatus,
   SalesOrderSource,
   ShopifyConnectionStatus,
+  ShopifySyncStatus,
+  TenantChannelProfile,
 } from '@prisma/client';
 
+import { assertTenantChannelProfile } from '../common/tenant-channel-profile.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConfigService } from './shopify-config.service';
@@ -49,6 +52,7 @@ export class ShopifyOAuthService {
   ) {}
 
   async beginAuth(tenantId: string, shopInput: string): Promise<{ authorizeUrl: string }> {
+    await assertTenantChannelProfile(this.prisma, tenantId, TenantChannelProfile.shopify);
     this.shopifyAdmin.assertConfigured();
     if (!this.shopifyCrypto.isConfigured()) {
       throw new ServiceUnavailableException('SHOPIFY_TOKEN_ENCRYPTION_KEY non configurata');
@@ -215,6 +219,15 @@ export class ShopifyOAuthService {
           displayName: null,
           scopes: [],
           lastConnectedAt: null,
+        },
+      }),
+      this.prisma.location.updateMany({
+        where: { tenantId },
+        data: {
+          shopifyLocationId: null,
+          shopifySyncStatus: ShopifySyncStatus.not_connected,
+          shopifyLastSyncAt: null,
+          shopifyLastError: null,
         },
       }),
     ]);

@@ -12,14 +12,48 @@
   max-inline-size: var(--content-wide);
 }
 
+.create-client__header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
+.create-client__panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.create-client__panel-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.create-client__panel--list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 0;
+}
+
 .create-client__back {
   margin: 0;
 }
 
 .create-client__back-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   text-decoration: none;
+  cursor: pointer;
 }
 
 .create-client__back-link:hover {
@@ -53,6 +87,26 @@
 .create-client__panel--success {
   border-color: var(--status-success-border);
   background-color: var(--status-success-bg);
+}
+
+.create-client__panel--danger {
+  border-color: var(--status-error-border);
+  background-color: var(--status-error-bg);
+
+  .create-client__panel-title {
+    color: var(--status-error-fg);
+  }
+
+  .create-client__muted {
+    color: var(--color-text);
+  }
+}
+
+.create-client__danger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
 }
 
 .create-client__panel-title {
@@ -178,6 +232,8 @@
 
 .create-client__table-wrap {
   overflow-x: auto;
+  flex: 1 1 auto;
+  min-block-size: 0;
 }
 
 .create-client__table {

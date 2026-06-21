@@ -19,6 +19,7 @@
           class="app-sidebar__link"
           [routerLink]="item.route"
           routerLinkActive="app-sidebar__link--active"
+          [routerLinkActiveOptions]="item.linkActiveOptions ?? { exact: true }"
           #rla="routerLinkActive"
           [attr.aria-current]="rla.isActive ? 'page' : null"
         >

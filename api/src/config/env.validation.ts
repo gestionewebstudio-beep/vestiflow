@@ -93,6 +93,52 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   SUPABASE_PRODUCT_MEDIA_BUCKET?: string;
+
+  /** Integrazione TikTok Shop (opzionale — senza queste variabili OAuth resta disabilitato). */
+  @IsString()
+  @IsOptional()
+  TIKTOK_APP_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  TIKTOK_APP_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  TIKTOK_SERVICE_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  TIKTOK_API_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  TIKTOK_AUTH_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  TIKTOK_AUTHORIZE_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  TIKTOK_API_VERSION?: string;
+
+  @IsString()
+  @IsOptional()
+  TIKTOK_APP_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  TIKTOK_OAUTH_CALLBACK_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  TIKTOK_TOKEN_ENCRYPTION_KEY?: string;
+
+  /** Categoria TikTok di default se il prodotto non ne ha una (id Partner API). */
+  @IsString()
+  @IsOptional()
+  TIKTOK_DEFAULT_CATEGORY_ID?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

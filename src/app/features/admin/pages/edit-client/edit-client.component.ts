@@ -15,6 +15,7 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { isAppError } from '@core/models/app-error.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
@@ -26,6 +27,12 @@ import {
   profilePayloadFromForm,
 } from '../../models/admin-tenant-profile.form';
 import { tenantRoleLabel } from '../../models/admin-tenant-role.util';
+import {
+  TENANT_CHANNEL_PROFILE_OPTIONS,
+  TenantChannelProfile,
+  tenantChannelProfileLabel,
+} from '@core/models/tenant-channel-profile.model';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { AdminTenantsService } from '../../services/admin-tenants.service';
 
 type TenantLoadState =
@@ -40,9 +47,11 @@ type TenantLoadState =
     ReactiveFormsModule,
     RouterLink,
     ButtonComponent,
+    ConfirmDialogComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
     AdminTenantProfileFieldsComponent,
+    SelectMenuComponent,
   ],
   templateUrl: './edit-client.component.html',
   styleUrl: '../create-client/create-client.component.scss',
@@ -56,6 +65,11 @@ export class EditClientComponent {
 
   protected readonly formatDateTime = formatDateTime;
   protected readonly tenantRoleLabel = tenantRoleLabel;
+  protected readonly tenantChannelProfileLabel = tenantChannelProfileLabel;
+  protected readonly channelProfileOptions = TENANT_CHANNEL_PROFILE_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   private readonly tenantId = computed(() => this.params().get('tenantId') ?? '');
@@ -94,6 +108,20 @@ export class EditClientComponent {
   protected readonly submitLoading = signal(false);
   protected readonly submitError = signal<string | null>(null);
   protected readonly saved = signal(false);
+  protected readonly deleteDialogOpen = signal(false);
+  protected readonly deleteLoading = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
+
+  protected readonly deleteConfirmMessage = computed(() => {
+    const detail = this.tenant();
+    if (!detail) {
+      return '';
+    }
+    return (
+      `Verranno eliminati definitivamente il cliente "${detail.name}", tutti i dati del negozio ` +
+      `(prodotti, giacenze, ordini, utenti) e le credenziali di accesso. L'azione non è reversibile.`
+    );
+  });
 
   protected readonly form = this.fb.group({
     tenantName: this.fb.control('', {
@@ -102,6 +130,9 @@ export class EditClientComponent {
     ...createTenantProfileControls(this.fb),
     ownerDisplayName: this.fb.control('', {
       validators: [Validators.required, Validators.minLength(2), Validators.maxLength(120)],
+    }),
+    channelProfile: this.fb.control<TenantChannelProfile>(TenantChannelProfile.Gestionale, {
+      validators: [Validators.required],
     }),
     storeName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
     locationName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
@@ -119,6 +150,18 @@ export class EditClientComponent {
   protected showError(controlName: string): boolean {
     const control = this.form.controls[controlName as keyof typeof this.form.controls];
     return control.invalid && control.touched;
+  }
+
+  protected onChannelProfileSelect(value: string | null): void {
+    if (!value || !this.isChannelProfile(value)) {
+      return;
+    }
+    this.form.controls.channelProfile.setValue(value);
+    this.form.controls.channelProfile.markAsTouched();
+  }
+
+  private isChannelProfile(value: string): value is TenantChannelProfile {
+    return (Object.values(TenantChannelProfile) as readonly string[]).includes(value);
   }
 
   protected onSubmit(): void {
@@ -140,6 +183,7 @@ export class EditClientComponent {
       .updateTenant(detail.id, {
         tenantName: raw.tenantName.trim(),
         ownerDisplayName: raw.ownerDisplayName.trim(),
+        channelProfile: raw.channelProfile,
         ...(storeName ? { storeName } : {}),
         ...(locationName ? { locationName } : {}),
         ...profilePayloadFromForm(raw),
@@ -165,5 +209,39 @@ export class EditClientComponent {
     this.saved.set(false);
     this.submitError.set(null);
     void this.router.navigateByUrl(this.router.url, { onSameUrlNavigation: 'reload' });
+  }
+
+  protected openDeleteDialog(): void {
+    this.deleteError.set(null);
+    this.deleteDialogOpen.set(true);
+  }
+
+  protected confirmDelete(): void {
+    const detail = this.tenant();
+    if (!detail || this.deleteLoading()) {
+      return;
+    }
+
+    this.deleteLoading.set(true);
+    this.deleteError.set(null);
+
+    this.adminTenants
+      .deleteTenant(detail.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.deleteLoading.set(false);
+          this.deleteDialogOpen.set(false);
+          void this.router.navigate(['/app/admin/clients']);
+        },
+        error: (err: unknown) => {
+          this.deleteLoading.set(false);
+          if (isAppError(err)) {
+            this.deleteError.set(err.message);
+            return;
+          }
+          this.deleteError.set('Eliminazione cliente non riuscita. Riprova.');
+        },
+      });
   }
 }

@@ -14,7 +14,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { ShopifyInventoryPushService } from '../shopify/shopify-inventory-push.service';
+import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type {
   ListInventoryLevelsQueryDto,
@@ -33,7 +33,7 @@ export class InventoryService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly shopifyInventoryPush: ShopifyInventoryPushService,
+    private readonly channelSync: ChannelSyncFacade,
   ) {}
 
   listLocations(tenantId: string): Promise<Location[]> {
@@ -166,22 +166,9 @@ export class InventoryService {
     const locationIds = dto.targetLocationId
       ? [dto.locationId, dto.targetLocationId]
       : [dto.locationId];
-    await this.pushInventoryToShopify(tenantId, dto.variantId, locationIds);
+    await this.channelSync.pushInventoryLevels(tenantId, dto.variantId, locationIds);
 
     return movement;
-  }
-
-  private async pushInventoryToShopify(
-    tenantId: string,
-    variantId: string,
-    locationIds: readonly string[],
-  ): Promise<void> {
-    try {
-      await this.shopifyInventoryPush.pushLevels(tenantId, variantId, locationIds);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Push inventario Shopify fallito';
-      this.logger.warn(`Push inventario Shopify non riuscito (${tenantId}): ${message}`);
-    }
   }
 
   /** Variazione (con segno) da applicare alla location di origine. */

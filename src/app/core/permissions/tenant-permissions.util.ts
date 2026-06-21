@@ -16,6 +16,11 @@ export function canManageShopifyConnection(user: User | null | undefined): boole
   return isTenantAdmin(user);
 }
 
+/** Connessione TikTok Shop — stessi ruoli della connessione Shopify. */
+export function canManageTikTokConnection(user: User | null | undefined): boolean {
+  return isTenantAdmin(user);
+}
+
 /** Creazione/modifica prodotti, import/export CSV catalogo e giacenze. */
 export function canManageCatalog(user: User | null | undefined): boolean {
   return isTenantManager(user);

@@ -32,7 +32,9 @@
   "overrides": {
     "@babel/core": "^7.29.7",
     "esbuild": "^0.28.1",
-    "vite": "^7.3.5"
+    "vite": "^7.3.5",
+    "piscina": "5.2.0",
+    "undici": "7.28.0"
   },
   "dependencies": {
     "@angular/common": "^21.2.0",
@@ -80,5 +82,8 @@
     "*.{json,md,scss,yaml,yml}": [
       "prettier --write"
     ]
+  },
+  "volta": {
+    "node": "22.13.1"
   }
 }

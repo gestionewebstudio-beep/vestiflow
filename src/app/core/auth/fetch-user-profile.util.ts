@@ -3,6 +3,10 @@ import { map, type Observable } from 'rxjs';
 
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
+import {
+  TenantChannelProfile,
+  type TenantChannelProfile as TenantChannelProfileType,
+} from '@core/models/tenant-channel-profile.model';
 
 /** Risposta `GET /auth/me` (allineata al backend NestJS). */
 interface UserProfileApi {
@@ -14,6 +18,7 @@ interface UserProfileApi {
   readonly storeIds: readonly string[];
   readonly isActive: boolean;
   readonly isPlatformAdmin: boolean;
+  readonly tenantChannelProfile?: TenantChannelProfileType;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -40,6 +45,7 @@ function mapUserProfile(row: UserProfileApi): User {
     storeIds: row.storeIds,
     isActive: row.isActive,
     isPlatformAdmin: row.isPlatformAdmin,
+    tenantChannelProfile: row.tenantChannelProfile ?? TenantChannelProfile.Shopify,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

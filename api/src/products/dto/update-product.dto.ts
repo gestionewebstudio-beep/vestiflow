@@ -57,6 +57,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
+  tiktokCategoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   season?: string;
 
   @IsOptional()

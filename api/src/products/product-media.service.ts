@@ -11,7 +11,7 @@ import type { ProductImage } from '@prisma/client';
 
 import { SupabaseService } from '../auth/supabase.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ShopifyProductPushService } from '../shopify/shopify-product-push.service';
+import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -24,7 +24,7 @@ export class ProductMediaService {
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
     private readonly config: ConfigService,
-    private readonly shopifyProductPush: ShopifyProductPushService,
+    private readonly channelSync: ChannelSyncFacade,
   ) {
     this.bucket = this.config.get<string>('SUPABASE_PRODUCT_MEDIA_BUCKET') ?? 'product-media';
   }
@@ -73,7 +73,7 @@ export class ProductMediaService {
       },
     });
 
-    void this.shopifyProductPush.enqueuePush(tenantId, productId);
+    this.channelSync.enqueueProductPush(tenantId, productId);
     return image;
   }
 
@@ -95,7 +95,7 @@ export class ProductMediaService {
     }
 
     await this.prisma.productImage.delete({ where: { id: imageId } });
-    void this.shopifyProductPush.enqueuePush(tenantId, productId);
+    this.channelSync.enqueueProductPush(tenantId, productId);
   }
 
   private async assertProduct(tenantId: string, productId: string): Promise<void> {

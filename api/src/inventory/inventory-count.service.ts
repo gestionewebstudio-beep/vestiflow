@@ -16,7 +16,7 @@ import {
 
 import type { Paginated } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import { ShopifyInventoryPushService } from '../shopify/shopify-inventory-push.service';
+import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
 import type { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
 
@@ -38,7 +38,7 @@ export class InventoryCountService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly shopifyInventoryPush: ShopifyInventoryPushService,
+    private readonly channelSync: ChannelSyncFacade,
   ) {}
 
   async list(
@@ -270,7 +270,7 @@ export class InventoryCountService {
 
     for (const variantId of variantIdsForPush) {
       try {
-        await this.shopifyInventoryPush.pushLevels(tenantId, variantId, [session.locationId]);
+        await this.channelSync.pushInventoryLevels(tenantId, variantId, [session.locationId]);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Push Shopify fallito';
         this.logger.warn(`Push inventario post-conteggio (${tenantId}): ${message}`);

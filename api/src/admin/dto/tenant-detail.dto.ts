@@ -1,3 +1,5 @@
+import type { TenantChannelProfile } from '@prisma/client';
+
 export interface TenantProfileDto {
   readonly legalName: string | null;
   readonly vatNumber: string | null;
@@ -16,6 +18,7 @@ export interface TenantProfileDto {
 export interface TenantDetailDto {
   readonly id: string;
   readonly name: string;
+  readonly channelProfile: TenantChannelProfile;
   readonly createdAt: string;
   readonly profile: TenantProfileDto;
   readonly owner: {
