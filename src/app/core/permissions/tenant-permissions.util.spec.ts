@@ -30,6 +30,7 @@ function userWithRole(role: User['role'], overrides: Partial<User> = {}): User {
     isActive: true,
     isPlatformAdmin: false,
     tenantChannelProfile: TenantChannelProfile.Shopify,
+    tenantName: 'Cliente test',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
