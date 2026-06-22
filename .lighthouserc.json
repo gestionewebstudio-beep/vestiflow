@@ -1,0 +1,31 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "npm run build -- --configuration=e2e && npx http-server dist/vestiflow/browser -p 4210 -c-1",
+      "startServerReadyPattern": "Available on",
+      "url": [
+        "http://127.0.0.1:4210/login",
+        "http://127.0.0.1:4210/app/dashboard",
+        "http://127.0.0.1:4210/app/products"
+      ],
+      "numberOfRuns": 1,
+      "puppeteerScript": "./scripts/lhci-mock-auth.cjs",
+      "settings": {
+        "preset": "desktop",
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage"
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["warn", { "minScore": 0.75 }],
+        "categories:accessibility": ["error", { "minScore": 0.9 }],
+        "categories:best-practices": ["warn", { "minScore": 0.9 }],
+        "categories:seo": "off"
+      }
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": "./lighthouse-reports"
+    }
+  }
+}

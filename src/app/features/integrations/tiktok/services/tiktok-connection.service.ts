@@ -1,8 +1,8 @@
-import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { ApiHttpClient } from '@core/http/api-http.client';
 import type { TikTokConnection } from '@core/models/tiktok-connection.model';
 
 import { tiktokConnectionFromDto } from '../models/tiktok-connection.mapper';
@@ -12,7 +12,7 @@ const HTTP_TIMEOUT_MS = 15_000;
 
 @Injectable({ providedIn: 'root' })
 export class TikTokConnectionService {
-  private readonly http = inject(HttpClient);
+  private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
   getConnection(): Observable<TikTokConnection> {

@@ -7,8 +7,14 @@ import { hasE2eCredentials } from './e2e/helpers/env';
 loadEnvFile(resolve(__dirname, '.env'));
 
 const authFile = 'e2e/.auth/user.json';
+const mockAuthFile = 'e2e/.auth/mock-user.json';
 const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:4200';
 const apiURL = process.env.E2E_API_URL ?? 'http://localhost:3000';
+const useE2eFrontend = process.env.E2E_USE_MOCK_AUTH === '1' || Boolean(process.env.CI);
+
+const frontendStartCommand = useE2eFrontend
+  ? 'npm run start -- --host 127.0.0.1 --port 4200 --configuration e2e'
+  : 'npm run start -- --host 127.0.0.1 --port 4200';
 
 const authenticatedProjects = hasE2eCredentials()
   ? [
@@ -23,7 +29,13 @@ const authenticatedProjects = hasE2eCredentials()
           storageState: authFile,
         },
         dependencies: ['setup'],
-        testIgnore: [/\.guest\.spec\.ts$/, /auth\.setup\.ts/, /mobile-p0\.spec\.ts$/],
+        testIgnore: [
+          /\.guest\.spec\.ts$/,
+          /auth\.setup\.ts/,
+          /mock-auth\.setup\.ts/,
+          /ci-smoke\.spec\.ts/,
+          /mobile-p0\.spec\.ts$/,
+        ],
       },
       {
         name: 'mobile-chrome',
@@ -53,12 +65,25 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   projects: [
-    ...authenticatedProjects,
     {
       name: 'chromium-guest',
       use: { ...devices['Desktop Chrome'] },
       testMatch: /\.guest\.spec\.ts$/,
     },
+    {
+      name: 'mock-setup',
+      testMatch: /mock-auth\.setup\.ts/,
+    },
+    {
+      name: 'chromium-ci',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: mockAuthFile,
+      },
+      dependencies: ['mock-setup'],
+      testMatch: /ci-smoke\.spec\.ts$/,
+    },
+    ...authenticatedProjects,
   ],
   webServer: process.env.E2E_SKIP_WEBSERVER
     ? undefined
@@ -71,7 +96,7 @@ export default defineConfig({
           cwd: '.',
         },
         {
-          command: 'npm run start -- --host 127.0.0.1 --port 4200',
+          command: frontendStartCommand,
           url: baseURL,
           reuseExistingServer: !process.env.CI,
           timeout: 120_000,

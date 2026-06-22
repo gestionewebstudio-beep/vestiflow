@@ -1,10 +1,11 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 
 import { toPaginatedResponse } from '@core/api/api-pagination.mapper';
 import type { ApiPaginated } from '@core/api/api-paginated.model';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { ApiHttpClient } from '@core/http/api-http.client';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
@@ -23,7 +24,7 @@ const HTTP_TIMEOUT_MS = 15000;
  */
 @Injectable({ providedIn: 'root' })
 export class SupplierOrderService {
-  private readonly http = inject(HttpClient);
+  private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
   getSupplierOrders(

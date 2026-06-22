@@ -1,8 +1,9 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { ApiHttpClient } from '@core/http/api-http.client';
 
 export interface ShopifyTaxonomyCategory {
   readonly id: string;
@@ -32,7 +33,7 @@ const HTTP_TIMEOUT_MS = 15_000;
 
 @Injectable({ providedIn: 'root' })
 export class ShopifyTaxonomyService {
-  private readonly http = inject(HttpClient);
+  private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
   listCategories(options: {

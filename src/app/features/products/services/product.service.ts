@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { forkJoin, map, of, type Observable, shareReplay, timeout, tap } from 'rxjs';
 
@@ -10,6 +10,7 @@ import {
   type ProductApiRow,
 } from '@core/api/domain-api.mapper';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { ApiHttpClient } from '@core/http/api-http.client';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
@@ -56,7 +57,7 @@ interface TimedCache<T> {
  */
 @Injectable({ providedIn: 'root' })
 export class ProductService {
-  private readonly http = inject(HttpClient);
+  private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
   private variantSummariesCache: TimedCache<readonly VariantSummary[]> | null = null;

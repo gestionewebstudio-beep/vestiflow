@@ -1,8 +1,8 @@
-import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { ApiHttpClient } from '@core/http/api-http.client';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 
 import { shopifyConnectionFromDto } from '../models/shopify-connection.mapper';
@@ -32,7 +32,7 @@ const SYNC_CUSTOMERS_ORDERS_TIMEOUT_MS = 180_000;
  */
 @Injectable({ providedIn: 'root' })
 export class ShopifyConnectionService {
-  private readonly http = inject(HttpClient);
+  private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
   getConnection(): Observable<ShopifyConnection> {

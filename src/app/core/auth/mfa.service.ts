@@ -1,4 +1,3 @@
-import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 import type { Factor } from '@supabase/supabase-js';
@@ -6,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { SupabaseClientService } from '@core/auth/supabase-client.service';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { ApiHttpClient } from '@core/http/api-http.client';
 
 export interface MfaEnrollmentStart {
   readonly factorId: string;
@@ -18,7 +18,7 @@ export interface MfaEnrollmentStart {
 export class MfaService {
   private readonly supabaseClient = inject(SupabaseClientService);
   private readonly sanitizer = inject(DomSanitizer);
-  private readonly http = inject(HttpClient);
+  private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
   private get supabase() {

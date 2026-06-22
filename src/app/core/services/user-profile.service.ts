@@ -1,10 +1,10 @@
-import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { mapUserProfileFromApi, type UserProfileApi } from '@core/auth/fetch-user-profile.util';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { ApiHttpClient } from '@core/http/api-http.client';
 import type { User } from '@core/models/user.model';
 
 const HTTP_TIMEOUT_MS = 30_000;
@@ -13,7 +13,7 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 @Injectable({ providedIn: 'root' })
 export class UserProfileService {
-  private readonly http = inject(HttpClient);
+  private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
   private readonly auth = inject(AuthService);
 

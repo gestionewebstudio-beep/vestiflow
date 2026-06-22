@@ -14,6 +14,8 @@ import type { LoginCredentials } from './models/login-credentials.model';
 
 const TENANT_ID: EntityId = 'tenant-demo';
 const SEED_DATE: IsoDateString = '2026-01-01T00:00:00.000Z';
+/** Chiave sessionStorage per ripristinare la sessione mock tra navigazioni (E2E/LHCI). */
+const MOCK_SESSION_STORAGE_KEY = 'vestiflow-mock-user-id';
 
 const LOGIN_LATENCY_MS = 700;
 const SHORT_LATENCY_MS = 200;
@@ -101,6 +103,7 @@ export class MockAuthGateway implements AuthGateway {
           return throwError(() => this.accountDisabledError());
         }
         this.currentUser = match.user;
+        this.persistSession(match.user.id);
         return of<AuthSession>({ user: match.user });
       }),
     );
@@ -121,12 +124,13 @@ export class MockAuthGateway implements AuthGateway {
       delay(SHORT_LATENCY_MS),
       map(() => {
         this.currentUser = null;
+        this.clearPersistedSession();
       }),
     );
   }
 
   restoreSession(): Observable<AuthSession | null> {
-    // Nessuna persistenza: all'avvio non c'e' sessione da ripristinare.
+    this.restoreFromStorage();
     return of(this.currentUser ? { user: this.currentUser } : null).pipe(delay(SHORT_LATENCY_MS));
   }
 
@@ -157,5 +161,40 @@ export class MockAuthGateway implements AuthGateway {
       message: 'Account disabilitato. Contatta un amministratore.',
       status: 403,
     };
+  }
+
+  private persistSession(userId: EntityId): void {
+    try {
+      sessionStorage.setItem(MOCK_SESSION_STORAGE_KEY, userId);
+    } catch {
+      // sessionStorage non disponibile (SSR/tests): sessione solo in memoria.
+    }
+  }
+
+  private clearPersistedSession(): void {
+    try {
+      sessionStorage.removeItem(MOCK_SESSION_STORAGE_KEY);
+    } catch {
+      // Ignora: nessuna persistenza disponibile.
+    }
+  }
+
+  private restoreFromStorage(): void {
+    if (this.currentUser) {
+      return;
+    }
+    try {
+      const userId = sessionStorage.getItem(MOCK_SESSION_STORAGE_KEY);
+      if (!userId) {
+        return;
+      }
+      const match = MOCK_USERS.find((candidate) => candidate.user.id === userId);
+      this.currentUser = match?.user ?? null;
+      if (!match) {
+        this.clearPersistedSession();
+      }
+    } catch {
+      // sessionStorage non disponibile.
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, of, type Observable, shareReplay, switchMap, throwError, timeout } from 'rxjs';
 
@@ -13,6 +13,7 @@ import {
   type StockMovementApiRow,
 } from '@core/api/domain-api.mapper';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { ApiHttpClient } from '@core/http/api-http.client';
 import { AppErrorKind } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
@@ -69,7 +70,7 @@ interface TimedCache<T> {
  */
 @Injectable({ providedIn: 'root' })
 export class InventoryService {
-  private readonly http = inject(HttpClient);
+  private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
   private locationsCache: TimedCache<readonly Location[]> | null = null;
