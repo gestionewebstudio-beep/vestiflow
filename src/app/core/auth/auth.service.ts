@@ -64,6 +64,12 @@ export class AuthService {
     return this.gateway.logout().pipe(tap(() => this.applySession(null)));
   }
 
+  /** Aggiorna l'utente corrente in memoria (es. dopo cambio foto profilo). */
+  setCurrentUser(user: User): void {
+    this._currentUser.set(user);
+    this._status.set('authenticated');
+  }
+
   /**
    * Token effimero per le chiamate verso origini fidate. Ottenuto on-demand dal
    * gateway, mai persistito. `null` se non autenticato.

@@ -16,6 +16,7 @@ export interface User extends TenantScoped, Timestamped {
   readonly id: EntityId;
   readonly email: string;
   readonly displayName: string;
+  readonly avatarUrl: string | null;
   readonly role: UserRole;
   /** Negozi a cui l'utente ha accesso. */
   readonly storeIds: readonly EntityId[];

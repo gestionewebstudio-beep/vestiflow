@@ -157,15 +157,18 @@
 
 .app-topbar__avatar {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--field-height);
-  block-size: var(--field-height);
+  padding: 0;
+  border: 0;
   border-radius: var(--radius-full);
-  background-color: var(--color-brand);
-  color: var(--color-text-inverse);
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-semibold);
+  background-color: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    box-shadow var(--transition-fast) var(--ease-standard);
+}
+
+.app-topbar__avatar:hover {
+  box-shadow: 0 0 0 var(--border-width-strong) var(--color-border-strong);
 }
 
 .app-topbar__logout {

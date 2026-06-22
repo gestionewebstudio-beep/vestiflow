@@ -1,6 +1,6 @@
 <section class="settings">
   <header class="settings__header">
-    <h1 class="settings__title">Account operatore</h1>
+    <h1 class="settings__title">Impostazioni</h1>
     <p class="settings__subtitle">
       Preferenze del tuo accesso piattaforma. I dati negozio dei clienti si gestiscono accedendo con
       l'account del cliente.
@@ -10,6 +10,7 @@
   <section class="settings__panel" aria-labelledby="operator-profile">
     <h2 id="operator-profile" class="settings__panel-title">Profilo</h2>
     @if (currentUser(); as user) {
+      <app-profile-avatar-upload [user]="user" />
       <dl class="settings__facts">
         <div class="settings__fact">
           <dt>Nome</dt>

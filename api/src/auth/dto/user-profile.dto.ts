@@ -7,6 +7,7 @@ export interface UserProfileDto {
   readonly tenantChannelProfile: TenantChannelProfile;
   readonly email: string;
   readonly displayName: string;
+  readonly avatarUrl: string | null;
   readonly role: User['role'];
   readonly storeIds: readonly string[];
   readonly isActive: boolean;
@@ -28,6 +29,7 @@ export function toUserProfileDto(
     tenantChannelProfile: user.tenant.channelProfile,
     email: user.email,
     displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
     role: user.role,
     storeIds: user.stores.map((link) => link.storeId),
     isActive: user.isActive,

@@ -27,7 +27,7 @@ export const adminRoutes: Routes = [
   },
   {
     path: 'account',
-    title: 'VestiFlow · Account operatore',
+    title: 'VestiFlow · Impostazioni',
     canActivate: [platformAdminGuard],
     loadComponent: () =>
       import('./pages/operator-account/operator-account.component').then(

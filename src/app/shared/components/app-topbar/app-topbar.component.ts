@@ -7,6 +7,7 @@ import type { Location } from '@core/models/location.model';
 import type { User } from '@core/models/user.model';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { UserAvatarComponent } from '@shared/components/user-avatar/user-avatar.component';
 import type { ThemeMode } from '@shared/models/theme.model';
 
 interface ThemeOption {
@@ -29,7 +30,7 @@ const SYNC_LABELS: Record<ShopifyConnectionStatus, string> = {
 @Component({
   selector: 'app-topbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgClass, SelectMenuComponent],
+  imports: [NgClass, SelectMenuComponent, UserAvatarComponent],
   templateUrl: './app-topbar.component.html',
   styleUrl: './app-topbar.component.scss',
 })
@@ -53,6 +54,8 @@ export class AppTopbarComponent {
   readonly locationChange = output<EntityId | null>();
   /** Click sull'indicatore sync (lo shell naviga alle impostazioni). */
   readonly syncClick = output<void>();
+  /** Click sull'avatar utente (lo shell naviga alle impostazioni). */
+  readonly settingsClick = output<void>();
   /** Richiesta di logout (lo shell parla all'AuthService). */
   readonly logout = output<void>();
 
@@ -96,28 +99,7 @@ export class AppTopbarComponent {
     this.locationChange.emit(value);
   }
 
-  /** Nome visualizzato: displayName se presente, altrimenti email. */
-  protected readonly displayName = computed(() => {
-    const current = this.user();
-    if (!current) {
-      return '';
-    }
-    return current.displayName.trim() || current.email;
-  });
-
-  /** Iniziali per l'avatar: nome+cognome, fallback all'iniziale dell'email. */
-  protected readonly initials = computed(() => {
-    const current = this.user();
-    if (!current) {
-      return '';
-    }
-    const name = current.displayName.trim();
-    if (name) {
-      const parts = name.split(/\s+/).filter(Boolean);
-      const first = parts[0]?.charAt(0) ?? '';
-      const last = parts.length > 1 ? (parts[parts.length - 1]?.charAt(0) ?? '') : '';
-      return (first + last).toUpperCase();
-    }
-    return current.email.charAt(0).toUpperCase();
-  });
+  protected onSettingsClick(): void {
+    this.settingsClick.emit();
+  }
 }

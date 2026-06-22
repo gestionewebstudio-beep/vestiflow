@@ -35,29 +35,16 @@
   <section class="create-client__section" aria-labelledby="tenant-profile-address">
     <h3 id="tenant-profile-address" class="create-client__section-title">Sede (opzionale)</h3>
 
-    <div class="create-client__field-row">
-      <label class="create-client__field" for="tenant-address-1">
-        <span class="create-client__field-label">Indirizzo</span>
-        <input
-          id="tenant-address-1"
-          class="create-client__input"
-          type="text"
-          formControlName="addressLine1"
-          autocomplete="street-address"
-        />
-      </label>
-
-      <label class="create-client__field" for="tenant-address-2">
-        <span class="create-client__field-label">Indirizzo (riga 2)</span>
-        <input
-          id="tenant-address-2"
-          class="create-client__input"
-          type="text"
-          formControlName="addressLine2"
-          autocomplete="off"
-        />
-      </label>
-    </div>
+    <label class="create-client__field create-client__field--span-full" for="tenant-address-1">
+      <span class="create-client__field-label">Indirizzo</span>
+      <input
+        id="tenant-address-1"
+        class="create-client__input"
+        type="text"
+        formControlName="addressLine1"
+        autocomplete="street-address"
+      />
+    </label>
 
     <div class="create-client__field-row">
       <label class="create-client__field" for="tenant-city">
@@ -135,7 +122,7 @@
 
     <div class="create-client__field-row">
       <label class="create-client__field" for="tenant-sdi">
-        <span class="create-client__field-label">Codice destinatario SDI</span>
+        <span class="create-client__field-label">Codice destinatario SDI (opzionale)</span>
         <input id="tenant-sdi" class="create-client__input" type="text" formControlName="sdiCode" />
       </label>
     </div>

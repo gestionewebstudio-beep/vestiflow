@@ -94,6 +94,11 @@ export class EnvironmentVariables {
   @IsOptional()
   SUPABASE_PRODUCT_MEDIA_BUCKET?: string;
 
+  /** Bucket Supabase Storage public per foto profilo utente. Default: user-avatars */
+  @IsString()
+  @IsOptional()
+  SUPABASE_USER_AVATARS_BUCKET?: string;
+
   /** Integrazione TikTok Shop (opzionale — senza queste variabili OAuth resta disabilitato). */
   @IsString()
   @IsOptional()

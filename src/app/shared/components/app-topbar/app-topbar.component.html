@@ -58,15 +58,30 @@
         }
       </div>
 
-      @if (user()) {
+      @if (user(); as currentUser) {
         <div class="app-topbar__user">
-          <span class="app-topbar__avatar" [title]="displayName()" aria-hidden="true">{{
-            initials()
-          }}</span>
+          <button
+            type="button"
+            class="app-topbar__avatar"
+            [attr.aria-label]="
+              'Impostazioni (' + (currentUser.displayName.trim() || currentUser.email) + ')'
+            "
+            [title]="'Impostazioni'"
+            (click)="onSettingsClick()"
+          >
+            <app-user-avatar
+              size="md"
+              [displayName]="currentUser.displayName"
+              [email]="currentUser.email"
+              [avatarUrl]="currentUser.avatarUrl"
+            />
+          </button>
           <button
             type="button"
             class="app-topbar__logout"
-            [attr.aria-label]="'Esci (' + displayName() + ')'"
+            [attr.aria-label]="
+              'Esci (' + (currentUser.displayName.trim() || currentUser.email) + ')'
+            "
             (click)="logout.emit()"
           >
             <i class="pi pi-sign-out" aria-hidden="true"></i>

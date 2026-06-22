@@ -1,0 +1,77 @@
+<div class="profile-avatar-upload">
+  @if (user().avatarUrl) {
+    <button
+      type="button"
+      class="profile-avatar-upload__preview-trigger"
+      aria-label="Visualizza foto profilo ingrandita"
+      [disabled]="loading()"
+      (click)="openPreview()"
+    >
+      <app-user-avatar
+        size="lg"
+        [displayName]="user().displayName"
+        [email]="user().email"
+        [avatarUrl]="user().avatarUrl"
+      />
+    </button>
+  } @else {
+    <app-user-avatar
+      size="lg"
+      [displayName]="user().displayName"
+      [email]="user().email"
+      [avatarUrl]="user().avatarUrl"
+    />
+  }
+
+  <input
+    #fileInput
+    class="profile-avatar-upload__input"
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    [disabled]="loading()"
+    (change)="onFileSelected($event)"
+  />
+
+  <div class="profile-avatar-upload__actions">
+    <app-button
+      type="button"
+      variant="secondary"
+      [loading]="loading()"
+      [disabled]="loading()"
+      (click)="fileInput.click()"
+    >
+      {{ user().avatarUrl ? 'Cambia foto' : 'Carica foto' }}
+    </app-button>
+
+    @if (user().avatarUrl) {
+      <app-button type="button" variant="secondary" [disabled]="loading()" (click)="removeAvatar()">
+        Rimuovi
+      </app-button>
+    }
+  </div>
+
+  <p class="profile-avatar-upload__hint">
+    JPEG, PNG o WebP — max 2 MB. Potrai regolare inquadratura e zoom.
+  </p>
+
+  @if (error(); as message) {
+    <p class="profile-avatar-upload__error" role="alert">{{ message }}</p>
+  }
+
+  <app-avatar-crop-dialog
+    [open]="cropOpen()"
+    (openChange)="cropOpen.set($event)"
+    [imageSrc]="cropImageSrc()"
+    [busy]="loading()"
+    (confirmed)="onCropConfirmed($event)"
+    (dismissed)="onCropDismissed()"
+  />
+
+  <app-avatar-preview-dialog
+    [open]="previewOpen()"
+    (openChange)="previewOpen.set($event)"
+    [imageSrc]="user().avatarUrl"
+    [altLabel]="avatarPreviewLabel()"
+    (dismissed)="onPreviewDismissed()"
+  />
+</div>

@@ -1,0 +1,29 @@
+<dialog
+  #dialog
+  class="avatar-preview-dialog"
+  aria-labelledby="avatar-preview-dialog-title"
+  (close)="onNativeClose()"
+>
+  <div class="avatar-preview-dialog__header">
+    <h2 id="avatar-preview-dialog-title" class="avatar-preview-dialog__title">Foto profilo</h2>
+    <button
+      type="button"
+      class="avatar-preview-dialog__close"
+      aria-label="Chiudi anteprima foto profilo"
+      (click)="onClose()"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  @if (imageSrc(); as src) {
+    <img
+      class="avatar-preview-dialog__image"
+      [src]="src"
+      [alt]="altLabel()"
+      [width]="previewPx"
+      [height]="previewPx"
+      decoding="async"
+    />
+  }
+</dialog>

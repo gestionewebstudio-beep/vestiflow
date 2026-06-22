@@ -9,11 +9,12 @@ import {
 } from '@core/models/tenant-channel-profile.model';
 
 /** Risposta `GET /auth/me` (allineata al backend NestJS). */
-interface UserProfileApi {
+export interface UserProfileApi {
   readonly id: string;
   readonly tenantId: string;
   readonly email: string;
   readonly displayName: string;
+  readonly avatarUrl?: string | null;
   readonly role: string;
   readonly storeIds: readonly string[];
   readonly isActive: boolean;
@@ -21,6 +22,23 @@ interface UserProfileApi {
   readonly tenantChannelProfile?: TenantChannelProfileType;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+export function mapUserProfileFromApi(row: UserProfileApi): User {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    email: row.email,
+    displayName: row.displayName,
+    avatarUrl: row.avatarUrl ?? null,
+    role: row.role as UserRole,
+    storeIds: row.storeIds,
+    isActive: row.isActive,
+    isPlatformAdmin: row.isPlatformAdmin,
+    tenantChannelProfile: row.tenantChannelProfile ?? TenantChannelProfile.Shopify,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }
 
 export function fetchUserProfile(
@@ -32,21 +50,5 @@ export function fetchUserProfile(
     .get<UserProfileApi>(`${apiBaseUrl}/auth/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
-    .pipe(map(mapUserProfile));
-}
-
-function mapUserProfile(row: UserProfileApi): User {
-  return {
-    id: row.id,
-    tenantId: row.tenantId,
-    email: row.email,
-    displayName: row.displayName,
-    role: row.role as UserRole,
-    storeIds: row.storeIds,
-    isActive: row.isActive,
-    isPlatformAdmin: row.isPlatformAdmin,
-    tenantChannelProfile: row.tenantChannelProfile ?? TenantChannelProfile.Shopify,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
+    .pipe(map(mapUserProfileFromApi));
 }

@@ -1,0 +1,96 @@
+.avatar-crop-dialog {
+  position: fixed;
+  inset: 0;
+  inline-size: min(var(--content-narrow), 92vw);
+  block-size: fit-content;
+  max-block-size: calc(100dvh - var(--space-8));
+  margin: auto;
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.avatar-crop-dialog::backdrop {
+  background-color: var(--color-backdrop);
+}
+
+.avatar-crop-dialog__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.avatar-crop-dialog__hint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.avatar-crop-dialog__viewport {
+  position: relative;
+  margin-block-start: var(--space-4);
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background-color: var(--color-surface-sunken);
+  touch-action: none;
+  cursor: grab;
+}
+
+.avatar-crop-dialog__viewport:active {
+  cursor: grabbing;
+}
+
+.avatar-crop-dialog__image {
+  position: absolute;
+  z-index: 0;
+  max-inline-size: none;
+  max-block-size: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.avatar-crop-dialog__mask {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: var(--border-width-strong) solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  box-shadow: inset 0 0 0 var(--space-1) rgb(0 0 0 / 12%);
+  pointer-events: none;
+}
+
+.avatar-crop-dialog__zoom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+}
+
+.avatar-crop-dialog__zoom-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.avatar-crop-dialog__zoom-range {
+  inline-size: 100%;
+  accent-color: var(--color-brand);
+}
+
+.avatar-crop-dialog__error {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.avatar-crop-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block-start: var(--space-5);
+}

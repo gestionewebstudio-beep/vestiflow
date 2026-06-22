@@ -126,7 +126,7 @@ export class ShellLayoutComponent {
         fragment: 'ignored',
       },
     },
-    { label: 'Account', icon: 'pi-user', route: '/app/admin/account' },
+    { label: 'Impostazioni', icon: 'pi-cog', route: '/app/admin/account' },
   ];
 
   private readonly guideNavItem: NavItem = {
@@ -185,6 +185,12 @@ export class ShellLayoutComponent {
       return;
     }
     void this.router.navigateByUrl('/app/settings');
+  }
+
+  onSettingsClick(): void {
+    const url = this.isPlatformOperator() ? '/app/admin/account' : '/app/settings';
+    void this.router.navigateByUrl(url);
+    this.closeDrawer();
   }
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".

@@ -56,32 +56,54 @@
 
         <app-admin-tenant-profile-fields [form]="form" [showError]="showError.bind(this)" />
 
-        <section class="create-client__section" aria-labelledby="edit-client-access">
+        <section
+          class="create-client__section create-client__section--user-access"
+          aria-labelledby="edit-client-access"
+        >
           <h3 id="edit-client-access" class="create-client__section-title">Primo utente</h3>
 
-          <label class="create-client__field" for="edit-owner-name">
-            <span class="create-client__field-label">Nome utente</span>
-            <input
-              id="edit-owner-name"
-              class="create-client__input"
-              type="text"
-              formControlName="ownerDisplayName"
-              [attr.aria-invalid]="showError('ownerDisplayName')"
-            />
-            @if (showError('ownerDisplayName')) {
-              <span class="create-client__field-error">Inserisci il nome dell’utente.</span>
-            }
-          </label>
+          <div class="create-client__field-row">
+            <label class="create-client__field" for="edit-owner-name">
+              <span class="create-client__field-label">Nome utente</span>
+              <input
+                id="edit-owner-name"
+                class="create-client__input"
+                type="text"
+                formControlName="ownerDisplayName"
+                [attr.aria-invalid]="showError('ownerDisplayName')"
+              />
+              @if (showError('ownerDisplayName')) {
+                <span class="create-client__field-error">Inserisci il nome dell’utente.</span>
+              }
+            </label>
 
-          <div class="create-client__field">
-            <span class="create-client__field-label">Ruolo VestiFlow</span>
-            <p class="create-client__readonly">{{ tenantRoleLabel(detail.owner?.role) }}</p>
-            <span class="create-client__hint">Il ruolo non si modifica da qui.</span>
+            <div class="create-client__field">
+              <label class="create-client__field-label" for="edit-owner-role"
+                >Ruolo VestiFlow</label
+              >
+              <input
+                id="edit-owner-role"
+                class="create-client__input create-client__input--readonly"
+                type="text"
+                [value]="tenantRoleLabel(detail.owner?.role)"
+                readonly
+                tabindex="-1"
+                aria-readonly="true"
+              />
+            </div>
           </div>
 
-          <div class="create-client__field">
-            <span class="create-client__field-label">Email accesso</span>
-            <p class="create-client__readonly">{{ detail.owner?.email ?? '—' }}</p>
+          <div class="create-client__field create-client__field--span-full">
+            <label class="create-client__field-label" for="edit-owner-email">Email accesso</label>
+            <input
+              id="edit-owner-email"
+              class="create-client__input create-client__input--readonly"
+              type="email"
+              [value]="detail.owner?.email ?? '—'"
+              readonly
+              tabindex="-1"
+              aria-readonly="true"
+            />
             <span class="create-client__hint"
               >L’email di accesso non si modifica da qui (Supabase Auth).</span
             >

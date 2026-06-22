@@ -21,6 +21,7 @@ function userWithRole(role: User['role']): User {
     tenantId: 't1',
     email: 'test@example.com',
     displayName: 'Test',
+    avatarUrl: null,
     role,
     storeIds: [],
     isActive: true,

@@ -15,6 +15,7 @@ const baseUser: User = {
   tenantId: 't1',
   email: 'op@example.com',
   displayName: 'Operatore',
+  avatarUrl: null,
   role: UserRole.Owner,
   storeIds: [],
   isActive: true,

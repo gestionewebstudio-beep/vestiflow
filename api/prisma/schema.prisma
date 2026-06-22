@@ -174,9 +174,12 @@ model User {
   /// qui vivono profilo applicativo e ruolo.
   authUserId  String?  @unique @map("auth_user_id") @db.Uuid
   email       String
-  displayName String   @map("display_name")
-  role        UserRole @default(clerk)
-  isActive    Boolean  @default(true) @map("is_active")
+  displayName        String   @map("display_name")
+  role               UserRole @default(clerk)
+  /// URL pubblico foto profilo (Supabase Storage).
+  avatarUrl          String?  @map("avatar_url")
+  avatarStoragePath  String?  @map("avatar_storage_path")
+  isActive           Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

@@ -32,6 +32,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineSpinnerComponent } from '@shared/components/inline-spinner/inline-spinner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { ProfileAvatarUploadComponent } from '@shared/components/profile-avatar-upload/profile-avatar-upload.component';
 import type { ThemeMode } from '@shared/models/theme.model';
 
 import {
@@ -109,6 +110,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     LocationTableComponent,
     MfaSettingsComponent,
     TikTokIntegrationPanelComponent,
+    ProfileAvatarUploadComponent,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',

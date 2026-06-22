@@ -27,6 +27,10 @@ export class AuthProfileCacheService {
     return entry;
   }
 
+  invalidate(authUserId: string): void {
+    this.entries.delete(authUserId);
+  }
+
   set(authUserId: string, tenantId: string, appUser: UserProfileDto): void {
     this.entries.set(authUserId, {
       tenantId,

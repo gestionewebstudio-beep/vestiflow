@@ -1,0 +1,60 @@
+<dialog
+  #dialog
+  class="avatar-crop-dialog"
+  aria-labelledby="avatar-crop-dialog-title"
+  (close)="onNativeClose()"
+>
+  <h2 id="avatar-crop-dialog-title" class="avatar-crop-dialog__title">Regola inquadratura</h2>
+  <p class="avatar-crop-dialog__hint">Trascina per spostare e usa lo zoom per avvicinare.</p>
+
+  @if (imageSrc(); as src) {
+    <div
+      class="avatar-crop-dialog__viewport"
+      [style.inlineSize.px]="viewportPx"
+      [style.blockSize.px]="viewportPx"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerUp($event)"
+      (pointercancel)="onPointerUp($event)"
+    >
+      <img
+        #cropImage
+        class="avatar-crop-dialog__image"
+        [src]="src"
+        alt=""
+        draggable="false"
+        [style.width.px]="imageWidthPx()"
+        [style.height.px]="imageHeightPx()"
+        [style.left.px]="imageLeftPx()"
+        [style.top.px]="imageTopPx()"
+        (load)="onImageLoad()"
+      />
+      <div class="avatar-crop-dialog__mask" aria-hidden="true"></div>
+    </div>
+
+    <label class="avatar-crop-dialog__zoom">
+      <span class="avatar-crop-dialog__zoom-label">Zoom</span>
+      <input
+        class="avatar-crop-dialog__zoom-range"
+        type="range"
+        [min]="zoomMin"
+        [max]="zoomMax"
+        step="0.01"
+        [value]="zoom()"
+        [disabled]="!imageReady() || busy()"
+        (input)="onZoomInput($event)"
+      />
+    </label>
+  }
+
+  @if (exportError(); as message) {
+    <p class="avatar-crop-dialog__error" role="alert">{{ message }}</p>
+  }
+
+  <div class="avatar-crop-dialog__actions">
+    <app-button variant="secondary" [disabled]="busy()" (click)="onCancel()">Annulla</app-button>
+    <app-button [loading]="busy()" [disabled]="busy() || !imageReady()" (click)="onConfirm()">
+      Usa foto
+    </app-button>
+  </div>
+</dialog>
