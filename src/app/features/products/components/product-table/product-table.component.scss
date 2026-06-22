@@ -101,7 +101,11 @@
   }
 
   .product-table__col--status {
-    inline-size: 14%;
+    inline-size: 12%;
+  }
+
+  .product-table__col--shopify {
+    inline-size: 12%;
   }
 
   .product-table__col--actions {
@@ -118,12 +122,15 @@
   }
 
   .product-table tbody td.product-table__cell--status,
-  .product-table__head th.product-table__cell--status {
+  .product-table__head th.product-table__cell--status,
+  .product-table tbody td.product-table__cell--shopify,
+  .product-table__head th.product-table__cell--shopify {
     text-align: end;
     white-space: nowrap;
   }
 
-  .product-table__status-value {
+  .product-table__status-value,
+  .product-table__shopify-value {
     display: flex;
     justify-content: flex-end;
     inline-size: 100%;

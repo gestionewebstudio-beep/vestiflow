@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { shopifyScopeAccessLabel, shopifyScopeDisplay } from './shopify-scope-labels.util';
+import {
+  groupShopifyScopesForDisplay,
+  shopifyScopeAccessLabel,
+  shopifyScopeDisplay,
+} from './shopify-scope-labels.util';
 
 describe('shopify-scope-labels.util', () => {
   it('mappa scope noti con label italiana', () => {
@@ -34,5 +38,23 @@ describe('shopify-scope-labels.util', () => {
       expect(shopifyScopeDisplay(scope).label).toBeTruthy();
     }
     expect(shopifyScopeAccessLabel('write')).toBe('Scrittura');
+  });
+
+  it('groupShopifyScopesForDisplay unisce read e write per area', () => {
+    const grouped = groupShopifyScopesForDisplay([
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_metaobjects',
+      'write_metaobjects',
+    ]);
+
+    expect(grouped).toHaveLength(3);
+    expect(grouped.find((item) => item.label === 'Catalogo prodotti')?.access).toEqual([
+      'read',
+      'write',
+    ]);
+    expect(grouped.find((item) => item.label === 'Metaobjects')?.access).toEqual(['read', 'write']);
   });
 });

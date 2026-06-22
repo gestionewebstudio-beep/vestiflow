@@ -124,8 +124,33 @@ describe('InventoryService (HTTP)', () => {
     });
 
     const movements = await promise;
-    expect(movements.length).toBe(1);
-    expect(movements[0]?.type).toBe(StockMovementType.Unload);
+    expect(movements.data.length).toBe(1);
+    expect(movements.data[0]?.type).toBe(StockMovementType.Unload);
+    expect(movements.meta.total).toBe(1);
+  });
+
+  it('getMovements passa filtri server-side', async () => {
+    const promise = firstValueFrom(
+      service.getMovements({
+        page: 2,
+        pageSize: 10,
+        locationId: 'loc-1',
+        type: StockMovementType.Sale,
+      }),
+    );
+
+    const req = httpMock.expectOne((request) =>
+      request.url.startsWith(`${API_BASE}/inventory/movements`),
+    );
+    expect(req.request.params.get('page')).toBe('2');
+    expect(req.request.params.get('pageSize')).toBe('10');
+    expect(req.request.params.get('locationId')).toBe('loc-1');
+    expect(req.request.params.get('type')).toBe(StockMovementType.Sale);
+    req.flush({ items: [], total: 0, page: 2, pageSize: 10 });
+
+    const response = await promise;
+    expect(response.data).toEqual([]);
+    expect(response.meta.page).toBe(2);
   });
 
   it('getLevels mappa le giacenze', async () => {
@@ -157,7 +182,47 @@ describe('InventoryService (HTTP)', () => {
     });
 
     const levels = await promise;
-    expect(levels[0]?.available).toBe(8);
+    expect(levels.data[0]?.available).toBe(8);
+    expect(levels.meta.total).toBe(1);
+  });
+
+  it('getLevels passa filtri server-side', async () => {
+    const promise = firstValueFrom(
+      service.getLevels({ page: 1, pageSize: 20, locationId: 'loc-1', lowStockOnly: true }),
+    );
+
+    const req = httpMock.expectOne((request) =>
+      request.url.startsWith(`${API_BASE}/inventory/levels`),
+    );
+    expect(req.request.params.get('locationId')).toBe('loc-1');
+    expect(req.request.params.get('lowStockOnly')).toBe('true');
+    req.flush({ items: [], total: 0, page: 1, pageSize: 20 });
+
+    await promise;
+  });
+
+  it('updateLevelMinThreshold invia PATCH', async () => {
+    const promise = firstValueFrom(service.updateLevelMinThreshold('lvl-1', 5));
+
+    const req = httpMock.expectOne(`${API_BASE}/inventory/levels/lvl-1`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ minThreshold: 5 });
+    req.flush({
+      id: 'lvl-1',
+      tenantId: 'tenant-1',
+      variantId: 'var-1',
+      locationId: 'loc-1',
+      onHand: 10,
+      available: 8,
+      committed: 1,
+      incoming: 0,
+      reserved: 1,
+      minThreshold: 5,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    const level = await promise;
+    expect(level.minThreshold).toBe(5);
   });
 
   it('getLocationById legge dalla cache delle location', async () => {

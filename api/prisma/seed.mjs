@@ -239,6 +239,68 @@ async function main() {
         },
       },
     });
+
+    await prisma.supplierOrder.upsert({
+      where: {
+        tenantId_reference: { tenantId: tenant.id, reference: 'PO-2026-0003' },
+      },
+      update: {},
+      create: {
+        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        tenantId: tenant.id,
+        reference: 'PO-2026-0003',
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        destinationLocationId: locationWarehouse.id,
+        status: 'draft',
+        currency: 'EUR',
+        totalMinor: 10 * 750,
+        expectedAt: new Date('2026-07-01'),
+        lines: {
+          create: [
+            {
+              id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+              variantId: variantLBlack.id,
+              sku: 'TSB-L-BLK',
+              orderedQuantity: 10,
+              receivedQuantity: 0,
+              unitCostMinor: 750,
+            },
+          ],
+        },
+      },
+    });
+
+    await prisma.supplierOrder.upsert({
+      where: {
+        tenantId_reference: { tenantId: tenant.id, reference: 'PO-2026-0004' },
+      },
+      update: {},
+      create: {
+        id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        tenantId: tenant.id,
+        reference: 'PO-2026-0004',
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        destinationLocationId: locationShop.id,
+        status: 'sent',
+        currency: 'EUR',
+        totalMinor: 5 * 750,
+        expectedAt: new Date('2026-07-15'),
+        lines: {
+          create: [
+            {
+              id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+              variantId: variantMBlack.id,
+              sku: 'TSB-M-BLK',
+              orderedQuantity: 5,
+              receivedQuantity: 0,
+              unitCostMinor: 750,
+            },
+          ],
+        },
+      },
+    });
   }
 
   const sampleCustomers = [

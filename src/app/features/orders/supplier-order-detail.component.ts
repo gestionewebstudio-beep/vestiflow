@@ -23,6 +23,7 @@ import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -68,6 +69,7 @@ type DetailState =
     ErrorStateComponent,
     TableSkeletonComponent,
     SupplierOrderLinesTableComponent,
+    ConfirmDialogComponent,
   ],
   templateUrl: './supplier-order-detail.component.html',
   styleUrl: './supplier-order-detail.component.scss',
@@ -153,6 +155,18 @@ export class SupplierOrderDetailComponent {
       this.order()?.status === SupplierOrderStatus.Draft &&
       canManageSupplierOrders(this.authService.currentUser()),
   );
+  protected readonly canEdit = computed(
+    () =>
+      this.order()?.status === SupplierOrderStatus.Draft &&
+      canManageSupplierOrders(this.authService.currentUser()),
+  );
+  protected readonly canCancel = computed(() => {
+    const status = this.order()?.status;
+    return (
+      (status === SupplierOrderStatus.Draft || status === SupplierOrderStatus.Sent) &&
+      canManageSupplierOrders(this.authService.currentUser())
+    );
+  });
   protected readonly canReceive = computed(() => {
     const status = this.order()?.status;
     return status === SupplierOrderStatus.Sent || status === SupplierOrderStatus.PartiallyReceived;
@@ -168,6 +182,10 @@ export class SupplierOrderDetailComponent {
     const state = this._actionState();
     return state.status === 'error' ? state.error : null;
   });
+
+  protected readonly sendDialogOpen = signal(false);
+  protected readonly receiveConfirmDialogOpen = signal(false);
+  protected readonly cancelDialogOpen = signal(false);
 
   readonly receiveForm = this.fb.group({
     rows: this.fb.array<ReturnType<SupplierOrderDetailComponent['createReceiveRow']>>([]),
@@ -208,9 +226,34 @@ export class SupplierOrderDetailComponent {
     this._mode.set('view');
   }
 
+  protected goToEdit(): void {
+    const order = this.order();
+    if (!order) {
+      return;
+    }
+    void this.router.navigateByUrl(`${this.listPath}/${order.id}/edit`);
+  }
+
+  protected requestSend(): void {
+    this.sendDialogOpen.set(true);
+  }
+
+  protected requestCancel(): void {
+    this.cancelDialogOpen.set(true);
+  }
+
+  protected requestReceiveConfirm(): void {
+    if (this.receiveForm.invalid) {
+      this.receiveForm.markAllAsTouched();
+      return;
+    }
+    this.receiveConfirmDialogOpen.set(true);
+  }
+
   private actionSubscription: Subscription | null = null;
 
   protected sendOrder(): void {
+    this.sendDialogOpen.set(false);
     const order = this.order();
     if (!order || this.actionSaving()) {
       return;
@@ -231,6 +274,7 @@ export class SupplierOrderDetailComponent {
   }
 
   protected confirmReceive(): void {
+    this.receiveConfirmDialogOpen.set(false);
     const order = this.order();
     if (!order || this.actionSaving()) {
       return;
@@ -262,6 +306,27 @@ export class SupplierOrderDetailComponent {
           this._actionState.set({ status: 'idle' });
           this._mode.set('view');
           this.inventoryService.invalidateLocationsCache();
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this._actionState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  protected cancelOrder(): void {
+    const order = this.order();
+    if (!order || this.actionSaving()) {
+      return;
+    }
+    this.cancelDialogOpen.set(false);
+    this._actionState.set({ status: 'saving' });
+    this.actionSubscription = this.service
+      .cancelOrder(order.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this._actionState.set({ status: 'idle' });
           this.reload();
         },
         error: (err: unknown) => {

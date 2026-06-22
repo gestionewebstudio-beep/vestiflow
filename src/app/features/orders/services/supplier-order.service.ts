@@ -15,6 +15,7 @@ import {
   mapSupplierOrderApiRow,
   type CreateSupplierOrderBody,
   type SupplierOrderApiRow,
+  type UpdateSupplierOrderBody,
 } from './supplier-order-api.mapper';
 
 const HTTP_TIMEOUT_MS = 15000;
@@ -75,6 +76,18 @@ export class SupplierOrderService {
   ): Observable<SupplierOrder> {
     return this.http
       .post<SupplierOrderApiRow>(this.url(`/supplier-orders/${id}/receive`), { lines })
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
+  }
+
+  updateOrder(id: EntityId, body: UpdateSupplierOrderBody): Observable<SupplierOrder> {
+    return this.http
+      .patch<SupplierOrderApiRow>(this.url(`/supplier-orders/${id}`), body)
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
+  }
+
+  cancelOrder(id: EntityId): Observable<SupplierOrder> {
+    return this.http
+      .post<SupplierOrderApiRow>(this.url(`/supplier-orders/${id}/cancel`), {})
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
   }
 

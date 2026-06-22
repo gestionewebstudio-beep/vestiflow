@@ -56,7 +56,7 @@
         id="inventory-search"
         class="inventory-levels__input"
         type="search"
-        [value]="search()"
+        [value]="searchDraft()"
         placeholder="Cerca per prodotto, SKU o barcode…"
         aria-label="Cerca giacenze"
         (input)="onSearchInput($event)"
@@ -117,5 +117,12 @@
     />
   } @else {
     <app-inventory-level-table [rows]="rows()" />
+    <app-pagination
+      label="Paginazione giacenze"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
   }
 </section>

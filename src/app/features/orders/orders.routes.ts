@@ -17,6 +17,13 @@ export const ordersRoutes: Routes = [
     data: { [TENANT_ROUTE_PERMISSION_KEY]: 'manager' },
   },
   {
+    path: ':id/edit',
+    title: 'VestiFlow · Modifica ordine fornitore',
+    component: SupplierOrderFormComponent,
+    canActivate: [tenantRoleGuard],
+    data: { [TENANT_ROUTE_PERMISSION_KEY]: 'manager' },
+  },
+  {
     path: ':id',
     title: 'VestiFlow · Dettaglio ordine fornitore',
     component: SupplierOrderDetailComponent,

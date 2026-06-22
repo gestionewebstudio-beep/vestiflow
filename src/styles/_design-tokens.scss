@@ -258,6 +258,7 @@
   --sidebar-width-collapsed: 3.5rem;
   --sidebar-icon-size: 1.25rem; // colonna icone nav
   --topbar-height: 3.25rem; // 52px
+  --topbar-chip-block-size: calc(var(--field-height) + var(--space-1) * 2);
 
   --btn-min-height: 2.75rem; // 44px — touch target minimo (a11y)
   --field-height: 2.25rem; // 36px — input Polaris

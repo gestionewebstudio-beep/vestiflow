@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { TenantChannelProfile } from '@prisma/client';
 
 import { SupabaseService } from '../auth/supabase.service';
 import { assertTenantChannelProfileChangeAllowed } from '../common/tenant-channel-profile.util';
@@ -241,9 +242,12 @@ export class AdminTenantsService {
       throw new BadRequestException('Non puoi provisionare un cliente con email Admin Vestiflow');
     }
     const role = dto.role ?? 'owner';
-    const channelProfile = dto.channelProfile ?? 'shopify';
+    const channelProfile = dto.channelProfile ?? TenantChannelProfile.shopify;
     const storeName = dto.storeName?.trim() || 'Negozio principale';
-    const locationName = dto.locationName?.trim() || storeName;
+    const locationName =
+      channelProfile === TenantChannelProfile.shopify
+        ? 'Sede temporanea'
+        : dto.locationName?.trim() || storeName;
     const profileData = tenantProfileCreateData(dto);
     const locationAddress = locationAddressFromProfile(dto);
 

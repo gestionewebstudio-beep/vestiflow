@@ -220,5 +220,22 @@ describe('domain-api.mapper', () => {
       expect(movement.targetLocationId).toBe('loc-2');
       expect(movement.reason).toBe('Trasferimento');
     });
+
+    it('mappa origin quando presente', () => {
+      const movement = mapStockMovementApiRow({
+        id: 'mov-2',
+        tenantId: 'tenant-1',
+        type: StockMovementType.Sale,
+        variantId: 'var-1',
+        sku: 'SKU-1',
+        locationId: 'loc-1',
+        quantity: 1,
+        createdAt: '2026-06-01T00:00:00.000Z',
+        createdByName: 'Shopify',
+        origin: 'shopify',
+      });
+
+      expect(movement.origin).toBe('shopify');
+    });
   });
 });

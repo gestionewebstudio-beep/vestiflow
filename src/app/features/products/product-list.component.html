@@ -67,7 +67,7 @@
   }
 
   @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+    <app-table-skeleton [columns]="skeletonColumns()" [rows]="8" />
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (isEmpty()) {
@@ -81,6 +81,7 @@
       [products]="products()"
       [sortField]="query().sort"
       [sortOrder]="query().order"
+      [showShopifyColumn]="showShopifyColumn()"
       (rowClick)="openProduct($event)"
       (printLabel)="printProductLabels($event)"
       (sortChange)="onSortChange($event)"

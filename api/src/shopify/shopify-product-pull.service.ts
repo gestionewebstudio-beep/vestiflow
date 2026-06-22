@@ -105,7 +105,13 @@ export class ShopifyProductPullService {
     }
 
     const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
-    const remoteProducts = await this.shopifyAdmin.listAllProducts(shopDomain, accessToken);
+    let remoteProducts: readonly ShopifyAdminProduct[];
+    try {
+      remoteProducts = await this.shopifyAdmin.listAllProducts(shopDomain, accessToken);
+    } catch (error: unknown) {
+      await this.shopifyConnection.recordApiFailure(tenantId, error);
+      throw error;
+    }
     this.logger.log(
       `Import catalogo Shopify (${tenantId}): ${remoteProducts.length} prodotti da ${shopDomain}`,
     );

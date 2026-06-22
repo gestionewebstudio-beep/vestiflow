@@ -4,6 +4,7 @@ import type { User, TenantChannelProfile } from '@prisma/client';
 export interface UserProfileDto {
   readonly id: string;
   readonly tenantId: string;
+  readonly tenantName: string;
   readonly tenantChannelProfile: TenantChannelProfile;
   readonly email: string;
   readonly displayName: string;
@@ -19,13 +20,14 @@ export interface UserProfileDto {
 export function toUserProfileDto(
   user: User & {
     readonly stores: readonly { storeId: string }[];
-    readonly tenant: { readonly channelProfile: TenantChannelProfile };
+    readonly tenant: { readonly name: string; readonly channelProfile: TenantChannelProfile };
   },
   isPlatformAdmin = false,
 ): UserProfileDto {
   return {
     id: user.id,
     tenantId: user.tenantId,
+    tenantName: user.tenant.name,
     tenantChannelProfile: user.tenant.channelProfile,
     email: user.email,
     displayName: user.displayName,

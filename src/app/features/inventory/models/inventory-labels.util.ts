@@ -2,7 +2,7 @@
 // Funzioni pure riusate da tabelle, pagine e report.
 
 import { StockStatus } from '@core/models/inventory-level.model';
-import { StockMovementType } from '@core/models/stock-movement.model';
+import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
 const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
@@ -63,4 +63,17 @@ export function movementActorLabel(createdByName: string): string {
     return '—';
   }
   return MOVEMENT_ACTOR_LABELS[trimmed] ?? trimmed;
+}
+
+const MOVEMENT_ORIGIN_LABELS: Record<MovementOrigin, string> = {
+  [MovementOrigin.Manual]: 'Gestionale',
+  [MovementOrigin.Shopify]: 'Shopify',
+  [MovementOrigin.Tiktok]: 'TikTok',
+};
+
+export function movementOriginLabel(origin: MovementOrigin | undefined): string {
+  if (!origin) {
+    return '—';
+  }
+  return MOVEMENT_ORIGIN_LABELS[origin] ?? origin;
 }

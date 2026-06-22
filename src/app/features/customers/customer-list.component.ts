@@ -42,6 +42,7 @@ import {
   type ShopifySyncFeedback,
 } from '@features/integrations/shopify/models/shopify-sync-feedback.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
 import { CustomerTableComponent } from './components/customer-table/customer-table.component';
 import {
   CUSTOMER_PAGE_SIZE_OPTIONS,
@@ -92,6 +93,7 @@ export class CustomerListComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly authService = inject(AuthService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -182,6 +184,11 @@ export class CustomerListComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.applySearch(value));
+
+    this.shopifySyncWatch
+      .watchRemoteDataChanged()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.reload());
   }
 
   protected onSearchInput(event: Event): void {

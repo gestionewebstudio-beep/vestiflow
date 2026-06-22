@@ -28,6 +28,7 @@ describe('SupplierOrdersService', () => {
       supplierOrderLine: {
         update: vi.fn(),
         findMany: vi.fn(),
+        deleteMany: vi.fn(),
       },
       inventoryLevel: {
         upsert: vi.fn(),
@@ -276,5 +277,86 @@ describe('SupplierOrdersService', () => {
       service.receive(tenantId, 'po-1', { lines: [{ lineId: 'line-1', quantity: 2 }] } as never),
     ).resolves.toMatchObject({ status: SupplierOrderStatus.received });
     expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
+  });
+
+  it('create rifiuta stato iniziale non valido', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore' });
+    prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
+    prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
+    const service = new SupplierOrdersService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(
+      service.create(tenantId, {
+        supplierId: 'sup-1',
+        destinationLocationId: 'loc-1',
+        status: SupplierOrderStatus.received,
+        lines: [{ variantId: 'var-1', orderedQuantity: 1, unitCostMinor: 100 }],
+      } as never),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('update sostituisce righe su bozza', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.draft,
+      supplierId: 'sup-1',
+      destinationLocationId: 'loc-1',
+      currency: 'EUR',
+      expectedAt: null,
+      lines: [],
+    });
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore' });
+    prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
+    prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
+    prisma.supplierOrderLine.deleteMany.mockResolvedValue({ count: 1 });
+    prisma.supplierOrder.update.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.draft,
+      lines: [{ id: 'line-1' }],
+    });
+    prisma.$transaction.mockImplementation(async (fn: (client: unknown) => unknown) => {
+      const tx = {
+        supplierOrderLine: { deleteMany: prisma.supplierOrderLine.deleteMany },
+        supplierOrder: { update: prisma.supplierOrder.update },
+      };
+      return fn(tx);
+    });
+    const service = new SupplierOrdersService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(
+      service.update(tenantId, 'po-1', {
+        lines: [{ variantId: 'var-1', orderedQuantity: 3, unitCostMinor: 500 }],
+      } as never),
+    ).resolves.toMatchObject({ id: 'po-1' });
+  });
+
+  it('cancel annulla bozza o inviato', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.sent,
+      lines: [],
+    });
+    prisma.supplierOrder.update.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.cancelled,
+      lines: [],
+    });
+    const service = new SupplierOrdersService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(service.cancel(tenantId, 'po-1')).resolves.toMatchObject({
+      status: SupplierOrderStatus.cancelled,
+    });
   });
 });

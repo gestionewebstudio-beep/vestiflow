@@ -18,6 +18,14 @@ export const AdjustmentDirection = {
 } as const;
 export type AdjustmentDirection = (typeof AdjustmentDirection)[keyof typeof AdjustmentDirection];
 
+/** Origine del movimento: gestionale, sync Shopify o altro canale. */
+export const MovementOrigin = {
+  Manual: 'manual',
+  Shopify: 'shopify',
+  Tiktok: 'tiktok',
+} as const;
+export type MovementOrigin = (typeof MovementOrigin)[keyof typeof MovementOrigin];
+
 /**
  * Movimento di magazzino = log operativo immutabile.
  * `quantity` e' sempre positiva; la direzione e' data dal `type`
@@ -46,4 +54,6 @@ export interface StockMovement extends TenantScoped {
   readonly createdBy: EntityId;
   /** Nome utente snapshot (display audit). */
   readonly createdByName: string;
+  /** Origine sync/manuale (es. vendita Shopify). */
+  readonly origin?: MovementOrigin;
 }

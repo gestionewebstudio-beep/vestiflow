@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import type { SortOrder } from '@core/models/api.model';
 import type { ProductStatus } from '@core/models/product.model';
 import type { Product } from '@core/models/product.model';
+import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
@@ -25,6 +26,7 @@ export class ProductTableComponent {
   readonly products = input.required<readonly Product[]>();
   readonly sortField = input<ProductSortField>();
   readonly sortOrder = input<SortOrder>();
+  readonly showShopifyColumn = input(false);
 
   readonly rowClick = output<Product>();
   readonly sortChange = output<ProductSortField>();
@@ -74,5 +76,35 @@ export class ProductTableComponent {
     event.stopPropagation();
     event.preventDefault();
     this.printLabel.emit(product);
+  }
+
+  protected shopifyLabel(product: Product): string {
+    switch (product.shopify?.status) {
+      case ShopifySyncStatus.Synced:
+        return 'Sincronizzato';
+      case ShopifySyncStatus.Syncing:
+        return 'Sync in corso';
+      case ShopifySyncStatus.OutOfSync:
+        return 'Non aggiornato';
+      case ShopifySyncStatus.Error:
+        return 'Errore sync';
+      default:
+        return 'Non collegato';
+    }
+  }
+
+  protected shopifyTone(product: Product): BadgeTone {
+    switch (product.shopify?.status) {
+      case ShopifySyncStatus.Synced:
+        return 'success';
+      case ShopifySyncStatus.Syncing:
+        return 'info';
+      case ShopifySyncStatus.OutOfSync:
+        return 'warning';
+      case ShopifySyncStatus.Error:
+        return 'error';
+      default:
+        return 'neutral';
+    }
   }
 }

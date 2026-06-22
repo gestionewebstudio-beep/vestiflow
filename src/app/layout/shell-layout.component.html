@@ -1,13 +1,32 @@
 <div class="shell" [class.shell--drawer-open]="drawerOpen()">
   <app-pwa-update-banner />
+  @if (showShopifyErrorBanner()) {
+    <div class="shell__shopify-banner" role="status">
+      <p class="shell__shopify-banner-text">
+        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+        Sync Shopify: {{ shopifyErrorBannerMessage() }}
+        <a class="shell__shopify-banner-link" routerLink="/app/settings">Apri impostazioni</a>
+      </p>
+      <button
+        type="button"
+        class="shell__shopify-banner-dismiss"
+        (click)="dismissShopifyErrorBanner()"
+      >
+        Chiudi
+      </button>
+    </div>
+  }
   <!-- Topbar persistente: dumb, parla allo shell via output(). -->
   <header class="shell__topbar">
     <app-topbar
       [themeMode]="themeMode()"
       [user]="currentUser()"
-      [locations]="locations()"
+      [locations]="topbarLocations()"
       [activeLocationId]="activeLocationId()"
       [syncStatus]="shopifySyncStatus()"
+      [shopifyLastSyncAt]="shopifyLastSyncAt()"
+      [shopifyAutoSyncEnabled]="shopifyAutoSyncEnabled()"
+      [shopifyLastError]="shopifyLastError()"
       (menuToggle)="toggleDrawer()"
       (themeModeChange)="onThemeModeChange($event)"
       (locationChange)="onLocationChange($event)"

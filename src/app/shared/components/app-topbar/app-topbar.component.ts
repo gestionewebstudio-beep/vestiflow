@@ -2,6 +2,8 @@ import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
+import type { IsoDateString } from '@core/models/common.model';
+import { formatDateTimeShort } from '@core/utils/date.util';
 import type { EntityId } from '@core/models/common.model';
 import type { Location } from '@core/models/location.model';
 import type { User } from '@core/models/user.model';
@@ -45,6 +47,12 @@ export class AppTopbarComponent {
   readonly activeLocationId = input<EntityId | null>(null);
   /** Stato connessione Shopify; null = non ancora caricato (indicatore nascosto). */
   readonly syncStatus = input<ShopifyConnectionStatus | null>(null);
+  /** Timestamp ultimo sync Shopify (ISO), se disponibile. */
+  readonly shopifyLastSyncAt = input<IsoDateString | null | undefined>(null);
+  /** Webhook / aggiornamenti automatici attivi. */
+  readonly shopifyAutoSyncEnabled = input<boolean | undefined>(undefined);
+  /** Messaggio errore connessione/sync (display-safe). */
+  readonly shopifyLastError = input<string | null | undefined>(null);
 
   /** Toggle del drawer/sidebar (hamburger, mobile). */
   readonly menuToggle = output<void>();
@@ -79,6 +87,31 @@ export class AppTopbarComponent {
   protected readonly syncLabel = computed(() => {
     const status = this.syncStatus();
     return status ? SYNC_LABELS[status] : '';
+  });
+
+  protected readonly syncLastSyncLabel = computed(() => {
+    const lastSyncAt = this.shopifyLastSyncAt();
+    return lastSyncAt ? formatDateTimeShort(lastSyncAt) : null;
+  });
+
+  /** Tooltip sul pulsante sync: stato, ultimo sync ed eventuale errore. */
+  protected readonly syncTooltip = computed(() => {
+    const parts = [this.syncLabel()];
+    const lastSync = this.syncLastSyncLabel();
+    if (lastSync) {
+      parts.push(`Ultimo sync: ${lastSync}`);
+    }
+    const enabled = this.shopifyAutoSyncEnabled();
+    if (enabled === true) {
+      parts.push('Aggiornamenti automatici attivi');
+    } else if (enabled === false) {
+      parts.push('Sync manuale');
+    }
+    const lastError = this.shopifyLastError()?.trim();
+    if (lastError) {
+      parts.push(`Errore: ${lastError}`);
+    }
+    return parts.filter(Boolean).join(' · ');
   });
 
   /** Modificatore BEM del pallino di stato sync. */

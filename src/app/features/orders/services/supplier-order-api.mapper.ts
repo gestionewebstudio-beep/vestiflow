@@ -56,6 +56,9 @@ export interface CreateSupplierOrderBody {
   readonly lines: readonly CreateSupplierOrderLineBody[];
 }
 
+/** Body PATCH /supplier-orders/:id (solo bozze). */
+export type UpdateSupplierOrderBody = CreateSupplierOrderBody;
+
 export function mapSupplierOrderApiRow(row: SupplierOrderApiRow): SupplierOrder {
   return {
     tenantId: row.tenantId,

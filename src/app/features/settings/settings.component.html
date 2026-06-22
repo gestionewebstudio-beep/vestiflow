@@ -28,43 +28,41 @@
     }
   </section>
 
+  @if (showTenantCompanyPanel()) {
+    <!-- ── Sede fisica ─────────────────────────────────────────────────────── -->
+    <section class="settings__panel" aria-labelledby="settings-tenant-company">
+      <h2 id="settings-tenant-company" class="settings__panel-title">Sede fisica</h2>
+      <p class="settings__panel-hint">
+        Anagrafica registrata in VestiFlow dall’operatore. Identifica l’azienda del cliente ed è
+        indipendente dalle sedi operative collegate a Shopify.
+      </p>
+      @if (tenantCompanyLoading()) {
+        <div
+          class="settings__company-card-skeleton"
+          aria-busy="true"
+          aria-label="Caricamento anagrafica cliente"
+        >
+          <app-table-skeleton [columns]="2" [rows]="4" />
+        </div>
+      } @else if (tenantCompanyError(); as errorMessage) {
+        <app-error-state
+          title="Anagrafica cliente non disponibile"
+          [description]="errorMessage"
+          retryLabel="Riprova"
+          (retry)="reloadTenantCompany()"
+        />
+      } @else if (tenantCompany(); as company) {
+        <app-tenant-client-card [company]="company" />
+      }
+    </section>
+  }
+
   @if (showTikTokPanel()) {
     <!-- ── TikTok Shop ─────────────────────────────────────────────────────── -->
     <section class="settings__panel" aria-labelledby="settings-tiktok">
       <app-tiktok-integration-panel />
     </section>
   }
-
-  <!-- ── Sicurezza account ─────────────────────────────────────────────────── -->
-  @if (mfaAvailable && canManageMfa()) {
-    <section class="settings__panel" aria-labelledby="settings-mfa">
-      <h2 id="settings-mfa" class="settings__panel-title">Sicurezza account</h2>
-      <app-mfa-settings />
-    </section>
-  }
-
-  <!-- ── Aspetto ─────────────────────────────────────────────────────────── -->
-  <section class="settings__panel" aria-labelledby="settings-theme">
-    <h2 id="settings-theme" class="settings__panel-title">Aspetto</h2>
-    <fieldset class="settings__theme-group">
-      <legend class="settings__muted">Tema dell'interfaccia</legend>
-      <div class="settings__theme-options">
-        @for (option of themeOptions; track option.value) {
-          <label class="settings__theme-option" [class.is-active]="themeMode() === option.value">
-            <input
-              class="settings__theme-radio"
-              type="radio"
-              name="theme-mode"
-              [value]="option.value"
-              [checked]="themeMode() === option.value"
-              (change)="onThemeChange(option.value)"
-            />
-            {{ option.label }}
-          </label>
-        }
-      </div>
-    </fieldset>
-  </section>
 
   <!-- ── Integrazione Shopify ────────────────────────────────────────────── -->
   @if (showShopifyPanel()) {
@@ -190,25 +188,56 @@
         </dl>
 
         @if (conn.scopes?.length) {
-          <div class="settings__permissions" aria-labelledby="settings-shopify-permissions">
-            <h3 id="settings-shopify-permissions" class="settings__permissions-title">
-              Accesso a Shopify
-            </h3>
-            <ul class="settings__permissions-list">
-              @for (scope of conn.scopes; track scope) {
-                @let display = shopifyScopeDisplay(scope);
-                <li class="settings__permission">
-                  <div class="settings__permission-copy">
-                    <span class="settings__permission-label">{{ display.label }}</span>
-                    <span class="settings__permission-desc">{{ display.description }}</span>
-                  </div>
-                  <app-badge [tone]="display.access === 'write' ? 'success' : 'neutral'">
-                    {{ shopifyScopeAccessLabel(display.access) }}
-                  </app-badge>
-                </li>
-              }
-            </ul>
-          </div>
+          <details class="settings__permissions">
+            <summary class="settings__permissions-summary">
+              <span class="settings__permissions-summary-label">Accesso a Shopify</span>
+              <span class="settings__permissions-summary-trailing">
+                <span class="settings__permissions-summary-meta">{{ shopifyScopesSummary() }}</span>
+                <i
+                  class="pi pi-chevron-right settings__permissions-summary-icon"
+                  aria-hidden="true"
+                ></i>
+              </span>
+            </summary>
+            <div class="settings__permissions-table-wrap">
+              <table class="settings__permissions-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Area</th>
+                    <th scope="col">Accesso</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (group of groupedShopifyScopes(); track group.key) {
+                    <tr class="settings__permissions-row">
+                      <td data-label="Area">
+                        <span class="settings__permission-label">{{ group.label }}</span>
+                        <span class="settings__permission-desc">{{ group.description }}</span>
+                      </td>
+                      <td data-label="Accesso">
+                        <span class="settings__permission-badges">
+                          <span class="settings__permission-badge-slot">
+                            @if (group.access.includes('read')) {
+                              <app-badge tone="neutral">
+                                {{ shopifyScopeAccessLabel('read') }}
+                              </app-badge>
+                            }
+                          </span>
+                          <span class="settings__permission-badge-slot">
+                            @if (group.access.includes('write')) {
+                              <app-badge tone="success">
+                                {{ shopifyScopeAccessLabel('write') }}
+                              </app-badge>
+                            }
+                          </span>
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </details>
         }
 
         @if (catalogReadScopeWarning(); as scopeWarning) {
@@ -308,78 +337,257 @@
             </div>
           </div>
 
-          @if (shopifyActionProgress(); as progressMessage) {
-            <div class="settings__action-progress" role="status" aria-live="polite">
-              <app-inline-spinner size="md" />
-              <span>{{ progressMessage }}</span>
+          @if (showPostConnectCta()) {
+            <div class="settings__post-connect" aria-labelledby="settings-shopify-next-steps">
+              <h3 id="settings-shopify-next-steps" class="settings__post-connect-title">
+                Prossimi passi
+              </h3>
+              <p class="settings__muted">
+                Importa i dati iniziali da Shopify, poi attiva gli aggiornamenti automatici per
+                ordini, clienti e giacenze in tempo reale.
+              </p>
+              <ol class="settings__post-connect-list">
+                <li>Sincronizza le location (se non già fatto)</li>
+                <li>Importa catalogo, giacenze, clienti e vendite</li>
+                <li>Attiva gli aggiornamenti automatici</li>
+              </ol>
             </div>
           }
 
-          <div class="settings__shopify-actions">
-            @if (showClearShopifyErrors()) {
+          <div class="settings__bulk-sync" aria-labelledby="settings-shopify-bulk-sync">
+            <h3 id="settings-shopify-bulk-sync" class="settings__bulk-sync-title">
+              Sync manuale da Shopify
+            </h3>
+            <p class="settings__bulk-sync-hint">
+              Avvia un import completo quando serve allineare VestiFlow allo store collegato.
+            </p>
+            <div class="settings__bulk-sync-actions">
               <app-button
-                variant="ghost"
-                [loading]="clearErrorsLoading()"
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncProductsLoading()"
                 [disabled]="
-                  clearErrorsLoading() ||
+                  shopifyBulkSyncBusy() ||
                   syncLocationsLoading() ||
                   syncWebhooksLoading() ||
                   disconnectLoading()
                 "
-                (click)="clearShopifyErrors()"
+                (click)="syncShopifyProducts()"
               >
-                Ripristina connessione
+                @if (syncProductsLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                Importa catalogo
               </app-button>
-            }
-            <app-button
-              variant="secondary"
-              loadingIndicator="icon"
-              [loading]="syncLocationsLoading()"
-              [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
-              (click)="syncShopifyLocations()"
-            >
-              @if (syncLocationsLoading()) {
-                <i class="pi pi-sync" aria-hidden="true"></i>
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncInventoryLoading()"
+                [disabled]="
+                  shopifyBulkSyncBusy() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading()
+                "
+                (click)="syncShopifyInventory()"
+              >
+                @if (syncInventoryLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                Sync giacenze
+              </app-button>
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncCustomersLoading()"
+                [disabled]="
+                  shopifyBulkSyncBusy() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading()
+                "
+                (click)="syncShopifyCustomers()"
+              >
+                @if (syncCustomersLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                Sync clienti
+              </app-button>
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncOrdersLoading()"
+                [disabled]="
+                  shopifyBulkSyncBusy() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading()
+                "
+                (click)="syncShopifyOrders()"
+              >
+                @if (syncOrdersLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                Sync vendite
+              </app-button>
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncLocationsLoading()"
+                [disabled]="
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading() ||
+                  shopifyBulkSyncBusy()
+                "
+                (click)="syncShopifyLocations()"
+              >
+                @if (syncLocationsLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                Sincronizza location
+              </app-button>
+            </div>
+          </div>
+
+          <div class="settings__shopify-management" aria-labelledby="settings-shopify-management">
+            <h3 id="settings-shopify-management" class="settings__shopify-management-title">
+              Connessione e negozio
+            </h3>
+            <p class="settings__shopify-management-hint">
+              Aggiornamenti automatici, cambio store collegato o disconnessione da Shopify.
+            </p>
+            <div class="settings__shopify-actions">
+              @if (showClearShopifyErrors()) {
+                <app-button
+                  variant="ghost"
+                  [loading]="clearErrorsLoading()"
+                  [disabled]="
+                    clearErrorsLoading() ||
+                    syncLocationsLoading() ||
+                    syncWebhooksLoading() ||
+                    disconnectLoading() ||
+                    shopifyBulkSyncBusy()
+                  "
+                  (click)="clearShopifyErrors()"
+                >
+                  Ripristina connessione
+                </app-button>
               }
-              Sincronizza location
-            </app-button>
-            <app-button
-              variant="secondary"
-              loadingIndicator="icon"
-              [loading]="syncWebhooksLoading()"
-              [disabled]="syncLocationsLoading() || syncWebhooksLoading() || disconnectLoading()"
-              (click)="toggleAutoSync()"
-            >
-              @if (syncWebhooksLoading()) {
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncWebhooksLoading()"
+                [disabled]="
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading() ||
+                  shopifyBulkSyncBusy()
+                "
+                (click)="toggleAutoSync()"
+              >
+                @if (syncWebhooksLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                {{ autoSyncButtonLabel() }}
+              </app-button>
+              <app-button
+                variant="secondary"
+                [disabled]="
+                  disconnectLoading() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  shopifyBulkSyncBusy()
+                "
+                (click)="openShopChangeWizard()"
+              >
+                Cambia negozio
+              </app-button>
+              <app-button
+                loadingIndicator="icon"
+                [loading]="disconnectLoading()"
+                [disabled]="disconnectLoading() || syncLocationsLoading() || syncWebhooksLoading()"
+                (click)="disconnectShopify()"
+              >
                 <i class="pi pi-sync" aria-hidden="true"></i>
-              }
-              {{ autoSyncButtonLabel() }}
-            </app-button>
-            <app-button
-              loadingIndicator="icon"
-              [loading]="disconnectLoading()"
-              [disabled]="disconnectLoading() || syncLocationsLoading() || syncWebhooksLoading()"
-              (click)="disconnectShopify()"
-            >
-              <i class="pi pi-sync" aria-hidden="true"></i>
-              Disconnetti Shopify
-            </app-button>
+                Disconnetti Shopify
+              </app-button>
+              <app-button
+                variant="danger"
+                [disabled]="
+                  disconnectLoading() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  shopifyBulkSyncBusy()
+                "
+                (click)="openDisconnectPurgeWizard()"
+              >
+                Disconnetti e rimuovi dati
+              </app-button>
+            </div>
           </div>
         }
       }
+
+      <div class="settings__shopify-locations" aria-labelledby="settings-locations">
+        <h3 id="settings-locations" class="settings__shopify-locations-title">Location</h3>
+        @if (showShopifyLocationColumn()) {
+          <p class="settings__shopify-locations-hint">
+            Sedi operative per il magazzino, importate da Shopify con «Sincronizza location».
+          </p>
+        } @else {
+          <p class="settings__shopify-locations-hint">
+            Dopo la connessione Shopify, sincronizza le location per importare le sedi operative del
+            negozio.
+          </p>
+        }
+        @if (locations().length > 0) {
+          <app-location-table
+            [locations]="locations()"
+            [showShopifyColumn]="showShopifyLocationColumn()"
+            [groupByShopifySource]="showShopifyLocationColumn()"
+          />
+        } @else {
+          <app-table-skeleton [columns]="4" [rows]="3" />
+        }
+      </div>
+    </section>
+
+    <app-shopify-shop-change-wizard
+      [(open)]="shopWizardOpen"
+      [mode]="shopWizardMode()"
+      (completed)="onShopWizardCompleted()"
+    />
+  }
+
+  <!-- ── Sicurezza account ─────────────────────────────────────────────────── -->
+  @if (mfaAvailable && canManageMfa()) {
+    <section class="settings__panel" aria-labelledby="settings-mfa">
+      <h2 id="settings-mfa" class="settings__panel-title">Sicurezza account</h2>
+      <app-mfa-settings />
     </section>
   }
 
-  <!-- ── Location ────────────────────────────────────────────────────────── -->
-  <section class="settings__panel" aria-labelledby="settings-locations">
-    <h2 id="settings-locations" class="settings__panel-title">Location</h2>
-    @if (locations().length > 0) {
-      <app-location-table
-        [locations]="locations()"
-        [showShopifyColumn]="showShopifyLocationColumn()"
-      />
-    } @else {
-      <app-table-skeleton [columns]="4" [rows]="3" />
-    }
+  <!-- ── Aspetto ─────────────────────────────────────────────────────────── -->
+  <section class="settings__panel" aria-labelledby="settings-theme">
+    <h2 id="settings-theme" class="settings__panel-title">Aspetto</h2>
+    <fieldset class="settings__theme-group">
+      <legend class="settings__muted">Tema dell'interfaccia</legend>
+      <div class="settings__theme-options">
+        @for (option of themeOptions; track option.value) {
+          <label class="settings__theme-option" [class.is-active]="themeMode() === option.value">
+            <input
+              class="settings__theme-radio"
+              type="radio"
+              name="theme-mode"
+              [value]="option.value"
+              [checked]="themeMode() === option.value"
+              (change)="onThemeChange(option.value)"
+            />
+            {{ option.label }}
+          </label>
+        }
+      </div>
+    </fieldset>
   </section>
 </section>

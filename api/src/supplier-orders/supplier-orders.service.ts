@@ -21,6 +21,7 @@ import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
 import type { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.query.dto';
 import type { ReceiveSupplierOrderDto } from './dto/receive-supplier-order.dto';
+import type { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
 
 export type SupplierOrderWithLines = SupplierOrder & { lines: SupplierOrderLine[] };
 
@@ -88,6 +89,7 @@ export class SupplierOrdersService {
       (sum, line) => sum + line.orderedQuantity * line.unitCostMinor,
       0,
     );
+    const status = this.resolveInitialStatus(dto.status);
     const reference = await this.nextReference(tenantId);
 
     return this.prisma.supplierOrder.create({
@@ -97,7 +99,7 @@ export class SupplierOrdersService {
         supplierId: supplier.id,
         supplierName: supplier.name,
         destinationLocationId: dto.destinationLocationId,
-        status: dto.status ?? SupplierOrderStatus.draft,
+        status,
         currency: dto.currency ?? 'EUR',
         totalMinor,
         expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
@@ -114,6 +116,98 @@ export class SupplierOrdersService {
     });
   }
 
+  /** Aggiorna una bozza: righe sostituite integralmente, totale ricalcolato. */
+  async update(
+    tenantId: string,
+    id: string,
+    dto: UpdateSupplierOrderDto,
+  ): Promise<SupplierOrderWithLines> {
+    const order = await this.getById(tenantId, id);
+    if (order.status !== SupplierOrderStatus.draft) {
+      throw new ConflictException('Solo gli ordini in bozza possono essere modificati.');
+    }
+
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id: dto.supplierId ?? order.supplierId, tenantId },
+    });
+    if (!supplier) {
+      throw new NotFoundException('Fornitore non trovato');
+    }
+
+    const destinationLocationId = dto.destinationLocationId ?? order.destinationLocationId;
+    const location = await this.prisma.location.findFirst({
+      where: { id: destinationLocationId, tenantId },
+      select: { id: true },
+    });
+    if (!location) {
+      throw new NotFoundException('Location di destinazione non trovata');
+    }
+
+    const variantIds = dto.lines.map((line) => line.variantId);
+    const variants = await this.prisma.productVariant.findMany({
+      where: { tenantId, id: { in: variantIds } },
+      select: { id: true, sku: true },
+    });
+    const skuById = new Map(variants.map((variant) => [variant.id, variant.sku]));
+    for (const line of dto.lines) {
+      if (!skuById.has(line.variantId)) {
+        throw new UnprocessableEntityException(`Variante non trovata: ${line.variantId}`);
+      }
+    }
+
+    const totalMinor = dto.lines.reduce(
+      (sum, line) => sum + line.orderedQuantity * line.unitCostMinor,
+      0,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.supplierOrderLine.deleteMany({ where: { orderId: id } });
+      return tx.supplierOrder.update({
+        where: { id },
+        data: {
+          supplierId: supplier.id,
+          supplierName: supplier.name,
+          destinationLocationId,
+          currency: dto.currency ?? order.currency,
+          totalMinor,
+          expectedAt:
+            dto.expectedAt === null
+              ? null
+              : dto.expectedAt
+                ? new Date(dto.expectedAt)
+                : order.expectedAt,
+          lines: {
+            create: dto.lines.map((line) => ({
+              variantId: line.variantId,
+              sku: skuById.get(line.variantId)!,
+              orderedQuantity: line.orderedQuantity,
+              unitCostMinor: line.unitCostMinor,
+            })),
+          },
+        },
+        include: { lines: true },
+      });
+    });
+  }
+
+  /** Annulla un ordine in bozza o inviato (non ancora ricevuto). */
+  async cancel(tenantId: string, id: string): Promise<SupplierOrderWithLines> {
+    const order = await this.getById(tenantId, id);
+    if (
+      order.status !== SupplierOrderStatus.draft &&
+      order.status !== SupplierOrderStatus.sent
+    ) {
+      throw new ConflictException(
+        'Solo ordini in bozza o inviati (non ancora ricevuti) possono essere annullati.',
+      );
+    }
+    return this.prisma.supplierOrder.update({
+      where: { id },
+      data: { status: SupplierOrderStatus.cancelled },
+      include: { lines: true },
+    });
+  }
+
   /** Transizione bozza → inviato (rende l'ordine ricevibile). */
   async send(tenantId: string, id: string): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id);
@@ -125,6 +219,16 @@ export class SupplierOrdersService {
       data: { status: SupplierOrderStatus.sent },
       include: { lines: true },
     });
+  }
+
+  private resolveInitialStatus(status?: SupplierOrderStatus): SupplierOrderStatus {
+    const resolved = status ?? SupplierOrderStatus.draft;
+    if (resolved !== SupplierOrderStatus.draft && resolved !== SupplierOrderStatus.sent) {
+      throw new UnprocessableEntityException(
+        'Stato iniziale consentito: solo bozza o inviato.',
+      );
+    }
+    return resolved;
   }
 
   /** Riferimento progressivo per anno: PO-YYYY-NNNN, univoco per tenant. */

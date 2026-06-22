@@ -56,5 +56,12 @@
     />
   } @else {
     <app-movement-table [rows]="rows()" />
+    <app-pagination
+      label="Paginazione movimenti di magazzino"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
   }
 </section>

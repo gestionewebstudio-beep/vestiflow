@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -17,6 +18,7 @@ import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
 import { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.query.dto';
 import { ReceiveSupplierOrderDto } from './dto/receive-supplier-order.dto';
+import { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
 import { SupplierOrdersService, type SupplierOrderWithLines } from './supplier-orders.service';
 
 @Controller('supplier-orders')
@@ -56,6 +58,25 @@ export class SupplierOrdersController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SupplierOrderWithLines> {
     return this.supplierOrders.send(tenantId, id);
+  }
+
+  @Patch(':id')
+  @Roles(...MANAGER_ROLES)
+  update(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSupplierOrderDto,
+  ): Promise<SupplierOrderWithLines> {
+    return this.supplierOrders.update(tenantId, id, dto);
+  }
+
+  @Post(':id/cancel')
+  @Roles(...MANAGER_ROLES)
+  cancel(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<SupplierOrderWithLines> {
+    return this.supplierOrders.cancel(tenantId, id);
   }
 
   @Post(':id/receive')

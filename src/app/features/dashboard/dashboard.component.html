@@ -9,6 +9,44 @@
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else {
+    @if (showShopifyPanel() && shopifyConnectionSummary(); as shopifyConn) {
+      <section class="dashboard__panel" aria-labelledby="dashboard-shopify">
+        <div class="dashboard__panel-head">
+          <h2 id="dashboard-shopify" class="dashboard__panel-title">Integrazione Shopify</h2>
+          <a class="dashboard__panel-link" routerLink="/app/settings">
+            Impostazioni Shopify
+            <i class="pi pi-arrow-right" aria-hidden="true"></i>
+          </a>
+        </div>
+        <div class="dashboard__shopify-summary">
+          <app-badge [tone]="connectionStatusTone(shopifyConn.status)">
+            {{ connectionStatusLabel(shopifyConn.status) }}
+          </app-badge>
+          @if (shopifyConn.shopDomain) {
+            <span class="dashboard__shopify-domain tabular-nums">{{ shopifyConn.shopDomain }}</span>
+          }
+        </div>
+        <dl class="dashboard__shopify-facts">
+          <div class="dashboard__shopify-fact">
+            <dt>Ultimo sync</dt>
+            <dd class="tabular-nums">
+              {{ shopifyConn.lastSyncAt ? formatDateTimeShort(shopifyConn.lastSyncAt) : '—' }}
+            </dd>
+          </div>
+          <div class="dashboard__shopify-fact">
+            <dt>Aggiornamenti automatici</dt>
+            <dd>{{ shopifyConn.autoSyncEnabled ? 'Attivi' : 'Non attivi' }}</dd>
+          </div>
+        </dl>
+        @if (shopifyConn.lastError; as lastError) {
+          <p class="dashboard__shopify-error" role="status">
+            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+            {{ lastError.message }}
+          </p>
+        }
+      </section>
+    }
+
     <div class="dashboard__kpis">
       <app-stat-card
         label="Prodotti"

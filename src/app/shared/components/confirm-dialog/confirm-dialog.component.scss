@@ -3,7 +3,7 @@
   // forziamo il centraggio viewport per showModal().
   position: fixed;
   inset: 0;
-  inline-size: min(var(--content-narrow), 90vw);
+  inline-size: min(var(--content-narrow), calc(100vw - var(--space-4)));
   block-size: fit-content;
   max-block-size: calc(100dvh - var(--space-8));
   margin: auto;
@@ -13,6 +13,7 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+  overflow-y: auto;
 }
 
 .confirm-dialog::backdrop {

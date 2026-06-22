@@ -31,6 +31,7 @@ import { ImportInventoryBodyDto } from './dto/import-inventory-body.dto';
 import { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
 import { ListInventoryLevelsQueryDto, ListMovementsQueryDto } from './dto/inventory-queries.dto';
 import { RegisterMovementDto } from './dto/register-movement.dto';
+import { UpdateInventoryLevelDto } from './dto/update-inventory-level.dto';
 import { UpdateCountLineDto } from './dto/update-count-line.dto';
 import {
   InventoryCountService,
@@ -106,6 +107,17 @@ export class InventoryController {
     return this.inventory.listLevels(tenantId, query);
   }
 
+  @Patch('levels/:id')
+  @UseGuards(RolesGuard)
+  @Roles(...MANAGER_ROLES)
+  updateLevelMinThreshold(
+    @CurrentTenant() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateInventoryLevelDto,
+  ) {
+    return this.inventory.updateLevelMinThreshold(tenantId, id, dto.minThreshold);
+  }
+
   @Get('movements')
   listMovements(
     @CurrentTenant() tenantId: string,
@@ -120,7 +132,7 @@ export class InventoryController {
     @CurrentUser() user: UserProfileDto,
     @Body() dto: RegisterMovementDto,
   ): Promise<StockMovement> {
-    return this.inventory.registerMovement(tenantId, dto, user.displayName);
+    return this.inventory.registerMovement(tenantId, dto, user.displayName, user.id);
   }
 
   @Get('counts')

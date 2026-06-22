@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { map, type Observable, timeout } from 'rxjs';
+import { map, type Observable, tap, timeout } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ApiHttpClient } from '@core/http/api-http.client';
@@ -17,6 +17,12 @@ import type {
   ShopifySyncProductsDto,
   ShopifySyncWebhooksDto,
 } from '../models/shopify-sync.dto';
+import type {
+  PurgeShopifyDataRequestDto,
+  ShopifyShopChangePreviewDto,
+  ShopifyShopChangePurgeResultDto,
+} from '../models/shopify-shop-change.dto';
+import { ShopifyConnectionRefreshService } from './shopify-connection-refresh.service';
 
 const HTTP_TIMEOUT_MS = 15000;
 /** Import catalogo può richiedere più chiamate Shopify per ogni prodotto. */
@@ -34,6 +40,7 @@ const SYNC_CUSTOMERS_ORDERS_TIMEOUT_MS = 180_000;
 export class ShopifyConnectionService {
   private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
+  private readonly connectionRefresh = inject(ShopifyConnectionRefreshService);
 
   getConnection(): Observable<ShopifyConnection> {
     return this.http
@@ -50,13 +57,19 @@ export class ShopifyConnectionService {
   disconnect(): Observable<{ disconnected: true }> {
     return this.http
       .delete<{ disconnected: true }>(`${this.config.apiBaseUrl}/shopify/connection`)
-      .pipe(timeout(HTTP_TIMEOUT_MS));
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        tap(() => this.connectionRefresh.notifyInvalidated()),
+      );
   }
 
   syncLocations(): Observable<ShopifySyncLocationsDto> {
     return this.http
       .post<ShopifySyncLocationsDto>(`${this.config.apiBaseUrl}/shopify/sync/locations`, {})
-      .pipe(timeout(HTTP_TIMEOUT_MS));
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        tap(() => this.connectionRefresh.notifyInvalidated()),
+      );
   }
 
   syncWebhooks(): Observable<ShopifySyncWebhooksDto> {
@@ -102,5 +115,23 @@ export class ShopifyConnectionService {
     return this.http
       .post<ShopifyClearErrorsDto>(`${this.config.apiBaseUrl}/shopify/connection/clear-errors`, {})
       .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  previewShopChange(): Observable<ShopifyShopChangePreviewDto> {
+    return this.http
+      .get<ShopifyShopChangePreviewDto>(`${this.config.apiBaseUrl}/shopify/shop-change/preview`)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  purgeShopifyData(body: PurgeShopifyDataRequestDto): Observable<ShopifyShopChangePurgeResultDto> {
+    return this.http
+      .post<ShopifyShopChangePurgeResultDto>(
+        `${this.config.apiBaseUrl}/shopify/shop-change/purge`,
+        body,
+      )
+      .pipe(
+        timeout(SYNC_PRODUCTS_TIMEOUT_MS),
+        tap(() => this.connectionRefresh.notifyInvalidated()),
+      );
   }
 }

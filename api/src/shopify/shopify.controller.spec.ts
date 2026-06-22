@@ -8,6 +8,7 @@ import type { ShopifyOAuthService } from './shopify-oauth.service';
 import type { ShopifyOrdersPullService } from './shopify-orders-pull.service';
 import type { ShopifyProductPullService } from './shopify-product-pull.service';
 import type { ShopifyTaxonomyService } from './shopify-taxonomy.service';
+import type { ShopifyShopChangeService } from './shopify-shop-change.service';
 import { ShopifyController } from './shopify.controller';
 
 describe('ShopifyController', () => {
@@ -33,6 +34,10 @@ describe('ShopifyController', () => {
     listCategories: vi.fn(),
     getCategoryAttributes: vi.fn(),
   };
+  const shopifyShopChange = {
+    preview: vi.fn(),
+    purge: vi.fn(),
+  };
 
   const controller = new ShopifyController(
     shopifyConnection as unknown as ShopifyConnectionService,
@@ -43,6 +48,7 @@ describe('ShopifyController', () => {
     shopifyCustomersPull as unknown as ShopifyCustomersPullService,
     shopifyOrdersPull as unknown as ShopifyOrdersPullService,
     shopifyTaxonomy as unknown as ShopifyTaxonomyService,
+    shopifyShopChange as unknown as ShopifyShopChangeService,
   );
 
   it('getConnection delega al service', async () => {
@@ -119,5 +125,26 @@ describe('ShopifyController', () => {
     shopifyConnection.clearErrors.mockResolvedValue({ cleared: 1 });
 
     await expect(controller.clearErrors(tenantId)).resolves.toEqual({ cleared: 1 });
+  });
+
+  it('previewShopChange delega al shop change service', async () => {
+    shopifyShopChange.preview.mockResolvedValue({ currentShopDomain: 'a.myshopify.com' });
+
+    await expect(controller.previewShopChange(tenantId)).resolves.toEqual({
+      currentShopDomain: 'a.myshopify.com',
+    });
+  });
+
+  it('purgeShopifyData delega al shop change service', async () => {
+    shopifyShopChange.purge.mockResolvedValue({ purged: { products: 1 } });
+
+    await expect(
+      controller.purgeShopifyData(tenantId, {
+        confirmShopDomain: 'a.myshopify.com',
+        purgeCatalog: true,
+        purgeCustomers: true,
+        purgeOrders: true,
+      } as never),
+    ).resolves.toEqual({ purged: { products: 1 } });
   });
 });

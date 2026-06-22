@@ -80,6 +80,10 @@ export class CreateClientComponent {
     );
   });
 
+  protected readonly isShopifyChannelProfile = computed(
+    () => this.form.controls.channelProfile.value === TenantChannelProfile.Shopify,
+  );
+
   protected readonly tenantsLoading = signal(true);
   protected readonly tenants = signal<readonly TenantSummary[]>([]);
   protected readonly tenantsError = signal<string | null>(null);

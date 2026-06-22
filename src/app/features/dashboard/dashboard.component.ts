@@ -3,17 +3,26 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { SalesOrderFulfillmentStatus } from '@core/models/sales-order.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
+import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
 import { isLowStock } from '@core/utils/inventory.util';
+import { formatDateTimeShort } from '@core/utils/date.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
 
 import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
+import {
+  shopifyConnectionStatusLabel,
+  shopifyConnectionStatusTone,
+} from '@features/integrations/shopify/models/shopify-connection-labels.util';
+import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 
 import { LowStockTableComponent } from './components/low-stock-table/low-stock-table.component';
 import { RecentSalesTableComponent } from './components/recent-sales-table/recent-sales-table.component';
@@ -52,6 +61,7 @@ type DashboardState =
     TableSkeletonComponent,
     LowStockTableComponent,
     RecentSalesTableComponent,
+    BadgeComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
@@ -59,8 +69,25 @@ type DashboardState =
 export class DashboardComponent {
   private readonly dashboardService = inject(DashboardService);
   private readonly salesOrderService = inject(SalesOrderService);
+  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly authService = inject(AuthService);
   private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
+
+  protected readonly connectionStatusLabel = shopifyConnectionStatusLabel;
+  protected readonly connectionStatusTone = shopifyConnectionStatusTone;
+  protected readonly formatDateTimeShort = formatDateTimeShort;
+
+  protected readonly showShopifyPanel = computed(() =>
+    showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
+  );
+
+  private readonly shopifyConnection = toSignal(
+    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
+    { initialValue: null },
+  );
+
+  protected readonly shopifyConnectionSummary = computed(() => this.shopifyConnection());
 
   /** Nome della location attiva (per contestualizzare i KPI di stock). */
   protected readonly activeLocationName = computed(() => {

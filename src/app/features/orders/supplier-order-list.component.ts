@@ -60,8 +60,7 @@ type OrderListState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
- * Lista ordini fornitori (smart). URL come fonte di verita' (page, search,
- * status). La creazione/ricezione ordine arrivera' col backend reale.
+ * Lista ordini fornitori (smart). URL come fonte di verita' (page, search, status).
  */
 @Component({
   selector: 'app-supplier-order-list',

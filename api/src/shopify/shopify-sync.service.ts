@@ -271,7 +271,7 @@ export class ShopifySyncService {
       await tx.stockMovement.create({
         data: {
           tenantId,
-          type: delta > 0 ? StockMovementType.load : StockMovementType.unload,
+          type: delta > 0 ? StockMovementType.return : StockMovementType.sale,
           origin: MovementOrigin.shopify,
           variantId: variant.id,
           sku: variant.sku,

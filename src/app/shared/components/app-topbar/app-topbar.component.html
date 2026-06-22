@@ -14,6 +14,22 @@
   </div>
 
   <div class="app-topbar__end">
+    <div class="app-topbar__theme" role="group" aria-label="Modalità tema">
+      @for (option of themeOptions; track option.mode) {
+        <button
+          type="button"
+          class="app-topbar__theme-btn"
+          [class.app-topbar__theme-btn--active]="themeMode() === option.mode"
+          [attr.aria-pressed]="themeMode() === option.mode"
+          [attr.aria-label]="option.label"
+          [title]="option.label"
+          (click)="themeModeChange.emit(option.mode)"
+        >
+          <i class="pi" [ngClass]="option.icon" aria-hidden="true"></i>
+        </button>
+      }
+    </div>
+
     @if (locations().length > 0) {
       <div class="app-topbar__store">
         <app-select-menu
@@ -23,71 +39,57 @@
           placeholder="Tutte le location"
           triggerIcon="pi-shop"
           [compact]="true"
+          [toolbarChip]="true"
           (valueChange)="onLocationChange($event)"
         />
       </div>
     }
 
-    <div class="app-topbar__actions">
-      @if (syncStatus(); as status) {
+    @if (syncStatus()) {
+      <button
+        type="button"
+        class="app-topbar__sync-card"
+        [attr.aria-label]="syncTooltip()"
+        [title]="syncTooltip()"
+        (click)="syncClick.emit()"
+      >
+        <span class="app-topbar__sync-icon-wrap" aria-hidden="true">
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          <span class="app-topbar__sync-dot" [ngClass]="syncToneClass()"></span>
+        </span>
+        @if (syncLastSyncLabel(); as lastSyncLabel) {
+          <span class="app-topbar__sync-meta tabular-nums">{{ lastSyncLabel }}</span>
+        }
+      </button>
+    }
+
+    @if (user(); as currentUser) {
+      <div class="app-topbar__user">
         <button
           type="button"
-          class="app-topbar__sync"
-          [attr.aria-label]="syncLabel()"
-          [title]="syncLabel()"
-          (click)="syncClick.emit()"
+          class="app-topbar__avatar"
+          [attr.aria-label]="
+            'Impostazioni (' + (currentUser.displayName.trim() || currentUser.email) + ')'
+          "
+          [title]="'Impostazioni'"
+          (click)="onSettingsClick()"
         >
-          <i class="pi pi-sync" aria-hidden="true"></i>
-          <span class="app-topbar__sync-dot" [ngClass]="syncToneClass()" aria-hidden="true"></span>
+          <app-user-avatar
+            size="md"
+            [displayName]="currentUser.displayName"
+            [email]="currentUser.email"
+            [avatarUrl]="currentUser.avatarUrl"
+          />
         </button>
-      }
-
-      <div class="app-topbar__theme" role="group" aria-label="Modalità tema">
-        @for (option of themeOptions; track option.mode) {
-          <button
-            type="button"
-            class="app-topbar__theme-btn"
-            [class.app-topbar__theme-btn--active]="themeMode() === option.mode"
-            [attr.aria-pressed]="themeMode() === option.mode"
-            [attr.aria-label]="option.label"
-            [title]="option.label"
-            (click)="themeModeChange.emit(option.mode)"
-          >
-            <i class="pi" [ngClass]="option.icon" aria-hidden="true"></i>
-          </button>
-        }
+        <button
+          type="button"
+          class="app-topbar__logout"
+          [attr.aria-label]="'Esci (' + (currentUser.displayName.trim() || currentUser.email) + ')'"
+          (click)="logout.emit()"
+        >
+          <i class="pi pi-sign-out" aria-hidden="true"></i>
+        </button>
       </div>
-
-      @if (user(); as currentUser) {
-        <div class="app-topbar__user">
-          <button
-            type="button"
-            class="app-topbar__avatar"
-            [attr.aria-label]="
-              'Impostazioni (' + (currentUser.displayName.trim() || currentUser.email) + ')'
-            "
-            [title]="'Impostazioni'"
-            (click)="onSettingsClick()"
-          >
-            <app-user-avatar
-              size="md"
-              [displayName]="currentUser.displayName"
-              [email]="currentUser.email"
-              [avatarUrl]="currentUser.avatarUrl"
-            />
-          </button>
-          <button
-            type="button"
-            class="app-topbar__logout"
-            [attr.aria-label]="
-              'Esci (' + (currentUser.displayName.trim() || currentUser.email) + ')'
-            "
-            (click)="logout.emit()"
-          >
-            <i class="pi pi-sign-out" aria-hidden="true"></i>
-          </button>
-        </div>
-      }
-    </div>
+    }
   </div>
 </div>

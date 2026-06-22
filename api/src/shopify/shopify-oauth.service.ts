@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import {
@@ -59,6 +60,16 @@ export class ShopifyOAuthService {
     }
 
     const shopDomain = this.shopifyConfig.normalizeShopDomain(shopInput);
+    const existingCredential = await this.prisma.shopifyCredential.findUnique({
+      where: { tenantId },
+      select: { shopDomain: true },
+    });
+    if (existingCredential && existingCredential.shopDomain !== shopDomain) {
+      throw new UnprocessableEntityException(
+        'Sei già connesso a un altro negozio Shopify. Usa "Cambia negozio" in Impostazioni.',
+      );
+    }
+
     const state = randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS);
 
@@ -130,6 +141,14 @@ export class ShopifyOAuthService {
     }
     const encrypted = this.shopifyCrypto.encrypt(tokenJson.access_token);
     const tenantId = oauthState.tenantId;
+
+    const existingCredential = await this.prisma.shopifyCredential.findUnique({
+      where: { tenantId },
+      select: { shopDomain: true },
+    });
+    if (existingCredential && existingCredential.shopDomain !== shopDomain) {
+      return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=shop_change_blocked&from=${encodeURIComponent(existingCredential.shopDomain)}&to=${encodeURIComponent(shopDomain)}`;
+    }
 
     await this.prisma.$transaction([
       this.prisma.shopifyCredential.upsert({

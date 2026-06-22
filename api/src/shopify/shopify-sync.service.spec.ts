@@ -154,7 +154,7 @@ describe('ShopifySyncService', () => {
     expect(tx.stockMovement.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          type: StockMovementType.load,
+          type: StockMovementType.return,
           origin: MovementOrigin.shopify,
           quantity: 5,
         }),

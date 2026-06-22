@@ -3,11 +3,12 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { catchError, filter, map, merge, of, switchMap, type Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
@@ -17,7 +18,9 @@ import { isPlatformOperator } from '@core/permissions/platform-operator.util';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { EntityId } from '@core/models/common.model';
 import type { Location } from '@core/models/location.model';
-import type { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
+import type { ShopifyConnection } from '@core/models/shopify-connection.model';
+import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
+import { filterLocationsForTopbar } from '@core/utils/location-selection.util';
 import { AppSidebarComponent } from '@shared/components/app-sidebar/app-sidebar.component';
 import { AppTopbarComponent } from '@shared/components/app-topbar/app-topbar.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -38,6 +41,7 @@ import { InventoryService } from '@features/inventory/services/inventory.service
   selector: 'app-shell-layout',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     RouterOutlet,
     AppSidebarComponent,
     AppTopbarComponent,
@@ -63,12 +67,21 @@ export class ShellLayoutComponent {
 
   readonly isPlatformOperator = computed(() => isPlatformOperator(this.currentUser()));
 
-  /** Location per il selettore topbar (solo gestionale negozio; operatore: nascosto). */
-  readonly locations = toSignal(
-    toObservable(this.currentUser).pipe(
-      switchMap((user) => {
+  /** Tutte le location del tenant (caricamento grezzo). */
+  private readonly allLocations = toSignal(
+    merge(
+      toObservable(this.currentUser).pipe(map((user) => ({ kind: 'user' as const, user }))),
+      this.shopifySyncWatch
+        .watchConnectionInvalidated()
+        .pipe(map(() => ({ kind: 'refresh' as const }))),
+    ).pipe(
+      switchMap((event) => {
+        const user = event.kind === 'user' ? event.user : this.authService.currentUser();
         if (isPlatformOperator(user)) {
           return of([] as readonly Location[]);
+        }
+        if (event.kind === 'refresh') {
+          this.inventoryService.invalidateLocationsCache();
         }
         return this.inventoryService
           .getLocations()
@@ -78,9 +91,33 @@ export class ShellLayoutComponent {
     { initialValue: [] as readonly Location[] },
   );
 
-  /** Stato connessione Shopify per l'indicatore sync (null = nascosto o non risolto). */
-  readonly shopifySyncStatus = toSignal<ShopifyConnectionStatus | null>(
-    merge(of(void 0), this.shopifySyncWatch.watchSyncCompleted()).pipe(
+  /** Location selezionabili in topbar (esclude sede locale di onboarding con Shopify). */
+  readonly topbarLocations = computed(() =>
+    filterLocationsForTopbar(this.allLocations(), {
+      channelProfile: this.currentUser()?.tenantChannelProfile,
+      shopifyConnectionStatus: this.shopifySyncStatus(),
+    }),
+  );
+
+  private readonly syncActiveLocationWithTopbar = effect(() => {
+    const activeLocationId = this.activeLocationId();
+    if (!activeLocationId) {
+      return;
+    }
+
+    const selectable = this.topbarLocations();
+    if (!selectable.some((location) => location.id === activeLocationId)) {
+      this.locationContext.setActiveLocation(null);
+    }
+  });
+
+  /** Connessione Shopify completa per topbar e banner globali. */
+  readonly shopifyConnection = toSignal<ShopifyConnection | null>(
+    merge(
+      of(void 0),
+      this.shopifySyncWatch.watchSyncCompleted(),
+      this.shopifySyncWatch.watchConnectionInvalidated(),
+    ).pipe(
       switchMap(() => {
         if (isPlatformOperator(this.authService.currentUser())) {
           return of(null);
@@ -89,13 +126,33 @@ export class ShellLayoutComponent {
         if (profile !== TenantChannelProfile.Shopify) {
           return of(null);
         }
-        return this.shopifyConnectionService.getConnection().pipe(
-          map((connection) => connection.status),
-          catchError(() => of(null)),
-        );
+        return this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null)));
       }),
     ),
     { initialValue: null },
+  );
+
+  readonly shopifySyncStatus = computed<ShopifyConnectionStatus | null>(
+    () => this.shopifyConnection()?.status ?? null,
+  );
+
+  readonly shopifyLastSyncAt = computed(() => this.shopifyConnection()?.lastSyncAt ?? null);
+
+  readonly shopifyAutoSyncEnabled = computed(() => this.shopifyConnection()?.autoSyncEnabled);
+
+  readonly shopifyLastError = computed(() => this.shopifyConnection()?.lastError?.message ?? null);
+
+  private readonly shopifyErrorBannerDismissed = signal(false);
+
+  readonly showShopifyErrorBanner = computed(() => {
+    if (this.shopifyErrorBannerDismissed()) {
+      return false;
+    }
+    return Boolean(this.shopifyConnection()?.lastError);
+  });
+
+  readonly shopifyErrorBannerMessage = computed(
+    () => this.shopifyConnection()?.lastError?.message ?? '',
   );
 
   private readonly _drawerOpen = signal(false);
@@ -185,6 +242,10 @@ export class ShellLayoutComponent {
       return;
     }
     void this.router.navigateByUrl('/app/settings');
+  }
+
+  dismissShopifyErrorBanner(): void {
+    this.shopifyErrorBannerDismissed.set(true);
   }
 
   onSettingsClick(): void {

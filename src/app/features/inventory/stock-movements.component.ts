@@ -2,14 +2,16 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   inject,
   signal,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, forkJoin, map, of, skip, startWith, switchMap } from 'rxjs';
 
+import type { PageMeta } from '@core/models/api.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -21,18 +23,26 @@ import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { MovementTableComponent } from './components/movement-table/movement-table.component';
+import { movementOriginLabel } from './models/inventory-labels.util';
 import type { StockMovementRow } from './models/inventory-view.model';
+import {
+  DEFAULT_INVENTORY_PAGE_SIZE,
+  INVENTORY_PAGE_SIZE_OPTIONS,
+} from './models/inventory-list-query.model';
+import type { StockMovementsListQuery } from './models/inventory-list-query.model';
 import { InventoryService } from './services/inventory.service';
 
 interface MovementsData {
   readonly movements: readonly StockMovement[];
   readonly locations: readonly Location[];
+  readonly meta: PageMeta;
 }
 
 type MovementsState =
@@ -40,7 +50,14 @@ type MovementsState =
   | { readonly status: 'success'; readonly data: MovementsData }
   | { readonly status: 'error'; readonly error: AppError };
 
-/** Storico movimenti di magazzino (smart): log immutabile, filtri locali. */
+const EMPTY_META: PageMeta = {
+  page: 1,
+  pageSize: DEFAULT_INVENTORY_PAGE_SIZE,
+  total: 0,
+  totalPages: 1,
+};
+
+/** Storico movimenti di magazzino (smart): filtri e paginazione server-side. */
 @Component({
   selector: 'app-stock-movements',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,6 +67,7 @@ type MovementsState =
     ErrorStateComponent,
     TableSkeletonComponent,
     SelectMenuComponent,
+    PaginationComponent,
     InventoryTabsComponent,
     MovementTableComponent,
   ],
@@ -60,8 +78,10 @@ export class StockMovementsComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly skeletonColumns = 6;
+  protected readonly skeletonColumns = 8;
+  protected readonly pageSizeOptions = INVENTORY_PAGE_SIZE_OPTIONS;
 
   protected readonly movementTypeOptions: readonly SelectMenuOption[] = [
     { value: StockMovementType.Load, label: 'Carico' },
@@ -73,6 +93,8 @@ export class StockMovementsComponent {
   ];
 
   private readonly refreshTick = signal(0);
+  protected readonly page = signal(1);
+  protected readonly pageSize = signal(DEFAULT_INVENTORY_PAGE_SIZE);
 
   protected readonly typeFilter = signal('');
   // La location parte dal contesto globale (selettore topbar).
@@ -83,16 +105,50 @@ export class StockMovementsComponent {
     effect(() => {
       this.locationFilter.set(this.locationContext.activeLocationId() ?? '');
     });
+
+    toObservable(this.filters)
+      .pipe(skip(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.page.set(1));
   }
 
+  private readonly filters = computed(() => ({
+    type: this.typeFilter(),
+    location: this.locationFilter(),
+  }));
+
+  private readonly query = computed((): StockMovementsListQuery => {
+    const type = this.typeFilter();
+    const locationId = this.locationFilter();
+    return {
+      page: this.page(),
+      pageSize: this.pageSize(),
+      type: type ? (type as StockMovementType) : undefined,
+      locationId: locationId || undefined,
+    };
+  });
+
+  private readonly request = computed(() => ({
+    query: this.query(),
+    tick: this.refreshTick(),
+  }));
+
   private readonly state = toSignal(
-    toObservable(this.refreshTick).pipe(
-      switchMap(() =>
+    toObservable(this.request).pipe(
+      switchMap(({ query }) =>
         forkJoin({
-          movements: this.inventoryService.getMovements(),
+          movements: this.inventoryService.getMovements(query),
           locations: this.inventoryService.getLocations(),
         }).pipe(
-          map((data): MovementsState => ({ status: 'success', data })),
+          map(
+            ({ movements, locations }): MovementsState => ({
+              status: 'success',
+              data: {
+                movements: movements.data,
+                locations,
+                meta: movements.meta,
+              },
+            }),
+          ),
           startWith<MovementsState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<MovementsState>({ status: 'error', error: this.toAppError(err) }),
@@ -119,7 +175,12 @@ export class StockMovementsComponent {
     this.locations().map((location) => ({ value: location.id, label: location.name })),
   );
 
-  private readonly allRows = computed<readonly StockMovementRow[]>(() => {
+  protected readonly meta = computed<PageMeta>(() => {
+    const current = this.state();
+    return current.status === 'success' ? current.data.meta : EMPTY_META;
+  });
+
+  protected readonly rows = computed<readonly StockMovementRow[]>(() => {
     const current = this.state();
     if (current.status !== 'success') {
       return [];
@@ -141,41 +202,16 @@ export class StockMovementsComponent {
         reason: movement.reason,
         createdAtLabel: formatDateTime(movement.createdAt),
         createdByName: movement.createdByName,
+        origin: movement.origin,
+        originLabel: movementOriginLabel(movement.origin),
       }),
     );
   });
 
-  protected readonly rows = computed<readonly StockMovementRow[]>(() => {
-    const type = this.typeFilter();
-    const location = this.locationFilter();
+  protected readonly isEmpty = computed(() => {
     const current = this.state();
-    if (current.status !== 'success') {
-      return [];
-    }
-    // Filtro per id movimento originale: ricostruito dal dataset completo.
-    const allowedIds = new Set(
-      current.data.movements
-        .filter((movement) => {
-          if (type && movement.type !== type) {
-            return false;
-          }
-          if (
-            location &&
-            movement.locationId !== location &&
-            movement.targetLocationId !== location
-          ) {
-            return false;
-          }
-          return true;
-        })
-        .map((movement) => movement.id),
-    );
-    return this.allRows().filter((row) => allowedIds.has(row.id));
+    return current.status === 'success' && current.data.meta.total === 0;
   });
-
-  protected readonly isEmpty = computed(
-    () => this.state().status === 'success' && this.rows().length === 0,
-  );
 
   protected readonly hasActiveFilters = computed(() =>
     Boolean(this.typeFilter() || this.locationFilter()),
@@ -192,6 +228,15 @@ export class StockMovementsComponent {
   protected resetFilters(): void {
     this.typeFilter.set('');
     this.locationFilter.set('');
+  }
+
+  protected goToPage(page: number): void {
+    this.page.set(page);
+  }
+
+  protected onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.page.set(1);
   }
 
   protected reload(): void {

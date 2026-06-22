@@ -1,0 +1,42 @@
+<div class="tenant-client-card__wrapper">
+  <table class="tenant-client-table" aria-label="Anagrafica sede fisica">
+    <thead>
+      <tr>
+        <th scope="col">Nome commerciale</th>
+        <th scope="col">Negozio</th>
+        <th scope="col">Profilo</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="tenant-client-table__row">
+        <td data-label="Nome commerciale">{{ company().name }}</td>
+        <td data-label="Negozio">{{ displayCell(company().storeName) }}</td>
+        <td data-label="Profilo">
+          <span class="tenant-client-table__cell-value">
+            <app-badge tone="neutral">{{ channelProfileLabel() }}</app-badge>
+          </span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+@if (hasExtendedDetails()) {
+  <details class="tenant-client-card__details">
+    <summary class="tenant-client-card__details-summary">
+      <span class="tenant-client-card__details-label">Dati fiscali e contatti</span>
+      <span class="tenant-client-card__details-trailing">
+        <span class="tenant-client-card__details-meta">{{ extendedDetailsMeta() }}</span>
+        <i class="pi pi-chevron-right tenant-client-card__details-icon" aria-hidden="true"></i>
+      </span>
+    </summary>
+    <dl class="tenant-client-card__facts">
+      @for (field of extendedFields(); track field.label) {
+        <div class="tenant-client-card__fact">
+          <dt>{{ field.label }}</dt>
+          <dd [class.tabular-nums]="field.tabular">{{ field.value }}</dd>
+        </div>
+      }
+    </dl>
+  </details>
+}

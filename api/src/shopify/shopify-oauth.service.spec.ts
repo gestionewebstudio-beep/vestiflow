@@ -1,6 +1,7 @@
 import {
   NotFoundException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { TenantChannelProfile } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
@@ -42,6 +43,9 @@ describe('ShopifyOAuthService', () => {
       apiKey: 'test-api-key',
       scopes: 'read_products',
       callbackUrl: 'https://api.test/callback',
+      frontendUrl: 'http://localhost:4200',
+      apiVersion: '2024-10',
+      webhookUrl: null,
     };
 
     const shopifyCrypto = {
@@ -81,6 +85,17 @@ describe('ShopifyOAuthService', () => {
     );
     expect(result.authorizeUrl).toContain('https://my-shop.myshopify.com/admin/oauth/authorize');
     expect(result.authorizeUrl).toContain('client_id=test-api-key');
+  });
+
+  it('beginAuth blocca connessione a shop diverso se già connesso', async () => {
+    const { service, prisma } = createService();
+    prisma.shopifyCredential.findUnique.mockResolvedValue({
+      shopDomain: 'old-shop.myshopify.com',
+    });
+
+    await expect(service.beginAuth('tenant-1', 'new-shop.myshopify.com')).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
   });
 
   it('beginAuth fallisce se encryption key mancante', async () => {

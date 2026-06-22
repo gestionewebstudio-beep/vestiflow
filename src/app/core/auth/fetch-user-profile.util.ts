@@ -20,6 +20,7 @@ export interface UserProfileApi {
   readonly isActive: boolean;
   readonly isPlatformAdmin: boolean;
   readonly tenantChannelProfile?: TenantChannelProfileType;
+  readonly tenantName?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -36,6 +37,7 @@ export function mapUserProfileFromApi(row: UserProfileApi): User {
     isActive: row.isActive,
     isPlatformAdmin: row.isPlatformAdmin,
     tenantChannelProfile: row.tenantChannelProfile ?? TenantChannelProfile.Shopify,
+    tenantName: row.tenantName?.trim() || 'Cliente',
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

@@ -36,8 +36,14 @@
           <dd>{{ result.storeName }}</dd>
         </div>
         <div class="create-client__fact">
-          <dt>Location</dt>
-          <dd>{{ result.locationName }}</dd>
+          <dt>Sede temporanea</dt>
+          <dd>
+            @if (result.channelProfile === 'shopify') {
+              Verrà sostituita dalle sedi importate da Shopify al primo sync location.
+            } @else {
+              {{ result.locationName }}
+            }
+          </dd>
         </div>
       </dl>
 
@@ -228,17 +234,24 @@
             <span class="create-client__hint">Se vuoto: «Negozio principale».</span>
           </label>
 
-          <label class="create-client__field" for="client-location-name">
-            <span class="create-client__field-label">Nome location (opzionale)</span>
-            <input
-              id="client-location-name"
-              class="create-client__input"
-              type="text"
-              formControlName="locationName"
-              placeholder="Come il negozio"
-              autocomplete="off"
-            />
-          </label>
+          @if (!isShopifyChannelProfile()) {
+            <label class="create-client__field" for="client-location-name">
+              <span class="create-client__field-label">Nome location (opzionale)</span>
+              <input
+                id="client-location-name"
+                class="create-client__input"
+                type="text"
+                formControlName="locationName"
+                placeholder="Come il negozio"
+                autocomplete="off"
+              />
+            </label>
+          } @else {
+            <p class="create-client__hint create-client__field--span-full">
+              Per i clienti Shopify le sedi magazzino vengono importate dal negozio collegato
+              (Shopify Admin → Sedi). VestiFlow crea solo una sede temporanea fino al primo sync.
+            </p>
+          }
         </section>
 
         @if (submitError(); as message) {

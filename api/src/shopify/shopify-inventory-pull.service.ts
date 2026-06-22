@@ -94,12 +94,18 @@ export class ShopifyInventoryPullService {
         offset += INVENTORY_ITEM_ID_BATCH_SIZE
       ) {
         const batch = inventoryItemIds.slice(offset, offset + INVENTORY_ITEM_ID_BATCH_SIZE);
-        const remoteLevels = await this.shopifyAdmin.listInventoryLevels(
-          shopDomain,
-          accessToken,
-          shopifyLocationId,
-          batch,
-        );
+        let remoteLevels;
+        try {
+          remoteLevels = await this.shopifyAdmin.listInventoryLevels(
+            shopDomain,
+            accessToken,
+            shopifyLocationId,
+            batch,
+          );
+        } catch (error: unknown) {
+          await this.shopifyConnection.recordApiFailure(tenantId, error);
+          throw error;
+        }
         remoteLevelCount += remoteLevels.length;
 
         for (const remoteLevel of remoteLevels) {

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Location } from '@prisma/client';
-import { ShopifySyncStatus } from '@prisma/client';
+import { InventoryCountStatus, ShopifySyncStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient, type ShopifyAdminLocation } from './shopify-admin.client';
@@ -40,23 +40,14 @@ export class ShopifyLocationSyncService {
     let importedCount = 0;
     let nextCodeIndex = this.resolveNextLocationCodeIndex(tenantLocations);
 
-    const unlinkedLocations = tenantLocations.filter((loc) => !loc.shopifyLocationId);
-    let onboardingLocation = unlinkedLocations.length === 1 ? unlinkedLocations[0] : undefined;
+    const activeShopifyIds = new Set<string>();
 
     for (const shopifyLocation of shopifyLocations) {
       const shopifyId = String(shopifyLocation.id);
-      const match = this.findMatch(
-        tenantLocations,
-        shopifyLocation,
-        shopifyId,
-        usedVfIds,
-        onboardingLocation,
-      );
+      activeShopifyIds.add(shopifyId);
+      const match = this.findMatch(tenantLocations, shopifyLocation, shopifyId, usedVfIds);
 
       if (match) {
-        if (match === onboardingLocation) {
-          onboardingLocation = undefined;
-        }
         usedVfIds.add(match.id);
         await this.prisma.location.update({
           where: { id: match.id },
@@ -89,6 +80,14 @@ export class ShopifyLocationSyncService {
       );
     }
 
+    if (shopifyLocations.length > 0 && (matchedCount > 0 || importedCount > 0)) {
+      await this.removeEmptyOnboardingLocation(tenantId);
+    }
+
+    if (activeShopifyIds.size > 0) {
+      await this.cleanupStaleShopifyLocations(tenantId, activeShopifyIds);
+    }
+
     return {
       matchedCount,
       importedCount,
@@ -96,12 +95,92 @@ export class ShopifyLocationSyncService {
     };
   }
 
+  /** Rimuove la sede LOC-01 creata in onboarding se vuota e sostituita dalle sedi Shopify. */
+  private async removeEmptyOnboardingLocation(tenantId: string): Promise<void> {
+    const onboardingLocations = await this.prisma.location.findMany({
+      where: {
+        tenantId,
+        code: 'LOC-01',
+        shopifyLocationId: null,
+      },
+    });
+
+    for (const location of onboardingLocations) {
+      if (!(await this.canDeleteLocation(tenantId, location.id))) {
+        continue;
+      }
+
+      await this.prisma.location.delete({ where: { id: location.id } });
+      this.logger.log(
+        `Rimossa sede temporanea di onboarding (${tenantId}): ${location.name}`,
+      );
+    }
+  }
+
+  private async canDeleteLocation(tenantId: string, locationId: string): Promise<boolean> {
+    const [levels, movements, supplierOrders, countSessions] = await Promise.all([
+      this.prisma.inventoryLevel.count({ where: { tenantId, locationId } }),
+      this.prisma.stockMovement.count({
+        where: {
+          tenantId,
+          OR: [{ locationId }, { targetLocationId: locationId }],
+        },
+      }),
+      this.prisma.supplierOrder.count({ where: { tenantId, destinationLocationId: locationId } }),
+      this.prisma.inventoryCountSession.count({
+        where: {
+          tenantId,
+          locationId,
+          status: InventoryCountStatus.in_progress,
+        },
+      }),
+    ]);
+
+    return levels === 0 && movements === 0 && supplierOrders === 0 && countSessions === 0;
+  }
+
+  private async cleanupStaleShopifyLocations(
+    tenantId: string,
+    activeShopifyIds: ReadonlySet<string>,
+  ): Promise<void> {
+    const linkedLocations = await this.prisma.location.findMany({
+      where: { tenantId, shopifyLocationId: { not: null } },
+    });
+
+    for (const location of linkedLocations) {
+      const shopifyLocationId = location.shopifyLocationId;
+      if (!shopifyLocationId || activeShopifyIds.has(shopifyLocationId)) {
+        continue;
+      }
+
+      if (await this.canDeleteLocation(tenantId, location.id)) {
+        await this.prisma.location.delete({ where: { id: location.id } });
+        this.logger.log(
+          `Rimossa location Shopify non più presente (${tenantId}): ${location.name}`,
+        );
+        continue;
+      }
+
+      await this.prisma.location.update({
+        where: { id: location.id },
+        data: {
+          shopifyLocationId: null,
+          shopifySyncStatus: ShopifySyncStatus.not_connected,
+          shopifyLastSyncAt: null,
+          shopifyLastError: null,
+        },
+      });
+      this.logger.log(
+        `Scollegata location Shopify obsoleta (${tenantId}): ${location.name}`,
+      );
+    }
+  }
+
   private findMatch(
     tenantLocations: readonly Location[],
     shopifyLocation: ShopifyAdminLocation,
     shopifyId: string,
     usedVfIds: ReadonlySet<string>,
-    onboardingLocation?: Location,
   ): Location | undefined {
     const byId = tenantLocations.find(
       (loc) => !usedVfIds.has(loc.id) && loc.shopifyLocationId === shopifyId,
@@ -121,15 +200,12 @@ export class ShopifyLocationSyncService {
       return byName;
     }
 
-    if (onboardingLocation && !usedVfIds.has(onboardingLocation.id)) {
-      return onboardingLocation;
-    }
-
     return undefined;
   }
 
   private buildLinkedLocationData(shopifyLocation: ShopifyAdminLocation, shopifyId: string) {
     return {
+      name: shopifyLocation.name.trim(),
       ...this.mapShopifyAddress(shopifyLocation),
       isActive: shopifyLocation.active,
       shopifyLocationId: shopifyId,

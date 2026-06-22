@@ -23,6 +23,12 @@ import type { ShopifyCatalogSyncResult } from './shopify-product-pull.service';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ListTaxonomyCategoriesQueryDto } from './dto/list-taxonomy-categories.query.dto';
 import { ListCategoryAttributesQueryDto } from './dto/list-category-attributes.query.dto';
+import { PurgeShopifyDataDto } from './dto/purge-shopify-data.dto';
+import { ShopifyShopChangeService } from './shopify-shop-change.service';
+import type {
+  ShopifyShopChangePreview,
+  ShopifyShopChangePurgeResult,
+} from './shopify-shop-change.service';
 
 @Controller('shopify')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -36,6 +42,7 @@ export class ShopifyController {
     private readonly shopifyCustomersPull: ShopifyCustomersPullService,
     private readonly shopifyOrdersPull: ShopifyOrdersPullService,
     private readonly shopifyTaxonomy: ShopifyTaxonomyService,
+    private readonly shopifyShopChange: ShopifyShopChangeService,
   ) {}
 
   @Get('connection')
@@ -71,6 +78,21 @@ export class ShopifyController {
   async disconnect(@CurrentTenant() tenantId: string): Promise<{ disconnected: true }> {
     await this.shopifyOAuth.disconnect(tenantId);
     return { disconnected: true };
+  }
+
+  @Get('shop-change/preview')
+  @Roles(...ADMIN_ROLES)
+  previewShopChange(@CurrentTenant() tenantId: string): Promise<ShopifyShopChangePreview> {
+    return this.shopifyShopChange.preview(tenantId);
+  }
+
+  @Post('shop-change/purge')
+  @Roles(...ADMIN_ROLES)
+  purgeShopifyData(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: PurgeShopifyDataDto,
+  ): Promise<ShopifyShopChangePurgeResult> {
+    return this.shopifyShopChange.purge(tenantId, dto);
   }
 
   @Post('sync/locations')

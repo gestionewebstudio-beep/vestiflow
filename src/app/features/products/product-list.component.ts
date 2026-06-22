@@ -122,7 +122,7 @@ export class ProductListComponent {
 
   private lastFetchQueryKey = '';
 
-  protected readonly skeletonColumns = 5;
+  protected readonly skeletonColumns = computed(() => (this.showShopifyColumn() ? 6 : 5));
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly pageSizeOptions = PRODUCT_PAGE_SIZE_OPTIONS;
 
@@ -151,6 +151,10 @@ export class ProductListComponent {
     () =>
       isShopifyConnected(this.shopifyConnection()) &&
       canManageShopifySync(this.authService.currentUser()),
+  );
+
+  protected readonly showShopifyColumn = computed(() =>
+    isShopifyConnected(this.shopifyConnection()),
   );
 
   protected readonly canManageCatalog = computed(() =>
@@ -236,7 +240,7 @@ export class ProductListComponent {
       .subscribe((value) => this.applySearch(value));
 
     this.shopifySyncWatch
-      .watchSyncCompleted()
+      .watchRemoteDataChanged()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.softRefreshTick.update((tick) => tick + 1);

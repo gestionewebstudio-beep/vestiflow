@@ -25,15 +25,26 @@
       <div class="po-detail__header-actions">
         <app-badge [tone]="statusTone(o.status)">{{ statusLabel(o.status) }}</app-badge>
         @if (mode() === 'view') {
+          @if (canEdit()) {
+            <app-button variant="ghost" (click)="goToEdit()">
+              <i class="pi pi-pencil" aria-hidden="true"></i>
+              Modifica bozza
+            </app-button>
+          }
           @if (canSend()) {
             <app-button
               variant="secondary"
               [loading]="actionSaving()"
               [disabled]="actionSaving()"
-              (click)="sendOrder()"
+              (click)="requestSend()"
             >
               <i class="pi pi-send" aria-hidden="true"></i>
               Invia ordine
+            </app-button>
+          }
+          @if (canCancel()) {
+            <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestCancel()">
+              Annulla ordine
             </app-button>
           }
           @if (canReceive()) {
@@ -103,7 +114,7 @@
           <app-button
             [loading]="actionSaving()"
             [disabled]="actionSaving() || receiveForm.invalid"
-            (click)="confirmReceive()"
+            (click)="requestReceiveConfirm()"
           >
             <i class="pi pi-check" aria-hidden="true"></i>
             Conferma ricezione
@@ -126,3 +137,32 @@
     }
   }
 </section>
+
+<app-confirm-dialog
+  [(open)]="sendDialogOpen"
+  title="Invia ordine fornitore"
+  message="Confermi l'invio dell'ordine al fornitore? Dopo l'invio potrai registrare la ricezione merce."
+  confirmLabel="Invia ordine"
+  cancelLabel="Annulla"
+  (confirmed)="sendOrder()"
+/>
+
+<app-confirm-dialog
+  [(open)]="receiveConfirmDialogOpen"
+  title="Conferma ricezione merce"
+  message="Le quantità indicate verranno caricate in magazzino con movimenti tracciati. Confermi?"
+  confirmLabel="Conferma ricezione"
+  cancelLabel="Annulla"
+  [danger]="true"
+  (confirmed)="confirmReceive()"
+/>
+
+<app-confirm-dialog
+  [(open)]="cancelDialogOpen"
+  title="Annulla ordine"
+  message="L'ordine verrà segnato come annullato. Operazione non reversibile."
+  confirmLabel="Annulla ordine"
+  cancelLabel="Torna indietro"
+  [danger]="true"
+  (confirmed)="cancelOrder()"
+/>

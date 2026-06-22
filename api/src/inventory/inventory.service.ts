@@ -124,6 +124,7 @@ export class InventoryService {
     tenantId: string,
     dto: RegisterMovementDto,
     actorDisplayName: string,
+    actorUserId?: string,
   ): Promise<StockMovement> {
     this.assertMovementShape(dto);
 
@@ -158,6 +159,7 @@ export class InventoryService {
           quantity: dto.quantity,
           direction: dto.type === StockMovementType.adjustment ? dto.direction : null,
           reason: dto.reason,
+          createdById: actorUserId ?? null,
           createdByName: actorDisplayName.trim() || 'Utente',
         },
       });
@@ -227,6 +229,29 @@ export class InventoryService {
     if (!location) {
       throw new NotFoundException('Location non trovata');
     }
+  }
+
+  /** Aggiorna la soglia minima di una giacenza (manager+). */
+  async updateLevelMinThreshold(
+    tenantId: string,
+    id: string,
+    minThreshold: number,
+  ): Promise<InventoryLevelWithRefs> {
+    const level = await this.prisma.inventoryLevel.findFirst({
+      where: { id, tenantId },
+      include: { variant: { select: { sku: true, product: { select: { name: true } } } } },
+    });
+    if (!level) {
+      throw new NotFoundException('Giacenza non trovata');
+    }
+    return this.prisma.inventoryLevel.update({
+      where: { id },
+      data: { minThreshold },
+      include: {
+        variant: { select: { sku: true, product: { select: { name: true } } } },
+        location: { select: { name: true } },
+      },
+    });
   }
 
   /** Vincoli per tipo, prima di toccare il DB. */

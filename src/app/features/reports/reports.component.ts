@@ -68,7 +68,9 @@ export class ReportsComponent {
     toObservable(this.refreshTick).pipe(
       switchMap(() =>
         forkJoin({
-          levels: this.inventoryService.getLevels(),
+          levels: this.inventoryService
+            .getLevels({ page: 1, pageSize: 100 })
+            .pipe(map((response) => response.data)),
           locations: this.inventoryService.getLocations(),
           summaries: this.productService.getVariantSummaries(),
           orders: this.salesOrderService

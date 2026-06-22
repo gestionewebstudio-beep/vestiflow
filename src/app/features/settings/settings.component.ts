@@ -13,6 +13,7 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, combineLatest, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AuthService } from '@core/auth';
+import { isPlatformOperator } from '@core/permissions/platform-operator.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
@@ -30,7 +31,6 @@ import { formatDateTime } from '@core/utils/date.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { InlineSpinnerComponent } from '@shared/components/inline-spinner/inline-spinner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { ProfileAvatarUploadComponent } from '@shared/components/profile-avatar-upload/profile-avatar-upload.component';
 import type { ThemeMode } from '@shared/models/theme.model';
@@ -45,10 +45,17 @@ import {
 } from '@features/integrations/shopify/models/shopify-connection-labels.util';
 import {
   shopifyScopeAccessLabel,
-  shopifyScopeDisplay,
+  groupShopifyScopesForDisplay,
 } from '@features/integrations/shopify/models/shopify-scope-labels.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
+import { ShopifyShopChangeWizardComponent } from '@features/integrations/shopify/components/shopify-shop-change-wizard/shopify-shop-change-wizard.component';
 import { normalizeShopDomainInput } from '@features/integrations/shopify/models/normalize-shop-domain.util';
+import {
+  formatShopifyCustomersSyncFeedback,
+  formatShopifyInventorySyncFeedback,
+  formatShopifyOrdersSyncFeedback,
+  formatShopifyProductsSyncFeedback,
+} from '@features/integrations/shopify/models/shopify-sync-feedback.util';
 import type {
   ShopifyClearErrorsDto,
   ShopifyDisableWebhooksDto,
@@ -62,7 +69,10 @@ import {
 } from '@core/models/tenant-channel-profile.model';
 
 import { LocationTableComponent } from './components/location-table/location-table.component';
+import { TenantClientCardComponent } from './components/tenant-client-card/tenant-client-card.component';
 import { MfaSettingsComponent } from './components/mfa-settings/mfa-settings.component';
+import { TenantCompanyService } from './services/tenant-company.service';
+import type { TenantCompany } from './models/tenant-company.model';
 import { TikTokIntegrationPanelComponent } from './components/tiktok-integration-panel/tiktok-integration-panel.component';
 
 type ConnectionState =
@@ -70,6 +80,12 @@ type ConnectionState =
   | { readonly status: 'success'; readonly connection: ShopifyConnection }
   | { readonly status: 'not-found' }
   | { readonly status: 'error'; readonly error: AppError };
+
+type TenantCompanyState =
+  | { readonly status: 'loading' }
+  | { readonly status: 'success'; readonly company: TenantCompany }
+  | { readonly status: 'skip' }
+  | { readonly status: 'error'; readonly error: string };
 
 type ShopifyBanner = 'connected' | 'connected-warn' | 'error' | 'disconnected';
 
@@ -104,13 +120,14 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     BadgeComponent,
     ButtonComponent,
     ErrorStateComponent,
-    InlineSpinnerComponent,
     ReactiveFormsModule,
     TableSkeletonComponent,
     LocationTableComponent,
+    TenantClientCardComponent,
     MfaSettingsComponent,
     TikTokIntegrationPanelComponent,
     ProfileAvatarUploadComponent,
+    ShopifyShopChangeWizardComponent,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
@@ -118,6 +135,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
 export class SettingsComponent {
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly inventoryService = inject(InventoryService);
+  private readonly tenantCompanyService = inject(TenantCompanyService);
   private readonly themeService = inject(ThemeService);
   private readonly authService = inject(AuthService);
   private readonly fb = inject(NonNullableFormBuilder);
@@ -142,17 +160,16 @@ export class SettingsComponent {
   );
   protected readonly settingsSubtitle = computed(() => {
     if (this.showShopifyPanel()) {
-      return 'Profilo, integrazione Shopify, aspetto e location.';
+      return 'Profilo, sede fisica, integrazione Shopify, aspetto.';
     }
     if (this.showTikTokPanel()) {
-      return 'Profilo, integrazione TikTok Shop, aspetto e location.';
+      return 'Profilo, sede fisica, integrazione TikTok Shop, aspetto.';
     }
-    return 'Profilo, aspetto e location.';
+    return 'Profilo, sede fisica, aspetto.';
   });
 
   protected readonly connectionStatusLabel = shopifyConnectionStatusLabel;
   protected readonly connectionStatusTone = shopifyConnectionStatusTone;
-  protected readonly shopifyScopeDisplay = shopifyScopeDisplay;
   protected readonly shopifyScopeAccessLabel = shopifyScopeAccessLabel;
   protected readonly formatDateTime = formatDateTime;
 
@@ -160,10 +177,16 @@ export class SettingsComponent {
   protected readonly disconnectLoading = signal(false);
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
+  protected readonly syncProductsLoading = signal(false);
+  protected readonly syncInventoryLoading = signal(false);
+  protected readonly syncCustomersLoading = signal(false);
+  protected readonly syncOrdersLoading = signal(false);
   protected readonly clearErrorsLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
   protected readonly actionFeedback = signal<ActionFeedback | null>(null);
   protected readonly shopifyBanner = signal<ShopifyBanner | null>(null);
+  protected readonly shopWizardOpen = signal(false);
+  protected readonly shopWizardMode = signal<'change' | 'disconnect'>('change');
 
   private actionFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -175,6 +198,42 @@ export class SettingsComponent {
 
   private readonly connectionTick = signal(0);
   private readonly locationTick = signal(0);
+  private readonly tenantCompanyTick = signal(0);
+
+  private readonly tenantCompanyState = toSignal(
+    combineLatest([toObservable(this.tenantCompanyTick), toObservable(this.currentUser)]).pipe(
+      switchMap(([, user]) => {
+        if (!user || isPlatformOperator(user)) {
+          return of({ status: 'skip' } as const);
+        }
+        return this.tenantCompanyService.getCompany().pipe(
+          map((company): TenantCompanyState => ({ status: 'success', company })),
+          startWith({ status: 'loading' } as const),
+          catchError((err: unknown) =>
+            of({
+              status: 'error',
+              error: this.extractErrorMessage(err),
+            } satisfies TenantCompanyState),
+          ),
+        );
+      }),
+    ),
+    { initialValue: { status: 'loading' } satisfies TenantCompanyState },
+  );
+
+  protected readonly tenantCompanyLoading = computed(
+    () => this.tenantCompanyState().status === 'loading',
+  );
+
+  protected readonly tenantCompany = computed((): TenantCompany | null => {
+    const state = this.tenantCompanyState();
+    return state.status === 'success' ? state.company : null;
+  });
+
+  protected readonly tenantCompanyError = computed(() => {
+    const state = this.tenantCompanyState();
+    return state.status === 'error' ? state.error : null;
+  });
 
   private readonly connectionState = toSignal(
     combineLatest([toObservable(this.connectionTick), toObservable(this.showShopifyPanel)]).pipe(
@@ -210,6 +269,25 @@ export class SettingsComponent {
     return current.status === 'success' ? current.connection : null;
   });
 
+  protected readonly groupedShopifyScopes = computed(() => {
+    const scopes = this.connection()?.scopes;
+    if (!scopes?.length) {
+      return [];
+    }
+    return groupShopifyScopesForDisplay(scopes);
+  });
+
+  protected readonly shopifyScopesSummary = computed(() => {
+    const groups = this.groupedShopifyScopes();
+    const total = this.connection()?.scopes?.length ?? 0;
+    if (groups.length === 0) {
+      return '';
+    }
+    const areasLabel = groups.length === 1 ? '1 area' : `${groups.length} aree`;
+    const permissionsLabel = total === 1 ? '1 permesso' : `${total} permessi`;
+    return `${areasLabel} · ${permissionsLabel}`;
+  });
+
   protected readonly showShopifyLocationColumn = computed(() => {
     if (!this.showShopifyPanel()) {
       return false;
@@ -222,6 +300,11 @@ export class SettingsComponent {
   );
 
   protected readonly canManageMfa = computed(() => userCanManageMfa(this.currentUser()));
+
+  protected readonly showTenantCompanyPanel = computed(() => {
+    const user = this.currentUser();
+    return Boolean(user && !isPlatformOperator(user));
+  });
 
   protected readonly locations = toSignal(
     toObservable(this.locationTick).pipe(switchMap(() => this.inventoryService.getLocations())),
@@ -298,16 +381,18 @@ export class SettingsComponent {
       : 'Attiva aggiornamenti automatici',
   );
 
-  /** Messaggio visibile mentre un'azione Shopify è in corso (esclusa disconnessione: feedback sul bottone). */
-  protected readonly shopifyActionProgress = computed((): string | null => {
-    if (this.connectLoading()) {
-      return 'Reindirizzamento a Shopify…';
-    }
-    if (this.clearErrorsLoading()) {
-      return 'Ripristino connessione in corso…';
-    }
-    return null;
+  protected readonly showPostConnectCta = computed(() => {
+    const banner = this.shopifyBanner();
+    return banner === 'connected' || banner === 'connected-warn';
   });
+
+  protected readonly shopifyBulkSyncBusy = computed(
+    () =>
+      this.syncProductsLoading() ||
+      this.syncInventoryLoading() ||
+      this.syncCustomersLoading() ||
+      this.syncOrdersLoading(),
+  );
 
   protected readonly showClearShopifyErrors = computed(() => {
     const conn = this.connection();
@@ -348,6 +433,16 @@ export class SettingsComponent {
           queryParamsHandling: 'merge',
           replaceUrl: true,
         });
+      } else if (shopifyParam === 'shop_change_blocked') {
+        this.connectError.set(
+          'Collegamento a un negozio diverso bloccato. Usa "Cambia negozio Shopify" per rimuovere i dati del negozio attuale.',
+        );
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { shopify: null, from: null, to: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
       }
     });
   }
@@ -363,6 +458,10 @@ export class SettingsComponent {
   protected reloadLocations(): void {
     this.inventoryService.invalidateLocationsCache();
     this.locationTick.update((tick) => tick + 1);
+  }
+
+  protected reloadTenantCompany(): void {
+    this.tenantCompanyTick.update((tick) => tick + 1);
   }
 
   private handleShopifyOAuthReturn(param: Exclude<ShopifyBanner, 'connected-warn'>): void {
@@ -461,6 +560,122 @@ export class SettingsComponent {
         },
         error: (err: unknown) => {
           this.disconnectLoading.set(false);
+          this.connectError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected openShopChangeWizard(): void {
+    this.shopWizardMode.set('change');
+    this.shopWizardOpen.set(true);
+  }
+
+  protected openDisconnectPurgeWizard(): void {
+    this.shopWizardMode.set('disconnect');
+    this.shopWizardOpen.set(true);
+  }
+
+  protected onShopWizardCompleted(): void {
+    this.shopifyBanner.set('disconnected');
+    this.reloadConnection();
+    this.reloadLocations();
+  }
+
+  protected syncShopifyProducts(): void {
+    if (this.syncProductsLoading() || this.shopifyBulkSyncBusy()) {
+      return;
+    }
+
+    this.syncProductsLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .syncProducts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.syncProductsLoading.set(false);
+          this.reloadConnection();
+          this.showActionFeedback(formatShopifyProductsSyncFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.syncProductsLoading.set(false);
+          this.connectError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected syncShopifyInventory(): void {
+    if (this.syncInventoryLoading() || this.shopifyBulkSyncBusy()) {
+      return;
+    }
+
+    this.syncInventoryLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .syncInventory()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.syncInventoryLoading.set(false);
+          this.reloadConnection();
+          this.showActionFeedback(formatShopifyInventorySyncFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.syncInventoryLoading.set(false);
+          this.connectError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected syncShopifyCustomers(): void {
+    if (this.syncCustomersLoading() || this.shopifyBulkSyncBusy()) {
+      return;
+    }
+
+    this.syncCustomersLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .syncCustomers()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.syncCustomersLoading.set(false);
+          this.reloadConnection();
+          this.showActionFeedback(formatShopifyCustomersSyncFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.syncCustomersLoading.set(false);
+          this.connectError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected syncShopifyOrders(): void {
+    if (this.syncOrdersLoading() || this.shopifyBulkSyncBusy()) {
+      return;
+    }
+
+    this.syncOrdersLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .syncOrders()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.syncOrdersLoading.set(false);
+          this.reloadConnection();
+          this.showActionFeedback(formatShopifyOrdersSyncFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.syncOrdersLoading.set(false);
           this.connectError.set(this.extractErrorMessage(err));
         },
       });

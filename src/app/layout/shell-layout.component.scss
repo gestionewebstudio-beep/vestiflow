@@ -28,6 +28,47 @@
   min-inline-size: 0;
 }
 
+.shell__shopify-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-bottom: var(--border-width) solid var(--status-warning-border);
+}
+
+.shell__shopify-banner-text {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.shell__shopify-banner-link {
+  color: inherit;
+  font-weight: var(--font-weight-medium);
+}
+
+.shell__shopify-banner-link:hover {
+  text-decoration: underline;
+}
+
+.shell__shopify-banner-dismiss {
+  flex-shrink: 0;
+  padding: 0;
+  font-size: var(--text-sm);
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .shell__sidebar {
   grid-area: sidebar;
   background-color: var(--color-nav-bg);

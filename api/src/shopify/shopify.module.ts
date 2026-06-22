@@ -22,6 +22,7 @@ import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.
 import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localization.service';
 import { ShopifyWebhookService } from './shopify-webhook.service';
 import { ShopifyWebhooksController } from './shopify-webhooks.controller';
+import { ShopifyShopChangeService } from './shopify-shop-change.service';
 
 @Module({
   controllers: [ShopifyController, ShopifyWebhooksController],
@@ -46,6 +47,7 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
     ShopifyCategoryMetafieldsService,
     ShopifySyncService,
     ShopifyWebhookService,
+    ShopifyShopChangeService,
   ],
   exports: [
     ShopifyConnectionService,

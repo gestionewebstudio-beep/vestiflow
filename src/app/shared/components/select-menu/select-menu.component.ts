@@ -21,6 +21,7 @@ import type { SelectMenuOption } from './select-menu.model';
   host: {
     class: 'select-menu-host',
     '[class.select-menu-host--full]': 'fullWidth()',
+    '[class.select-menu-host--toolbar]': 'toolbarChip()',
     '(document:click)': 'onDocumentClick($event)',
     '(document:keydown.escape)': 'close()',
   },
@@ -41,6 +42,8 @@ export class SelectMenuComponent {
   /** Classe PrimeIcons opzionale sul trigger (es. `pi-shop`). */
   readonly triggerIcon = input<string>();
   readonly compact = input<boolean>(false);
+  /** Altezza allineata ai chip della topbar (location + sync + tema). */
+  readonly toolbarChip = input<boolean>(false);
   /** Trigger e pannello a larghezza piena del contenitore (es. filtri mobile). */
   readonly fullWidth = input<boolean>(false);
   /** Voce placeholder con valore vuoto (es. "Tutti"); disabilita per select obbligati. */

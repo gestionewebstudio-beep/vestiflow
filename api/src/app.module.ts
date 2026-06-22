@@ -7,6 +7,7 @@ import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { TenantModule } from './tenant/tenant.module';
 import { SalesOrdersModule } from './sales-orders/sales-orders.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { TikTokModule } from './tiktok/tiktok.module';
@@ -39,6 +40,7 @@ import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
     ShopifyModule,
     TikTokModule,
     DashboardModule,
+    TenantModule,
     AdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

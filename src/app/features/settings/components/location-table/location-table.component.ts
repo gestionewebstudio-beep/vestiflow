@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import type { Location } from '@core/models/location.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
+import { isShopifyManagedLocation } from '@core/utils/location-selection.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
@@ -16,6 +17,19 @@ import type { BadgeTone } from '@shared/components/badge/badge.component';
 export class LocationTableComponent {
   readonly locations = input.required<readonly Location[]>();
   readonly showShopifyColumn = input(true);
+  readonly groupByShopifySource = input(false);
+
+  protected readonly shopifyLocations = computed(() =>
+    this.locations().filter((location) => isShopifyManagedLocation(location)),
+  );
+
+  protected readonly localLocations = computed(() =>
+    this.locations().filter((location) => !isShopifyManagedLocation(location)),
+  );
+
+  protected readonly useGroupedLayout = computed(
+    () => this.groupByShopifySource() && this.showShopifyColumn(),
+  );
 
   protected formatAddress(location: Location): string {
     const address = location.address;

@@ -47,7 +47,13 @@ export class ShopifyCustomersPullService {
     }
 
     const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
-    const remoteCustomers = await this.shopifyAdmin.listAllCustomers(shopDomain, accessToken);
+    let remoteCustomers;
+    try {
+      remoteCustomers = await this.shopifyAdmin.listAllCustomers(shopDomain, accessToken);
+    } catch (error: unknown) {
+      await this.shopifyConnection.recordApiFailure(tenantId, error);
+      throw error;
+    }
 
     let imported = 0;
     let updated = 0;

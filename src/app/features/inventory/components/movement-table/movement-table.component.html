@@ -8,6 +8,7 @@
       <col class="movement-table__col" />
       <col class="movement-table__col" />
       <col class="movement-table__col" />
+      <col class="movement-table__col" />
     </colgroup>
     <thead class="movement-table__head">
       <tr>
@@ -16,6 +17,7 @@
         <th scope="col" class="movement-table__cell--sku">SKU</th>
         <th scope="col" class="movement-table__cell--qty">Quantità</th>
         <th scope="col" class="movement-table__cell--location">Location</th>
+        <th scope="col">Origine</th>
         <th scope="col">Motivo</th>
         <th scope="col">Eseguito da</th>
       </tr>
@@ -39,6 +41,7 @@
           <td class="movement-table__cell--location" data-label="Location">
             {{ row.locationLabel }}
           </td>
+          <td data-label="Origine">{{ originLabel(row.origin) }}</td>
           <td data-label="Motivo">{{ row.reason ?? '—' }}</td>
           <td data-label="Eseguito da">{{ actorLabel(row.createdByName) }}</td>
         </tr>

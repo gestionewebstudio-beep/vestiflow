@@ -73,9 +73,44 @@ export class ShopifyConnectionService {
     await this.prisma.shopifyConnection.updateMany({
       where: { tenantId },
       data: {
-        status: 'error',
+        status: ShopifyConnectionStatus.error,
         lastErrorMessage: message.slice(0, 500),
         lastErrorCode: code,
+        lastErrorAt: new Date(),
+      },
+    });
+  }
+
+  /** Registra un fallimento API Shopify (401/403 → reauth o error). */
+  async recordApiFailure(tenantId: string, error: unknown): Promise<void> {
+    const message = error instanceof Error ? error.message : String(error);
+    const raw = message.toLowerCase();
+    const isAuthFailure =
+      raw.includes('401') ||
+      raw.includes('403') ||
+      raw.includes('unauthorized') ||
+      raw.includes('invalid api key') ||
+      raw.includes('access token');
+
+    if (!isAuthFailure) {
+      return;
+    }
+
+    const userMessage = toShopifyUserMessage('token_expired', message);
+    const needsReauth =
+      raw.includes('401') ||
+      raw.includes('invalid api key') ||
+      raw.includes('access token') ||
+      raw.includes('unauthorized');
+
+    await this.prisma.shopifyConnection.updateMany({
+      where: { tenantId },
+      data: {
+        status: needsReauth
+          ? ShopifyConnectionStatus.reauth_required
+          : ShopifyConnectionStatus.error,
+        lastErrorMessage: userMessage.slice(0, 500),
+        lastErrorCode: needsReauth ? 'token_expired' : 'shopify_api_forbidden',
         lastErrorAt: new Date(),
       },
     });

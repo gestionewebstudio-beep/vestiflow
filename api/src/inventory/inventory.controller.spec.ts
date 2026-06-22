@@ -51,12 +51,12 @@ describe('InventoryController', () => {
       locationId: 'loc-1',
       quantity: 2,
     };
-    const user = { displayName: 'Mario Rossi' } as UserProfileDto;
+    const user = { id: 'user-1', displayName: 'Mario Rossi' } as UserProfileDto;
     inventory.registerMovement.mockResolvedValue({ id: 'mov-1' });
 
     await controller.registerMovement(tenantId, user, dto as never);
 
-    expect(inventory.registerMovement).toHaveBeenCalledWith(tenantId, dto, 'Mario Rossi');
+    expect(inventory.registerMovement).toHaveBeenCalledWith(tenantId, dto, 'Mario Rossi', 'user-1');
   });
 
   it('listMovements delega al service', async () => {

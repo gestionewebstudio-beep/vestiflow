@@ -80,6 +80,19 @@
   padding-inline-end: var(--space-1);
 }
 
+:host(.select-menu-host--toolbar) .select-menu__trigger {
+  block-size: var(--topbar-chip-block-size);
+  min-block-size: var(--topbar-chip-block-size);
+  max-block-size: var(--topbar-chip-block-size);
+  padding-block: 0;
+  box-shadow: none;
+  background-color: var(--color-bg);
+}
+
+:host(.select-menu-host--toolbar) .select-menu__trigger:hover {
+  background-color: var(--color-surface-hover);
+}
+
 :host(.select-menu-host--full) .select-menu__trigger-label {
   flex: 1 1 auto;
   padding-inline-end: var(--space-1);

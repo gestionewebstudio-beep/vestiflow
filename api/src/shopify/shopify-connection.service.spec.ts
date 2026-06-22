@@ -103,6 +103,21 @@ describe('ShopifyConnectionService', () => {
     );
   });
 
+  it('recordApiFailure imposta reauth_required su 401', async () => {
+    const { service, prisma } = createService(connectedRow);
+
+    await service.recordApiFailure('tenant-1', new Error('Shopify Admin API error (401): Unauthorized'));
+
+    expect(prisma.shopifyConnection.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'reauth_required',
+          lastErrorCode: 'token_expired',
+        }),
+      }),
+    );
+  });
+
   it('touchSync aggiorna lastSyncAt e pulisce errori', async () => {
     const { service, prisma } = createService(connectedRow);
 

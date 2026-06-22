@@ -1,6 +1,10 @@
 import type { EntityId } from '@core/models/common.model';
 import type { StockStatus } from '@core/models/inventory-level.model';
-import type { AdjustmentDirection, StockMovementType } from '@core/models/stock-movement.model';
+import type {
+  AdjustmentDirection,
+  MovementOrigin,
+  StockMovementType,
+} from '@core/models/stock-movement.model';
 
 // View model di presentazione del magazzino: righe già join-ate e formattate
 // dalle pagine smart, consumate dalle tabelle dumb.
@@ -35,4 +39,6 @@ export interface StockMovementRow {
   /** Data/ora già formattata. */
   readonly createdAtLabel: string;
   readonly createdByName: string;
+  readonly origin?: MovementOrigin;
+  readonly originLabel?: string;
 }

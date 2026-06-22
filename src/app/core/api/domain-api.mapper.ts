@@ -110,6 +110,7 @@ export interface StockMovementApiRow {
   readonly createdAt: string;
   readonly createdById?: string | null;
   readonly createdByName: string;
+  readonly origin?: string | null;
 }
 
 function toIsoDate(value: string | null | undefined): IsoDateString | undefined {
@@ -308,5 +309,6 @@ export function mapStockMovementApiRow(row: StockMovementApiRow): StockMovement 
     createdAt: row.createdAt,
     createdBy: row.createdById ?? 'system',
     createdByName: row.createdByName,
+    origin: row.origin ? (row.origin as StockMovement['origin']) : undefined,
   };
 }
