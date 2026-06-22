@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { waitForSupplierOrdersReady } from './helpers/page-ready';
+
 test.describe('Ordini fornitori', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/app/orders');
@@ -34,5 +36,22 @@ test.describe('Ordini fornitori', () => {
     await expect(search).toBeVisible();
     await search.fill('PO-2024');
     await expect(search).toHaveValue('PO-2024');
+  });
+
+  test('apre dettaglio ordine fornitore dalla lista', async ({ page }) => {
+    const state = await waitForSupplierOrdersReady(page);
+    if (state === 'empty') {
+      test.skip(true, 'Nessun ordine fornitore nel tenant di test.');
+      return;
+    }
+
+    const firstRow = page.locator('.po-table__row').first();
+
+    const reference = ((await firstRow.locator('.po-table__reference').textContent()) ?? '').trim();
+    expect(reference.length).toBeGreaterThan(0);
+
+    await firstRow.click();
+    await expect(page).toHaveURL(/\/app\/orders\/[^/]+$/, { timeout: 15_000 });
+    await expect(page.locator('h1.po-detail__title')).toHaveText(reference);
   });
 });

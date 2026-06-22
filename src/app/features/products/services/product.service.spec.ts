@@ -81,4 +81,86 @@ describe('ProductService (HTTP)', () => {
     expect(result.available).toBe(false);
     expect(result.taken).toEqual(['SKU-BAD']);
   });
+
+  it('checkSkuAvailability con lista vuota ritorna available true', async () => {
+    const result = await firstValueFrom(service.checkSkuAvailability([]));
+    expect(result).toEqual({ available: true, taken: [] });
+  });
+
+  it('getProductById mappa il prodotto', async () => {
+    const promise = firstValueFrom(service.getProductById('prod-1'));
+
+    const req = httpMock.expectOne(`${API_BASE}/products/prod-1`);
+    req.flush({
+      id: 'prod-1',
+      tenantId: 'tenant-1',
+      name: 'Giacca',
+      status: ProductStatus.Active,
+      options: [],
+      shopifySyncStatus: 'not_connected',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      variants: [],
+    });
+
+    const product = await promise;
+    expect(product.name).toBe('Giacca');
+  });
+
+  it('findVariantByCode interroga endpoint dedicato', async () => {
+    const promise = firstValueFrom(service.findVariantByCode('SKU-XYZ'));
+
+    const req = httpMock.expectOne((request) =>
+      request.url.startsWith(`${API_BASE}/products/variants/by-code`),
+    );
+    expect(req.request.params.get('code')).toBe('SKU-XYZ');
+    req.flush({
+      variantId: 'var-1',
+      productId: 'prod-1',
+      sku: 'SKU-XYZ',
+      barcode: null,
+      productName: 'Prodotto',
+    });
+
+    const result = await promise;
+    expect(result.sku).toBe('SKU-XYZ');
+  });
+
+  it('getVariantSummaries riusa la cache HTTP', async () => {
+    const firstPromise = firstValueFrom(service.getVariantSummaries());
+    const secondPromise = firstValueFrom(service.getVariantSummaries());
+
+    const req = httpMock.expectOne((request) => request.url.startsWith(`${API_BASE}/products`));
+    req.flush({
+      items: [
+        {
+          id: 'prod-1',
+          tenantId: 'tenant-1',
+          name: 'Maglietta',
+          status: ProductStatus.Active,
+          options: [{ name: 'Taglia', values: ['M'] }],
+          shopifySyncStatus: 'not_connected',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          variants: [
+            {
+              id: 'var-1',
+              productId: 'prod-1',
+              sku: 'SKU-M',
+              optionValues: [{ name: 'Taglia', value: 'M' }],
+              sellingPriceMinor: 2990,
+              currency: 'EUR',
+            },
+          ],
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    const [first, second] = await Promise.all([firstPromise, secondPromise]);
+    expect(first.length).toBe(1);
+    expect(second[0]?.sku).toBe('SKU-M');
+  });
 });

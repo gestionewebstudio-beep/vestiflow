@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { resolveTestSku } from './helpers/catalog';
+
 test.describe('Magazzino', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/app/inventory');
@@ -29,5 +31,20 @@ test.describe('Magazzino', () => {
     await page.getByRole('link', { name: 'Cerca', exact: true }).click();
     await expect(page.locator('h1.stock-lookup__title')).toHaveText('Magazzino');
     await expect(page.getByRole('button', { name: 'Cerca giacenza' })).toBeVisible();
+  });
+
+  test('lookup giacenza per SKU trova la variante', async ({ page }) => {
+    const sku = await resolveTestSku(page);
+
+    await page.goto('/app/inventory/lookup');
+    await expect(page.locator('#stock-code')).toBeVisible({ timeout: 30_000 });
+    await page.locator('#stock-code').fill(sku);
+    await page.getByRole('button', { name: 'Cerca giacenza' }).click();
+
+    await expect(page.locator('#lookup-result-title')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.stock-lookup__meta')).toContainText(sku);
+    await expect(
+      page.locator('.stock-lookup__table').or(page.getByText('Nessuna giacenza', { exact: true })),
+    ).toBeVisible();
   });
 });

@@ -96,4 +96,87 @@ describe('InventoryService (HTTP)', () => {
     expect(movement.id).toBe('mov-1');
     expect(movement.quantity).toBe(3);
   });
+
+  it('getMovements mappa la lista paginata', async () => {
+    const promise = firstValueFrom(service.getMovements());
+
+    const req = httpMock.expectOne((request) =>
+      request.url.startsWith(`${API_BASE}/inventory/movements`),
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      items: [
+        {
+          id: 'mov-2',
+          tenantId: 'tenant-1',
+          type: StockMovementType.Unload,
+          variantId: 'var-1',
+          sku: 'SKU-1',
+          locationId: 'loc-1',
+          quantity: 2,
+          createdAt: '2026-01-02T00:00:00.000Z',
+          createdByName: 'Test User',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 50,
+    });
+
+    const movements = await promise;
+    expect(movements.length).toBe(1);
+    expect(movements[0]?.type).toBe(StockMovementType.Unload);
+  });
+
+  it('getLevels mappa le giacenze', async () => {
+    const promise = firstValueFrom(service.getLevels());
+
+    const req = httpMock.expectOne((request) =>
+      request.url.startsWith(`${API_BASE}/inventory/levels`),
+    );
+    req.flush({
+      items: [
+        {
+          id: 'lvl-1',
+          tenantId: 'tenant-1',
+          variantId: 'var-1',
+          locationId: 'loc-1',
+          onHand: 10,
+          available: 8,
+          committed: 1,
+          incoming: 0,
+          reserved: 1,
+          minThreshold: 2,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 50,
+    });
+
+    const levels = await promise;
+    expect(levels[0]?.available).toBe(8);
+  });
+
+  it('getLocationById legge dalla cache delle location', async () => {
+    const locations = firstValueFrom(service.getLocations());
+    const listReq = httpMock.expectOne(`${API_BASE}/inventory/locations`);
+    listReq.flush([
+      {
+        id: 'loc-1',
+        tenantId: 'tenant-1',
+        name: 'Negozio',
+        isActive: true,
+        shopifySyncStatus: 'not_connected',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+    await locations;
+
+    const location = await firstValueFrom(service.getLocationById('loc-1'));
+    expect(location.name).toBe('Negozio');
+  });
 });

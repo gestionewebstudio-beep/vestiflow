@@ -1,9 +1,12 @@
 import { expect, type Page } from '@playwright/test';
 
-import { e2eCredentials } from './env';
+import { e2eCredentials, type E2eCredentials } from './env';
 
-export async function loginWithCredentials(page: Page): Promise<void> {
-  const { email, password } = e2eCredentials();
+export async function loginWithCredentials(
+  page: Page,
+  credentials: E2eCredentials = e2eCredentials(),
+): Promise<void> {
+  const { email, password, mfaCode } = credentials;
 
   await page.goto('/login');
   await page.locator('#login-email').fill(email);
@@ -19,12 +22,12 @@ export async function loginWithCredentials(page: Page): Promise<void> {
   ]);
 
   if (loginOutcome === 'mfa') {
-    const totp = process.env.E2E_MFA_CODE?.trim();
-    if (!totp) {
+    if (!mfaCode) {
       throw new Error(
-        'MFA is enabled for the E2E user. Set E2E_MFA_CODE or use a test account without MFA.',
+        'MFA is enabled for the E2E user. Set E2E_MFA_CODE (or E2E_CLERK_MFA_CODE) or use a test account without MFA.',
       );
     }
+    const totp = mfaCode;
 
     await page.locator('#login-mfa-code').fill(totp);
     await page.getByRole('button', { name: 'Verifica e accedi' }).click();

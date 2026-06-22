@@ -58,7 +58,7 @@ describe('tenantRoleGuard', () => {
     expect(result).toBe(true);
   });
 
-  it('redirige clerk senza permesso', () => {
+  it('redirige clerk senza permesso manager', () => {
     const auth = TestBed.inject(AuthService);
     vi.mocked(auth.currentUser).mockReturnValue({
       id: 'u1',
@@ -82,5 +82,56 @@ describe('tenantRoleGuard', () => {
     const result = TestBed.runInInjectionContext(() => tenantRoleGuard(route, {} as never));
     expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/dashboard']);
     expect(result).not.toBe(true);
+  });
+
+  it('redirige manager su route admin-only', () => {
+    const auth = TestBed.inject(AuthService);
+    vi.mocked(auth.currentUser).mockReturnValue({
+      id: 'u1',
+      tenantId: 't1',
+      email: 'm@b.it',
+      displayName: 'Manager',
+      avatarUrl: null,
+      role: UserRole.Manager,
+      storeIds: [],
+      isActive: true,
+      isPlatformAdmin: false,
+      tenantChannelProfile: 'shopify',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    const route = {
+      data: { [TENANT_ROUTE_PERMISSION_KEY]: 'admin' },
+    } as unknown as ActivatedRouteSnapshot;
+
+    const result = TestBed.runInInjectionContext(() => tenantRoleGuard(route, {} as never));
+    expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/dashboard']);
+    expect(result).not.toBe(true);
+  });
+
+  it('consente owner su route admin-only', () => {
+    const auth = TestBed.inject(AuthService);
+    vi.mocked(auth.currentUser).mockReturnValue({
+      id: 'u1',
+      tenantId: 't1',
+      email: 'o@b.it',
+      displayName: 'Owner',
+      avatarUrl: null,
+      role: UserRole.Owner,
+      storeIds: [],
+      isActive: true,
+      isPlatformAdmin: false,
+      tenantChannelProfile: 'shopify',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    const route = {
+      data: { [TENANT_ROUTE_PERMISSION_KEY]: 'admin' },
+    } as unknown as ActivatedRouteSnapshot;
+
+    const result = TestBed.runInInjectionContext(() => tenantRoleGuard(route, {} as never));
+    expect(result).toBe(true);
   });
 });

@@ -6,7 +6,7 @@ import { validateEnv } from './env.validation';
 describe('validateEnv', () => {
   it('accetta configurazione minima valida', () => {
     const env = validateEnv({
-      PORT: '3000',
+      PORT: 3000,
       DATABASE_URL: 'postgresql://user:pass@localhost:5432/vestiflow',
       CORS_ORIGINS: 'http://localhost:4200',
     });

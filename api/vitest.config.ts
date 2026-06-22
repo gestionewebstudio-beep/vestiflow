@@ -8,7 +8,21 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.spec.ts', 'src/main.ts'],
+      exclude: [
+        'src/**/*.spec.ts',
+        'src/main.ts',
+        'src/**/*.module.ts',
+        'src/**/*.dto.ts',
+        'src/**/dto/**',
+      ],
+      reporter: ['text', 'lcov'],
+      // Soglia globale anti-regressione; alza gradualmente man mano che si aggiungono test su controller/service.
+      thresholds: {
+        lines: 34,
+        branches: 27,
+        functions: 46,
+        statements: 34.5,
+      },
     },
   },
 });

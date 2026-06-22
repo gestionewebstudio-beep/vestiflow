@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { forkJoin, map, type Observable, shareReplay, timeout, tap } from 'rxjs';
+import { forkJoin, map, of, type Observable, shareReplay, timeout, tap } from 'rxjs';
 
 import { toPaginatedResponse } from '@core/api/api-pagination.mapper';
 import type { ApiPaginated } from '@core/api/api-paginated.model';
@@ -145,7 +145,7 @@ export class ProductService {
     excludeProductId?: EntityId,
   ): Observable<SkuAvailabilityResult> {
     if (skus.length === 0) {
-      return forkJoin([]).pipe(map(() => ({ available: true, taken: [] as readonly string[] })));
+      return of({ available: true, taken: [] as readonly string[] });
     }
 
     const checks = skus.map((sku) => {
