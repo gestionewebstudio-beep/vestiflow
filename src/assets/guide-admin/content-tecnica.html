@@ -1,7 +1,7 @@
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">
   VestiFlow — Guida operatore, proprietario e sviluppatore
 </h1>
-<p><strong>Versione documento:</strong> 1.1 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 1.2 — Giugno 2026</p>
 <p>
   <strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>),
   proprietario del prodotto, sviluppatori che mantengono il gestionale.
@@ -71,11 +71,43 @@
   </tbody>
 </table>
 <h3 id="cosa-vede-un-platform-admin-in-ui">Cosa vede un platform admin in UI</h3>
-<ul>
-  <li>Voce menu <strong>Nuovo cliente</strong> (<code>/app/admin/clients/new</code>)</li>
-  <li><strong>Guida tecnica</strong> in fondo alla sidebar (<code>/app/admin/guide</code>)</li>
-  <li>Stesse schermate operative del tenant quando accedi con un account associato a un tenant</li>
-</ul>
+<p>Shell <strong>dedicata</strong> (non le schermate operative del negozio):</p>
+<table>
+  <thead>
+    <tr>
+      <th>Voce menu</th>
+      <th>Route</th>
+      <th>Contenuto</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Clienti</strong></td>
+      <td><code>/app/admin/clients</code></td>
+      <td>Elenco tenant + form <strong>Nuovo cliente</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Impostazioni</strong></td>
+      <td><code>/app/admin/account</code></td>
+      <td>Profilo operatore, foto, MFA, tema</td>
+    </tr>
+    <tr>
+      <td><strong>Guida tecnica</strong></td>
+      <td><code>/app/admin/guide</code></td>
+      <td>Questo manuale</td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  In topbar: <strong>tema</strong>, <strong>avatar</strong> (clic → Impostazioni),
+  <strong>Esci</strong>. <strong>Nessun</strong> selettore sede né indicatore sync Shopify (non sei
+  dentro un tenant negozio).
+</p>
+<p>
+  Per gestire catalogo/magazzino di un cliente: accedi con le
+  <strong>credenziali del titolare</strong> di quel tenant (account negozio), non con l&#39;account
+  operatore piattaforma.
+</p>
 <h3 id="backend">Backend</h3>
 <p>
   Endpoint sotto <code>/api/v1/admin/tenants</code> protetti da <code>JwtAuthGuard</code> +
@@ -128,9 +160,19 @@
       <td>Upload media prodotti</td>
     </tr>
     <tr>
+      <td><strong>Storage avatar</strong></td>
+      <td>Supabase Storage bucket <code>user-avatars</code></td>
+      <td>Foto profilo utente (public)</td>
+    </tr>
+    <tr>
       <td><strong>E-commerce</strong></td>
       <td>Shopify Admin API + webhook</td>
       <td>Catalogo, stock, ordini, clienti</td>
+    </tr>
+    <tr>
+      <td><strong>E-commerce alt.</strong></td>
+      <td>TikTok Shop Open API + OAuth (parziale)</td>
+      <td>Catalogo push + giacenze — early stage</td>
     </tr>
   </tbody>
 </table>
@@ -143,7 +185,13 @@
 <ul>
   <li>
     Ogni <strong>tenant</strong> = un&#39;azienda cliente =
-    <strong>un shop Shopify</strong> collegato.
+    <strong>un canale e-commerce</strong> collegato (Shopify, TikTok Shop) oppure
+    <strong>solo gestionale</strong>.
+  </li>
+  <li>
+    Campo <strong><code>channelProfile</code></strong> sul tenant: <code>gestionale</code> |
+    <code>shopify</code> | <code>tiktok_shop</code> — determina quali pannelli Integrazione
+    compaiono in Impostazioni lato cliente.
   </li>
   <li>
     Isolamento dati: colonna <code>tenantId</code> su entità business; filtro obbligatorio lato API.
@@ -290,7 +338,15 @@ npm run serve:pwa
     </tr>
     <tr>
       <td><code>SUPABASE_PRODUCT_MEDIA_BUCKET</code></td>
-      <td>Bucket immagini (<code>product-media</code>)</td>
+      <td>Bucket immagini prodotto (<code>product-media</code>)</td>
+    </tr>
+    <tr>
+      <td><code>SUPABASE_USER_AVATARS_BUCKET</code></td>
+      <td>Bucket foto profilo (<code>user-avatars</code>)</td>
+    </tr>
+    <tr>
+      <td><code>TIKTOK_*</code></td>
+      <td>OAuth TikTok Shop, cifratura token, API base</td>
     </tr>
     <tr>
       <td><code>FRONTEND_URL</code></td>
@@ -300,11 +356,18 @@ npm run serve:pwa
 </table>
 <hr />
 <h2 id="7-onboarding-nuovo-cliente-tenant">7. Onboarding nuovo cliente (tenant)</h2>
-<p><strong>UI:</strong> <code>/app/admin/clients/new</code> (solo platform admin).</p>
-<h3 id="procedura">Procedura</h3>
+<p>
+  <strong>UI:</strong> <code>/app/admin/clients</code> (solo platform admin) — tabella
+  <strong>Clienti registrati</strong> e pulsante <strong>Nuovo cliente</strong>.
+</p>
+<h3 id="procedura-creazione">Procedura creazione</h3>
 <ol>
   <li><strong>Identificazione</strong> — nome commerciale, ragione sociale opzionale</li>
   <li><strong>Anagrafica</strong> — P.IVA, CF, sede, contatti (opzionali)</li>
+  <li>
+    <strong>Profilo canale</strong> — <strong>Solo gestionale</strong>, <strong>Shopify</strong> o
+    <strong>TikTok Shop</strong> (determina integrazioni visibili al cliente)
+  </li>
   <li>
     <strong>Primo accesso</strong> — ruolo VestiFlow (<code>owner</code> default), nome, email,
     password
@@ -316,19 +379,50 @@ npm run serve:pwa
 </ol>
 <p>Il backend crea: tenant, utente Supabase Auth, store, location, profilo utente collegato.</p>
 <h3 id="dopo-il-provisioning">Dopo il provisioning</h3>
-<p>Consegna credenziali al titolare <strong>in modo sicuro</strong>. Il titolare completa:</p>
-<ol>
-  <li>MFA (consigliato)</li>
-  <li>Collegamento Shopify</li>
-  <li>Sync location + webhook + import catalogo</li>
-</ol>
+<p>
+  Consegna credenziali al titolare <strong>in modo sicuro</strong>. Il titolare completa in base al
+  profilo canale:
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>Profilo canale</th>
+      <th>Passi titolare</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Shopify</strong></td>
+      <td>MFA → OAuth Shopify → sync location → webhook → import</td>
+    </tr>
+    <tr>
+      <td><strong>TikTok Shop</strong></td>
+      <td>MFA → OAuth TikTok Shop → verifica location</td>
+    </tr>
+    <tr>
+      <td><strong>Solo gestionale</strong></td>
+      <td>MFA → catalogo e magazzino solo in VestiFlow</td>
+    </tr>
+  </tbody>
+</table>
 <h3 id="modifica-tenant-esistente">Modifica tenant esistente</h3>
 <p>
   Tabella <strong>Clienti registrati</strong> → click riga → <code>/app/admin/clients/:id</code>.
 </p>
 <p>
-  Modificabile: anagrafica, nome titolare, negozio, location. <strong>Non</strong> email accesso
-  (Supabase Auth) né ruolo utente da UI.
+  Modificabile: anagrafica, <strong>profilo canale</strong> (se nessuna integrazione attiva), nome
+  titolare, negozio, location. <strong>Email</strong> e <strong>ruolo</strong> del primo utente sono
+  <strong>sola lettura</strong> in UI (campi disabilitati).
+</p>
+<p>
+  Per cambiare profilo canale con integrazione già connessa: il cliente deve
+  <strong>disconnettere</strong> Shopify o TikTok da Impostazioni prima.
+</p>
+<h3 id="eliminazione-tenant-zona-pericolosa">Eliminazione tenant (zona pericolosa)</h3>
+<p>
+  In <strong>Modifica cliente</strong>, pannello <strong>Zona pericolosa → Elimina cliente</strong>:
+  rimuove tenant, dati negozio, utenti e integrazioni. Operazione <strong>irreversibile</strong> con
+  dialog di conferma.
 </p>
 <h3 id="api">API</h3>
 <table>
@@ -360,11 +454,17 @@ npm run serve:pwa
       <td><code>/admin/tenants/:id</code></td>
       <td>Aggiorna anagrafica/setup</td>
     </tr>
+    <tr>
+      <td>DELETE</td>
+      <td><code>/admin/tenants/:id</code></td>
+      <td>Elimina tenant e dati</td>
+    </tr>
   </tbody>
 </table>
 <p>
   Body create include <code>role</code> (<code>owner</code> | <code>admin</code> |
-  <code>manager</code> | <code>clerk</code>).
+  <code>manager</code> | <code>clerk</code>) e <code>channelProfile</code> (<code>gestionale</code>
+  | <code>shopify</code> | <code>tiktok_shop</code>).
 </p>
 <hr />
 <h2 id="8-autenticazione-e-ruoli">8. Autenticazione e ruoli</h2>
@@ -409,6 +509,36 @@ npm run serve:pwa
 </table>
 <p>
   Route Angular sensibili: <code>tenantRoleGuard</code> + <code>data.tenantRoutePermission</code>.
+</p>
+<h3 id="foto-profilo-utente">Foto profilo utente</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Metodo</th>
+      <th>Path</th>
+      <th>Azione</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>POST</td>
+      <td><code>/auth/avatar</code></td>
+      <td>Upload foto (multipart <code>file</code>)</td>
+    </tr>
+    <tr>
+      <td>DELETE</td>
+      <td><code>/auth/avatar</code></td>
+      <td>Rimuove foto e file su Storage</td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  Validazione: JPEG/PNG/WebP, max 2 MB. Bucket <strong><code>user-avatars</code></strong> (public).
+  Dopo upload/delete invalida cache profilo JWT (<code>AuthProfileCacheService.invalidate</code>).
+</p>
+<p>
+  UI: <strong>Impostazioni → Profilo</strong> (tenant) e <strong>Impostazioni</strong> operatore
+  (<code>/app/admin/account</code>). Avatar in topbar cliccabile → Impostazioni.
 </p>
 <hr />
 <h2 id="9-integrazione-shopify-tecnica">9. Integrazione Shopify (tecnica)</h2>
@@ -676,6 +806,60 @@ npm run serve:pwa
   Ordini/clienti webhook possono richiedere approvazione Partners. Catalogo/giacenze non dipendono
   da questo.
 </p>
+<h3 id="integrazione-tiktok-shop-tecnica">Integrazione TikTok Shop (tecnica)</h3>
+<blockquote>
+  <p>
+    <strong>Stato: early / parziale.</strong> OAuth + push catalogo (create/update) + push giacenze
+    dopo movimenti VF. Non implementati: import da TikTok, webhook, vendite/clienti, parità
+    funzionale con Shopify. Aggiornare questa sezione quando l&#39;integrazione sarà completa.
+  </p>
+</blockquote>
+<p>Modulo <code>api/src/tiktok/</code> (OAuth, connessione, sync catalogo e inventory push).</p>
+<table>
+  <thead>
+    <tr>
+      <th>Aspetto</th>
+      <th>Dettaglio</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Profilo tenant</strong></td>
+      <td>Solo tenant <code>channelProfile = tiktok_shop</code> vedono pannello Impostazioni</td>
+    </tr>
+    <tr>
+      <td><strong>OAuth</strong></td>
+      <td>
+        Partner Center → env <code>TIKTOK_APP_KEY</code>, <code>TIKTOK_APP_SECRET</code>,
+        <code>TIKTOK_SERVICE_ID</code>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Token</strong></td>
+      <td>Cifrati at rest (<code>TIKTOK_TOKEN_ENCRYPTION_KEY</code>)</td>
+    </tr>
+    <tr>
+      <td><strong>Sync scope</strong></td>
+      <td>Push prodotti create/update; giacenze dopo carico/scarico VF</td>
+    </tr>
+    <tr>
+      <td><strong>Non in scope</strong></td>
+      <td>Vendite e clienti TikTok in UI (a differenza di Shopify)</td>
+    </tr>
+    <tr>
+      <td><strong>Permessi UI</strong></td>
+      <td>Collegamento: owner/admin (<code>canManageTikTokConnection</code>)</td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  Callback OAuth: query <code>?tiktok=connected|error|disconnected</code> su ritorno frontend
+  Impostazioni.
+</p>
+<p>
+  Variabili aggiuntive in <code>api/.env.example</code>: <code>TIKTOK_APP_URL</code>,
+  <code>TIKTOK_OAUTH_CALLBACK_URL</code>, URL API/auth opzionali.
+</p>
 <hr />
 <h2 id="10-supabase-database-auth-storage-rls">10. Supabase: database, Auth, Storage, RLS</h2>
 <h3 id="prisma">Prisma</h3>
@@ -694,7 +878,13 @@ npm run serve:pwa
   <li>
     Bucket <strong><code>product-media</code></strong> public per immagini prodotto
   </li>
-  <li>Upload via API (sharp/metadata strip lato server se configurato)</li>
+  <li>
+    Bucket <strong><code>user-avatars</code></strong> public per foto profilo utente
+  </li>
+  <li>
+    Upload via API (service role); avatar: <code>UserAvatarService</code>, prodotti: pipeline
+    esistente
+  </li>
 </ul>
 <h3 id="auth">Auth</h3>
 <ul>
@@ -952,8 +1142,11 @@ ng test                # Vitest
 <h3 id="post-deploy-smoke-test">Post-deploy smoke test</h3>
 <ul>
   <li><input disabled="" type="checkbox" /> Login tenant test</li>
-  <li><input disabled="" type="checkbox" /> Platform admin → Nuovo cliente (staging)</li>
+  <li><input disabled="" type="checkbox" /> Platform admin → Clienti → Nuovo cliente (staging)</li>
+  <li><input disabled="" type="checkbox" /> Profilo canale Shopify e TikTok su tenant test</li>
   <li><input disabled="" type="checkbox" /> OAuth Shopify su tenant test</li>
+  <li><input disabled="" type="checkbox" /> OAuth TikTok Shop su tenant test (se abilitato)</li>
+  <li><input disabled="" type="checkbox" /> Upload foto profilo + avatar topbar</li>
   <li><input disabled="" type="checkbox" /> Import catalogo + webhook</li>
   <li><input disabled="" type="checkbox" /> Upload immagine prodotto</li>
   <li><input disabled="" type="checkbox" /> Guida utente + guida tecnica admin</li>
@@ -1022,8 +1215,21 @@ ng test                # Vitest
       <td>Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop</td>
     </tr>
     <tr>
-      <td>Immagini 404</td>
+      <td>Immagini prodotto 404</td>
       <td>Bucket <code>product-media</code> esiste ed è public</td>
+    </tr>
+    <tr>
+      <td>Avatar 404 / upload fallito</td>
+      <td>
+        Bucket <code>user-avatars</code> esiste ed è public; env
+        <code>SUPABASE_USER_AVATARS_BUCKET</code>
+      </td>
+    </tr>
+    <tr>
+      <td>TikTok OAuth fallisce</td>
+      <td>
+        Verifica <code>TIKTOK_*</code> env, callback URL pubblico HTTPS, app Partner Center attiva
+      </td>
     </tr>
     <tr>
       <td>Anon key legge dati</td>
@@ -1048,6 +1254,14 @@ ng test                # Vitest
     <tr>
       <td>Invito utenti / cambio ruolo self-service</td>
       <td>Non in UI — solo provisioning iniziale + richiesta operatore</td>
+    </tr>
+    <tr>
+      <td>Sync vendite/clienti TikTok Shop</td>
+      <td>Non implementata — integrazione TikTok ancora parziale</td>
+    </tr>
+    <tr>
+      <td>Integrazione TikTok Shop (parità Shopify)</td>
+      <td>In sviluppo — oggi solo OAuth + push catalogo/giacenze</td>
     </tr>
     <tr>
       <td>Location manuale senza Shopify</td>

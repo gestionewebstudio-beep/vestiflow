@@ -1,10 +1,10 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 2.0 — Giugno 2026
+**Versione documento:** 2.1 — Giugno 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
-**Prodotto:** VestiFlow — gestionale web multi-sede per boutique di abbigliamento, integrato con Shopify.
+**Prodotto:** VestiFlow — gestionale web multi-sede per boutique di abbigliamento, con integrazione opzionale a **Shopify** o **TikTok Shop** (in base al profilo scelto per il tuo negozio). L'integrazione **TikTok Shop è ancora parziale** — vedi [§7](#7-collegare-tiktok-shop).
 
 ---
 
@@ -16,23 +16,24 @@
 4. [Ruoli e permessi](#4-ruoli-e-permessi)
 5. [Primi passi dopo l'attivazione](#5-primi-passi-dopo-lattivazione)
 6. [Collegare Shopify](#6-collegare-shopify)
-7. [Cosa si sincronizza e dove](#7-cosa-si-sincronizza-e-dove)
-8. [Prodotti e catalogo](#8-prodotti-e-catalogo)
-9. [Magazzino e giacenze](#9-magazzino-e-giacenze)
-10. [Ordini fornitori](#10-ordini-fornitori)
-11. [Vendite e clienti](#11-vendite-e-clienti)
-12. [Report e dashboard](#12-report-e-dashboard)
-13. [Usare VestiFlow da smartphone](#13-usare-vestiflow-da-smartphone)
-14. [Negozio fisico e Shopify POS](#14-negozio-fisico-e-shopify-pos)
-15. [Sicurezza account (MFA)](#15-sicurezza-account-mfa)
-16. [Domande frequenti](#16-domande-frequenti)
-17. [Guida nel menu](#17-guida-nel-menu)
+7. [Collegare TikTok Shop](#7-collegare-tiktok-shop)
+8. [Cosa si sincronizza e dove](#8-cosa-si-sincronizza-e-dove)
+9. [Prodotti e catalogo](#9-prodotti-e-catalogo)
+10. [Magazzino e giacenze](#10-magazzino-e-giacenze)
+11. [Ordini fornitori](#11-ordini-fornitori)
+12. [Vendite e clienti](#12-vendite-e-clienti)
+13. [Report e dashboard](#13-report-e-dashboard)
+14. [Usare VestiFlow da smartphone](#14-usare-vestiflow-da-smartphone)
+15. [Negozio fisico e Shopify POS](#15-negozio-fisico-e-shopify-pos)
+16. [Profilo, foto e sicurezza account](#16-profilo-foto-e-sicurezza-account)
+17. [Domande frequenti](#17-domande-frequenti)
+18. [Guida nel menu](#18-guida-nel-menu)
 
 ---
 
 ## 1. Cos'è VestiFlow
 
-VestiFlow è il **gestionale del tuo negozio**: catalogo, magazzino, ordini ai fornitori e consultazione vendite/clienti da Shopify.
+VestiFlow è il **gestionale del tuo negozio**: catalogo, magazzino, ordini ai fornitori e — se previsto dal tuo profilo — allineamento con **Shopify** o **TikTok Shop**.
 
 Con un account puoi:
 
@@ -40,19 +41,19 @@ Con un account puoi:
 - vedere e aggiornare **giacenze per sede** (negozio, magazzino, altri punti vendita);
 - registrare **carichi, scarichi, trasferimenti e rettifiche** con storico;
 - creare e ricevere **ordini fornitori**;
-- consultare **vendite e clienti** importati da Shopify;
-- tenere **catalogo e stock allineati** al negozio online Shopify.
+- consultare **vendite e clienti** importati da Shopify (profilo Shopify);
+- tenere **catalogo e stock allineati** al canale e-commerce collegato, se presente.
 
 VestiFlow **non sostituisce** il sito e-commerce: lo affianca per chi lavora in negozio e in magazzino.
 
 ### Cosa ti serve
 
-| Requisito            | Note                                           |
-| -------------------- | ---------------------------------------------- |
-| Browser aggiornato   | Chrome, Edge, Safari o Firefox                 |
-| Connessione internet | Il gestionale è online                         |
-| Account VestiFlow    | Email e password ricevute all'attivazione      |
-| Negozio Shopify      | Consigliato per sync catalogo, stock e vendite |
+| Requisito            | Note                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| Browser aggiornato   | Chrome, Edge, Safari o Firefox                                                        |
+| Connessione internet | Il gestionale è online                                                                |
+| Account VestiFlow    | Email e password ricevute all'attivazione                                             |
+| Canale e-commerce    | **Shopify** o **TikTok Shop** se previsto dal tuo profilo; altrimenti solo gestionale |
 
 ---
 
@@ -72,7 +73,7 @@ VestiFlow **non sostituisce** il sito e-commerce: lo affianca per chi lavora in 
 
 ### Uscire
 
-In alto a destra usa l'icona **Esci** accanto al tuo nome.
+In alto a destra clicca l'icona **Esci** (freccia verso l'uscita). Compare una **conferma** prima di chiudere la sessione.
 
 ---
 
@@ -82,16 +83,16 @@ In alto a destra usa l'icona **Esci** accanto al tuo nome.
 
 Su desktop resta sempre visibile; su smartphone si apre con l'icona **menu** in alto.
 
-| Voce                 | A cosa serve                                               |
-| -------------------- | ---------------------------------------------------------- |
-| **Dashboard**        | Riepilogo attività                                         |
-| **Prodotti**         | Catalogo, creazione, modifica, import/export CSV           |
-| **Magazzino**        | Apre **Cerca giacenza** (ricerca rapida, ideale su mobile) |
-| **Ordini Fornitori** | Acquisti dai fornitori                                     |
-| **Vendite**          | Ordini da Shopify (sola lettura), export CSV               |
-| **Clienti**          | Anagrafica da Shopify (sola lettura), export CSV           |
-| **Report**           | Indicatori e riepiloghi                                    |
-| **Impostazioni**     | Shopify, sedi, tema, sicurezza account                     |
+| Voce                 | A cosa serve                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| **Dashboard**        | Riepilogo attività                                                                       |
+| **Prodotti**         | Catalogo, creazione, modifica, import/export CSV                                         |
+| **Magazzino**        | Apre **Cerca giacenza** (ricerca rapida, ideale su mobile)                               |
+| **Ordini Fornitori** | Acquisti dai fornitori                                                                   |
+| **Vendite**          | Ordini da Shopify (sola lettura), export CSV                                             |
+| **Clienti**          | Anagrafica da Shopify (sola lettura), export CSV                                         |
+| **Report**           | Indicatori e riepiloghi                                                                  |
+| **Impostazioni**     | Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza |
 
 In fondo al menu trovi **Guida** (questo manuale integrato nell'app).
 
@@ -100,9 +101,20 @@ Dal menu **Magazzino** accedi subito alla ricerca; le altre sezioni magazzino (*
 ### Barra in alto (topbar)
 
 - **Selettore sede** — filtra le operazioni per la location attiva (negozio, magazzino, ecc.)
-- **Indicatore sync Shopify** — stato collegamento (clic → Impostazioni)
+- **Indicatore sync Shopify** — visibile solo con profilo **Shopify**; stato collegamento (clic → Impostazioni)
 - **Tema** chiaro / scuro / sistema
-- **Profilo** e logout
+- **Avatar profilo** — foto o iniziali; **clic → Impostazioni**
+- **Esci** — logout con conferma
+
+### Impostazioni: cosa compare
+
+Il contenuto di **Impostazioni** dipende dal **profilo canale** del tuo negozio (scelto in fase di attivazione):
+
+| Profilo canale      | Pannelli visibili in Impostazioni                                |
+| ------------------- | ---------------------------------------------------------------- |
+| **Solo gestionale** | Aspetto, **Profilo**, Location — nessuna integrazione e-commerce |
+| **Shopify**         | Integrazione Shopify, Aspetto, **Profilo**, Location             |
+| **TikTok Shop**     | Integrazione TikTok Shop, Aspetto, **Profilo**, Location         |
 
 ### Messaggi comuni
 
@@ -125,19 +137,19 @@ Ogni utente ha un **ruolo VestiFlow** (Titolare, Amministratore, Manager, Commes
 
 ### Cosa puoi fare (in sintesi)
 
-| Operazione                                       | Titolare / Admin | Manager | Commesso |
-| ------------------------------------------------ | ---------------- | ------- | -------- |
-| Collegare Shopify, sync sedi, import catalogo    | Sì               | No      | No       |
-| Sync manuale vendite / clienti / giacenze        | Sì               | No      | No       |
-| Creare e modificare prodotti, import/export CSV  | Sì               | Sì      | No       |
-| Export/import CSV giacenze                       | Sì               | Sì      | No       |
-| Export CSV vendite e clienti                     | Sì               | Sì      | No       |
-| Creare e inviare ordini fornitori                | Sì               | Sì      | No       |
-| Ricevere merce su ordine fornitore               | Sì               | Sì      | Sì       |
-| Consultare giacenze, movimenti, vendite, clienti | Sì               | Sì      | Sì       |
-| Registrare movimenti di magazzino                | Sì               | Sì      | Sì       |
-| Inventario fisico (conteggio)                    | Sì               | Sì      | Sì       |
-| Attivare MFA (Impostazioni)                      | Sì               | Sì      | No       |
+| Operazione                                         | Titolare / Admin | Manager | Commesso |
+| -------------------------------------------------- | ---------------- | ------- | -------- |
+| Collegare Shopify / TikTok Shop, sync sedi, import | Sì               | No      | No       |
+| Sync manuale vendite / clienti / giacenze          | Sì               | No      | No       |
+| Creare e modificare prodotti, import/export CSV    | Sì               | Sì      | No       |
+| Export/import CSV giacenze                         | Sì               | Sì      | No       |
+| Export CSV vendite e clienti                       | Sì               | Sì      | No       |
+| Creare e inviare ordini fornitori                  | Sì               | Sì      | No       |
+| Ricevere merce su ordine fornitore                 | Sì               | Sì      | Sì       |
+| Consultare giacenze, movimenti, vendite, clienti   | Sì               | Sì      | Sì       |
+| Registrare movimenti di magazzino                  | Sì               | Sì      | Sì       |
+| Inventario fisico (conteggio)                      | Sì               | Sì      | Sì       |
+| Attivare MFA (Impostazioni)                        | Sì               | Sì      | No       |
 
 Se un pulsante o una pagina non compare, il tuo ruolo non lo consente. Per nuovi account o cambio ruolo contatta il **referente VestiFlow** che ha attivato il gestionale.
 
@@ -149,16 +161,34 @@ Se un pulsante o una pagina non compare, il tuo ruolo non lo consente. Per nuovi
 
 Percorso consigliato per il **titolare** del negozio:
 
-| Step | Dove                     | Cosa fare                                                    |
-| ---- | ------------------------ | ------------------------------------------------------------ |
-| 1    | Login                    | Accedi con le credenziali ricevute                           |
-| 2    | Impostazioni → Sicurezza | Attiva MFA (consigliato)                                     |
-| 3    | Impostazioni → Shopify   | Collega il negozio Shopify                                   |
-| 4    | Impostazioni             | **Sincronizza location** (sedi)                              |
-| 5    | Impostazioni             | **Attiva aggiornamenti automatici**                          |
-| 6    | Impostazioni             | **Importa catalogo da Shopify** (se hai già prodotti online) |
-| 7    | Prodotti                 | Verifica e completa il catalogo                              |
-| 8    | Magazzino → Giacenze     | Controlla stock e registra rettifiche iniziali se serve      |
+| Step | Dove                     | Cosa fare                                               |
+| ---- | ------------------------ | ------------------------------------------------------- |
+| 1    | Login                    | Accedi con le credenziali ricevute                      |
+| 2    | Impostazioni → Profilo   | Carica una **foto profilo** (opzionale)                 |
+| 3    | Impostazioni → Sicurezza | Attiva MFA (consigliato)                                |
+| 4    | Canale e-commerce        | Vedi tabella sotto in base al profilo del negozio       |
+| 5    | Prodotti                 | Verifica e completa il catalogo                         |
+| 6    | Magazzino → Giacenze     | Controlla stock e registra rettifiche iniziali se serve |
+
+### Step 4 — in base al profilo canale
+
+**Profilo Shopify:**
+
+| Step | Dove         | Cosa fare                                                    |
+| ---- | ------------ | ------------------------------------------------------------ |
+| 4a   | Impostazioni | Collega il negozio Shopify                                   |
+| 4b   | Impostazioni | **Sincronizza location** (sedi)                              |
+| 4c   | Impostazioni | **Attiva aggiornamenti automatici**                          |
+| 4d   | Impostazioni | **Importa catalogo da Shopify** (se hai già prodotti online) |
+
+**Profilo TikTok Shop:**
+
+| Step | Dove         | Cosa fare                        |
+| ---- | ------------ | -------------------------------- |
+| 4a   | Impostazioni | **Connetti TikTok Shop** (OAuth) |
+| 4b   | Impostazioni | Verifica sedi in **Location**    |
+
+**Profilo Solo gestionale:** salta il collegamento e-commerce; usa catalogo e magazzino solo in VestiFlow.
 
 ### Sedi (location)
 
@@ -177,7 +207,7 @@ Una **sede** è un luogo dove conti le giacenze (negozio, magazzino, secondo pun
 
 ### Procedura
 
-1. Vai in **Impostazioni → Shopify**.
+1. Vai in **Impostazioni → Integrazione Shopify**.
 2. Inserisci il dominio del negozio (es. `mio-negozio.myshopify.com`).
 3. Clicca **Connetti Shopify** e accetta i permessi sulla pagina Shopify.
 4. Al ritorno lo stato deve essere **Connesso**.
@@ -211,19 +241,58 @@ Solo **Titolare** e **Amministratore** vedono questi pulsanti.
 2. Compare un **messaggio di avanzamento** sopra i pulsanti.
 3. Al termine: messaggio verde (ok) o giallo (attenzione).
 
+> **Nota:** il pannello **Integrazione Shopify** compare solo se il tuo negozio ha profilo canale **Shopify**.
+
 ---
 
-## 7. Cosa si sincronizza e dove
+## 7. Collegare TikTok Shop
 
-| Dato                         | Dove si modifica in VestiFlow | Note                                   |
-| ---------------------------- | ----------------------------- | -------------------------------------- |
-| **Prodotti / varianti**      | Sì (push verso Shopify)       | Modifiche salvate → invio a Shopify    |
-| **Prodotti nati su Shopify** | Solo lettura + import         | Import catalogo o webhook              |
-| **Giacenze**                 | Sì (carichi, rettifiche…)     | Vendite Shopify aggiornano via webhook |
-| **Ordini fornitori**         | Sì, solo in VestiFlow         | Non passano da Shopify                 |
-| **Vendite**                  | Sola lettura                  | Da Shopify Online e POS                |
-| **Clienti**                  | Sola lettura                  | Da Shopify                             |
-| **Sedi (location)**          | Import da Shopify             | Sync location in Impostazioni          |
+> **Integrazione in fase iniziale.** Oggi sono previsti collegamento OAuth, invio prodotti e aggiornamento giacenze dopo movimenti di carico/scarico. Mancano ancora import da TikTok, webhook, vendite/clienti e parità con Shopify. Usa TikTok Shop solo se concordato con il referente VestiFlow.
+
+Disponibile solo con profilo canale **TikTok Shop** (scelto in fase di attivazione).
+
+### Prerequisiti
+
+- Negozio attivo su **TikTok Shop Partner Center**
+- Ruolo **Titolare** o **Amministratore** in VestiFlow
+
+### Procedura
+
+1. Vai in **Impostazioni → Integrazione TikTok Shop**.
+2. Clicca **Connetti TikTok Shop** e completa l'autorizzazione OAuth su TikTok.
+3. Al ritorno lo stato deve essere **Connesso**.
+
+### Cosa sincronizza TikTok Shop (oggi)
+
+| Dato                    | Comportamento                                        |
+| ----------------------- | ---------------------------------------------------- |
+| **Prodotti / varianti** | Create e update verso TikTok al salvataggio in VF    |
+| **Giacenze**            | Aggiornamento dopo **carico** e **scarico** in VF    |
+| **Vendite / clienti**   | **Non** gestiti in questa fase (solo catalogo/stock) |
+
+### Pulsanti utili
+
+| Pulsante                   | Quando usarlo                       |
+| -------------------------- | ----------------------------------- |
+| **Connetti TikTok Shop**   | Primo collegamento                  |
+| **Ripristina connessione** | Errore OAuth o token scaduto        |
+| **Disconnetti**            | Cambio negozio o reset collegamento |
+
+Solo **Titolare** e **Amministratore** possono collegare o scollegare TikTok Shop.
+
+---
+
+## 8. Cosa si sincronizza e dove
+
+| Dato                         | Dove si modifica in VestiFlow | Note                                                  |
+| ---------------------------- | ----------------------------- | ----------------------------------------------------- |
+| **Prodotti / varianti**      | Sì (push verso canale)        | Shopify o TikTok se connessi                          |
+| **Prodotti nati su Shopify** | Solo lettura + import         | Import catalogo o webhook (profilo Shopify)           |
+| **Giacenze**                 | Sì (carichi, rettifiche…)     | Vendite Shopify via webhook; TikTok dopo movimenti VF |
+| **Ordini fornitori**         | Sì, solo in VestiFlow         | Non passano da Shopify/TikTok                         |
+| **Vendite**                  | Sola lettura                  | Da Shopify Online e POS (profilo Shopify)             |
+| **Clienti**                  | Sola lettura                  | Da Shopify (profilo Shopify)                          |
+| **Sedi (location)**          | Import / gestione             | Sync location Shopify se applicabile                  |
 
 ### Badge sync sul prodotto
 
@@ -238,7 +307,7 @@ Nel dettaglio prodotto:
 
 ---
 
-## 8. Prodotti e catalogo
+## 9. Prodotti e catalogo
 
 ### Concetti base
 
@@ -276,7 +345,7 @@ In **Prodotti**, sopra i filtri, usa **Scansiona barcode** (su smartphone con Ch
 
 ---
 
-## 9. Magazzino e giacenze
+## 10. Magazzino e giacenze
 
 ### Tab del magazzino
 
@@ -351,7 +420,7 @@ Ogni riga valida genera una **rettifica tracciata** nello storico movimenti.
 
 ---
 
-## 10. Ordini fornitori
+## 11. Ordini fornitori
 
 Gestiti **solo in VestiFlow** (non su Shopify).
 
@@ -366,7 +435,7 @@ Gestiti **solo in VestiFlow** (non su Shopify).
 
 ---
 
-## 11. Vendite e clienti
+## 12. Vendite e clienti
 
 ### Vendite
 
@@ -391,7 +460,7 @@ Gestiti **solo in VestiFlow** (non su Shopify).
 
 ---
 
-## 12. Report e dashboard
+## 13. Report e dashboard
 
 ### Dashboard
 
@@ -403,7 +472,7 @@ Tabelle e KPI su prodotti, giacenze e ordini. Usa i filtri disponibili per restr
 
 ---
 
-## 13. Usare VestiFlow da smartphone
+## 14. Usare VestiFlow da smartphone
 
 VestiFlow è una **app web installabile (PWA)**:
 
@@ -424,7 +493,7 @@ VestiFlow è una **app web installabile (PWA)**:
 
 ---
 
-## 14. Negozio fisico e Shopify POS
+## 15. Negozio fisico e Shopify POS
 
 VestiFlow **non è una cassa**. Le vendite in negozio passano da **Shopify POS**:
 
@@ -439,7 +508,19 @@ VestiFlow **non** emette scontrini fiscali: usa il sistema collegato a Shopify o
 
 ---
 
-## 15. Sicurezza account (MFA)
+## 16. Profilo, foto e sicurezza account
+
+### Foto profilo
+
+In **Impostazioni → Profilo** (o cliccando l'**avatar in alto**):
+
+1. **Carica foto** — JPEG, PNG o WebP, max **2 MB**
+2. Regola **inquadratura e zoom** nel dialog circolare, poi **Usa foto**
+3. Con foto presente: **Cambia foto**, **Rimuovi**, oppure **clic sull'avatar** per vederla ingrandita
+
+Senza foto compare un cerchio con le **iniziali** del tuo nome.
+
+### Verifica in due passaggi (MFA)
 
 La **verifica in due passaggi** protegge l'account anche se la password viene compromessa.
 
@@ -449,9 +530,13 @@ La **verifica in due passaggi** protegge l'account anche se la password viene co
 
 Consigliato per **titolari e amministratori**.
 
+### Tema dell'interfaccia
+
+In **Impostazioni → Aspetto** (o dalla **topbar**) scegli **Chiaro**, **Scuro** o **Sistema**.
+
 ---
 
-## 16. Domande frequenti
+## 17. Domande frequenti
 
 ### Il prodotto creato in VestiFlow non compare su Shopify
 
@@ -493,9 +578,23 @@ Usa JPEG, PNG o WebP, max 5 MB. Riprova dopo qualche minuto se il servizio era i
 
 Sì, se sono **location nello stesso shop Shopify**: configura le sedi in Shopify Admin, poi **Sincronizza location** in VestiFlow. Controlla il selettore sede in alto.
 
+### Non vedo Integrazione Shopify (o TikTok) in Impostazioni
+
+Il **profilo canale** del tuo negozio potrebbe essere **Solo gestionale** o un altro canale. Contatta il referente VestiFlow se serve cambiare profilo.
+
+### Il prodotto non compare su TikTok Shop
+
+1. Impostazioni → TikTok Shop è **Connesso**?
+2. Hai salvato il prodotto dopo la connessione?
+3. Per le giacenze: registrato un **carico** o **scarico** dopo il collegamento?
+
+### Upload foto profilo fallito
+
+Usa JPEG, PNG o WebP, max 2 MB. Se l'errore persiste, riprova tra qualche minuto.
+
 ---
 
-## 17. Guida nel menu
+## 18. Guida nel menu
 
 La voce **Guida** in fondo al menu laterale apre questo manuale dentro l'app (`/app/guide`).
 

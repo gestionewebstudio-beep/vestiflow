@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 1.1 — Giugno 2026
+**Versione documento:** 1.2 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -45,9 +45,17 @@ L'**operatore piattaforma** (tu, come proprietario/sviluppatore) non coincide co
 
 ### Cosa vede un platform admin in UI
 
-- Voce menu **Nuovo cliente** (`/app/admin/clients/new`)
-- **Guida tecnica** in fondo alla sidebar (`/app/admin/guide`)
-- Stesse schermate operative del tenant quando accedi con un account associato a un tenant
+Shell **dedicata** (non le schermate operative del negozio):
+
+| Voce menu         | Route                | Contenuto                              |
+| ----------------- | -------------------- | -------------------------------------- |
+| **Clienti**       | `/app/admin/clients` | Elenco tenant + form **Nuovo cliente** |
+| **Impostazioni**  | `/app/admin/account` | Profilo operatore, foto, MFA, tema     |
+| **Guida tecnica** | `/app/admin/guide`   | Questo manuale                         |
+
+In topbar: **tema**, **avatar** (clic → Impostazioni), **Esci**. **Nessun** selettore sede né indicatore sync Shopify (non sei dentro un tenant negozio).
+
+Per gestire catalogo/magazzino di un cliente: accedi con le **credenziali del titolare** di quel tenant (account negozio), non con l'account operatore piattaforma.
 
 ### Backend
 
@@ -66,7 +74,9 @@ Endpoint sotto `/api/v1/admin/tenants` protetti da `JwtAuthGuard` + `PlatformAdm
 | **Database**         | PostgreSQL via Supabase                     | Dati multi-tenant                      |
 | **Auth**             | Supabase Auth (JWT HS256)                   | Login email/password, MFA opzionale    |
 | **Storage immagini** | Supabase Storage bucket `product-media`     | Upload media prodotti                  |
+| **Storage avatar**   | Supabase Storage bucket `user-avatars`      | Foto profilo utente (public)           |
 | **E-commerce**       | Shopify Admin API + webhook                 | Catalogo, stock, ordini, clienti       |
+| **E-commerce alt.**  | TikTok Shop Open API + OAuth (parziale)     | Catalogo push + giacenze — early stage |
 
 **Regola:** il frontend **non** contiene secret Shopify né service role Supabase. Tutto passa dall'API.
 
@@ -74,7 +84,8 @@ Endpoint sotto `/api/v1/admin/tenants` protetti da `JwtAuthGuard` + `PlatformAdm
 
 ## 3. Modello multi-tenant
 
-- Ogni **tenant** = un'azienda cliente = **un shop Shopify** collegato.
+- Ogni **tenant** = un'azienda cliente = **un canale e-commerce** collegato (Shopify, TikTok Shop) oppure **solo gestionale**.
+- Campo **`channelProfile`** sul tenant: `gestionale` | `shopify` | `tiktok_shop` — determina quali pannelli Integrazione compaiono in Impostazioni lato cliente.
 - Isolamento dati: colonna `tenantId` su entità business; filtro obbligatorio lato API.
 - **Location** ≠ **Store**: lo stock è per location (semantica Shopify); lo store è entità commerciale.
 - **Variante** = unità minima inventario (SKU univoco interno).
@@ -169,44 +180,55 @@ Vedi `.env.example` in root:
 
 Vedi `api/.env.example`:
 
-| Variabile                                                          | Significato                               |
-| ------------------------------------------------------------------ | ----------------------------------------- |
-| `DATABASE_URL` / `DIRECT_URL`                                      | PostgreSQL Supabase                       |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` | Auth e admin DB                           |
-| `CORS_ORIGINS`                                                     | Origini frontend consentite               |
-| `SHOPIFY_*`                                                        | OAuth, scope, cifratura token, rate limit |
-| `PLATFORM_ADMIN_EMAILS`                                            | Email operatori (virgola)                 |
-| `SUPABASE_PRODUCT_MEDIA_BUCKET`                                    | Bucket immagini (`product-media`)         |
-| `FRONTEND_URL`                                                     | Redirect post-OAuth                       |
+| Variabile                                                          | Significato                                  |
+| ------------------------------------------------------------------ | -------------------------------------------- |
+| `DATABASE_URL` / `DIRECT_URL`                                      | PostgreSQL Supabase                          |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` | Auth e admin DB                              |
+| `CORS_ORIGINS`                                                     | Origini frontend consentite                  |
+| `SHOPIFY_*`                                                        | OAuth, scope, cifratura token, rate limit    |
+| `PLATFORM_ADMIN_EMAILS`                                            | Email operatori (virgola)                    |
+| `SUPABASE_PRODUCT_MEDIA_BUCKET`                                    | Bucket immagini prodotto (`product-media`)   |
+| `SUPABASE_USER_AVATARS_BUCKET`                                     | Bucket foto profilo (`user-avatars`)         |
+| `TIKTOK_*`                                                         | OAuth TikTok Shop, cifratura token, API base |
+| `FRONTEND_URL`                                                     | Redirect post-OAuth                          |
 
 ---
 
 ## 7. Onboarding nuovo cliente (tenant)
 
-**UI:** `/app/admin/clients/new` (solo platform admin).
+**UI:** `/app/admin/clients` (solo platform admin) — tabella **Clienti registrati** e pulsante **Nuovo cliente**.
 
-### Procedura
+### Procedura creazione
 
 1. **Identificazione** — nome commerciale, ragione sociale opzionale
 2. **Anagrafica** — P.IVA, CF, sede, contatti (opzionali)
-3. **Primo accesso** — ruolo VestiFlow (`owner` default), nome, email, password
-4. **Setup** — nome negozio e location iniziale (opzionali; default «Negozio principale»)
+3. **Profilo canale** — **Solo gestionale**, **Shopify** o **TikTok Shop** (determina integrazioni visibili al cliente)
+4. **Primo accesso** — ruolo VestiFlow (`owner` default), nome, email, password
+5. **Setup** — nome negozio e location iniziale (opzionali; default «Negozio principale»)
 
 Il backend crea: tenant, utente Supabase Auth, store, location, profilo utente collegato.
 
 ### Dopo il provisioning
 
-Consegna credenziali al titolare **in modo sicuro**. Il titolare completa:
+Consegna credenziali al titolare **in modo sicuro**. Il titolare completa in base al profilo canale:
 
-1. MFA (consigliato)
-2. Collegamento Shopify
-3. Sync location + webhook + import catalogo
+| Profilo canale      | Passi titolare                                         |
+| ------------------- | ------------------------------------------------------ |
+| **Shopify**         | MFA → OAuth Shopify → sync location → webhook → import |
+| **TikTok Shop**     | MFA → OAuth TikTok Shop → verifica location            |
+| **Solo gestionale** | MFA → catalogo e magazzino solo in VestiFlow           |
 
 ### Modifica tenant esistente
 
 Tabella **Clienti registrati** → click riga → `/app/admin/clients/:id`.
 
-Modificabile: anagrafica, nome titolare, negozio, location. **Non** email accesso (Supabase Auth) né ruolo utente da UI.
+Modificabile: anagrafica, **profilo canale** (se nessuna integrazione attiva), nome titolare, negozio, location. **Email** e **ruolo** del primo utente sono **sola lettura** in UI (campi disabilitati).
+
+Per cambiare profilo canale con integrazione già connessa: il cliente deve **disconnettere** Shopify o TikTok da Impostazioni prima.
+
+### Eliminazione tenant (zona pericolosa)
+
+In **Modifica cliente**, pannello **Zona pericolosa → Elimina cliente**: rimuove tenant, dati negozio, utenti e integrazioni. Operazione **irreversibile** con dialog di conferma.
 
 ### API
 
@@ -216,8 +238,9 @@ Modificabile: anagrafica, nome titolare, negozio, location. **Non** email access
 | POST   | `/admin/tenants`     | Crea tenant + primo utente |
 | GET    | `/admin/tenants/:id` | Dettaglio                  |
 | PATCH  | `/admin/tenants/:id` | Aggiorna anagrafica/setup  |
+| DELETE | `/admin/tenants/:id` | Elimina tenant e dati      |
 
-Body create include `role` (`owner` | `admin` | `manager` | `clerk`).
+Body create include `role` (`owner` | `admin` | `manager` | `clerk`) e `channelProfile` (`gestionale` | `shopify` | `tiktok_shop`).
 
 ---
 
@@ -243,6 +266,17 @@ Implementati in `tenant-permissions.util.ts` (frontend) e guard analoghi lato AP
 | MFA settings                           | owner, admin, manager |
 
 Route Angular sensibili: `tenantRoleGuard` + `data.tenantRoutePermission`.
+
+### Foto profilo utente
+
+| Metodo | Path           | Azione                         |
+| ------ | -------------- | ------------------------------ |
+| POST   | `/auth/avatar` | Upload foto (multipart `file`) |
+| DELETE | `/auth/avatar` | Rimuove foto e file su Storage |
+
+Validazione: JPEG/PNG/WebP, max 2 MB. Bucket **`user-avatars`** (public). Dopo upload/delete invalida cache profilo JWT (`AuthProfileCacheService.invalidate`).
+
+UI: **Impostazioni → Profilo** (tenant) e **Impostazioni** operatore (`/app/admin/account`). Avatar in topbar cliccabile → Impostazioni.
 
 ---
 
@@ -355,6 +389,25 @@ Import catalogo: enrichment ridotto (`skipRemoteMetadata`) + mutex un import per
 
 Ordini/clienti webhook possono richiedere approvazione Partners. Catalogo/giacenze non dipendono da questo.
 
+### Integrazione TikTok Shop (tecnica)
+
+> **Stato: early / parziale.** OAuth + push catalogo (create/update) + push giacenze dopo movimenti VF. Non implementati: import da TikTok, webhook, vendite/clienti, parità funzionale con Shopify. Aggiornare questa sezione quando l'integrazione sarà completa.
+
+Modulo `api/src/tiktok/` (OAuth, connessione, sync catalogo e inventory push).
+
+| Aspetto            | Dettaglio                                                                       |
+| ------------------ | ------------------------------------------------------------------------------- |
+| **Profilo tenant** | Solo tenant `channelProfile = tiktok_shop` vedono pannello Impostazioni         |
+| **OAuth**          | Partner Center → env `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET`, `TIKTOK_SERVICE_ID` |
+| **Token**          | Cifrati at rest (`TIKTOK_TOKEN_ENCRYPTION_KEY`)                                 |
+| **Sync scope**     | Push prodotti create/update; giacenze dopo carico/scarico VF                    |
+| **Non in scope**   | Vendite e clienti TikTok in UI (a differenza di Shopify)                        |
+| **Permessi UI**    | Collegamento: owner/admin (`canManageTikTokConnection`)                         |
+
+Callback OAuth: query `?tiktok=connected|error|disconnected` su ritorno frontend Impostazioni.
+
+Variabili aggiuntive in `api/.env.example`: `TIKTOK_APP_URL`, `TIKTOK_OAUTH_CALLBACK_URL`, URL API/auth opzionali.
+
 ---
 
 ## 10. Supabase: database, Auth, Storage, RLS
@@ -371,7 +424,8 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 ### Storage
 
 - Bucket **`product-media`** public per immagini prodotto
-- Upload via API (sharp/metadata strip lato server se configurato)
+- Bucket **`user-avatars`** public per foto profilo utente
+- Upload via API (service role); avatar: `UserAvatarService`, prodotti: pipeline esistente
 
 ### Auth
 
@@ -529,8 +583,11 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 ### Post-deploy smoke test
 
 - [ ] Login tenant test
-- [ ] Platform admin → Nuovo cliente (staging)
+- [ ] Platform admin → Clienti → Nuovo cliente (staging)
+- [ ] Profilo canale Shopify e TikTok su tenant test
 - [ ] OAuth Shopify su tenant test
+- [ ] OAuth TikTok Shop su tenant test (se abilitato)
+- [ ] Upload foto profilo + avatar topbar
 - [ ] Import catalogo + webhook
 - [ ] Upload immagine prodotto
 - [ ] Guida utente + guida tecnica admin
@@ -561,7 +618,9 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 | Webhook non arrivano                     | URL tunnel/prod raggiungibile; HTTPS; webhook registrati                                          |
 | Import catalogo 429 / throttling Shopify | Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env `SHOPIFY_API_*` |
 | API VestiFlow 429 (troppi click)         | Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop                            |
-| Immagini 404                             | Bucket `product-media` esiste ed è public                                                         |
+| Immagini prodotto 404                    | Bucket `product-media` esiste ed è public                                                         |
+| Avatar 404 / upload fallito              | Bucket `user-avatars` esiste ed è public; env `SUPABASE_USER_AVATARS_BUCKET`                      |
+| TikTok OAuth fallisce                    | Verifica `TIKTOK_*` env, callback URL pubblico HTTPS, app Partner Center attiva                   |
 | Anon key legge dati                      | **Critico** — RLS mancante, fix migration immediato                                               |
 
 ---
@@ -572,6 +631,8 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 | -------------------------------------------- | ------------------------------------------------------------ |
 | Multi-store commerciali in un tenant         | Non supportato — un shop = un tenant                         |
 | Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore |
+| Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale       |
+| Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze       |
 | Location manuale senza Shopify               | Parziale (location onboarding); sync Shopify consigliato     |
 | Cassa / corrispettivi IT nativi              | Non previsti — Shopify POS                                   |
 | Report server-side avanzati                  | In evoluzione                                                |
