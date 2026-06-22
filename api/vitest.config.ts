@@ -18,10 +18,10 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       // Soglia globale anti-regressione; alza gradualmente man mano che si aggiungono test su controller/service.
       thresholds: {
-        lines: 42,
-        branches: 34.5,
-        functions: 54,
-        statements: 42.5,
+        lines: 43,
+        branches: 35.5,
+        functions: 56,
+        statements: 44,
       },
     },
   },

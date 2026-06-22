@@ -51,6 +51,23 @@ describe('ProductsController', () => {
     expect(() => controller.previewImport(tenantId, undefined)).toThrow(BadRequestException);
   });
 
+  it('importProducts delega a productsImport.importCsv', async () => {
+    const file = {
+      buffer: Buffer.from('handle,title\n', 'utf8'),
+      originalname: 'products.csv',
+      mimetype: 'text/csv',
+    } as Express.Multer.File;
+    productsImport.importCsv.mockResolvedValue({ imported: 1, skipped: 0, failed: 0, products: [] });
+
+    await controller.importProducts(tenantId, file, { handles: ['handle-a'] } as never);
+
+    expect(productsImport.importCsv).toHaveBeenCalledWith(
+      tenantId,
+      'handle,title\n',
+      { handles: ['handle-a'] },
+    );
+  });
+
   it('getById delega al service', async () => {
     products.getById.mockResolvedValue({ id: 'prod-1', name: 'Giacca' });
 

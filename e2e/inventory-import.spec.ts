@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { resolveTestSku } from './helpers/catalog';
 
+// Anteprima rapida; import reale in inventory-import-write.spec.ts (serial).
 test.describe('Import giacenze CSV', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/app/inventory');

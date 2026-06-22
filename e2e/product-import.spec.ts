@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
+// Anteprima rapida; import reale in product-import-write.spec.ts (serial).
 test.describe('Import prodotti CSV', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/app/products');

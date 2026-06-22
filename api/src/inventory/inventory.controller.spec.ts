@@ -83,6 +83,28 @@ describe('InventoryController', () => {
     );
   });
 
+  it('importLevels delega a inventoryImport.importCsv', async () => {
+    const file = {
+      buffer: Buffer.from('SKU,Location,Disponibile\n', 'utf8'),
+      originalname: 'levels.csv',
+      mimetype: 'text/csv',
+    } as Express.Multer.File;
+    inventoryImport.importCsv.mockResolvedValue({
+      updated: 1,
+      unchanged: 0,
+      skipped: 0,
+      failed: 0,
+    });
+
+    await controller.importLevels(tenantId, file, { keys: ['sku|loc'] } as never);
+
+    expect(inventoryImport.importCsv).toHaveBeenCalledWith(
+      tenantId,
+      'SKU,Location,Disponibile\n',
+      { keys: ['sku|loc'] },
+    );
+  });
+
   it('createCount delega al service conteggi', async () => {
     const dto = { locationId: 'loc-1', name: 'Conteggio' };
     inventoryCount.create.mockResolvedValue({ id: 'count-1' });

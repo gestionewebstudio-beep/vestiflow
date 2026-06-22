@@ -189,4 +189,13 @@ describe('ShopifySyncService', () => {
     expect(result).toBe('unchanged');
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
   });
+
+  it('applyOrderFromShopify salta payload senza id ordine', async () => {
+    const { service, prisma } = createService();
+
+    const result = await service.applyOrderFromShopify('tenant-1', { email: 'buyer@example.com' });
+
+    expect(result).toBe('skipped');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
 });
