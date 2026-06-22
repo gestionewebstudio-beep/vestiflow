@@ -13,6 +13,14 @@
     "serve:pwa": "npx http-server dist/vestiflow/browser -p 4200 -c-1",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:api": "npm run test --prefix api",
+    "test:everything": "npm test -- --watch=false && npm run test:api",
+    "test:all": "npm run test:everything",
+    "test:coverage": "ng test --watch=false --coverage && npm run test:coverage --prefix api",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:headless": "playwright test",
+    "e2e:guest": "playwright test --project=chromium-guest",
     "lint": "ng lint",
     "lint:fix": "ng lint --fix",
     "check:rls": "node scripts/check-rls.mjs",
@@ -55,8 +63,10 @@
     "@angular/build": "^21.2.3",
     "@angular/cli": "^21.2.3",
     "@angular/compiler-cli": "^21.2.0",
+    "@axe-core/playwright": "^4.11.3",
     "@commitlint/cli": "^21.0.2",
     "@commitlint/config-conventional": "^21.0.2",
+    "@playwright/test": "^1.61.0",
     "@smarttools/eslint-plugin-rxjs": "^1.0.22",
     "@types/jsbarcode": "^3.11.4",
     "@types/node": "^20.17.19",
@@ -75,7 +85,15 @@
     "vitest": "^4.0.8"
   },
   "lint-staged": {
-    "*.{ts,html}": [
+    "src/**/*.{ts,html}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "e2e/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "playwright.config.ts": [
       "eslint --fix",
       "prettier --write"
     ],

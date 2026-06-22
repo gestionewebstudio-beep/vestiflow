@@ -1,1 +1,2 @@
+npm run test:everything
 npm run build

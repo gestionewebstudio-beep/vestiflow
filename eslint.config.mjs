@@ -21,6 +21,7 @@ export default tseslint.config(
   },
   {
     files: ['**/*.ts'],
+    ignores: ['e2e/**', 'playwright.config.ts'],
     extends: [
       eslint.configs.recommended,
       ...tseslint.configs.recommendedTypeChecked,
@@ -77,6 +78,38 @@ export default tseslint.config(
       'rxjs/no-ignored-replay-buffer': 'error',
       'rxjs/no-unsafe-takeuntil': 'error',
       'rxjs/no-ignored-subscription': 'warn',
+    },
+  },
+  {
+    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    extends: [
+      eslint.configs.recommended,
+      ...tseslint.configs.recommendedTypeChecked,
+      ...tseslint.configs.stylistic,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./e2e/tsconfig.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    plugins: {
+      'unused-imports': unusedImports,
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': [
+        'error',
+        {
+          args: 'after-used',
+          argsIgnorePattern: '^_',
+          vars: 'all',
+          varsIgnorePattern: '^_',
+        },
+      ],
     },
   },
   {

@@ -55,6 +55,9 @@ serviceAccountKey.json
 
 # Reports
 /lighthouse-reports
+/playwright-report
+/test-results
+/e2e/.auth
 
 # System files
 .DS_Store

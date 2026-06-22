@@ -4,8 +4,70 @@
     <p class="settings__subtitle">{{ settingsSubtitle() }}</p>
   </header>
 
+  <!-- ── Profilo ─────────────────────────────────────────────────────────── -->
+  <section class="settings__panel" aria-labelledby="settings-profile">
+    <h2 id="settings-profile" class="settings__panel-title">Profilo</h2>
+    @if (currentUser(); as user) {
+      <app-profile-avatar-upload [user]="user" />
+      <dl class="settings__facts">
+        <div class="settings__fact">
+          <dt>Nome</dt>
+          <dd>{{ user.displayName }}</dd>
+        </div>
+        <div class="settings__fact">
+          <dt>Email</dt>
+          <dd>{{ user.email }}</dd>
+        </div>
+        <div class="settings__fact">
+          <dt>Ruolo</dt>
+          <dd>{{ roleLabel() }}</dd>
+        </div>
+      </dl>
+    } @else {
+      <p class="settings__muted">Nessun utente autenticato.</p>
+    }
+  </section>
+
+  @if (showTikTokPanel()) {
+    <!-- ── TikTok Shop ─────────────────────────────────────────────────────── -->
+    <section class="settings__panel" aria-labelledby="settings-tiktok">
+      <app-tiktok-integration-panel />
+    </section>
+  }
+
+  <!-- ── Sicurezza account ─────────────────────────────────────────────────── -->
+  @if (mfaAvailable && canManageMfa()) {
+    <section class="settings__panel" aria-labelledby="settings-mfa">
+      <h2 id="settings-mfa" class="settings__panel-title">Sicurezza account</h2>
+      <app-mfa-settings />
+    </section>
+  }
+
+  <!-- ── Aspetto ─────────────────────────────────────────────────────────── -->
+  <section class="settings__panel" aria-labelledby="settings-theme">
+    <h2 id="settings-theme" class="settings__panel-title">Aspetto</h2>
+    <fieldset class="settings__theme-group">
+      <legend class="settings__muted">Tema dell'interfaccia</legend>
+      <div class="settings__theme-options">
+        @for (option of themeOptions; track option.value) {
+          <label class="settings__theme-option" [class.is-active]="themeMode() === option.value">
+            <input
+              class="settings__theme-radio"
+              type="radio"
+              name="theme-mode"
+              [value]="option.value"
+              [checked]="themeMode() === option.value"
+              (change)="onThemeChange(option.value)"
+            />
+            {{ option.label }}
+          </label>
+        }
+      </div>
+    </fieldset>
+  </section>
+
+  <!-- ── Integrazione Shopify ────────────────────────────────────────────── -->
   @if (showShopifyPanel()) {
-    <!-- ── Shopify ─────────────────────────────────────────────────────────── -->
     <section class="settings__panel" aria-labelledby="settings-shopify">
       <h2 id="settings-shopify" class="settings__panel-title">Integrazione Shopify</h2>
 
@@ -53,20 +115,29 @@
             [formGroup]="connectForm"
             (ngSubmit)="connectShopify()"
           >
-            <label class="settings__field" for="shopify-shop">
+            <label class="settings__field settings__field--connect" for="shopify-shop">
               <span class="settings__field-label">Dominio shop</span>
-              <input
-                id="shopify-shop"
-                class="settings__input"
-                type="text"
-                formControlName="shop"
-                placeholder="mio-negozio.myshopify.com"
-                autocomplete="off"
-                spellcheck="false"
-                [attr.aria-invalid]="
-                  connectForm.controls.shop.invalid && connectForm.controls.shop.touched
-                "
-              />
+              <div class="settings__connect-row">
+                <input
+                  id="shopify-shop"
+                  class="settings__input"
+                  type="text"
+                  formControlName="shop"
+                  placeholder="mio-negozio.myshopify.com"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [attr.aria-invalid]="
+                    connectForm.controls.shop.invalid && connectForm.controls.shop.touched
+                  "
+                />
+                <app-button
+                  type="submit"
+                  [loading]="connectLoading()"
+                  [disabled]="connectLoading()"
+                >
+                  Connetti Shopify
+                </app-button>
+              </div>
               @if (connectForm.controls.shop.invalid && connectForm.controls.shop.touched) {
                 <span class="settings__field-error">Inserisci il dominio dello shop.</span>
               }
@@ -75,10 +146,6 @@
             @if (connectError(); as message) {
               <p class="settings__shopify-error" role="alert">{{ message }}</p>
             }
-
-            <app-button type="submit" [loading]="connectLoading()" [disabled]="connectLoading()">
-              Connetti Shopify
-            </app-button>
           </form>
         } @else {
           <p class="settings__muted">Solo titolare o amministratore possono collegare Shopify.</p>
@@ -302,68 +369,6 @@
       }
     </section>
   }
-
-  @if (showTikTokPanel()) {
-    <!-- ── TikTok Shop ─────────────────────────────────────────────────────── -->
-    <section class="settings__panel" aria-labelledby="settings-tiktok">
-      <app-tiktok-integration-panel />
-    </section>
-  }
-
-  <!-- ── Sicurezza account ─────────────────────────────────────────────────── -->
-  @if (mfaAvailable && canManageMfa()) {
-    <section class="settings__panel" aria-labelledby="settings-mfa">
-      <h2 id="settings-mfa" class="settings__panel-title">Sicurezza account</h2>
-      <app-mfa-settings />
-    </section>
-  }
-
-  <!-- ── Aspetto ─────────────────────────────────────────────────────────── -->
-  <section class="settings__panel" aria-labelledby="settings-theme">
-    <h2 id="settings-theme" class="settings__panel-title">Aspetto</h2>
-    <fieldset class="settings__theme-group">
-      <legend class="settings__muted">Tema dell'interfaccia</legend>
-      <div class="settings__theme-options">
-        @for (option of themeOptions; track option.value) {
-          <label class="settings__theme-option" [class.is-active]="themeMode() === option.value">
-            <input
-              class="settings__theme-radio"
-              type="radio"
-              name="theme-mode"
-              [value]="option.value"
-              [checked]="themeMode() === option.value"
-              (change)="onThemeChange(option.value)"
-            />
-            {{ option.label }}
-          </label>
-        }
-      </div>
-    </fieldset>
-  </section>
-
-  <!-- ── Profilo ─────────────────────────────────────────────────────────── -->
-  <section class="settings__panel" aria-labelledby="settings-profile">
-    <h2 id="settings-profile" class="settings__panel-title">Profilo</h2>
-    @if (currentUser(); as user) {
-      <app-profile-avatar-upload [user]="user" />
-      <dl class="settings__facts">
-        <div class="settings__fact">
-          <dt>Nome</dt>
-          <dd>{{ user.displayName }}</dd>
-        </div>
-        <div class="settings__fact">
-          <dt>Email</dt>
-          <dd>{{ user.email }}</dd>
-        </div>
-        <div class="settings__fact">
-          <dt>Ruolo</dt>
-          <dd>{{ roleLabel() }}</dd>
-        </div>
-      </dl>
-    } @else {
-      <p class="settings__muted">Nessun utente autenticato.</p>
-    }
-  </section>
 
   <!-- ── Location ────────────────────────────────────────────────────────── -->
   <section class="settings__panel" aria-labelledby="settings-locations">

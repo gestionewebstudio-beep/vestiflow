@@ -142,12 +142,12 @@ export class SettingsComponent {
   );
   protected readonly settingsSubtitle = computed(() => {
     if (this.showShopifyPanel()) {
-      return 'Integrazione Shopify, aspetto, profilo e location.';
+      return 'Profilo, integrazione Shopify, aspetto e location.';
     }
     if (this.showTikTokPanel()) {
-      return 'Integrazione TikTok Shop, aspetto, profilo e location.';
+      return 'Profilo, integrazione TikTok Shop, aspetto e location.';
     }
-    return 'Aspetto, profilo e location.';
+    return 'Profilo, aspetto e location.';
   });
 
   protected readonly connectionStatusLabel = shopifyConnectionStatusLabel;
