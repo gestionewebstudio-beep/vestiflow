@@ -13,6 +13,7 @@ yarn-error.log
 
 # Backend NestJS (api/)
 /api/dist
+/api/coverage
 
 # IDEs and editors
 .idea/
