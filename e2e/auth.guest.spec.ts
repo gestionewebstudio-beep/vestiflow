@@ -1,5 +1,6 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+
+import { assertNoSeriousA11yViolations } from './helpers/a11y';
 
 test.describe('Accesso (guest)', () => {
   test('mostra il form di login', async ({ page }) => {
@@ -36,22 +37,6 @@ test.describe('Accesso (guest)', () => {
 
   test('pagina login senza violazioni a11y serious/critical', async ({ page }) => {
     await page.goto('/login');
-
-    const results = await new AxeBuilder({ page }).analyze();
-    const blocking = results.violations.filter(
-      (violation) => violation.impact === 'serious' || violation.impact === 'critical',
-    );
-
-    expect(blocking, formatA11yViolations(blocking)).toEqual([]);
+    await assertNoSeriousA11yViolations(page);
   });
 });
-
-function formatA11yViolations(
-  violations: { id: string; impact?: string; description: string }[],
-): string {
-  if (violations.length === 0) {
-    return '';
-  }
-
-  return violations.map((v) => `[${v.impact}] ${v.id}: ${v.description}`).join('\n');
-}

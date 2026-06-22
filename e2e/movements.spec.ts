@@ -7,6 +7,7 @@ import {
   goToMovementReview,
   openMovementFormForSku,
   pickFirstLocation,
+  pickTransferLocations,
   selectMovementType,
 } from './helpers/movement-form';
 import { pickSelectMenuOption } from './helpers/select-menu';
@@ -85,5 +86,37 @@ test.describe('Movimenti di magazzino — scrittura reale', () => {
     await confirmMovement(page);
 
     await expectMovementInHistory(page, sku, 'Rettifica', reason);
+  });
+
+  test('registra uno scarico e lo trova nello storico', async ({ page }) => {
+    test.setTimeout(120_000);
+    const sku = await resolveTestSku(page);
+
+    await openMovementFormForSku(page, sku);
+    await selectMovementType(page, 'Scarico');
+    await pickFirstLocation(page);
+    await goToMovementReview(page, '1');
+    await confirmMovement(page);
+
+    await expectMovementInHistory(page, sku, 'Scarico');
+  });
+
+  test('registra un trasferimento tra location', async ({ page }) => {
+    test.setTimeout(120_000);
+    const sku = await resolveTestSku(page);
+
+    await openMovementFormForSku(page, sku);
+    await selectMovementType(page, 'Trasferimento');
+
+    const hasTwoLocations = await pickTransferLocations(page);
+    if (!hasTwoLocations) {
+      test.skip(true, 'Tenant di test con una sola location — skip trasferimento.');
+      return;
+    }
+
+    await goToMovementReview(page, '1');
+    await confirmMovement(page);
+
+    await expectMovementInHistory(page, sku, 'Trasferimento');
   });
 });

@@ -24,6 +24,23 @@ export async function pickFirstLocation(page: Page): Promise<void> {
   );
 }
 
+/** Seleziona origine e destinazione distinte; false se il tenant ha una sola location. */
+export async function pickTransferLocations(page: Page): Promise<boolean> {
+  await pickSelectMenuOption(page, 'Location', { index: 1 });
+
+  await page.getByRole('button', { name: 'Location di destinazione', exact: true }).click();
+  const destList = page.getByRole('listbox', { name: 'Location di destinazione' });
+  const destOptions = destList.getByRole('option');
+
+  if ((await destOptions.count()) < 3) {
+    await page.keyboard.press('Escape');
+    return false;
+  }
+
+  await destOptions.nth(2).click();
+  return true;
+}
+
 export async function goToMovementReview(page: Page, quantity = '1'): Promise<void> {
   await page.locator('#mov-quantity').fill(quantity);
   await page.getByRole('button', { name: 'Continua' }).click();
@@ -34,7 +51,16 @@ export async function confirmMovement(page: Page): Promise<void> {
     timeout: 15_000,
   });
   await page.getByRole('button', { name: 'Conferma movimento' }).click();
-  await expect(page).toHaveURL(/\/app\/inventory\/movements\/?$/, { timeout: 30_000 });
+
+  const submitError = page.locator('.movement-form__submit-error');
+  await Promise.race([
+    expect(page).toHaveURL(/\/app\/inventory\/movements\/?$/, { timeout: 30_000 }),
+    submitError.waitFor({ state: 'visible', timeout: 30_000 }).then(async () => {
+      const message = (await submitError.textContent())?.trim() ?? 'errore sconosciuto';
+      throw new Error(`Conferma movimento fallita: ${message}`);
+    }),
+  ]);
+
   await expect(page.locator('h1.stock-movements__title')).toHaveText('Movimenti di magazzino');
 }
 

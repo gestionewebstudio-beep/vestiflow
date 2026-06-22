@@ -153,6 +153,50 @@ describe('InventoryService', () => {
     expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
   });
 
+  it('registerMovement persiste scarico con giacenza sufficiente', async () => {
+    const movement = { id: 'mov-unload', type: StockMovementType.unload };
+    const tx = {
+      productVariant: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'var-1', sku: 'SKU-1' }),
+      },
+      location: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
+      },
+      inventoryLevel: {
+        upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 10, onHand: 10 }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      stockMovement: {
+        create: vi.fn().mockResolvedValue(movement),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+    };
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      channelSync as unknown as ChannelSyncFacade,
+    );
+
+    const result = await service.registerMovement(
+      tenantId,
+      {
+        type: StockMovementType.unload,
+        variantId: 'var-1',
+        locationId: 'loc-1',
+        quantity: 3,
+      } as never,
+      'Mario Rossi',
+    );
+
+    expect(result).toEqual(movement);
+    expect(tx.inventoryLevel.update).toHaveBeenCalledWith({
+      where: { id: 'lvl-1' },
+      data: { onHand: 7, available: 7 },
+    });
+  });
+
   it('registerMovement rifiuta trasferimento senza destinazione', async () => {
     const prisma = createPrismaMock();
     const service = new InventoryService(

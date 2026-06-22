@@ -23,7 +23,16 @@ const authenticatedProjects = hasE2eCredentials()
           storageState: authFile,
         },
         dependencies: ['setup'],
-        testIgnore: [/\.guest\.spec\.ts$/, /auth\.setup\.ts/],
+        testIgnore: [/\.guest\.spec\.ts$/, /auth\.setup\.ts/, /mobile-p0\.spec\.ts$/],
+      },
+      {
+        name: 'mobile-chrome',
+        use: {
+          ...devices['Pixel 5'],
+          storageState: authFile,
+        },
+        dependencies: ['setup'],
+        testMatch: /mobile-p0\.spec\.ts$/,
       },
     ]
   : [];

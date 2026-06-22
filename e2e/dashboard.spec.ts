@@ -1,6 +1,6 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+import { assertNoSeriousA11yViolations } from './helpers/a11y';
 import { expectPageHeading } from './helpers/navigation';
 import { waitForDashboardReady } from './helpers/page-ready';
 
@@ -31,16 +31,7 @@ test.describe('Dashboard', () => {
 
   test('dashboard senza violazioni a11y serious/critical', async ({ page }) => {
     await page.getByRole('button', { name: 'Tema chiaro' }).click();
-
-    const results = await new AxeBuilder({ page }).include('main').analyze();
-    const blocking = results.violations.filter(
-      (violation) => violation.impact === 'serious' || violation.impact === 'critical',
-    );
-
-    expect(
-      blocking.map((v) => v.id),
-      formatA11yViolations(blocking),
-    ).toEqual([]);
+    await assertNoSeriousA11yViolations(page, { include: 'main' });
   });
 });
 
@@ -62,13 +53,3 @@ test.describe('Navigazione sidebar', () => {
     await expectPageHeading(page, 'h1.dashboard__title', 'Dashboard');
   });
 });
-
-function formatA11yViolations(
-  violations: { id: string; impact?: string; description: string }[],
-): string {
-  if (violations.length === 0) {
-    return '';
-  }
-
-  return violations.map((v) => `[${v.impact}] ${v.id}: ${v.description}`).join('\n');
-}

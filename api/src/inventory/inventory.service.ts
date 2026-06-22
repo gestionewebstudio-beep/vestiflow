@@ -166,7 +166,12 @@ export class InventoryService {
     const locationIds = dto.targetLocationId
       ? [dto.locationId, dto.targetLocationId]
       : [dto.locationId];
-    await this.channelSync.pushInventoryLevels(tenantId, dto.variantId, locationIds);
+    void Promise.resolve(
+      this.channelSync.pushInventoryLevels(tenantId, dto.variantId, locationIds),
+    ).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Push inventario canali fallito';
+      this.logger.warn(`Push inventario post-movimento (${tenantId}): ${message}`);
+    });
 
     return movement;
   }

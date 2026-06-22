@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -213,6 +217,29 @@ describe('ProductsService', () => {
     ).resolves.toMatchObject({ id: 'prod-new', name: 'Maglietta' });
 
     expect(channelSync.enqueueProductPush).toHaveBeenCalledWith(tenantId, 'prod-new');
+  });
+
+  it('findVariantByCode rifiuta codice vuoto', async () => {
+    const { service } = createService();
+
+    await expect(service.findVariantByCode(tenantId, '   ')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('delete rifiuta se Shopify non connesso su prodotto sincronizzato', async () => {
+    const { service, prisma, shopifyProductPush } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      shopifyProductId: 'gid://shopify/Product/1',
+    });
+    prisma.stockMovement.count.mockResolvedValue(0);
+    shopifyProductPush.deleteProduct.mockResolvedValue({ reason: 'not_connected' });
+
+    await expect(service.delete(tenantId, 'prod-1')).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
+    expect(prisma.product.delete).not.toHaveBeenCalled();
   });
 
   it('create rifiuta SKU già presenti a catalogo', async () => {
