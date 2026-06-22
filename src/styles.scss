@@ -18,12 +18,14 @@
 
 html {
   height: 100%;
+  overflow: hidden;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
 body {
   min-height: 100%;
+  overflow: hidden;
   font-family: var(--font-sans);
   font-size: var(--text-base);
   font-weight: var(--font-weight-regular);

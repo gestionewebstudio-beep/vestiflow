@@ -3,12 +3,14 @@
 :host {
   display: block;
   block-size: 100dvh;
+  min-block-size: 0;
 }
 
 // Mobile-first: una colonna, topbar sopra, contenuto sotto.
 .shell {
   display: grid;
   block-size: 100dvh;
+  min-block-size: 0;
   min-inline-size: 0;
   overflow: hidden;
   grid-template-columns: 1fr;
@@ -65,6 +67,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   min-inline-size: 0;
+  min-block-size: 0;
   padding: var(--space-2);
 }
 

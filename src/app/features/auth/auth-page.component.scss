@@ -1,5 +1,8 @@
 :host {
   display: block;
+  block-size: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .login {
