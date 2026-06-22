@@ -50,6 +50,7 @@
           />
           <app-product-images-field
             [existingImages]="existingImages()"
+            [selectedFiles]="pendingImageFiles()"
             [disabled]="submitting()"
             (filesChange)="onPendingImagesChange($event)"
             (removeExisting)="onRemoveExistingImage($event)"
@@ -88,7 +89,7 @@
     </div>
 
     <footer class="product-form__footer">
-      <app-button variant="ghost" (click)="cancel()">Annulla</app-button>
+      <app-button variant="secondary" (click)="cancel()">Annulla</app-button>
       <div class="product-form__nav">
         <app-button variant="secondary" [disabled]="isFirstStep()" (click)="prev()">
           <i class="pi pi-chevron-left" aria-hidden="true"></i>

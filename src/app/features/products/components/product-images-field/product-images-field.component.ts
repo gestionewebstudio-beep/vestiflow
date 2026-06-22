@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 
 import type { ProductImage } from '@core/models/product-image.model';
 
@@ -17,7 +26,11 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
   styleUrl: './product-images-field.component.scss',
 })
 export class ProductImagesFieldComponent {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly existingImages = input<readonly ProductImage[]>([]);
+  /** File selezionati dal wizard padre: sopravvivono al cambio step. */
+  readonly selectedFiles = input<readonly File[]>([]);
   readonly disabled = input(false);
 
   readonly filesChange = output<readonly File[]>();
@@ -27,6 +40,29 @@ export class ProductImagesFieldComponent {
     readonly { readonly file: File; readonly previewUrl: string }[]
   >([]);
   protected readonly error = signal<string | null>(null);
+
+  constructor() {
+    effect(() => {
+      const files = this.selectedFiles();
+      const current = this.pendingFiles();
+      const alreadySynced =
+        files.length === current.length &&
+        files.every((file, index) => file === current[index]?.file);
+      if (alreadySynced) {
+        return;
+      }
+
+      this.revokePendingPreviews();
+      this.pendingFiles.set(
+        files.map((file) => ({
+          file,
+          previewUrl: URL.createObjectURL(file),
+        })),
+      );
+    });
+
+    this.destroyRef.onDestroy(() => this.revokePendingPreviews());
+  }
 
   protected onFileSelected(event: Event): void {
     if (this.disabled()) {
@@ -58,6 +94,8 @@ export class ProductImagesFieldComponent {
     const next = [...this.pendingFiles(), { file, previewUrl }];
     this.pendingFiles.set(next);
     this.filesChange.emit(next.map((entry) => entry.file));
+    // Evita scroll verso l'input nascosto quando si chiude il dialog del file system.
+    inputEl.blur();
   }
 
   protected removePending(index: number): void {
@@ -72,5 +110,11 @@ export class ProductImagesFieldComponent {
 
   protected onRemoveExisting(imageId: string): void {
     this.removeExisting.emit(imageId);
+  }
+
+  private revokePendingPreviews(): void {
+    for (const entry of this.pendingFiles()) {
+      URL.revokeObjectURL(entry.previewUrl);
+    }
   }
 }
