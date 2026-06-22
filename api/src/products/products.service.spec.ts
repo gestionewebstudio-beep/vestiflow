@@ -48,7 +48,8 @@ describe('ProductsService', () => {
     };
     const taxonomyLocalization = {
       prepareCategories: vi.fn().mockResolvedValue(undefined),
-      localizeProductTaxonomySync: vi.fn((product: unknown) => product),
+      prepareProductLocalization: vi.fn().mockResolvedValue(undefined),
+      localizeProductForResponseSync: vi.fn((product: unknown) => product),
     };
     const channelSync = { enqueueProductPush: vi.fn() };
     const shopifyProductPush = {

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { parseCategoryMetafieldsJson } from './shopify-category-metafields.util';
 import type {
   ShopifyTaxonomyCategory,
   ShopifyTaxonomyCategoryAttribute,
@@ -84,6 +85,14 @@ export class ShopifyTaxonomyLocalizationService {
     await this.ensureCategoriesLoaded();
   }
 
+  async prepareAttributes(): Promise<void> {
+    await this.ensureAttributesLoaded();
+  }
+
+  async prepareProductLocalization(): Promise<void> {
+    await Promise.all([this.ensureCategoriesLoaded(), this.ensureAttributesLoaded()]);
+  }
+
   localizeProductTaxonomySync<
     T extends {
       shopifyTaxonomyCategoryId?: string | null;
@@ -102,6 +111,38 @@ export class ShopifyTaxonomyLocalizationService {
       ...product,
       shopifyTaxonomyCategoryFullName: localized.fullName,
     };
+  }
+
+  /** Nomi attributi categoria in italiano; i valori taxonomy restano quelli Shopify (EN). */
+  localizeProductCategoryMetafieldsSync<
+    T extends { shopifyCategoryMetafields?: unknown },
+  >(product: T): T {
+    const fields = parseCategoryMetafieldsJson(product.shopifyCategoryMetafields);
+    if (fields.length === 0 || this.attributesByGid.size === 0) {
+      return product;
+    }
+
+    const localized = fields.map((field) => ({
+      ...field,
+      attributeName: this.attributesByGid.get(field.attributeId) ?? field.attributeName,
+    }));
+
+    return {
+      ...product,
+      shopifyCategoryMetafields: localized,
+    };
+  }
+
+  localizeProductForResponseSync<
+    T extends {
+      shopifyTaxonomyCategoryId?: string | null;
+      shopifyTaxonomyCategoryFullName?: string | null;
+      shopifyCategoryMetafields?: unknown;
+    },
+  >(product: T): T {
+    return this.localizeProductCategoryMetafieldsSync(
+      this.localizeProductTaxonomySync(product),
+    );
   }
 
   private async ensureCategoriesLoaded(): Promise<void> {

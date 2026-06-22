@@ -17,7 +17,6 @@
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (product(); as p) {
-    @let categoryShopifyMetafields = shopifyCategoryMetafieldsForDisplay(p);
     @let customShopifyMetafields = shopifyCustomMetafieldsForDisplay(p);
     <header class="product-detail__header">
       <div class="product-detail__heading">
@@ -185,7 +184,6 @@
       p.seoTitle ||
       p.seoDescription ||
       (p.shopifyCollections && p.shopifyCollections.length > 0) ||
-      categoryShopifyMetafields.length > 0 ||
       customShopifyMetafields.length > 0
     ) {
       <section class="product-detail__panel" aria-labelledby="detail-shopify-meta">
@@ -213,21 +211,6 @@
                     <span>, </span>
                   }
                 }
-              </dd>
-            </div>
-          }
-          @if (categoryShopifyMetafields.length > 0) {
-            <div class="product-detail__fact product-detail__fact--wide">
-              <dt class="product-detail__term">Metafield di categoria</dt>
-              <dd class="product-detail__value">
-                <ul class="product-detail__attr-list">
-                  @for (field of categoryShopifyMetafields; track field.trackId) {
-                    <li>
-                      <span class="product-detail__attr-name">{{ field.label }}:</span>
-                      {{ field.value }}
-                    </li>
-                  }
-                </ul>
               </dd>
             </div>
           }

@@ -75,11 +75,11 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
-    await this.taxonomyLocalization.prepareCategories();
+    await this.taxonomyLocalization.prepareProductLocalization();
 
     return {
       items: items.map((item) =>
-        withReadableShopifyErrors(this.taxonomyLocalization.localizeProductTaxonomySync(item)),
+        withReadableShopifyErrors(this.taxonomyLocalization.localizeProductForResponseSync(item)),
       ),
       total,
       page: query.page,
@@ -96,9 +96,9 @@ export class ProductsService {
       throw new NotFoundException('Prodotto non trovato');
     }
 
-    await this.taxonomyLocalization.prepareCategories();
+    await this.taxonomyLocalization.prepareProductLocalization();
     const normalized = withReadableShopifyErrors(
-      this.taxonomyLocalization.localizeProductTaxonomySync(product),
+      this.taxonomyLocalization.localizeProductForResponseSync(product),
     );
     await this.healProductDescriptionIfNeeded(id, product.description, normalized.description);
     return normalized;

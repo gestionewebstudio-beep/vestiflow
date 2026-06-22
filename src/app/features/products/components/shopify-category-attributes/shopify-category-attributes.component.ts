@@ -129,10 +129,38 @@ export class ShopifyCategoryAttributesComponent {
   }
 
   private syncValuesWithAttributes(attrs: readonly ShopifyTaxonomyCategoryAttribute[]): void {
-    const allowedIds = new Set(attrs.map((entry) => entry.id));
-    const filtered = this.values().filter((entry) => allowedIds.has(entry.attributeId));
-    if (filtered.length !== this.values().length) {
-      this.valuesChange.emit(filtered);
+    const attributeById = new Map(attrs.map((entry) => [entry.id, entry]));
+    const synced = this.values().flatMap((entry) => {
+      const attribute = attributeById.get(entry.attributeId);
+      if (!attribute) {
+        return [];
+      }
+      return [
+        {
+          ...entry,
+          attributeName: attribute.name,
+          namespace: attribute.namespace,
+          key: attribute.key,
+          metafieldType: attribute.metafieldType,
+        },
+      ];
+    });
+
+    const current = this.values();
+    const changed =
+      synced.length !== current.length ||
+      synced.some((entry) => {
+        const previous = current.find((item) => item.attributeId === entry.attributeId);
+        return (
+          !previous ||
+          previous.attributeName !== entry.attributeName ||
+          previous.namespace !== entry.namespace ||
+          previous.key !== entry.key
+        );
+      });
+
+    if (changed) {
+      this.valuesChange.emit(synced);
     }
   }
 }

@@ -87,6 +87,9 @@ interface ProductDetailShopifyMetafieldRow {
   readonly value: string;
 }
 
+/** Metafield già mostrati in "Dati generali": non ripetere in "Dati Shopify". */
+const SUPPRESSED_SHOPIFY_METAFIELD_KEYS = new Set(['vestiflow.season']);
+
 /** Etichette leggibili per metafield custom (non taxonomy categoria). */
 const CUSTOM_SHOPIFY_METAFIELD_LABELS: Readonly<Record<string, string>> = {
   'vestiflow.season': 'Stagione',
@@ -212,14 +215,21 @@ export class ProductDetailComponent {
     return SHOPIFY_TONES[status];
   }
 
-  /** Metafield Shopify non già mostrati come attributi categoria strutturati. */
+  /** Metafield Shopify non già mostrati in "Dati generali". */
   protected supplementaryShopifyMetafields(product: Product): readonly ShopifyMetafieldRef[] {
     const categoryKeys = new Set(
       (product.shopifyCategoryMetafields ?? []).map((field) => `${field.namespace}.${field.key}`),
     );
-    return (product.shopifyMetafields ?? []).filter(
-      (field) => !categoryKeys.has(`${field.namespace}.${field.key}`),
-    );
+    return (product.shopifyMetafields ?? []).filter((field) => {
+      const key = `${field.namespace}.${field.key}`;
+      if (categoryKeys.has(key)) {
+        return false;
+      }
+      if (SUPPRESSED_SHOPIFY_METAFIELD_KEYS.has(key) && product.season?.trim()) {
+        return false;
+      }
+      return true;
+    });
   }
 
   /** Metafield di categoria Shopify (namespace shopify.*), allineato a Shopify Admin. */
