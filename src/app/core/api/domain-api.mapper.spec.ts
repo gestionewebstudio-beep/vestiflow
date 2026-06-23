@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ProductStatus } from '@core/models/product.model';
+import { CatalogOrigin } from '@core/models/catalog-origin.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { StockMovementType, AdjustmentDirection } from '@core/models/stock-movement.model';
 
@@ -24,6 +25,7 @@ describe('domain-api.mapper', () => {
         status: ProductStatus.Active,
         options: [{ name: 'Taglia', values: ['M'] }],
         shopifySyncStatus: ShopifySyncStatus.NotConnected,
+        catalogOrigin: CatalogOrigin.VestiFlow,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
       });
@@ -45,6 +47,7 @@ describe('domain-api.mapper', () => {
         shopifyProductId: 'gid://shopify/Product/123',
         shopifyLastSyncAt: '2026-06-01T12:00:00.000Z',
         shopifyLastError: 'Errore precedente',
+        catalogOrigin: CatalogOrigin.VestiFlow,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-06-01T12:00:00.000Z',
       });
@@ -83,6 +86,7 @@ describe('domain-api.mapper', () => {
         status: ProductStatus.Draft,
         options: [],
         shopifySyncStatus: ShopifySyncStatus.NotConnected,
+        catalogOrigin: CatalogOrigin.VestiFlow,
         shopifyCollections: [{ id: 'col-1', title: 'Nuovi arrivi' }],
         shopifyMetafields: [{ namespace: 'custom', key: 'material', value: 'lana' }],
         shopifyCategoryMetafields: [

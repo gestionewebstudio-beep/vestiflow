@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { CatalogOrigin } from '@core/models/catalog-origin.model';
+
 import { productDisplayCategory, productDisplayCategoryShort } from './product-display.util';
 
 const baseProduct = {
@@ -7,6 +9,7 @@ const baseProduct = {
   tenantId: 't1',
   name: 'Giacca',
   status: 'active' as const,
+  catalogOrigin: CatalogOrigin.VestiFlow,
   options: [],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',

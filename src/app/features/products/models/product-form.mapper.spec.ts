@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { CatalogOrigin } from '@core/models/catalog-origin.model';
 import { ProductStatus } from '@core/models/product.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
@@ -110,6 +111,7 @@ describe('product-form.mapper', () => {
         description: 'Descrizione',
         category: 'Abbigliamento',
         status: ProductStatus.Active,
+        catalogOrigin: CatalogOrigin.VestiFlow,
         options: [{ name: 'Taglia', values: ['M'] }],
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',

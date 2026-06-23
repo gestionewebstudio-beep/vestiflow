@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { CatalogOrigin } from '@core/models/catalog-origin.model';
 import { ProductStatus } from '@core/models/product.model';
 
 import { toProductLabelViewModels } from './product-label.mapper';
@@ -10,6 +11,7 @@ const product = {
   name: 'Maglietta Basic',
   brand: 'Brand X',
   status: ProductStatus.Active,
+  catalogOrigin: CatalogOrigin.VestiFlow,
   options: [],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
