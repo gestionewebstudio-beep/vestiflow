@@ -41,7 +41,8 @@
 .app-topbar__brand {
   display: none;
   font-weight: var(--font-weight-semibold);
-  font-size: var(--text-lg);
+  font-size: var(--text-2xl);
+  line-height: 1;
   color: var(--color-text);
 }
 
