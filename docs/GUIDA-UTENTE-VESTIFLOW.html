@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-per-lutente">VestiFlow — Guida per l&#39;utente</h1>
-<p><strong>Versione documento:</strong> 2.3 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 2.4 — Giugno 2026</p>
 <p><strong>Per chi è questa guida:</strong> titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.</p>
 <p><strong>Prodotto:</strong> VestiFlow — gestionale web multi-sede per boutique di abbigliamento, con integrazione opzionale a <strong>Shopify</strong> o <strong>TikTok Shop</strong> (in base al profilo scelto per il tuo negozio). L&#39;integrazione <strong>TikTok Shop è ancora parziale</strong> — vedi <a href="#7-collegare-tiktok-shop">§7</a>.</p>
 <hr>
@@ -804,6 +804,32 @@ ol {
 <li><strong>Varianti</strong> — SKU, prezzi, barcode per ogni combinazione</li>
 <li><strong>Riepilogo</strong> → <strong>Crea prodotto</strong></li>
 </ol>
+<h4 id="categoria-shopify-e-attributi-categoria-profilo-shopify">Categoria Shopify e attributi categoria (profilo Shopify)</h4>
+<p>Se il negozio ha <strong>Shopify connesso</strong>, nello step <strong>Dati generali</strong> compare il picker <strong>Categoria prodotto Shopify</strong> (tassonomia ufficiale Shopify, come in Shopify Admin).</p>
+<p>Dopo aver scelto la categoria, compare la sezione <strong>Attributi categoria</strong>: metafield collegati a quella categoria (es. tessuto, fascia d&#39;età, target gender). Servono per Shopify e Google; <strong>non</strong> creano varianti SKU — taglia/colore e combinazioni restano nello step <strong>Opzioni</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Comportamento</th>
+<th>Cosa significa</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Select con <strong>(più valori)</strong></td>
+<td>Puoi scegliere <strong>più opzioni</strong> nello stesso attributo (come in Shopify Admin)</td>
+</tr>
+<tr>
+<td>Select senza indicazione</td>
+<td>Un solo valore per attributo</td>
+</tr>
+<tr>
+<td><strong>Seleziona…</strong> (voce vuota)</td>
+<td>Rimuove tutte le scelte per quell&#39;attributo</td>
+</tr>
+</tbody></table>
+<p>Per chiudere un menu a più valori, clicca fuori dal pannello. I valori scelti compaiono nel trigger (nomi o «N selezionati») e nel <strong>Riepilogo</strong> prima del salvataggio.</p>
+<p>Al <strong>salvataggio</strong>, VestiFlow invia categoria e attributi a Shopify insieme al resto del catalogo (prodotti <strong>Fonte: VestiFlow</strong>). In <strong>dettaglio prodotto</strong> e nel riepilogo del form gli attributi sono elencati per nome con i valori separati da virgola.</p>
+<p><strong>Nota:</strong> <strong>Tipo prodotto</strong> (campo testuale locale) e <strong>Categoria Shopify</strong> sono distinti: la categoria taxonomy è quella usata per sync e metafield di categoria.</p>
 <h3 id="modificare-o-eliminare">Modificare o eliminare</h3>
 <ul>
 <li><strong>Fonte: VestiFlow</strong> — modifica completa dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati a Shopify.</li>
@@ -1154,6 +1180,8 @@ ol {
 </ul>
 <h3 id="non-riesco-a-modificare-nome-o-prezzo-di-un-prodotto">Non riesco a modificare nome o prezzo di un prodotto</h3>
 <p>Controlla l’etichetta <strong>Fonte</strong> nel dettaglio. Se è <strong>Shopify</strong>, modifica titolo, varianti e prezzi di vendita in <strong>Shopify Admin</strong>; in VestiFlow restano editabili solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong> (pulsante <strong>Modifica dati operativi</strong>).</p>
+<h3 id="non-vedo-gli-attributi-categoria-nel-form-prodotto">Non vedo gli attributi categoria nel form prodotto</h3>
+<p>Gli <strong>Attributi categoria</strong> compaiono solo dopo aver selezionato una <strong>Categoria prodotto Shopify</strong> nello step Dati generali. Verifica che Shopify sia <strong>connesso</strong> e che il profilo canale preveda l’integrazione. Se la categoria non ha metafield associati, la sezione può restare vuota («Nessun attributo per questa categoria»).</p>
 <h3 id="non-vedo-integrazione-shopify-o-tiktok-in-impostazioni">Non vedo Integrazione Shopify (o TikTok) in Impostazioni</h3>
 <p>Il <strong>profilo canale</strong> del tuo negozio potrebbe essere <strong>Solo gestionale</strong> o un altro canale. Contatta il referente VestiFlow se serve cambiare profilo.</p>
 <h3 id="il-prodotto-non-compare-su-tiktok-shop">Il prodotto non compare su TikTok Shop</h3>

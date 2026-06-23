@@ -30,7 +30,12 @@
   </button>
 
   @if (open()) {
-    <ul class="select-menu__panel" role="listbox" [attr.aria-label]="ariaLabel()">
+    <ul
+      class="select-menu__panel"
+      role="listbox"
+      [attr.aria-label]="ariaLabel()"
+      [attr.aria-multiselectable]="multiple() ? true : null"
+    >
       @if (includeEmptyOption()) {
         <li class="select-menu__option" role="presentation">
           <button

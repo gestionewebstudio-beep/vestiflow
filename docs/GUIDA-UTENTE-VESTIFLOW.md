@@ -1,6 +1,6 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 2.3 — Giugno 2026
+**Versione documento:** 2.4 — Giugno 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
@@ -374,6 +374,24 @@ I prodotti **Fonte: Shopify** si allineano automaticamente da Shopify Admin: non
 4. **Varianti** — SKU, prezzi, barcode per ogni combinazione
 5. **Riepilogo** → **Crea prodotto**
 
+#### Categoria Shopify e attributi categoria (profilo Shopify)
+
+Se il negozio ha **Shopify connesso**, nello step **Dati generali** compare il picker **Categoria prodotto Shopify** (tassonomia ufficiale Shopify, come in Shopify Admin).
+
+Dopo aver scelto la categoria, compare la sezione **Attributi categoria**: metafield collegati a quella categoria (es. tessuto, fascia d'età, target gender). Servono per Shopify e Google; **non** creano varianti SKU — taglia/colore e combinazioni restano nello step **Opzioni**.
+
+| Comportamento               | Cosa significa                                                                |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| Select con **(più valori)** | Puoi scegliere **più opzioni** nello stesso attributo (come in Shopify Admin) |
+| Select senza indicazione    | Un solo valore per attributo                                                  |
+| **Seleziona…** (voce vuota) | Rimuove tutte le scelte per quell'attributo                                   |
+
+Per chiudere un menu a più valori, clicca fuori dal pannello. I valori scelti compaiono nel trigger (nomi o «N selezionati») e nel **Riepilogo** prima del salvataggio.
+
+Al **salvataggio**, VestiFlow invia categoria e attributi a Shopify insieme al resto del catalogo (prodotti **Fonte: VestiFlow**). In **dettaglio prodotto** e nel riepilogo del form gli attributi sono elencati per nome con i valori separati da virgola.
+
+**Nota:** **Tipo prodotto** (campo testuale locale) e **Categoria Shopify** sono distinti: la categoria taxonomy è quella usata per sync e metafield di categoria.
+
 ### Modificare o eliminare
 
 - **Fonte: VestiFlow** — modifica completa dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati a Shopify.
@@ -654,6 +672,10 @@ Usa **Cambia negozio** in Impostazioni, non il semplice **Disconnetti Shopify**.
 ### Non riesco a modificare nome o prezzo di un prodotto
 
 Controlla l’etichetta **Fonte** nel dettaglio. Se è **Shopify**, modifica titolo, varianti e prezzi di vendita in **Shopify Admin**; in VestiFlow restano editabili solo **stagione** e **prezzo di acquisto** (pulsante **Modifica dati operativi**).
+
+### Non vedo gli attributi categoria nel form prodotto
+
+Gli **Attributi categoria** compaiono solo dopo aver selezionato una **Categoria prodotto Shopify** nello step Dati generali. Verifica che Shopify sia **connesso** e che il profilo canale preveda l’integrazione. Se la categoria non ha metafield associati, la sezione può restare vuota («Nessun attributo per questa categoria»).
 
 ### Non vedo Integrazione Shopify (o TikTok) in Impostazioni
 

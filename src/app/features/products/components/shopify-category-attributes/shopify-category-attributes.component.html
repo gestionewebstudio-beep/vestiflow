@@ -4,7 +4,8 @@
     <p class="category-attributes__hint">
       Metafield Shopify collegati alla categoria (colore, fascia d&apos;età, tessuto…). Descrivono
       il prodotto per Shopify e Google; non creano varianti SKU — quelle si definiscono allo step
-      Opzioni.
+      Opzioni. Gli attributi con tipo lista consentono <strong>più valori</strong>, come in Shopify
+      Admin.
     </p>
 
     @if (loading()) {
@@ -19,17 +20,34 @@
           <div class="category-attributes__field">
             <span class="category-attributes__label" [id]="'attr-label-' + attribute.id">
               {{ attribute.name }}
+              @if (isMultiValueAttribute(attribute)) {
+                <span class="category-attributes__multi-hint">(più valori)</span>
+              }
             </span>
-            <app-select-menu
-              [options]="attributeOptions(attribute)"
-              [value]="selectedValueId(attribute)"
-              [ariaLabel]="attribute.name"
-              placeholder="Seleziona…"
-              [compact]="true"
-              [fullWidth]="true"
-              [includeEmptyOption]="true"
-              (valueChange)="onAttributeSelect(attribute, $event)"
-            />
+            @if (isMultiValueAttribute(attribute)) {
+              <app-select-menu
+                [options]="attributeOptions(attribute)"
+                [multiple]="true"
+                [values]="selectedValueIds(attribute)"
+                [ariaLabel]="attribute.name"
+                placeholder="Seleziona…"
+                [compact]="true"
+                [fullWidth]="true"
+                [includeEmptyOption]="true"
+                (valuesChange)="onAttributeMultiSelect(attribute, $event)"
+              />
+            } @else {
+              <app-select-menu
+                [options]="attributeOptions(attribute)"
+                [value]="selectedValueId(attribute)"
+                [ariaLabel]="attribute.name"
+                placeholder="Seleziona…"
+                [compact]="true"
+                [fullWidth]="true"
+                [includeEmptyOption]="true"
+                (valueChange)="onAttributeSelect(attribute, $event)"
+              />
+            }
           </div>
         }
       </div>

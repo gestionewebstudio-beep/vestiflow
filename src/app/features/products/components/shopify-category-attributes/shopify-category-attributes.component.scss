@@ -53,6 +53,12 @@
   color: var(--color-text);
 }
 
+.category-attributes__multi-hint {
+  margin-inline-start: var(--space-1);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
 .category-attributes__field ::ng-deep app-select-menu.select-menu-host--full {
   display: block;
   inline-size: 100%;

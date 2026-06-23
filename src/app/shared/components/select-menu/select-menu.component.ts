@@ -37,6 +37,10 @@ export class SelectMenuComponent {
   readonly options = input.required<readonly SelectMenuOption[]>();
   /** Valore selezionato; stringa vuota o null = opzione placeholder. */
   readonly value = input<string | null>(null);
+  /** Se true, consente più valori (`values` / `valuesChange`). */
+  readonly multiple = input<boolean>(false);
+  /** Valori selezionati in modalità multipla. */
+  readonly values = input<readonly string[]>([]);
   readonly ariaLabel = input.required<string>();
   /** Etichetta mostrata quando value e' null o vuoto. */
   readonly placeholder = input.required<string>();
@@ -54,6 +58,7 @@ export class SelectMenuComponent {
   readonly describedBy = input<string>();
 
   readonly valueChange = output<string | null>();
+  readonly valuesChange = output<readonly string[]>();
 
   protected readonly open = signal(false);
 
@@ -62,15 +67,47 @@ export class SelectMenuComponent {
     return this.options().find((option) => option.value === current) ?? null;
   });
 
-  protected readonly selectedLabel = computed(
-    () => this.selectedOption()?.label ?? this.placeholder(),
-  );
+  protected readonly selectedLabel = computed(() => {
+    if (this.multiple()) {
+      const selectedIds = this.values();
+      if (selectedIds.length === 0) {
+        return this.placeholder();
+      }
+      const labels = selectedIds.flatMap((id) => {
+        const label = this.options().find((option) => option.value === id)?.label;
+        return label ? [label] : [];
+      });
+      if (labels.length === 0) {
+        return this.placeholder();
+      }
+      if (labels.length <= 2) {
+        return labels.join(', ');
+      }
+      return `${labels.length} selezionati`;
+    }
+    return this.selectedOption()?.label ?? this.placeholder();
+  });
 
-  protected readonly selectedSwatchCssColor = computed(() => this.selectedOption()?.swatchCssColor);
+  protected readonly selectedSwatchCssColor = computed(() => {
+    if (this.multiple()) {
+      return this.values().length === 1
+        ? this.options().find((option) => option.value === this.values()[0])?.swatchCssColor
+        : undefined;
+    }
+    return this.selectedOption()?.swatchCssColor;
+  });
 
-  protected readonly isEmptySelected = computed(() => (this.value() ?? '') === '');
+  protected readonly isEmptySelected = computed(() => {
+    if (this.multiple()) {
+      return this.values().length === 0;
+    }
+    return (this.value() ?? '') === '';
+  });
 
   protected isSelected(option: SelectMenuOption): boolean {
+    if (this.multiple()) {
+      return this.values().includes(option.value);
+    }
     return (this.value() ?? '') === option.value;
   }
 
@@ -83,6 +120,20 @@ export class SelectMenuComponent {
   }
 
   protected select(option: SelectMenuOption): void {
+    if (this.multiple()) {
+      if (!option.value) {
+        this.valuesChange.emit([]);
+        this.close();
+        return;
+      }
+      const current = this.values();
+      const next = current.includes(option.value)
+        ? current.filter((entry) => entry !== option.value)
+        : [...current, option.value];
+      this.valuesChange.emit(next);
+      return;
+    }
+
     this.valueChange.emit(option.value || null);
     this.close();
   }

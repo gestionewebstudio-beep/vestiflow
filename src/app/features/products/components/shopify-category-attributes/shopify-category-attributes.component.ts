@@ -22,6 +22,7 @@ import {
   isShopifyColorCategoryAttribute,
   shopifyTaxonomyColorSwatch,
 } from '../../utils/shopify-taxonomy-color.util';
+import { isShopifyCategoryMetafieldMultiValue } from '../../utils/shopify-category-metafield.util';
 
 @Component({
   selector: 'app-shopify-category-attributes',
@@ -100,6 +101,15 @@ export class ShopifyCategoryAttributesComponent {
     return current?.values[0]?.id ?? null;
   }
 
+  protected selectedValueIds(attribute: ShopifyTaxonomyCategoryAttribute): readonly string[] {
+    const current = this.values().find((entry) => entry.attributeId === attribute.id);
+    return current?.values.map((entry) => entry.id) ?? [];
+  }
+
+  protected isMultiValueAttribute(attribute: ShopifyTaxonomyCategoryAttribute): boolean {
+    return isShopifyCategoryMetafieldMultiValue(attribute.metafieldType);
+  }
+
   protected onAttributeSelect(
     attribute: ShopifyTaxonomyCategoryAttribute,
     taxonomyValueId: string | null,
@@ -124,6 +134,38 @@ export class ShopifyCategoryAttributesComponent {
         key: attribute.key,
         metafieldType: attribute.metafieldType,
         values: [{ id: selected.id, name: selected.name }],
+      },
+    ]);
+  }
+
+  protected onAttributeMultiSelect(
+    attribute: ShopifyTaxonomyCategoryAttribute,
+    taxonomyValueIds: readonly string[],
+  ): void {
+    const others = this.values().filter((entry) => entry.attributeId !== attribute.id);
+    if (taxonomyValueIds.length === 0) {
+      this.valuesChange.emit(others);
+      return;
+    }
+
+    const selectedValues = taxonomyValueIds.flatMap((taxonomyValueId) => {
+      const selected = attribute.values.find((value) => value.id === taxonomyValueId);
+      return selected ? [{ id: selected.id, name: selected.name }] : [];
+    });
+
+    if (selectedValues.length === 0) {
+      return;
+    }
+
+    this.valuesChange.emit([
+      ...others,
+      {
+        attributeId: attribute.id,
+        attributeName: attribute.name,
+        namespace: attribute.namespace,
+        key: attribute.key,
+        metafieldType: attribute.metafieldType,
+        values: selectedValues,
       },
     ]);
   }

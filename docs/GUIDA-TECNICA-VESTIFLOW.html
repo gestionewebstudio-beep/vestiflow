@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 1.4 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 1.5 — Giugno 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -664,6 +664,39 @@ npm run serve:pwa
 cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </code></pre>
 <p><strong>UI tenant:</strong> colonna <strong>Fonte</strong> in lista prodotti; badge <code>Fonte: VestiFlow</code> / <code>Fonte: Shopify</code> in dettaglio; form in modalità <strong>Modifica dati operativi</strong> se <code>catalogOrigin=shopify</code> (<code>catalog-origin.util.ts</code> FE + <code>product-form</code> / <code>product-detail</code>).</p>
+<h3 id="taxonomy-shopify-e-metafield-di-categoria">Taxonomy Shopify e metafield di categoria</h3>
+<p>Picker e attributi categoria nel form prodotto (step <strong>Dati generali</strong>).</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Percorso / componente</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>API</td>
+<td><code>GET /shopify/taxonomy/categories</code>, <code>GET /shopify/taxonomy/category-attributes?categoryId=</code></td>
+</tr>
+<tr>
+<td>BE</td>
+<td><code>ShopifyTaxonomyService</code>, <code>ShopifyCategoryMetafieldsService</code>, util <code>shopify-category-metafields.util.ts</code></td>
+</tr>
+<tr>
+<td>FE picker categoria</td>
+<td><code>shopify-taxonomy-picker</code></td>
+</tr>
+<tr>
+<td>FE attributi</td>
+<td><code>shopify-category-attributes</code> (in <code>product-general-step</code>)</td>
+</tr>
+<tr>
+<td>Persistenza</td>
+<td><code>Product.shopifyCategoryMetafields</code> (JSON), <code>shopifyTaxonomyCategoryId</code> / <code>FullName</code></td>
+</tr>
+</tbody></table>
+<p><strong>Modello <code>shopifyCategoryMetafields</code>:</strong> array di oggetti con campi <code>attributeId</code>, <code>attributeName</code>, <code>namespace</code>, <code>key</code>, <code>metafieldType</code> e array <code>values</code>. Ogni attributo può avere <strong>più valori</strong> in <code>values</code> (allineato a Shopify).</p>
+<p><strong>UI multi-valore:</strong> se <code>metafieldType</code> inizia con <code>list.</code> → <code>SelectMenuComponent</code> in modalità <code>multiple</code> (<code>isShopifyCategoryMetafieldMultiValue</code> in <code>shopify-category-metafield.util.ts</code>). Altrimenti select singola.</p>
+<p><strong>Push:</strong> <code>ShopifyProductPushService</code> → <code>pushCategoryMetafields</code> serializza i GID taxonomy (<code>serializeTaxonomyValueListGids</code>) o crea metaobject per tipo <code>list.metaobject_reference</code>. Import/pull popola lo stesso JSON da metafield prodotto Shopify.</p>
 <h3 id="cambio-negozio-e-purge-dati-shopify">Cambio negozio e purge dati Shopify</h3>
 <p>Modulo <code>ShopifyShopChangeService</code> + wizard FE <code>shopify-shop-change-wizard</code>.</p>
 <table>
@@ -985,7 +1018,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><code>Product</code> / <code>ProductVariant</code></td>
-<td>Opzioni generiche; SKU univoco; <code>catalogOrigin</code>, <code>shopifyCatalogLinkKind</code></td>
+<td>Opzioni generiche; SKU univoco; <code>catalogOrigin</code>, <code>shopifyCatalogLinkKind</code>, <code>shopifyCategoryMetafields</code>, taxonomy categoria</td>
 </tr>
 <tr>
 <td><code>InventoryLevel</code></td>

@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 1.4 — Giugno 2026
+**Versione documento:** 1.5 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -325,6 +325,24 @@ cd api && npm run backfill:catalog-origin:apply  # scrive su DB
 
 **UI tenant:** colonna **Fonte** in lista prodotti; badge `Fonte: VestiFlow` / `Fonte: Shopify` in dettaglio; form in modalità **Modifica dati operativi** se `catalogOrigin=shopify` (`catalog-origin.util.ts` FE + `product-form` / `product-detail`).
 
+### Taxonomy Shopify e metafield di categoria
+
+Picker e attributi categoria nel form prodotto (step **Dati generali**).
+
+| Layer               | Percorso / componente                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------- |
+| API                 | `GET /shopify/taxonomy/categories`, `GET /shopify/taxonomy/category-attributes?categoryId=`              |
+| BE                  | `ShopifyTaxonomyService`, `ShopifyCategoryMetafieldsService`, util `shopify-category-metafields.util.ts` |
+| FE picker categoria | `shopify-taxonomy-picker`                                                                                |
+| FE attributi        | `shopify-category-attributes` (in `product-general-step`)                                                |
+| Persistenza         | `Product.shopifyCategoryMetafields` (JSON), `shopifyTaxonomyCategoryId` / `FullName`                     |
+
+**Modello `shopifyCategoryMetafields`:** array di oggetti con campi `attributeId`, `attributeName`, `namespace`, `key`, `metafieldType` e array `values`. Ogni attributo può avere **più valori** in `values` (allineato a Shopify).
+
+**UI multi-valore:** se `metafieldType` inizia con `list.` → `SelectMenuComponent` in modalità `multiple` (`isShopifyCategoryMetafieldMultiValue` in `shopify-category-metafield.util.ts`). Altrimenti select singola.
+
+**Push:** `ShopifyProductPushService` → `pushCategoryMetafields` serializza i GID taxonomy (`serializeTaxonomyValueListGids`) o crea metaobject per tipo `list.metaobject_reference`. Import/pull popola lo stesso JSON da metafield prodotto Shopify.
+
 ### Cambio negozio e purge dati Shopify
 
 Modulo `ShopifyShopChangeService` + wizard FE `shopify-shop-change-wizard`.
@@ -524,17 +542,17 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 
 ## 11. Dominio dati principale
 
-| Entità                       | Note                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------- |
-| `Tenant`                     | Azienda cliente                                                           |
-| `User`                       | Profilo app, `tenantId`, ruolo                                            |
-| `Store` / `Location`         | Store commerciale; location per stock                                     |
-| `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind` |
-| `InventoryLevel`             | `variantId` × `locationId`, stati quantità                                |
-| `StockMovement`              | Audit trail obbligatorio                                                  |
-| `SupplierOrder`              | Solo VF                                                                   |
-| `SalesOrder` / `Customer`    | Import Shopify, read-only UI                                              |
-| `ShopifyConnection`          | Token, scope, stato sync per tenant                                       |
+| Entità                       | Note                                                                                                                       |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `Tenant`                     | Azienda cliente                                                                                                            |
+| `User`                       | Profilo app, `tenantId`, ruolo                                                                                             |
+| `Store` / `Location`         | Store commerciale; location per stock                                                                                      |
+| `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind`, `shopifyCategoryMetafields`, taxonomy categoria |
+| `InventoryLevel`             | `variantId` × `locationId`, stati quantità                                                                                 |
+| `StockMovement`              | Audit trail obbligatorio                                                                                                   |
+| `SupplierOrder`              | Solo VF                                                                                                                    |
+| `SalesOrder` / `Customer`    | Import Shopify, read-only UI                                                                                               |
+| `ShopifyConnection`          | Token, scope, stato sync per tenant                                                                                        |
 
 Denaro: **interi minor units** (`Money.amountMinor`), mai float.
 
