@@ -38,6 +38,7 @@ describe('AdminTenantsService', () => {
     const supabase = {
       isConfigured: vi.fn().mockReturnValue(true),
       inviteAuthUser: vi.fn(),
+      provisionAuthUserForInvite: vi.fn(),
       resendAuthInvite: vi.fn(),
       deleteAuthUser: vi.fn(),
       ...options?.supabase,
@@ -94,12 +95,15 @@ describe('AdminTenantsService', () => {
     await expect(service.getTenantById('tenant-op')).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('createTenant invia inviteAuthUser con redirect da FRONTEND_URL', async () => {
+  it('createTenant invia provisionAuthUserForInvite con redirect da FRONTEND_URL', async () => {
     const { service, prisma, supabase } = createService({
       config: { FRONTEND_URL: 'http://localhost:4200' },
     });
     prisma.user.findFirst.mockResolvedValue(null);
-    supabase.inviteAuthUser.mockResolvedValue('auth-user-1');
+    supabase.provisionAuthUserForInvite.mockResolvedValue({
+      authUserId: 'auth-user-1',
+      inviteSent: true,
+    });
     prisma.$transaction.mockImplementation(async (callback) =>
       callback({
         tenant: {
@@ -133,7 +137,7 @@ describe('AdminTenantsService', () => {
       channelProfile: TenantChannelProfile.gestionale,
     });
 
-    expect(supabase.inviteAuthUser).toHaveBeenCalledWith(
+    expect(supabase.provisionAuthUserForInvite).toHaveBeenCalledWith(
       'owner@test.it',
       'http://localhost:4200/login/reset-password',
     );

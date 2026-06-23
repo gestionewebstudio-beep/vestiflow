@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   createClient,
@@ -17,8 +17,14 @@ interface AdminMfaFactor {
  * Client Supabase con service role (solo backend). Usato per validare i JWT
  * emessi da Supabase Auth — mai esporre la service role al frontend.
  */
+export interface ProvisionAuthUserResult {
+  readonly authUserId: string;
+  readonly inviteSent: boolean;
+}
+
 @Injectable()
 export class SupabaseService {
+  private readonly logger = new Logger(SupabaseService.name);
   private readonly client: SupabaseClient | null;
   private readonly supabaseUrl: string | undefined;
   private readonly serviceRoleKey: string | undefined;
@@ -87,30 +93,90 @@ export class SupabaseService {
   }
 
   /**
-   * Invia invito email Supabase: il titolare imposta la password dal link (redirectTo).
-   * Fallisce se l'email esiste già in Auth.
+   * Crea utente Auth + invito email, oppure riusa un utente Auth orfano (test falliti)
+   * e reinvia il link di accesso.
    */
-  async inviteAuthUser(email: string, redirectTo: string): Promise<string> {
+  async provisionAuthUserForInvite(
+    email: string,
+    redirectTo: string,
+  ): Promise<ProvisionAuthUserResult> {
     if (!this.client) {
       throw new Error('Supabase non configurato');
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const { data: listed, error: listError } = await this.client.auth.admin.listUsers();
-    if (!listError) {
-      const existing = listed.users.find((user) => user.email?.toLowerCase() === normalizedEmail);
-      if (existing) {
-        throw new Error('EMAIL_ALREADY_REGISTERED');
-      }
+    const existingAuthUserId = await this.findAuthUserIdByEmail(normalizedEmail);
+    if (existingAuthUserId) {
+      await this.resendAuthInvite(normalizedEmail, redirectTo);
+      return { authUserId: existingAuthUserId, inviteSent: true };
     }
 
     const { data, error } = await this.client.auth.admin.inviteUserByEmail(normalizedEmail, {
       redirectTo,
     });
     if (error || !data.user) {
-      throw new Error(error?.message ?? 'INVITE_FAILED');
+      throw this.mapAuthInviteError(error?.message);
     }
-    return data.user.id;
+
+    return { authUserId: data.user.id, inviteSent: true };
+  }
+
+  /** @deprecated Usa provisionAuthUserForInvite. */
+  async inviteAuthUser(email: string, redirectTo: string): Promise<string> {
+    const result = await this.provisionAuthUserForInvite(email, redirectTo);
+    return result.authUserId;
+  }
+
+  async findAuthUserIdByEmail(email: string): Promise<string | null> {
+    if (!this.client) {
+      return null;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    let page = 1;
+    const perPage = 200;
+
+    while (page <= 10) {
+      const { data, error } = await this.client.auth.admin.listUsers({ page, perPage });
+      if (error) {
+        this.logger.warn(`listUsers pagina ${page} fallita: ${error.message}`);
+        return null;
+      }
+      if (!data.users.length) {
+        return null;
+      }
+
+      const existing = data.users.find((user) => user.email?.toLowerCase() === normalizedEmail);
+      if (existing) {
+        return existing.id;
+      }
+
+      if (data.users.length < perPage) {
+        return null;
+      }
+      page += 1;
+    }
+
+    return null;
+  }
+
+  private mapAuthInviteError(message?: string): Error {
+    const normalized = (message ?? 'INVITE_FAILED').toLowerCase();
+    if (normalized.includes('rate limit') || normalized.includes('too many')) {
+      return new Error('EMAIL_RATE_LIMIT');
+    }
+    if (normalized.includes('redirect')) {
+      return new Error('REDIRECT_NOT_ALLOWED');
+    }
+    if (
+      normalized.includes('already registered') ||
+      normalized.includes('already exists') ||
+      normalized.includes('duplicate')
+    ) {
+      return new Error('EMAIL_ALREADY_REGISTERED');
+    }
+    this.logger.error(`inviteUserByEmail fallito: ${message ?? 'INVITE_FAILED'}`);
+    return new Error(message ?? 'INVITE_FAILED');
   }
 
   /**
@@ -141,7 +207,7 @@ export class SupabaseService {
         msg?: string;
         message?: string;
       };
-      throw new Error(body.msg ?? body.message ?? 'INVITE_FAILED');
+      throw this.mapAuthInviteError(body.msg ?? body.message);
     }
   }
 

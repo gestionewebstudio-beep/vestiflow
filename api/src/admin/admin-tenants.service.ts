@@ -1,8 +1,11 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -26,6 +29,8 @@ import { deleteTenantData } from './tenant-delete.util';
 
 @Injectable()
 export class AdminTenantsService {
+  private readonly logger = new Logger(AdminTenantsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
@@ -260,14 +265,30 @@ export class AdminTenantsService {
       throw new ConflictException('Esiste già un utente con questa email');
     }
 
+    const redirectTo = this.buildOwnerInviteRedirectUrl();
     let authUserId: string;
     try {
-      authUserId = await this.supabase.inviteAuthUser(ownerEmail, this.buildOwnerInviteRedirectUrl());
+      const provisioned = await this.supabase.provisionAuthUserForInvite(ownerEmail, redirectTo);
+      authUserId = provisioned.authUserId;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'INVITE_FAILED';
       if (message === 'EMAIL_ALREADY_REGISTERED') {
-        throw new ConflictException('Email già registrata in Supabase Auth');
+        throw new ConflictException(
+          'Email già registrata in Supabase Auth. Elimina l’utente da Supabase → Authentication → Users oppure usa un’altra email.',
+        );
       }
+      if (message === 'EMAIL_RATE_LIMIT') {
+        throw new HttpException(
+          'Limite invii email Supabase raggiunto (piano free: ~2/ora). Attendi un’ora o configura SMTP custom in Supabase.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      if (message === 'REDIRECT_NOT_ALLOWED') {
+        throw new BadRequestException(
+          'Redirect URL non autorizzato in Supabase. Aggiungi /login/reset-password in Authentication → URL Configuration.',
+        );
+      }
+      this.logger.error(`Invio invito fallito per ${ownerEmail}: ${message}`);
       throw new InternalServerErrorException('Invio invito accesso non riuscito');
     }
 
@@ -346,7 +367,15 @@ export class AdminTenantsService {
 
     try {
       await this.supabase.resendAuthInvite(ownerEmail, this.buildOwnerInviteRedirectUrl());
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'INVITE_FAILED';
+      if (message === 'EMAIL_RATE_LIMIT') {
+        throw new HttpException(
+          'Limite invii email Supabase raggiunto (piano free: ~2/ora). Attendi un’ora o configura SMTP custom in Supabase.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      this.logger.error(`Reinvio invito fallito per ${ownerEmail}: ${message}`);
       throw new InternalServerErrorException('Reinvio invito accesso non riuscito');
     }
 
