@@ -203,14 +203,16 @@ Vedi `api/.env.example`:
 1. **Identificazione** — nome commerciale, ragione sociale opzionale
 2. **Anagrafica** — P.IVA, CF, sede, contatti (opzionali)
 3. **Profilo canale** — **Solo gestionale**, **Shopify** o **TikTok Shop** (determina integrazioni visibili al cliente)
-4. **Primo accesso** — ruolo VestiFlow (`owner` default), nome, email, password
+4. **Primo accesso** — ruolo VestiFlow (`owner` default), nome, email (invito Supabase per impostare la password)
 5. **Setup** — nome negozio e location iniziale (opzionali; default «Negozio principale»)
 
-Il backend crea: tenant, utente Supabase Auth, store, location, profilo utente collegato.
+Il backend crea: tenant, utente Supabase Auth (invito email), store, location, profilo utente collegato.
 
 ### Dopo il provisioning
 
-Consegna credenziali al titolare **in modo sicuro**. Il titolare completa in base al profilo canale:
+Il titolare riceve un'**email di invito** con link a `/login/reset-password` per **scegliere la password**. Dalla schermata di successo puoi **Reinvia invito** se il messaggio non arriva (controllare anche spam). Comunica al titolare l'email usata e che deve completare l'invito entro la scadenza del link Supabase.
+
+Il titolare completa in base al profilo canale:
 
 | Profilo canale      | Passi titolare                                         |
 | ------------------- | ------------------------------------------------------ |

@@ -45,6 +45,14 @@ describe('SupabaseService', () => {
     );
   });
 
+  it('inviteAuthUser fallisce se Supabase non configurato', async () => {
+    const service = new SupabaseService(createConfig({}));
+
+    await expect(
+      service.inviteAuthUser('a@b.com', 'http://localhost:4200/login/reset-password'),
+    ).rejects.toThrow('Supabase non configurato');
+  });
+
   it('userHasVerifiedTotpFactor true con fattore TOTP verificato', async () => {
     const service = new SupabaseService(
       createConfig({

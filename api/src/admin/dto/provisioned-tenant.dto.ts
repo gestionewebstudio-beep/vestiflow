@@ -12,4 +12,5 @@ export interface ProvisionedTenantDto {
   readonly storeName: string;
   readonly locationId: string;
   readonly locationName: string;
+  readonly ownerInviteSent: boolean;
 }

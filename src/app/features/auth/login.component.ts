@@ -62,12 +62,14 @@ export class LoginComponent {
 
   protected readonly passwordVisible = signal(false);
   protected readonly passwordResetSuccess = signal(false);
+  protected readonly inviteSetupSuccess = signal(false);
 
   private loginSubscription: Subscription | null = null;
 
   constructor() {
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       this.passwordResetSuccess.set(params.get('reset') === 'success');
+      this.inviteSetupSuccess.set(params.get('invite') === 'success');
     });
   }
 

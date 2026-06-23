@@ -87,8 +87,50 @@ export class SupabaseService {
   }
 
   /**
-   * Crea un utente Supabase Auth per onboarding cliente. Fallisce se l'email esiste.
+   * Invia invito email Supabase: il titolare imposta la password dal link (redirectTo).
+   * Fallisce se l'email esiste già in Auth.
    */
+  async inviteAuthUser(email: string, redirectTo: string): Promise<string> {
+    if (!this.client) {
+      throw new Error('Supabase non configurato');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const { data: listed, error: listError } = await this.client.auth.admin.listUsers();
+    if (!listError) {
+      const existing = listed.users.find((user) => user.email?.toLowerCase() === normalizedEmail);
+      if (existing) {
+        throw new Error('EMAIL_ALREADY_REGISTERED');
+      }
+    }
+
+    const { data, error } = await this.client.auth.admin.inviteUserByEmail(normalizedEmail, {
+      redirectTo,
+    });
+    if (error || !data.user) {
+      throw new Error(error?.message ?? 'INVITE_FAILED');
+    }
+    return data.user.id;
+  }
+
+  /**
+   * Reinvia invito accesso a un utente Auth già creato (es. link scaduto).
+   */
+  async resendAuthInvite(email: string, redirectTo: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Supabase non configurato');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const { error } = await this.client.auth.admin.inviteUserByEmail(normalizedEmail, {
+      redirectTo,
+    });
+    if (error) {
+      throw new Error(error.message ?? 'INVITE_FAILED');
+    }
+  }
+
+  /** Crea un utente Supabase Auth con password (seed dev / casi legacy). */
   async createAuthUser(email: string, password: string): Promise<string> {
     if (!this.client) {
       throw new Error('Supabase non configurato');

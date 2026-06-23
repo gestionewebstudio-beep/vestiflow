@@ -21,7 +21,6 @@ export interface CreateTenantPayload extends TenantProfileFields {
   readonly channelProfile: TenantChannelProfile;
   readonly ownerDisplayName: string;
   readonly ownerEmail: string;
-  readonly ownerPassword: string;
   readonly role?: UserRole;
   readonly storeName?: string;
   readonly locationName?: string;
@@ -47,6 +46,7 @@ export interface ProvisionedTenant {
   readonly storeName: string;
   readonly locationId: string;
   readonly locationName: string;
+  readonly ownerInviteSent: boolean;
 }
 
 export interface TenantSummary {

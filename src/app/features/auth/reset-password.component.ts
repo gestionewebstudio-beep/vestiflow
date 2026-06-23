@@ -19,6 +19,7 @@ import { Router, RouterLink } from '@angular/router';
 import { from } from 'rxjs';
 
 import { AuthService } from '@core/auth';
+import { establishSessionFromAuthRedirect } from '@core/auth/auth-redirect-session.util';
 import { PASSWORD_MIN_LENGTH } from '@core/auth/auth-password.constants';
 import { SupabaseClientService } from '@core/auth/supabase-client.service';
 import { APP_CONFIG } from '@core/config/app-config.token';
@@ -40,7 +41,7 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
 }
 
 /**
- * Imposta nuova password dopo click sul link Supabase (recovery session).
+ * Imposta password dopo click su link Supabase (invito primo accesso o recupero).
  */
 @Component({
   selector: 'app-reset-password',
@@ -73,6 +74,7 @@ export class ResetPasswordComponent implements OnInit {
   protected readonly loading = signal(false);
   protected readonly checkingLink = signal(true);
   protected readonly linkValid = signal(false);
+  protected readonly isInviteFlow = signal(false);
   protected readonly passwordVisible = signal(false);
   protected readonly error = signal<AppError | null>(null);
 
@@ -83,18 +85,37 @@ export class ResetPasswordComponent implements OnInit {
       return;
     }
 
-    from(this.supabase.client.auth.getSession())
+    from(establishSessionFromAuthRedirect(this.supabase.client))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ data }) => {
+        next: ({ ok, flowType }) => {
           this.checkingLink.set(false);
-          this.linkValid.set(Boolean(data.session));
+          this.linkValid.set(ok);
+          this.isInviteFlow.set(flowType === 'invite');
         },
         error: () => {
           this.checkingLink.set(false);
           this.linkValid.set(false);
         },
       });
+  }
+
+  protected pageTitle(): string {
+    return this.isInviteFlow() ? 'Imposta la tua password' : 'Nuova password';
+  }
+
+  protected pageSubtitle(): string {
+    return this.isInviteFlow()
+      ? 'Benvenuto in VestiFlow. Scegli una password per il tuo account.'
+      : 'Scegli una password sicura per il tuo account VestiFlow.';
+  }
+
+  protected submitLabel(): string {
+    return this.loading()
+      ? 'Salvataggio…'
+      : this.isInviteFlow()
+        ? 'Imposta password e accedi'
+        : 'Salva nuova password';
   }
 
   protected togglePasswordVisibility(): void {
@@ -131,7 +152,7 @@ export class ResetPasswordComponent implements OnInit {
       .subscribe({
         next: () => {
           void this.router.navigate(['/login'], {
-            queryParams: { reset: 'success' },
+            queryParams: this.isInviteFlow() ? { invite: 'success' } : { reset: 'success' },
           });
         },
         error: (err: unknown) => {

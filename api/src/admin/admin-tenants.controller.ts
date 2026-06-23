@@ -51,4 +51,11 @@ export class AdminTenantsController {
   deleteTenant(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.adminTenants.deleteTenant(id);
   }
+
+  @Post(':id/resend-owner-invite')
+  resendOwnerInvite(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ readonly ownerEmail: string }> {
+    return this.adminTenants.resendOwnerInvite(id);
+  }
 }

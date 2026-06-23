@@ -17,7 +17,11 @@
       </p>
     </header>
 
-    @if (passwordResetSuccess()) {
+    @if (inviteSetupSuccess()) {
+      <div class="login__success" role="status">
+        Password impostata. Accedi con email e password scelta.
+      </div>
+    } @else if (passwordResetSuccess()) {
       <div class="login__success" role="status">
         Password aggiornata. Accedi con la nuova password.
       </div>

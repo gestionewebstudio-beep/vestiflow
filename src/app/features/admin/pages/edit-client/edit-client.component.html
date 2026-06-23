@@ -105,8 +105,24 @@
               aria-readonly="true"
             />
             <span class="create-client__hint"
-              >L’email di accesso non si modifica da qui (Supabase Auth).</span
+              >L’email di accesso non si modifica da qui (Supabase Auth). Se il titolare non ha
+              completato l’invito, reinvia il link.</span
             >
+            @if (resendInviteMessage(); as inviteMessage) {
+              <p class="create-client__hint" role="status">{{ inviteMessage }}</p>
+            }
+            @if (resendInviteError(); as inviteError) {
+              <p class="create-client__alert" role="alert">{{ inviteError }}</p>
+            }
+            <app-button
+              type="button"
+              variant="secondary"
+              [loading]="resendInviteLoading()"
+              [disabled]="resendInviteLoading()"
+              (click)="resendOwnerInvite()"
+            >
+              Reinvia invito accesso
+            </app-button>
           </div>
         </section>
 

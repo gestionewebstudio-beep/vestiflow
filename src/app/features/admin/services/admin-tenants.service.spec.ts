@@ -58,12 +58,12 @@ describe('AdminTenantsService (HTTP)', () => {
       channelProfile: TenantChannelProfile.Gestionale,
       ownerEmail: 'owner@test.it',
       ownerDisplayName: 'Titolare',
-      ownerPassword: 'Password123!',
     };
     const promise = firstValueFrom(service.createTenant(payload));
 
     const req = httpMock.expectOne(`${API_BASE}/admin/tenants`);
     expect(req.request.method).toBe('POST');
+    expect(req.request.body).not.toHaveProperty('ownerPassword');
     req.flush({
       tenantId: 'tenant-2',
       tenantName: 'Nuovo Cliente',
@@ -76,6 +76,7 @@ describe('AdminTenantsService (HTTP)', () => {
       storeName: 'Negozio',
       locationId: 'loc-1',
       locationName: 'Magazzino',
+      ownerInviteSent: true,
     });
 
     const result = await promise;
@@ -90,5 +91,16 @@ describe('AdminTenantsService (HTTP)', () => {
     req.flush(null);
 
     await promise;
+  });
+
+  it('resendOwnerInvite invia POST al endpoint dedicato', async () => {
+    const promise = firstValueFrom(service.resendOwnerInvite('tenant-2'));
+
+    const req = httpMock.expectOne(`${API_BASE}/admin/tenants/tenant-2/resend-owner-invite`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ ownerEmail: 'owner@test.it' });
+
+    const result = await promise;
+    expect(result.ownerEmail).toBe('owner@test.it');
   });
 });

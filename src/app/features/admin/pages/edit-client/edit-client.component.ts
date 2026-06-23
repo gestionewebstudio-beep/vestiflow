@@ -111,6 +111,9 @@ export class EditClientComponent {
   protected readonly deleteDialogOpen = signal(false);
   protected readonly deleteLoading = signal(false);
   protected readonly deleteError = signal<string | null>(null);
+  protected readonly resendInviteLoading = signal(false);
+  protected readonly resendInviteMessage = signal<string | null>(null);
+  protected readonly resendInviteError = signal<string | null>(null);
 
   protected readonly deleteConfirmMessage = computed(() => {
     const detail = this.tenant();
@@ -208,7 +211,38 @@ export class EditClientComponent {
   protected reload(): void {
     this.saved.set(false);
     this.submitError.set(null);
+    this.resendInviteMessage.set(null);
+    this.resendInviteError.set(null);
     void this.router.navigateByUrl(this.router.url, { onSameUrlNavigation: 'reload' });
+  }
+
+  protected resendOwnerInvite(): void {
+    const detail = this.tenant();
+    if (!detail || this.resendInviteLoading()) {
+      return;
+    }
+
+    this.resendInviteLoading.set(true);
+    this.resendInviteMessage.set(null);
+    this.resendInviteError.set(null);
+
+    this.adminTenants
+      .resendOwnerInvite(detail.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ ownerEmail }) => {
+          this.resendInviteLoading.set(false);
+          this.resendInviteMessage.set(`Invito reinviato a ${ownerEmail}.`);
+        },
+        error: (err: unknown) => {
+          this.resendInviteLoading.set(false);
+          if (isAppError(err)) {
+            this.resendInviteError.set(err.message);
+            return;
+          }
+          this.resendInviteError.set('Reinvio invito non riuscito. Riprova.');
+        },
+      });
   }
 
   protected openDeleteDialog(): void {

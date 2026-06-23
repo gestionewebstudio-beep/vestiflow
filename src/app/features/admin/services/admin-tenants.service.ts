@@ -48,4 +48,12 @@ export class AdminTenantsService {
       .delete<void>(`${this.config.apiBaseUrl}/admin/tenants/${id}`)
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
+
+  resendOwnerInvite(tenantId: string): Observable<{ readonly ownerEmail: string }> {
+    return this.http
+      .post<{
+        readonly ownerEmail: string;
+      }>(`${this.config.apiBaseUrl}/admin/tenants/${tenantId}/resend-owner-invite`, {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
 }

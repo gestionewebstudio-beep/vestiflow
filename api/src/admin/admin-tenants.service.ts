@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TenantChannelProfile } from '@prisma/client';
 
 import { SupabaseService } from '../auth/supabase.service';
@@ -29,6 +30,7 @@ export class AdminTenantsService {
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
     private readonly platformAdmin: PlatformAdminService,
+    private readonly config: ConfigService,
   ) {}
 
   async listTenants(): Promise<TenantSummaryDto[]> {
@@ -260,13 +262,13 @@ export class AdminTenantsService {
 
     let authUserId: string;
     try {
-      authUserId = await this.supabase.createAuthUser(ownerEmail, dto.ownerPassword);
+      authUserId = await this.supabase.inviteAuthUser(ownerEmail, this.buildOwnerInviteRedirectUrl());
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'CREATION_FAILED';
+      const message = error instanceof Error ? error.message : 'INVITE_FAILED';
       if (message === 'EMAIL_ALREADY_REGISTERED') {
         throw new ConflictException('Email già registrata in Supabase Auth');
       }
-      throw new InternalServerErrorException('Creazione utente di accesso non riuscita');
+      throw new InternalServerErrorException('Invio invito accesso non riuscito');
     }
 
     try {
@@ -320,11 +322,42 @@ export class AdminTenantsService {
           storeName: store.name,
           locationId: location.id,
           locationName: location.name,
+          ownerInviteSent: true,
         };
       });
     } catch (error) {
       await this.supabase.deleteAuthUser(authUserId).catch(() => undefined);
       throw error;
     }
+  }
+
+  async resendOwnerInvite(tenantId: string): Promise<{ readonly ownerEmail: string }> {
+    if (!this.supabase.isConfigured()) {
+      throw new BadRequestException(
+        'Supabase non configurato: impossibile inviare inviti di accesso',
+      );
+    }
+
+    const tenant = await this.getTenantById(tenantId);
+    const ownerEmail = tenant.owner?.email;
+    if (!ownerEmail) {
+      throw new NotFoundException('Utente titolare non trovato per questo cliente');
+    }
+
+    try {
+      await this.supabase.resendAuthInvite(ownerEmail, this.buildOwnerInviteRedirectUrl());
+    } catch {
+      throw new InternalServerErrorException('Reinvio invito accesso non riuscito');
+    }
+
+    return { ownerEmail };
+  }
+
+  private buildOwnerInviteRedirectUrl(): string {
+    const base = (this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:4200').replace(
+      /\/$/,
+      '',
+    );
+    return `${base}/login/reset-password`;
   }
 }

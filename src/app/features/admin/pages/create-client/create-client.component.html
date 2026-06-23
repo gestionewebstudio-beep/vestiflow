@@ -3,7 +3,9 @@
     <header class="create-client__header">
       <h1 class="create-client__title">Cliente creato</h1>
       <p class="create-client__subtitle">
-        Comunica email, password e ruolo assegnato. In Impostazioni il cliente vedrà solo il profilo
+        Abbiamo inviato un'email a <strong>{{ result.ownerEmail }}</strong> con il link per
+        impostare la password e accedere. Comunica al titolare di controllare anche lo spam. In
+        Impostazioni vedrà solo il profilo
         <strong>{{ tenantChannelProfileLabel(result.channelProfile) }}</strong
         >.
       </p>
@@ -32,6 +34,10 @@
           <dd>{{ result.ownerEmail }}</dd>
         </div>
         <div class="create-client__fact">
+          <dt>Invito accesso</dt>
+          <dd>Inviato via email</dd>
+        </div>
+        <div class="create-client__fact">
           <dt>Negozio</dt>
           <dd>{{ result.storeName }}</dd>
         </div>
@@ -47,7 +53,23 @@
         </div>
       </dl>
 
+      @if (resendInviteMessage(); as inviteMessage) {
+        <p class="create-client__hint" role="status">{{ inviteMessage }}</p>
+      }
+      @if (resendInviteError(); as inviteError) {
+        <p class="create-client__alert" role="alert">{{ inviteError }}</p>
+      }
+
       <div class="create-client__actions">
+        <app-button
+          type="button"
+          variant="secondary"
+          [loading]="resendInviteLoading()"
+          [disabled]="resendInviteLoading()"
+          (click)="resendOwnerInvite()"
+        >
+          Reinvia invito
+        </app-button>
         <app-button type="button" variant="secondary" (click)="backToList()">
           Torna all'elenco
         </app-button>
@@ -164,38 +186,9 @@
             }
           </label>
 
-          <div class="create-client__field">
-            <label class="create-client__field-label" for="client-owner-password"
-              >Password iniziale</label
-            >
-            <div class="create-client__password">
-              <input
-                id="client-owner-password"
-                class="create-client__input create-client__input--password"
-                [type]="passwordVisible() ? 'text' : 'password'"
-                formControlName="ownerPassword"
-                autocomplete="new-password"
-                [attr.aria-invalid]="showError('ownerPassword')"
-              />
-              <button
-                type="button"
-                class="create-client__password-toggle"
-                [attr.aria-label]="passwordVisible() ? 'Nascondi password' : 'Mostra password'"
-                [attr.aria-pressed]="passwordVisible()"
-                (click)="togglePasswordVisibility()"
-              >
-                <i
-                  class="pi"
-                  [class.pi-eye]="!passwordVisible()"
-                  [class.pi-eye-slash]="passwordVisible()"
-                  aria-hidden="true"
-                ></i>
-              </button>
-            </div>
-            @if (showError('ownerPassword')) {
-              <span class="create-client__field-error">Minimo 8 caratteri.</span>
-            }
-          </div>
+          <p class="create-client__hint create-client__field--span-full">
+            Al titolare arriverà un'email con il link per impostare la password al primo accesso.
+          </p>
         </section>
 
         <section class="create-client__section" aria-labelledby="create-client-channel">

@@ -27,11 +27,6 @@ export class CreateTenantDto extends TenantProfileFieldsDto {
   @MaxLength(255)
   ownerEmail!: string;
 
-  @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  ownerPassword!: string;
-
   @IsOptional()
   @IsEnum(TenantChannelProfile)
   channelProfile?: TenantChannelProfile;

@@ -91,7 +91,9 @@ export class CreateClientComponent {
   protected readonly submitLoading = signal(false);
   protected readonly submitError = signal<string | null>(null);
   protected readonly created = signal<ProvisionedTenant | null>(null);
-  protected readonly passwordVisible = signal(false);
+  protected readonly resendInviteLoading = signal(false);
+  protected readonly resendInviteMessage = signal<string | null>(null);
+  protected readonly resendInviteError = signal<string | null>(null);
 
   protected readonly form = this.fb.group({
     tenantName: this.fb.control('', {
@@ -103,9 +105,6 @@ export class CreateClientComponent {
     }),
     ownerEmail: this.fb.control('', {
       validators: [Validators.required, Validators.email, Validators.maxLength(255)],
-    }),
-    ownerPassword: this.fb.control('', {
-      validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
     }),
     role: this.fb.control<UserRoleType>(UserRole.Owner, { validators: [Validators.required] }),
     channelProfile: this.fb.control<TenantChannelProfile>(TenantChannelProfile.Gestionale, {
@@ -122,10 +121,6 @@ export class CreateClientComponent {
   protected showError(controlName: string): boolean {
     const control = this.form.controls[controlName as keyof typeof this.form.controls];
     return control.invalid && control.touched;
-  }
-
-  protected togglePasswordVisibility(): void {
-    this.passwordVisible.update((visible) => !visible);
   }
 
   protected onChannelProfileSelect(value: string | null): void {
@@ -184,7 +179,6 @@ export class CreateClientComponent {
         tenantName: raw.tenantName.trim(),
         ownerDisplayName: raw.ownerDisplayName.trim(),
         ownerEmail: raw.ownerEmail.trim(),
-        ownerPassword: raw.ownerPassword,
         role: raw.role,
         channelProfile: raw.channelProfile,
         ...(storeName ? { storeName } : {}),
@@ -217,6 +211,37 @@ export class CreateClientComponent {
   protected resetForm(): void {
     this.created.set(null);
     this.submitError.set(null);
+    this.resendInviteMessage.set(null);
+    this.resendInviteError.set(null);
+  }
+
+  protected resendOwnerInvite(): void {
+    const result = this.created();
+    if (!result || this.resendInviteLoading()) {
+      return;
+    }
+
+    this.resendInviteLoading.set(true);
+    this.resendInviteMessage.set(null);
+    this.resendInviteError.set(null);
+
+    this.adminTenants
+      .resendOwnerInvite(result.tenantId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ ownerEmail }) => {
+          this.resendInviteLoading.set(false);
+          this.resendInviteMessage.set(`Invito reinviato a ${ownerEmail}.`);
+        },
+        error: (err: unknown) => {
+          this.resendInviteLoading.set(false);
+          if (isAppError(err)) {
+            this.resendInviteError.set(err.message);
+            return;
+          }
+          this.resendInviteError.set('Reinvio invito non riuscito. Riprova.');
+        },
+      });
   }
 
   protected backToList(): void {
