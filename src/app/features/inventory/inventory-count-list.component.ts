@@ -1,5 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
@@ -7,6 +14,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryCountSession } from '@core/models/inventory-count.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -26,6 +34,7 @@ type CountListState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ButtonComponent,
+    ConfirmDialogComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
@@ -38,9 +47,22 @@ type CountListState =
 export class InventoryCountListComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly skeletonColumns = 6;
+  protected readonly skeletonColumns = 7;
   private readonly refreshTick = signal(0);
+
+  protected readonly deleteDialogOpen = signal(false);
+  protected readonly deleteLoading = signal(false);
+  private readonly sessionToDelete = signal<InventoryCountSession | null>(null);
+
+  protected readonly deleteConfirmMessage = computed(() => {
+    const session = this.sessionToDelete();
+    if (!session) {
+      return '';
+    }
+    return `La sessione "${session.name}" verrà eliminata definitivamente dall'elenco. Operazione non reversibile.`;
+  });
 
   private readonly listState = toSignal(
     toObservable(this.refreshTick).pipe(
@@ -93,5 +115,33 @@ export class InventoryCountListComponent {
 
   protected reload(): void {
     this.refreshTick.update((value) => value + 1);
+  }
+
+  protected requestDelete(session: InventoryCountSession): void {
+    this.sessionToDelete.set(session);
+    this.deleteDialogOpen.set(true);
+  }
+
+  protected confirmDelete(): void {
+    const session = this.sessionToDelete();
+    if (!session || this.deleteLoading()) {
+      return;
+    }
+
+    this.deleteLoading.set(true);
+    this.inventoryService
+      .deleteInventoryCount(session.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.deleteLoading.set(false);
+          this.deleteDialogOpen.set(false);
+          this.sessionToDelete.set(null);
+          this.reload();
+        },
+        error: () => {
+          this.deleteLoading.set(false);
+        },
+      });
   }
 }

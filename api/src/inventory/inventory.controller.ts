@@ -2,8 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Header,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -191,6 +194,12 @@ export class InventoryController {
     @Param('id') id: string,
   ): Promise<InventoryCountSessionDetail> {
     return this.inventoryCount.cancel(tenantId, id);
+  }
+
+  @Delete('counts/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteCount(@CurrentTenant() tenantId: string, @Param('id') id: string): Promise<void> {
+    return this.inventoryCount.deleteCancelled(tenantId, id);
   }
 
   private assertCsvFile(

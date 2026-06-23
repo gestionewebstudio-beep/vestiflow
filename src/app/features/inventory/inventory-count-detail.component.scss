@@ -135,6 +135,26 @@
   gap: var(--space-3);
 }
 
+.count-detail__scan-scanner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.count-detail__scan-label--spacer {
+  visibility: hidden;
+  user-select: none;
+}
+
+.count-detail__scan-form app-barcode-scanner {
+  align-self: auto;
+
+  ::ng-deep .app-button {
+    block-size: var(--field-height);
+    min-block-size: var(--field-height);
+  }
+}
+
 @include bp.media-up('sm') {
   .count-detail__scan-manual {
     flex-direction: row;
@@ -147,16 +167,14 @@
   flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-1);
+  min-inline-size: var(--select-menu-width-wide);
+  max-inline-size: 100%;
 }
 
 .count-detail__scan-label {
   font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
-}
-
-.count-detail__scan-input {
-  padding-inline: var(--space-3);
 }
 
 .count-detail__scan-feedback {
@@ -215,6 +233,11 @@
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-md);
+}
+
+.count-detail__input.count-detail__scan-input {
+  padding-inline: var(--space-3);
+  text-align: start;
 }
 
 .count-detail__filters {

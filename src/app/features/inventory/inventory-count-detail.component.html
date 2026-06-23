@@ -97,7 +97,14 @@
             (ngSubmit)="submitScanCode()"
           >
             @if (barcodeScannerEnabled) {
-              <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+              <div class="count-detail__scan-scanner">
+                <span
+                  class="count-detail__scan-label count-detail__scan-label--spacer"
+                  aria-hidden="true"
+                  >&nbsp;</span
+                >
+                <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+              </div>
             }
 
             <div class="count-detail__scan-manual">
@@ -106,7 +113,7 @@
                 <input
                   id="count-scan-code"
                   class="count-detail__input count-detail__scan-input"
-                  type="search"
+                  type="text"
                   formControlName="code"
                   autocomplete="off"
                   spellcheck="false"

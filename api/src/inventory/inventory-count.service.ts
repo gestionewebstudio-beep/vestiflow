@@ -302,6 +302,22 @@ export class InventoryCountService {
     return this.getById(tenantId, sessionId);
   }
 
+  async deleteCancelled(tenantId: string, sessionId: string): Promise<void> {
+    const session = await this.prisma.inventoryCountSession.findFirst({
+      where: { id: sessionId, tenantId },
+    });
+    if (!session) {
+      throw new NotFoundException('Sessione inventario non trovata');
+    }
+    if (session.status !== InventoryCountStatus.cancelled) {
+      throw new ConflictException('Solo le sessioni annullate possono essere eliminate.');
+    }
+
+    await this.prisma.inventoryCountSession.delete({
+      where: { id: session.id },
+    });
+  }
+
   private async assertEditableSession(
     tenantId: string,
     sessionId: string,

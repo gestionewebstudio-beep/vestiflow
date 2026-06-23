@@ -15,7 +15,12 @@ describe('InventoryController', () => {
     listMovements: vi.fn(),
     registerMovement: vi.fn(),
   };
-  const inventoryCount = { list: vi.fn(), create: vi.fn(), getById: vi.fn() };
+  const inventoryCount = {
+    list: vi.fn(),
+    create: vi.fn(),
+    getById: vi.fn(),
+    deleteCancelled: vi.fn(),
+  };
   const inventoryExport = { exportCsv: vi.fn() };
   const inventoryImport = { previewCsv: vi.fn(), importCsv: vi.fn() };
 
@@ -127,5 +132,12 @@ describe('InventoryController', () => {
     inventoryCount.getById.mockResolvedValue({ id: 'count-1' });
 
     await expect(controller.getCount(tenantId, 'count-1')).resolves.toEqual({ id: 'count-1' });
+  });
+
+  it('deleteCount delega al service conteggi', async () => {
+    inventoryCount.deleteCancelled.mockResolvedValue(undefined);
+
+    await expect(controller.deleteCount(tenantId, 'count-1')).resolves.toBeUndefined();
+    expect(inventoryCount.deleteCancelled).toHaveBeenCalledWith(tenantId, 'count-1');
   });
 });

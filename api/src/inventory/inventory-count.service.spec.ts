@@ -84,4 +84,28 @@ describe('InventoryCountService', () => {
       service.create(tenantId, { locationId: 'loc-1', name: ' Conteggio ' } as never),
     ).resolves.toMatchObject({ id: 'count-1', lines: expect.any(Array) });
   });
+
+  it('deleteCancelled elimina solo sessioni annullate', async () => {
+    const { service, prisma } = createService();
+    prisma.inventoryCountSession.findFirst.mockResolvedValue({
+      id: 'count-1',
+      status: 'cancelled',
+    });
+    prisma.inventoryCountSession.delete = vi.fn().mockResolvedValue(undefined);
+
+    await expect(service.deleteCancelled(tenantId, 'count-1')).resolves.toBeUndefined();
+    expect(prisma.inventoryCountSession.delete).toHaveBeenCalledWith({ where: { id: 'count-1' } });
+  });
+
+  it('deleteCancelled rifiuta sessioni non annullate', async () => {
+    const { service, prisma } = createService();
+    prisma.inventoryCountSession.findFirst.mockResolvedValue({
+      id: 'count-1',
+      status: 'in_progress',
+    });
+
+    await expect(service.deleteCancelled(tenantId, 'count-1')).rejects.toThrow(
+      'Solo le sessioni annullate possono essere eliminate.',
+    );
+  });
 });

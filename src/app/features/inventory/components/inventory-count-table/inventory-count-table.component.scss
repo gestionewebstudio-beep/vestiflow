@@ -17,6 +17,39 @@
   text-align: end;
 }
 
+.count-table__col--actions {
+  inline-size: var(--btn-min-height);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.count-table__action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--field-height);
+  block-size: var(--field-height);
+  padding: 0;
+  color: var(--color-text);
+  cursor: pointer;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+
+  i {
+    font-size: var(--text-sm);
+  }
+}
+
+.count-table__action-btn:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.count-table__action-btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .count-table__row {
   cursor: pointer;
 }

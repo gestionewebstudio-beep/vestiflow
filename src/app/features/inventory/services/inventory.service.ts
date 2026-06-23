@@ -243,6 +243,12 @@ export class InventoryService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapInventoryCountSessionApiRow));
   }
 
+  deleteInventoryCount(sessionId: EntityId): Observable<void> {
+    return this.http
+      .delete<void>(this.url(`/inventory/counts/${sessionId}`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   previewInventoryImport(file: File): Observable<InventoryImportPreview> {
     const formData = new FormData();
     formData.append('file', file, file.name);

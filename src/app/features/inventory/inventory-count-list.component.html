@@ -28,6 +28,21 @@
       (ctaClick)="newSession()"
     />
   } @else {
-    <app-inventory-count-table [sessions]="sessions()" (rowClick)="openSession($event)" />
+    <app-inventory-count-table
+      [sessions]="sessions()"
+      (rowClick)="openSession($event)"
+      (deleteClick)="requestDelete($event)"
+    />
   }
 </section>
+
+<app-confirm-dialog
+  [(open)]="deleteDialogOpen"
+  title="Eliminare la sessione?"
+  [message]="deleteConfirmMessage()"
+  confirmLabel="Elimina sessione"
+  cancelLabel="Torna indietro"
+  [danger]="true"
+  [busy]="deleteLoading()"
+  (confirmed)="confirmDelete()"
+/>

@@ -8,6 +8,9 @@
         <th scope="col" class="count-table__col--numeric">Progresso</th>
         <th scope="col" class="count-table__col--numeric">Differenze</th>
         <th scope="col">Creato</th>
+        <th scope="col" class="count-table__col--actions">
+          <span class="sr-only">Azioni</span>
+        </th>
       </tr>
     </thead>
     <tbody>
@@ -34,6 +37,19 @@
             {{ session.linesWithDelta }}
           </td>
           <td data-label="Creato">{{ formatDate(session.createdAt) }}</td>
+          <td class="count-table__col--actions" data-label="Azioni">
+            @if (session.status === InventoryCountStatus.Cancelled) {
+              <button
+                type="button"
+                class="count-table__action-btn"
+                [attr.aria-label]="'Elimina sessione ' + session.name"
+                [attr.title]="'Elimina sessione'"
+                (click)="onDeleteClick($event, session)"
+              >
+                <i class="pi pi-trash" aria-hidden="true"></i>
+              </button>
+            }
+          </td>
         </tr>
       }
     </tbody>
