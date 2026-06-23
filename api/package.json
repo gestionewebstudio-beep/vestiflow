@@ -15,6 +15,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
+    "backfill:catalog-origin": "node scripts/backfill-catalog-origin.mjs",
+    "backfill:catalog-origin:apply": "node scripts/backfill-catalog-origin.mjs --apply",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

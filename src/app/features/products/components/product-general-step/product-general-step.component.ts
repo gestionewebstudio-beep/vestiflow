@@ -68,6 +68,7 @@ export class ProductGeneralStepComponent implements OnInit {
 
   readonly categories = input<readonly string[]>([]);
   readonly shopifyConnected = input(false);
+  readonly catalogReadOnly = input(false);
 
   protected readonly statusSelectOptions: readonly SelectMenuOption[] = STATUS_OPTIONS.map(
     (option) => ({
@@ -127,6 +128,15 @@ export class ProductGeneralStepComponent implements OnInit {
   private valueChangesSub: Subscription | null = null;
 
   constructor() {
+    effect(() => {
+      if (this.catalogReadOnly()) {
+        this.form.disable({ emitEvent: false });
+        this.form.controls.season.enable({ emitEvent: false });
+      } else {
+        this.form.enable({ emitEvent: false });
+      }
+    });
+
     effect(() => {
       const control = this.form.controls.category;
       if (this.shopifyConnected()) {

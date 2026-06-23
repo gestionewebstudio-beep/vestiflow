@@ -7,6 +7,7 @@ import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
+import { catalogOriginShortLabel, catalogOriginTone } from '../../models/catalog-origin.util';
 import { productDisplayCategoryShort } from '../../models/product-display.util';
 import { productStatusLabel, productStatusTone } from '../../models/product-status.util';
 import type { ProductSortField } from '../../models/product-list-query.model';
@@ -106,5 +107,13 @@ export class ProductTableComponent {
       default:
         return 'neutral';
     }
+  }
+
+  protected sourceLabel(product: Product): string {
+    return catalogOriginShortLabel(product.catalogOrigin);
+  }
+
+  protected sourceTone(product: Product): BadgeTone {
+    return catalogOriginTone(product.catalogOrigin);
   }
 }

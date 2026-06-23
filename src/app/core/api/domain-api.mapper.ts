@@ -1,4 +1,5 @@
 import type { EntityId, IsoDateString } from '@core/models/common.model';
+import { CatalogOrigin } from '@core/models/catalog-origin.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
@@ -26,6 +27,7 @@ export interface ProductApiRow {
   readonly shopifyMetafields?: unknown;
   readonly shopifyCategoryMetafields?: unknown;
   readonly status: Product['status'];
+  readonly catalogOrigin: CatalogOrigin;
   readonly options: readonly ProductOption[];
   readonly shopifyProductId?: string | null;
   readonly shopifySyncStatus: string;
@@ -211,6 +213,7 @@ export function mapProductApiRow(row: ProductApiRow): Product {
       isShopifyCategoryMetafieldValue,
     ),
     status: row.status,
+    catalogOrigin: row.catalogOrigin ?? CatalogOrigin.VestiFlow,
     options: row.options ?? [],
     images: (row.images ?? []).map((image) => ({
       id: image.id,

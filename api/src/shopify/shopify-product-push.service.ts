@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  CatalogOrigin,
   ProductStatus,
+  ShopifyCatalogLinkKind,
   ShopifyConnectionStatus,
   ShopifySyncStatus,
   type Prisma,
@@ -735,6 +737,8 @@ export class ShopifyProductPushService {
         where: { id: product.id },
         data: {
           shopifyProductId: String(shopifyProduct.id),
+          catalogOrigin: CatalogOrigin.vestiflow,
+          shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
         },
       }),
       ...variantUpdates,

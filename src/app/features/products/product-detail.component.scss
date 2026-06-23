@@ -105,6 +105,23 @@
   color: var(--color-text-muted);
 }
 
+.product-detail__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.product-detail__catalog-banner {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--status-info-bg);
+  border: var(--border-width) solid var(--status-info-border);
+  border-radius: var(--radius-md);
+}
+
 .product-detail__actions {
   display: flex;
   flex-wrap: wrap;

@@ -47,6 +47,13 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { ProductVariantTableComponent } from './components/product-variant-table/product-variant-table.component';
 import { productStatusLabel, productStatusTone } from './models/product-status.util';
+import {
+  catalogOriginLabel,
+  catalogOriginTone,
+  isShopifyCatalogProduct,
+  SHOPIFY_CATALOG_EDIT_TITLE,
+  SHOPIFY_CATALOG_READONLY_BANNER,
+} from './models/catalog-origin.util';
 import { ProductService } from './services/product.service';
 
 const PRODUCTS_LIST_PATH = '/app/products';
@@ -142,12 +149,25 @@ export class ProductDetailComponent {
   protected readonly canManageCatalog = computed(() =>
     canManageCatalog(this.authService.currentUser()),
   );
-  protected readonly canDeleteProduct = computed(() =>
-    canDeleteProducts(this.authService.currentUser()),
-  );
-  protected readonly canSyncProductToShopify = computed(() =>
-    canSyncProductToShopify(this.authService.currentUser()),
-  );
+  protected readonly canDeleteProduct = computed(() => {
+    const product = this.product();
+    if (product && isShopifyCatalogProduct(product)) {
+      return false;
+    }
+    return canDeleteProducts(this.authService.currentUser());
+  });
+  protected readonly canSyncProductToShopify = computed(() => {
+    const product = this.product();
+    if (product && isShopifyCatalogProduct(product)) {
+      return false;
+    }
+    return canSyncProductToShopify(this.authService.currentUser());
+  });
+  protected readonly shopifyCatalogBanner = SHOPIFY_CATALOG_READONLY_BANNER;
+  protected readonly shopifyCatalogEditTitle = SHOPIFY_CATALOG_EDIT_TITLE;
+  protected readonly isShopifyCatalogProduct = isShopifyCatalogProduct;
+  protected readonly catalogOriginLabel = catalogOriginLabel;
+  protected readonly catalogOriginTone = catalogOriginTone;
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   private readonly productId = computed(() => this.paramMap().get('id'));

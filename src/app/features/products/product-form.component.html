@@ -4,9 +4,7 @@
     Prodotti
   </a>
 
-  <h1 class="product-form__title">
-    {{ mode() === 'edit' ? 'Modifica prodotto' : 'Nuovo prodotto' }}
-  </h1>
+  <h1 class="product-form__title">{{ formTitle() }}</h1>
 
   @if (loading() || !filtersReady()) {
     <app-table-skeleton [columns]="2" [rows]="5" />
@@ -21,6 +19,12 @@
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (ready()) {
+    @if (shopifyCatalogLocked()) {
+      <p class="product-form__catalog-banner" role="note">
+        {{ shopifyCatalogBanner }}
+      </p>
+    }
+
     <ol class="product-form__steps">
       @for (step of steps; track step.id; let i = $index) {
         <li class="product-form__step">
@@ -46,21 +50,25 @@
             [value]="draft().general"
             [categories]="categories()"
             [shopifyConnected]="shopifyConnected()"
+            [catalogReadOnly]="shopifyCatalogLocked()"
             (valueChange)="onGeneralChange($event)"
           />
-          <app-product-images-field
-            [existingImages]="existingImages()"
-            [selectedFiles]="pendingImageFiles()"
-            [disabled]="submitting()"
-            (filesChange)="onPendingImagesChange($event)"
-            (removeExisting)="onRemoveExistingImage($event)"
-          />
+          @if (!shopifyCatalogLocked()) {
+            <app-product-images-field
+              [existingImages]="existingImages()"
+              [selectedFiles]="pendingImageFiles()"
+              [disabled]="submitting()"
+              (filesChange)="onPendingImagesChange($event)"
+              (removeExisting)="onRemoveExistingImage($event)"
+            />
+          }
         }
         @case ('options') {
           <app-product-options-step
             [options]="draft().options"
             [variants]="draft().variants"
             [shopifyConnected]="shopifyConnected()"
+            [catalogReadOnly]="shopifyCatalogLocked()"
             (optionsChange)="onOptionsChange($event)"
           />
         }
@@ -69,6 +77,7 @@
             [variants]="draft().variants"
             [takenSkus]="takenSkus()"
             [takenBarcodes]="takenBarcodes()"
+            [catalogReadOnly]="shopifyCatalogLocked()"
             (variantsChange)="onVariantsChange($event)"
             (stepValidChange)="onVariantsValidChange($event)"
           />

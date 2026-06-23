@@ -30,6 +30,7 @@ describe('domain-api.mapper', () => {
 
       expect(product.description).toBe('Descrizione bold');
       expect(product.tags).toEqual(['primavera', 'cotone']);
+      expect(product.catalogOrigin).toBe('vestiflow');
       expect(product.shopify).toBeUndefined();
     });
 
@@ -54,6 +55,24 @@ describe('domain-api.mapper', () => {
         lastSyncedAt: '2026-06-01T12:00:00.000Z',
         lastError: 'Errore precedente',
       });
+      expect(product.catalogOrigin).toBe('vestiflow');
+    });
+
+    it('mappa catalogOrigin shopify quando presente', () => {
+      const product = mapProductApiRow({
+        id: 'prod-shopify',
+        tenantId: 'tenant-1',
+        name: 'Da Shopify',
+        status: ProductStatus.Active,
+        options: [],
+        catalogOrigin: 'shopify',
+        shopifySyncStatus: ShopifySyncStatus.Synced,
+        shopifyProductId: 'gid://shopify/Product/999',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+
+      expect(product.catalogOrigin).toBe('shopify');
     });
 
     it('parsa collezioni e metafields Shopify validi', () => {

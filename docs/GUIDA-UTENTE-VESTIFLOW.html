@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-per-lutente">VestiFlow — Guida per l&#39;utente</h1>
-<p><strong>Versione documento:</strong> 2.2 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 2.3 — Giugno 2026</p>
 <p><strong>Per chi è questa guida:</strong> titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.</p>
 <p><strong>Prodotto:</strong> VestiFlow — gestionale web multi-sede per boutique di abbigliamento, con integrazione opzionale a <strong>Shopify</strong> o <strong>TikTok Shop</strong> (in base al profilo scelto per il tuo negozio). L&#39;integrazione <strong>TikTok Shop è ancora parziale</strong> — vedi <a href="#7-collegare-tiktok-shop">§7</a>.</p>
 <hr>
@@ -266,8 +266,12 @@ ol {
 <td><strong>Impostazioni</strong></td>
 <td>Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza</td>
 </tr>
+<tr>
+<td><strong>Guida</strong></td>
+<td>Manuale utente integrato nell&#39;app</td>
+</tr>
 </tbody></table>
-<p>In fondo al menu trovi <strong>Guida</strong> (questo manuale integrato nell&#39;app).</p>
+<p>Su mobile, <strong>Esci</strong> è in fondo al menu ☰ (sotto tutte le voci); su desktop resta anche in topbar.</p>
 <p>Dal menu <strong>Magazzino</strong> accedi subito alla ricerca; le altre sezioni magazzino (<strong>Giacenze</strong>, <strong>Movimenti</strong>, <strong>Inventario fisico</strong>) si aprono dai <strong>tab</strong> in alto nelle pagine del magazzino.</p>
 <h3 id="barra-in-alto-topbar">Barra in alto (topbar)</h3>
 <p>Ordine da sinistra a destra (desktop):</p>
@@ -277,7 +281,7 @@ ol {
 <li><strong>Selettore location</strong> — filtra le operazioni per la sede attiva (negozio, magazzino, ecc.)</li>
 <li><strong>Sync Shopify</strong> — chip con icona e <strong>data/ora ultimo sync</strong>; il punto colorato indica lo stato (verde = ok). Clic → Impostazioni</li>
 <li><strong>Avatar profilo</strong> — foto o iniziali; <strong>clic → Impostazioni</strong></li>
-<li><strong>Esci</strong> — logout con conferma (solo desktop; su smartphone usa <strong>Esci</strong> nel menu ☰ sopra <strong>Guida</strong>)</li>
+<li><strong>Esci</strong> — logout con conferma (desktop in topbar; su smartphone in fondo al menu ☰)</li>
 </ul>
 <p>Su smartphone il menu hamburger apre la sidebar; tema, location e sync restano in topbar quando lo spazio lo consente.</p>
 <h3 id="impostazioni-cosa-compare">Impostazioni: cosa compare</h3>
@@ -699,14 +703,14 @@ ol {
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>Prodotti / varianti</strong></td>
-<td>Sì (push verso canale)</td>
-<td>Shopify o TikTok se connessi</td>
+<td><strong>Prodotti creati in VestiFlow</strong> (<code>Fonte: VestiFlow</code>)</td>
+<td>Sì — catalogo completo</td>
+<td>Push al salvataggio verso Shopify/TikTok se connessi</td>
 </tr>
 <tr>
-<td><strong>Prodotti nati su Shopify</strong></td>
-<td>Solo lettura + import</td>
-<td>Import catalogo o webhook (profilo Shopify)</td>
+<td><strong>Prodotti importati da Shopify</strong> (<code>Fonte: Shopify</code>)</td>
+<td>Solo dati operativi</td>
+<td>Titolo, prezzi vendita, varianti e immagini in <strong>Shopify Admin</strong>; in VestiFlow: <strong>stagione</strong> e <strong>prezzo di acquisto</strong></td>
 </tr>
 <tr>
 <td><strong>Giacenze</strong></td>
@@ -734,8 +738,30 @@ ol {
 <td>Sync location Shopify se applicabile</td>
 </tr>
 </tbody></table>
+<h3 id="etichetta-fonte-catalogo">Etichetta «Fonte» (catalogo)</h3>
+<p>Nella <strong>lista prodotti</strong> (colonna <strong>Fonte</strong>) e nel <strong>dettaglio prodotto</strong> compare un’etichetta che indica <strong>chi gestisce il catalogo ecommerce</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Etichetta</th>
+<th>Significato</th>
+<th>Cosa puoi fare in VestiFlow</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>VestiFlow</strong></td>
+<td>Prodotto nato nel gestionale (creato o importato CSV, poi eventualmente inviato al canale)</td>
+<td>Modifica completa; eliminazione (se consentita) anche su Shopify se collegato</td>
+</tr>
+<tr>
+<td><strong>Shopify</strong></td>
+<td>Prodotto importato dal negozio online</td>
+<td>Catalogo in sola lettura; modifica solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong>; elimina da <strong>Shopify Admin</strong></td>
+</tr>
+</tbody></table>
+<p>L’etichetta <strong>Fonte</strong> è distinta dallo <strong>stato sync Shopify</strong> (colonna <strong>Shopify</strong> in lista, se visibile): la Fonte dice <em>chi possiede il catalogo</em>; lo stato sync dice se l’ultimo invio verso Shopify è riuscito (solo per prodotti <strong>Fonte: VestiFlow</strong> collegati).</p>
 <h3 id="badge-sync-sul-prodotto">Badge sync sul prodotto</h3>
-<p>Nel dettaglio prodotto:</p>
+<p>Nel dettaglio prodotto (solo prodotti <strong>Fonte: VestiFlow</strong> collegati a Shopify):</p>
 <table>
 <thead>
 <tr>
@@ -760,6 +786,7 @@ ol {
 <td>Shopify non connesso o prodotto mai sync</td>
 </tr>
 </tbody></table>
+<p>I prodotti <strong>Fonte: Shopify</strong> si allineano automaticamente da Shopify Admin: non compare il pulsante <strong>Sincronizza con Shopify</strong>.</p>
 <hr>
 <h2 id="9-prodotti-e-catalogo">9. Prodotti e catalogo</h2>
 <h3 id="concetti-base">Concetti base</h3>
@@ -779,28 +806,31 @@ ol {
 </ol>
 <h3 id="modificare-o-eliminare">Modificare o eliminare</h3>
 <ul>
-<li><strong>Modifica</strong> dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati vengono inviati a Shopify.</li>
-<li><strong>Elimina</strong> solo Titolare/Admin, con conferma nel dialog.</li>
+<li><strong>Fonte: VestiFlow</strong> — modifica completa dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati a Shopify.</li>
+<li><strong>Fonte: Shopify</strong> — il pulsante diventa <strong>Modifica dati operativi</strong>: puoi aggiornare solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong> delle varianti. Nome, descrizione, prezzi di vendita, opzioni, SKU, barcode e immagini vanno modificati in <strong>Shopify Admin</strong>; VestiFlow si allinea con import catalogo o aggiornamenti automatici.</li>
 </ul>
-<h4 id="eliminazione-prodotto-con-shopify-connesso">Eliminazione prodotto con Shopify connesso</h4>
-<p>Se il prodotto è <strong>collegato a Shopify</strong>, VestiFlow tenta di <strong>rimuoverlo anche dal negozio online</strong> prima di cancellarlo dal gestionale.</p>
+<h4 id="eliminazione-prodotto">Eliminazione prodotto</h4>
 <table>
 <thead>
 <tr>
-<th>Condizione</th>
+<th>Fonte / condizione</th>
 <th>Comportamento</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Prodotto <strong>senza movimenti</strong> di magazzino</td>
-<td>Eliminazione consentita</td>
+<td><strong>Fonte: Shopify</strong></td>
+<td><strong>Non eliminabile</strong> da VestiFlow — usa <strong>Shopify Admin</strong></td>
 </tr>
 <tr>
-<td>Prodotto con <strong>movimenti</strong> storici</td>
+<td><strong>Fonte: VestiFlow</strong>, senza movimenti di magazzino</td>
+<td>Eliminazione consentita; se collegato a Shopify, VestiFlow tenta di rimuoverlo anche online</td>
+</tr>
+<tr>
+<td><strong>Fonte: VestiFlow</strong>, con movimenti storici</td>
 <td><strong>Bloccato</strong> — archivia o lascia in catalogo</td>
 </tr>
 <tr>
-<td>Shopify <strong>non connesso</strong> ma prodotto sincronizzato in passato</td>
+<td>Shopify <strong>disconnesso</strong> ma prodotto sincronizzato in passato</td>
 <td><strong>Bloccato</strong> — riconnetti Shopify e riprova</td>
 </tr>
 <tr>
@@ -808,7 +838,7 @@ ol {
 <td>Prodotto <strong>non</strong> rimosso da VestiFlow; messaggio di errore</td>
 </tr>
 </tbody></table>
-<p>Dopo l’eliminazione riuscita, il prodotto scompare da <strong>Prodotti</strong> e non è più presente su Shopify Admin.</p>
+<p>Dopo l’eliminazione riuscita di un prodotto <strong>Fonte: VestiFlow</strong>, la scheda scompare da <strong>Prodotti</strong> e non è più presente su Shopify Admin (se era collegato).</p>
 <h3 id="import-ed-export-csv-catalogo">Import ed export CSV (catalogo)</h3>
 <table>
 <thead>
@@ -1084,8 +1114,9 @@ ol {
 <h3 id="il-prodotto-creato-in-vestiflow-non-compare-su-shopify">Il prodotto creato in VestiFlow non compare su Shopify</h3>
 <ol>
 <li>Impostazioni → Shopify è <strong>Connesso</strong>?</li>
-<li>Dettaglio prodotto: badge <strong>Errore sync</strong>?</li>
-<li>Prova <strong>Sincronizza con Shopify</strong> nel dettaglio prodotto</li>
+<li>Dettaglio prodotto: etichetta <strong>Fonte: VestiFlow</strong> (non Shopify)?</li>
+<li>Badge sync <strong>Errore sync</strong> nella colonna Shopify o nel dettaglio?</li>
+<li>Prova <strong>Sincronizza con Shopify</strong> nel dettaglio prodotto (solo <strong>Fonte: VestiFlow</strong>)</li>
 <li>Se persiste: <strong>Disconnetti</strong> e <strong>riconnetti</strong> Shopify da Impostazioni</li>
 </ol>
 <h3 id="il-prodotto-su-shopify-non-compare-in-vestiflow">Il prodotto su Shopify non compare in VestiFlow</h3>
@@ -1117,9 +1148,12 @@ ol {
 <p>Usa <strong>Cambia negozio</strong> in Impostazioni, non il semplice <strong>Disconnetti Shopify</strong>. Segui la procedura guidata e, se indicato, rimuovi i dati importati prima di collegare il nuovo shop.</p>
 <h3 id="ho-eliminato-un-prodotto-ma-resta-su-shopify-o-viceversa">Ho eliminato un prodotto ma resta su Shopify (o viceversa)</h3>
 <ul>
-<li>Con Shopify <strong>connesso</strong>, l’eliminazione da VestiFlow dovrebbe rimuovere anche su Shopify. Se vedi un errore, controlla permessi app (<code>write_products</code>) e riprova.</li>
-<li>Se Shopify era <strong>disconnesso</strong>, VestiFlow <strong>non</strong> elimina sul negozio online finché non riconnetti.</li>
+<li><strong>Fonte: Shopify</strong> — l’eliminazione va fatta in <strong>Shopify Admin</strong>, non in VestiFlow.</li>
+<li><strong>Fonte: VestiFlow</strong>, Shopify <strong>connesso</strong> — l’eliminazione da VestiFlow dovrebbe rimuovere anche su Shopify. Se vedi un errore, controlla permessi app (<code>write_products</code>) e riprova.</li>
+<li><strong>Fonte: VestiFlow</strong>, Shopify <strong>disconnesso</strong> — VestiFlow <strong>non</strong> elimina sul negozio online finché non riconnetti.</li>
 </ul>
+<h3 id="non-riesco-a-modificare-nome-o-prezzo-di-un-prodotto">Non riesco a modificare nome o prezzo di un prodotto</h3>
+<p>Controlla l’etichetta <strong>Fonte</strong> nel dettaglio. Se è <strong>Shopify</strong>, modifica titolo, varianti e prezzi di vendita in <strong>Shopify Admin</strong>; in VestiFlow restano editabili solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong> (pulsante <strong>Modifica dati operativi</strong>).</p>
 <h3 id="non-vedo-integrazione-shopify-o-tiktok-in-impostazioni">Non vedo Integrazione Shopify (o TikTok) in Impostazioni</h3>
 <p>Il <strong>profilo canale</strong> del tuo negozio potrebbe essere <strong>Solo gestionale</strong> o un altro canale. Contatta il referente VestiFlow se serve cambiare profilo.</p>
 <h3 id="il-prodotto-non-compare-su-tiktok-shop">Il prodotto non compare su TikTok Shop</h3>
@@ -1132,7 +1166,7 @@ ol {
 <p>Usa JPEG, PNG o WebP, max 2 MB. Se l&#39;errore persiste, riprova tra qualche minuto.</p>
 <hr>
 <h2 id="18-guida-nel-menu">18. Guida nel menu</h2>
-<p>La voce <strong>Guida</strong> in fondo al menu laterale apre questo manuale dentro l&#39;app (<code>/app/guide</code>).</p>
+<p>La voce <strong>Guida</strong> compare in sidebar subito sotto <strong>Impostazioni</strong> e apre questo manuale dentro l&#39;app (<code>/app/guide</code>).</p>
 <ul>
 <li>Usa l&#39;<strong>Indice</strong> per saltare alle sezioni.</li>
 <li>In alto puoi <strong>scaricare il PDF</strong> per consultarlo offline o stamparlo.</li>

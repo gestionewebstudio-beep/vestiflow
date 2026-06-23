@@ -1,12 +1,23 @@
-import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import {
+  Injectable,
+  Logger,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import {
+  CatalogOrigin,
   ProductStatus,
+  ShopifyCatalogLinkKind,
   ShopifyConnectionStatus,
   ShopifySyncStatus,
   type Prisma,
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  resolveCatalogOriginForShopifyImport,
+  resolveShopifyCatalogLinkKindForImport,
+  shouldSkipShopifyCatalogImport,
+} from '../products/catalog-origin.util';
 import { syncProductImagesFromShopify } from '../products/product-images.sync';
 import type { ShopifyAdminProduct } from './shopify-admin.client';
 import { ShopifyAdminClient } from './shopify-admin.client';
@@ -194,7 +205,10 @@ export class ShopifyProductPullService {
     const shopifyProductId = String(remote.id);
     const existing = await this.prisma.product.findFirst({
       where: { tenantId, shopifyProductId },
-      include: { variants: true },
+      include: {
+        variants: true,
+        images: { select: { storagePath: true } },
+      },
     });
 
     const options = this.mapOptions(remote);
@@ -211,6 +225,13 @@ export class ShopifyProductPullService {
     if (existing?.shopifySyncStatus === ShopifySyncStatus.syncing) {
       this.logger.debug(
         `Import webhook saltato: sync VestiFlow→Shopify in corso (${shopifyProductId})`,
+      );
+      return 'skipped';
+    }
+
+    if (existing && shouldSkipShopifyCatalogImport(existing)) {
+      this.logger.debug(
+        `Import Shopify saltato: catalogo di origine VestiFlow (${shopifyProductId})`,
       );
       return 'skipped';
     }
@@ -247,6 +268,12 @@ export class ShopifyProductPullService {
         : ShopifySyncStatus.synced,
       shopifyLastSyncAt: new Date(),
       shopifyLastError: categorySyncError,
+      catalogOrigin: existing
+        ? resolveCatalogOriginForShopifyImport(existing)
+        : CatalogOrigin.shopify,
+      shopifyCatalogLinkKind: existing
+        ? resolveShopifyCatalogLinkKindForImport(existing)
+        : ShopifyCatalogLinkKind.imported,
     };
 
     if (!existing) {

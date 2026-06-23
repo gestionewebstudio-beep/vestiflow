@@ -81,6 +81,7 @@ export class ProductVariantsStepComponent {
   readonly takenSkus = input<readonly string[]>([]);
   /** Barcode gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
   readonly takenBarcodes = input<readonly string[]>([]);
+  readonly catalogReadOnly = input(false);
   readonly variantsChange = output<readonly VariantDraft[]>();
   /**
    * Validità complessiva dello step (formato SKU/prezzi/barcode + regola
@@ -114,6 +115,7 @@ export class ProductVariantsStepComponent {
         this.seed(variants);
         this.seededKeys = keys;
       }
+      this.applyCatalogReadOnly(this.catalogReadOnly());
     });
 
     this.valueChangesSub = this.variantsArray.valueChanges
@@ -180,6 +182,20 @@ export class ProductVariantsStepComponent {
       compareAtPrice: this.fb.control<number | null>(variant.compareAtPrice, [Validators.min(0)]),
       barcode: this.fb.control(variant.barcode),
     });
+  }
+
+  private applyCatalogReadOnly(readOnly: boolean): void {
+    for (const group of this.variantsArray.controls) {
+      if (readOnly) {
+        group.controls.sku.disable({ emitEvent: false });
+        group.controls.sellingPrice.disable({ emitEvent: false });
+        group.controls.compareAtPrice.disable({ emitEvent: false });
+        group.controls.barcode.disable({ emitEvent: false });
+        group.controls.purchasePrice.enable({ emitEvent: false });
+      } else {
+        group.enable({ emitEvent: false });
+      }
+    }
   }
 
   /** Errore di formato del controllo, mostrato solo dopo interazione (touched). */

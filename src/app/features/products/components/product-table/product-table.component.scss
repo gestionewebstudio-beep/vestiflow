@@ -81,31 +81,35 @@
   }
 
   .product-table__col--name {
-    inline-size: 28%;
+    inline-size: 24%;
   }
 
   .product-table__col--brand {
-    inline-size: 14%;
+    inline-size: 12%;
   }
 
   .product-table__col--category {
-    inline-size: 16%;
-  }
-
-  .product-table__col--season {
     inline-size: 14%;
   }
 
+  .product-table__col--season {
+    inline-size: 12%;
+  }
+
   .product-table__col--numeric {
-    inline-size: 10%;
+    inline-size: 8%;
   }
 
   .product-table__col--status {
-    inline-size: 12%;
+    inline-size: 10%;
+  }
+
+  .product-table__col--source {
+    inline-size: 10%;
   }
 
   .product-table__col--shopify {
-    inline-size: 12%;
+    inline-size: 10%;
   }
 
   .product-table__col--actions {
@@ -123,6 +127,8 @@
 
   .product-table tbody td.product-table__cell--status,
   .product-table__head th.product-table__cell--status,
+  .product-table tbody td.product-table__cell--source,
+  .product-table__head th.product-table__cell--source,
   .product-table tbody td.product-table__cell--shopify,
   .product-table__head th.product-table__cell--shopify {
     text-align: end;
@@ -130,6 +136,7 @@
   }
 
   .product-table__status-value,
+  .product-table__source-value,
   .product-table__shopify-value {
     display: flex;
     justify-content: flex-end;

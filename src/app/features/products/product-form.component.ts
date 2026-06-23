@@ -24,6 +24,8 @@ import type { Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { CatalogOrigin } from '@core/models/catalog-origin.model';
+import type { CatalogOrigin as CatalogOriginType } from '@core/models/catalog-origin.model';
 import { AuthService } from '@core/auth';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
@@ -62,6 +64,10 @@ import {
   isValidSku,
 } from './models/product-form.validators';
 import type { ProductFilterOptions } from './models/product-list-query.model';
+import {
+  SHOPIFY_CATALOG_EDIT_TITLE,
+  SHOPIFY_CATALOG_READONLY_BANNER,
+} from './models/catalog-origin.util';
 import { ProductService } from './services/product.service';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
@@ -148,6 +154,17 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   protected readonly pendingImageFiles = signal<readonly File[]>([]);
   protected readonly existingImages = signal<readonly ProductImage[]>([]);
+  protected readonly catalogOrigin = signal<CatalogOriginType>(CatalogOrigin.VestiFlow);
+  protected readonly shopifyCatalogLocked = computed(
+    () => this.mode() === 'edit' && this.catalogOrigin() === CatalogOrigin.Shopify,
+  );
+  protected readonly shopifyCatalogBanner = SHOPIFY_CATALOG_READONLY_BANNER;
+  protected readonly formTitle = computed(() => {
+    if (this.mode() === 'create') {
+      return 'Nuovo prodotto';
+    }
+    return this.shopifyCatalogLocked() ? SHOPIFY_CATALOG_EDIT_TITLE : 'Modifica prodotto';
+  });
 
   // Stato submit (dichiarati prima del pipe di load, che usa resetDraft in init).
   private readonly _submitState = signal<'idle' | 'submitting' | 'error'>('idle');
@@ -160,6 +177,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
     toObservable(this.loadRequest).pipe(
       switchMap(({ id }) => {
         if (!id) {
+          this.catalogOrigin.set(CatalogOrigin.VestiFlow);
           this.resetDraft(emptyProductFormDraft());
           return of<FormLoadState>({ status: 'ready' });
         }
@@ -168,6 +186,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
           variants: this.service.getProductVariants(id),
         }).pipe(
           tap(({ product, variants }) => {
+            this.catalogOrigin.set(product.catalogOrigin ?? CatalogOrigin.VestiFlow);
             this.resetDraft(productToFormDraft(product, variants));
             this.existingImages.set(product.images ?? []);
           }),
@@ -276,6 +295,9 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // Validità "Dati generali": tutti i campi obbligatori valorizzati (trim).
   // Gli step 8.5-8.7 aggiungeranno le proprie regole nella catena di gating.
   private readonly generalValid = computed(() => {
+    if (this.shopifyCatalogLocked()) {
+      return true;
+    }
     const { name, brand, category, shopifyTaxonomyCategoryId } = this.draft().general;
     const base = name.trim() !== '' && brand.trim() !== '';
     if (this.shopifyConnected()) {
@@ -287,6 +309,9 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // Step "Opzioni" valido se: c'è almeno una combinazione generata e i nomi degli
   // assi sono validi (non vuoti) e univoci (es. il 3° asse non duplica Taglia/Colore).
   private readonly optionsValid = computed(() => {
+    if (this.shopifyCatalogLocked()) {
+      return true;
+    }
     if (this.draft().variants.length === 0) {
       return false;
     }
@@ -301,6 +326,12 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // intra-form + nessuno SKU gia' in uso lato "server".
   private readonly variantsValid = computed(() => {
     const variants = this.draft().variants;
+    if (this.shopifyCatalogLocked()) {
+      return (
+        variants.length > 0 &&
+        variants.every((variant) => variant.purchasePrice == null || variant.purchasePrice >= 0)
+      );
+    }
     if (variants.length === 0) {
       return false;
     }
@@ -407,6 +438,9 @@ export class ProductFormComponent implements CanComponentDeactivate {
     const draft = this.draft();
     const id = this.productId();
     const pendingFiles = [...this.pendingImageFiles()];
+    if (this.shopifyCatalogLocked() && pendingFiles.length > 0) {
+      return;
+    }
     const baseRequest$ = id
       ? this.service.updateProduct(id, toUpdateProductDto(draft))
       : this.service.createProduct(toCreateProductDto(draft));

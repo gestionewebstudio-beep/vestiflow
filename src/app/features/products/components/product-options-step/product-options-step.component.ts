@@ -39,6 +39,7 @@ export class ProductOptionsStepComponent {
   /** Anteprima (read-only) delle varianti generate dal wizard. */
   readonly variants = input<readonly VariantDraft[]>([]);
   readonly shopifyConnected = input(false);
+  readonly catalogReadOnly = input(false);
   readonly optionsChange = output<ProductOptionsDraft>();
 
   protected readonly sizeName = OPTION_NAME_SIZE;

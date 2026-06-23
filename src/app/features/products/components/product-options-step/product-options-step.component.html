@@ -1,70 +1,79 @@
 <div class="options-step">
-  <p class="options-step__intro">
-    Definisci le opzioni che generano le varianti vendibili: ogni combinazione di valori diventa un
-    SKU con giacenza, prezzo ed etichetta propri.
-  </p>
+  @if (catalogReadOnly()) {
+    <p class="options-step__readonly" role="note">
+      Opzioni e combinazioni varianti sono gestite in Shopify Admin. Qui puoi consultare l’anteprima
+      in sola lettura.
+    </p>
+  } @else {
+    <p class="options-step__intro">
+      Definisci le opzioni che generano le varianti vendibili: ogni combinazione di valori diventa
+      un SKU con giacenza, prezzo ed etichetta propri.
+    </p>
+  }
 
-  <div class="options-step__editors">
-    <app-option-list-editor
-      label="Taglie"
-      placeholder="Aggiungi taglia (es. M)"
-      [hint]="sizeHint()"
-      [values]="sizes()"
-      (valuesChange)="onSizesChange($event)"
-    />
-    <app-option-list-editor
-      [label]="variantColorLabel()"
-      placeholder="Aggiungi colore (es. Rosso)"
-      [hint]="variantColorHint()"
-      [values]="colors()"
-      (valuesChange)="onColorsChange($event)"
-    />
-  </div>
-
-  <section class="options-step__third" aria-labelledby="third-axis-title">
-    <div class="options-step__third-header">
-      <h2 id="third-axis-title" class="options-step__third-title">Opzione aggiuntiva</h2>
-      @if (!hasThirdAxis()) {
-        <app-button variant="ghost" type="button" (click)="addThirdAxis()">
-          + Aggiungi opzione
-        </app-button>
-      } @else {
-        <app-button variant="ghost" type="button" (click)="removeThirdAxis()">
-          Rimuovi opzione
-        </app-button>
-      }
+  @if (!catalogReadOnly()) {
+    <div class="options-step__editors">
+      <app-option-list-editor
+        label="Taglie"
+        placeholder="Aggiungi taglia (es. M)"
+        [hint]="sizeHint()"
+        [values]="sizes()"
+        (valuesChange)="onSizesChange($event)"
+      />
+      <app-option-list-editor
+        [label]="variantColorLabel()"
+        placeholder="Aggiungi colore (es. Rosso)"
+        [hint]="variantColorHint()"
+        [values]="colors()"
+        (valuesChange)="onColorsChange($event)"
+      />
     </div>
 
-    @if (!hasThirdAxis()) {
-      <p class="options-step__third-hint">
-        Oltre a Taglia e Colore puoi aggiungere una terza opzione (es. Materiale, Vestibilità).
-      </p>
-    } @else {
-      <div class="options-step__third-name">
-        <label class="options-step__label" for="third-axis-name">Nome opzione</label>
-        <input
-          id="third-axis-name"
-          class="options-step__name-input"
-          type="text"
-          autocomplete="off"
-          [value]="thirdAxisName()"
-          (input)="onThirdNameChange($any($event.target).value)"
-          [attr.aria-invalid]="thirdAxisError() ? true : null"
-          [attr.aria-describedby]="thirdAxisError() ? 'third-axis-name-error' : null"
-        />
-        @if (thirdAxisError(); as error) {
-          <p id="third-axis-name-error" class="options-step__error" role="alert">{{ error }}</p>
+    <section class="options-step__third" aria-labelledby="third-axis-title">
+      <div class="options-step__third-header">
+        <h2 id="third-axis-title" class="options-step__third-title">Opzione aggiuntiva</h2>
+        @if (!hasThirdAxis()) {
+          <app-button variant="ghost" type="button" (click)="addThirdAxis()">
+            + Aggiungi opzione
+          </app-button>
+        } @else {
+          <app-button variant="ghost" type="button" (click)="removeThirdAxis()">
+            Rimuovi opzione
+          </app-button>
         }
       </div>
 
-      <app-option-list-editor
-        [label]="(thirdAxisName() || 'Opzione') + ' (valori)'"
-        placeholder="Aggiungi valore"
-        [values]="thirdAxisValues()"
-        (valuesChange)="onThirdValuesChange($event)"
-      />
-    }
-  </section>
+      @if (!hasThirdAxis()) {
+        <p class="options-step__third-hint">
+          Oltre a Taglia e Colore puoi aggiungere una terza opzione (es. Materiale, Vestibilità).
+        </p>
+      } @else {
+        <div class="options-step__third-name">
+          <label class="options-step__label" for="third-axis-name">Nome opzione</label>
+          <input
+            id="third-axis-name"
+            class="options-step__name-input"
+            type="text"
+            autocomplete="off"
+            [value]="thirdAxisName()"
+            (input)="onThirdNameChange($any($event.target).value)"
+            [attr.aria-invalid]="thirdAxisError() ? true : null"
+            [attr.aria-describedby]="thirdAxisError() ? 'third-axis-name-error' : null"
+          />
+          @if (thirdAxisError(); as error) {
+            <p id="third-axis-name-error" class="options-step__error" role="alert">{{ error }}</p>
+          }
+        </div>
+
+        <app-option-list-editor
+          [label]="(thirdAxisName() || 'Opzione') + ' (valori)'"
+          placeholder="Aggiungi valore"
+          [values]="thirdAxisValues()"
+          (valuesChange)="onThirdValuesChange($event)"
+        />
+      }
+    </section>
+  }
 
   <section class="options-step__preview" aria-labelledby="variants-preview-title">
     <h2 id="variants-preview-title" class="options-step__preview-title">

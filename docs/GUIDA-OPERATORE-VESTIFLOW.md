@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 1.3 — Giugno 2026
+**Versione documento:** 1.4 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -288,14 +288,42 @@ UI: **Impostazioni → Profilo** (tenant) e **Impostazioni** operatore (`/app/ad
 
 ### Ownership sync (riepilogo)
 
-| Entità                 | Owner                   | Note                                                                                |
-| ---------------------- | ----------------------- | ----------------------------------------------------------------------------------- |
-| Prodotti/varianti      | Condiviso write-through | Push al save; **delete** write-through verso Shopify se `shopifyProductId` presente |
-| Clienti, ordini online | Shopify                 | Read-only in VF                                                                     |
-| Giacenze               | Condiviso               | VF: carichi/rettifiche; Shopify: vendite                                            |
-| Location               | Shopify master          | Import + mapping; cleanup sedi stale                                                |
-| Ordini fornitori       | Solo VestiFlow          | —                                                                                   |
-| Anagrafica tenant      | Solo VestiFlow (admin)  | `GET /tenant/company` read-only in UI **Sede fisica**                               |
+| Entità                                                      | Owner                  | Note                                                                                                |
+| ----------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------- |
+| Catalogo prodotti **VestiFlow** (`catalogOrigin=vestiflow`) | VestiFlow              | CRUD completo; push al save; delete write-through verso Shopify se `shopifyProductId`               |
+| Catalogo prodotti **Shopify** (`catalogOrigin=shopify`)     | Shopify                | Pull import/webhook; in VF solo PATCH stagione + `purchasePriceMinor`; no delete/sync manuale/media |
+| Clienti, ordini online                                      | Shopify                | Read-only in VF                                                                                     |
+| Giacenze                                                    | Condiviso              | VF: carichi/rettifiche; Shopify: vendite                                                            |
+| Location                                                    | Shopify master         | Import + mapping; cleanup sedi stale                                                                |
+| Ordini fornitori                                            | Solo VestiFlow         | —                                                                                                   |
+| Anagrafica tenant                                           | Solo VestiFlow (admin) | `GET /tenant/company` read-only in UI **Sede fisica**                                               |
+
+### Origine catalogo (`catalogOrigin` / `shopifyCatalogLinkKind`)
+
+Campi su `Product` (migration `0016` + `0017`):
+
+| Valore                            | Significato                                       | Impostato quando                                                 |
+| --------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------- |
+| `catalogOrigin=vestiflow`         | Il gestionale possiede i campi catalogo condivisi | Create in VF, import CSV, push verso Shopify (`linkKind=pushed`) |
+| `catalogOrigin=shopify`           | Shopify Admin possiede il catalogo                | Import pull (`linkKind=imported`) o backfill legacy              |
+| `shopifyCatalogLinkKind=imported` | Collegato da import Shopify → VF                  | `ShopifyProductPullService`                                      |
+| `shopifyCatalogLinkKind=pushed`   | Creato in VF e inviato al canale                  | Create/push `ShopifyProductPushService`, import CSV              |
+
+Logica centralizzata in `api/src/products/catalog-origin.util.ts`:
+
+- `isVestiflowCatalogOwner()` — esclude import Shopify e legacy con link alla creazione; include push e prodotti con media locale Supabase
+- `shouldSkipShopifyCatalogImport()` — pull/webhook **non sovrascrivono** catalogo VF-owned
+- `assertShopifyCatalogUpdateAllowed()` — su `shopify`: blocca mutazioni catalogo; consente `season` + `purchasePriceMinor`
+- `assertShopifyCatalogDeleteAllowed()` / `assertShopifyCatalogManualSyncAllowed()` / `assertShopifyCatalogMediaMutationAllowed()`
+
+**Backfill tenant esistenti** (dopo deploy migration):
+
+```bash
+cd api && npm run backfill:catalog-origin        # dry-run
+cd api && npm run backfill:catalog-origin:apply  # scrive su DB
+```
+
+**UI tenant:** colonna **Fonte** in lista prodotti; badge `Fonte: VestiFlow` / `Fonte: Shopify` in dettaglio; form in modalità **Modifica dati operativi** se `catalogOrigin=shopify` (`catalog-origin.util.ts` FE + `product-form` / `product-detail`).
 
 ### Cambio negozio e purge dati Shopify
 
@@ -317,15 +345,18 @@ Modulo `ShopifyShopChangeService` + wizard FE `shopify-shop-change-wizard`.
 
 **Cosa NON cancella il purge:** ordini fornitori (salvo blocker se legati a location Shopify), anagrafica tenant (**Sede fisica**), utenti tenant, movimenti non legati a entità Shopify rimosse.
 
-### Eliminazione prodotto (write-through Shopify)
+### Eliminazione prodotto
 
 `ProductsService.delete()`:
 
-1. Verifica assenza movimenti stock sul prodotto
-2. Se `shopifyProductId` presente → `ShopifyProductPushService.deleteProduct()` **prima** del delete DB
-3. Errori mappati: `not_connected`, `missing_write_products_scope`, `shopify_error` → `422` con messaggio utente; DB intatto
+1. `assertShopifyCatalogDeleteAllowed()` — se `catalogOrigin=shopify` → **409** con messaggio utente (elimina da Shopify Admin)
+2. Verifica assenza movimenti stock sul prodotto
+3. Se `shopifyProductId` presente e `catalogOrigin=vestiflow` → `ShopifyProductPushService.deleteProduct()` **prima** del delete DB
+4. Errori mappati: `not_connected`, `missing_write_products_scope`, `shopify_error` → `422` con messaggio utente; DB intatto
 
-Scope richiesto: `write_products` (incluso in `SHOPIFY_SCOPES` default).
+Scope richiesto per delete write-through: `write_products` (incluso in `SHOPIFY_SCOPES` default).
+
+FE: pulsante **Elimina** e **Sincronizza con Shopify** nascosti se `catalogOrigin=shopify`.
 
 ### Sync location — comportamento post-fix
 
@@ -409,15 +440,15 @@ Implementazione in `api/src/shopify/`:
 
 **Chiamate indicative per operazione:**
 
-| Operazione                           | Chiamate Shopify (ordine di grandezza) | Note                                    |
-| ------------------------------------ | -------------------------------------- | --------------------------------------- |
-| Import catalogo (Shopify → VF)       | ~4 per 1000 prodotti (pagine da 250)   | Lento con cataloghi grandi: **normale** |
-| Webhook prodotti/giacenze/ordini     | 0 outbound                             | Event-driven                            |
-| Push prodotto al save (VF → Shopify) | 1–N per prodotto                       | Dipende da immagini/varianti            |
-| Delete prodotto (VF → Shopify)       | 1                                      | Solo se `shopifyProductId` presente     |
-| Purge dati Shopify                   | 0 outbound (delete DB locale)          | Dopo purge, riconnessione OAuth         |
-| Push giacenza dopo movimento         | ~1 per movimento                       | Write-through inventario                |
-| Sync location                        | 1                                      | Trascurabile                            |
+| Operazione                           | Chiamate Shopify (ordine di grandezza) | Note                                                                     |
+| ------------------------------------ | -------------------------------------- | ------------------------------------------------------------------------ |
+| Import catalogo (Shopify → VF)       | ~4 per 1000 prodotti (pagine da 250)   | Lento con cataloghi grandi: **normale**; imposta `catalogOrigin=shopify` |
+| Webhook prodotti/giacenze/ordini     | 0 outbound                             | Event-driven; skip catalogo se `vestiflow`-owned                         |
+| Push prodotto al save (VF → Shopify) | 1–N per prodotto                       | Solo `catalogOrigin=vestiflow`; imposta `linkKind=pushed`                |
+| Delete prodotto (VF → Shopify)       | 1                                      | Solo `catalogOrigin=vestiflow` + `shopifyProductId`                      |
+| Purge dati Shopify                   | 0 outbound (delete DB locale)          | Dopo purge, riconnessione OAuth                                          |
+| Push giacenza dopo movimento         | ~1 per movimento                       | Write-through inventario                                                 |
+| Sync location                        | 1                                      | Trascurabile                                                             |
 
 **Cosa fare se un cliente vede errori 429:**
 
@@ -493,17 +524,17 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 
 ## 11. Dominio dati principale
 
-| Entità                       | Note                                       |
-| ---------------------------- | ------------------------------------------ |
-| `Tenant`                     | Azienda cliente                            |
-| `User`                       | Profilo app, `tenantId`, ruolo             |
-| `Store` / `Location`         | Store commerciale; location per stock      |
-| `Product` / `ProductVariant` | Opzioni generiche; SKU univoco             |
-| `InventoryLevel`             | `variantId` × `locationId`, stati quantità |
-| `StockMovement`              | Audit trail obbligatorio                   |
-| `SupplierOrder`              | Solo VF                                    |
-| `SalesOrder` / `Customer`    | Import Shopify, read-only UI               |
-| `ShopifyConnection`          | Token, scope, stato sync per tenant        |
+| Entità                       | Note                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `Tenant`                     | Azienda cliente                                                           |
+| `User`                       | Profilo app, `tenantId`, ruolo                                            |
+| `Store` / `Location`         | Store commerciale; location per stock                                     |
+| `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind` |
+| `InventoryLevel`             | `variantId` × `locationId`, stati quantità                                |
+| `StockMovement`              | Audit trail obbligatorio                                                  |
+| `SupplierOrder`              | Solo VF                                                                   |
+| `SalesOrder` / `Customer`    | Import Shopify, read-only UI                                              |
+| `ShopifyConnection`          | Token, scope, stato sync per tenant                                       |
 
 Denaro: **interi minor units** (`Money.amountMinor`), mai float.
 
@@ -539,12 +570,12 @@ Frontend: `HttpClient` + interceptor auth/error; mock disabilitati in prod.
 
 ### Catalogo prodotti
 
-|              |                                                  |
-| ------------ | ------------------------------------------------ |
-| **Export**   | `GET /products/export/csv` — formato Shopify CSV |
-| **Import**   | `POST /products/import/csv` — preview + commit   |
-| **UI**       | Prodotti → Esporta / Importa CSV                 |
-| **Permessi** | manager+                                         |
+|              |                                                                                                      |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| **Export**   | `GET /products/export/csv` — formato Shopify CSV                                                     |
+| **Import**   | `POST /products/import/csv` — preview + commit; imposta `catalogOrigin=vestiflow`, `linkKind=pushed` |
+| **UI**       | Prodotti → Esporta / Importa CSV                                                                     |
+| **Permessi** | manager+                                                                                             |
 
 ### Giacenze
 
@@ -616,14 +647,15 @@ cd api && npm run test
 
 ### Copertura automatica — Shopify shop change / location / delete
 
-| Area                                           | File test                                                                               |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Purge / preview shop change                    | `api/src/shopify/shopify-shop-change.service.spec.ts`                                   |
-| Sync location + cleanup onboarding/stale       | `api/src/shopify/shopify-location-sync.service.spec.ts`                                 |
-| Delete prodotto write-through Shopify          | `api/src/products/products.service.spec.ts`                                             |
-| Wizard UI (anteprima, conferma, disconnect)    | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts` |
-| HTTP client shop change / sync location        | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`     |
-| E2E wizard (anteprima, step conferma, annulla) | `e2e/shopify.spec.ts`                                                                   |
+| Area                                             | File test                                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Purge / preview shop change                      | `api/src/shopify/shopify-shop-change.service.spec.ts`                                   |
+| Sync location + cleanup onboarding/stale         | `api/src/shopify/shopify-location-sync.service.spec.ts`                                 |
+| Delete prodotto write-through Shopify            | `api/src/products/products.service.spec.ts`                                             |
+| Guard `catalogOrigin` (update/delete/sync/media) | `api/src/products/catalog-origin.util.spec.ts`                                          |
+| Wizard UI (anteprima, conferma, disconnect)      | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts` |
+| HTTP client shop change / sync location          | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`     |
+| E2E wizard (anteprima, step conferma, annulla)   | `e2e/shopify.spec.ts`                                                                   |
 
 ### CI GitHub Actions
 

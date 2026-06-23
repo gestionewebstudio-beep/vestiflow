@@ -4,7 +4,7 @@ import {
   Logger,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, CatalogOrigin, ShopifyCatalogLinkKind } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
@@ -136,6 +136,8 @@ export class ProductsImportService {
     const created = await this.prisma.product.create({
       data: {
         tenantId,
+        catalogOrigin: CatalogOrigin.vestiflow,
+        shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
         name: parsed.dto.name,
         description: normalizeProductDescription(parsed.dto.description),
         brand: parsed.dto.brand,

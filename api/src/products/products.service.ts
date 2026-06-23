@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma, type Product, type ProductImage, type ProductVariant } from '@prisma/client';
+import { CatalogOrigin, Prisma, ShopifyCatalogLinkKind, type Product, type ProductImage, type ProductVariant } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -17,6 +17,11 @@ import {
 } from '../shopify/shopify-product-push.service';
 import { ShopifyTaxonomyLocalizationService } from '../shopify/shopify-taxonomy-localization.service';
 import type { Paginated } from '../common/dto/pagination.dto';
+import {
+  assertShopifyCatalogDeleteAllowed,
+  assertShopifyCatalogManualSyncAllowed,
+  assertShopifyCatalogUpdateAllowed,
+} from './catalog-origin.util';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import type { ListProductsQueryDto } from './dto/list-products.query.dto';
 import type { UpdateProductDto } from './dto/update-product.dto';
@@ -120,6 +125,8 @@ export class ProductsService {
     const created = await this.prisma.product.create({
       data: {
         tenantId,
+        catalogOrigin: CatalogOrigin.vestiflow,
+        shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
         name: dto.name,
         description: normalizeProductDescription(dto.description),
         brand: dto.brand,
@@ -145,7 +152,8 @@ export class ProductsService {
   }
 
   async update(tenantId: string, id: string, dto: UpdateProductDto): Promise<ProductWithVariants> {
-    await this.getById(tenantId, id);
+    const existing = await this.getById(tenantId, id);
+    assertShopifyCatalogUpdateAllowed(existing, dto);
 
     await this.prisma.$transaction(async (tx) => {
       if (dto.variants) {
@@ -195,11 +203,12 @@ export class ProductsService {
   async delete(tenantId: string, id: string): Promise<void> {
     const product = await this.prisma.product.findFirst({
       where: { id, tenantId },
-      select: { id: true, shopifyProductId: true },
+      select: { id: true, shopifyProductId: true, catalogOrigin: true },
     });
     if (!product) {
       throw new NotFoundException('Prodotto non trovato');
     }
+    assertShopifyCatalogDeleteAllowed(product.catalogOrigin);
 
     const movementCount = await this.prisma.stockMovement.count({
       where: { tenantId, variant: { productId: id } },
@@ -627,7 +636,8 @@ export class ProductsService {
   }
 
   async syncToShopify(tenantId: string, id: string): Promise<ShopifyProductPushResult> {
-    await this.getById(tenantId, id);
+    const product = await this.getById(tenantId, id);
+    assertShopifyCatalogManualSyncAllowed(product.catalogOrigin);
     return this.shopifyProductPush.enqueuePush(tenantId, id);
   }
 }

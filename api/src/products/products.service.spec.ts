@@ -155,10 +155,27 @@ describe('ProductsService', () => {
 
   it('delete rifiuta prodotto con movimenti di magazzino', async () => {
     const { service, prisma } = createService();
-    prisma.product.findFirst.mockResolvedValue({ id: 'prod-1', shopifyProductId: null });
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      shopifyProductId: null,
+      catalogOrigin: 'vestiflow',
+    });
     prisma.stockMovement.count.mockResolvedValue(2);
 
     await expect(service.delete(tenantId, 'prod-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.product.delete).not.toHaveBeenCalled();
+  });
+
+  it('delete rifiuta prodotto importato da Shopify', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      shopifyProductId: '999',
+      catalogOrigin: 'shopify',
+    });
+
+    await expect(service.delete(tenantId, 'prod-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.stockMovement.count).not.toHaveBeenCalled();
     expect(prisma.product.delete).not.toHaveBeenCalled();
   });
 

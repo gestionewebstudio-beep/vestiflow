@@ -16,6 +16,16 @@
   color: var(--color-text-muted);
 }
 
+.options-step__readonly {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--status-info-bg);
+  border: var(--border-width) solid var(--status-info-border);
+  border-radius: var(--radius-md);
+}
+
 .options-step__editors {
   display: grid;
   grid-template-columns: 1fr;

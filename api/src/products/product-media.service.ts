@@ -12,6 +12,7 @@ import type { ProductImage } from '@prisma/client';
 import { SupabaseService } from '../auth/supabase.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { assertShopifyCatalogMediaMutationAllowed } from './catalog-origin.util';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -101,11 +102,12 @@ export class ProductMediaService {
   private async assertProduct(tenantId: string, productId: string): Promise<void> {
     const product = await this.prisma.product.findFirst({
       where: { id: productId, tenantId },
-      select: { id: true },
+      select: { id: true, catalogOrigin: true },
     });
     if (!product) {
       throw new NotFoundException('Prodotto non trovato');
     }
+    assertShopifyCatalogMediaMutationAllowed(product.catalogOrigin);
   }
 
   private assertValidFile(file: Express.Multer.File): void {

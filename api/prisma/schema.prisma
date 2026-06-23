@@ -35,6 +35,18 @@ enum ProductStatus {
   archived
 }
 
+/// Provenienza catalogo: chi possiede i campi ecommerce condivisi con Shopify.
+enum CatalogOrigin {
+  vestiflow
+  shopify
+}
+
+/// Come il prodotto è stato collegato a Shopify (import pull vs push gestionale).
+enum ShopifyCatalogLinkKind {
+  imported
+  pushed
+}
+
 enum StockMovementType {
   load
   unload
@@ -283,6 +295,10 @@ model Product {
   /// Attributi categoria Shopify [{ attributeId, key, namespace, values: [{ id, name }] }].
   shopifyCategoryMetafields Json @default("[]") @map("shopify_category_metafields")
   status      ProductStatus @default(draft)
+  /// Chi possiede il catalogo ecommerce: vestiflow (creato in gestionale) o shopify (import).
+  catalogOrigin CatalogOrigin @default(vestiflow) @map("catalog_origin")
+  /// Modalità collegamento Shopify; null su dati legacy pre-migrazione.
+  shopifyCatalogLinkKind ShopifyCatalogLinkKind? @map("shopify_catalog_link_kind")
   /// Assi opzione (max 3, vincolo Shopify): [{ name: 'Taglia', values: ['S','M'] }]
   options     Json          @default("[]")
   // Collegamento Shopify Product: solo id pubblici.

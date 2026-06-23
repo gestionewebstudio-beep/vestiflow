@@ -147,14 +147,16 @@
                       [attr.aria-invalid]="isBarcodeInvalid(group) ? true : null"
                       [attr.aria-label]="'Barcode per ' + rowTitle(i)"
                     />
-                    <app-button
-                      type="button"
-                      variant="secondary"
-                      [attr.aria-label]="'Genera barcode EAN-13 per ' + rowTitle(i)"
-                      (click)="generateBarcode(i)"
-                    >
-                      Genera
-                    </app-button>
+                    @if (!catalogReadOnly()) {
+                      <app-button
+                        type="button"
+                        variant="secondary"
+                        [attr.aria-label]="'Genera barcode EAN-13 per ' + rowTitle(i)"
+                        (click)="generateBarcode(i)"
+                      >
+                        Genera
+                      </app-button>
+                    }
                   </div>
                   @if (isBarcodeSameAsSku(group)) {
                     <p class="variants-step__error" role="alert">

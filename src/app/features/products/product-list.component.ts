@@ -122,7 +122,7 @@ export class ProductListComponent {
 
   private lastFetchQueryKey = '';
 
-  protected readonly skeletonColumns = computed(() => (this.showShopifyColumn() ? 6 : 5));
+  protected readonly skeletonColumns = computed(() => (this.showShopifyColumn() ? 7 : 6));
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly pageSizeOptions = PRODUCT_PAGE_SIZE_OPTIONS;
 

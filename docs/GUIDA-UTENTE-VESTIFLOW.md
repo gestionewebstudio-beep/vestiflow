@@ -1,6 +1,6 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 2.2 — Giugno 2026
+**Versione documento:** 2.3 — Giugno 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
@@ -321,19 +321,30 @@ Solo **Titolare** e **Amministratore** possono collegare o scollegare TikTok Sho
 
 ## 8. Cosa si sincronizza e dove
 
-| Dato                         | Dove si modifica in VestiFlow | Note                                                  |
-| ---------------------------- | ----------------------------- | ----------------------------------------------------- |
-| **Prodotti / varianti**      | Sì (push verso canale)        | Shopify o TikTok se connessi                          |
-| **Prodotti nati su Shopify** | Solo lettura + import         | Import catalogo o webhook (profilo Shopify)           |
-| **Giacenze**                 | Sì (carichi, rettifiche…)     | Vendite Shopify via webhook; TikTok dopo movimenti VF |
-| **Ordini fornitori**         | Sì, solo in VestiFlow         | Non passano da Shopify/TikTok                         |
-| **Vendite**                  | Sola lettura                  | Da Shopify Online e POS (profilo Shopify)             |
-| **Clienti**                  | Sola lettura                  | Da Shopify (profilo Shopify)                          |
-| **Sedi (location)**          | Import / gestione             | Sync location Shopify se applicabile                  |
+| Dato                                                  | Dove si modifica in VestiFlow | Note                                                                                                                  |
+| ----------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Prodotti creati in VestiFlow** (`Fonte: VestiFlow`) | Sì — catalogo completo        | Push al salvataggio verso Shopify/TikTok se connessi                                                                  |
+| **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Solo dati operativi           | Titolo, prezzi vendita, varianti e immagini in **Shopify Admin**; in VestiFlow: **stagione** e **prezzo di acquisto** |
+| **Giacenze**                                          | Sì (carichi, rettifiche…)     | Vendite Shopify via webhook; TikTok dopo movimenti VF                                                                 |
+| **Ordini fornitori**                                  | Sì, solo in VestiFlow         | Non passano da Shopify/TikTok                                                                                         |
+| **Vendite**                                           | Sola lettura                  | Da Shopify Online e POS (profilo Shopify)                                                                             |
+| **Clienti**                                           | Sola lettura                  | Da Shopify (profilo Shopify)                                                                                          |
+| **Sedi (location)**                                   | Import / gestione             | Sync location Shopify se applicabile                                                                                  |
+
+### Etichetta «Fonte» (catalogo)
+
+Nella **lista prodotti** (colonna **Fonte**) e nel **dettaglio prodotto** compare un’etichetta che indica **chi gestisce il catalogo ecommerce**:
+
+| Etichetta     | Significato                                                                                | Cosa puoi fare in VestiFlow                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **VestiFlow** | Prodotto nato nel gestionale (creato o importato CSV, poi eventualmente inviato al canale) | Modifica completa; eliminazione (se consentita) anche su Shopify se collegato                               |
+| **Shopify**   | Prodotto importato dal negozio online                                                      | Catalogo in sola lettura; modifica solo **stagione** e **prezzo di acquisto**; elimina da **Shopify Admin** |
+
+L’etichetta **Fonte** è distinta dallo **stato sync Shopify** (colonna **Shopify** in lista, se visibile): la Fonte dice _chi possiede il catalogo_; lo stato sync dice se l’ultimo invio verso Shopify è riuscito (solo per prodotti **Fonte: VestiFlow** collegati).
 
 ### Badge sync sul prodotto
 
-Nel dettaglio prodotto:
+Nel dettaglio prodotto (solo prodotti **Fonte: VestiFlow** collegati a Shopify):
 
 | Badge                | Significato                              |
 | -------------------- | ---------------------------------------- |
@@ -341,6 +352,8 @@ Nel dettaglio prodotto:
 | **Da sincronizzare** | Modifiche locali non ancora inviate      |
 | **Errore sync**      | Ultimo invio fallito — usa sync manuale  |
 | **Non collegato**    | Shopify non connesso o prodotto mai sync |
+
+I prodotti **Fonte: Shopify** si allineano automaticamente da Shopify Admin: non compare il pulsante **Sincronizza con Shopify**.
 
 ---
 
@@ -363,21 +376,20 @@ Nel dettaglio prodotto:
 
 ### Modificare o eliminare
 
-- **Modifica** dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati vengono inviati a Shopify.
-- **Elimina** solo Titolare/Admin, con conferma nel dialog.
+- **Fonte: VestiFlow** — modifica completa dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati a Shopify.
+- **Fonte: Shopify** — il pulsante diventa **Modifica dati operativi**: puoi aggiornare solo **stagione** e **prezzo di acquisto** delle varianti. Nome, descrizione, prezzi di vendita, opzioni, SKU, barcode e immagini vanno modificati in **Shopify Admin**; VestiFlow si allinea con import catalogo o aggiornamenti automatici.
 
-#### Eliminazione prodotto con Shopify connesso
+#### Eliminazione prodotto
 
-Se il prodotto è **collegato a Shopify**, VestiFlow tenta di **rimuoverlo anche dal negozio online** prima di cancellarlo dal gestionale.
+| Fonte / condizione                                           | Comportamento                                                                               |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| **Fonte: Shopify**                                           | **Non eliminabile** da VestiFlow — usa **Shopify Admin**                                    |
+| **Fonte: VestiFlow**, senza movimenti di magazzino           | Eliminazione consentita; se collegato a Shopify, VestiFlow tenta di rimuoverlo anche online |
+| **Fonte: VestiFlow**, con movimenti storici                  | **Bloccato** — archivia o lascia in catalogo                                                |
+| Shopify **disconnesso** ma prodotto sincronizzato in passato | **Bloccato** — riconnetti Shopify e riprova                                                 |
+| Errore API Shopify (permessi, rete)                          | Prodotto **non** rimosso da VestiFlow; messaggio di errore                                  |
 
-| Condizione                                                    | Comportamento                                              |
-| ------------------------------------------------------------- | ---------------------------------------------------------- |
-| Prodotto **senza movimenti** di magazzino                     | Eliminazione consentita                                    |
-| Prodotto con **movimenti** storici                            | **Bloccato** — archivia o lascia in catalogo               |
-| Shopify **non connesso** ma prodotto sincronizzato in passato | **Bloccato** — riconnetti Shopify e riprova                |
-| Errore API Shopify (permessi, rete)                           | Prodotto **non** rimosso da VestiFlow; messaggio di errore |
-
-Dopo l’eliminazione riuscita, il prodotto scompare da **Prodotti** e non è più presente su Shopify Admin.
+Dopo l’eliminazione riuscita di un prodotto **Fonte: VestiFlow**, la scheda scompare da **Prodotti** e non è più presente su Shopify Admin (se era collegato).
 
 ### Import ed export CSV (catalogo)
 
@@ -591,9 +603,10 @@ In **Impostazioni → Aspetto** (o dalla **topbar**) scegli **Chiaro**, **Scuro*
 ### Il prodotto creato in VestiFlow non compare su Shopify
 
 1. Impostazioni → Shopify è **Connesso**?
-2. Dettaglio prodotto: badge **Errore sync**?
-3. Prova **Sincronizza con Shopify** nel dettaglio prodotto
-4. Se persiste: **Disconnetti** e **riconnetti** Shopify da Impostazioni
+2. Dettaglio prodotto: etichetta **Fonte: VestiFlow** (non Shopify)?
+3. Badge sync **Errore sync** nella colonna Shopify o nel dettaglio?
+4. Prova **Sincronizza con Shopify** nel dettaglio prodotto (solo **Fonte: VestiFlow**)
+5. Se persiste: **Disconnetti** e **riconnetti** Shopify da Impostazioni
 
 ### Il prodotto su Shopify non compare in VestiFlow
 
@@ -634,8 +647,13 @@ Usa **Cambia negozio** in Impostazioni, non il semplice **Disconnetti Shopify**.
 
 ### Ho eliminato un prodotto ma resta su Shopify (o viceversa)
 
-- Con Shopify **connesso**, l’eliminazione da VestiFlow dovrebbe rimuovere anche su Shopify. Se vedi un errore, controlla permessi app (`write_products`) e riprova.
-- Se Shopify era **disconnesso**, VestiFlow **non** elimina sul negozio online finché non riconnetti.
+- **Fonte: Shopify** — l’eliminazione va fatta in **Shopify Admin**, non in VestiFlow.
+- **Fonte: VestiFlow**, Shopify **connesso** — l’eliminazione da VestiFlow dovrebbe rimuovere anche su Shopify. Se vedi un errore, controlla permessi app (`write_products`) e riprova.
+- **Fonte: VestiFlow**, Shopify **disconnesso** — VestiFlow **non** elimina sul negozio online finché non riconnetti.
+
+### Non riesco a modificare nome o prezzo di un prodotto
+
+Controlla l’etichetta **Fonte** nel dettaglio. Se è **Shopify**, modifica titolo, varianti e prezzi di vendita in **Shopify Admin**; in VestiFlow restano editabili solo **stagione** e **prezzo di acquisto** (pulsante **Modifica dati operativi**).
 
 ### Non vedo Integrazione Shopify (o TikTok) in Impostazioni
 

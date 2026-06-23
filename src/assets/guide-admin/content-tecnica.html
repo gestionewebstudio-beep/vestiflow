@@ -1,7 +1,7 @@
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">
   VestiFlow — Guida operatore, proprietario e sviluppatore
 </h1>
-<p><strong>Versione documento:</strong> 1.3 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 1.4 — Giugno 2026</p>
 <p>
   <strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>),
   proprietario del prodotto, sviluppatori che mantengono il gestionale.
@@ -370,19 +370,32 @@ npm run serve:pwa
   </li>
   <li>
     <strong>Primo accesso</strong> — ruolo VestiFlow (<code>owner</code> default), nome, email,
-    password
+    <strong>password iniziale</strong> (scelta dall’admin)
   </li>
   <li>
     <strong>Setup</strong> — nome negozio e location iniziale (opzionali; default «Negozio
     principale»)
   </li>
 </ol>
-<p>Il backend crea: tenant, utente Supabase Auth, store, location, profilo utente collegato.</p>
+<p>
+  Il backend crea: tenant, utente Supabase Auth con password, store, location, profilo utente
+  collegato.
+</p>
 <h3 id="dopo-il-provisioning">Dopo il provisioning</h3>
 <p>
-  Consegna credenziali al titolare <strong>in modo sicuro</strong>. Il titolare completa in base al
-  profilo canale:
+  Consegna credenziali al titolare <strong>in modo sicuro</strong> (email + password). Il titolare
+  accede da <code>/login</code> e può cambiare password da Impostazioni o tramite «Password
+  dimenticata».
 </p>
+<blockquote>
+  <p>
+    <strong>Invito email (standby):</strong> il flusso con invito Supabase al titolare esiste nel
+    codice ma è <strong>disabilitato</strong> finché non è attivo Supabase a pagamento con SMTP.
+    Riattivazione: variabile Railway <code>SUPABASE_OWNER_EMAIL_INVITE=true</code> + configurazione
+    redirect/template Supabase (vedi commit/feature invito).
+  </p>
+</blockquote>
+<p>Il titolare completa in base al profilo canale:</p>
 <table>
   <thead>
     <tr>
@@ -553,11 +566,19 @@ npm run serve:pwa
   </thead>
   <tbody>
     <tr>
-      <td>Prodotti/varianti</td>
-      <td>Condiviso write-through</td>
+      <td>Catalogo prodotti <strong>VestiFlow</strong> (<code>catalogOrigin=vestiflow</code>)</td>
+      <td>VestiFlow</td>
       <td>
-        Push al save; <strong>delete</strong> write-through verso Shopify se
-        <code>shopifyProductId</code> presente
+        CRUD completo; push al save; delete write-through verso Shopify se
+        <code>shopifyProductId</code>
+      </td>
+    </tr>
+    <tr>
+      <td>Catalogo prodotti <strong>Shopify</strong> (<code>catalogOrigin=shopify</code>)</td>
+      <td>Shopify</td>
+      <td>
+        Pull import/webhook; in VF solo PATCH stagione + <code>purchasePriceMinor</code>; no
+        delete/sync manuale/media
       </td>
     </tr>
     <tr>
@@ -587,6 +608,73 @@ npm run serve:pwa
     </tr>
   </tbody>
 </table>
+<h3 id="origine-catalogo-catalogorigin--shopifycataloglinkkind">
+  Origine catalogo (<code>catalogOrigin</code> / <code>shopifyCatalogLinkKind</code>)
+</h3>
+<p>Campi su <code>Product</code> (migration <code>0016</code> + <code>0017</code>):</p>
+<table>
+  <thead>
+    <tr>
+      <th>Valore</th>
+      <th>Significato</th>
+      <th>Impostato quando</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>catalogOrigin=vestiflow</code></td>
+      <td>Il gestionale possiede i campi catalogo condivisi</td>
+      <td>Create in VF, import CSV, push verso Shopify (<code>linkKind=pushed</code>)</td>
+    </tr>
+    <tr>
+      <td><code>catalogOrigin=shopify</code></td>
+      <td>Shopify Admin possiede il catalogo</td>
+      <td>Import pull (<code>linkKind=imported</code>) o backfill legacy</td>
+    </tr>
+    <tr>
+      <td><code>shopifyCatalogLinkKind=imported</code></td>
+      <td>Collegato da import Shopify → VF</td>
+      <td><code>ShopifyProductPullService</code></td>
+    </tr>
+    <tr>
+      <td><code>shopifyCatalogLinkKind=pushed</code></td>
+      <td>Creato in VF e inviato al canale</td>
+      <td>Create/push <code>ShopifyProductPushService</code>, import CSV</td>
+    </tr>
+  </tbody>
+</table>
+<p>Logica centralizzata in <code>api/src/products/catalog-origin.util.ts</code>:</p>
+<ul>
+  <li>
+    <code>isVestiflowCatalogOwner()</code> — esclude import Shopify e legacy con link alla
+    creazione; include push e prodotti con media locale Supabase
+  </li>
+  <li>
+    <code>shouldSkipShopifyCatalogImport()</code> — pull/webhook
+    <strong>non sovrascrivono</strong> catalogo VF-owned
+  </li>
+  <li>
+    <code>assertShopifyCatalogUpdateAllowed()</code> — su <code>shopify</code>: blocca mutazioni
+    catalogo; consente <code>season</code> + <code>purchasePriceMinor</code>
+  </li>
+  <li>
+    <code>assertShopifyCatalogDeleteAllowed()</code> /
+    <code>assertShopifyCatalogManualSyncAllowed()</code> /
+    <code>assertShopifyCatalogMediaMutationAllowed()</code>
+  </li>
+</ul>
+<p><strong>Backfill tenant esistenti</strong> (dopo deploy migration):</p>
+<pre><code class="language-bash">cd api &amp;&amp; npm run backfill:catalog-origin        # dry-run
+cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
+</code></pre>
+<p>
+  <strong>UI tenant:</strong> colonna <strong>Fonte</strong> in lista prodotti; badge
+  <code>Fonte: VestiFlow</code> / <code>Fonte: Shopify</code> in dettaglio; form in modalità
+  <strong>Modifica dati operativi</strong> se <code>catalogOrigin=shopify</code> (<code
+    >catalog-origin.util.ts</code
+  >
+  FE + <code>product-form</code> / <code>product-detail</code>).
+</p>
 <h3 id="cambio-negozio-e-purge-dati-shopify">Cambio negozio e purge dati Shopify</h3>
 <p>
   Modulo <code>ShopifyShopChangeService</code> + wizard FE <code>shopify-shop-change-wizard</code>.
@@ -648,14 +736,16 @@ npm run serve:pwa
   Shopify), anagrafica tenant (<strong>Sede fisica</strong>), utenti tenant, movimenti non legati a
   entità Shopify rimosse.
 </p>
-<h3 id="eliminazione-prodotto-write-through-shopify">
-  Eliminazione prodotto (write-through Shopify)
-</h3>
+<h3 id="eliminazione-prodotto">Eliminazione prodotto</h3>
 <p><code>ProductsService.delete()</code>:</p>
 <ol>
+  <li>
+    <code>assertShopifyCatalogDeleteAllowed()</code> — se <code>catalogOrigin=shopify</code> →
+    <strong>409</strong> con messaggio utente (elimina da Shopify Admin)
+  </li>
   <li>Verifica assenza movimenti stock sul prodotto</li>
   <li>
-    Se <code>shopifyProductId</code> presente →
+    Se <code>shopifyProductId</code> presente e <code>catalogOrigin=vestiflow</code> →
     <code>ShopifyProductPushService.deleteProduct()</code> <strong>prima</strong> del delete DB
   </li>
   <li>
@@ -664,7 +754,12 @@ npm run serve:pwa
   </li>
 </ol>
 <p>
-  Scope richiesto: <code>write_products</code> (incluso in <code>SHOPIFY_SCOPES</code> default).
+  Scope richiesto per delete write-through: <code>write_products</code> (incluso in
+  <code>SHOPIFY_SCOPES</code> default).
+</p>
+<p>
+  FE: pulsante <strong>Elimina</strong> e <strong>Sincronizza con Shopify</strong> nascosti se
+  <code>catalogOrigin=shopify</code>.
 </p>
 <h3 id="sync-location--comportamento-post-fix">Sync location — comportamento post-fix</h3>
 <p><code>ShopifyLocationSyncService</code>:</p>
@@ -877,22 +972,25 @@ npm run serve:pwa
     <tr>
       <td>Import catalogo (Shopify → VF)</td>
       <td>~4 per 1000 prodotti (pagine da 250)</td>
-      <td>Lento con cataloghi grandi: <strong>normale</strong></td>
+      <td>
+        Lento con cataloghi grandi: <strong>normale</strong>; imposta
+        <code>catalogOrigin=shopify</code>
+      </td>
     </tr>
     <tr>
       <td>Webhook prodotti/giacenze/ordini</td>
       <td>0 outbound</td>
-      <td>Event-driven</td>
+      <td>Event-driven; skip catalogo se <code>vestiflow</code>-owned</td>
     </tr>
     <tr>
       <td>Push prodotto al save (VF → Shopify)</td>
       <td>1–N per prodotto</td>
-      <td>Dipende da immagini/varianti</td>
+      <td>Solo <code>catalogOrigin=vestiflow</code>; imposta <code>linkKind=pushed</code></td>
     </tr>
     <tr>
       <td>Delete prodotto (VF → Shopify)</td>
       <td>1</td>
-      <td>Solo se <code>shopifyProductId</code> presente</td>
+      <td>Solo <code>catalogOrigin=vestiflow</code> + <code>shopifyProductId</code></td>
     </tr>
     <tr>
       <td>Purge dati Shopify</td>
@@ -1062,7 +1160,10 @@ npm run serve:pwa
     </tr>
     <tr>
       <td><code>Product</code> / <code>ProductVariant</code></td>
-      <td>Opzioni generiche; SKU univoco</td>
+      <td>
+        Opzioni generiche; SKU univoco; <code>catalogOrigin</code>,
+        <code>shopifyCatalogLinkKind</code>
+      </td>
     </tr>
     <tr>
       <td><code>InventoryLevel</code></td>
@@ -1151,7 +1252,10 @@ npm run serve:pwa
     </tr>
     <tr>
       <td><strong>Import</strong></td>
-      <td><code>POST /products/import/csv</code> — preview + commit</td>
+      <td>
+        <code>POST /products/import/csv</code> — preview + commit; imposta
+        <code>catalogOrigin=vestiflow</code>, <code>linkKind=pushed</code>
+      </td>
     </tr>
     <tr>
       <td><strong>UI</strong></td>
@@ -1285,6 +1389,10 @@ cd api &amp;&amp; npm run test
     <tr>
       <td>Delete prodotto write-through Shopify</td>
       <td><code>api/src/products/products.service.spec.ts</code></td>
+    </tr>
+    <tr>
+      <td>Guard <code>catalogOrigin</code> (update/delete/sync/media)</td>
+      <td><code>api/src/products/catalog-origin.util.spec.ts</code></td>
     </tr>
     <tr>
       <td>Wizard UI (anteprima, conferma, disconnect)</td>

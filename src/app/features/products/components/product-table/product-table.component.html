@@ -7,6 +7,7 @@
       <col class="product-table__col product-table__col--season" />
       <col class="product-table__col product-table__col--numeric" />
       <col class="product-table__col product-table__col--status" />
+      <col class="product-table__col product-table__col--source" />
       @if (showShopifyColumn()) {
         <col class="product-table__col product-table__col--shopify" />
       }
@@ -70,6 +71,7 @@
             <i class="pi {{ sortIcon('status') }}" aria-hidden="true"></i>
           </button>
         </th>
+        <th scope="col" class="product-table__cell--source">Fonte</th>
         @if (showShopifyColumn()) {
           <th scope="col" class="product-table__cell--shopify">Shopify</th>
         }
@@ -104,6 +106,11 @@
               <app-badge [tone]="statusTone(product.status)">{{
                 statusLabel(product.status)
               }}</app-badge>
+            </span>
+          </td>
+          <td class="product-table__cell--source" data-label="Fonte">
+            <span class="product-table__source-value">
+              <app-badge [tone]="sourceTone(product)">{{ sourceLabel(product) }}</app-badge>
             </span>
           </td>
           @if (showShopifyColumn()) {
