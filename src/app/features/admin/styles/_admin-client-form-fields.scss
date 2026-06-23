@@ -62,6 +62,7 @@
   min-inline-size: 0;
 }
 
+.create-client__field--select-wide,
 .create-client__field--channel-profile {
   --select-menu-width: var(--select-menu-width-wide);
   max-inline-size: var(--select-menu-width-wide);

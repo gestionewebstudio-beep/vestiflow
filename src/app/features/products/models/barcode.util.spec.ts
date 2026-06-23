@@ -28,4 +28,10 @@ describe('generateDistinctEan13Barcode', () => {
     expect(barcode).not.toBe('5901234123457');
     expect(barcode.length).toBe(EAN13_LENGTH);
   });
+
+  it('evita piu valori esclusi', () => {
+    const barcode = generateDistinctEan13Barcode('5901234123457', '8001234567890');
+    expect(barcode).not.toBe('5901234123457');
+    expect(barcode).not.toBe('8001234567890');
+  });
 });

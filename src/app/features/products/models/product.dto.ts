@@ -73,6 +73,13 @@ export interface UpdateProductDto {
   readonly variants?: readonly UpdateProductVariantDto[];
 }
 
+/** Esito del controllo di disponibilita' barcode (unicita' lato server). */
+export interface BarcodeAvailabilityResult {
+  readonly available: boolean;
+  /** Barcode gia' in uso (normalizzati). Vuoto se tutti disponibili. */
+  readonly taken: readonly string[];
+}
+
 /** Esito del controllo di disponibilita' SKU (unicita' lato "server"). */
 export interface SkuAvailabilityResult {
   readonly available: boolean;

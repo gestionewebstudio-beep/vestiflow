@@ -19,6 +19,7 @@ import type { Product } from '@core/models/product.model';
 
 import type { VariantSummary } from '../models/variant-summary.model';
 import type {
+  BarcodeAvailabilityResult,
   CreateProductDto,
   SkuAvailabilityResult,
   UpdateProductDto,
@@ -164,6 +165,37 @@ export class ProductService {
     return forkJoin(checks).pipe(
       map((results) => {
         const taken = results.filter((result) => !result.available).map((result) => result.sku);
+        return { available: taken.length === 0, taken };
+      }),
+    );
+  }
+
+  checkBarcodeAvailability(
+    barcodes: readonly string[],
+    excludeProductId?: EntityId,
+  ): Observable<BarcodeAvailabilityResult> {
+    const normalized = barcodes
+      .map((barcode) => barcode.trim())
+      .filter((barcode) => barcode.length > 0);
+    if (normalized.length === 0) {
+      return of({ available: true, taken: [] as readonly string[] });
+    }
+
+    const checks = normalized.map((barcode) => {
+      let params = new HttpParams().set('barcode', barcode);
+      if (excludeProductId) {
+        params = params.set('excludeProductId', excludeProductId);
+      }
+      return this.http
+        .get<{ barcode: string; available: boolean }>(this.url('/products/barcode-availability'), {
+          params,
+        })
+        .pipe(timeout(HTTP_TIMEOUT_MS));
+    });
+
+    return forkJoin(checks).pipe(
+      map((results) => {
+        const taken = results.filter((result) => !result.available).map((result) => result.barcode);
         return { available: taken.length === 0, taken };
       }),
     );

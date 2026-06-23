@@ -25,6 +25,7 @@ describe('ProductVariantsStepComponent', () => {
       componentInputs: {
         variants: duplicated,
         takenSkus: [],
+        takenBarcodes: [],
       },
     });
 
@@ -42,6 +43,7 @@ describe('ProductVariantsStepComponent', () => {
       componentInputs: {
         variants,
         takenSkus: [],
+        takenBarcodes: [],
       },
     });
 

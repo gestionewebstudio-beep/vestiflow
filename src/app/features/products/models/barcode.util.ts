@@ -26,14 +26,16 @@ export function generateEan13Barcode(): string {
 }
 
 /**
- * Genera un EAN-13 distinto da `exclude` (confronto case-insensitive, trim).
- * Utile per evitare collisione con lo SKU della variante.
+ * Genera un EAN-13 distinto da tutti i valori in `exclude` (case-insensitive, trim).
+ * Utile per evitare collisione con SKU, barcode gia' nel form o a catalogo.
  */
-export function generateDistinctEan13Barcode(exclude: string): string {
-  const normalizedExclude = exclude.trim().toUpperCase();
+export function generateDistinctEan13Barcode(...exclude: readonly string[]): string {
+  const normalizedExcludes = new Set(
+    exclude.map((value) => value.trim().toUpperCase()).filter((value) => value.length > 0),
+  );
   for (let attempt = 0; attempt < MAX_DISTINCT_ATTEMPTS; attempt += 1) {
     const candidate = generateEan13Barcode();
-    if (candidate.toUpperCase() !== normalizedExclude) {
+    if (!normalizedExcludes.has(candidate.toUpperCase())) {
       return candidate;
     }
   }

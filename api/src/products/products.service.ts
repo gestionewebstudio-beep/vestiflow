@@ -106,9 +106,14 @@ export class ProductsService {
 
   async create(tenantId: string, dto: CreateProductDto): Promise<ProductWithVariants> {
     this.assertNoDuplicateSkusInPayload(dto.variants);
+    this.assertNoDuplicateBarcodesInPayload(dto.variants);
     await this.assertSkusAvailable(
       tenantId,
       dto.variants.map((variant) => variant.sku),
+    );
+    await this.assertBarcodesAvailable(
+      tenantId,
+      dto.variants.map((variant) => variant.barcode),
     );
     this.assertSingleCurrency(dto.variants);
 
@@ -251,6 +256,28 @@ export class ProductsService {
     return { sku: normalized, available: existing === null };
   }
 
+  /** Verifica disponibilità barcode per la validazione live del form. */
+  async checkBarcodeAvailability(
+    tenantId: string,
+    barcode: string,
+    excludeProductId?: string,
+  ): Promise<{ barcode: string; available: boolean }> {
+    const normalized = normalizeBarcodeInput(barcode);
+    if (!normalized) {
+      return { barcode: '', available: true };
+    }
+
+    const existing = await this.prisma.productVariant.findFirst({
+      where: {
+        tenantId,
+        barcode: { equals: normalized, mode: 'insensitive' },
+        ...(excludeProductId ? { productId: { not: excludeProductId } } : {}),
+      },
+      select: { id: true },
+    });
+    return { barcode: normalized, available: existing === null };
+  }
+
   async findVariantByCode(
     tenantId: string,
     code: string,
@@ -298,6 +325,7 @@ export class ProductsService {
     variants: readonly UpdateVariantDto[],
   ): Promise<void> {
     this.assertNoDuplicateSkusInPayload(variants);
+    this.assertNoDuplicateBarcodesInPayload(variants);
     this.assertSingleCurrency(variants);
 
     const existing = await tx.productVariant.findMany({
@@ -330,6 +358,7 @@ export class ProductsService {
     variant: CreateVariantDto,
   ): Promise<void> {
     await this.assertSkuAvailable(tx, tenantId, variant.sku);
+    await this.assertBarcodeAvailable(tx, tenantId, variant.barcode);
     await tx.productVariant.create({
       data: this.toVariantCreateData(tenantId, productId, variant),
     });
@@ -355,12 +384,13 @@ export class ProductsService {
     }
 
     await this.assertSkuAvailable(tx, tenantId, variant.sku, id);
+    await this.assertBarcodeAvailable(tx, tenantId, variant.barcode, id);
     await tx.productVariant.update({
       where: { id },
       data: {
         sku: variant.sku.trim(),
         optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
-        barcode: variant.barcode,
+        barcode: normalizeBarcodeInput(variant.barcode),
         currency: variant.sellingPrice.currency,
         sellingPriceMinor: variant.sellingPrice.amountMinor,
         purchasePriceMinor: variant.purchasePrice?.amountMinor,
@@ -416,6 +446,30 @@ export class ProductsService {
     }
   }
 
+  private async assertBarcodeAvailable(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    barcode: string | null | undefined,
+    excludeVariantId?: string,
+  ): Promise<void> {
+    const normalized = normalizeBarcodeInput(barcode);
+    if (!normalized) {
+      return;
+    }
+
+    const existing = await tx.productVariant.findFirst({
+      where: {
+        tenantId,
+        barcode: { equals: normalized, mode: 'insensitive' },
+        ...(excludeVariantId ? { id: { not: excludeVariantId } } : {}),
+      },
+      select: { barcode: true },
+    });
+    if (existing?.barcode) {
+      throw new ConflictException(`Barcode già presente a catalogo: ${existing.barcode}`);
+    }
+  }
+
   private toVariantCreateData(
     tenantId: string,
     productId: string,
@@ -426,7 +480,7 @@ export class ProductsService {
       productId,
       sku: variant.sku.trim(),
       optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
-      barcode: variant.barcode,
+      barcode: normalizeBarcodeInput(variant.barcode),
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
@@ -442,12 +496,34 @@ export class ProductsService {
       tenant: { connect: { id: tenantId } },
       sku: variant.sku.trim(),
       optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
-      barcode: variant.barcode,
+      barcode: normalizeBarcodeInput(variant.barcode),
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
       compareAtPriceMinor: variant.compareAtPrice?.amountMinor,
     };
+  }
+
+  /** Duplicati nel payload stesso → errore di validazione (422). */
+  private assertNoDuplicateBarcodesInPayload(variants: readonly CreateVariantDto[]): void {
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+    for (const variant of variants) {
+      const normalized = normalizeBarcodeInput(variant.barcode);
+      if (!normalized) {
+        continue;
+      }
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) {
+        duplicates.add(normalized);
+      }
+      seen.add(key);
+    }
+    if (duplicates.size > 0) {
+      throw new UnprocessableEntityException(
+        `Barcode duplicati nel payload: ${[...duplicates].join(', ')}`,
+      );
+    }
   }
 
   /** Duplicati nel payload stesso → errore di validazione (422). */
@@ -464,6 +540,36 @@ export class ProductsService {
     if (duplicates.size > 0) {
       throw new UnprocessableEntityException(
         `SKU duplicati nel payload: ${[...duplicates].join(', ')}`,
+      );
+    }
+  }
+
+  /** Conflitto con SKU già a catalogo → 409. */
+  private async assertBarcodesAvailable(
+    tenantId: string,
+    barcodes: readonly (string | null | undefined)[],
+  ): Promise<void> {
+    const normalized = [
+      ...new Set(
+        barcodes
+          .map((barcode) => normalizeBarcodeInput(barcode))
+          .filter((barcode): barcode is string => barcode !== null),
+      ),
+    ];
+    if (normalized.length === 0) {
+      return;
+    }
+
+    const existing = await this.prisma.productVariant.findMany({
+      where: { tenantId, barcode: { in: normalized, mode: 'insensitive' } },
+      select: { barcode: true },
+    });
+    if (existing.length > 0) {
+      throw new ConflictException(
+        `Barcode già presenti a catalogo: ${existing
+          .map((variant) => variant.barcode)
+          .filter((barcode): barcode is string => barcode !== null)
+          .join(', ')}`,
       );
     }
   }
@@ -538,4 +644,9 @@ function withReadableShopifyErrors(product: ProductWithVariants): ProductWithVar
     ...normalized,
     shopifyLastError: toShopifyUserMessage(undefined, product.shopifyLastError),
   };
+}
+
+function normalizeBarcodeInput(barcode: string | null | undefined): string | null {
+  const trimmed = barcode?.trim() ?? '';
+  return trimmed.length > 0 ? trimmed : null;
 }

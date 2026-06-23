@@ -87,6 +87,26 @@ describe('ProductService (HTTP)', () => {
     expect(result).toEqual({ available: true, taken: [] });
   });
 
+  it('checkBarcodeAvailability aggrega barcode non disponibili', async () => {
+    const promise = firstValueFrom(
+      service.checkBarcodeAvailability(['8001111111111', '8002222222222']),
+    );
+
+    const requests = httpMock.match((req) => req.url.includes('/products/barcode-availability'));
+    expect(requests.length).toBe(2);
+    requests[0]!.flush({ barcode: '8001111111111', available: true });
+    requests[1]!.flush({ barcode: '8002222222222', available: false });
+
+    const result = await promise;
+    expect(result.available).toBe(false);
+    expect(result.taken).toEqual(['8002222222222']);
+  });
+
+  it('checkBarcodeAvailability con lista vuota ritorna available true', async () => {
+    const result = await firstValueFrom(service.checkBarcodeAvailability([]));
+    expect(result).toEqual({ available: true, taken: [] });
+  });
+
   it('getProductById mappa il prodotto', async () => {
     const promise = firstValueFrom(service.getProductById('prod-1'));
 

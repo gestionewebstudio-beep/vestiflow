@@ -13,6 +13,7 @@ describe('ProductsController', () => {
     list: vi.fn(),
     getById: vi.fn(),
     checkSkuAvailability: vi.fn(),
+    checkBarcodeAvailability: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -45,6 +46,17 @@ describe('ProductsController', () => {
     await expect(
       controller.checkSku(tenantId, { sku: 'SKU-1' } as never),
     ).resolves.toEqual({ sku: 'SKU-1', available: true });
+  });
+
+  it('checkBarcode delega al service', async () => {
+    products.checkBarcodeAvailability.mockResolvedValue({
+      barcode: '8001234567890',
+      available: true,
+    });
+
+    await expect(
+      controller.checkBarcode(tenantId, { barcode: '8001234567890' } as never),
+    ).resolves.toEqual({ barcode: '8001234567890', available: true });
   });
 
   it('previewImport rifiuta file CSV mancante', () => {

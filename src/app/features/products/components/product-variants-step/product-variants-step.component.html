@@ -156,9 +156,17 @@
                       Genera
                     </app-button>
                   </div>
-                  @if (isBarcodeInvalid(group)) {
+                  @if (isBarcodeSameAsSku(group)) {
                     <p class="variants-step__error" role="alert">
                       Il barcode deve essere diverso dallo SKU.
+                    </p>
+                  } @else if (isDuplicateBarcode(group.controls.barcode.value)) {
+                    <p class="variants-step__error" role="alert">
+                      Barcode duplicato tra le varianti.
+                    </p>
+                  } @else if (isBarcodeTaken(group.controls.barcode.value)) {
+                    <p class="variants-step__error" role="alert">
+                      Barcode già in uso da un'altra variante.
                     </p>
                   } @else {
                     <span class="variants-step__error-placeholder" aria-hidden="true"></span>

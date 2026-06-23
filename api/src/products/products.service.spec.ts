@@ -101,6 +101,39 @@ describe('ProductsService', () => {
     });
   });
 
+  it('checkBarcodeAvailability segnala barcode libero o occupato', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'var-1' });
+
+    await expect(service.checkBarcodeAvailability(tenantId, '8001234567890')).resolves.toEqual({
+      barcode: '8001234567890',
+      available: true,
+    });
+    await expect(service.checkBarcodeAvailability(tenantId, '8009999999999')).resolves.toEqual({
+      barcode: '8009999999999',
+      available: false,
+    });
+  });
+
+  it('create rifiuta barcode duplicati nel payload', async () => {
+    const { service } = createService();
+    const variant = {
+      sku: 'SKU-1',
+      sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      optionValues: {},
+      barcode: '8001234567890',
+    };
+
+    await expect(
+      service.create(tenantId, {
+        name: 'Prodotto',
+        status: 'active',
+        options: [],
+        variants: [variant, { ...variant, sku: 'SKU-2' }],
+      } as never),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
   it('findVariantByCode risolve per SKU', async () => {
     const { service, prisma } = createService();
     prisma.productVariant.findFirst.mockResolvedValue({

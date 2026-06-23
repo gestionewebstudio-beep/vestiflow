@@ -363,6 +363,7 @@ model ProductVariant {
   countLines      InventoryCountLine[]
 
   @@unique([tenantId, sku])
+  @@unique([tenantId, barcode])
   @@index([productId])
   @@index([tenantId])
   @@map("product_variants")

@@ -110,7 +110,7 @@
         <section class="create-client__section" aria-labelledby="create-client-access">
           <h3 id="create-client-access" class="create-client__section-title">Primo accesso</h3>
 
-          <div class="create-client__field">
+          <div class="create-client__field create-client__field--select-wide">
             <span class="create-client__field-label" id="client-user-role-label"
               >Ruolo VestiFlow</span
             >
@@ -126,6 +126,10 @@
               describedBy="client-user-role-hint"
               (valueChange)="onRoleSelect($event)"
             />
+            <p id="client-user-role-hint" class="create-client__hint">
+              Di default Titolare. Per negozi reali usa Titolare o Amministratore negozio per chi
+              gestisce Shopify e impostazioni.
+            </p>
           </div>
 
           <label class="create-client__field" for="client-owner-name">
@@ -144,11 +148,6 @@
             }
           </label>
 
-          <p id="client-user-role-hint" class="create-client__hint create-client__field--span-full">
-            Di default Titolare. Per negozi reali usa Titolare o Amministratore negozio per chi
-            gestisce Shopify e impostazioni.
-          </p>
-
           <label class="create-client__field" for="client-owner-email">
             <span class="create-client__field-label">Email accesso</span>
             <input
@@ -166,10 +165,7 @@
             }
           </label>
 
-          <label
-            class="create-client__field create-client__field--span-full"
-            for="client-owner-password"
-          >
+          <label class="create-client__field" for="client-owner-password">
             <span class="create-client__field-label">Password iniziale</span>
             <div class="create-client__password">
               <input
@@ -200,11 +196,11 @@
                 >Inserisci una password di almeno {{ passwordMinLength }} caratteri.</span
               >
             }
-            <span class="create-client__hint"
-              >Comunica la password al titolare in modo sicuro (es. di persona o canale
-              cifrato).</span
-            >
           </label>
+
+          <p class="create-client__hint create-client__field--span-full">
+            Comunica la password al titolare in modo sicuro (es. di persona o canale cifrato).
+          </p>
         </section>
 
         <section class="create-client__section" aria-labelledby="create-client-channel">

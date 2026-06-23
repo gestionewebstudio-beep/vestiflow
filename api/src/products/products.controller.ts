@@ -51,6 +51,17 @@ class SkuAvailabilityQueryDto {
   excludeProductId?: string;
 }
 
+class BarcodeAvailabilityQueryDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  barcode!: string;
+
+  @IsOptional()
+  @IsUUID()
+  excludeProductId?: string;
+}
+
 class VariantByCodeQueryDto {
   @IsString()
   @MinLength(1)
@@ -83,6 +94,18 @@ export class ProductsController {
     @Query() query: SkuAvailabilityQueryDto,
   ): Promise<{ sku: string; available: boolean }> {
     return this.products.checkSkuAvailability(tenantId, query.sku, query.excludeProductId);
+  }
+
+  @Get('barcode-availability')
+  checkBarcode(
+    @CurrentTenant() tenantId: string,
+    @Query() query: BarcodeAvailabilityQueryDto,
+  ): Promise<{ barcode: string; available: boolean }> {
+    return this.products.checkBarcodeAvailability(
+      tenantId,
+      query.barcode,
+      query.excludeProductId,
+    );
   }
 
   @Get('variants/by-code')

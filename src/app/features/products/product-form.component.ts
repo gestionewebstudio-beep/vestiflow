@@ -52,9 +52,10 @@ import type {
   ProductOptionsDraft,
   VariantDraft,
 } from './models/product-form.model';
-import type { SkuAvailabilityResult } from './models/product.dto';
+import type { BarcodeAvailabilityResult, SkuAvailabilityResult } from './models/product.dto';
 import {
   findDuplicateAxisNames,
+  findDuplicateBarcodes,
   findDuplicateSkus,
   isBarcodeDistinct,
   isValidAxisName,
@@ -211,6 +212,13 @@ export class ProductFormComponent implements CanComponentDeactivate {
       .filter((sku) => sku.length > 0),
   );
 
+  // Barcode non vuoti delle varianti correnti, per la verifica di disponibilita'.
+  private readonly variantBarcodes = computed(() =>
+    this.draft()
+      .variants.map((variant) => variant.barcode.trim())
+      .filter((barcode) => barcode.length > 0),
+  );
+
   // Verifica unicita' SKU lato "server" (debounced). In edit esclude il prodotto
   // corrente cosi' le sue varianti non si auto-segnalano come gia' in uso.
   private readonly skuAvailability = toSignal(
@@ -228,6 +236,28 @@ export class ProductFormComponent implements CanComponentDeactivate {
     { initialValue: { available: true, taken: [] } },
   );
   protected readonly takenSkus = computed(() => this.skuAvailability().taken);
+
+  // Verifica unicita' barcode lato server (debounced). In edit esclude il prodotto
+  // corrente cosi' i barcode delle sue varianti non si auto-segnalano come gia' in uso.
+  private readonly barcodeAvailability = toSignal(
+    toObservable(this.variantBarcodes).pipe(
+      debounceTime(400),
+      distinctUntilChanged(
+        (a, b) => a.length === b.length && a.every((barcode, i) => barcode === b[i]),
+      ),
+      switchMap((barcodes) =>
+        barcodes.length === 0
+          ? of<BarcodeAvailabilityResult>({ available: true, taken: [] })
+          : this.service
+              .checkBarcodeAvailability(barcodes, this.productId() ?? undefined)
+              .pipe(
+                catchError(() => of<BarcodeAvailabilityResult>({ available: true, taken: [] })),
+              ),
+      ),
+    ),
+    { initialValue: { available: true, taken: [] } },
+  );
+  protected readonly takenBarcodes = computed(() => this.barcodeAvailability().taken);
 
   protected readonly loading = computed(() => this.loadState().status === 'loading');
   protected readonly notFound = computed(() => this.loadState().status === 'notFound');
@@ -277,7 +307,13 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (findDuplicateSkus(variants.map((variant) => variant.sku)).length > 0) {
       return false;
     }
+    if (findDuplicateBarcodes(variants.map((variant) => variant.barcode)).length > 0) {
+      return false;
+    }
     if (this.takenSkus().length > 0) {
+      return false;
+    }
+    if (this.takenBarcodes().length > 0) {
       return false;
     }
     // Il prezzo barrato (testo) è validato dallo step: il formato non valido non

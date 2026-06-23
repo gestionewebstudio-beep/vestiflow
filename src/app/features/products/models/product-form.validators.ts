@@ -88,11 +88,37 @@ export function compareAtPriceError(
   return isValidCompareAt(price, compareAt) ? null : 'notHigher';
 }
 
+/** Normalizza il barcode per confronti di unicita' (trim + maiuscolo). */
+export function normalizeBarcode(barcode: string): string {
+  return barcode.trim().toUpperCase();
+}
+
+/**
+ * Barcode duplicati nella lista (case-insensitive). Ritorna i valori normalizzati
+ * che compaiono piu' di una volta; lista vuota = nessun duplicato.
+ */
+export function findDuplicateBarcodes(barcodes: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const raw of barcodes) {
+    const barcode = normalizeBarcode(raw);
+    if (!barcode) {
+      continue;
+    }
+    if (seen.has(barcode)) {
+      duplicates.add(barcode);
+    } else {
+      seen.add(barcode);
+    }
+  }
+  return [...duplicates];
+}
+
 /** Il barcode, se presente, deve essere diverso dallo SKU (sono cose distinte). */
 export function isBarcodeDistinct(sku: string, barcode: string): boolean {
   const trimmed = barcode.trim();
   if (!trimmed) {
     return true;
   }
-  return normalizeSku(trimmed) !== normalizeSku(sku);
+  return normalizeBarcode(trimmed) !== normalizeSku(sku);
 }

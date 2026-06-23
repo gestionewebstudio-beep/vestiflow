@@ -131,6 +131,11 @@
   color: var(--color-text-subtle);
 }
 
+.create-client__field .create-client__hint {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .create-client__form {
   display: flex;
   flex-direction: column;

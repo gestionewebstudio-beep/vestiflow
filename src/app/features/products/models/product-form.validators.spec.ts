@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   compareAtPriceError,
   findDuplicateAxisNames,
+  findDuplicateBarcodes,
   findDuplicateSkus,
   isBarcodeDistinct,
   isValidAxisName,
   isValidSku,
+  normalizeBarcode,
   normalizeSku,
 } from './product-form.validators';
 
@@ -63,6 +65,24 @@ describe('compareAtPriceError', () => {
 
   it('valido se strettamente maggiore', () => {
     expect(compareAtPriceError(19.9, 29.9)).toBeNull();
+  });
+});
+
+describe('findDuplicateBarcodes', () => {
+  it('trova i duplicati case-insensitive normalizzati', () => {
+    expect(findDuplicateBarcodes(['8001234567890', '8001234567890', '8009999999999'])).toEqual([
+      '8001234567890',
+    ]);
+  });
+
+  it('ignora i barcode vuoti e ritorna lista vuota senza duplicati', () => {
+    expect(findDuplicateBarcodes(['', '  ', '8001234567890'])).toEqual([]);
+  });
+});
+
+describe('normalizeBarcode', () => {
+  it('applica trim e maiuscolo', () => {
+    expect(normalizeBarcode(' 8001234567890 ')).toBe('8001234567890');
   });
 });
 

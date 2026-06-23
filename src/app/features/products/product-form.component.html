@@ -68,6 +68,7 @@
           <app-product-variants-step
             [variants]="draft().variants"
             [takenSkus]="takenSkus()"
+            [takenBarcodes]="takenBarcodes()"
             (variantsChange)="onVariantsChange($event)"
             (stepValidChange)="onVariantsValidChange($event)"
           />

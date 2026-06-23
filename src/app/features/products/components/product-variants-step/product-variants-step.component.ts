@@ -30,6 +30,7 @@ import type { CompareAtError } from '../../models/product-form.validators';
 import {
   compareAtPriceError,
   isBarcodeDistinct,
+  normalizeBarcode,
   normalizeSku,
   SKU_PATTERN,
 } from '../../models/product-form.validators';
@@ -78,6 +79,8 @@ export class ProductVariantsStepComponent {
   readonly variants = input.required<readonly VariantDraft[]>();
   /** SKU gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
   readonly takenSkus = input<readonly string[]>([]);
+  /** Barcode gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
+  readonly takenBarcodes = input<readonly string[]>([]);
   readonly variantsChange = output<readonly VariantDraft[]>();
   /**
    * Validità complessiva dello step (formato SKU/prezzi/barcode + regola
@@ -86,6 +89,9 @@ export class ProductVariantsStepComponent {
   readonly stepValidChange = output<boolean>();
 
   private readonly takenSet = computed(() => new Set(this.takenSkus()));
+  private readonly takenBarcodeSet = computed(
+    () => new Set(this.takenBarcodes().map((barcode) => normalizeBarcode(barcode))),
+  );
 
   protected readonly form = this.fb.group({
     variants: this.fb.array<FormGroup<VariantRowControls>>([]),
@@ -147,6 +153,12 @@ export class ProductVariantsStepComponent {
     return normalized.length > 0 && this.takenSet().has(normalized);
   }
 
+  /** True se il barcode corrente risulta gia' in uso da un'altra variante. */
+  protected isBarcodeTaken(barcode: string): boolean {
+    const normalized = normalizeBarcode(barcode);
+    return normalized.length > 0 && this.takenBarcodeSet().has(normalized);
+  }
+
   private seed(variants: readonly VariantDraft[]): void {
     this.suppressEmit = true;
     this.variantsArray.clear({ emitEvent: false });
@@ -194,19 +206,48 @@ export class ProductVariantsStepComponent {
     return count > 1;
   }
 
+  /** Barcode duplicato tra le varianti del form (case-insensitive). */
+  protected isDuplicateBarcode(barcode: string): boolean {
+    const normalized = normalizeBarcode(barcode);
+    if (!normalized) {
+      return false;
+    }
+    let count = 0;
+    for (const group of this.variantsArray.controls) {
+      if (normalizeBarcode(group.controls.barcode.value) === normalized) {
+        count += 1;
+      }
+    }
+    return count > 1;
+  }
+
   /** Barcode valorizzato ma uguale allo SKU (devono essere distinti). */
-  protected isBarcodeInvalid(group: FormGroup<VariantRowControls>): boolean {
+  protected isBarcodeSameAsSku(group: FormGroup<VariantRowControls>): boolean {
     return !isBarcodeDistinct(group.controls.sku.value, group.controls.barcode.value);
   }
 
-  /** Genera un barcode EAN-13 (13 cifre) distinto dallo SKU della riga. */
+  /** Barcode con errori di formato o unicita'. */
+  protected isBarcodeInvalid(group: FormGroup<VariantRowControls>): boolean {
+    const barcode = group.controls.barcode.value;
+    return (
+      this.isBarcodeSameAsSku(group) ||
+      this.isDuplicateBarcode(barcode) ||
+      this.isBarcodeTaken(barcode)
+    );
+  }
+
+  /** Genera un barcode EAN-13 distinto da SKU e barcode gia' presenti nel form. */
   protected generateBarcode(index: number): void {
     const group = this.variantsArray.at(index);
     if (!group) {
       return;
     }
 
-    const barcode = generateDistinctEan13Barcode(group.controls.sku.value);
+    const excludes = this.variantsArray.controls.flatMap((row) => [
+      row.controls.sku.value,
+      row.controls.barcode.value,
+    ]);
+    const barcode = generateDistinctEan13Barcode(...excludes, ...this.takenBarcodes());
     group.controls.barcode.setValue(barcode);
     group.controls.barcode.markAsDirty();
     group.controls.barcode.markAsTouched();
