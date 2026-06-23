@@ -49,9 +49,10 @@
   <aside id="shell-sidebar" class="shell__sidebar">
     <app-sidebar
       [items]="navItems()"
-      [footerItems]="footerNavItems()"
+      [showLogout]="showSidebarLogout()"
       [drawerOpen]="drawerOpen()"
       (closeRequested)="closeDrawer()"
+      (logoutRequested)="onLogoutFromSidebar()"
     />
   </aside>
 

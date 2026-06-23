@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 1.2 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 1.3 — Giugno 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -584,7 +584,7 @@ npm run serve:pwa
 <tbody><tr>
 <td>Prodotti/varianti</td>
 <td>Condiviso write-through</td>
-<td>Push al save da VestiFlow</td>
+<td>Push al save; <strong>delete</strong> write-through verso Shopify se <code>shopifyProductId</code> presente</td>
 </tr>
 <tr>
 <td>Clienti, ordini online</td>
@@ -599,14 +599,91 @@ npm run serve:pwa
 <tr>
 <td>Location</td>
 <td>Shopify master</td>
-<td>Import + mapping</td>
+<td>Import + mapping; cleanup sedi stale</td>
 </tr>
 <tr>
 <td>Ordini fornitori</td>
 <td>Solo VestiFlow</td>
 <td>—</td>
 </tr>
+<tr>
+<td>Anagrafica tenant</td>
+<td>Solo VestiFlow (admin)</td>
+<td><code>GET /tenant/company</code> read-only in UI <strong>Sede fisica</strong></td>
+</tr>
 </tbody></table>
+<h3 id="cambio-negozio-e-purge-dati-shopify">Cambio negozio e purge dati Shopify</h3>
+<p>Modulo <code>ShopifyShopChangeService</code> + wizard FE <code>shopify-shop-change-wizard</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Metodo</th>
+<th>Ruolo</th>
+<th>Scopo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/shopify/shop-change/preview</code></td>
+<td>GET</td>
+<td>owner/admin</td>
+<td>Conteggi dati collegati a Shopify + blockers (es. ordini fornitori aperti su location Shopify)</td>
+</tr>
+<tr>
+<td><code>/shopify/shop-change/purge</code></td>
+<td>POST</td>
+<td>owner/admin</td>
+<td>Rimuove dati importati/syncati da Shopify (prodotti, varianti, clienti, ordini vendita, location collegate, giacenze/movimenti associati)</td>
+</tr>
+<tr>
+<td><code>/shopify/connection</code></td>
+<td>DELETE</td>
+<td>owner/admin</td>
+<td>Disconnessione OAuth (token revocato); <strong>non</strong> purge catalogo</td>
+</tr>
+</tbody></table>
+<p><strong>Flussi UI:</strong></p>
+<ul>
+<li><strong>Cambia negozio</strong> — wizard mode <code>shop-change</code>: preview → opzione purge → conferma dominio → disconnect → redirect OAuth nuovo shop</li>
+<li><strong>Disconnetti e rimuovi dati</strong> — wizard mode <code>disconnect</code>: preview → purge opzionale → disconnect</li>
+<li><strong>Disconnetti Shopify</strong> — solo DELETE connection, dati locali restano</li>
+</ul>
+<p><strong>OAuth guard:</strong> tentativo di collegare un dominio diverso da quello attivo senza purge precedente → errore esplicito (evita fork silenzioso tra shop).</p>
+<p><strong>Cosa NON cancella il purge:</strong> ordini fornitori (salvo blocker se legati a location Shopify), anagrafica tenant (<strong>Sede fisica</strong>), utenti tenant, movimenti non legati a entità Shopify rimosse.</p>
+<h3 id="eliminazione-prodotto-write-through-shopify">Eliminazione prodotto (write-through Shopify)</h3>
+<p><code>ProductsService.delete()</code>:</p>
+<ol>
+<li>Verifica assenza movimenti stock sul prodotto</li>
+<li>Se <code>shopifyProductId</code> presente → <code>ShopifyProductPushService.deleteProduct()</code> <strong>prima</strong> del delete DB</li>
+<li>Errori mappati: <code>not_connected</code>, <code>missing_write_products_scope</code>, <code>shopify_error</code> → <code>422</code> con messaggio utente; DB intatto</li>
+</ol>
+<p>Scope richiesto: <code>write_products</code> (incluso in <code>SHOPIFY_SCOPES</code> default).</p>
+<h3 id="sync-location--comportamento-post-fix">Sync location — comportamento post-fix</h3>
+<p><code>ShopifyLocationSyncService</code>:</p>
+<ul>
+<li>Importa/aggiorna location da Shopify; <strong>non</strong> collega più automaticamente la sede onboarding <code>LOC-01</code> al primo match Shopify</li>
+<li><code>buildLinkedLocationData</code> aggiorna il <strong>nome</strong> da Shopify a ogni re-sync</li>
+<li><code>cleanupStaleShopifyLocations</code> rimuove location non più presenti su Shopify API</li>
+<li><code>removeEmptyOnboardingLocation</code> elimina sede temporanea onboarding vuota e non collegata dopo sync</li>
+<li>Dopo sync/disconnect/purge: <code>ShopifyConnectionRefreshService.notifyInvalidated()</code> → shell ricarica location e topbar</li>
+</ul>
+<p>FE: <code>filterLocationsForTopbar</code> nasconde sede onboarding locale quando Shopify è connesso.</p>
+<h3 id="anagrafica-tenant-sede-fisica">Anagrafica tenant (Sede fisica)</h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Metodo</th>
+<th>Scopo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/tenant/company</code></td>
+<td>GET</td>
+<td>Dati commerciali tenant (name, storeName, PIVA, indirizzo, contatti) — read-only lato cliente</td>
+</tr>
+</tbody></table>
+<p>Popolati al provisioning admin (<code>create-client</code>). UI: <code>tenant-client-card</code> in Impostazioni.</p>
 <h3 id="oauth">OAuth</h3>
 <ul>
 <li>Scope default in <code>SHOPIFY_SCOPES</code> (<code>.env.example</code>)</li>
@@ -729,6 +806,16 @@ npm run serve:pwa
 <td>Push prodotto al save (VF → Shopify)</td>
 <td>1–N per prodotto</td>
 <td>Dipende da immagini/varianti</td>
+</tr>
+<tr>
+<td>Delete prodotto (VF → Shopify)</td>
+<td>1</td>
+<td>Solo se <code>shopifyProductId</code> presente</td>
+</tr>
+<tr>
+<td>Purge dati Shopify</td>
+<td>0 outbound (delete DB locale)</td>
+<td>Dopo purge, riconnessione OAuth</td>
 </tr>
 <tr>
 <td>Push giacenza dopo movimento</td>
@@ -1026,7 +1113,41 @@ ng test                # Vitest
 </code></pre>
 <h3 id="backend-1">Backend</h3>
 <pre><code class="language-bash">cd api &amp;&amp; npm run lint &amp;&amp; npm run build
+cd api &amp;&amp; npm run test
 </code></pre>
+<h3 id="copertura-automatica--shopify-shop-change--location--delete">Copertura automatica — Shopify shop change / location / delete</h3>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>File test</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Purge / preview shop change</td>
+<td><code>api/src/shopify/shopify-shop-change.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Sync location + cleanup onboarding/stale</td>
+<td><code>api/src/shopify/shopify-location-sync.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Delete prodotto write-through Shopify</td>
+<td><code>api/src/products/products.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Wizard UI (anteprima, conferma, disconnect)</td>
+<td><code>src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts</code></td>
+</tr>
+<tr>
+<td>HTTP client shop change / sync location</td>
+<td><code>src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>E2E wizard (anteprima, step conferma, annulla)</td>
+<td><code>e2e/shopify.spec.ts</code></td>
+</tr>
+</tbody></table>
 <h3 id="ci-github-actions">CI GitHub Actions</h3>
 <ul>
 <li><code>security.yml</code>: check RLS Supabase (set secrets <code>SUPABASE_URL</code>, <code>SUPABASE_ANON_KEY</code>)</li>
@@ -1150,6 +1271,10 @@ ng test                # Vitest
 <tr>
 <td>Integrazione TikTok Shop (parità Shopify)</td>
 <td>In sviluppo — oggi solo OAuth + push catalogo/giacenze</td>
+</tr>
+<tr>
+<td>Bozze ordine Shopify (draft orders)</td>
+<td>Non in scope — solo ordini confermati in <strong>Vendite</strong></td>
 </tr>
 <tr>
 <td>Location manuale senza Shopify</td>

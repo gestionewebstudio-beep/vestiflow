@@ -29,4 +29,20 @@ test.describe('Sessione autenticata', () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     await expect(page.locator('h1.login__title')).toHaveText('Accesso');
   });
+
+  test('logout da menu mobile con conferma', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/app/dashboard');
+    await expect(page.locator('h1.dashboard__title')).toBeVisible({ timeout: 30_000 });
+
+    await page.getByRole('button', { name: 'Apri menu di navigazione' }).click();
+    await page.locator('nav.app-sidebar').getByRole('button', { name: 'Esci' }).click();
+    await expect(page.getByRole('heading', { name: "Uscire dall'applicazione?" })).toBeVisible();
+
+    await page
+      .locator('dialog.confirm-dialog')
+      .getByRole('button', { name: 'Esci', exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
+  });
 });

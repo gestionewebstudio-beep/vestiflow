@@ -67,6 +67,8 @@ export class ShellLayoutComponent {
 
   readonly isPlatformOperator = computed(() => isPlatformOperator(this.currentUser()));
 
+  readonly showSidebarLogout = computed(() => this.currentUser() != null);
+
   /** Tutte le location del tenant (caricamento grezzo). */
   private readonly allLocations = toSignal(
     merge(
@@ -198,18 +200,11 @@ export class ShellLayoutComponent {
     route: '/app/admin/guide',
   };
 
-  readonly footerNavItems = computed((): readonly NavItem[] => {
-    if (this.isPlatformOperator()) {
-      return [this.adminGuideNavItem];
-    }
-    return [this.guideNavItem];
-  });
-
   readonly navItems = computed((): readonly NavItem[] => {
     if (this.isPlatformOperator()) {
-      return this.operatorNavItems;
+      return [...this.operatorNavItems, this.adminGuideNavItem];
     }
-    return this.tenantNavItems;
+    return [...this.tenantNavItems, this.guideNavItem];
   });
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).
@@ -259,6 +254,11 @@ export class ShellLayoutComponent {
 
   onLogoutRequest(): void {
     this.logoutDialogOpen.set(true);
+  }
+
+  onLogoutFromSidebar(): void {
+    this.closeDrawer();
+    this.onLogoutRequest();
   }
 
   onLogoutConfirm(): void {

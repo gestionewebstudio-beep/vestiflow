@@ -243,6 +243,40 @@ describe('ProductsService', () => {
     expect(prisma.product.delete).not.toHaveBeenCalled();
   });
 
+  it('delete rimuove prodotto sincronizzato dopo delete su Shopify', async () => {
+    const { service, prisma, shopifyProductPush } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      shopifyProductId: 'gid://shopify/Product/1',
+    });
+    prisma.stockMovement.count.mockResolvedValue(0);
+    shopifyProductPush.deleteProduct.mockResolvedValue({ deleted: true });
+    prisma.product.delete.mockResolvedValue({});
+
+    await service.delete(tenantId, 'prod-1');
+
+    expect(shopifyProductPush.deleteProduct).toHaveBeenCalledWith(
+      tenantId,
+      'gid://shopify/Product/1',
+    );
+    expect(prisma.product.delete).toHaveBeenCalledWith({ where: { id: 'prod-1' } });
+  });
+
+  it('delete rifiuta se Shopify API fallisce su prodotto sincronizzato', async () => {
+    const { service, prisma, shopifyProductPush } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      shopifyProductId: 'gid://shopify/Product/1',
+    });
+    prisma.stockMovement.count.mockResolvedValue(0);
+    shopifyProductPush.deleteProduct.mockResolvedValue({ reason: 'shopify_error' });
+
+    await expect(service.delete(tenantId, 'prod-1')).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
+    expect(prisma.product.delete).not.toHaveBeenCalled();
+  });
+
   it('create rifiuta SKU già presenti a catalogo', async () => {
     const { service, prisma } = createService();
     prisma.productVariant.findMany.mockResolvedValue([{ sku: 'SKU-TAKEN' }]);

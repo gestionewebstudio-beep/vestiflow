@@ -36,6 +36,7 @@
     "docs:test-plan": "node scripts/generate-test-plan-html.mjs",
     "docs:test-plan:pdf": "node scripts/generate-test-plan-pdf.mjs",
     "docs:test-plan:all": "npm run docs:test-plan && npm run docs:test-plan:pdf",
+    "icons:generate": "node scripts/generate-icons.mjs",
     "prepare": "husky"
   },
   "private": true,
@@ -92,6 +93,7 @@
     "marked": "^15.0.12",
     "marked-gfm-heading-id": "^4.1.4",
     "prettier": "^3.8.1",
+    "sharp": "^0.34.5",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.60.1",
     "vitest": "^4.0.8"

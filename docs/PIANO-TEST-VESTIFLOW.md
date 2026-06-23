@@ -692,11 +692,58 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 **Passaggi:**
 
-1. Clicca **Disconnetti Shopify** e conferma se richiesto.
+1. Clicca **Disconnetti Shopify** (non «Disconnetti e rimuovi dati»).
 2. Verifica stato connessione.
 3. **Riconnetti** subito dopo (T-031) per non bloccare altri test.
 
-**Risultato atteso:** stato Disconnesso. Form per nuova connessione visibile. Riconnessione funziona.
+**Risultato atteso:** stato Disconnesso. I dati già importati (prodotti, clienti) restano in VestiFlow. Form per nuova connessione visibile. Riconnessione funziona.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-037b — Wizard Cambia negozio / Disconnetti e rimuovi dati
+
+|                  |                                                     |
+| ---------------- | --------------------------------------------------- |
+| **Priorità**     | P2                                                  |
+| **Ruolo**        | Titolare o Admin                                    |
+| **Device**       | Desktop                                             |
+| **Prerequisiti** | Shopify connesso, ambiente di test (non produzione) |
+
+**Passaggi:**
+
+1. **Impostazioni → Integrazione Shopify → Cambia negozio**.
+2. Verifica anteprima conteggi (prodotti, clienti, ordini, location).
+3. Chiudi il wizard **senza** confermare (Annulla).
+4. Ripeti con **Disconnetti e rimuovi dati**; verifica che compaiano avvisi su irreversibilità e ordini fornitori.
+5. **Non** completare la purge in staging con dati reali salvo test dedicato.
+
+**Risultato atteso:** wizard multi-step, conteggi coerenti, conferma dominio richiesta, blockers visibili se ordini fornitori aperti.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-037c — Pannello Sede fisica
+
+|              |           |
+| ------------ | --------- |
+| **Priorità** | P2        |
+| **Ruolo**    | Qualsiasi |
+| **Device**   | Desktop   |
+
+**Passaggi:**
+
+1. **Impostazioni → Sede fisica**.
+2. Verifica nome commerciale, negozio, profilo canale.
+3. Espandi **Dati fiscali e contatti** se presenti.
+
+**Risultato atteso:** anagrafica tenant visibile; distinta dalle location Shopify sotto Integrazione Shopify.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -735,10 +782,11 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 **Passaggi:**
 
-1. Sezione **Location** in Impostazioni.
-2. Verifica colonne: nome, stato sync, riferimenti utili.
+1. **Impostazioni → Integrazione Shopify → Location**.
+2. Verifica gruppi **Sedi Shopify** e **Sede locale** (se presenti).
+3. Verifica colonne: nome, stato sync, riferimenti utili.
 
-**Risultato atteso:** tutte le location sincronizzate elencate. Stato sync leggibile per ciascuna.
+**Risultato atteso:** location elencate nel pannello Shopify. Stato sync leggibile. Nome commerciale tenant **non** confuso con sedi Shopify.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -981,10 +1029,11 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 **Passaggi:**
 
-1. Elimina un prodotto di test (non usato altrove).
+1. Elimina un prodotto di test **senza movimenti** di magazzino (non usato altrove).
 2. Conferma nel dialog.
+3. Se Shopify connesso e prodotto sincronizzato: verifica rimozione anche su Shopify Admin.
 
-**Risultato atteso:** prodotto rimosso da lista. Dettaglio non più accessibile.
+**Risultato atteso:** prodotto rimosso da lista VestiFlow. Con sync attivo, rimosso anche da Shopify. Se il prodotto ha movimenti, eliminazione **bloccata** con messaggio chiaro.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |

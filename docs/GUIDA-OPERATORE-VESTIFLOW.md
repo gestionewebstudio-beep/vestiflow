@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 1.2 — Giugno 2026
+**Versione documento:** 1.3 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -284,13 +284,64 @@ UI: **Impostazioni → Profilo** (tenant) e **Impostazioni** operatore (`/app/ad
 
 ### Ownership sync (riepilogo)
 
-| Entità                 | Owner                   | Note                                     |
-| ---------------------- | ----------------------- | ---------------------------------------- |
-| Prodotti/varianti      | Condiviso write-through | Push al save da VestiFlow                |
-| Clienti, ordini online | Shopify                 | Read-only in VF                          |
-| Giacenze               | Condiviso               | VF: carichi/rettifiche; Shopify: vendite |
-| Location               | Shopify master          | Import + mapping                         |
-| Ordini fornitori       | Solo VestiFlow          | —                                        |
+| Entità                 | Owner                   | Note                                                                                |
+| ---------------------- | ----------------------- | ----------------------------------------------------------------------------------- |
+| Prodotti/varianti      | Condiviso write-through | Push al save; **delete** write-through verso Shopify se `shopifyProductId` presente |
+| Clienti, ordini online | Shopify                 | Read-only in VF                                                                     |
+| Giacenze               | Condiviso               | VF: carichi/rettifiche; Shopify: vendite                                            |
+| Location               | Shopify master          | Import + mapping; cleanup sedi stale                                                |
+| Ordini fornitori       | Solo VestiFlow          | —                                                                                   |
+| Anagrafica tenant      | Solo VestiFlow (admin)  | `GET /tenant/company` read-only in UI **Sede fisica**                               |
+
+### Cambio negozio e purge dati Shopify
+
+Modulo `ShopifyShopChangeService` + wizard FE `shopify-shop-change-wizard`.
+
+| Endpoint                       | Metodo | Ruolo       | Scopo                                                                                                                                     |
+| ------------------------------ | ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `/shopify/shop-change/preview` | GET    | owner/admin | Conteggi dati collegati a Shopify + blockers (es. ordini fornitori aperti su location Shopify)                                            |
+| `/shopify/shop-change/purge`   | POST   | owner/admin | Rimuove dati importati/syncati da Shopify (prodotti, varianti, clienti, ordini vendita, location collegate, giacenze/movimenti associati) |
+| `/shopify/connection`          | DELETE | owner/admin | Disconnessione OAuth (token revocato); **non** purge catalogo                                                                             |
+
+**Flussi UI:**
+
+- **Cambia negozio** — wizard mode `shop-change`: preview → opzione purge → conferma dominio → disconnect → redirect OAuth nuovo shop
+- **Disconnetti e rimuovi dati** — wizard mode `disconnect`: preview → purge opzionale → disconnect
+- **Disconnetti Shopify** — solo DELETE connection, dati locali restano
+
+**OAuth guard:** tentativo di collegare un dominio diverso da quello attivo senza purge precedente → errore esplicito (evita fork silenzioso tra shop).
+
+**Cosa NON cancella il purge:** ordini fornitori (salvo blocker se legati a location Shopify), anagrafica tenant (**Sede fisica**), utenti tenant, movimenti non legati a entità Shopify rimosse.
+
+### Eliminazione prodotto (write-through Shopify)
+
+`ProductsService.delete()`:
+
+1. Verifica assenza movimenti stock sul prodotto
+2. Se `shopifyProductId` presente → `ShopifyProductPushService.deleteProduct()` **prima** del delete DB
+3. Errori mappati: `not_connected`, `missing_write_products_scope`, `shopify_error` → `422` con messaggio utente; DB intatto
+
+Scope richiesto: `write_products` (incluso in `SHOPIFY_SCOPES` default).
+
+### Sync location — comportamento post-fix
+
+`ShopifyLocationSyncService`:
+
+- Importa/aggiorna location da Shopify; **non** collega più automaticamente la sede onboarding `LOC-01` al primo match Shopify
+- `buildLinkedLocationData` aggiorna il **nome** da Shopify a ogni re-sync
+- `cleanupStaleShopifyLocations` rimuove location non più presenti su Shopify API
+- `removeEmptyOnboardingLocation` elimina sede temporanea onboarding vuota e non collegata dopo sync
+- Dopo sync/disconnect/purge: `ShopifyConnectionRefreshService.notifyInvalidated()` → shell ricarica location e topbar
+
+FE: `filterLocationsForTopbar` nasconde sede onboarding locale quando Shopify è connesso.
+
+### Anagrafica tenant (Sede fisica)
+
+| Endpoint          | Metodo | Scopo                                                                                         |
+| ----------------- | ------ | --------------------------------------------------------------------------------------------- |
+| `/tenant/company` | GET    | Dati commerciali tenant (name, storeName, PIVA, indirizzo, contatti) — read-only lato cliente |
+
+Popolati al provisioning admin (`create-client`). UI: `tenant-client-card` in Impostazioni.
 
 ### OAuth
 
@@ -359,6 +410,8 @@ Implementazione in `api/src/shopify/`:
 | Import catalogo (Shopify → VF)       | ~4 per 1000 prodotti (pagine da 250)   | Lento con cataloghi grandi: **normale** |
 | Webhook prodotti/giacenze/ordini     | 0 outbound                             | Event-driven                            |
 | Push prodotto al save (VF → Shopify) | 1–N per prodotto                       | Dipende da immagini/varianti            |
+| Delete prodotto (VF → Shopify)       | 1                                      | Solo se `shopifyProductId` presente     |
+| Purge dati Shopify                   | 0 outbound (delete DB locale)          | Dopo purge, riconnessione OAuth         |
 | Push giacenza dopo movimento         | ~1 per movimento                       | Write-through inventario                |
 | Sync location                        | 1                                      | Trascurabile                            |
 
@@ -554,7 +607,19 @@ ng test                # Vitest
 
 ```bash
 cd api && npm run lint && npm run build
+cd api && npm run test
 ```
+
+### Copertura automatica — Shopify shop change / location / delete
+
+| Area                                           | File test                                                                               |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Purge / preview shop change                    | `api/src/shopify/shopify-shop-change.service.spec.ts`                                   |
+| Sync location + cleanup onboarding/stale       | `api/src/shopify/shopify-location-sync.service.spec.ts`                                 |
+| Delete prodotto write-through Shopify          | `api/src/products/products.service.spec.ts`                                             |
+| Wizard UI (anteprima, conferma, disconnect)    | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts` |
+| HTTP client shop change / sync location        | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`     |
+| E2E wizard (anteprima, step conferma, annulla) | `e2e/shopify.spec.ts`                                                                   |
 
 ### CI GitHub Actions
 
@@ -633,6 +698,7 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 | Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore |
 | Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale       |
 | Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze       |
+| Bozze ordine Shopify (draft orders)          | Non in scope — solo ordini confermati in **Vendite**         |
 | Location manuale senza Shopify               | Parziale (location onboarding); sync Shopify consigliato     |
 | Cassa / corrispettivi IT nativi              | Non previsti — Shopify POS                                   |
 | Report server-side avanzati                  | In evoluzione                                                |

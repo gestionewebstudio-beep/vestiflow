@@ -84,4 +84,68 @@ describe('ShopifyConnectionService (HTTP)', () => {
 
     expect(await promise).toEqual({ disconnected: true });
   });
+
+  it('syncLocations invia POST e invalida cache connessione', async () => {
+    const promise = firstValueFrom(service.syncLocations());
+
+    const req = httpMock.expectOne(`${API_BASE}/shopify/sync/locations`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ synced: true, matchedCount: 1, importedCount: 2, totalCount: 3 });
+
+    const result = await promise;
+    expect(result.importedCount).toBe(2);
+  });
+
+  it('previewShopChange legge anteprima purge', async () => {
+    const promise = firstValueFrom(service.previewShopChange());
+
+    const req = httpMock.expectOne(`${API_BASE}/shopify/shop-change/preview`);
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      currentShopDomain: 'store.myshopify.com',
+      counts: {
+        shopifyProducts: 10,
+        shopifyVariants: 25,
+        shopifyCustomers: 5,
+        shopifySalesOrders: 3,
+        inventoryLevels: 20,
+        stockMovements: 0,
+        shopifyLinkedLocations: 2,
+        removableShopifyLocations: 1,
+      },
+      blockers: [],
+    });
+
+    const result = await promise;
+    expect(result.currentShopDomain).toBe('store.myshopify.com');
+    expect(result.counts.shopifyProducts).toBe(10);
+  });
+
+  it('purgeShopifyData invia payload conferma dominio', async () => {
+    const body = {
+      confirmShopDomain: 'store.myshopify.com',
+      purgeCatalog: true,
+      purgeCustomers: true,
+      purgeOrders: true,
+    };
+    const promise = firstValueFrom(service.purgeShopifyData(body));
+
+    const req = httpMock.expectOne(`${API_BASE}/shopify/shop-change/purge`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(body);
+    req.flush({
+      purged: {
+        products: 10,
+        customers: 5,
+        salesOrders: 3,
+        stockMovements: 0,
+        inventoryLevels: 20,
+        inventoryCountLines: 0,
+        locations: 2,
+      },
+    });
+
+    const result = await promise;
+    expect(result.purged.products).toBe(10);
+  });
 });

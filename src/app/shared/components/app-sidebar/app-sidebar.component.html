@@ -30,22 +30,18 @@
     }
   </ul>
 
-  @if (footerItems().length > 0) {
-    <ul class="app-sidebar__footer" aria-label="Documentazione">
-      @for (item of footerItems(); track item.route) {
-        <li>
-          <a
-            class="app-sidebar__link"
-            [routerLink]="item.route"
-            routerLinkActive="app-sidebar__link--active"
-            #footerRla="routerLinkActive"
-            [attr.aria-current]="footerRla.isActive ? 'page' : null"
-          >
-            <i class="app-sidebar__icon pi" [ngClass]="item.icon" aria-hidden="true"></i>
-            <span class="app-sidebar__label">{{ item.label }}</span>
-          </a>
-        </li>
-      }
+  @if (showLogout()) {
+    <ul class="app-sidebar__footer" aria-label="Account">
+      <li class="app-sidebar__logout-item">
+        <button
+          type="button"
+          class="app-sidebar__link app-sidebar__link--action"
+          (click)="logoutRequested.emit()"
+        >
+          <i class="app-sidebar__icon pi pi-sign-out" aria-hidden="true"></i>
+          <span class="app-sidebar__label">Esci</span>
+        </button>
+      </li>
     </ul>
   }
 </nav>

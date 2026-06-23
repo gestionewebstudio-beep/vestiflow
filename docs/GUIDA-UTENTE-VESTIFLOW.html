@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-per-lutente">VestiFlow — Guida per l&#39;utente</h1>
-<p><strong>Versione documento:</strong> 2.1 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 2.2 — Giugno 2026</p>
 <p><strong>Per chi è questa guida:</strong> titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.</p>
 <p><strong>Prodotto:</strong> VestiFlow — gestionale web multi-sede per boutique di abbigliamento, con integrazione opzionale a <strong>Shopify</strong> o <strong>TikTok Shop</strong> (in base al profilo scelto per il tuo negozio). L&#39;integrazione <strong>TikTok Shop è ancora parziale</strong> — vedi <a href="#7-collegare-tiktok-shop">§7</a>.</p>
 <hr>
@@ -270,15 +270,18 @@ ol {
 <p>In fondo al menu trovi <strong>Guida</strong> (questo manuale integrato nell&#39;app).</p>
 <p>Dal menu <strong>Magazzino</strong> accedi subito alla ricerca; le altre sezioni magazzino (<strong>Giacenze</strong>, <strong>Movimenti</strong>, <strong>Inventario fisico</strong>) si aprono dai <strong>tab</strong> in alto nelle pagine del magazzino.</p>
 <h3 id="barra-in-alto-topbar">Barra in alto (topbar)</h3>
+<p>Ordine da sinistra a destra (desktop):</p>
 <ul>
-<li><strong>Selettore sede</strong> — filtra le operazioni per la location attiva (negozio, magazzino, ecc.)</li>
-<li><strong>Indicatore sync Shopify</strong> — visibile solo con profilo <strong>Shopify</strong>; stato collegamento (clic → Impostazioni)</li>
-<li><strong>Tema</strong> chiaro / scuro / sistema</li>
+<li><strong>VestiFlow</strong> — nome del gestionale</li>
+<li><strong>Tema</strong> — chiaro / scuro / sistema (icona sole, luna, monitor)</li>
+<li><strong>Selettore location</strong> — filtra le operazioni per la sede attiva (negozio, magazzino, ecc.)</li>
+<li><strong>Sync Shopify</strong> — chip con icona e <strong>data/ora ultimo sync</strong>; il punto colorato indica lo stato (verde = ok). Clic → Impostazioni</li>
 <li><strong>Avatar profilo</strong> — foto o iniziali; <strong>clic → Impostazioni</strong></li>
-<li><strong>Esci</strong> — logout con conferma</li>
+<li><strong>Esci</strong> — logout con conferma (solo desktop; su smartphone usa <strong>Esci</strong> nel menu ☰ sopra <strong>Guida</strong>)</li>
 </ul>
+<p>Su smartphone il menu hamburger apre la sidebar; tema, location e sync restano in topbar quando lo spazio lo consente.</p>
 <h3 id="impostazioni-cosa-compare">Impostazioni: cosa compare</h3>
-<p>Il contenuto di <strong>Impostazioni</strong> dipende dal <strong>profilo canale</strong> del tuo negozio (scelto in fase di attivazione):</p>
+<p>Il contenuto di <strong>Impostazioni</strong> dipende dal <strong>profilo canale</strong> del tuo negozio (scelto in fase di attivazione). L’ordine dei pannelli è sempre: <strong>Profilo</strong> → <strong>Sede fisica</strong> (se presente) → integrazione canale → <strong>Sicurezza account</strong> → <strong>Aspetto</strong>.</p>
 <table>
 <thead>
 <tr>
@@ -288,17 +291,19 @@ ol {
 </thead>
 <tbody><tr>
 <td><strong>Solo gestionale</strong></td>
-<td>Aspetto, <strong>Profilo</strong>, Location — nessuna integrazione e-commerce</td>
+<td>Profilo, <strong>Sede fisica</strong>, Sicurezza, Aspetto — nessuna integrazione e-commerce</td>
 </tr>
 <tr>
 <td><strong>Shopify</strong></td>
-<td>Integrazione Shopify, Aspetto, <strong>Profilo</strong>, Location</td>
+<td>Profilo, <strong>Sede fisica</strong>, <strong>Integrazione Shopify</strong> (inclusa tabella <strong>Location</strong>), Sicurezza, Aspetto</td>
 </tr>
 <tr>
 <td><strong>TikTok Shop</strong></td>
-<td>Integrazione TikTok Shop, Aspetto, <strong>Profilo</strong>, Location</td>
+<td>Profilo, <strong>Sede fisica</strong>, Integrazione TikTok Shop, Sicurezza, Aspetto</td>
 </tr>
 </tbody></table>
+<h4 id="sede-fisica-anagrafica-cliente">Sede fisica (anagrafica cliente)</h4>
+<p>Pannello <strong>Sede fisica</strong> in Impostazioni: mostra i dati commerciali registrati da VestiFlow all’attivazione (ragione sociale, negozio, P.IVA, indirizzo, contatti). È <strong>indipendente</strong> dalle sedi operative Shopify elencate sotto <strong>Integrazione Shopify → Location</strong>. I dettagli fiscali e di contatto opzionali sono in un riquadro espandibile <strong>Dati fiscali e contatti</strong>.</p>
 <h3 id="messaggi-comuni">Messaggi comuni</h3>
 <ul>
 <li><strong>Caricamento</strong> — skeleton o spinner mentre arrivano i dati</li>
@@ -506,7 +511,8 @@ ol {
 </tbody></table>
 <p><strong>Profilo Solo gestionale:</strong> salta il collegamento e-commerce; usa catalogo e magazzino solo in VestiFlow.</p>
 <h3 id="sedi-location">Sedi (location)</h3>
-<p>Una <strong>sede</strong> è un luogo dove conti le giacenze (negozio, magazzino, secondo punto vendita). Dopo <strong>Sincronizza location</strong> in Impostazioni, le sedi Shopify compaiono in <strong>Impostazioni → Location</strong> e nel <strong>selettore sede</strong> in alto.</p>
+<p>Una <strong>sede</strong> è un luogo dove conti le giacenze (negozio, magazzino, secondo punto vendita). Con profilo <strong>Shopify</strong>, le sedi operative si gestiscono in <strong>Impostazioni → Integrazione Shopify → Location</strong> e nel <strong>selettore location</strong> in alto.</p>
+<p>Dopo <strong>Sincronizza location</strong>, compaiono le <strong>Sedi Shopify</strong> (importate dal negozio online) separate dalle eventuali <strong>Sedi locali</strong>. All’attivazione può esistere una sede temporanea di onboarding: viene rimossa automaticamente al primo sync se non ha giacenze.</p>
 <p><strong>Più sedi nello stesso shop Shopify</strong> (es. Napoli + magazzino): supportato. <strong>Due shop Shopify distinti</strong> (due domini): servono <strong>due account VestiFlow</strong> separati — contatta il referente.</p>
 <hr>
 <h2 id="6-collegare-shopify">6. Collegare Shopify</h2>
@@ -579,11 +585,40 @@ ol {
 <td>Errore stale ma negozio ancora raggiungibile</td>
 </tr>
 <tr>
+<td><strong>Cambia negozio</strong></td>
+<td>Passare a un <strong>altro dominio</strong> Shopify</td>
+</tr>
+<tr>
 <td><strong>Disconnetti Shopify</strong></td>
-<td>Cambio shop o reset collegamento</td>
+<td>Scollegamento senza cancellare i dati locali</td>
+</tr>
+<tr>
+<td><strong>Disconnetti e rimuovi dati</strong></td>
+<td>Scollegamento + rimozione dati importati da Shopify</td>
 </tr>
 </tbody></table>
 <p>Solo <strong>Titolare</strong> e <strong>Amministratore</strong> vedono questi pulsanti.</p>
+<h3 id="cambiare-negozio-shopify-o-rimuovere-i-dati-importati">Cambiare negozio Shopify o rimuovere i dati importati</h3>
+<p>Per collegare un <strong>dominio Shopify diverso</strong> (es. da <code>negozio-a.myshopify.com</code> a <code>negozio-b.myshopify.com</code>) non basta disconnettere: serve la procedura guidata.</p>
+<p><strong>Cambia negozio</strong> (shop già connesso):</p>
+<ol>
+<li><strong>Impostazioni → Integrazione Shopify → Cambia negozio</strong></li>
+<li>Leggi l’<strong>anteprima</strong> (conteggio prodotti, clienti, ordini, location collegati a Shopify)</li>
+<li>Scegli se <strong>rimuovere i dati importati da Shopify</strong> prima del cambio (consigliato per evitare mix tra due negozi)</li>
+<li>Conferma digitando il <strong>dominio attuale</strong> del negozio</li>
+<li>Al termine: riconnetti il <strong>nuovo</strong> negozio con <strong>Connetti Shopify</strong></li>
+</ol>
+<p><strong>Disconnetti e rimuovi dati</strong> (senza cambiare subito negozio):</p>
+<ol>
+<li>Stessa procedura guidata con anteprima</li>
+<li>Rimuove catalogo, clienti, ordini vendita e location <strong>collegati a Shopify</strong> in VestiFlow</li>
+<li><strong>Non</strong> elimina ordini fornitori, movimenti di magazzino locali né l’anagrafica in <strong>Sede fisica</strong></li>
+<li>Se hai <strong>ordini fornitori aperti</strong> collegati a location Shopify, la rimozione può essere <strong>bloccata</strong> finché non li chiudi o annulli</li>
+</ol>
+<blockquote>
+<p><strong>Attenzione:</strong> la rimozione dati è <strong>irreversibile</strong> in VestiFlow. I prodotti su Shopify Admin <strong>non</strong> vengono cancellati automaticamente; VestiFlow elimina solo la copia locale e i collegamenti sync.</p>
+</blockquote>
+<p><strong>Disconnetti Shopify</strong> (semplice): scollega l’app e mantiene prodotti, clienti e ordini già importati in sola lettura locale. Utile per una pausa temporanea, non per cambiare negozio.</p>
 <h3 id="durante-unoperazione-di-sync">Durante un&#39;operazione di sync</h3>
 <ol>
 <li>Il pulsante mostra uno <strong>spinner</strong> e si disabilita.</li>
@@ -745,8 +780,35 @@ ol {
 <h3 id="modificare-o-eliminare">Modificare o eliminare</h3>
 <ul>
 <li><strong>Modifica</strong> dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati vengono inviati a Shopify.</li>
-<li><strong>Elimina</strong> solo Titolare/Admin, con conferma.</li>
+<li><strong>Elimina</strong> solo Titolare/Admin, con conferma nel dialog.</li>
 </ul>
+<h4 id="eliminazione-prodotto-con-shopify-connesso">Eliminazione prodotto con Shopify connesso</h4>
+<p>Se il prodotto è <strong>collegato a Shopify</strong>, VestiFlow tenta di <strong>rimuoverlo anche dal negozio online</strong> prima di cancellarlo dal gestionale.</p>
+<table>
+<thead>
+<tr>
+<th>Condizione</th>
+<th>Comportamento</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Prodotto <strong>senza movimenti</strong> di magazzino</td>
+<td>Eliminazione consentita</td>
+</tr>
+<tr>
+<td>Prodotto con <strong>movimenti</strong> storici</td>
+<td><strong>Bloccato</strong> — archivia o lascia in catalogo</td>
+</tr>
+<tr>
+<td>Shopify <strong>non connesso</strong> ma prodotto sincronizzato in passato</td>
+<td><strong>Bloccato</strong> — riconnetti Shopify e riprova</td>
+</tr>
+<tr>
+<td>Errore API Shopify (permessi, rete)</td>
+<td>Prodotto <strong>non</strong> rimosso da VestiFlow; messaggio di errore</td>
+</tr>
+</tbody></table>
+<p>Dopo l’eliminazione riuscita, il prodotto scompare da <strong>Prodotti</strong> e non è più presente su Shopify Admin.</p>
 <h3 id="import-ed-export-csv-catalogo">Import ed export CSV (catalogo)</h3>
 <table>
 <thead>
@@ -1050,7 +1112,14 @@ ol {
 <h3 id="upload-immagine-prodotto-fallito">Upload immagine prodotto fallito</h3>
 <p>Usa JPEG, PNG o WebP, max 5 MB. Riprova dopo qualche minuto se il servizio era in manutenzione.</p>
 <h3 id="ho-più-sedi-le-vedo-tutte">Ho più sedi: le vedo tutte?</h3>
-<p>Sì, se sono <strong>location nello stesso shop Shopify</strong>: configura le sedi in Shopify Admin, poi <strong>Sincronizza location</strong> in VestiFlow. Controlla il selettore sede in alto.</p>
+<p>Sì, se sono <strong>location nello stesso shop Shopify</strong>: configura le sedi in Shopify Admin, poi <strong>Sincronizza location</strong> in Impostazioni (dentro <strong>Integrazione Shopify</strong>). Controlla il selettore location in alto. Le sedi Shopify sono elencate separatamente dalle sedi locali.</p>
+<h3 id="devo-cambiare-negozio-shopify-altro-dominio">Devo cambiare negozio Shopify (altro dominio)</h3>
+<p>Usa <strong>Cambia negozio</strong> in Impostazioni, non il semplice <strong>Disconnetti Shopify</strong>. Segui la procedura guidata e, se indicato, rimuovi i dati importati prima di collegare il nuovo shop.</p>
+<h3 id="ho-eliminato-un-prodotto-ma-resta-su-shopify-o-viceversa">Ho eliminato un prodotto ma resta su Shopify (o viceversa)</h3>
+<ul>
+<li>Con Shopify <strong>connesso</strong>, l’eliminazione da VestiFlow dovrebbe rimuovere anche su Shopify. Se vedi un errore, controlla permessi app (<code>write_products</code>) e riprova.</li>
+<li>Se Shopify era <strong>disconnesso</strong>, VestiFlow <strong>non</strong> elimina sul negozio online finché non riconnetti.</li>
+</ul>
 <h3 id="non-vedo-integrazione-shopify-o-tiktok-in-impostazioni">Non vedo Integrazione Shopify (o TikTok) in Impostazioni</h3>
 <p>Il <strong>profilo canale</strong> del tuo negozio potrebbe essere <strong>Solo gestionale</strong> o un altro canale. Contatta il referente VestiFlow se serve cambiare profilo.</p>
 <h3 id="il-prodotto-non-compare-su-tiktok-shop">Il prodotto non compare su TikTok Shop</h3>
