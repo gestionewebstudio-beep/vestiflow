@@ -37,7 +37,7 @@ describe('AdminTenantsService', () => {
     };
     const supabase = {
       isConfigured: vi.fn().mockReturnValue(true),
-      inviteAuthUser: vi.fn(),
+      createAuthUser: vi.fn(),
       provisionAuthUserForInvite: vi.fn(),
       resendAuthInvite: vi.fn(),
       deleteAuthUser: vi.fn(),
@@ -95,9 +95,54 @@ describe('AdminTenantsService', () => {
     await expect(service.getTenantById('tenant-op')).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('createTenant invia provisionAuthUserForInvite con redirect da FRONTEND_URL', async () => {
+  it('createTenant usa createAuthUser con password se invito email disabilitato', async () => {
     const { service, prisma, supabase } = createService({
       config: { FRONTEND_URL: 'http://localhost:4200' },
+    });
+    prisma.user.findFirst.mockResolvedValue(null);
+    supabase.createAuthUser.mockResolvedValue('auth-user-1');
+    prisma.$transaction.mockImplementation(async (callback) =>
+      callback({
+        tenant: {
+          create: vi.fn().mockResolvedValue({
+            id: 'tenant-1',
+            name: 'Cliente',
+            channelProfile: 'gestionale',
+          }),
+        },
+        store: {
+          create: vi.fn().mockResolvedValue({ id: 'store-1', name: 'Negozio principale' }),
+        },
+        location: {
+          create: vi.fn().mockResolvedValue({ id: 'loc-1', name: 'Negozio principale' }),
+        },
+        user: {
+          create: vi.fn().mockResolvedValue({
+            id: 'user-1',
+            email: 'owner@test.it',
+            displayName: 'Titolare',
+            role: 'owner',
+          }),
+        },
+      }),
+    );
+
+    const result = await service.createTenant({
+      tenantName: 'Cliente',
+      ownerEmail: 'owner@test.it',
+      ownerDisplayName: 'Titolare',
+      ownerPassword: 'Password123!',
+      channelProfile: TenantChannelProfile.gestionale,
+    });
+
+    expect(supabase.createAuthUser).toHaveBeenCalledWith('owner@test.it', 'Password123!');
+    expect(supabase.provisionAuthUserForInvite).not.toHaveBeenCalled();
+    expect(result.ownerInviteSent).toBe(false);
+  });
+
+  it('createTenant invia provisionAuthUserForInvite se SUPABASE_OWNER_EMAIL_INVITE=true', async () => {
+    const { service, prisma, supabase } = createService({
+      config: { FRONTEND_URL: 'http://localhost:4200', SUPABASE_OWNER_EMAIL_INVITE: 'true' },
     });
     prisma.user.findFirst.mockResolvedValue(null);
     supabase.provisionAuthUserForInvite.mockResolvedValue({
@@ -141,6 +186,7 @@ describe('AdminTenantsService', () => {
       'owner@test.it',
       'http://localhost:4200/login/reset-password',
     );
+    expect(supabase.createAuthUser).not.toHaveBeenCalled();
     expect(result.ownerInviteSent).toBe(true);
   });
 });

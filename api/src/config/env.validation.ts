@@ -82,6 +82,14 @@ export class EnvironmentVariables {
   FRONTEND_URL?: string;
 
   /**
+   * true = invito email Supabase al titolare (senza password admin).
+   * false/omit = password scelta dall'admin in creazione cliente (default).
+   */
+  @IsString()
+  @IsOptional()
+  SUPABASE_OWNER_EMAIL_INVITE?: string;
+
+  /**
    * Email degli operatori VestiFlow che possono creare tenant (onboarding clienti).
    * Separate da virgola, confronto case-insensitive.
    */

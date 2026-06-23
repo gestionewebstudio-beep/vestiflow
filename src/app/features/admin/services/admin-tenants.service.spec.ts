@@ -8,6 +8,7 @@ import { APP_CONFIG } from '@core/config/app-config.token';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 
 import { AdminTenantsService } from './admin-tenants.service';
+import type { CreateTenantPayload } from '../models/admin-tenant.model';
 
 const API_BASE = 'http://localhost:3000/api/v1';
 
@@ -58,12 +59,13 @@ describe('AdminTenantsService (HTTP)', () => {
       channelProfile: TenantChannelProfile.Gestionale,
       ownerEmail: 'owner@test.it',
       ownerDisplayName: 'Titolare',
+      ownerPassword: 'Password123!',
     };
     const promise = firstValueFrom(service.createTenant(payload));
 
     const req = httpMock.expectOne(`${API_BASE}/admin/tenants`);
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).not.toHaveProperty('ownerPassword');
+    expect((req.request.body as CreateTenantPayload).ownerPassword).toBe('Password123!');
     req.flush({
       tenantId: 'tenant-2',
       tenantName: 'Nuovo Cliente',
@@ -76,7 +78,7 @@ describe('AdminTenantsService (HTTP)', () => {
       storeName: 'Negozio',
       locationId: 'loc-1',
       locationName: 'Magazzino',
-      ownerInviteSent: true,
+      ownerInviteSent: false,
     });
 
     const result = await promise;

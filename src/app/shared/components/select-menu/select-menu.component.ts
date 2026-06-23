@@ -22,6 +22,7 @@ import type { SelectMenuOption } from './select-menu.model';
     class: 'select-menu-host',
     '[class.select-menu-host--full]': 'fullWidth()',
     '[class.select-menu-host--toolbar]': 'toolbarChip()',
+    '[class.select-menu-host--match-input]': 'matchInputHeight()',
     '(document:click)': 'onDocumentClick($event)',
     '(document:keydown.escape)': 'close()',
   },
@@ -48,6 +49,7 @@ export class SelectMenuComponent {
   readonly fullWidth = input<boolean>(false);
   /** Voce placeholder con valore vuoto (es. "Tutti"); disabilita per select obbligati. */
   readonly includeEmptyOption = input<boolean>(true);
+  readonly matchInputHeight = input<boolean>(false);
   readonly invalid = input<boolean>(false);
   readonly describedBy = input<string>();
 

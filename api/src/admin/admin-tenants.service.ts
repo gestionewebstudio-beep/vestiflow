@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { TenantChannelProfile } from '@prisma/client';
 
 import { SupabaseService } from '../auth/supabase.service';
+import { isSupabaseOwnerEmailInviteEnabled } from '../auth/supabase-owner-provisioning.util';
 import { assertTenantChannelProfileChangeAllowed } from '../common/tenant-channel-profile.util';
 import { PlatformAdminService } from '../common/platform-admin/platform-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -266,30 +267,51 @@ export class AdminTenantsService {
     }
 
     const redirectTo = this.buildOwnerInviteRedirectUrl();
+    const ownerInviteEnabled = isSupabaseOwnerEmailInviteEnabled(this.config);
     let authUserId: string;
-    try {
-      const provisioned = await this.supabase.provisionAuthUserForInvite(ownerEmail, redirectTo);
-      authUserId = provisioned.authUserId;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'INVITE_FAILED';
-      if (message === 'EMAIL_ALREADY_REGISTERED') {
-        throw new ConflictException(
-          'Email già registrata in Supabase Auth. Elimina l’utente da Supabase → Authentication → Users oppure usa un’altra email.',
-        );
+    let ownerInviteSent = false;
+
+    if (ownerInviteEnabled) {
+      try {
+        const provisioned = await this.supabase.provisionAuthUserForInvite(ownerEmail, redirectTo);
+        authUserId = provisioned.authUserId;
+        ownerInviteSent = provisioned.inviteSent;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'INVITE_FAILED';
+        if (message === 'EMAIL_ALREADY_REGISTERED') {
+          throw new ConflictException(
+            'Email già registrata in Supabase Auth. Elimina l’utente da Supabase → Authentication → Users oppure usa un’altra email.',
+          );
+        }
+        if (message === 'EMAIL_RATE_LIMIT') {
+          throw new HttpException(
+            'Limite invii email Supabase raggiunto (piano free: ~2/ora). Attendi un’ora o configura SMTP custom in Supabase.',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
+        if (message === 'REDIRECT_NOT_ALLOWED') {
+          throw new BadRequestException(
+            'Redirect URL non autorizzato in Supabase. Aggiungi /login/reset-password in Authentication → URL Configuration.',
+          );
+        }
+        this.logger.error(`Invio invito fallito per ${ownerEmail}: ${message}`);
+        throw new InternalServerErrorException('Invio invito accesso non riuscito');
       }
-      if (message === 'EMAIL_RATE_LIMIT') {
-        throw new HttpException(
-          'Limite invii email Supabase raggiunto (piano free: ~2/ora). Attendi un’ora o configura SMTP custom in Supabase.',
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
+    } else {
+      const ownerPassword = dto.ownerPassword?.trim();
+      if (!ownerPassword) {
+        throw new BadRequestException('Password iniziale obbligatoria');
       }
-      if (message === 'REDIRECT_NOT_ALLOWED') {
-        throw new BadRequestException(
-          'Redirect URL non autorizzato in Supabase. Aggiungi /login/reset-password in Authentication → URL Configuration.',
-        );
+      try {
+        authUserId = await this.supabase.createAuthUser(ownerEmail, ownerPassword);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'CREATION_FAILED';
+        if (message === 'EMAIL_ALREADY_REGISTERED') {
+          throw new ConflictException('Email già registrata in Supabase Auth');
+        }
+        this.logger.error(`Creazione utente Auth fallita per ${ownerEmail}: ${message}`);
+        throw new InternalServerErrorException('Creazione utente di accesso non riuscita');
       }
-      this.logger.error(`Invio invito fallito per ${ownerEmail}: ${message}`);
-      throw new InternalServerErrorException('Invio invito accesso non riuscito');
     }
 
     try {
@@ -343,7 +365,7 @@ export class AdminTenantsService {
           storeName: store.name,
           locationId: location.id,
           locationName: location.name,
-          ownerInviteSent: true,
+          ownerInviteSent,
         };
       });
     } catch (error) {
@@ -353,6 +375,11 @@ export class AdminTenantsService {
   }
 
   async resendOwnerInvite(tenantId: string): Promise<{ readonly ownerEmail: string }> {
+    if (!isSupabaseOwnerEmailInviteEnabled(this.config)) {
+      throw new BadRequestException(
+        'Invito email disabilitato: imposta SUPABASE_OWNER_EMAIL_INVITE=true su Railway oppure reimposta la password da Supabase.',
+      );
+    }
     if (!this.supabase.isConfigured()) {
       throw new BadRequestException(
         'Supabase non configurato: impossibile inviare inviti di accesso',

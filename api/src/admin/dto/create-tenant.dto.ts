@@ -27,6 +27,13 @@ export class CreateTenantDto extends TenantProfileFieldsDto {
   @MaxLength(255)
   ownerEmail!: string;
 
+  /** Obbligatoria se SUPABASE_OWNER_EMAIL_INVITE non è true (default). */
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  @MaxLength(128)
+  ownerPassword?: string;
+
   @IsOptional()
   @IsEnum(TenantChannelProfile)
   channelProfile?: TenantChannelProfile;

@@ -70,6 +70,11 @@
   padding-inline: var(--space-2);
 }
 
+:host(.select-menu-host--match-input) .select-menu__trigger,
+:host(.select-menu-host--full.select-menu-host--match-input) .select-menu__trigger {
+  min-block-size: var(--btn-min-height);
+}
+
 .select-menu--compact .select-menu__trigger {
   min-block-size: var(--field-height);
   gap: var(--space-2);

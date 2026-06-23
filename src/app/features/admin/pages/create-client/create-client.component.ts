@@ -12,6 +12,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 
 import { isAppError } from '@core/models/app-error.model';
+import { PASSWORD_MIN_LENGTH } from '@core/auth/auth-password.constants';
 import type { UserRole as UserRoleType } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 import {
@@ -91,9 +92,8 @@ export class CreateClientComponent {
   protected readonly submitLoading = signal(false);
   protected readonly submitError = signal<string | null>(null);
   protected readonly created = signal<ProvisionedTenant | null>(null);
-  protected readonly resendInviteLoading = signal(false);
-  protected readonly resendInviteMessage = signal<string | null>(null);
-  protected readonly resendInviteError = signal<string | null>(null);
+  protected readonly passwordVisible = signal(false);
+  protected readonly passwordMinLength = PASSWORD_MIN_LENGTH;
 
   protected readonly form = this.fb.group({
     tenantName: this.fb.control('', {
@@ -105,6 +105,9 @@ export class CreateClientComponent {
     }),
     ownerEmail: this.fb.control('', {
       validators: [Validators.required, Validators.email, Validators.maxLength(255)],
+    }),
+    ownerPassword: this.fb.control('', {
+      validators: [Validators.required, Validators.minLength(PASSWORD_MIN_LENGTH)],
     }),
     role: this.fb.control<UserRoleType>(UserRole.Owner, { validators: [Validators.required] }),
     channelProfile: this.fb.control<TenantChannelProfile>(TenantChannelProfile.Gestionale, {
@@ -161,6 +164,10 @@ export class CreateClientComponent {
     void this.router.navigate(['/app/admin/clients', tenant.id]);
   }
 
+  protected togglePasswordVisibility(): void {
+    this.passwordVisible.update((visible) => !visible);
+  }
+
   protected onSubmit(): void {
     this.form.markAllAsTouched();
     if (this.form.invalid || this.submitLoading()) {
@@ -179,6 +186,7 @@ export class CreateClientComponent {
         tenantName: raw.tenantName.trim(),
         ownerDisplayName: raw.ownerDisplayName.trim(),
         ownerEmail: raw.ownerEmail.trim(),
+        ownerPassword: raw.ownerPassword,
         role: raw.role,
         channelProfile: raw.channelProfile,
         ...(storeName ? { storeName } : {}),
@@ -211,37 +219,6 @@ export class CreateClientComponent {
   protected resetForm(): void {
     this.created.set(null);
     this.submitError.set(null);
-    this.resendInviteMessage.set(null);
-    this.resendInviteError.set(null);
-  }
-
-  protected resendOwnerInvite(): void {
-    const result = this.created();
-    if (!result || this.resendInviteLoading()) {
-      return;
-    }
-
-    this.resendInviteLoading.set(true);
-    this.resendInviteMessage.set(null);
-    this.resendInviteError.set(null);
-
-    this.adminTenants
-      .resendOwnerInvite(result.tenantId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ ownerEmail }) => {
-          this.resendInviteLoading.set(false);
-          this.resendInviteMessage.set(`Invito reinviato a ${ownerEmail}.`);
-        },
-        error: (err: unknown) => {
-          this.resendInviteLoading.set(false);
-          if (isAppError(err)) {
-            this.resendInviteError.set(err.message);
-            return;
-          }
-          this.resendInviteError.set('Reinvio invito non riuscito. Riprova.');
-        },
-      });
   }
 
   protected backToList(): void {

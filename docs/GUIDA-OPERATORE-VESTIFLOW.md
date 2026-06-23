@@ -203,14 +203,16 @@ Vedi `api/.env.example`:
 1. **Identificazione** — nome commerciale, ragione sociale opzionale
 2. **Anagrafica** — P.IVA, CF, sede, contatti (opzionali)
 3. **Profilo canale** — **Solo gestionale**, **Shopify** o **TikTok Shop** (determina integrazioni visibili al cliente)
-4. **Primo accesso** — ruolo VestiFlow (`owner` default), nome, email (invito Supabase per impostare la password)
+4. **Primo accesso** — ruolo VestiFlow (`owner` default), nome, email, **password iniziale** (scelta dall’admin)
 5. **Setup** — nome negozio e location iniziale (opzionali; default «Negozio principale»)
 
-Il backend crea: tenant, utente Supabase Auth (invito email), store, location, profilo utente collegato.
+Il backend crea: tenant, utente Supabase Auth con password, store, location, profilo utente collegato.
 
 ### Dopo il provisioning
 
-Il titolare riceve un'**email di invito** con link a `/login/reset-password` per **scegliere la password**. Dalla schermata di successo puoi **Reinvia invito** se il messaggio non arriva (controllare anche spam). Comunica al titolare l'email usata e che deve completare l'invito entro la scadenza del link Supabase.
+Consegna credenziali al titolare **in modo sicuro** (email + password). Il titolare accede da `/login` e può cambiare password da Impostazioni o tramite «Password dimenticata».
+
+> **Invito email (standby):** il flusso con invito Supabase al titolare esiste nel codice ma è **disabilitato** finché non è attivo Supabase a pagamento con SMTP. Riattivazione: variabile Railway `SUPABASE_OWNER_EMAIL_INVITE=true` + configurazione redirect/template Supabase (vedi commit/feature invito).
 
 Il titolare completa in base al profilo canale:
 
