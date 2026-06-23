@@ -85,7 +85,13 @@ export class ResetPasswordComponent implements OnInit {
       return;
     }
 
-    from(establishSessionFromAuthRedirect(this.supabase.client))
+    from(
+      establishSessionFromAuthRedirect({
+        client: this.supabase.client,
+        supabaseUrl: this.config.supabase.url,
+        anonKey: this.config.supabase.anonKey,
+      }),
+    )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ ok, flowType }) => {

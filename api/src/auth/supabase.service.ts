@@ -114,19 +114,34 @@ export class SupabaseService {
   }
 
   /**
-   * Reinvia invito accesso a un utente Auth già creato (es. link scaduto).
+   * Reinvia link per impostare/reimpostare la password (utente Auth già creato).
+   * inviteUserByEmail fallisce se l'email esiste già: GoTrue /recover verso la stessa pagina.
    */
   async resendAuthInvite(email: string, redirectTo: string): Promise<void> {
-    if (!this.client) {
+    if (!this.supabaseUrl || !this.serviceRoleKey) {
       throw new Error('Supabase non configurato');
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const { error } = await this.client.auth.admin.inviteUserByEmail(normalizedEmail, {
-      redirectTo,
+    const response = await fetch(`${this.supabaseUrl}/auth/v1/recover`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: this.serviceRoleKey,
+        Authorization: `Bearer ${this.serviceRoleKey}`,
+      },
+      body: JSON.stringify({
+        email: normalizedEmail,
+        redirect_to: redirectTo,
+      }),
     });
-    if (error) {
-      throw new Error(error.message ?? 'INVITE_FAILED');
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as {
+        msg?: string;
+        message?: string;
+      };
+      throw new Error(body.msg ?? body.message ?? 'INVITE_FAILED');
     }
   }
 
