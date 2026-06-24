@@ -47,6 +47,21 @@ describe('tenant-permissions.util', () => {
     expect(isTenantAdmin(userWithRole(UserRole.Clerk))).toBe(false);
   });
 
+  it('isTenantAdmin è true con sessione assistenza attiva anche per clerk', () => {
+    expect(
+      isTenantAdmin(
+        userWithRole(UserRole.Clerk, {
+          supportSession: {
+            sessionId: 'session-1',
+            targetTenantId: 'tenant-client',
+            targetTenantName: 'Cliente',
+            expiresAt: '2026-06-24T16:00:00.000Z',
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it('isTenantManager include manager ma esclude clerk', () => {
     expect(isTenantManager(userWithRole(UserRole.Manager))).toBe(true);
     expect(isTenantManager(userWithRole(UserRole.Clerk))).toBe(false);

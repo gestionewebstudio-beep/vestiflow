@@ -55,6 +55,32 @@ describe('fetch-user-profile.util', () => {
       expect(user.tenantChannelProfile).toBe(TenantChannelProfile.Gestionale);
       expect(user.avatarUrl).toBeNull();
     });
+
+    it('preserva supportSession dal profilo API', () => {
+      const supportSession = {
+        sessionId: 'session-1',
+        targetTenantId: 'tenant-client',
+        targetTenantName: 'Cliente Demo',
+        expiresAt: '2026-06-24T16:00:00.000Z',
+      };
+      const row: UserProfileApi = {
+        id: 'op-1',
+        tenantId: 'tenant-client',
+        email: 'admin@vestiflow.it',
+        displayName: 'Operatore',
+        role: UserRole.Owner,
+        storeIds: [],
+        isActive: true,
+        isPlatformAdmin: true,
+        supportSession,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      };
+
+      const user = mapUserProfileFromApi(row);
+      expect(user.supportSession).toEqual(supportSession);
+      expect(user.tenantId).toBe('tenant-client');
+    });
   });
 
   describe('fetchUserProfile', () => {

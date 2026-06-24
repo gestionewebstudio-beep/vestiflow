@@ -131,4 +131,15 @@ describe('SupportSessionService', () => {
       NotFoundException,
     );
   });
+
+  it('endActiveSessionForOperator termina tutte le sessioni attive', async () => {
+    const { service, prisma } = createService();
+
+    await service.endActiveSessionForOperator('op-1');
+
+    expect(prisma.supportSession.updateMany).toHaveBeenCalledWith({
+      where: { operatorUserId: 'op-1', endedAt: null },
+      data: { endedAt: expect.any(Date) },
+    });
+  });
 });

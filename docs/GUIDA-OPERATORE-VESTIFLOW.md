@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 1.6 — Giugno 2026
+**Versione documento:** 1.7 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -53,13 +53,46 @@ Shell **dedicata** (non le schermate operative del negozio):
 | **Impostazioni**  | `/app/admin/account` | Profilo operatore, foto, MFA, tema     |
 | **Guida tecnica** | `/app/admin/guide`   | Questo manuale                         |
 
-In topbar: **tema**, **avatar** (clic → Impostazioni), **Esci**. **Nessun** selettore sede né indicatore sync Shopify (non sei dentro un tenant negozio).
+In topbar: **tema**, **avatar** (clic → Impostazioni), **Esci**. **Nessun** selettore sede né indicatore sync Shopify finché non entri in una **sessione assistenza** (vedi sotto).
 
-Per gestire catalogo/magazzino di un cliente: accedi con le **credenziali del titolare** di quel tenant (account negozio), non con l'account operatore piattaforma.
+### Sessione assistenza al gestionale cliente
+
+Flusso **preferito** per supporto tecnico: aprire il gestionale del cliente **senza password condivise**, con sessione tracciata e durata massima **2 ore**.
+
+| Dove in UI                                              | Azione                                              |
+| ------------------------------------------------------- | --------------------------------------------------- |
+| Tabella **Clienti registrati** (colonna **Assistenza**) | **Apri gestionale (assistenza)**                    |
+| **Modifica cliente** (`/app/admin/clients/:id`)         | Pulsante **Apri gestionale (assistenza)** in header |
+
+**Cosa succede:**
+
+1. L'API crea un record `SupportSession` (operatore → tenant target, scadenza `expiresAt`).
+2. Il frontend salva l'ID sessione in `sessionStorage` e reindirizza a `/app/dashboard` del tenant.
+3. Ogni richiesta API include l'header `X-Vestiflow-Support-Session` (interceptor `supportSessionInterceptor`).
+4. `JwtAuthGuard` valida la sessione, **sovrascrive** `tenantId` e arricchisce il profilo con `supportSession`.
+5. Durante la sessione l'operatore ha **permessi equivalenti ad admin tenant** (lettura + scrittura); `RolesGuard` bypassa i check ruolo se `request.supportSession` è attivo.
+6. In shell compare un **banner fisso in basso**: «Assistenza — {nome cliente}» + **Esci dall'assistenza** (chiude la sessione e torna a `/app/admin/clients`).
+
+**Regole di sicurezza:**
+
+- Solo email in `PLATFORM_ADMIN_EMAILS` può avviare una sessione (`PlatformAdminGuard` + check in `SupportSessionService`).
+- Non è possibile aprire assistenza su un tenant che contiene utenti platform admin.
+- Una nuova sessione **chiude** eventuali sessioni attive dello stesso operatore.
+- Alla scadenza (2 h) o su chiusura manuale, `endedAt` viene impostato; richieste successive con quell'ID → **401**.
+- **Audit:** tabella `support_sessions` con operatore, tenant, `createdAt`, `expiresAt`, `endedAt`.
+
+**Alternativa (solo emergenza):** login con credenziali del titolare del tenant. Evitare condivisione password: preferire sempre la sessione assistenza.
 
 ### Backend
 
-Endpoint sotto `/api/v1/admin/tenants` protetti da `JwtAuthGuard` + `PlatformAdminGuard` (verifica email contro env).
+Endpoint admin protetti da `JwtAuthGuard` + `PlatformAdminGuard` (verifica email contro env):
+
+| Metodo | Path                                 | Azione                                          |
+| ------ | ------------------------------------ | ----------------------------------------------- |
+| POST   | `/admin/tenants/:id/support-session` | Avvia sessione assistenza verso il tenant       |
+| DELETE | `/admin/support-sessions/current`    | Termina sessione attiva dell'operatore corrente |
+
+Provisioning tenant: endpoint sotto `/api/v1/admin/tenants` (CRUD tenant).
 
 ---
 
@@ -99,12 +132,13 @@ Endpoint sotto `/api/v1/admin/tenants` protetti da `JwtAuthGuard` + `PlatformAdm
 ```
 vestiflow/
 ├── src/app/              # Frontend Angular
-│   ├── core/             # Auth, guards, permissions, HTTP
+│   ├── core/             # Auth, guards, permissions, HTTP, support (sessione assistenza)
 │   ├── shared/           # Componenti UI riutilizzabili
 │   ├── features/         # Feature lazy-loaded (products, inventory, sales, admin, guide…)
 │   └── layout/           # Shell sidebar + topbar
 ├── api/                  # Backend NestJS
-│   ├── src/admin/        # Provisioning tenant (platform admin)
+│   ├── src/admin/        # Provisioning tenant + support-session (platform admin)
+│   ├── src/support/      # SupportSessionService, costanti TTL/header
 │   ├── src/products/     # Catalogo, CSV import/export
 │   ├── src/inventory/    # Giacenze, movimenti, CSV
 │   ├── src/shopify/      # OAuth, sync, webhook, rate limit
@@ -180,17 +214,18 @@ Vedi `.env.example` in root:
 
 Vedi `api/.env.example`:
 
-| Variabile                                                          | Significato                                  |
-| ------------------------------------------------------------------ | -------------------------------------------- |
-| `DATABASE_URL` / `DIRECT_URL`                                      | PostgreSQL Supabase                          |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` | Auth e admin DB                              |
-| `CORS_ORIGINS`                                                     | Origini frontend consentite                  |
-| `SHOPIFY_*`                                                        | OAuth, scope, cifratura token, rate limit    |
-| `PLATFORM_ADMIN_EMAILS`                                            | Email operatori (virgola)                    |
-| `SUPABASE_PRODUCT_MEDIA_BUCKET`                                    | Bucket immagini prodotto (`product-media`)   |
-| `SUPABASE_USER_AVATARS_BUCKET`                                     | Bucket foto profilo (`user-avatars`)         |
-| `TIKTOK_*`                                                         | OAuth TikTok Shop, cifratura token, API base |
-| `FRONTEND_URL`                                                     | Redirect post-OAuth                          |
+| Variabile                                                          | Significato                                                      |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `DATABASE_URL` / `DIRECT_URL`                                      | PostgreSQL Supabase                                              |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` | Auth e admin DB                                                  |
+| `CORS_ORIGINS`                                                     | Origini frontend consentite                                      |
+| _(header CORS)_                                                    | `X-Vestiflow-Support-Session` consentito per sessione assistenza |
+| `SHOPIFY_*`                                                        | OAuth, scope, cifratura token, rate limit                        |
+| `PLATFORM_ADMIN_EMAILS`                                            | Email operatori (virgola)                                        |
+| `SUPABASE_PRODUCT_MEDIA_BUCKET`                                    | Bucket immagini prodotto (`product-media`)                       |
+| `SUPABASE_USER_AVATARS_BUCKET`                                     | Bucket foto profilo (`user-avatars`)                             |
+| `TIKTOK_*`                                                         | OAuth TikTok Shop, cifratura token, API base                     |
+| `FRONTEND_URL`                                                     | Redirect post-OAuth                                              |
 
 ---
 
@@ -228,6 +263,8 @@ Tabella **Clienti registrati** → click riga → `/app/admin/clients/:id`.
 
 Modificabile: anagrafica, **profilo canale** (se nessuna integrazione attiva), nome titolare, negozio, location. **Email** e **ruolo** del primo utente sono **sola lettura** in UI (campi disabilitati).
 
+Da questa pagina (e dalla tabella clienti) puoi avviare **Apri gestionale (assistenza)** — vedi [§1 Sessione assistenza](#sessione-assistenza-al-gestionale-cliente).
+
 Per cambiare profilo canale con integrazione già connessa: il cliente deve **disconnettere** Shopify o TikTok da Impostazioni prima.
 
 ### Eliminazione tenant (zona pericolosa)
@@ -236,15 +273,19 @@ In **Modifica cliente**, pannello **Zona pericolosa → Elimina cliente**: rimuo
 
 ### API
 
-| Metodo | Path                 | Azione                     |
-| ------ | -------------------- | -------------------------- |
-| GET    | `/admin/tenants`     | Lista tenant               |
-| POST   | `/admin/tenants`     | Crea tenant + primo utente |
-| GET    | `/admin/tenants/:id` | Dettaglio                  |
-| PATCH  | `/admin/tenants/:id` | Aggiorna anagrafica/setup  |
-| DELETE | `/admin/tenants/:id` | Elimina tenant e dati      |
+| Metodo | Path                                 | Azione                             |
+| ------ | ------------------------------------ | ---------------------------------- |
+| GET    | `/admin/tenants`                     | Lista tenant                       |
+| POST   | `/admin/tenants`                     | Crea tenant + primo utente         |
+| GET    | `/admin/tenants/:id`                 | Dettaglio                          |
+| PATCH  | `/admin/tenants/:id`                 | Aggiorna anagrafica/setup          |
+| DELETE | `/admin/tenants/:id`                 | Elimina tenant e dati              |
+| POST   | `/admin/tenants/:id/support-session` | Avvia sessione assistenza (2 h)    |
+| DELETE | `/admin/support-sessions/current`    | Termina sessione assistenza attiva |
 
 Body create include `role` (`owner` | `admin` | `manager` | `clerk`) e `channelProfile` (`gestionale` | `shopify` | `tiktok_shop`).
+
+Migration DB: `0018_support_sessions` — tabella `support_sessions`. In produzione: `npm run prisma:deploy` (o equivalente Railway) prima di usare assistenza.
 
 ---
 
@@ -256,6 +297,18 @@ Body create include `role` (`owner` | `admin` | `manager` | `clerk`) e `channelP
 2. JWT inviato all'API (`Authorization: Bearer`)
 3. `JwtAuthGuard` valida firma con `SUPABASE_JWT_SECRET`
 4. Profilo utente + `tenantId` + ruolo + `isPlatformAdmin` caricati
+
+### Sessione assistenza (auth)
+
+Se la richiesta include l'header `X-Vestiflow-Support-Session` con un ID sessione valido **e** l'utente è platform admin:
+
+1. `SupportSessionService.resolveActiveSession()` verifica ID, operatore, `endedAt` null, `expiresAt` futuro.
+2. `JwtAuthGuard` imposta `request.tenantId` e `request.appUser.tenantId` al **tenant cliente** target.
+3. Il profilo API espone `supportSession: { sessionId, targetTenantId, targetTenantName, expiresAt }`.
+4. `RolesGuard` **non applica** vincoli ruolo tenant quando `request.supportSession` è presente.
+5. Frontend: `tenant-permissions.util.ts` tratta l'operatore in assistenza come **admin tenant**; `isPlatformOperator()` è `false` durante la sessione (UI gestionale, non shell admin).
+
+Persistenza client: `sessionStorage` (`SUPPORT_SESSION_STORAGE_KEY`). Restore al bootstrap in `app.config.ts`; interceptor HTTP allega l'header su ogni chiamata finché la sessione è attiva.
 
 ### Ruoli tenant (UI + API)
 
@@ -553,6 +606,7 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 | `SupplierOrder`              | Solo VF                                                                                                                    |
 | `SalesOrder` / `Customer`    | Import Shopify, read-only UI; assenti in UI profilo Solo gestionale                                                        |
 | `ShopifyConnection`          | Token, scope, stato sync per tenant                                                                                        |
+| `SupportSession`             | Audit sessioni assistenza: `operatorUserId`, `targetTenantId`, `expiresAt`, `endedAt`                                      |
 
 Denaro: **interi minor units** (`Money.amountMinor`), mai float.
 
@@ -762,6 +816,7 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 
 - [ ] Login tenant test
 - [ ] Platform admin → Clienti → Nuovo cliente (staging)
+- [ ] Platform admin → **Apri gestionale (assistenza)** su tenant test → banner + operazione magazzino → **Esci dall'assistenza**
 - [ ] Profilo canale Shopify e TikTok su tenant test
 - [ ] OAuth Shopify su tenant test
 - [ ] OAuth TikTok Shop su tenant test (se abilitato)
@@ -781,6 +836,8 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 - [ ] CORS ristretto ai domini produzione
 - [ ] Token Shopify cifrati; revoca su disconnessione
 - [ ] MFA disponibile per admin negozio
+- [ ] Migration `0018_support_sessions` applicata in produzione
+- [ ] Sessioni assistenza tracciate in `support_sessions` (nessuna password condivisa per supporto)
 - [ ] Dipendenze: `npm audit` senza high/critical
 - [ ] Guide rigenerate se modificate
 
@@ -788,19 +845,23 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 
 ## 19. Troubleshooting tecnico
 
-| Problema                                 | Azione                                                                                            |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `isPlatformAdmin` false in UI            | Verifica email in `PLATFORM_ADMIN_EMAILS`, ri-login                                               |
-| 403 su `/admin/tenants`                  | Stesso controllo email lato API                                                                   |
-| CORS error                               | Aggiungi origin frontend a `CORS_ORIGINS`                                                         |
-| JWT invalid                              | Allinea `SUPABASE_JWT_SECRET` con dashboard Supabase                                              |
-| Webhook non arrivano                     | URL tunnel/prod raggiungibile; HTTPS; webhook registrati                                          |
-| Import catalogo 429 / throttling Shopify | Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env `SHOPIFY_API_*` |
-| API VestiFlow 429 (troppi click)         | Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop                            |
-| Immagini prodotto 404                    | Bucket `product-media` esiste ed è public                                                         |
-| Avatar 404 / upload fallito              | Bucket `user-avatars` esiste ed è public; env `SUPABASE_USER_AVATARS_BUCKET`                      |
-| TikTok OAuth fallisce                    | Verifica `TIKTOK_*` env, callback URL pubblico HTTPS, app Partner Center attiva                   |
-| Anon key legge dati                      | **Critico** — RLS mancante, fix migration immediato                                               |
+| Problema                                 | Azione                                                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `isPlatformAdmin` false in UI            | Verifica email in `PLATFORM_ADMIN_EMAILS`, ri-login                                                |
+| 403 su `/admin/tenants`                  | Stesso controllo email lato API                                                                    |
+| CORS error                               | Aggiungi origin frontend a `CORS_ORIGINS`                                                          |
+| JWT invalid                              | Allinea `SUPABASE_JWT_SECRET` con dashboard Supabase                                               |
+| Webhook non arrivano                     | URL tunnel/prod raggiungibile; HTTPS; webhook registrati                                           |
+| Import catalogo 429 / throttling Shopify | Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env `SHOPIFY_API_*`  |
+| API VestiFlow 429 (troppi click)         | Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop                             |
+| Immagini prodotto 404                    | Bucket `product-media` esiste ed è public                                                          |
+| Avatar 404 / upload fallito              | Bucket `user-avatars` esiste ed è public; env `SUPABASE_USER_AVATARS_BUCKET`                       |
+| TikTok OAuth fallisce                    | Verifica `TIKTOK_*` env, callback URL pubblico HTTPS, app Partner Center attiva                    |
+| Anon key legge dati                      | **Critico** — RLS mancante, fix migration immediato                                                |
+| 500 su `POST .../support-session`        | Migration `0018_support_sessions` non applicata — `npm run prisma:deploy` in `api/`                |
+| 401 «Sessione assistenza non valida»     | Sessione scaduta (>2 h) o chiusa; riavvia da Clienti. Verifica header inviato dall'interceptor     |
+| 403 assistenza su tenant                 | Tenant contiene utente platform admin, oppure email operatore non in `PLATFORM_ADMIN_EMAILS`       |
+| 404 `/shopify/connection` in assistenza  | Comportamento atteso se Shopify non connesso — API risponde `not_connected` (non errore bloccante) |
 
 ---
 
@@ -810,6 +871,7 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 | -------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Multi-store commerciali in un tenant         | Non supportato — un shop = un tenant                                                   |
 | Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore                           |
+| Sessione assistenza platform admin → tenant  | Implementata — 2 h, read/write, audit `support_sessions`, banner UI                    |
 | Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale                                 |
 | Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze                                 |
 | Bozze ordine Shopify (draft orders)          | Non in scope — solo ordini confermati in **Vendite**                                   |

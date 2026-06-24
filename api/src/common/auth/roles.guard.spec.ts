@@ -8,12 +8,15 @@ describe('RolesGuard', () => {
   const reflector = new Reflector();
   const guard = new RolesGuard(reflector);
 
-  function contextWithRole(role?: string) {
+  function contextWithRole(role?: string, supportSession?: { sessionId: string }) {
     return {
       getHandler: () => ({}),
       getClass: () => ({}),
       switchToHttp: () => ({
-        getRequest: () => ({ appUser: role ? { role } : undefined }),
+        getRequest: () => ({
+          appUser: role ? { role } : undefined,
+          supportSession,
+        }),
       }),
     };
   }
@@ -36,5 +39,15 @@ describe('RolesGuard', () => {
     expect(() => guard.canActivate(contextWithRole('clerk') as never)).toThrow(
       ForbiddenException,
     );
+  });
+
+  it('consente accesso con sessione assistenza attiva indipendentemente dal ruolo', () => {
+    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['admin']);
+
+    expect(
+      guard.canActivate(
+        contextWithRole('clerk', { sessionId: 'session-1' }) as never,
+      ),
+    ).toBe(true);
   });
 });

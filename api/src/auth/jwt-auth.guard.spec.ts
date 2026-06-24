@@ -9,6 +9,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { SupabaseJwtService } from './supabase-jwt.service';
 import type { SupabaseService } from './supabase.service';
 import type { SupportSessionService } from '../support/support-session.service';
+import { SUPPORT_SESSION_HEADER } from '../support/support-session.constants';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 describe('JwtAuthGuard', () => {
@@ -92,5 +93,104 @@ describe('JwtAuthGuard', () => {
     expect(request.tenantId).toBe('tenant-1');
     expect(request.appUser?.displayName).toBe('Mario');
     expect(prisma.user.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('sostituisce tenantId con sessione assistenza attiva', async () => {
+    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+    jwt.isConfigured.mockReturnValue(true);
+    jwt.verifyAccessToken.mockResolvedValue({ authUserId: 'auth-1', assuranceLevel: 'aal2' });
+    profileCache.get.mockReturnValue(null);
+    platformAdmin.isPlatformAdmin.mockReturnValue(true);
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'op-1',
+      tenantId: 'tenant-op',
+      email: 'admin@vestiflow.it',
+      displayName: 'Operatore',
+      role: 'owner',
+      avatarUrl: null,
+      isActive: true,
+      stores: [],
+      tenant: { name: 'VestiFlow Ops', channelProfile: 'gestionale' },
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    });
+    supportSessions.resolveActiveSession.mockResolvedValue({
+      sessionId: 'session-1',
+      targetTenantId: 'tenant-client',
+      targetTenantName: 'Cliente Demo',
+      expiresAt: '2026-06-24T16:00:00.000Z',
+    });
+    prisma.tenant.findUnique.mockResolvedValue({
+      name: 'Cliente Demo',
+      channelProfile: 'shopify',
+    });
+
+    const request = {
+      header: (name: string) => {
+        if (name === 'authorization') {
+          return 'Bearer valid-token';
+        }
+        if (name === SUPPORT_SESSION_HEADER) {
+          return 'session-1';
+        }
+        return undefined;
+      },
+      tenantId: undefined as string | undefined,
+      authUserId: undefined as string | undefined,
+      appUser: undefined as { tenantId?: string; supportSession?: unknown } | undefined,
+      supportSession: undefined as { sessionId: string } | undefined,
+    };
+    const ctx = {
+      getHandler: () => ({}),
+      getClass: () => ({}),
+      switchToHttp: () => ({ getRequest: () => request }),
+    };
+
+    await expect(guard.canActivate(ctx as never)).resolves.toBe(true);
+    expect(request.tenantId).toBe('tenant-client');
+    expect(request.appUser?.tenantId).toBe('tenant-client');
+    expect(request.supportSession?.sessionId).toBe('session-1');
+    expect(supportSessions.resolveActiveSession).toHaveBeenCalledWith('session-1', 'op-1');
+  });
+
+  it('rifiuta sessione assistenza non valida', async () => {
+    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+    jwt.isConfigured.mockReturnValue(true);
+    jwt.verifyAccessToken.mockResolvedValue({ authUserId: 'auth-1', assuranceLevel: 'aal2' });
+    profileCache.get.mockReturnValue({
+      tenantId: 'tenant-op',
+      appUser: {
+        id: 'op-1',
+        email: 'admin@vestiflow.it',
+        displayName: 'Operatore',
+        role: 'owner',
+        isPlatformAdmin: true,
+      },
+    });
+    supportSessions.resolveActiveSession.mockResolvedValue(null);
+
+    const request = {
+      header: (name: string) => {
+        if (name === 'authorization') {
+          return 'Bearer valid-token';
+        }
+        if (name === SUPPORT_SESSION_HEADER) {
+          return 'session-scaduta';
+        }
+        return undefined;
+      },
+      tenantId: undefined as string | undefined,
+      authUserId: undefined as string | undefined,
+      appUser: undefined as { isPlatformAdmin?: boolean } | undefined,
+    };
+    const ctx = {
+      getHandler: () => ({}),
+      getClass: () => ({}),
+      switchToHttp: () => ({ getRequest: () => request }),
+    };
+
+    await expect(guard.canActivate(ctx as never)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 });

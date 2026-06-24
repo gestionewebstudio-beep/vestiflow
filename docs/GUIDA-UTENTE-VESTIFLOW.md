@@ -1,6 +1,6 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 2.6 — Giugno 2026
+**Versione documento:** 2.7 — Giugno 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
@@ -790,6 +790,10 @@ Il **profilo canale** del tuo negozio potrebbe essere **Solo gestionale** o un a
 ### Upload foto profilo fallito
 
 Usa JPEG, PNG o WebP, max 2 MB. Se l'errore persiste, riprova tra qualche minuto.
+
+### Il referente VestiFlow può accedere al mio gestionale?
+
+Sì, **solo per supporto tecnico** e **solo quando necessario**. L'operatore VestiFlow può aprire una **sessione di assistenza** temporanea (durata massima **2 ore**) sul tuo account negozio, senza conoscere la tua password. Ogni sessione è **registrata** (chi, quando, su quale negozio). Non devi fare nulla in app: durante l'assistenza l'operatore vede il gestionale come un amministratore del negozio; tu continui a usare VestiFlow normalmente con il tuo account.
 
 ---
 

@@ -1,13 +1,13 @@
 # VestiFlow — Piano di test completo
 
-**Versione documento:** 1.0 — Giugno 2026
+**Versione documento:** 1.1 — Giugno 2026
 
 **Scopo:** elenco ordinato di tutti i test manuali da eseguire sul gestionale, dal primo all'ultimo, con passaggi operativi e risultati attesi. Pensato per test in parallelo da più persone.
 
 **Come usare questo documento**
 
 1. Leggi la sezione **0 — Preparazione** prima di iniziare qualsiasi test.
-2. Esegui i test **nell'ordine numerico** (T-001 → T-185). Alcuni test dipendono da dati creati in test precedenti.
+2. Esegui i test **nell'ordine numerico** (T-001 → T-194). Alcuni test dipendono da dati creati in test precedenti.
 3. Compila per ogni test: **Esito** (OK / KO / N/A), **Tester**, **Data**, **Note**.
 4. In caso di KO, descrivi cosa è successo e allega screenshot se utile.
 5. Non saltare i test contrassegnati **Obbligatorio** prima del go-live.
@@ -81,10 +81,10 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ### 0.3 Divisione suggerita per 2 tester in parallelo
 
-| Tester | Sezioni                         | ID test                                     | Note                                                  |
-| ------ | ------------------------------- | ------------------------------------------- | ----------------------------------------------------- |
-| **A**  | 0 → 5 + 15 + 19 (parte A)       | T-001 → T-070, T-154 → T-156, T-176 → T-180 | Auth, setup Shopify, prodotti, guida, flussi catalogo |
-| **B**  | 6 → 14 + 17 → 18 + 19 (parte B) | T-071 → T-153, T-161 → T-175, T-181 → T-185 | Magazzino, ordini, vendite, mobile, permessi          |
+| Tester | Sezioni                         | ID test                                                    | Note                                                     |
+| ------ | ------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------- |
+| **A**  | 0 → 5 + 15 + 19 (parte A)       | T-001 → T-070, T-154 → T-156, T-176 → T-180                | Auth, setup Shopify, prodotti, guida, flussi catalogo    |
+| **B**  | 6 → 14 + 17 → 18 + 19 (parte B) | T-071 → T-153, T-161 → T-164, T-170 → T-175, T-181 → T-185 | Magazzino, ordini, vendite, mobile, permessi, assistenza |
 
 **Regola conflitto:** non modificare lo stesso prodotto/ordine/inventario contemporaneamente. Usate SKU o riferimenti diversi (es. prefisso `TEST-A-` / `TEST-B-`).
 
@@ -2017,6 +2017,73 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 2. Modifica dati e salva.
 
 **Risultato atteso:** modifiche persistite.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-162 — Avvia sessione assistenza da elenco clienti
+
+|              |                |
+| ------------ | -------------- |
+| **Priorità** | P2             |
+| **Ruolo**    | Platform admin |
+| **Device**   | Desktop        |
+
+**Passaggi:**
+
+1. Login come platform admin.
+2. Apri `/app/admin/clients` (tabella **Clienti registrati**).
+3. Su un tenant cliente (non operatore), click **Apri gestionale (assistenza)** nella colonna **Assistenza**.
+
+**Risultato atteso:** redirect al gestionale del tenant (es. dashboard). Nessun errore 500. Record sessione creato lato backend.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-163 — Sessione assistenza: banner e operatività
+
+|                  |                                    |
+| ---------------- | ---------------------------------- |
+| **Priorità**     | P2                                 |
+| **Ruolo**        | Platform admin                     |
+| **Device**       | Desktop                            |
+| **Prerequisiti** | Sessione assistenza attiva (T-162) |
+
+**Passaggi:**
+
+1. Verifica banner in basso: «Assistenza — {nome cliente}» e testo «Sessione attiva (max 2 ore)».
+2. Apri **Magazzino → Giacenze** o **Prodotti** e consulta dati del tenant.
+3. Esegui un'azione di scrittura consentita ad admin (es. rettifica giacenza di test o modifica prodotto).
+
+**Risultato atteso:** banner sempre visibile; dati del tenant corretti; nessun 403 su operazioni admin; sidebar «Esci» non sovrapposta al banner su mobile.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-164 — Termina sessione assistenza
+
+|                  |                                    |
+| ---------------- | ---------------------------------- |
+| **Priorità**     | P2                                 |
+| **Ruolo**        | Platform admin                     |
+| **Device**       | Desktop                            |
+| **Prerequisiti** | Sessione assistenza attiva (T-162) |
+
+**Passaggi:**
+
+1. Dal banner in basso, click **Esci dall'assistenza**.
+2. Attendi il redirect.
+
+**Risultato atteso:** ritorno a `/app/admin/clients` (shell admin). Banner scomparso. Nuove richieste API tenant non usano più la sessione assistenza.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |

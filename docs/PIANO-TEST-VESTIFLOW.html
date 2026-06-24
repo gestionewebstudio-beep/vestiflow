@@ -144,12 +144,12 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--piano-di-test-completo">VestiFlow — Piano di test completo</h1>
-<p><strong>Versione documento:</strong> 1.0 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 1.1 — Giugno 2026</p>
 <p><strong>Scopo:</strong> elenco ordinato di tutti i test manuali da eseguire sul gestionale, dal primo all&#39;ultimo, con passaggi operativi e risultati attesi. Pensato per test in parallelo da più persone.</p>
 <p><strong>Come usare questo documento</strong></p>
 <ol>
 <li>Leggi la sezione <strong>0 — Preparazione</strong> prima di iniziare qualsiasi test.</li>
-<li>Esegui i test <strong>nell&#39;ordine numerico</strong> (T-001 → T-185). Alcuni test dipendono da dati creati in test precedenti.</li>
+<li>Esegui i test <strong>nell&#39;ordine numerico</strong> (T-001 → T-194). Alcuni test dipendono da dati creati in test precedenti.</li>
 <li>Compila per ogni test: <strong>Esito</strong> (OK / KO / N/A), <strong>Tester</strong>, <strong>Data</strong>, <strong>Note</strong>.</li>
 <li>In caso di KO, descrivi cosa è successo e allega screenshot se utile.</li>
 <li>Non saltare i test contrassegnati <strong>Obbligatorio</strong> prima del go-live.</li>
@@ -295,8 +295,8 @@ ol {
 <tr>
 <td><strong>B</strong></td>
 <td>6 → 14 + 17 → 18 + 19 (parte B)</td>
-<td>T-071 → T-153, T-161 → T-175, T-181 → T-185</td>
-<td>Magazzino, ordini, vendite, mobile, permessi</td>
+<td>T-071 → T-153, T-161 → T-164, T-170 → T-175, T-181 → T-185</td>
+<td>Magazzino, ordini, vendite, mobile, permessi, assistenza</td>
 </tr>
 </tbody></table>
 <p><strong>Regola conflitto:</strong> non modificare lo stesso prodotto/ordine/inventario contemporaneamente. Usate SKU o riferimenti diversi (es. prefisso <code>TEST-A-</code> / <code>TEST-B-</code>).</p>
@@ -1498,11 +1498,107 @@ ol {
 </tbody></table>
 <p><strong>Passaggi:</strong></p>
 <ol>
-<li>Clicca <strong>Disconnetti Shopify</strong> e conferma se richiesto.</li>
+<li>Clicca <strong>Disconnetti Shopify</strong> (non «Disconnetti e rimuovi dati»).</li>
 <li>Verifica stato connessione.</li>
 <li><strong>Riconnetti</strong> subito dopo (T-031) per non bloccare altri test.</li>
 </ol>
-<p><strong>Risultato atteso:</strong> stato Disconnesso. Form per nuova connessione visibile. Riconnessione funziona.</p>
+<p><strong>Risultato atteso:</strong> stato Disconnesso. I dati già importati (prodotti, clienti) restano in VestiFlow. Form per nuova connessione visibile. Riconnessione funziona.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-037b--wizard-cambia-negozio--disconnetti-e-rimuovi-dati">T-037b — Wizard Cambia negozio / Disconnetti e rimuovi dati</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Prerequisiti</strong></td>
+<td>Shopify connesso, ambiente di test (non produzione)</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Integrazione Shopify → Cambia negozio</strong>.</li>
+<li>Verifica anteprima conteggi (prodotti, clienti, ordini, location).</li>
+<li>Chiudi il wizard <strong>senza</strong> confermare (Annulla).</li>
+<li>Ripeti con <strong>Disconnetti e rimuovi dati</strong>; verifica che compaiano avvisi su irreversibilità e ordini fornitori.</li>
+<li><strong>Non</strong> completare la purge in staging con dati reali salvo test dedicato.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> wizard multi-step, conteggi coerenti, conferma dominio richiesta, blockers visibili se ordini fornitori aperti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-037c--pannello-sede-fisica">T-037c — Pannello Sede fisica</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Sede fisica</strong>.</li>
+<li>Verifica nome commerciale, negozio, profilo canale.</li>
+<li>Espandi <strong>Dati fiscali e contatti</strong> se presenti.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> anagrafica tenant visibile; distinta dalle location Shopify sotto Integrazione Shopify.</p>
 <table>
 <thead>
 <tr>
@@ -1587,10 +1683,11 @@ ol {
 </tbody></table>
 <p><strong>Passaggi:</strong></p>
 <ol>
-<li>Sezione <strong>Location</strong> in Impostazioni.</li>
+<li><strong>Impostazioni → Integrazione Shopify → Location</strong>.</li>
+<li>Verifica gruppi <strong>Sedi Shopify</strong> e <strong>Sede locale</strong> (se presenti).</li>
 <li>Verifica colonne: nome, stato sync, riferimenti utili.</li>
 </ol>
-<p><strong>Risultato atteso:</strong> tutte le location sincronizzate elencate. Stato sync leggibile per ciascuna.</p>
+<p><strong>Risultato atteso:</strong> location elencate nel pannello Shopify. Stato sync leggibile. Nome commerciale tenant <strong>non</strong> confuso con sedi Shopify.</p>
 <table>
 <thead>
 <tr>
@@ -1769,7 +1866,7 @@ ol {
 <ol>
 <li><strong>Prodotti → Aggiungi prodotto</strong>.</li>
 <li><strong>Step 1 — Dati generali:</strong> nome <code>TEST-A-Giacca</code>, brand, categoria (select), stagione (select), descrizione. Aggiungi almeno 1 immagine (JPEG/PNG ≤ 5 MB).</li>
-<li><strong>Step 2 — Opzioni:</strong> aggiungi opzione Taglia (S, M, L) e Colore (Nero, Bianco). Verifica generazione combinazioni.</li>
+<li><strong>Step 2 — Opzioni:</strong> aggiungi valori alla prima opzione (es. S, M, L) e alla seconda (es. Nero, Bianco). Verifica generazione combinazioni.</li>
 <li><strong>Step 3 — Varianti:</strong> compila SKU univoci per ogni variante, prezzo vendita, barcode opzionale su almeno una variante.</li>
 <li><strong>Step 4 — Riepilogo:</strong> controlla dati e clicca <strong>Crea prodotto</strong>.</li>
 </ol>
@@ -2084,10 +2181,11 @@ ol {
 </tbody></table>
 <p><strong>Passaggi:</strong></p>
 <ol>
-<li>Elimina un prodotto di test (non usato altrove).</li>
+<li>Elimina un prodotto di test <strong>senza movimenti</strong> di magazzino (non usato altrove).</li>
 <li>Conferma nel dialog.</li>
+<li>Se Shopify connesso e prodotto sincronizzato: verifica rimozione anche su Shopify Admin.</li>
 </ol>
-<p><strong>Risultato atteso:</strong> prodotto rimosso da lista. Dettaglio non più accessibile.</p>
+<p><strong>Risultato atteso:</strong> prodotto rimosso da lista VestiFlow. Con sync attivo, rimosso anche da Shopify. Se il prodotto ha movimenti, eliminazione <strong>bloccata</strong> con messaggio chiaro.</p>
 <table>
 <thead>
 <tr>
@@ -4109,6 +4207,148 @@ ol {
 </tr>
 </tbody></table>
 <hr>
+<h3 id="t-162--avvia-sessione-assistenza-da-elenco-clienti">T-162 — Avvia sessione assistenza da elenco clienti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Login come platform admin.</li>
+<li>Apri <code>/app/admin/clients</code> (tabella <strong>Clienti registrati</strong>).</li>
+<li>Su un tenant cliente (non operatore), click <strong>Apri gestionale (assistenza)</strong> nella colonna <strong>Assistenza</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> redirect al gestionale del tenant (es. dashboard). Nessun errore 500. Record sessione creato lato backend.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-163--sessione-assistenza-banner-e-operatività">T-163 — Sessione assistenza: banner e operatività</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Prerequisiti</strong></td>
+<td>Sessione assistenza attiva (T-162)</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Verifica banner in basso: «Assistenza — {nome cliente}» e testo «Sessione attiva (max 2 ore)».</li>
+<li>Apri <strong>Magazzino → Giacenze</strong> o <strong>Prodotti</strong> e consulta dati del tenant.</li>
+<li>Esegui un&#39;azione di scrittura consentita ad admin (es. rettifica giacenza di test o modifica prodotto).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> banner sempre visibile; dati del tenant corretti; nessun 403 su operazioni admin; sidebar «Esci» non sovrapposta al banner su mobile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-164--termina-sessione-assistenza">T-164 — Termina sessione assistenza</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Prerequisiti</strong></td>
+<td>Sessione assistenza attiva (T-162)</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dal banner in basso, click <strong>Esci dall&#39;assistenza</strong>.</li>
+<li>Attendi il redirect.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> ritorno a <code>/app/admin/clients</code> (shell admin). Banner scomparso. Nuove richieste API tenant non usano più la sessione assistenza.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
 <h2 id="17-mobile-e-pwa">17. Mobile e PWA</h2>
 <h3 id="t-170--installazione-pwa-android">T-170 — Installazione PWA (Android)</h3>
 <table>
@@ -4669,10 +4909,10 @@ ol {
 <h3 id="bug-da-segnalare-template">Bug da segnalare (template)</h3>
 <p>Per ogni KO copiare e compilare:</p>
 <pre><code>ID test: T-___
-Titolo: 
-Passaggi eseguiti: 
-Risultato atteso vs ottenuto: 
-Browser/Device: 
+Titolo:
+Passaggi eseguiti:
+Risultato atteso vs ottenuto:
+Browser/Device:
 Screenshot: sì/no
 Priorità bug: bloccante / alta / media / bassa
 </code></pre>

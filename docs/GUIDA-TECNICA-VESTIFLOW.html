@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 1.6 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 1.7 — Giugno 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -224,10 +224,65 @@ ol {
 <td>Questo manuale</td>
 </tr>
 </tbody></table>
-<p>In topbar: <strong>tema</strong>, <strong>avatar</strong> (clic → Impostazioni), <strong>Esci</strong>. <strong>Nessun</strong> selettore sede né indicatore sync Shopify (non sei dentro un tenant negozio).</p>
-<p>Per gestire catalogo/magazzino di un cliente: accedi con le <strong>credenziali del titolare</strong> di quel tenant (account negozio), non con l&#39;account operatore piattaforma.</p>
+<p>In topbar: <strong>tema</strong>, <strong>avatar</strong> (clic → Impostazioni), <strong>Esci</strong>. <strong>Nessun</strong> selettore sede né indicatore sync Shopify finché non entri in una <strong>sessione assistenza</strong> (vedi sotto).</p>
+<h3 id="sessione-assistenza-al-gestionale-cliente">Sessione assistenza al gestionale cliente</h3>
+<p>Flusso <strong>preferito</strong> per supporto tecnico: aprire il gestionale del cliente <strong>senza password condivise</strong>, con sessione tracciata e durata massima <strong>2 ore</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Dove in UI</th>
+<th>Azione</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Tabella <strong>Clienti registrati</strong> (colonna <strong>Assistenza</strong>)</td>
+<td><strong>Apri gestionale (assistenza)</strong></td>
+</tr>
+<tr>
+<td><strong>Modifica cliente</strong> (<code>/app/admin/clients/:id</code>)</td>
+<td>Pulsante <strong>Apri gestionale (assistenza)</strong> in header</td>
+</tr>
+</tbody></table>
+<p><strong>Cosa succede:</strong></p>
+<ol>
+<li>L&#39;API crea un record <code>SupportSession</code> (operatore → tenant target, scadenza <code>expiresAt</code>).</li>
+<li>Il frontend salva l&#39;ID sessione in <code>sessionStorage</code> e reindirizza a <code>/app/dashboard</code> del tenant.</li>
+<li>Ogni richiesta API include l&#39;header <code>X-Vestiflow-Support-Session</code> (interceptor <code>supportSessionInterceptor</code>).</li>
+<li><code>JwtAuthGuard</code> valida la sessione, <strong>sovrascrive</strong> <code>tenantId</code> e arricchisce il profilo con <code>supportSession</code>.</li>
+<li>Durante la sessione l&#39;operatore ha <strong>permessi equivalenti ad admin tenant</strong> (lettura + scrittura); <code>RolesGuard</code> bypassa i check ruolo se <code>request.supportSession</code> è attivo.</li>
+<li>In shell compare un <strong>banner fisso in basso</strong>: «Assistenza — {nome cliente}» + <strong>Esci dall&#39;assistenza</strong> (chiude la sessione e torna a <code>/app/admin/clients</code>).</li>
+</ol>
+<p><strong>Regole di sicurezza:</strong></p>
+<ul>
+<li>Solo email in <code>PLATFORM_ADMIN_EMAILS</code> può avviare una sessione (<code>PlatformAdminGuard</code> + check in <code>SupportSessionService</code>).</li>
+<li>Non è possibile aprire assistenza su un tenant che contiene utenti platform admin.</li>
+<li>Una nuova sessione <strong>chiude</strong> eventuali sessioni attive dello stesso operatore.</li>
+<li>Alla scadenza (2 h) o su chiusura manuale, <code>endedAt</code> viene impostato; richieste successive con quell&#39;ID → <strong>401</strong>.</li>
+<li><strong>Audit:</strong> tabella <code>support_sessions</code> con operatore, tenant, <code>createdAt</code>, <code>expiresAt</code>, <code>endedAt</code>.</li>
+</ul>
+<p><strong>Alternativa (solo emergenza):</strong> login con credenziali del titolare del tenant. Evitare condivisione password: preferire sempre la sessione assistenza.</p>
 <h3 id="backend">Backend</h3>
-<p>Endpoint sotto <code>/api/v1/admin/tenants</code> protetti da <code>JwtAuthGuard</code> + <code>PlatformAdminGuard</code> (verifica email contro env).</p>
+<p>Endpoint admin protetti da <code>JwtAuthGuard</code> + <code>PlatformAdminGuard</code> (verifica email contro env):</p>
+<table>
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Azione</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/admin/tenants/:id/support-session</code></td>
+<td>Avvia sessione assistenza verso il tenant</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/admin/support-sessions/current</code></td>
+<td>Termina sessione attiva dell&#39;operatore corrente</td>
+</tr>
+</tbody></table>
+<p>Provisioning tenant: endpoint sotto <code>/api/v1/admin/tenants</code> (CRUD tenant).</p>
 <hr>
 <h2 id="2-architettura-e-stack">2. Architettura e stack</h2>
 <table>
@@ -305,12 +360,13 @@ ol {
 <h2 id="4-struttura-repository">4. Struttura repository</h2>
 <pre><code>vestiflow/
 ├── src/app/              # Frontend Angular
-│   ├── core/             # Auth, guards, permissions, HTTP
+│   ├── core/             # Auth, guards, permissions, HTTP, support (sessione assistenza)
 │   ├── shared/           # Componenti UI riutilizzabili
 │   ├── features/         # Feature lazy-loaded (products, inventory, sales, admin, guide…)
 │   └── layout/           # Shell sidebar + topbar
 ├── api/                  # Backend NestJS
-│   ├── src/admin/        # Provisioning tenant (platform admin)
+│   ├── src/admin/        # Provisioning tenant + support-session (platform admin)
+│   ├── src/support/      # SupportSessionService, costanti TTL/header
 │   ├── src/products/     # Catalogo, CSV import/export
 │   ├── src/inventory/    # Giacenze, movimenti, CSV
 │   ├── src/shopify/      # OAuth, sync, webhook, rate limit
@@ -408,6 +464,10 @@ npm run serve:pwa
 <td>Origini frontend consentite</td>
 </tr>
 <tr>
+<td><em>(header CORS)</em></td>
+<td><code>X-Vestiflow-Support-Session</code> consentito per sessione assistenza</td>
+</tr>
+<tr>
 <td><code>SHOPIFY_*</code></td>
 <td>OAuth, scope, cifratura token, rate limit</td>
 </tr>
@@ -473,6 +533,7 @@ npm run serve:pwa
 <h3 id="modifica-tenant-esistente">Modifica tenant esistente</h3>
 <p>Tabella <strong>Clienti registrati</strong> → click riga → <code>/app/admin/clients/:id</code>.</p>
 <p>Modificabile: anagrafica, <strong>profilo canale</strong> (se nessuna integrazione attiva), nome titolare, negozio, location. <strong>Email</strong> e <strong>ruolo</strong> del primo utente sono <strong>sola lettura</strong> in UI (campi disabilitati).</p>
+<p>Da questa pagina (e dalla tabella clienti) puoi avviare <strong>Apri gestionale (assistenza)</strong> — vedi <a href="#sessione-assistenza-al-gestionale-cliente">§1 Sessione assistenza</a>.</p>
 <p>Per cambiare profilo canale con integrazione già connessa: il cliente deve <strong>disconnettere</strong> Shopify o TikTok da Impostazioni prima.</p>
 <h3 id="eliminazione-tenant-zona-pericolosa">Eliminazione tenant (zona pericolosa)</h3>
 <p>In <strong>Modifica cliente</strong>, pannello <strong>Zona pericolosa → Elimina cliente</strong>: rimuove tenant, dati negozio, utenti e integrazioni. Operazione <strong>irreversibile</strong> con dialog di conferma.</p>
@@ -510,8 +571,19 @@ npm run serve:pwa
 <td><code>/admin/tenants/:id</code></td>
 <td>Elimina tenant e dati</td>
 </tr>
+<tr>
+<td>POST</td>
+<td><code>/admin/tenants/:id/support-session</code></td>
+<td>Avvia sessione assistenza (2 h)</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/admin/support-sessions/current</code></td>
+<td>Termina sessione assistenza attiva</td>
+</tr>
 </tbody></table>
 <p>Body create include <code>role</code> (<code>owner</code> | <code>admin</code> | <code>manager</code> | <code>clerk</code>) e <code>channelProfile</code> (<code>gestionale</code> | <code>shopify</code> | <code>tiktok_shop</code>).</p>
+<p>Migration DB: <code>0018_support_sessions</code> — tabella <code>support_sessions</code>. In produzione: <code>npm run prisma:deploy</code> (o equivalente Railway) prima di usare assistenza.</p>
 <hr>
 <h2 id="8-autenticazione-e-ruoli">8. Autenticazione e ruoli</h2>
 <h3 id="flusso-auth">Flusso auth</h3>
@@ -521,6 +593,16 @@ npm run serve:pwa
 <li><code>JwtAuthGuard</code> valida firma con <code>SUPABASE_JWT_SECRET</code></li>
 <li>Profilo utente + <code>tenantId</code> + ruolo + <code>isPlatformAdmin</code> caricati</li>
 </ol>
+<h3 id="sessione-assistenza-auth">Sessione assistenza (auth)</h3>
+<p>Se la richiesta include l&#39;header <code>X-Vestiflow-Support-Session</code> con un ID sessione valido <strong>e</strong> l&#39;utente è platform admin:</p>
+<ol>
+<li><code>SupportSessionService.resolveActiveSession()</code> verifica ID, operatore, <code>endedAt</code> null, <code>expiresAt</code> futuro.</li>
+<li><code>JwtAuthGuard</code> imposta <code>request.tenantId</code> e <code>request.appUser.tenantId</code> al <strong>tenant cliente</strong> target.</li>
+<li>Il profilo API espone <code>supportSession: { sessionId, targetTenantId, targetTenantName, expiresAt }</code>.</li>
+<li><code>RolesGuard</code> <strong>non applica</strong> vincoli ruolo tenant quando <code>request.supportSession</code> è presente.</li>
+<li>Frontend: <code>tenant-permissions.util.ts</code> tratta l&#39;operatore in assistenza come <strong>admin tenant</strong>; <code>isPlatformOperator()</code> è <code>false</code> durante la sessione (UI gestionale, non shell admin).</li>
+</ol>
+<p>Persistenza client: <code>sessionStorage</code> (<code>SUPPORT_SESSION_STORAGE_KEY</code>). Restore al bootstrap in <code>app.config.ts</code>; interceptor HTTP allega l&#39;header su ogni chiamata finché la sessione è attiva.</p>
 <h3 id="ruoli-tenant-ui--api">Ruoli tenant (UI + API)</h3>
 <p>Implementati in <code>tenant-permissions.util.ts</code> (frontend) e guard analoghi lato API.</p>
 <table>
@@ -1040,6 +1122,10 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <td><code>ShopifyConnection</code></td>
 <td>Token, scope, stato sync per tenant</td>
 </tr>
+<tr>
+<td><code>SupportSession</code></td>
+<td>Audit sessioni assistenza: <code>operatorUserId</code>, <code>targetTenantId</code>, <code>expiresAt</code>, <code>endedAt</code></td>
+</tr>
 </tbody></table>
 <p>Denaro: <strong>interi minor units</strong> (<code>Money.amountMinor</code>), mai float.</p>
 <hr>
@@ -1404,6 +1490,7 @@ cd api &amp;&amp; npm run test
 <ul>
 <li><input disabled="" type="checkbox"> Login tenant test</li>
 <li><input disabled="" type="checkbox"> Platform admin → Clienti → Nuovo cliente (staging)</li>
+<li><input disabled="" type="checkbox"> Platform admin → <strong>Apri gestionale (assistenza)</strong> su tenant test → banner + operazione magazzino → <strong>Esci dall&#39;assistenza</strong></li>
 <li><input disabled="" type="checkbox"> Profilo canale Shopify e TikTok su tenant test</li>
 <li><input disabled="" type="checkbox"> OAuth Shopify su tenant test</li>
 <li><input disabled="" type="checkbox"> OAuth TikTok Shop su tenant test (se abilitato)</li>
@@ -1422,6 +1509,8 @@ cd api &amp;&amp; npm run test
 <li><input disabled="" type="checkbox"> CORS ristretto ai domini produzione</li>
 <li><input disabled="" type="checkbox"> Token Shopify cifrati; revoca su disconnessione</li>
 <li><input disabled="" type="checkbox"> MFA disponibile per admin negozio</li>
+<li><input disabled="" type="checkbox"> Migration <code>0018_support_sessions</code> applicata in produzione</li>
+<li><input disabled="" type="checkbox"> Sessioni assistenza tracciate in <code>support_sessions</code> (nessuna password condivisa per supporto)</li>
 <li><input disabled="" type="checkbox"> Dipendenze: <code>npm audit</code> senza high/critical</li>
 <li><input disabled="" type="checkbox"> Guide rigenerate se modificate</li>
 </ul>
@@ -1478,6 +1567,22 @@ cd api &amp;&amp; npm run test
 <td>Anon key legge dati</td>
 <td><strong>Critico</strong> — RLS mancante, fix migration immediato</td>
 </tr>
+<tr>
+<td>500 su <code>POST .../support-session</code></td>
+<td>Migration <code>0018_support_sessions</code> non applicata — <code>npm run prisma:deploy</code> in <code>api/</code></td>
+</tr>
+<tr>
+<td>401 «Sessione assistenza non valida»</td>
+<td>Sessione scaduta (&gt;2 h) o chiusa; riavvia da Clienti. Verifica header inviato dall&#39;interceptor</td>
+</tr>
+<tr>
+<td>403 assistenza su tenant</td>
+<td>Tenant contiene utente platform admin, oppure email operatore non in <code>PLATFORM_ADMIN_EMAILS</code></td>
+</tr>
+<tr>
+<td>404 <code>/shopify/connection</code> in assistenza</td>
+<td>Comportamento atteso se Shopify non connesso — API risponde <code>not_connected</code> (non errore bloccante)</td>
+</tr>
 </tbody></table>
 <hr>
 <h2 id="20-limitazioni-note-e-roadmap">20. Limitazioni note e roadmap</h2>
@@ -1495,6 +1600,10 @@ cd api &amp;&amp; npm run test
 <tr>
 <td>Invito utenti / cambio ruolo self-service</td>
 <td>Non in UI — solo provisioning iniziale + richiesta operatore</td>
+</tr>
+<tr>
+<td>Sessione assistenza platform admin → tenant</td>
+<td>Implementata — 2 h, read/write, audit <code>support_sessions</code>, banner UI</td>
 </tr>
 <tr>
 <td>Sync vendite/clienti TikTok Shop</td>
