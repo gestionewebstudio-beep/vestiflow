@@ -874,7 +874,7 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 1. **Prodotti → Aggiungi prodotto**.
 2. **Step 1 — Dati generali:** nome `TEST-A-Giacca`, brand, categoria (select), stagione (select), descrizione. Aggiungi almeno 1 immagine (JPEG/PNG ≤ 5 MB).
-3. **Step 2 — Opzioni:** aggiungi opzione Taglia (S, M, L) e Colore (Nero, Bianco). Verifica generazione combinazioni.
+3. **Step 2 — Opzioni:** aggiungi valori alla prima opzione (es. S, M, L) e alla seconda (es. Nero, Bianco). Verifica generazione combinazioni.
 4. **Step 3 — Varianti:** compila SKU univoci per ogni variante, prezzo vendita, barcode opzionale su almeno una variante.
 5. **Step 4 — Riepilogo:** controlla dati e clicca **Crea prodotto**.
 

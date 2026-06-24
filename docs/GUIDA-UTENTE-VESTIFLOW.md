@@ -1,10 +1,10 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 2.4 — Giugno 2026
+**Versione documento:** 2.5 — Giugno 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
-**Prodotto:** VestiFlow — gestionale web multi-sede per boutique di abbigliamento, con integrazione opzionale a **Shopify** o **TikTok Shop** (in base al profilo scelto per il tuo negozio). L'integrazione **TikTok Shop è ancora parziale** — vedi [§7](#7-collegare-tiktok-shop).
+**Prodotto:** VestiFlow — gestionale web multi-sede per **retail e negozi con inventario fisico**, con integrazione opzionale a **Shopify** o **TikTok Shop** (in base al profilo scelto per il tuo negozio). Adatto ad abbigliamento, accessori, cosmetica, food con varianti, e-commerce Shopify e altri settori con SKU e magazzino. L'integrazione **TikTok Shop è ancora parziale** — vedi [§7](#7-collegare-tiktok-shop).
 
 ---
 
@@ -37,7 +37,7 @@ VestiFlow è il **gestionale del tuo negozio**: catalogo, magazzino, ordini ai f
 
 Con un account puoi:
 
-- gestire **prodotti e varianti** (taglia, colore, SKU, barcode, prezzi);
+- gestire **prodotti e varianti** (opzioni come taglia, colore, capacità, modello — SKU, barcode, prezzi);
 - vedere e aggiornare **giacenze per sede** (negozio, magazzino, altri punti vendita);
 - registrare **carichi, scarichi, trasferimenti e rettifiche** con storico;
 - creare e ricevere **ordini fornitori**;
@@ -363,7 +363,7 @@ I prodotti **Fonte: Shopify** si allineano automaticamente da Shopify Admin: non
 ### Concetti base
 
 - **Prodotto** = scheda (nome, brand, categoria, stagione, descrizione, immagini).
-- **Variante** = unità vendibile e di magazzino (es. Taglia M + Colore Rosso).
+- **Variante** = unità vendibile e di magazzino (es. opzione «Taglia» M + «Colore» Rosso, oppure «Capacità» 500 ml + «Aroma» Vaniglia).
 - Ogni variante ha **SKU univoco** (obbligatorio) e **barcode** opzionale.
 - Lo **stock** non è sul prodotto: è per **variante × sede** (vedi Magazzino).
 
@@ -371,7 +371,7 @@ I prodotti **Fonte: Shopify** si allineano automaticamente da Shopify Admin: non
 
 1. **Prodotti → Aggiungi prodotto**
 2. **Dati generali** — nome, brand, categoria, immagini…
-3. **Opzioni** — es. Taglia e Colore; VestiFlow genera le combinazioni
+3. **Opzioni** — due assi predefiniti (nomi «Taglia» e «Colore», comuni su Shopify) più un terzo opzionale personalizzabile; i **valori** si adattano al tuo settore. VestiFlow genera le combinazioni
 4. **Varianti** — SKU, prezzi, barcode per ogni combinazione
 5. **Riepilogo** → **Crea prodotto**
 
@@ -379,7 +379,7 @@ I prodotti **Fonte: Shopify** si allineano automaticamente da Shopify Admin: non
 
 Se il negozio ha **Shopify connesso**, nello step **Dati generali** compare il picker **Categoria prodotto Shopify** (tassonomia ufficiale Shopify, come in Shopify Admin).
 
-Dopo aver scelto la categoria, compare la sezione **Attributi categoria**: metafield collegati a quella categoria (es. tessuto, fascia d'età, target gender). Servono per Shopify e Google; **non** creano varianti SKU — taglia/colore e combinazioni restano nello step **Opzioni**.
+Dopo aver scelto la categoria, compare la sezione **Attributi categoria**: metafield collegati a quella categoria Shopify (es. materiale, fascia d'età, ingredienti — dipendono dalla categoria scelta). Servono per Shopify e Google; **non** creano varianti SKU — opzioni e combinazioni SKU restano nello step **Opzioni**.
 
 | Comportamento               | Cosa significa                                                                |
 | --------------------------- | ----------------------------------------------------------------------------- |

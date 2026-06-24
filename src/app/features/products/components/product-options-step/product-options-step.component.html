@@ -7,22 +7,24 @@
   } @else {
     <p class="options-step__intro">
       Definisci le opzioni che generano le varianti vendibili: ogni combinazione di valori diventa
-      un SKU con giacenza, prezzo ed etichetta propri.
+      un SKU con giacenza, prezzo ed etichetta propri. I nomi «Taglia» e «Colore» sono quelli
+      predefiniti (standard Shopify); i valori si adattano a qualsiasi settore (taglie, capacità,
+      aromi, modelli…).
     </p>
   }
 
   @if (!catalogReadOnly()) {
     <div class="options-step__editors">
       <app-option-list-editor
-        label="Taglie"
-        placeholder="Aggiungi taglia (es. M)"
+        label="Taglia"
+        placeholder="Es. M, L — oppure 500 ml, 1 L"
         [hint]="sizeHint()"
         [values]="sizes()"
         (valuesChange)="onSizesChange($event)"
       />
       <app-option-list-editor
         [label]="variantColorLabel()"
-        placeholder="Aggiungi colore (es. Rosso)"
+        placeholder="Es. Rosso, Nero — oppure Vaniglia, Limone"
         [hint]="variantColorHint()"
         [values]="colors()"
         (valuesChange)="onColorsChange($event)"
@@ -33,7 +35,7 @@
       <div class="options-step__third-header">
         <h2 id="third-axis-title" class="options-step__third-title">Opzione aggiuntiva</h2>
         @if (!hasThirdAxis()) {
-          <app-button variant="ghost" type="button" (click)="addThirdAxis()">
+          <app-button variant="secondary" type="button" (click)="addThirdAxis()">
             + Aggiungi opzione
           </app-button>
         } @else {
@@ -45,7 +47,8 @@
 
       @if (!hasThirdAxis()) {
         <p class="options-step__third-hint">
-          Oltre a Taglia e Colore puoi aggiungere una terza opzione (es. Materiale, Vestibilità).
+          Puoi aggiungere una terza opzione con nome personalizzato (es. Materiale, Confezione,
+          Modello).
         </p>
       } @else {
         <div class="options-step__third-name">

@@ -21,11 +21,9 @@ const DEFAULT_THIRD_AXIS_NAME = 'Materiale';
 const THIRD_AXIS_INDEX = 2;
 
 /**
- * Step "Opzioni" del wizard (presentazionale). UX conservativa: due editor fissi
- * (Taglia/Colore) + un 3° asse opzionale con nome editabile (attivabile/
- * rimovibile). Internamente lavora sul modello generico `axes` (max 3). Le
- * modifiche sono propagate via `optionsChange`; generazione/merge varianti vive
- * nello smart. L'anteprima ha colonne dinamiche in base agli assi attivi.
+ * Step "Opzioni" del wizard (presentazionale). Due assi con nomi predefiniti Shopify
+ * (Taglia/Colore) + un 3° asse opzionale con nome editabile. I valori si adattano a
+ * qualsiasi settore; generazione/merge varianti vive nello smart.
  */
 @Component({
   selector: 'app-product-options-step',
@@ -54,16 +52,17 @@ export class ProductOptionsStepComponent {
 
   protected readonly variantColorHint = computed(() => {
     if (!this.shopifyConnected()) {
-      return undefined;
+      return 'Valori della seconda opzione (es. colori, aromi, finiture).';
     }
-    return 'Un valore per ogni SKU colore (es. Rosso, Blu). Diverso dall\u0027attributo categoria Color del passo 1.';
+    return 'Un valore per ogni variante (es. Rosso, Blu). Diverso dall\u0027attributo categoria Color del passo 1.';
   });
 
-  protected readonly sizeHint = computed(() =>
-    this.shopifyConnected()
-      ? 'Un valore per ogni taglia vendibile. Genera varianti distinte con SKU e giacenza propri.'
-      : undefined,
-  );
+  protected readonly sizeHint = computed(() => {
+    if (!this.shopifyConnected()) {
+      return 'Valori della prima opzione (es. taglie, capacità, modelli).';
+    }
+    return 'Un valore per ogni variante vendibile. Genera SKU e giacenze distinte.';
+  });
 
   // 3° asse opzionale: per convenzione è l'asse in posizione 2 (oltre i due fissi).
   protected readonly thirdAxis = computed<OptionAxisDraft | null>(

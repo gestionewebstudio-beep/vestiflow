@@ -45,7 +45,7 @@ test.describe('Form prodotto', () => {
       timeout: 15_000,
     });
 
-    await addOptionValue(page, 'Taglie', 'M');
+    await addOptionValue(page, 'Taglia', 'M');
     await addOptionValue(page, 'Colori varianti', 'Nero');
 
     await page.getByRole('button', { name: 'Avanti' }).click();

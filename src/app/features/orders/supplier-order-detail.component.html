@@ -23,7 +23,6 @@
         <p class="po-detail__supplier">{{ o.supplierName }}</p>
       </div>
       <div class="po-detail__header-actions">
-        <app-badge [tone]="statusTone(o.status)">{{ statusLabel(o.status) }}</app-badge>
         @if (mode() === 'view') {
           @if (canEdit()) {
             <app-button variant="ghost" (click)="goToEdit()">
@@ -71,7 +70,10 @@
     }
 
     <section class="po-detail__panel" aria-labelledby="po-general">
-      <h2 id="po-general" class="po-detail__panel-title">Dati ordine</h2>
+      <div class="po-detail__panel-head po-detail__panel-head--split">
+        <h2 id="po-general" class="po-detail__panel-title">Dati ordine</h2>
+        <app-badge [tone]="statusTone(o.status)">{{ statusLabel(o.status) }}</app-badge>
+      </div>
       <app-detail-facts [facts]="facts()" />
     </section>
 

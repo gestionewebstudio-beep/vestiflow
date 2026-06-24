@@ -2,7 +2,7 @@ import type { EntityId } from '@core/models/common.model';
 import type { ProductStatus, SelectedOption } from '@core/models/product.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 
-/** Nomi opzione di default della UX conservativa (Taglia + Colore). */
+/** Nomi opzione di default del wizard (convenzione Shopify; valori liberi per settore). */
 export const OPTION_NAME_SIZE = 'Taglia';
 export const OPTION_NAME_COLOR = 'Colore';
 

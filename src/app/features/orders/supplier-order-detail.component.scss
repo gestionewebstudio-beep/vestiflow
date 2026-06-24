@@ -58,6 +58,12 @@
   gap: var(--space-2);
 }
 
+.po-detail__panel-head--split {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
 .po-detail__panel-title {
   margin: 0;
   font-size: var(--text-lg);

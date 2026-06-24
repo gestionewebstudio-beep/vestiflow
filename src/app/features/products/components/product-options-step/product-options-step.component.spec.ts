@@ -28,7 +28,7 @@ describe('ProductOptionsStepComponent', () => {
 
     fixture.componentInstance.optionsChange.subscribe(onOptionsChange);
 
-    const sizeInput = screen.getByLabelText('Taglie');
+    const sizeInput = screen.getByLabelText('Taglia');
     await user.type(sizeInput, 'M');
     await user.click(screen.getAllByRole('button', { name: 'Aggiungi' })[0]!);
 

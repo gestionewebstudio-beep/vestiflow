@@ -3,7 +3,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 /** Stagioni calendario per catalogazione interna. */
 export const PRODUCT_SEASON_CALENDAR = ['Primavera', 'Estate', 'Autunno', 'Inverno'] as const;
 
-/** Stagioni commerciali tipiche abbigliamento (Italia). */
+/** Stagioni commerciali retail (PE/AI — comuni in moda, opzionali altrove). */
 export const PRODUCT_SEASON_COMMERCIAL = ['PE', 'AI'] as const;
 
 export const PRODUCT_SEASON_STANDARD_VALUES: readonly string[] = [

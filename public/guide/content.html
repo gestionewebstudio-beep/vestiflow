@@ -1,7 +1,7 @@
 <h1 id="vestiflow--guida-per-lutente">VestiFlow — Guida per l&#39;utente</h1>
-<p><strong>Versione documento:</strong> 2.4 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 2.5 — Giugno 2026</p>
 <p><strong>Per chi è questa guida:</strong> titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.</p>
-<p><strong>Prodotto:</strong> VestiFlow — gestionale web multi-sede per boutique di abbigliamento, con integrazione opzionale a <strong>Shopify</strong> o <strong>TikTok Shop</strong> (in base al profilo scelto per il tuo negozio). L&#39;integrazione <strong>TikTok Shop è ancora parziale</strong> — vedi <a href="#7-collegare-tiktok-shop">§7</a>.</p>
+<p><strong>Prodotto:</strong> VestiFlow — gestionale web multi-sede per <strong>retail e negozi con inventario fisico</strong>, con integrazione opzionale a <strong>Shopify</strong> o <strong>TikTok Shop</strong> (in base al profilo scelto per il tuo negozio). Adatto ad abbigliamento, accessori, cosmetica, food con varianti, e-commerce Shopify e altri settori con SKU e magazzino. L&#39;integrazione <strong>TikTok Shop è ancora parziale</strong> — vedi <a href="#7-collegare-tiktok-shop">§7</a>.</p>
 <hr>
 <h2 id="indice">Indice</h2>
 <ol>
@@ -29,7 +29,7 @@
 <p>VestiFlow è il <strong>gestionale del tuo negozio</strong>: catalogo, magazzino, ordini ai fornitori e — se previsto dal tuo profilo — allineamento con <strong>Shopify</strong> o <strong>TikTok Shop</strong>.</p>
 <p>Con un account puoi:</p>
 <ul>
-<li>gestire <strong>prodotti e varianti</strong> (taglia, colore, SKU, barcode, prezzi);</li>
+<li>gestire <strong>prodotti e varianti</strong> (opzioni come taglia, colore, capacità, modello — SKU, barcode, prezzi);</li>
 <li>vedere e aggiornare <strong>giacenze per sede</strong> (negozio, magazzino, altri punti vendita);</li>
 <li>registrare <strong>carichi, scarichi, trasferimenti e rettifiche</strong> con storico;</li>
 <li>creare e ricevere <strong>ordini fornitori</strong>;</li>
@@ -651,7 +651,7 @@
 <h3 id="concetti-base">Concetti base</h3>
 <ul>
 <li><strong>Prodotto</strong> = scheda (nome, brand, categoria, stagione, descrizione, immagini).</li>
-<li><strong>Variante</strong> = unità vendibile e di magazzino (es. Taglia M + Colore Rosso).</li>
+<li><strong>Variante</strong> = unità vendibile e di magazzino (es. opzione «Taglia» M + «Colore» Rosso, oppure «Capacità» 500 ml + «Aroma» Vaniglia).</li>
 <li>Ogni variante ha <strong>SKU univoco</strong> (obbligatorio) e <strong>barcode</strong> opzionale.</li>
 <li>Lo <strong>stock</strong> non è sul prodotto: è per <strong>variante × sede</strong> (vedi Magazzino).</li>
 </ul>
@@ -659,13 +659,13 @@
 <ol>
 <li><strong>Prodotti → Aggiungi prodotto</strong></li>
 <li><strong>Dati generali</strong> — nome, brand, categoria, immagini…</li>
-<li><strong>Opzioni</strong> — es. Taglia e Colore; VestiFlow genera le combinazioni</li>
+<li><strong>Opzioni</strong> — due assi predefiniti (nomi «Taglia» e «Colore», comuni su Shopify) più un terzo opzionale personalizzabile; i <strong>valori</strong> si adattano al tuo settore. VestiFlow genera le combinazioni</li>
 <li><strong>Varianti</strong> — SKU, prezzi, barcode per ogni combinazione</li>
 <li><strong>Riepilogo</strong> → <strong>Crea prodotto</strong></li>
 </ol>
 <h4 id="categoria-shopify-e-attributi-categoria-profilo-shopify">Categoria Shopify e attributi categoria (profilo Shopify)</h4>
 <p>Se il negozio ha <strong>Shopify connesso</strong>, nello step <strong>Dati generali</strong> compare il picker <strong>Categoria prodotto Shopify</strong> (tassonomia ufficiale Shopify, come in Shopify Admin).</p>
-<p>Dopo aver scelto la categoria, compare la sezione <strong>Attributi categoria</strong>: metafield collegati a quella categoria (es. tessuto, fascia d&#39;età, target gender). Servono per Shopify e Google; <strong>non</strong> creano varianti SKU — taglia/colore e combinazioni restano nello step <strong>Opzioni</strong>.</p>
+<p>Dopo aver scelto la categoria, compare la sezione <strong>Attributi categoria</strong>: metafield collegati a quella categoria Shopify (es. materiale, fascia d&#39;età, ingredienti — dipendono dalla categoria scelta). Servono per Shopify e Google; <strong>non</strong> creano varianti SKU — opzioni e combinazioni SKU restano nello step <strong>Opzioni</strong>.</p>
 <table>
 <thead>
 <tr>
