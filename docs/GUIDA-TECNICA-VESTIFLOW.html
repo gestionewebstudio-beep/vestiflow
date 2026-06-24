@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 1.8 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 1.9 — Giugno 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -1104,7 +1104,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><code>InventoryLevel</code></td>
-<td><code>variantId</code> × <code>locationId</code>, stati quantità</td>
+<td><code>variantId</code> × <code>locationId</code>, stati quantità. Riga creata al primo movimento/sync/rettifica/import; senza riga il prodotto non compare nel browse Giacenze. Con <code>GET /inventory/levels?search=…</code> l&#39;API include anche varianti match senza riga (quantità 0, id sintetico <code>virtual:{variantId}:{locationId}</code>).</td>
 </tr>
 <tr>
 <td><code>StockMovement</code></td>
@@ -1201,6 +1201,10 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 </thead>
 <tbody><tr>
+<td><strong>Lista</strong></td>
+<td><code>GET /inventory/levels</code> — paginata; query <code>locationId</code>, <code>search</code>, <code>lowStockOnly</code>, <code>page</code>, <code>pageSize</code>. <strong>Con <code>search</code>:</strong> espande varianti trovate (SKU/barcode/nome) anche senza riga in DB, una riga per sede con quantità 0. <strong>Senza <code>search</code>:</strong> solo righe esistenti in <code>inventory_levels</code>.</td>
+</tr>
+<tr>
 <td><strong>Export</strong></td>
 <td><code>GET /inventory/levels/export/csv</code></td>
 </tr>
@@ -1218,7 +1222,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><strong>Permessi</strong></td>
-<td>manager+</td>
+<td>lista: autenticato; export/import: manager+</td>
 </tr>
 </tbody></table>
 <h3 id="vendite-e-clienti">Vendite e clienti</h3>

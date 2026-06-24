@@ -117,7 +117,10 @@ export class ProductService {
 
   getVariantSummaries(): Observable<readonly VariantSummary[]> {
     if (!this.variantSummariesCache || this.variantSummariesCache.expiresAt <= Date.now()) {
-      const params = new HttpParams().set('page', '1').set('pageSize', String(FACET_PAGE_SIZE));
+      const params = new HttpParams()
+        .set('page', '1')
+        .set('pageSize', String(FACET_PAGE_SIZE))
+        .set('includeVariants', 'true');
       this.variantSummariesCache = {
         expiresAt: Date.now() + VARIANT_SUMMARIES_CACHE_MS,
         value$: this.http.get<ApiPaginated<ProductApiRow>>(this.url('/products'), { params }).pipe(

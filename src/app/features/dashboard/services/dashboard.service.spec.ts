@@ -39,6 +39,8 @@ describe('DashboardService (HTTP)', () => {
     req.flush({
       productCount: 42,
       incomingSupplierOrders: 3,
+      availableUnits: 120,
+      lowStockCount: 1,
       levels: [
         {
           variantId: 'var-1',

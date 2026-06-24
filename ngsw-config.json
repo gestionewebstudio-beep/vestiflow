@@ -11,8 +11,9 @@
           "/index.html",
           "/manifest.webmanifest",
           "/*.css",
-          "/*.js",
-          "/media/**"
+          "/main-*.js",
+          "/polyfills-*.js",
+          "/styles-*.css"
         ]
       }
     },

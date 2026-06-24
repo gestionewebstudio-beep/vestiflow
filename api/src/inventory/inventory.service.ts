@@ -16,6 +16,7 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type {
   ListInventoryLevelsQueryDto,
@@ -38,6 +39,9 @@ export type InventoryLevelWithRefs = InventoryLevel & {
   location: { name: string };
 };
 
+/** Limite varianti espandibili in ricerca (variante × location). */
+const MAX_SEARCH_VARIANTS = 100;
+
 @Injectable()
 export class InventoryService {
   private readonly logger = new Logger(InventoryService.name);
@@ -58,20 +62,21 @@ export class InventoryService {
     tenantId: string,
     query: ListInventoryLevelsQueryDto,
   ): Promise<Paginated<InventoryLevelWithRefs>> {
+    const search = query.search?.trim();
+    if (search) {
+      return this.listLevelsForSearch(tenantId, query, search);
+    }
+    return this.listLevelsPaginated(tenantId, query);
+  }
+
+  /** Elenco paginato delle sole righe già presenti in inventario (browse senza ricerca). */
+  private async listLevelsPaginated(
+    tenantId: string,
+    query: ListInventoryLevelsQueryDto,
+  ): Promise<Paginated<InventoryLevelWithRefs>> {
     const where: Prisma.InventoryLevelWhereInput = {
       tenantId,
       ...(query.locationId ? { locationId: query.locationId } : {}),
-      ...(query.search
-        ? {
-            variant: {
-              OR: [
-                { sku: { contains: query.search, mode: 'insensitive' } },
-                { product: { name: { contains: query.search, mode: 'insensitive' } } },
-              ],
-            },
-          }
-        : {}),
-      // "Sotto soglia" confrontando colonne: available <= min_threshold.
       ...(query.lowStockOnly
         ? { available: { lte: this.prisma.inventoryLevel.fields.minThreshold } }
         : {}),
@@ -92,6 +97,114 @@ export class InventoryService {
     ]);
 
     return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /**
+   * Con ricerca attiva include anche varianti senza riga in `inventory_levels`
+   * (giacenza 0 per location), allineandosi al comportamento di "Cerca".
+   */
+  private async listLevelsForSearch(
+    tenantId: string,
+    query: ListInventoryLevelsQueryDto,
+    search: string,
+  ): Promise<Paginated<InventoryLevelWithRefs>> {
+    const variantWhere: Prisma.ProductVariantWhereInput = {
+      tenantId,
+      ...buildInventoryVariantSearchWhere(search),
+    };
+
+    const [variants, locations] = await Promise.all([
+      this.prisma.productVariant.findMany({
+        where: variantWhere,
+        select: {
+          id: true,
+          sku: true,
+          product: { select: { name: true } },
+        },
+        orderBy: [{ product: { name: 'asc' } }, { sku: 'asc' }],
+        take: MAX_SEARCH_VARIANTS,
+      }),
+      this.prisma.location.findMany({
+        where: {
+          tenantId,
+          ...(query.locationId ? { id: query.locationId } : {}),
+        },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    if (variants.length === 0 || locations.length === 0) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
+    const variantIds = variants.map((variant) => variant.id);
+    const existingLevels = await this.prisma.inventoryLevel.findMany({
+      where: {
+        tenantId,
+        variantId: { in: variantIds },
+        ...(query.locationId ? { locationId: query.locationId } : {}),
+      },
+      include: {
+        variant: { select: { sku: true, product: { select: { name: true } } } },
+        location: { select: { name: true } },
+      },
+    });
+
+    const levelByKey = new Map(
+      existingLevels.map((level) => [`${level.variantId}|${level.locationId}`, level]),
+    );
+
+    const rows: InventoryLevelWithRefs[] = [];
+    for (const variant of variants) {
+      for (const location of locations) {
+        const key = `${variant.id}|${location.id}`;
+        const existing = levelByKey.get(key);
+        rows.push(
+          existing ??
+            this.buildVirtualInventoryLevel(tenantId, variant, location),
+        );
+      }
+    }
+
+    const filtered = query.lowStockOnly
+      ? rows.filter((row) => row.available <= row.minThreshold)
+      : rows;
+
+    filtered.sort(
+      (a, b) =>
+        a.variant.product.name.localeCompare(b.variant.product.name) ||
+        a.variant.sku.localeCompare(b.variant.sku) ||
+        a.location.name.localeCompare(b.location.name),
+    );
+
+    const total = filtered.length;
+    const skip = (query.page - 1) * query.pageSize;
+    const items = filtered.slice(skip, skip + query.pageSize);
+
+    return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  private buildVirtualInventoryLevel(
+    tenantId: string,
+    variant: { id: string; sku: string; product: { name: string } },
+    location: { id: string; name: string },
+  ): InventoryLevelWithRefs {
+    return {
+      id: `virtual:${variant.id}:${location.id}`,
+      tenantId,
+      variantId: variant.id,
+      locationId: location.id,
+      onHand: 0,
+      available: 0,
+      committed: 0,
+      incoming: 0,
+      reserved: 0,
+      minThreshold: 0,
+      updatedAt: new Date(0),
+      variant: { sku: variant.sku, product: { name: variant.product.name } },
+      location: { name: location.name },
+    };
   }
 
   async listMovements(

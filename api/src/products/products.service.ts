@@ -37,6 +37,42 @@ const PRODUCT_INCLUDE = {
   images: { orderBy: { sortOrder: 'asc' as const } },
 } satisfies Prisma.ProductInclude;
 
+/** Select leggero per GET /products (lista catalogo): niente varianti né immagini. */
+const PRODUCT_LIST_SELECT = {
+  id: true,
+  tenantId: true,
+  name: true,
+  description: true,
+  brand: true,
+  category: true,
+  shopifyTaxonomyCategoryId: true,
+  shopifyTaxonomyCategoryFullName: true,
+  shopifyCategoryMetafields: true,
+  season: true,
+  tags: true,
+  seoTitle: true,
+  seoDescription: true,
+  shopifyCollections: true,
+  shopifyMetafields: true,
+  status: true,
+  catalogOrigin: true,
+  shopifyCatalogLinkKind: true,
+  options: true,
+  shopifyProductId: true,
+  shopifySyncStatus: true,
+  shopifyLastSyncAt: true,
+  shopifyLastError: true,
+  tiktokCategoryId: true,
+  tiktokProductId: true,
+  tiktokSyncStatus: true,
+  tiktokLastSyncAt: true,
+  tiktokLastError: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProductSelect;
+
+type ProductListRow = Prisma.ProductGetPayload<{ select: typeof PRODUCT_LIST_SELECT }>;
+
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
@@ -69,14 +105,17 @@ export class ProductsService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.product.findMany({
-        where,
-        include: PRODUCT_INCLUDE,
-        orderBy: { updatedAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-      }),
+    const paging = {
+      where,
+      orderBy: { updatedAt: 'desc' as const },
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+    };
+
+    const [items, total] = await Promise.all([
+      query.includeVariants
+        ? this.prisma.product.findMany({ ...paging, include: PRODUCT_INCLUDE })
+        : this.prisma.product.findMany({ ...paging, select: PRODUCT_LIST_SELECT }),
       this.prisma.product.count({ where }),
     ]);
 
@@ -84,7 +123,11 @@ export class ProductsService {
 
     return {
       items: items.map((item) =>
-        withReadableShopifyErrors(this.taxonomyLocalization.localizeProductForResponseSync(item)),
+        withReadableShopifyErrors(
+          this.taxonomyLocalization.localizeProductForResponseSync(
+            normalizeListProductRow(item),
+          ),
+        ),
       ),
       total,
       page: query.page,
@@ -653,6 +696,20 @@ function withReadableShopifyErrors(product: ProductWithVariants): ProductWithVar
   return {
     ...normalized,
     shopifyLastError: toShopifyUserMessage(undefined, product.shopifyLastError),
+  };
+}
+
+/** Allinea righe lista (senza join varianti/immagini) al tipo ProductWithVariants. */
+function normalizeListProductRow(
+  item: ProductWithVariants | ProductListRow,
+): ProductWithVariants {
+  if ('variants' in item && Array.isArray(item.variants)) {
+    return item as ProductWithVariants;
+  }
+  return {
+    ...item,
+    variants: [],
+    images: [],
   };
 }
 

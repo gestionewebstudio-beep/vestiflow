@@ -26,6 +26,7 @@ export interface SupplierOrderApiRow {
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
   readonly lines: readonly SupplierOrderLineApiRow[];
+  readonly lineCount?: number;
 }
 
 function mapLine(row: SupplierOrderLineApiRow, currency: CurrencyCode): SupplierOrderLine {
@@ -70,6 +71,7 @@ export function mapSupplierOrderApiRow(row: SupplierOrderApiRow): SupplierOrder 
     status: row.status,
     currency: row.currency,
     lines: row.lines.map((line) => mapLine(line, row.currency)),
+    lineCount: row.lineCount,
     totalAmount: { amountMinor: row.totalMinor, currencyCode: row.currency },
     expectedAt: row.expectedAt ?? undefined,
     createdAt: row.createdAt,

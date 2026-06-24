@@ -1153,6 +1153,31 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
+### T-070b — Ricerca Giacenze: prodotto senza movimenti (stock 0)
+
+|              |                       |
+| ------------ | --------------------- |
+| **Priorità** | P1 · **Obbligatorio** |
+| **Ruolo**    | Qualsiasi             |
+| **Device**   | Desktop               |
+
+**Prerequisiti:** variante in catalogo **senza** carichi/rettifiche/sync (nessuna riga inventario), oppure con disponibile **0** su tutte le sedi.
+
+**Passaggi:**
+
+1. Vai in **Magazzino → Giacenze**.
+2. Verifica che l'articolo **non** compaia nell'elenco senza filtri di ricerca.
+3. Cerca per **SKU** o **barcode** (o scansiona il barcode).
+4. Ripeti la stessa ricerca in **Magazzino → Cerca**.
+
+**Risultato atteso:** in Giacenze compare la variante con disponibile **0**, stato **Esaurito**, per la sede selezionata (o per tutte le sedi se nessun filtro location). Comportamento coerente con la tab **Cerca**.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
 ### T-071 — Navigazione tab magazzino
 
 |              |           |

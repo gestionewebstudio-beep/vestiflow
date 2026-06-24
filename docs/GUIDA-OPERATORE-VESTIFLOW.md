@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 1.8 — Giugno 2026
+**Versione documento:** 1.9 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -595,18 +595,18 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 
 ## 11. Dominio dati principale
 
-| Entità                       | Note                                                                                                                       |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `Tenant`                     | Azienda cliente                                                                                                            |
-| `User`                       | Profilo app, `tenantId`, ruolo                                                                                             |
-| `Store` / `Location`         | Store commerciale; location per stock                                                                                      |
-| `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind`, `shopifyCategoryMetafields`, taxonomy categoria |
-| `InventoryLevel`             | `variantId` × `locationId`, stati quantità                                                                                 |
-| `StockMovement`              | Audit trail obbligatorio; origine `vestiflow_pos` per vendite/storni al banco (tutti i profili canale)                     |
-| `SupplierOrder`              | Solo VF                                                                                                                    |
-| `SalesOrder` / `Customer`    | Import Shopify, read-only UI; assenti in UI profilo Solo gestionale                                                        |
-| `ShopifyConnection`          | Token, scope, stato sync per tenant                                                                                        |
-| `SupportSession`             | Audit sessioni assistenza: `operatorUserId`, `targetTenantId`, `expiresAt`, `endedAt`                                      |
+| Entità                       | Note                                                                                                                                                                                                                                                                                                        |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Tenant`                     | Azienda cliente                                                                                                                                                                                                                                                                                             |
+| `User`                       | Profilo app, `tenantId`, ruolo                                                                                                                                                                                                                                                                              |
+| `Store` / `Location`         | Store commerciale; location per stock                                                                                                                                                                                                                                                                       |
+| `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind`, `shopifyCategoryMetafields`, taxonomy categoria                                                                                                                                                                                  |
+| `InventoryLevel`             | `variantId` × `locationId`, stati quantità. Riga creata al primo movimento/sync/rettifica/import; senza riga il prodotto non compare nel browse Giacenze. Con `GET /inventory/levels?search=…` l'API include anche varianti match senza riga (quantità 0, id sintetico `virtual:{variantId}:{locationId}`). |
+| `StockMovement`              | Audit trail obbligatorio; origine `vestiflow_pos` per vendite/storni al banco (tutti i profili canale)                                                                                                                                                                                                      |
+| `SupplierOrder`              | Solo VF                                                                                                                                                                                                                                                                                                     |
+| `SalesOrder` / `Customer`    | Import Shopify, read-only UI; assenti in UI profilo Solo gestionale                                                                                                                                                                                                                                         |
+| `ShopifyConnection`          | Token, scope, stato sync per tenant                                                                                                                                                                                                                                                                         |
+| `SupportSession`             | Audit sessioni assistenza: `operatorUserId`, `targetTenantId`, `expiresAt`, `endedAt`                                                                                                                                                                                                                       |
 
 Denaro: **interi minor units** (`Money.amountMinor`), mai float.
 
@@ -651,13 +651,14 @@ Frontend: `HttpClient` + interceptor auth/error; mock disabilitati in prod.
 
 ### Giacenze
 
-|                    |                                                  |
-| ------------------ | ------------------------------------------------ |
-| **Export**         | `GET /inventory/levels/export/csv`               |
-| **Import**         | `POST /inventory/levels/import/csv` — rettifiche |
-| **Colonne import** | SKU, Location (nome esatto), Disponibile         |
-| **UI**             | Magazzino → Giacenze                             |
-| **Permessi**       | manager+                                         |
+|                    |                                                                                                                                                                                                                                                                                               |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Lista**          | `GET /inventory/levels` — paginata; query `locationId`, `search`, `lowStockOnly`, `page`, `pageSize`. **Con `search`:** espande varianti trovate (SKU/barcode/nome) anche senza riga in DB, una riga per sede con quantità 0. **Senza `search`:** solo righe esistenti in `inventory_levels`. |
+| **Export**         | `GET /inventory/levels/export/csv`                                                                                                                                                                                                                                                            |
+| **Import**         | `POST /inventory/levels/import/csv` — rettifiche                                                                                                                                                                                                                                              |
+| **Colonne import** | SKU, Location (nome esatto), Disponibile                                                                                                                                                                                                                                                      |
+| **UI**             | Magazzino → Giacenze                                                                                                                                                                                                                                                                          |
+| **Permessi**       | lista: autenticato; export/import: manager+                                                                                                                                                                                                                                                   |
 
 ### Vendite e clienti
 

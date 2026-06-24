@@ -9,13 +9,13 @@ import { ShopifySyncStatus } from '@core/models/shopify.model';
 
 export interface SalesOrderLineApiRow {
   readonly id: EntityId;
-  readonly orderId: EntityId;
+  readonly orderId?: EntityId;
   readonly variantId?: EntityId | null;
-  readonly sku: string;
+  readonly sku?: string;
   readonly title: string;
   readonly quantity: number;
-  readonly unitPriceMinor: number;
-  readonly totalMinor: number;
+  readonly unitPriceMinor?: number;
+  readonly totalMinor?: number;
 }
 
 export interface SalesOrderApiRow {
@@ -75,11 +75,11 @@ function mapLine(row: SalesOrderLineApiRow, currency: CurrencyCode): SalesOrderL
   return {
     id: row.id,
     variantId: row.variantId ?? undefined,
-    sku: row.sku,
+    sku: row.sku ?? '',
     title: row.title,
     quantity: row.quantity,
-    unitPrice: { amountMinor: row.unitPriceMinor, currencyCode: currency },
-    lineTotal: { amountMinor: row.totalMinor, currencyCode: currency },
+    unitPrice: { amountMinor: row.unitPriceMinor ?? 0, currencyCode: currency },
+    lineTotal: { amountMinor: row.totalMinor ?? 0, currencyCode: currency },
   };
 }
 

@@ -23,45 +23,77 @@ export interface DashboardLevelRow {
 export interface DashboardSummary {
   readonly productCount: number;
   readonly incomingSupplierOrders: number;
-  readonly levels: DashboardLevelRow[];
-  readonly locations: { id: string; name: string }[];
+  /** Somma `available` per location (o tenant intero se nessun filtro). */
+  readonly availableUnits: number;
+  /** Conteggio righe con available <= minThreshold (stesso scope location). */
+  readonly lowStockCount: number;
+  readonly levels: readonly DashboardLevelRow[];
+  readonly locations: readonly { id: string; name: string }[];
 }
+
+/** Massimo righe sotto soglia restituite (la UI ne mostra 8; il conteggio è in lowStockCount). */
+const LOW_STOCK_ROWS_LIMIT = 100;
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getSummary(tenantId: string): Promise<DashboardSummary> {
-    const [productCount, incomingSupplierOrders, levels, locations] =
-      await this.prisma.$transaction([
-        this.prisma.product.count({ where: { tenantId } }),
-        this.prisma.supplierOrder.count({
-          where: {
-            tenantId,
-            status: {
-              in: [SupplierOrderStatus.sent, SupplierOrderStatus.partially_received],
-            },
+  async getSummary(tenantId: string, locationId?: string): Promise<DashboardSummary> {
+    const scopedWhere: Prisma.InventoryLevelWhereInput = {
+      tenantId,
+      ...(locationId ? { locationId } : {}),
+    };
+
+    const lowStockWhere: Prisma.InventoryLevelWhereInput = {
+      ...scopedWhere,
+      available: { lte: this.prisma.inventoryLevel.fields.minThreshold },
+    };
+
+    const [
+      productCount,
+      incomingSupplierOrders,
+      availableAgg,
+      lowStockCount,
+      levels,
+      locations,
+    ] = await this.prisma.$transaction([
+      this.prisma.product.count({ where: { tenantId } }),
+      this.prisma.supplierOrder.count({
+        where: {
+          tenantId,
+          status: {
+            in: [SupplierOrderStatus.sent, SupplierOrderStatus.partially_received],
           },
-        }),
-        this.prisma.inventoryLevel.findMany({
-          where: { tenantId },
-          include: {
-            variant: {
-              select: { sku: true, optionValues: true, product: { select: { name: true } } },
-            },
-            location: { select: { name: true } },
+        },
+      }),
+      this.prisma.inventoryLevel.aggregate({
+        where: scopedWhere,
+        _sum: { available: true },
+      }),
+      this.prisma.inventoryLevel.count({ where: lowStockWhere }),
+      this.prisma.inventoryLevel.findMany({
+        where: lowStockWhere,
+        include: {
+          variant: {
+            select: { sku: true, optionValues: true, product: { select: { name: true } } },
           },
-        }),
-        this.prisma.location.findMany({
-          where: { tenantId },
-          select: { id: true, name: true },
-          orderBy: { name: 'asc' },
-        }),
-      ]);
+          location: { select: { name: true } },
+        },
+        orderBy: { available: 'asc' },
+        take: LOW_STOCK_ROWS_LIMIT,
+      }),
+      this.prisma.location.findMany({
+        where: { tenantId },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
 
     return {
       productCount,
       incomingSupplierOrders,
+      availableUnits: availableAgg._sum.available ?? 0,
+      lowStockCount,
       locations,
       levels: levels.map((level) => ({
         variantId: level.variantId,

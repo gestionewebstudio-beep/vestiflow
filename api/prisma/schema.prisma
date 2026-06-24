@@ -429,6 +429,7 @@ model InventoryLevel {
 
   @@unique([variantId, locationId])
   @@index([tenantId])
+  @@index([tenantId, locationId])
   @@index([locationId])
   @@map("inventory_levels")
 }
@@ -505,6 +506,7 @@ model StockMovement {
   targetLocation Location?      @relation("MovementTargetLocation", fields: [targetLocationId], references: [id])
 
   @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, locationId, createdAt(sort: Desc)])
   @@index([variantId])
   @@index([locationId])
   @@map("stock_movements")

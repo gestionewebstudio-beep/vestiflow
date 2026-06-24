@@ -21,6 +21,10 @@ export interface DashboardLocation {
 export interface DashboardSummary {
   readonly productCount: number;
   readonly incomingSupplierOrders: number;
+  /** Somma unità disponibili (per location attiva o intero tenant). */
+  readonly availableUnits: number;
+  /** Righe con giacenza <= soglia minima (stesso scope di availableUnits). */
+  readonly lowStockCount: number;
   readonly levels: readonly DashboardLevel[];
   readonly locations: readonly DashboardLocation[];
 }

@@ -17,7 +17,7 @@ export class ListInventoryLevelsQueryDto extends PaginationQueryDto {
   @IsUUID()
   locationId?: string;
 
-  /** Ricerca su SKU o nome prodotto. */
+  /** Ricerca su SKU, barcode o nome prodotto. */
   @IsOptional()
   @IsString()
   @MaxLength(200)

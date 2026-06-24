@@ -23,6 +23,8 @@ import type { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.quer
 import type { ReceiveSupplierOrderDto } from './dto/receive-supplier-order.dto';
 import type { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
 
+export type SupplierOrderListRow = SupplierOrder & { lineCount: number; lines: [] };
+
 export type SupplierOrderWithLines = SupplierOrder & { lines: SupplierOrderLine[] };
 
 @Injectable()
@@ -252,7 +254,7 @@ export class SupplierOrdersService {
   async list(
     tenantId: string,
     query: ListSupplierOrdersQueryDto,
-  ): Promise<Paginated<SupplierOrderWithLines>> {
+  ): Promise<Paginated<SupplierOrderListRow>> {
     const where: Prisma.SupplierOrderWhereInput = {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
@@ -266,16 +268,22 @@ export class SupplierOrdersService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [rows, total] = await this.prisma.$transaction([
       this.prisma.supplierOrder.findMany({
         where,
-        include: { lines: true },
+        include: { _count: { select: { lines: true } } },
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),
       this.prisma.supplierOrder.count({ where }),
     ]);
+
+    const items: SupplierOrderListRow[] = rows.map(({ _count, ...order }) => ({
+      ...order,
+      lineCount: _count.lines,
+      lines: [],
+    }));
 
     return { items, total, page: query.page, pageSize: query.pageSize };
   }

@@ -116,11 +116,16 @@ export class DashboardComponent {
 
   private readonly refreshTick = signal(0);
 
+  private readonly fetchRequest = computed(() => ({
+    tick: this.refreshTick(),
+    locationId: this.locationContext.activeLocationId(),
+  }));
+
   private readonly state = toSignal(
-    toObservable(this.refreshTick).pipe(
-      switchMap(() =>
+    toObservable(this.fetchRequest).pipe(
+      switchMap(({ locationId }) =>
         forkJoin({
-          summary: this.dashboardService.getSummary(),
+          summary: this.dashboardService.getSummary(locationId),
           salesOrders: this.salesOrderService
             .getSalesOrders({ page: 1, pageSize: WIDE_PAGE_SIZE })
             .pipe(map((response) => response.data)),
@@ -148,17 +153,10 @@ export class DashboardComponent {
     return current.status === 'success' ? current.data : null;
   });
 
-  /** Giacenze visibili: filtrate per la location attiva del topbar. */
-  private readonly visibleLevels = computed<readonly DashboardLevel[]>(() => {
-    const data = this.data();
-    if (!data) {
-      return [];
-    }
-    const activeId = this.locationContext.activeLocationId();
-    return activeId
-      ? data.summary.levels.filter((level) => level.locationId === activeId)
-      : data.summary.levels;
-  });
+  /** Righe sotto soglia restituite dall'API (già filtrate per location se attiva). */
+  private readonly visibleLevels = computed<readonly DashboardLevel[]>(
+    () => this.data()?.summary.levels ?? [],
+  );
 
   // ── KPI ─────────────────────────────────────────────────────────────────────
   protected readonly productCountLabel = computed(() =>
@@ -166,10 +164,12 @@ export class DashboardComponent {
   );
 
   protected readonly availableUnitsLabel = computed(() =>
-    String(this.visibleLevels().reduce((sum, level) => sum + level.available, 0)),
+    String(this.data()?.summary.availableUnits ?? 0),
   );
 
-  protected readonly lowStockCountLabel = computed(() => String(this.lowStockRows().length));
+  protected readonly lowStockCountLabel = computed(() =>
+    String(this.data()?.summary.lowStockCount ?? 0),
+  );
 
   protected readonly incomingOrdersLabel = computed(() =>
     String(this.data()?.summary.incomingSupplierOrders ?? 0),

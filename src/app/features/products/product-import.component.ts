@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -25,6 +33,7 @@ type ImportPhase = 'upload' | 'preview' | 'done';
 export class ProductImportComponent {
   private readonly productService = inject(ProductService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly phase = signal<ImportPhase>('upload');
   protected readonly selectedFile = signal<File | null>(null);
@@ -65,21 +74,24 @@ export class ProductImportComponent {
 
     this.loading.set(true);
     this.error.set(null);
-    this.productService.previewProductImport(file).subscribe({
-      next: (data) => {
-        this.preview.set(data);
-        this.phase.set('preview');
-        this.loading.set(false);
-      },
-      error: (err: unknown) => {
-        this.loading.set(false);
-        this.error.set(
-          isAppError(err)
-            ? err
-            : { kind: AppErrorKind.Unknown, message: 'Anteprima import non riuscita.' },
-        );
-      },
-    });
+    this.productService
+      .previewProductImport(file)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          this.preview.set(data);
+          this.phase.set('preview');
+          this.loading.set(false);
+        },
+        error: (err: unknown) => {
+          this.loading.set(false);
+          this.error.set(
+            isAppError(err)
+              ? err
+              : { kind: AppErrorKind.Unknown, message: 'Anteprima import non riuscita.' },
+          );
+        },
+      });
   }
 
   protected runImport(): void {
@@ -91,21 +103,24 @@ export class ProductImportComponent {
 
     this.loading.set(true);
     this.error.set(null);
-    this.productService.importProducts(file, handles).subscribe({
-      next: (data) => {
-        this.result.set(data);
-        this.phase.set('done');
-        this.loading.set(false);
-      },
-      error: (err: unknown) => {
-        this.loading.set(false);
-        this.error.set(
-          isAppError(err)
-            ? err
-            : { kind: AppErrorKind.Unknown, message: 'Import prodotti non riuscito.' },
-        );
-      },
-    });
+    this.productService
+      .importProducts(file, handles)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          this.result.set(data);
+          this.phase.set('done');
+          this.loading.set(false);
+        },
+        error: (err: unknown) => {
+          this.loading.set(false);
+          this.error.set(
+            isAppError(err)
+              ? err
+              : { kind: AppErrorKind.Unknown, message: 'Import prodotti non riuscito.' },
+          );
+        },
+      });
   }
 
   protected statusTone(

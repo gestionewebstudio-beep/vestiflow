@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import type { ExportInventoryLevelsQueryDto } from './dto/export-inventory-levels.query.dto';
+import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import {
   buildVariantTitle,
   serializeInventoryLevelsCsv,
@@ -56,12 +57,7 @@ export class InventoryExportService {
       ...(query.locationId ? { locationId: query.locationId } : {}),
       ...(query.search
         ? {
-            variant: {
-              OR: [
-                { sku: { contains: query.search, mode: 'insensitive' } },
-                { product: { name: { contains: query.search, mode: 'insensitive' } } },
-              ],
-            },
+            variant: buildInventoryVariantSearchWhere(query.search),
           }
         : {}),
     };

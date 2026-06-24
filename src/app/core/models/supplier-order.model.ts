@@ -40,6 +40,8 @@ export interface SupplierOrder extends TenantScoped, Timestamped {
   readonly status: SupplierOrderStatus;
   readonly currency: CurrencyCode;
   readonly lines: readonly SupplierOrderLine[];
+  /** Presente in lista: conteggio righe senza caricare il payload completo. */
+  readonly lineCount?: number;
   readonly totalAmount: Money;
   readonly expectedAt?: IsoDateString;
 }

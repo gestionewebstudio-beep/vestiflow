@@ -7,12 +7,7 @@ import {
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
-import {
-  provideRouter,
-  RouteReuseStrategy,
-  withPreloading,
-  PreloadAllModules,
-} from '@angular/router';
+import { provideRouter, RouteReuseStrategy } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
 import { map, tap } from 'rxjs';
 
@@ -32,7 +27,7 @@ import { routes } from './app.routes';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes, withPreloading(PreloadAllModules)),
+    provideRouter(routes),
     { provide: RouteReuseStrategy, useClass: TabRouteReuseStrategy },
     // Ordine: loading → support session → auth → error (Bearer JWT Supabase).
     provideHttpClient(

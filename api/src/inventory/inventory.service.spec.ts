@@ -77,6 +77,7 @@ describe('InventoryService', () => {
   function createPrismaMock() {
     return {
       location: { findMany: vi.fn() },
+      productVariant: { findMany: vi.fn() },
       inventoryLevel: {
         findMany: vi.fn(),
         count: vi.fn(),
@@ -107,7 +108,7 @@ describe('InventoryService', () => {
     });
   });
 
-  it('listLevels pagina risultati con filtri opzionali', async () => {
+  it('listLevels pagina risultati senza ricerca', async () => {
     const prisma = createPrismaMock();
     const items = [{ id: 'lvl-1', available: 3 }];
     prisma.inventoryLevel.findMany.mockResolvedValue(items);
@@ -121,12 +122,83 @@ describe('InventoryService', () => {
       page: 1,
       pageSize: 10,
       locationId: 'loc-1',
-      search: 'SKU',
       lowStockOnly: true,
     } as never);
 
     expect(result).toEqual({ items, total: 1, page: 1, pageSize: 10 });
-    expect(prisma.inventoryLevel.findMany).toHaveBeenCalled();
+    expect(prisma.inventoryLevel.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId,
+          locationId: 'loc-1',
+        }),
+      }),
+    );
+    expect(prisma.productVariant.findMany).not.toHaveBeenCalled();
+  });
+
+  it('listLevels con ricerca include varianti senza riga giacenza (stock 0)', async () => {
+    const prisma = createPrismaMock();
+    prisma.productVariant.findMany.mockResolvedValue([
+      {
+        id: 'var-1',
+        sku: 'SKU-1',
+        product: { name: 'Maglietta' },
+      },
+    ]);
+    prisma.location.findMany.mockResolvedValue([{ id: 'loc-1', name: 'Shop' }]);
+    prisma.inventoryLevel.findMany.mockResolvedValue([]);
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    const result = await service.listLevels(tenantId, {
+      page: 1,
+      pageSize: 10,
+      search: 'SKU-1',
+    } as never);
+
+    expect(result.total).toBe(1);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      id: 'virtual:var-1:loc-1',
+      variantId: 'var-1',
+      locationId: 'loc-1',
+      available: 0,
+      onHand: 0,
+      variant: { sku: 'SKU-1', product: { name: 'Maglietta' } },
+      location: { name: 'Shop' },
+    });
+  });
+
+  it('listLevels con ricerca usa filtro SKU, barcode e nome prodotto', async () => {
+    const prisma = createPrismaMock();
+    prisma.productVariant.findMany.mockResolvedValue([]);
+    prisma.location.findMany.mockResolvedValue([{ id: 'loc-1', name: 'Shop' }]);
+    prisma.inventoryLevel.findMany.mockResolvedValue([]);
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await service.listLevels(tenantId, {
+      page: 1,
+      pageSize: 10,
+      search: 'SKU',
+    } as never);
+
+    expect(prisma.productVariant.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { sku: { contains: 'SKU', mode: 'insensitive' } },
+            { barcode: { contains: 'SKU', mode: 'insensitive' } },
+            { product: { name: { contains: 'SKU', mode: 'insensitive' } } },
+          ],
+        }),
+      }),
+    );
   });
 
   it('listMovements applica filtri data e tipo', async () => {

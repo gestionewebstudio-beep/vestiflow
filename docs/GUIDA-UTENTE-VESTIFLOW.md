@@ -1,6 +1,6 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 2.8 — Giugno 2026
+**Versione documento:** 2.9 — Giugno 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
@@ -465,6 +465,17 @@ In **Prodotti**, sopra i filtri, usa **Scansiona barcode** (su smartphone con Ch
 | **Movimenti**         | Storico carichi, scarichi, trasferimenti, rettifiche |
 | **Inventario fisico** | Conteggio periodico con chiusura e rettifiche        |
 
+### Elenco e ricerca in Giacenze
+
+Senza testo nella **barra di ricerca**, la tab **Giacenze** elenca solo articoli **già tracciati** in magazzino (carichi, vendite, sync Shopify, rettifiche, inventario fisico, ecc.).
+
+Per trovare un prodotto **mai movimentato** o con **giacenza zero** su una sede:
+
+- digita **SKU**, **barcode** o **nome prodotto** nella ricerca della tab Giacenze, oppure
+- usa la tab **Cerca** (ottimizzata per mobile).
+
+In entrambi i casi vedi la variante con disponibile **0** e stato **Esaurito** se non c'è stock. Il primo **carico**, **rettifica** o **import CSV** crea la riga inventario definitiva.
+
 ### Azioni principali (Giacenze)
 
 | Pulsante                            | Funzione                                     |
@@ -504,7 +515,7 @@ Ogni movimento resta nello **storico** con data, operatore e origine (gestionale
 
 Lo scanner è disponibile anche in:
 
-- **Giacenze** — filtra la tabella dopo la scansione
+- **Giacenze** — filtra la tabella dopo la scansione (mostra anche articoli a zero se non ancora tracciati)
 - **Registra movimento** — seleziona la variante
 - **Registra vendita** — campo vendita e storno
 - **Inventario fisico** — durante il conteggio

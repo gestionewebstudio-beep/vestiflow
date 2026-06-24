@@ -19,6 +19,8 @@ import { mapSalesOrderApiRow, type SalesOrderApiRow } from './sales-order-api.ma
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 const REPORT_FETCH_PAGE_SIZE = 100;
+/** Limite di sicurezza: evita fetch illimitato in memoria su storico vendite enorme. */
+const MAX_REPORT_PAGES = 20;
 
 /**
  * Accesso read-only alle vendite via NestJS. Shopify è owner: nessuna scrittura
@@ -62,7 +64,7 @@ export class SalesOrderService {
   ): Observable<readonly SalesOrder[]> {
     return this.getSalesOrders({ ...query, page: 1, pageSize: REPORT_FETCH_PAGE_SIZE }).pipe(
       expand((response) =>
-        response.meta.page < response.meta.totalPages
+        response.meta.page < response.meta.totalPages && response.meta.page < MAX_REPORT_PAGES
           ? this.getSalesOrders({
               ...query,
               page: response.meta.page + 1,

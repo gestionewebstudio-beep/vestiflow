@@ -3,52 +3,53 @@ import { Routes } from '@angular/router';
 import { tenantRoleGuard } from '@core/guards/tenant-role.guard';
 import { TENANT_ROUTE_PERMISSION_KEY } from '@core/permissions/tenant-permissions.util';
 
-import { InventoryCountDetailComponent } from './inventory-count-detail.component';
-import { InventoryCountListComponent } from './inventory-count-list.component';
-import { InventoryCountNewComponent } from './inventory-count-new.component';
-import { InventoryImportComponent } from './inventory-import.component';
-import { InventoryLevelsComponent } from './inventory-levels.component';
-import { MovementFormComponent } from './movement-form.component';
-import { StockLookupComponent } from './stock-lookup.component';
-import { StockMovementsComponent } from './stock-movements.component';
-
 export const inventoryRoutes: Routes = [
-  { path: '', title: 'VestiFlow · Magazzino', component: InventoryLevelsComponent },
+  {
+    path: '',
+    title: 'VestiFlow · Magazzino',
+    loadComponent: () =>
+      import('./inventory-levels.component').then((m) => m.InventoryLevelsComponent),
+  },
   {
     path: 'lookup',
     title: 'VestiFlow · Cerca giacenza',
-    component: StockLookupComponent,
+    loadComponent: () => import('./stock-lookup.component').then((m) => m.StockLookupComponent),
   },
   {
     path: 'movements',
     title: 'VestiFlow · Movimenti di magazzino',
-    component: StockMovementsComponent,
+    loadComponent: () =>
+      import('./stock-movements.component').then((m) => m.StockMovementsComponent),
   },
   {
     path: 'movements/new',
     title: 'VestiFlow · Registra movimento',
-    component: MovementFormComponent,
+    loadComponent: () => import('./movement-form.component').then((m) => m.MovementFormComponent),
   },
   {
     path: 'import',
     title: 'VestiFlow · Importa giacenze CSV',
-    component: InventoryImportComponent,
+    loadComponent: () =>
+      import('./inventory-import.component').then((m) => m.InventoryImportComponent),
     canActivate: [tenantRoleGuard],
     data: { [TENANT_ROUTE_PERMISSION_KEY]: 'manager' },
   },
   {
     path: 'counts/new',
     title: 'VestiFlow · Nuovo inventario fisico',
-    component: InventoryCountNewComponent,
+    loadComponent: () =>
+      import('./inventory-count-new.component').then((m) => m.InventoryCountNewComponent),
   },
   {
     path: 'counts/:id',
     title: 'VestiFlow · Inventario fisico',
-    component: InventoryCountDetailComponent,
+    loadComponent: () =>
+      import('./inventory-count-detail.component').then((m) => m.InventoryCountDetailComponent),
   },
   {
     path: 'counts',
     title: 'VestiFlow · Inventario fisico',
-    component: InventoryCountListComponent,
+    loadComponent: () =>
+      import('./inventory-count-list.component').then((m) => m.InventoryCountListComponent),
   },
 ];

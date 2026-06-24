@@ -72,7 +72,7 @@ describe('SupplierOrdersService', () => {
 
   it('list pagina ordini fornitore', async () => {
     const prisma = createPrismaMock();
-    prisma.supplierOrder.findMany.mockResolvedValue([{ id: 'po-1', lines: [] }]);
+    prisma.supplierOrder.findMany.mockResolvedValue([{ id: 'po-1', _count: { lines: 2 } }]);
     prisma.supplierOrder.count.mockResolvedValue(1);
     const service = new SupplierOrdersService(
       prisma as unknown as PrismaService,

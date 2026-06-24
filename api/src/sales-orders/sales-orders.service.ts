@@ -8,7 +8,7 @@ import { buildSalesOrderWhere } from './sales-order-query.util';
 
 export type SalesOrderListRow = SalesOrder & {
   customer: { email: string | null } | null;
-  lines: SalesOrderLine[];
+  lines: readonly Pick<SalesOrderLine, 'id' | 'title' | 'quantity'>[];
 };
 
 export type SalesOrderDetailRow = SalesOrder & {
@@ -36,6 +36,7 @@ export class SalesOrdersService {
         include: {
           customer: { select: { email: true } },
           lines: {
+            select: { id: true, title: true, quantity: true },
             orderBy: { id: 'asc' },
           },
         },
