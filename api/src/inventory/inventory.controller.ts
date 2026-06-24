@@ -139,7 +139,7 @@ export class InventoryController {
     return this.inventory.registerMovement(tenantId, dto, user.displayName, user.id);
   }
 
-  /** Vendita o storno al banco (solo profilo gestionale). */
+  /** Vendita o storno al banco (tutti i profili canale). */
   @Post('retail-scans')
   registerRetailScan(
     @CurrentTenant() tenantId: string,

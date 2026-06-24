@@ -22,7 +22,8 @@ import {
 import { SupportSessionService } from '@core/support/support-session.service';
 import {
   TenantChannelProfile,
-  showGestionaleRetailSales,
+  showRetailSalesRegister,
+  showSalesOrderHistory,
 } from '@core/models/tenant-channel-profile.model';
 import type { EntityId } from '@core/models/common.model';
 import type { Location } from '@core/models/location.model';
@@ -248,13 +249,48 @@ export class ShellLayoutComponent {
   protected readonly logoutDialogOpen = signal(false);
 
   private readonly tenantNavItemsWithoutSales: readonly NavItem[] = [
-    { label: 'Dashboard', icon: 'pi-th-large', route: '/app/dashboard' },
-    { label: 'Prodotti', icon: 'pi-tags', route: '/app/products' },
-    { label: 'Magazzino', icon: 'pi-box', route: '/app/inventory/lookup' },
-    { label: 'Ordini Fornitori', icon: 'pi-truck', route: '/app/orders' },
-    { label: 'Clienti', icon: 'pi-users', route: '/app/customers' },
-    { label: 'Report', icon: 'pi-chart-line', route: '/app/reports' },
-    { label: 'Impostazioni', icon: 'pi-cog', route: '/app/settings' },
+    {
+      label: 'Dashboard',
+      icon: 'pi-th-large',
+      route: '/app/dashboard',
+      activeRoutePrefix: '/app/dashboard',
+    },
+    {
+      label: 'Prodotti',
+      icon: 'pi-tags',
+      route: '/app/products',
+      activeRoutePrefix: '/app/products',
+    },
+    {
+      label: 'Magazzino',
+      icon: 'pi-box',
+      route: '/app/inventory/lookup',
+      activeRoutePrefix: '/app/inventory',
+    },
+    {
+      label: 'Ordini Fornitori',
+      icon: 'pi-truck',
+      route: '/app/orders',
+      activeRoutePrefix: '/app/orders',
+    },
+    {
+      label: 'Clienti',
+      icon: 'pi-users',
+      route: '/app/customers',
+      activeRoutePrefix: '/app/customers',
+    },
+    {
+      label: 'Report',
+      icon: 'pi-chart-line',
+      route: '/app/reports',
+      activeRoutePrefix: '/app/reports',
+    },
+    {
+      label: 'Impostazioni',
+      icon: 'pi-cog',
+      route: '/app/settings',
+      activeRoutePrefix: '/app/settings',
+    },
   ];
 
   private readonly operatorNavItems: readonly NavItem[] = [
@@ -262,26 +298,28 @@ export class ShellLayoutComponent {
       label: 'Clienti',
       icon: 'pi-users',
       route: '/app/admin/clients',
-      linkActiveOptions: {
-        paths: 'subset',
-        queryParams: 'ignored',
-        matrixParams: 'ignored',
-        fragment: 'ignored',
-      },
+      activeRoutePrefix: '/app/admin/clients',
     },
-    { label: 'Impostazioni', icon: 'pi-cog', route: '/app/admin/account' },
+    {
+      label: 'Impostazioni',
+      icon: 'pi-cog',
+      route: '/app/admin/account',
+      activeRoutePrefix: '/app/admin/account',
+    },
   ];
 
   private readonly guideNavItem: NavItem = {
     label: 'Guida',
     icon: 'pi-book',
     route: '/app/guide',
+    activeRoutePrefix: '/app/guide',
   };
 
   private readonly adminGuideNavItem: NavItem = {
     label: 'Guida Tecnica',
     icon: 'pi-bookmark',
     route: '/app/admin/guide',
+    activeRoutePrefix: '/app/admin/guide',
   };
 
   readonly navItems = computed((): readonly NavItem[] => {
@@ -290,12 +328,29 @@ export class ShellLayoutComponent {
     }
 
     const profile = this.currentUser()?.tenantChannelProfile;
-    const salesNavItem: NavItem = showGestionaleRetailSales(profile)
-      ? { label: 'Registra vendita', icon: 'pi-shopping-bag', route: '/app/sales/register' }
-      : { label: 'Vendite', icon: 'pi-shopping-cart', route: '/app/sales' };
+    const salesNavItems: NavItem[] = [];
+
+    if (showRetailSalesRegister(profile)) {
+      salesNavItems.push({
+        label: 'Registra vendita',
+        icon: 'pi-shopping-bag',
+        route: '/app/sales/register',
+        activeRoutePrefix: '/app/sales/register',
+      });
+    }
+
+    if (showSalesOrderHistory(profile)) {
+      salesNavItems.push({
+        label: 'Vendite',
+        icon: 'pi-shopping-cart',
+        route: '/app/sales',
+        activeRoutePrefix: '/app/sales',
+        activeRouteExclude: ['/app/sales/register'],
+      });
+    }
 
     const items = this.tenantNavItemsWithoutSales;
-    return [...items.slice(0, 4), salesNavItem, ...items.slice(4), this.guideNavItem];
+    return [...items.slice(0, 4), ...salesNavItems, ...items.slice(4), this.guideNavItem];
   });
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).

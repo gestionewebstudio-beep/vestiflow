@@ -9,14 +9,12 @@ import {
   MovementOrigin,
   Prisma,
   StockMovementType,
-  TenantChannelProfile,
   type InventoryLevel,
   type Location,
   type StockMovement,
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { assertTenantChannelProfile } from '../common/tenant-channel-profile.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type {
@@ -192,7 +190,7 @@ export class InventoryService {
   }
 
   /**
-   * Registra una vendita o uno storno al banco (profilo solo gestionale).
+   * Registra una vendita o uno storno al banco (doppia scansione).
    * Ogni scansione produce un movimento `sale` o `return` con origine `vestiflow_pos`.
    */
   async registerRetailScan(
@@ -201,8 +199,6 @@ export class InventoryService {
     actorDisplayName: string,
     actorUserId?: string,
   ): Promise<RetailScanResult> {
-    await assertTenantChannelProfile(this.prisma, tenantId, TenantChannelProfile.gestionale);
-
     const code = dto.code.trim();
     if (!code) {
       throw new NotFoundException('Variante non trovata per SKU o barcode');
@@ -253,6 +249,13 @@ export class InventoryService {
         variantId_locationId: { variantId: variant.id, locationId: dto.locationId },
       },
       select: { available: true },
+    });
+
+    void Promise.resolve(
+      this.channelSync.pushInventoryLevels(tenantId, variant.id, [dto.locationId]),
+    ).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Push inventario canali fallito';
+      this.logger.warn(`Push inventario post-vendita al banco (${tenantId}): ${message}`);
     });
 
     return {

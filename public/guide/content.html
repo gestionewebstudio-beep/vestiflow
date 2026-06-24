@@ -1,5 +1,5 @@
 <h1 id="vestiflow--guida-per-lutente">VestiFlow — Guida per l&#39;utente</h1>
-<p><strong>Versione documento:</strong> 2.7 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 2.8 — Giugno 2026</p>
 <p><strong>Per chi è questa guida:</strong> titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.</p>
 <p><strong>Prodotto:</strong> VestiFlow — gestionale web multi-sede per <strong>retail e negozi con inventario fisico</strong>, con integrazione opzionale a <strong>Shopify</strong> o <strong>TikTok Shop</strong> (in base al profilo scelto per il tuo negozio). Adatto ad abbigliamento, accessori, cosmetica, food con varianti, e-commerce Shopify e altri settori con SKU e magazzino. L&#39;integrazione <strong>TikTok Shop è ancora parziale</strong> — vedi <a href="#7-collegare-tiktok-shop">§7</a>.</p>
 <hr>
@@ -108,7 +108,7 @@
 </tr>
 <tr>
 <td><strong>Registra vendita</strong></td>
-<td>Vendite e storni al banco con barcode (<strong>solo profilo Solo gestionale</strong>)</td>
+<td>Vendite e storni al banco con barcode (tutti i profili canale)</td>
 </tr>
 <tr>
 <td><strong>Vendite</strong></td>
@@ -132,7 +132,36 @@
 </tr>
 </tbody></table>
 <p>Su mobile, <strong>Esci</strong> è in fondo al menu ☰ (sotto tutte le voci); su desktop resta anche in topbar.</p>
-<p>Dal menu <strong>Magazzino</strong> accedi subito alla ricerca; le altre sezioni magazzino (<strong>Giacenze</strong>, <strong>Movimenti</strong>, <strong>Inventario fisico</strong>) si aprono dai <strong>tab</strong> in alto nelle pagine del magazzino.</p>
+<p>Dal menu <strong>Magazzino</strong> accedi subito alla ricerca; le altre sezioni magazzino (<strong>Giacenze</strong>, <strong>Movimenti</strong>, <strong>Inventario fisico</strong>) si aprono dai <strong>tab</strong> in alto nelle pagine del magazzino. La voce <strong>Magazzino</strong> (e le altre sezioni) resta <strong>evidenziata in sidebar</strong> su qualsiasi tab o sotto-pagina della stessa area.</p>
+<h4 id="voci-menu-per-profilo-canale">Voci menu per profilo canale</h4>
+<table>
+<thead>
+<tr>
+<th>Profilo</th>
+<th>Registra vendita</th>
+<th>Vendite (lista ordini)</th>
+<th>Clienti</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Solo gestionale</strong></td>
+<td>Sì</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>Shopify</strong></td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+</tr>
+<tr>
+<td><strong>TikTok Shop</strong></td>
+<td>Sì</td>
+<td>No</td>
+<td>No</td>
+</tr>
+</tbody></table>
 <h3 id="barra-in-alto-topbar">Barra in alto (topbar)</h3>
 <p>Ordine da sinistra a destra (desktop):</p>
 <ul>
@@ -266,7 +295,7 @@
 <td>Sì</td>
 </tr>
 <tr>
-<td>Registrare vendite e storni al banco (Solo gest.)</td>
+<td>Registrare vendite e storni al banco</td>
 <td>Sì</td>
 <td>Sì</td>
 <td>Sì</td>
@@ -383,6 +412,11 @@
 <td>Impostazioni</td>
 <td><strong>Importa catalogo da Shopify</strong> (se hai già prodotti online)</td>
 </tr>
+<tr>
+<td>4e</td>
+<td>Registra vendita</td>
+<td>Prova scansione test se vendi in negozio con cassa esterna</td>
+</tr>
 </tbody></table>
 <p><strong>Profilo TikTok Shop:</strong></p>
 <table>
@@ -402,6 +436,11 @@
 <td>4b</td>
 <td>Impostazioni</td>
 <td>Verifica sedi in <strong>Location</strong></td>
+</tr>
+<tr>
+<td>4c</td>
+<td>Registra vendita</td>
+<td>Prova scansione test se vendi in negozio fisico</td>
 </tr>
 </tbody></table>
 <p><strong>Profilo Solo gestionale:</strong> salta il collegamento e-commerce; usa catalogo e magazzino solo in VestiFlow.</p>
@@ -606,7 +645,7 @@
 <tr>
 <td><strong>Giacenze</strong></td>
 <td>Sì (carichi, rettifiche…)</td>
-<td>Vendite Shopify via webhook; vendite negozio gestionale via <strong>Registra vendita</strong>; TikTok dopo movimenti VF</td>
+<td>Vendite Shopify via webhook; vendite negozio via <strong>Registra vendita</strong> (tutti i profili); push canale dopo scansione</td>
 </tr>
 <tr>
 <td><strong>Ordini fornitori</strong></td>
@@ -616,12 +655,12 @@
 <tr>
 <td><strong>Vendite al banco</strong></td>
 <td>Sì — <strong>Registra vendita</strong></td>
-<td>Solo profilo <strong>Solo gestionale</strong>; crea movimenti magazzino, non ordine di vendita</td>
+<td>Tutti i profili; movimento magazzino (origine <strong>Vendita negozio</strong>), non ordine di vendita</td>
 </tr>
 <tr>
 <td><strong>Vendite (lista ordini)</strong></td>
 <td>Sola lettura</td>
-<td>Da Shopify Online e POS (profilo Shopify); non disponibile in profilo Solo gestionale</td>
+<td>Da Shopify Online e POS (<strong>solo profilo Shopify</strong>)</td>
 </tr>
 <tr>
 <td><strong>Clienti</strong></td>
@@ -884,7 +923,7 @@
 <td>Correzione quantità (motivo obbligatorio)</td>
 </tr>
 </tbody></table>
-<p>Le <strong>vendite</strong> e i <strong>resi al banco</strong> (profilo Solo gestionale) non si registrano qui: usa <strong>Registra vendita</strong> in sidebar. Nello <strong>storico movimenti</strong> compaiono come tipo <strong>Vendita</strong> o <strong>Reso</strong> con origine <strong>Vendita negozio</strong>.</p>
+<p>Le <strong>vendite</strong> e i <strong>resi al banco</strong> non si registrano nel form <strong>Registra movimento</strong>: usa <strong>Registra vendita</strong> in sidebar. Nello <strong>storico movimenti</strong> compaiono come tipo <strong>Vendita</strong> o <strong>Reso</strong> con origine <strong>Vendita negozio</strong>.</p>
 <p>Ogni movimento resta nello <strong>storico</strong> con data, operatore e origine (gestionale, Shopify o vendita negozio).</p>
 <h3 id="cercare-giacenze-sku-o-barcode">Cercare giacenze (SKU o barcode)</h3>
 <ol>
@@ -896,7 +935,7 @@
 <ul>
 <li><strong>Giacenze</strong> — filtra la tabella dopo la scansione</li>
 <li><strong>Registra movimento</strong> — seleziona la variante</li>
-<li><strong>Registra vendita</strong> — campo vendita e storno (profilo Solo gestionale)</li>
+<li><strong>Registra vendita</strong> — campo vendita e storno</li>
 <li><strong>Inventario fisico</strong> — durante il conteggio</li>
 </ul>
 <p>Su <strong>iPhone</strong> la fotocamera può non essere disponibile: usa sempre l&#39;inserimento manuale del codice.</p>
@@ -969,7 +1008,7 @@
 <thead>
 <tr>
 <th>Profilo canale</th>
-<th>Voce in sidebar</th>
+<th>Voci in sidebar</th>
 <th>Contenuto</th>
 </tr>
 </thead>
@@ -980,18 +1019,24 @@
 </tr>
 <tr>
 <td><strong>Shopify</strong></td>
-<td><strong>Vendite</strong></td>
-<td>Lista ordini sincronizzati (online e POS), sola lettura</td>
+<td><strong>Registra vendita</strong> + <strong>Vendite</strong></td>
+<td>Doppia scansione al banco <strong>oppure</strong> ordini sync da Shopify (online/POS)</td>
+</tr>
+<tr>
+<td><strong>TikTok Shop</strong></td>
+<td><strong>Registra vendita</strong></td>
+<td>Scansione al banco; giacenze pushate a TikTok dopo la scansione</td>
 </tr>
 </tbody></table>
-<h3 id="registra-vendita-profilo-solo-gestionale">Registra vendita (profilo Solo gestionale)</h3>
-<p>Schermata <strong>Registra vendita</strong> per aggiornare le giacenze dopo vendita o reso in negozio. <strong>Non sostituisce la cassa fiscale</strong> e non crea un ordine di vendita: registra solo il movimento di magazzino.</p>
-<p><strong>Flusso consigliato (doppia scansione):</strong></p>
+<h3 id="registra-vendita-tutti-i-profili">Registra vendita (tutti i profili)</h3>
+<p>Schermata <strong>Registra vendita</strong> per aggiornare le giacenze dopo vendita o reso in negozio fisico. <strong>Non sostituisce la cassa fiscale</strong> e non crea un ordine di vendita in VestiFlow: registra il movimento di magazzino (e, con Shopify/TikTok connessi, aggiorna le giacenze sul canale).</p>
+<p><strong>Flusso consigliato con cassa esterna (doppia scansione):</strong></p>
 <ol>
 <li>Incasso alla <strong>cassa fiscale</strong> o POS esterno.</li>
 <li>Scansione dello stesso barcode in <strong>Registra vendita</strong> → <strong>Registra vendita</strong> (scarico 1 pezzo).</li>
 <li>Per un reso: pannello <strong>Registra storno</strong> (reingresso 1 pezzo).</li>
 </ol>
+<p><strong>Con Shopify POS collegato:</strong> le vendite POS arrivano anche in <strong>Vendite</strong> via sync; usa <strong>Registra vendita</strong> solo se incassi fuori da Shopify POS (cassa fiscale separata).</p>
 <p><strong>Elementi della schermata:</strong></p>
 <ul>
 <li><strong>Sede (location)</strong> — obbligatoria; deve essere quella dove avviene l’operazione.</li>
@@ -1001,7 +1046,7 @@
 <li><strong>Sessione corrente</strong> — ultime operazioni della sessione (non sostituisce lo storico movimenti).</li>
 </ul>
 <p>Ogni scansione valida genera un movimento in <strong>Magazzino → Movimenti</strong> con origine <strong>Vendita negozio</strong>. Se lo stock <strong>disponibile</strong> è insufficiente, la vendita viene rifiutata.</p>
-<h3 id="vendite-profilo-shopify">Vendite (profilo Shopify)</h3>
+<h3 id="vendite-solo-profilo-shopify">Vendite (solo profilo Shopify)</h3>
 <ul>
 <li>Provengono da <strong>Shopify Online</strong> o <strong>Shopify POS</strong>.</li>
 <li>In VestiFlow sono <strong>sola lettura</strong>.</li>
@@ -1063,7 +1108,7 @@
 <ul>
 <li>icona sulla home del telefono;</li>
 <li>apertura a schermo intero;</li>
-<li>ideale per <strong>Cerca giacenza</strong>, <strong>Registra vendita</strong> (Solo gestionale) e <strong>scanner barcode</strong> in magazzino.</li>
+<li>ideale per <strong>Cerca giacenza</strong>, <strong>Registra vendita</strong> e <strong>scanner barcode</strong> in magazzino.</li>
 </ul>
 <h3 id="installazione">Installazione</h3>
 <p><strong>Android (Chrome):</strong> menu → <strong>Aggiungi a schermata Home</strong> / <strong>Installa app</strong>. Su <strong>Magazzino → Cerca</strong> può comparire un banner di installazione.</p>
@@ -1086,8 +1131,11 @@
 </ol>
 <p><strong>Consigli:</strong> mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla <strong>Movimenti</strong> con origine <strong>Vendita negozio</strong> se qualcosa non quadra.</p>
 <p>Non compare la lista <strong>Vendite</strong> né <strong>Clienti</strong>: il tracciamento vendite in VestiFlow è il movimento di magazzino.</p>
-<h3 id="profilo-shopify-shopify-pos">Profilo Shopify (Shopify POS)</h3>
-<p>Vendi in negozio con <strong>Shopify POS</strong>:</p>
+<h3 id="profilo-shopify-negozio-fisico">Profilo Shopify (negozio fisico)</h3>
+<p>Due scenari possibili:</p>
+<p><strong>A — Cassa esterna o fiscale + doppia scansione</strong></p>
+<p>Come il profilo Solo gestionale: incasso alla cassa, poi <strong>Registra vendita</strong> in VestiFlow. In sidebar compaiono anche <strong>Vendite</strong> (ordini online/POS da Shopify).</p>
+<p><strong>B — Shopify POS</strong></p>
 <table>
 <thead>
 <tr>
@@ -1097,15 +1145,16 @@
 </thead>
 <tbody><tr>
 <td><strong>Shopify POS</strong></td>
-<td>Cassa su tablet/iPhone in negozio</td>
+<td>Cassa su tablet/iPhone — vendite sync automatiche</td>
 </tr>
 <tr>
 <td><strong>VestiFlow</strong></td>
-<td>Riceve vendite POS in <strong>Vendite</strong>, aggiorna stock via sync</td>
+<td><strong>Vendite</strong> (ordini) + movimenti da webhook; <strong>Registra vendita</strong> opzionale se serve rettifica manuale al banco</td>
 </tr>
 </tbody></table>
-<p>Flusso: vendita POS → Shopify scala giacenza → webhook → VestiFlow (movimento + ordine consultabile).</p>
-<p>La voce <strong>Registra vendita</strong> <strong>non</strong> compare: non serve doppia scansione se il POS Shopify è collegato.</p>
+<p>Flusso POS: vendita POS → Shopify scala giacenza → webhook → VestiFlow (movimento + ordine in <strong>Vendite</strong>).</p>
+<h3 id="profilo-tiktok-shop-negozio-fisico">Profilo TikTok Shop (negozio fisico)</h3>
+<p>Usa <strong>Registra vendita</strong> per vendite e storni al banco (cassa esterna). Le giacenze vengono inviate a TikTok Shop dopo la scansione. Non c’è lista <strong>Vendite</strong> sync da TikTok in questa fase.</p>
 <p>VestiFlow <strong>non</strong> emette scontrini fiscali in nessun profilo: usa il sistema collegato al POS o il tuo software fiscale.</p>
 <hr>
 <h2 id="16-profilo-foto-e-sicurezza-account">16. Profilo, foto e sicurezza account</h2>
@@ -1153,9 +1202,11 @@
 </ol>
 <h3 id="vendite-o-clienti-mancanti">Vendite o clienti mancanti</h3>
 <p>Spesso serve l&#39;approvazione dati clienti protetti su Shopify Partners. Catalogo e giacenze funzionano comunque. Chiedi al referente VestiFlow se la sync ordini/clienti è abilitata per il tuo negozio.</p>
-<p><strong>Profilo Solo gestionale:</strong> la lista <strong>Vendite</strong> non esiste per design. Usa <strong>Registra vendita</strong> per aggiornare lo stock e <strong>Storico movimenti</strong> per verificare le operazioni.</p>
+<p><strong>Profilo Solo gestionale o TikTok:</strong> la lista <strong>Vendite</strong> non esiste per design. Usa <strong>Registra vendita</strong> per aggiornare lo stock e <strong>Storico movimenti</strong> per verificare le operazioni.</p>
 <h3 id="non-vedo-registra-vendita-in-sidebar">Non vedo «Registra vendita» in sidebar</h3>
-<p>Il tuo negozio ha probabilmente profilo <strong>Shopify</strong> (o TikTok): le vendite arrivano dal canale e in menu compare <strong>Vendite</strong>, non Registra vendita. Contatta il referente VestiFlow solo se ti serve il profilo Solo gestionale.</p>
+<p>La voce compare per tutti i profili canale attivi. Se manca, verifica di essere loggato con un ruolo operativo (commesso o superiore) o contatta il referente VestiFlow.</p>
+<h3 id="registra-vendita-e-vendite-insieme-shopify">Registra vendita e Vendite insieme (Shopify)</h3>
+<p>È <strong>normale</strong> con profilo Shopify: <strong>Registra vendita</strong> serve per la doppia scansione al banco; <strong>Vendite</strong> mostra gli ordini sincronizzati da Shopify. Non confondere movimento magazzino (scansione) con ordine ecommerce (lista Vendite).</p>
 <h3 id="la-vendita-viene-rifiutata-stock-insufficiente">La vendita viene rifiutata («stock insufficiente»)</h3>
 <p>La sede selezionata non ha quantità <strong>disponibile</strong> ≥ 1 per quella variante. Controlla <strong>Giacenze</strong> per sede, verifica di aver scansionato il codice giusto, oppure registra prima un <strong>carico</strong> se la merce è appena arrivata.</p>
 <h3 id="ho-scansionato-due-volte-per-errore">Ho scansionato due volte per errore</h3>

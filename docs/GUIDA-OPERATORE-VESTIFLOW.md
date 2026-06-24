@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 1.7 — Giugno 2026
+**Versione documento:** 1.8 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -602,7 +602,7 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 | `Store` / `Location`         | Store commerciale; location per stock                                                                                      |
 | `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind`, `shopifyCategoryMetafields`, taxonomy categoria |
 | `InventoryLevel`             | `variantId` × `locationId`, stati quantità                                                                                 |
-| `StockMovement`              | Audit trail obbligatorio; origine `vestiflow_pos` per vendite/storni al banco (profilo gestionale)                         |
+| `StockMovement`              | Audit trail obbligatorio; origine `vestiflow_pos` per vendite/storni al banco (tutti i profili canale)                     |
 | `SupplierOrder`              | Solo VF                                                                                                                    |
 | `SalesOrder` / `Customer`    | Import Shopify, read-only UI; assenti in UI profilo Solo gestionale                                                        |
 | `ShopifyConnection`          | Token, scope, stato sync per tenant                                                                                        |
@@ -680,9 +680,9 @@ Service: `SupplierOrdersService` (`api/src/supplier-orders/`). Ricezione in tran
 
 **UI tenant:** form ordine con `select-menu` searchable (fornitore, variante), `date-input` per data attesa, subtotale riga calcolato; dettaglio con **Elimina ordine** se `status=cancelled`. Lista prodotti: stampa etichette multi-select (`ProductLabelPrintService.triggerDirectPrintMany`).
 
-### Vendita al banco (profilo Solo gestionale)
+### Vendita al banco (tutti i profili canale)
 
-Endpoint dedicato per **doppia scansione** al banco: decremento/incremento stock senza creare `SalesOrder`. Disponibile solo se `Tenant.channelProfile === gestionale` (`assertTenantChannelProfile`).
+Endpoint dedicato per **doppia scansione** al banco: decremento/incremento stock senza creare `SalesOrder`. Disponibile per `gestionale`, `shopify` e `tiktok_shop`.
 
 | Metodo | Path                      | Body / azione                                                                  | Permessi   |
 | ------ | ------------------------- | ------------------------------------------------------------------------------ | ---------- |
@@ -694,6 +694,7 @@ Endpoint dedicato per **doppia scansione** al banco: decremento/incremento stock
 - `action: return` → `StockMovement` tipo `return`, origine `vestiflow_pos`
 - Lookup variante: stessa semantica di `GET /products/variants/by-code/:code` (SKU o barcode)
 - Vendita rifiutata se `available < 1` sulla location
+- Post-scan: `ChannelSyncFacade.pushInventoryLevels()` (Shopify/TikTok se connessi)
 - Migration enum: `0019_vestiflow_pos_movement_origin` → `MovementOrigin.vestiflow_pos`
 
 I tipi `sale` e `return` **non** sono selezionabili nel form manuale **Registra movimento** (solo via retail-scans).
@@ -702,12 +703,23 @@ I tipi `sale` e `return` **non** sono selezionabili nel form manuale **Registra 
 
 | Rotta                 | Componente                    | Guard / note                                         |
 | --------------------- | ----------------------------- | ---------------------------------------------------- |
-| `/app/sales/register` | `RetailSaleRegisterComponent` | `gestionaleRetailGuard` — solo profilo gestionale    |
+| `/app/sales/register` | `RetailSaleRegisterComponent` | `retailSalesRegisterGuard` — tutti i profili canale  |
 | `/app/sales`          | lista ordini Shopify          | `salesHistoryGuard` — redirect gestionale → register |
 
+**Navigazione shell** (`shell-layout.component.ts`):
+
+- `showRetailSalesRegister(profile)` — Registra vendita per gestionale, Shopify, TikTok
+- `showSalesOrderHistory(profile)` — **Vendite** solo Shopify
+- Profilo Shopify: entrambe le voci in sidebar; `activeRouteExclude` evita doppia evidenziazione su `/app/sales/register`
+
 - Service HTTP: `InventoryService.registerRetailScan()` (`src/app/features/inventory/services/inventory.service.ts`)
-- Shell: voce **Registra vendita** al posto di **Vendite** se `showGestionaleRetailSales()` (`tenant-channel-profile.model.ts`)
 - Label origine movimento: **Vendita negozio** (`inventory-labels.util.ts` → `MovementOrigin.VestiflowPos`)
+
+### Sidebar: evidenziazione sezione su sotto-route
+
+Componente `shared/components/app-sidebar` + util `shared/utils/nav-link-active.util.ts`.
+
+Ogni `NavItem` può definire `activeRoutePrefix` (es. `/app/inventory` per link a `/app/inventory/lookup`) così la voce resta evidenziata su tab e sotto-pagine (Giacenze, Movimenti, dettaglio prodotto, ecc.). Opzionale `activeRouteExclude` per escludere route sorelle (Vendite vs Registra vendita).
 
 ---
 
@@ -773,20 +785,21 @@ cd api && npm run test
 
 ### Copertura automatica — Shopify shop change / location / delete
 
-| Area                                             | File test                                                                                  |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| Purge / preview shop change                      | `api/src/shopify/shopify-shop-change.service.spec.ts`                                      |
-| Sync location + cleanup onboarding/stale         | `api/src/shopify/shopify-location-sync.service.spec.ts`                                    |
-| Delete prodotto write-through Shopify            | `api/src/products/products.service.spec.ts`                                                |
-| Guard `catalogOrigin` (update/delete/sync/media) | `api/src/products/catalog-origin.util.spec.ts`                                             |
-| Wizard UI (anteprima, conferma, disconnect)      | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts`    |
-| HTTP client shop change / sync location          | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`        |
-| E2E wizard (anteprima, step conferma, annulla)   | `e2e/shopify.spec.ts`                                                                      |
-| Retail scan API (sale/return, profilo, stock)    | `api/src/inventory/inventory.service.spec.ts`, `inventory.controller.spec.ts`              |
-| Guard vendite gestionale vs Shopify              | `src/app/features/sales/guards/retail-sales.guard.spec.ts`                                 |
-| Pagina Registra vendita                          | `src/app/features/sales/pages/retail-sale-register/retail-sale-register.component.spec.ts` |
-| HTTP client retail-scans                         | `src/app/features/inventory/services/inventory.service.spec.ts`                            |
-| Profilo canale / label origine movimento         | `tenant-channel-profile.model.spec.ts`, `inventory-labels.util.spec.ts`                    |
+| Area                                                | File test                                                                               |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Purge / preview shop change                         | `api/src/shopify/shopify-shop-change.service.spec.ts`                                   |
+| Sync location + cleanup onboarding/stale            | `api/src/shopify/shopify-location-sync.service.spec.ts`                                 |
+| Delete prodotto write-through Shopify               | `api/src/products/products.service.spec.ts`                                             |
+| Guard `catalogOrigin` (update/delete/sync/media)    | `api/src/products/catalog-origin.util.spec.ts`                                          |
+| Wizard UI (anteprima, conferma, disconnect)         | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts` |
+| HTTP client shop change / sync location             | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`     |
+| E2E wizard (anteprima, step conferma, annulla)      | `e2e/shopify.spec.ts`                                                                   |
+| Retail scan API (sale/return, profili, push canale) | `api/src/inventory/inventory.service.spec.ts`, `inventory.controller.spec.ts`           |
+| Guard vendite / retail register                     | `src/app/features/sales-orders/guards/retail-sales.guard.spec.ts`                       |
+| Pagina Registra vendita                             | `src/app/features/sales-orders/retail-sale-register.component.spec.ts`                  |
+| HTTP client retail-scans                            | `src/app/features/inventory/services/inventory.service.spec.ts`                         |
+| Profilo canale / label origine movimento            | `tenant-channel-profile.model.spec.ts`, `inventory-labels.util.spec.ts`                 |
+| Evidenza sidebar su sotto-route                     | `src/app/shared/utils/nav-link-active.util.spec.ts`                                     |
 
 ### CI GitHub Actions
 
@@ -823,6 +836,8 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 - [ ] Upload foto profilo + avatar topbar
 - [ ] Import catalogo + webhook
 - [ ] Tenant **Solo gestionale**: POST retail-scans vendita + storno su variante test
+- [ ] Tenant **Shopify**: Registra vendita + lista Vendite in sidebar; retail-scans + sync giacenze
+- [ ] Tenant **TikTok** (se abilitato): retail-scans + push inventario
 - [ ] Upload immagine prodotto
 - [ ] Guida utente + guida tecnica admin
 
@@ -867,20 +882,20 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 
 ## 20. Limitazioni note e roadmap
 
-| Area                                         | Stato                                                                                  |
-| -------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Multi-store commerciali in un tenant         | Non supportato — un shop = un tenant                                                   |
-| Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore                           |
-| Sessione assistenza platform admin → tenant  | Implementata — 2 h, read/write, audit `support_sessions`, banner UI                    |
-| Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale                                 |
-| Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze                                 |
-| Bozze ordine Shopify (draft orders)          | Non in scope — solo ordini confermati in **Vendite**                                   |
-| Location manuale senza Shopify               | Parziale (location onboarding); sync Shopify consigliato                               |
-| Cassa / corrispettivi IT nativi              | Non previsti — integrazione esterna; VF registra solo stock (gestionale: retail-scans) |
-| Vendita al banco profilo gestionale          | Implementata — `POST /inventory/retail-scans`, UI `/app/sales/register`                |
-| Report server-side avanzati                  | In evoluzione                                                                          |
-| Coda bulk Shopify persistente (multi-tenant) | Non implementata — operazioni massicce sincrone HTTP                                   |
-| Notifiche email custom reset password        | Config Supabase                                                                        |
+| Area                                         | Stato                                                                                    |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Multi-store commerciali in un tenant         | Non supportato — un shop = un tenant                                                     |
+| Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore                             |
+| Sessione assistenza platform admin → tenant  | Implementata — 2 h, read/write, audit `support_sessions`, banner UI                      |
+| Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale                                   |
+| Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze                                   |
+| Bozze ordine Shopify (draft orders)          | Non in scope — solo ordini confermati in **Vendite**                                     |
+| Location manuale senza Shopify               | Parziale (location onboarding); sync Shopify consigliato                                 |
+| Cassa / corrispettivi IT nativi              | Non previsti — integrazione esterna; VF registra stock (retail-scans tutti i profili)    |
+| Vendita al banco                             | Implementata — `POST /inventory/retail-scans`, UI `/app/sales/register`, tutti i profili |
+| Report server-side avanzati                  | In evoluzione                                                                            |
+| Coda bulk Shopify persistente (multi-tenant) | Non implementata — operazioni massicce sincrone HTTP                                     |
+| Notifiche email custom reset password        | Config Supabase                                                                          |
 
 ---
 

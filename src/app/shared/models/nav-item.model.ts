@@ -7,6 +7,13 @@ export interface NavItem {
   readonly icon: string;
   /** Route assoluta di destinazione (es. '/app/dashboard'). */
   readonly route: string;
-  /** Opzioni per evidenziare la voce anche su sotto-route (es. /clients/:id). */
+  /**
+   * Prefisso usato per evidenziare la voce su tutte le sotto-route della sezione
+   * (es. '/app/inventory' quando `route` punta a '/app/inventory/lookup').
+   */
+  readonly activeRoutePrefix?: string;
+  /** Route escluse dall'evidenza (es. '/app/sales/register' per la voce Vendite). */
+  readonly activeRouteExclude?: readonly string[];
+  /** Opzioni legacy per evidenziare la voce; preferire activeRoutePrefix. */
   readonly linkActiveOptions?: IsActiveMatchOptions;
 }

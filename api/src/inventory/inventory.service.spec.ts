@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -435,9 +434,10 @@ describe('InventoryService', () => {
 
   it('registerRetailScan crea movimento vendita con origine vestiflow_pos', async () => {
     const { prisma, tx, movement } = createRetailScanPrismaMock();
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
     const service = new InventoryService(
       prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
+      channelSync as unknown as ChannelSyncFacade,
     );
 
     const result = await service.registerRetailScan(
@@ -466,9 +466,10 @@ describe('InventoryService', () => {
     const returnMovement = { id: 'mov-return', type: StockMovementType.return };
     const { prisma, tx } = createRetailScanPrismaMock({ availableAfter: 6 });
     tx.stockMovement.create.mockResolvedValue(returnMovement);
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
     const service = new InventoryService(
       prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
+      channelSync as unknown as ChannelSyncFacade,
     );
 
     const result = await service.registerRetailScan(
@@ -495,20 +496,40 @@ describe('InventoryService', () => {
     );
   });
 
-  it('registerRetailScan rifiuta tenant non gestionale', async () => {
-    const { prisma } = createRetailScanPrismaMock({ channelProfile: 'shopify' });
+  it('registerRetailScan accetta tenant Shopify e sincronizza inventario canale', async () => {
+    const { prisma, movement } = createRetailScanPrismaMock({ channelProfile: 'shopify' });
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
     const service = new InventoryService(
       prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
+      channelSync as unknown as ChannelSyncFacade,
     );
 
-    await expect(
-      service.registerRetailScan(
-        tenantId,
-        { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
-        'Commesso',
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    const result = await service.registerRetailScan(
+      tenantId,
+      { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
+      'Commesso',
+    );
+
+    expect(result.movement).toEqual(movement);
+    expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
+  });
+
+  it('registerRetailScan accetta tenant TikTok Shop e sincronizza inventario canale', async () => {
+    const { prisma, movement } = createRetailScanPrismaMock({ channelProfile: 'tiktok_shop' });
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      channelSync as unknown as ChannelSyncFacade,
+    );
+
+    const result = await service.registerRetailScan(
+      tenantId,
+      { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
+      'Commesso',
+    );
+
+    expect(result.movement).toEqual(movement);
+    expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
   });
 
   it('registerRetailScan rifiuta codice vuoto', async () => {

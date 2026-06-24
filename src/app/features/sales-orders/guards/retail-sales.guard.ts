@@ -2,22 +2,24 @@ import { inject } from '@angular/core';
 import { Router, type CanActivateFn } from '@angular/router';
 
 import { AuthService } from '@core/auth';
-import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import {
+  TenantChannelProfile,
+  showRetailSalesRegister,
+} from '@core/models/tenant-channel-profile.model';
 
-/** Route vendita al banco: solo tenant con profilo solo gestionale. */
-export const gestionaleRetailGuard: CanActivateFn = () => {
+/** Route vendita al banco: tutti i profili canale (gestionale, Shopify, TikTok). */
+export const retailSalesRegisterGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  const profile = auth.currentUser()?.tenantChannelProfile;
 
-  if (profile === TenantChannelProfile.Gestionale) {
+  if (showRetailSalesRegister(auth.currentUser()?.tenantChannelProfile)) {
     return true;
   }
 
   return router.createUrlTree(['/app/sales']);
 };
 
-/** Storico vendite Shopify/TikTok: reindirizza il profilo gestionale al banco. */
+/** Storico vendite Shopify: reindirizza il profilo gestionale al banco. */
 export const salesHistoryGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
@@ -29,3 +31,6 @@ export const salesHistoryGuard: CanActivateFn = () => {
 
   return router.createUrlTree(['/app/sales/register']);
 };
+
+/** @deprecated Usare retailSalesRegisterGuard */
+export const gestionaleRetailGuard = retailSalesRegisterGuard;

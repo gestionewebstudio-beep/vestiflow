@@ -7,7 +7,7 @@ import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model'
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 
-import { gestionaleRetailGuard, salesHistoryGuard } from './retail-sales.guard';
+import { retailSalesRegisterGuard, salesHistoryGuard } from './retail-sales.guard';
 
 function userWithProfile(profile: User['tenantChannelProfile']): User {
   return {
@@ -40,23 +40,27 @@ describe('retail-sales guards', () => {
     });
   });
 
-  describe('gestionaleRetailGuard', () => {
-    it('consente accesso al profilo gestionale', () => {
+  describe('retailSalesRegisterGuard', () => {
+    it.each([
+      TenantChannelProfile.Gestionale,
+      TenantChannelProfile.Shopify,
+      TenantChannelProfile.TikTokShop,
+    ])('consente accesso al profilo %s', (profile) => {
       const auth = TestBed.inject(AuthService);
-      vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(TenantChannelProfile.Gestionale));
+      vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(profile));
 
       const result = TestBed.runInInjectionContext(() =>
-        gestionaleRetailGuard({} as never, {} as never),
+        retailSalesRegisterGuard({} as never, {} as never),
       );
       expect(result).toBe(true);
     });
 
-    it('redirige profilo Shopify alla lista vendite', () => {
+    it('redirige profilo sconosciuto alla lista vendite', () => {
       const auth = TestBed.inject(AuthService);
-      vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(TenantChannelProfile.Shopify));
+      vi.mocked(auth.currentUser).mockReturnValue(null);
 
       const result = TestBed.runInInjectionContext(() =>
-        gestionaleRetailGuard({} as never, {} as never),
+        retailSalesRegisterGuard({} as never, {} as never),
       );
       expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/sales']);
       expect(result).not.toBe(true);
@@ -67,6 +71,16 @@ describe('retail-sales guards', () => {
     it('consente accesso al profilo Shopify', () => {
       const auth = TestBed.inject(AuthService);
       vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(TenantChannelProfile.Shopify));
+
+      const result = TestBed.runInInjectionContext(() =>
+        salesHistoryGuard({} as never, {} as never),
+      );
+      expect(result).toBe(true);
+    });
+
+    it('consente accesso al profilo TikTok Shop', () => {
+      const auth = TestBed.inject(AuthService);
+      vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(TenantChannelProfile.TikTokShop));
 
       const result = TestBed.runInInjectionContext(() =>
         salesHistoryGuard({} as never, {} as never),

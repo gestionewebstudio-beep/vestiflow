@@ -1,5 +1,5 @@
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 1.7 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 1.8 — Giugno 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -963,7 +963,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><code>StockMovement</code></td>
-<td>Audit trail obbligatorio; origine <code>vestiflow_pos</code> per vendite/storni al banco (profilo gestionale)</td>
+<td>Audit trail obbligatorio; origine <code>vestiflow_pos</code> per vendite/storni al banco (tutti i profili canale)</td>
 </tr>
 <tr>
 <td><code>SupplierOrder</code></td>
@@ -1139,8 +1139,8 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tbody></table>
 <p>Service: <code>SupplierOrdersService</code> (<code>api/src/supplier-orders/</code>). Ricezione in transazione atomica con <code>StockMovement</code>.</p>
 <p><strong>UI tenant:</strong> form ordine con <code>select-menu</code> searchable (fornitore, variante), <code>date-input</code> per data attesa, subtotale riga calcolato; dettaglio con <strong>Elimina ordine</strong> se <code>status=cancelled</code>. Lista prodotti: stampa etichette multi-select (<code>ProductLabelPrintService.triggerDirectPrintMany</code>).</p>
-<h3 id="vendita-al-banco-profilo-solo-gestionale">Vendita al banco (profilo Solo gestionale)</h3>
-<p>Endpoint dedicato per <strong>doppia scansione</strong> al banco: decremento/incremento stock senza creare <code>SalesOrder</code>. Disponibile solo se <code>Tenant.channelProfile === gestionale</code> (<code>assertTenantChannelProfile</code>).</p>
+<h3 id="vendita-al-banco-tutti-i-profili-canale">Vendita al banco (tutti i profili canale)</h3>
+<p>Endpoint dedicato per <strong>doppia scansione</strong> al banco: decremento/incremento stock senza creare <code>SalesOrder</code>. Disponibile per <code>gestionale</code>, <code>shopify</code> e <code>tiktok_shop</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1163,6 +1163,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <li><code>action: return</code> → <code>StockMovement</code> tipo <code>return</code>, origine <code>vestiflow_pos</code></li>
 <li>Lookup variante: stessa semantica di <code>GET /products/variants/by-code/:code</code> (SKU o barcode)</li>
 <li>Vendita rifiutata se <code>available &lt; 1</code> sulla location</li>
+<li>Post-scan: <code>ChannelSyncFacade.pushInventoryLevels()</code> (Shopify/TikTok se connessi)</li>
 <li>Migration enum: <code>0019_vestiflow_pos_movement_origin</code> → <code>MovementOrigin.vestiflow_pos</code></li>
 </ul>
 <p>I tipi <code>sale</code> e <code>return</code> <strong>non</strong> sono selezionabili nel form manuale <strong>Registra movimento</strong> (solo via retail-scans).</p>
@@ -1178,7 +1179,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <tbody><tr>
 <td><code>/app/sales/register</code></td>
 <td><code>RetailSaleRegisterComponent</code></td>
-<td><code>gestionaleRetailGuard</code> — solo profilo gestionale</td>
+<td><code>retailSalesRegisterGuard</code> — tutti i profili canale</td>
 </tr>
 <tr>
 <td><code>/app/sales</code></td>
@@ -1186,11 +1187,22 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <td><code>salesHistoryGuard</code> — redirect gestionale → register</td>
 </tr>
 </tbody></table>
+<p><strong>Navigazione shell</strong> (<code>shell-layout.component.ts</code>):</p>
 <ul>
-<li>Service HTTP: <code>InventoryService.registerRetailScan()</code> (<code>src/app/features/inventory/services/inventory.service.ts</code>)</li>
-<li>Shell: voce <strong>Registra vendita</strong> al posto di <strong>Vendite</strong> se <code>showGestionaleRetailSales()</code> (<code>tenant-channel-profile.model.ts</code>)</li>
-<li>Label origine movimento: <strong>Vendita negozio</strong> (<code>inventory-labels.util.ts</code> → <code>MovementOrigin.VestiflowPos</code>)</li>
+<li><p><code>showRetailSalesRegister(profile)</code> — Registra vendita per gestionale, Shopify, TikTok</p>
+</li>
+<li><p><code>showSalesOrderHistory(profile)</code> — <strong>Vendite</strong> solo Shopify</p>
+</li>
+<li><p>Profilo Shopify: entrambe le voci in sidebar; <code>activeRouteExclude</code> evita doppia evidenziazione su <code>/app/sales/register</code></p>
+</li>
+<li><p>Service HTTP: <code>InventoryService.registerRetailScan()</code> (<code>src/app/features/inventory/services/inventory.service.ts</code>)</p>
+</li>
+<li><p>Label origine movimento: <strong>Vendita negozio</strong> (<code>inventory-labels.util.ts</code> → <code>MovementOrigin.VestiflowPos</code>)</p>
+</li>
 </ul>
+<h3 id="sidebar-evidenziazione-sezione-su-sotto-route">Sidebar: evidenziazione sezione su sotto-route</h3>
+<p>Componente <code>shared/components/app-sidebar</code> + util <code>shared/utils/nav-link-active.util.ts</code>.</p>
+<p>Ogni <code>NavItem</code> può definire <code>activeRoutePrefix</code> (es. <code>/app/inventory</code> per link a <code>/app/inventory/lookup</code>) così la voce resta evidenziata su tab e sotto-pagine (Giacenze, Movimenti, dettaglio prodotto, ecc.). Opzionale <code>activeRouteExclude</code> per escludere route sorelle (Vendite vs Registra vendita).</p>
 <hr>
 <h2 id="14-scanner-barcode-e-componenti-ui-condivisi">14. Scanner barcode e componenti UI condivisi</h2>
 <h3 id="scanner-barcode">Scanner barcode</h3>
@@ -1300,16 +1312,16 @@ cd api &amp;&amp; npm run test
 <td><code>e2e/shopify.spec.ts</code></td>
 </tr>
 <tr>
-<td>Retail scan API (sale/return, profilo, stock)</td>
+<td>Retail scan API (sale/return, profili, push canale)</td>
 <td><code>api/src/inventory/inventory.service.spec.ts</code>, <code>inventory.controller.spec.ts</code></td>
 </tr>
 <tr>
-<td>Guard vendite gestionale vs Shopify</td>
-<td><code>src/app/features/sales/guards/retail-sales.guard.spec.ts</code></td>
+<td>Guard vendite / retail register</td>
+<td><code>src/app/features/sales-orders/guards/retail-sales.guard.spec.ts</code></td>
 </tr>
 <tr>
 <td>Pagina Registra vendita</td>
-<td><code>src/app/features/sales/pages/retail-sale-register/retail-sale-register.component.spec.ts</code></td>
+<td><code>src/app/features/sales-orders/retail-sale-register.component.spec.ts</code></td>
 </tr>
 <tr>
 <td>HTTP client retail-scans</td>
@@ -1318,6 +1330,10 @@ cd api &amp;&amp; npm run test
 <tr>
 <td>Profilo canale / label origine movimento</td>
 <td><code>tenant-channel-profile.model.spec.ts</code>, <code>inventory-labels.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>Evidenza sidebar su sotto-route</td>
+<td><code>src/app/shared/utils/nav-link-active.util.spec.ts</code></td>
 </tr>
 </tbody></table>
 <h3 id="ci-github-actions">CI GitHub Actions</h3>
@@ -1352,6 +1368,8 @@ cd api &amp;&amp; npm run test
 <li><input disabled="" type="checkbox"> Upload foto profilo + avatar topbar</li>
 <li><input disabled="" type="checkbox"> Import catalogo + webhook</li>
 <li><input disabled="" type="checkbox"> Tenant <strong>Solo gestionale</strong>: POST retail-scans vendita + storno su variante test</li>
+<li><input disabled="" type="checkbox"> Tenant <strong>Shopify</strong>: Registra vendita + lista Vendite in sidebar; retail-scans + sync giacenze</li>
+<li><input disabled="" type="checkbox"> Tenant <strong>TikTok</strong> (se abilitato): retail-scans + push inventario</li>
 <li><input disabled="" type="checkbox"> Upload immagine prodotto</li>
 <li><input disabled="" type="checkbox"> Guida utente + guida tecnica admin</li>
 </ul>
@@ -1478,11 +1496,11 @@ cd api &amp;&amp; npm run test
 </tr>
 <tr>
 <td>Cassa / corrispettivi IT nativi</td>
-<td>Non previsti — integrazione esterna; VF registra solo stock (gestionale: retail-scans)</td>
+<td>Non previsti — integrazione esterna; VF registra stock (retail-scans tutti i profili)</td>
 </tr>
 <tr>
-<td>Vendita al banco profilo gestionale</td>
-<td>Implementata — <code>POST /inventory/retail-scans</code>, UI <code>/app/sales/register</code></td>
+<td>Vendita al banco</td>
+<td>Implementata — <code>POST /inventory/retail-scans</code>, UI <code>/app/sales/register</code>, tutti i profili</td>
 </tr>
 <tr>
 <td>Report server-side avanzati</td>

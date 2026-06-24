@@ -64,7 +64,16 @@ export function showTikTokIntegration(profile: TenantChannelProfile | undefined)
   return profile === TenantChannelProfile.TikTokShop;
 }
 
-/** Vendita/storno al banco (profilo solo gestionale). */
-export function showGestionaleRetailSales(profile: TenantChannelProfile | undefined): boolean {
-  return profile === TenantChannelProfile.Gestionale;
+/** Vendita/storno al banco (tutti i profili canale). */
+export function showRetailSalesRegister(profile: TenantChannelProfile | undefined): boolean {
+  return (
+    profile === TenantChannelProfile.Gestionale ||
+    profile === TenantChannelProfile.Shopify ||
+    profile === TenantChannelProfile.TikTokShop
+  );
+}
+
+/** Lista ordini sincronizzati da canale ecommerce (oggi solo Shopify). */
+export function showSalesOrderHistory(profile: TenantChannelProfile | undefined): boolean {
+  return profile === TenantChannelProfile.Shopify;
 }

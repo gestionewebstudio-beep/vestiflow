@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   TenantChannelProfile,
-  showGestionaleRetailSales,
+  showRetailSalesRegister,
+  showSalesOrderHistory,
   showShopifyIntegration,
   showTikTokIntegration,
   tenantChannelProfileLabel,
@@ -15,11 +16,18 @@ describe('tenant-channel-profile.model', () => {
     expect(tenantChannelProfileLabel(TenantChannelProfile.TikTokShop)).toBe('TikTok Shop');
   });
 
-  it('showGestionaleRetailSales solo per profilo gestionale', () => {
-    expect(showGestionaleRetailSales(TenantChannelProfile.Gestionale)).toBe(true);
-    expect(showGestionaleRetailSales(TenantChannelProfile.Shopify)).toBe(false);
-    expect(showGestionaleRetailSales(TenantChannelProfile.TikTokShop)).toBe(false);
-    expect(showGestionaleRetailSales(undefined)).toBe(false);
+  it('showRetailSalesRegister per tutti i profili canale', () => {
+    expect(showRetailSalesRegister(TenantChannelProfile.Gestionale)).toBe(true);
+    expect(showRetailSalesRegister(TenantChannelProfile.Shopify)).toBe(true);
+    expect(showRetailSalesRegister(TenantChannelProfile.TikTokShop)).toBe(true);
+    expect(showRetailSalesRegister(undefined)).toBe(false);
+  });
+
+  it('showSalesOrderHistory solo per profilo Shopify', () => {
+    expect(showSalesOrderHistory(TenantChannelProfile.Shopify)).toBe(true);
+    expect(showSalesOrderHistory(TenantChannelProfile.Gestionale)).toBe(false);
+    expect(showSalesOrderHistory(TenantChannelProfile.TikTokShop)).toBe(false);
+    expect(showSalesOrderHistory(undefined)).toBe(false);
   });
 
   it('showShopifyIntegration e showTikTokIntegration', () => {
