@@ -609,15 +609,39 @@ Frontend: `HttpClient` + interceptor auth/error; mock disabilitati in prod.
 
 Export CSV dalle liste (filtri rispettati). Sync manuale Shopify: owner/admin.
 
+### Ordini fornitori
+
+| Metodo | Path                           | Azione                                               | Permessi    |
+| ------ | ------------------------------ | ---------------------------------------------------- | ----------- |
+| GET    | `/supplier-orders`             | Lista paginata (ricerca, filtro stato)               | autenticato |
+| GET    | `/supplier-orders/:id`         | Dettaglio                                            | autenticato |
+| POST   | `/supplier-orders`             | Crea ordine (bozza o inviato)                        | manager+    |
+| PATCH  | `/supplier-orders/:id`         | Aggiorna bozza (righe sostituite integralmente)      | manager+    |
+| POST   | `/supplier-orders/:id/send`    | Bozza → inviato                                      | manager+    |
+| POST   | `/supplier-orders/:id/cancel`  | Annulla (solo bozza o inviato, non ancora ricevuto)  | manager+    |
+| DELETE | `/supplier-orders/:id`         | Elimina ordine **annullato** (righe in cascade)      | manager+    |
+| POST   | `/supplier-orders/:id/receive` | Ricezione merce + movimenti `load` + push inventario | operativi   |
+
+Service: `SupplierOrdersService` (`api/src/supplier-orders/`). Ricezione in transazione atomica con `StockMovement`.
+
+**UI tenant:** form ordine con `select-menu` searchable (fornitore, variante), `date-input` per data attesa, subtotale riga calcolato; dettaglio con **Elimina ordine** se `status=cancelled`. Lista prodotti: stampa etichette multi-select (`ProductLabelPrintService.triggerDirectPrintMany`).
+
 ---
 
-## 14. Scanner barcode
+## 14. Scanner barcode e componenti UI condivisi
+
+### Scanner barcode
 
 - Componente: `shared/components/barcode-scanner` (BarcodeDetector API)
 - Flag: `VESTIFLOW_ENABLE_BARCODE_SCANNER`
 - Schermate: Cerca giacenza, Giacenze, Registra movimento, Inventario fisico, Prodotti
 - Lookup API: `GET /products/variants/by-code/:code` (SKU o barcode esatto)
 - Fallback iOS: input manuale
+
+### Date e select (form / filtri)
+
+- `shared/components/date-input` — calendario custom al posto di `<input type="date">`; usato in **Report** (filtri periodo) e **Ordini fornitori** (data attesa)
+- `shared/components/select-menu` — prop opzionale `searchable` con filtro su label e detail (`shared/utils/select-menu-filter.util`); usata su select **fornitore** e **variante** nel form ordine fornitore; opzioni variante a due righe (titolo + SKU via `variant-select-menu.util`)
 
 ---
 

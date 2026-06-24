@@ -629,6 +629,10 @@
 <td>Collegato e ultimo invio riuscito</td>
 </tr>
 <tr>
+<td><strong>Sync in corso</strong></td>
+<td>Invio verso Shopify in corso (colonna Shopify in lista)</td>
+</tr>
+<tr>
 <td><strong>Da sincronizzare</strong></td>
 <td>Modifiche locali non ancora inviate</td>
 </tr>
@@ -746,6 +750,12 @@
 </tr>
 </tbody></table>
 <p>L&#39;export serve per backup o lavorare in Excel. L&#39;import CSV <strong>non</strong> sostituisce il sync Shopify: usa il percorso adatto al tuo caso.</p>
+<h3 id="stampare-etichette-dalla-lista">Stampare etichette dalla lista</h3>
+<ol>
+<li>In <strong>Prodotti</strong>, seleziona uno o più articoli con le <strong>caselle</strong> a sinistra (oppure <strong>Seleziona tutti</strong> in pagina).</li>
+<li>Nella barra azioni compare <strong>Stampa etichette selezionate</strong> — apre la stampa per tutti i prodotti scelti.</li>
+<li>L&#39;icona <strong>stampa</strong> su ogni riga stampa le etichette di <strong>un solo</strong> prodotto (come dal dettaglio).</li>
+</ol>
 <h3 id="cercare-un-prodotto-con-il-barcode">Cercare un prodotto con il barcode</h3>
 <p>In <strong>Prodotti</strong>, sopra i filtri, usa <strong>Scansiona barcode</strong> (su smartphone con Chrome/Android) oppure cerca per nome, brand o SKU. La scansione apre direttamente il <strong>dettaglio prodotto</strong> se il codice è riconosciuto.</p>
 <hr>
@@ -868,10 +878,43 @@
 <p>Gestiti <strong>solo in VestiFlow</strong> (non su Shopify).</p>
 <h3 id="flusso-tipico">Flusso tipico</h3>
 <ol>
-<li><strong>Ordini Fornitori → Nuovo ordine</strong> — fornitore, righe (variante, quantità, prezzo acquisto)</li>
-<li><strong>Invia ordine</strong> — tracciamento interno</li>
-<li>All&#39;arrivo merce: <strong>Ricevi ordine</strong> — incrementa giacenze e crea movimenti di carico</li>
+<li><strong>Ordini Fornitori → Nuovo ordine</strong> — fornitore, destinazione merce, righe (variante, quantità, costo unitario)</li>
+<li><strong>Invia ordine</strong> — tracciamento interno (salva bozza o invia subito)</li>
+<li>All&#39;arrivo merce: <strong>Ricevi merce</strong> — incrementa giacenze e crea movimenti di carico</li>
 </ol>
+<h3 id="compilare-un-ordine">Compilare un ordine</h3>
+<ul>
+<li><strong>Fornitore</strong> e <strong>Variante</strong> (per ogni riga): nel menu a tendina usa la <strong>ricerca</strong> per filtrare per nome prodotto o SKU.</li>
+<li><strong>Quantità</strong> e <strong>Costo unitario</strong>; il <strong>Subtotale</strong> riga si calcola automaticamente (campo in sola lettura).</li>
+<li><strong>Data attesa</strong> (opzionale): selettore con <strong>calendario</strong> (stesso stile dei filtri data nei report).</li>
+<li>Puoi creare un <strong>nuovo fornitore</strong> inline dal form (<strong>Nuovo fornitore</strong>).</li>
+</ul>
+<h3 id="stati-e-azioni">Stati e azioni</h3>
+<table>
+<thead>
+<tr>
+<th>Stato ordine</th>
+<th>Cosa puoi fare (Manager e superiori, salvo dove indicato)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Bozza</strong></td>
+<td>Modifica bozza, Invia ordine, Annulla ordine</td>
+</tr>
+<tr>
+<td><strong>Inviato</strong></td>
+<td>Annulla ordine, Ricevi merce (tutti i ruoli operativi)</td>
+</tr>
+<tr>
+<td><strong>Annullato</strong></td>
+<td><strong>Elimina ordine</strong> — rimozione definitiva dall&#39;elenco</td>
+</tr>
+<tr>
+<td><strong>Ricevuto</strong> / parz.</td>
+<td>Solo consultazione</td>
+</tr>
+</tbody></table>
+<p>L&#39;<strong>Annulla ordine</strong> segna l&#39;ordine come annullato ma lo lascia in lista. <strong>Elimina ordine</strong> (solo su ordini già annullati) lo rimuove in modo irreversibile.</p>
 <ul>
 <li>Creazione e modifica: <strong>Manager</strong> e superiori</li>
 <li>Ricezione merce: tutti i ruoli operativi (verifica con il titolare le regole interne)</li>
@@ -932,7 +975,7 @@
 <h3 id="dashboard">Dashboard</h3>
 <p>Pagina iniziale dopo il login: vendite recenti e indicatori sintetici del negozio.</p>
 <h3 id="report">Report</h3>
-<p>Totali e tabelle su prodotti, giacenze e ordini. Usa i filtri disponibili per restringere periodo e dati.</p>
+<p>Tabelle e KPI su prodotti, giacenze e ordini. I filtri <strong>periodo</strong> (da / a) usano un <strong>selettore data con calendario</strong>, coerente con la data attesa negli ordini fornitori.</p>
 <hr>
 <h2 id="14-usare-vestiflow-da-smartphone">14. Usare VestiFlow da smartphone</h2>
 <p>VestiFlow è una <strong>app web installabile (PWA)</strong>:</p>

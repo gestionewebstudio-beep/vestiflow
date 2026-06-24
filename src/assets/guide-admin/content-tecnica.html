@@ -1362,14 +1362,102 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </table>
 <h3 id="vendite-e-clienti">Vendite e clienti</h3>
 <p>Export CSV dalle liste (filtri rispettati). Sync manuale Shopify: owner/admin.</p>
+<h3 id="ordini-fornitori">Ordini fornitori</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Metodo</th>
+      <th>Path</th>
+      <th>Azione</th>
+      <th>Permessi</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>GET</td>
+      <td><code>/supplier-orders</code></td>
+      <td>Lista paginata (ricerca, filtro stato)</td>
+      <td>autenticato</td>
+    </tr>
+    <tr>
+      <td>GET</td>
+      <td><code>/supplier-orders/:id</code></td>
+      <td>Dettaglio</td>
+      <td>autenticato</td>
+    </tr>
+    <tr>
+      <td>POST</td>
+      <td><code>/supplier-orders</code></td>
+      <td>Crea ordine (bozza o inviato)</td>
+      <td>manager+</td>
+    </tr>
+    <tr>
+      <td>PATCH</td>
+      <td><code>/supplier-orders/:id</code></td>
+      <td>Aggiorna bozza (righe sostituite integralmente)</td>
+      <td>manager+</td>
+    </tr>
+    <tr>
+      <td>POST</td>
+      <td><code>/supplier-orders/:id/send</code></td>
+      <td>Bozza → inviato</td>
+      <td>manager+</td>
+    </tr>
+    <tr>
+      <td>POST</td>
+      <td><code>/supplier-orders/:id/cancel</code></td>
+      <td>Annulla (solo bozza o inviato, non ancora ricevuto)</td>
+      <td>manager+</td>
+    </tr>
+    <tr>
+      <td>DELETE</td>
+      <td><code>/supplier-orders/:id</code></td>
+      <td>Elimina ordine <strong>annullato</strong> (righe in cascade)</td>
+      <td>manager+</td>
+    </tr>
+    <tr>
+      <td>POST</td>
+      <td><code>/supplier-orders/:id/receive</code></td>
+      <td>Ricezione merce + movimenti <code>load</code> + push inventario</td>
+      <td>operativi</td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  Service: <code>SupplierOrdersService</code> (<code>api/src/supplier-orders/</code>). Ricezione in
+  transazione atomica con <code>StockMovement</code>.
+</p>
+<p>
+  <strong>UI tenant:</strong> form ordine con <code>select-menu</code> searchable (fornitore,
+  variante), <code>date-input</code> per data attesa, subtotale riga calcolato; dettaglio con
+  <strong>Elimina ordine</strong> se <code>status=cancelled</code>. Lista prodotti: stampa etichette
+  multi-select (<code>ProductLabelPrintService.triggerDirectPrintMany</code>).
+</p>
 <hr />
-<h2 id="14-scanner-barcode">14. Scanner barcode</h2>
+<h2 id="14-scanner-barcode-e-componenti-ui-condivisi">
+  14. Scanner barcode e componenti UI condivisi
+</h2>
+<h3 id="scanner-barcode">Scanner barcode</h3>
 <ul>
   <li>Componente: <code>shared/components/barcode-scanner</code> (BarcodeDetector API)</li>
   <li>Flag: <code>VESTIFLOW_ENABLE_BARCODE_SCANNER</code></li>
   <li>Schermate: Cerca giacenza, Giacenze, Registra movimento, Inventario fisico, Prodotti</li>
   <li>Lookup API: <code>GET /products/variants/by-code/:code</code> (SKU o barcode esatto)</li>
   <li>Fallback iOS: input manuale</li>
+</ul>
+<h3 id="date-e-select-form--filtri">Date e select (form / filtri)</h3>
+<ul>
+  <li>
+    <code>shared/components/date-input</code> — calendario custom al posto di
+    <code>&lt;input type=&quot;date&quot;&gt;</code>; usato in <strong>Report</strong> (filtri
+    periodo) e <strong>Ordini fornitori</strong> (data attesa)
+  </li>
+  <li>
+    <code>shared/components/select-menu</code> — prop opzionale <code>searchable</code> con filtro
+    su label e detail (<code>shared/utils/select-menu-filter.util</code>); usata su select
+    <strong>fornitore</strong> e <strong>variante</strong> nel form ordine fornitore; opzioni
+    variante a due righe (titolo + SKU via <code>variant-select-menu.util</code>)
+  </li>
 </ul>
 <hr />
 <h2 id="15-generazione-guide-htmlpdf">15. Generazione guide (HTML/PDF)</h2>

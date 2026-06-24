@@ -346,12 +346,13 @@ L’etichetta **Fonte** è distinta dallo **stato sync Shopify** (colonna **Shop
 
 Nel dettaglio prodotto (solo prodotti **Fonte: VestiFlow** collegati a Shopify):
 
-| Badge                | Significato                              |
-| -------------------- | ---------------------------------------- |
-| **Sincronizzato**    | Collegato e ultimo invio riuscito        |
-| **Da sincronizzare** | Modifiche locali non ancora inviate      |
-| **Errore sync**      | Ultimo invio fallito — usa sync manuale  |
-| **Non collegato**    | Shopify non connesso o prodotto mai sync |
+| Badge                | Significato                                             |
+| -------------------- | ------------------------------------------------------- |
+| **Sincronizzato**    | Collegato e ultimo invio riuscito                       |
+| **Sync in corso**    | Invio verso Shopify in corso (colonna Shopify in lista) |
+| **Da sincronizzare** | Modifiche locali non ancora inviate                     |
+| **Errore sync**      | Ultimo invio fallito — usa sync manuale                 |
+| **Non collegato**    | Shopify non connesso o prodotto mai sync                |
 
 I prodotti **Fonte: Shopify** si allineano automaticamente da Shopify Admin: non compare il pulsante **Sincronizza con Shopify**.
 
@@ -418,6 +419,12 @@ Dopo l’eliminazione riuscita di un prodotto **Fonte: VestiFlow**, la scheda sc
 | **Importa da Shopify** | Prodotti o Impostazioni | Sync massiva dal negozio online (non è un CSV)     |
 
 L'export serve per backup o lavorare in Excel. L'import CSV **non** sostituisce il sync Shopify: usa il percorso adatto al tuo caso.
+
+### Stampare etichette dalla lista
+
+1. In **Prodotti**, seleziona uno o più articoli con le **caselle** a sinistra (oppure **Seleziona tutti** in pagina).
+2. Nella barra azioni compare **Stampa etichette selezionate** — apre la stampa per tutti i prodotti scelti.
+3. L'icona **stampa** su ogni riga stampa le etichette di **un solo** prodotto (come dal dettaglio).
 
 ### Cercare un prodotto con il barcode
 
@@ -506,9 +513,27 @@ Gestiti **solo in VestiFlow** (non su Shopify).
 
 ### Flusso tipico
 
-1. **Ordini Fornitori → Nuovo ordine** — fornitore, righe (variante, quantità, prezzo acquisto)
-2. **Invia ordine** — tracciamento interno
-3. All'arrivo merce: **Ricevi ordine** — incrementa giacenze e crea movimenti di carico
+1. **Ordini Fornitori → Nuovo ordine** — fornitore, destinazione merce, righe (variante, quantità, costo unitario)
+2. **Invia ordine** — tracciamento interno (salva bozza o invia subito)
+3. All'arrivo merce: **Ricevi merce** — incrementa giacenze e crea movimenti di carico
+
+### Compilare un ordine
+
+- **Fornitore** e **Variante** (per ogni riga): nel menu a tendina usa la **ricerca** per filtrare per nome prodotto o SKU.
+- **Quantità** e **Costo unitario**; il **Subtotale** riga si calcola automaticamente (campo in sola lettura).
+- **Data attesa** (opzionale): selettore con **calendario** (stesso stile dei filtri data nei report).
+- Puoi creare un **nuovo fornitore** inline dal form (**Nuovo fornitore**).
+
+### Stati e azioni
+
+| Stato ordine         | Cosa puoi fare (Manager e superiori, salvo dove indicato) |
+| -------------------- | --------------------------------------------------------- |
+| **Bozza**            | Modifica bozza, Invia ordine, Annulla ordine              |
+| **Inviato**          | Annulla ordine, Ricevi merce (tutti i ruoli operativi)    |
+| **Annullato**        | **Elimina ordine** — rimozione definitiva dall'elenco     |
+| **Ricevuto** / parz. | Solo consultazione                                        |
+
+L'**Annulla ordine** segna l'ordine come annullato ma lo lascia in lista. **Elimina ordine** (solo su ordini già annullati) lo rimuove in modo irreversibile.
 
 - Creazione e modifica: **Manager** e superiori
 - Ricezione merce: tutti i ruoli operativi (verifica con il titolare le regole interne)
@@ -548,7 +573,7 @@ Pagina iniziale dopo il login: vendite recenti e indicatori sintetici del negozi
 
 ### Report
 
-Tabelle e KPI su prodotti, giacenze e ordini. Usa i filtri disponibili per restringere periodo e dati.
+Tabelle e KPI su prodotti, giacenze e ordini. I filtri **periodo** (da / a) usano un **selettore data con calendario**, coerente con la data attesa negli ordini fornitori.
 
 ---
 
