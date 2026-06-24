@@ -1,0 +1,267 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: inline-flex;
+  position: relative;
+  inline-size: var(--select-menu-width);
+  max-inline-size: min(var(--select-menu-width), 100%);
+  vertical-align: top;
+}
+
+:host(.date-input-host--full) {
+  display: block;
+  inline-size: var(--select-menu-width);
+  max-inline-size: min(var(--select-menu-width), 100%);
+
+  @include bp.media-down('md') {
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
+}
+
+.date-input {
+  position: relative;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.date-input__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-3);
+  inline-size: 100%;
+  max-inline-size: 100%;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: start;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    border-color var(--transition-fast) var(--ease-standard);
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.date-input__trigger:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+}
+
+.date-input--open .date-input__trigger {
+  border-color: var(--color-interactive);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+}
+
+.date-input--invalid .date-input__trigger {
+  border-color: var(--status-error-fg);
+}
+
+.date-input__trigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:host(.date-input-host--full) .date-input__trigger {
+  min-block-size: var(--field-height);
+  gap: var(--space-1);
+  padding-inline: var(--space-2);
+}
+
+.date-input--compact .date-input__trigger {
+  min-block-size: var(--field-height);
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+}
+
+.date-input__icon {
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.date-input__trigger-label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-input__trigger-label--placeholder {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.date-input__chevron {
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  transition: transform var(--transition-fast) var(--ease-standard);
+}
+
+.date-input--open .date-input__chevron {
+  transform: rotate(180deg);
+}
+
+.date-input__panel {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline: 0;
+  inline-size: 100%;
+  min-inline-size: 100%;
+  max-inline-size: 100%;
+  z-index: var(--z-dropdown);
+  padding: var(--space-3);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.date-input__header {
+  display: grid;
+  grid-template-columns: var(--btn-min-height) 1fr var(--btn-min-height);
+  align-items: center;
+  gap: var(--space-1);
+  margin-block-end: var(--space-3);
+}
+
+.date-input__month {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.date-input__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--btn-min-height);
+  block-size: var(--btn-min-height);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast) var(--ease-standard);
+
+  &:hover {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+.date-input__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin-block-end: var(--space-2);
+}
+
+.date-input__weekday {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  text-align: center;
+  text-transform: lowercase;
+}
+
+.date-input__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.date-input__day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--btn-min-height);
+  padding: 0;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    border-color var(--transition-fast) var(--ease-standard),
+    color var(--transition-fast) var(--ease-standard);
+
+  &:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+.date-input__day--outside {
+  color: var(--color-text-subtle);
+}
+
+.date-input__day--today {
+  border-color: var(--color-border-strong);
+}
+
+.date-input__day--selected {
+  color: var(--color-interactive);
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-nav-selected-bg);
+  border-color: var(--color-interactive);
+
+  &:hover {
+    background-color: var(--color-nav-selected-bg);
+  }
+}
+
+.date-input__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+  padding-block-start: var(--space-2);
+  border-block-start: var(--border-width) solid var(--color-border);
+}
+
+.date-input__footer-btn {
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-link);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}

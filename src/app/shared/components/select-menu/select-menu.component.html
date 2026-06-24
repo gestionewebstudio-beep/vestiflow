@@ -36,6 +36,25 @@
       [attr.aria-label]="ariaLabel()"
       [attr.aria-multiselectable]="multiple() ? true : null"
     >
+      @if (searchable()) {
+        <li class="select-menu__search-item" role="presentation">
+          <label class="sr-only" [attr.for]="searchInputId">{{ searchAriaLabel() }}</label>
+          <input
+            #searchInput
+            class="select-menu__search"
+            type="search"
+            autocomplete="off"
+            spellcheck="false"
+            [id]="searchInputId"
+            [placeholder]="searchPlaceholder()"
+            [value]="searchQuery()"
+            [attr.aria-label]="searchAriaLabel()"
+            (input)="onSearchInput($event)"
+            (keydown)="onSearchKeydown($event)"
+            (click)="$event.stopPropagation()"
+          />
+        </li>
+      }
       @if (includeEmptyOption()) {
         <li class="select-menu__option" role="presentation">
           <button
@@ -54,13 +73,15 @@
           </button>
         </li>
       }
-      @for (option of options(); track option.value) {
+      @for (option of visibleOptions(); track option.value) {
         <li class="select-menu__option" role="presentation">
           <button
             type="button"
             class="select-menu__option-btn"
+            [class.select-menu__option-btn--detailed]="option.detail"
             role="option"
             [attr.aria-selected]="isSelected(option)"
+            [attr.aria-label]="optionAriaLabel(option)"
             (click)="select(option)"
           >
             @if (isSelected(option)) {
@@ -76,8 +97,18 @@
                 aria-hidden="true"
               ></span>
             }
-            <span class="select-menu__option-label">{{ option.label }}</span>
+            <span class="select-menu__option-copy">
+              <span class="select-menu__option-label">{{ option.label }}</span>
+              @if (option.detail) {
+                <span class="select-menu__option-detail tabular-nums">{{ option.detail }}</span>
+              }
+            </span>
           </button>
+        </li>
+      }
+      @if (showSearchEmptyState()) {
+        <li class="select-menu__empty" role="presentation">
+          <p class="select-menu__empty-text">Nessun risultato.</p>
         </li>
       }
     </ul>

@@ -77,13 +77,38 @@
       icon="pi-tags"
     />
   } @else {
+    @if (selectedCount() > 0) {
+      <div class="product-list__bulk-actions" aria-live="polite">
+        <p class="product-list__bulk-summary">
+          {{ selectedCount() }}
+          {{ selectedCount() === 1 ? 'prodotto selezionato' : 'prodotti selezionati' }}
+        </p>
+        <div class="product-list__bulk-buttons">
+          <app-button variant="secondary" (click)="clearSelection()">Deseleziona</app-button>
+          <app-button
+            loadingIndicator="icon"
+            [loading]="bulkPrintLoading()"
+            [disabled]="bulkPrintLoading()"
+            (click)="printSelectedLabels()"
+          >
+            <i class="pi pi-print" aria-hidden="true"></i>
+            Stampa etichette selezionate
+          </app-button>
+        </div>
+      </div>
+    }
     <app-product-table
       [products]="products()"
       [sortField]="query().sort"
       [sortOrder]="query().order"
       [showShopifyColumn]="showShopifyColumn()"
+      [selectedProductIds]="selectedProductIds()"
+      [allOnPageSelected]="allOnPageSelected()"
+      [someOnPageSelected]="someOnPageSelected()"
       (rowClick)="openProduct($event)"
       (printLabel)="printProductLabels($event)"
+      (selectionToggle)="toggleProductSelection($event.productId, $event.selected)"
+      (selectAllToggle)="toggleSelectAllOnPage($event)"
       (sortChange)="onSortChange($event)"
     />
     <app-pagination

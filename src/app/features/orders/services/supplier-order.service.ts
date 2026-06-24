@@ -91,6 +91,12 @@ export class SupplierOrderService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
   }
 
+  deleteOrder(id: EntityId): Observable<void> {
+    return this.http
+      .delete<void>(this.url(`/supplier-orders/${id}`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   private url(path: string): string {
     return `${this.config.apiBaseUrl}${path}`;
   }

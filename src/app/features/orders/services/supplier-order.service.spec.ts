@@ -107,4 +107,14 @@ describe('SupplierOrderService (HTTP)', () => {
     expect(result.status).toBe(SupplierOrderStatus.PartiallyReceived);
     expect(result.lines[0]?.receivedQuantity).toBe(5);
   });
+
+  it('deleteOrder invia DELETE', async () => {
+    const promise = firstValueFrom(service.deleteOrder('ord-1'));
+
+    const req = httpMock.expectOne(`${API_BASE}/supplier-orders/ord-1`);
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+
+    await expect(promise).resolves.toBeNull();
+  });
 });

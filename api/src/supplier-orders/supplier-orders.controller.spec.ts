@@ -11,6 +11,7 @@ describe('SupplierOrdersController', () => {
     create: vi.fn(),
     receive: vi.fn(),
     send: vi.fn(),
+    delete: vi.fn(),
   };
 
   const controller = new SupplierOrdersController(
@@ -56,5 +57,13 @@ describe('SupplierOrdersController', () => {
     await controller.receive(tenantId, 'po-1', dto as never);
 
     expect(supplierOrders.receive).toHaveBeenCalledWith(tenantId, 'po-1', dto);
+  });
+
+  it('delete delega al service', async () => {
+    supplierOrders.delete.mockResolvedValue(undefined);
+
+    await controller.delete(tenantId, 'po-1');
+
+    expect(supplierOrders.delete).toHaveBeenCalledWith(tenantId, 'po-1');
   });
 });

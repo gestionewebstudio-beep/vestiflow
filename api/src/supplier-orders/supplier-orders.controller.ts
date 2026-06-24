@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -77,6 +78,15 @@ export class SupplierOrdersController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SupplierOrderWithLines> {
     return this.supplierOrders.cancel(tenantId, id);
+  }
+
+  @Delete(':id')
+  @Roles(...MANAGER_ROLES)
+  delete(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.supplierOrders.delete(tenantId, id);
   }
 
   @Post(':id/receive')

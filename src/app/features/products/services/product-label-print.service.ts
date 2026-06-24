@@ -1,10 +1,11 @@
 import { DOCUMENT } from '@angular/common';
 import { DestroyRef, Injectable, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { forkJoin, take } from 'rxjs';
+import { catchError, forkJoin, from, of, switchMap, take } from 'rxjs';
+import type { Observable } from 'rxjs';
 
 import { buildLabelPrintDocument } from '../models/product-label-print-document.util';
+import type { ProductLabelViewModel } from '../models/product-label.model';
 import { toProductLabelViewModels } from '../models/product-label.mapper';
 
 import { ProductService } from './product.service';
@@ -28,14 +29,24 @@ export class ProductLabelPrintService {
 
   /** Chiamare direttamente dal click sull'icona stampa in tabella. */
   triggerDirectPrint(productId: string, variantId?: string): void {
+    this.triggerDirectPrintMany([productId], variantId).pipe(take(1)).subscribe();
+  }
+
+  /** Stampa etichette per più prodotti in un unico documento (gesto utente). */
+  triggerDirectPrintMany(productIds: readonly string[], variantId?: string): Observable<void> {
+    const uniqueIds = [...new Set(productIds.filter((id) => id.trim().length > 0))];
+    if (uniqueIds.length === 0) {
+      return of(undefined);
+    }
+
     this.closePrintWindow();
 
     const printWindow = globalThis.open('', '_blank');
     if (!printWindow) {
-      void this.router.navigate(['/app/products', productId, 'print-label'], {
+      void this.router.navigate(['/app/products', uniqueIds[0], 'print-label'], {
         queryParams: variantId ? { variantId } : undefined,
       });
-      return;
+      return of(undefined);
     }
 
     this.activePrintWindow = printWindow;
@@ -45,33 +56,40 @@ export class ProductLabelPrintService {
     );
     printWindow.document.close();
 
-    forkJoin({
-      product: this.productService.getProductById(productId),
-      variants: this.productService.getProductVariants(productId),
-    })
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          void this.printInWindow(printWindow, result.product, result.variants, variantId);
-        },
-        error: () => {
-          this.closePrintWindow();
-        },
-      });
+    return forkJoin(
+      uniqueIds.map((productId) =>
+        forkJoin({
+          product: this.productService.getProductById(productId),
+          variants: this.productService.getProductVariants(productId),
+        }),
+      ),
+    ).pipe(
+      switchMap((results) =>
+        from(
+          this.printLabelsInWindow(
+            printWindow,
+            results.flatMap((result) =>
+              toProductLabelViewModels(result.product, result.variants, variantId),
+            ),
+          ),
+        ),
+      ),
+      catchError(() => {
+        this.closePrintWindow();
+        return of(undefined);
+      }),
+    );
   }
 
-  private async printInWindow(
+  private async printLabelsInWindow(
     printWindow: Window,
-    product: Parameters<typeof toProductLabelViewModels>[0],
-    variants: Parameters<typeof toProductLabelViewModels>[1],
-    variantId?: string,
+    labels: readonly ProductLabelViewModel[],
   ): Promise<void> {
     if (printWindow.closed) {
       this.activePrintWindow = null;
       return;
     }
 
-    const labels = toProductLabelViewModels(product, variants, variantId);
     if (labels.length === 0) {
       this.closePrintWindow();
       return;

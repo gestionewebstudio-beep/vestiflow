@@ -106,7 +106,9 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('option', { name: 'Milano' }));
 
     await user.click(screen.getAllByRole('button', { name: 'Variante' })[0]!);
-    await user.click(screen.getByRole('option', { name: 'Maglietta / M / Rosso (MAG-M-ROSSO)' }));
+    await user.click(
+      screen.getByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
 
     await user.clear(screen.getByLabelText('Quantità'));
     await user.type(screen.getByLabelText('Quantità'), '2');

@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  input,
+  output,
+  viewChild,
+} from '@angular/core';
+import type { ElementRef } from '@angular/core';
 
 import type { SortOrder } from '@core/models/api.model';
 import type { ProductStatus } from '@core/models/product.model';
@@ -28,10 +36,27 @@ export class ProductTableComponent {
   readonly sortField = input<ProductSortField>();
   readonly sortOrder = input<SortOrder>();
   readonly showShopifyColumn = input(false);
+  readonly selectedProductIds = input<ReadonlySet<string>>(new Set<string>());
+  readonly allOnPageSelected = input(false);
+  readonly someOnPageSelected = input(false);
 
   readonly rowClick = output<Product>();
   readonly sortChange = output<ProductSortField>();
   readonly printLabel = output<Product>();
+  readonly selectionToggle = output<{ readonly productId: string; readonly selected: boolean }>();
+  readonly selectAllToggle = output<boolean>();
+
+  private readonly selectAllCheckbox = viewChild<ElementRef<HTMLInputElement>>('selectAllCheckbox');
+
+  constructor() {
+    effect(() => {
+      const checkbox = this.selectAllCheckbox()?.nativeElement;
+      if (!checkbox) {
+        return;
+      }
+      checkbox.indeterminate = this.someOnPageSelected();
+    });
+  }
 
   /** Numero di combinazioni di varianti derivato dalle opzioni del prodotto. */
   protected variantCount(product: Product): number {
@@ -77,6 +102,28 @@ export class ProductTableComponent {
     event.stopPropagation();
     event.preventDefault();
     this.printLabel.emit(product);
+  }
+
+  protected isSelected(product: Product): boolean {
+    return this.selectedProductIds().has(product.id);
+  }
+
+  protected onSelectionClick(event: Event, product: Product): void {
+    event.stopPropagation();
+    const checkbox = event.target;
+    if (!(checkbox instanceof HTMLInputElement)) {
+      return;
+    }
+    this.selectionToggle.emit({ productId: product.id, selected: checkbox.checked });
+  }
+
+  protected onSelectAllClick(event: Event): void {
+    event.stopPropagation();
+    const checkbox = event.target;
+    if (!(checkbox instanceof HTMLInputElement)) {
+      return;
+    }
+    this.selectAllToggle.emit(checkbox.checked);
   }
 
   protected shopifyLabel(product: Product): string {

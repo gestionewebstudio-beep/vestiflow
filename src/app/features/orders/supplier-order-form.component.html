@@ -36,6 +36,9 @@
             placeholder="Seleziona un fornitore…"
             [compact]="true"
             [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca fornitore…"
+            searchAriaLabel="Cerca fornitore"
             [invalid]="fieldInvalid('supplierId')"
             describedBy="po-supplier-error"
             (valueChange)="onSupplierSelect($event)"
@@ -74,7 +77,14 @@
 
         <div class="po-form__field">
           <label class="po-form__label" for="po-expected">Data attesa (opzionale)</label>
-          <input id="po-expected" class="po-form__input" type="date" formControlName="expectedAt" />
+          <app-date-input
+            inputId="po-expected"
+            formControlName="expectedAt"
+            ariaLabel="Data attesa consegna"
+            placeholder="Nessuna data"
+            [compact]="true"
+            [fullWidth]="true"
+          />
         </div>
       </div>
 
@@ -148,6 +158,9 @@
                   placeholder="Seleziona una variante…"
                   [compact]="true"
                   [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca per prodotto o SKU…"
+                  searchAriaLabel="Cerca variante per prodotto o SKU"
                   [invalid]="lineFieldInvalid(i, 'variantId')"
                   (valueChange)="onVariantSelect(i, $event)"
                 />
@@ -196,10 +209,17 @@
               </div>
 
               <div class="po-form__line-field po-form__line-field--total">
-                <span class="po-form__label">Subtotale</span>
-                <span class="po-form__line-total tabular-nums">{{
-                  formatMoney(lineMoney(i))
-                }}</span>
+                <label class="po-form__label" [attr.for]="'po-subtotal-' + i">Subtotale</label>
+                <input
+                  [id]="'po-subtotal-' + i"
+                  class="po-form__input po-form__input--num po-form__input--readonly"
+                  type="text"
+                  readonly
+                  tabindex="-1"
+                  aria-readonly="true"
+                  [value]="formatMoney(lineMoney(i))"
+                />
+                <span class="po-form__error-placeholder" aria-hidden="true"></span>
               </div>
 
               <button

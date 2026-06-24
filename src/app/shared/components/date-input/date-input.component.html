@@ -1,0 +1,83 @@
+<div
+  class="date-input"
+  [class.date-input--compact]="compact()"
+  [class.date-input--open]="open()"
+  [class.date-input--invalid]="invalid()"
+>
+  <button
+    type="button"
+    class="date-input__trigger"
+    [id]="inputId() || null"
+    [attr.aria-label]="ariaLabel()"
+    [attr.aria-invalid]="invalid() ? true : null"
+    [attr.aria-describedby]="describedBy() || null"
+    aria-haspopup="dialog"
+    [attr.aria-expanded]="open()"
+    [disabled]="disabled()"
+    (click)="toggle()"
+  >
+    <i class="date-input__icon pi pi-calendar" aria-hidden="true"></i>
+    <span
+      class="date-input__trigger-label"
+      [class.date-input__trigger-label--placeholder]="isEmpty()"
+    >
+      {{ displayLabel() }}
+    </span>
+    <i class="date-input__chevron pi pi-chevron-down" aria-hidden="true"></i>
+  </button>
+
+  @if (open()) {
+    <div class="date-input__panel" role="dialog" [attr.aria-label]="ariaLabel()">
+      <div class="date-input__header">
+        <button
+          type="button"
+          class="date-input__nav"
+          aria-label="Mese precedente"
+          (click)="previousMonth()"
+        >
+          <i class="pi pi-chevron-left" aria-hidden="true"></i>
+        </button>
+        <p class="date-input__month">{{ monthLabel() }}</p>
+        <button
+          type="button"
+          class="date-input__nav"
+          aria-label="Mese successivo"
+          (click)="nextMonth()"
+        >
+          <i class="pi pi-chevron-right" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="date-input__weekdays" aria-hidden="true">
+        @for (weekday of weekdayLabels; track weekday) {
+          <span class="date-input__weekday">{{ weekday }}</span>
+        }
+      </div>
+
+      <div class="date-input__grid" role="grid" aria-label="Giorni del mese">
+        @for (day of calendarDays(); track day.iso) {
+          <button
+            type="button"
+            class="date-input__day"
+            role="gridcell"
+            [class.date-input__day--outside]="!day.inCurrentMonth"
+            [class.date-input__day--today]="day.isToday"
+            [class.date-input__day--selected]="day.isSelected"
+            [attr.aria-label]="day.iso"
+            [attr.aria-selected]="day.isSelected"
+            (click)="selectDay(day.iso)"
+          >
+            {{ day.dayOfMonth }}
+          </button>
+        }
+      </div>
+
+      <div class="date-input__footer">
+        <button type="button" class="date-input__footer-btn" (click)="clearValue()">
+          Cancella
+        </button>
+        <button type="button" class="date-input__footer-btn" (click)="selectToday()">Oggi</button>
+      </div>
+    </div>
+  }
+</div>

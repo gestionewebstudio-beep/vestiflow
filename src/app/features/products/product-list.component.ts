@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -12,6 +13,7 @@ import {
   catchError,
   debounceTime,
   distinctUntilChanged,
+  finalize,
   map,
   of,
   startWith,
@@ -122,7 +124,7 @@ export class ProductListComponent {
 
   private lastFetchQueryKey = '';
 
-  protected readonly skeletonColumns = computed(() => (this.showShopifyColumn() ? 7 : 6));
+  protected readonly skeletonColumns = computed(() => (this.showShopifyColumn() ? 8 : 7));
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly pageSizeOptions = PRODUCT_PAGE_SIZE_OPTIONS;
 
@@ -141,6 +143,26 @@ export class ProductListComponent {
   protected readonly shopifyCatalogLoading = signal(false);
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
+  protected readonly bulkPrintLoading = signal(false);
+  protected readonly selectedProductIds = signal<ReadonlySet<string>>(new Set<string>());
+
+  protected readonly selectedCount = computed(() => this.selectedProductIds().size);
+
+  protected readonly allOnPageSelected = computed(() => {
+    const pageProducts = this.products();
+    if (pageProducts.length === 0) {
+      return false;
+    }
+    const selected = this.selectedProductIds();
+    return pageProducts.every((product) => selected.has(product.id));
+  });
+
+  protected readonly someOnPageSelected = computed(() => {
+    const pageProducts = this.products();
+    const selected = this.selectedProductIds();
+    const anySelected = pageProducts.some((product) => selected.has(product.id));
+    return anySelected && !this.allOnPageSelected();
+  });
 
   private readonly shopifyConnection = toSignal(
     this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
@@ -230,6 +252,11 @@ export class ProductListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    effect(() => {
+      this.query();
+      this.selectedProductIds.set(new Set<string>());
+    });
+
     // Debounce ricerca: il draft locale guida la navigazione (idempotente).
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
@@ -312,6 +339,57 @@ export class ProductListComponent {
 
   protected printProductLabels(product: Product): void {
     this.labelPrintService.triggerDirectPrint(product.id);
+  }
+
+  protected toggleProductSelection(productId: string, selected: boolean): void {
+    this.selectedProductIds.update((current) => {
+      const next = new Set(current);
+      if (selected) {
+        next.add(productId);
+      } else {
+        next.delete(productId);
+      }
+      return next;
+    });
+  }
+
+  protected toggleSelectAllOnPage(selected: boolean): void {
+    const pageProducts = this.products();
+    this.selectedProductIds.update((current) => {
+      const next = new Set(current);
+      for (const product of pageProducts) {
+        if (selected) {
+          next.add(product.id);
+        } else {
+          next.delete(product.id);
+        }
+      }
+      return next;
+    });
+  }
+
+  protected clearSelection(): void {
+    this.selectedProductIds.set(new Set<string>());
+  }
+
+  protected printSelectedLabels(): void {
+    const productIds = [...this.selectedProductIds()];
+    if (productIds.length === 0 || this.bulkPrintLoading()) {
+      return;
+    }
+
+    this.bulkPrintLoading.set(true);
+    this.labelPrintService
+      .triggerDirectPrintMany(productIds)
+      .pipe(
+        finalize(() => this.bulkPrintLoading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.clearSelection();
+        },
+      });
   }
 
   protected createProduct(): void {

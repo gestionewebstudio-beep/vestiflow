@@ -25,23 +25,25 @@
       @if (showCustomDates()) {
         <div class="report-filters__field report-filters__field--date">
           <label class="report-filters__label" for="report-date-from">Dal</label>
-          <input
-            id="report-date-from"
-            class="report-filters__input"
-            type="date"
+          <app-date-input
+            inputId="report-date-from"
             [value]="dateFrom()"
-            (change)="onDateFromInput($event)"
+            ariaLabel="Data inizio periodo"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onDateFromChange($event)"
           />
         </div>
 
         <div class="report-filters__field report-filters__field--date">
           <label class="report-filters__label" for="report-date-to">Al</label>
-          <input
-            id="report-date-to"
-            class="report-filters__input"
-            type="date"
+          <app-date-input
+            inputId="report-date-to"
             [value]="dateTo()"
-            (change)="onDateToInput($event)"
+            ariaLabel="Data fine periodo"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onDateToChange($event)"
           />
         </div>
       }

@@ -43,7 +43,7 @@
             </app-button>
           }
           @if (canCancel()) {
-            <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestCancel()">
+            <app-button variant="secondary" [disabled]="actionSaving()" (click)="requestCancel()">
               Annulla ordine
             </app-button>
           }
@@ -51,6 +51,12 @@
             <app-button (click)="startReceive()">
               <i class="pi pi-box" aria-hidden="true"></i>
               Ricevi merce
+            </app-button>
+          }
+          @if (canDelete()) {
+            <app-button variant="secondary" [disabled]="actionSaving()" (click)="requestDelete()">
+              <i class="pi pi-trash" aria-hidden="true"></i>
+              Elimina ordine
             </app-button>
           }
         }
@@ -165,4 +171,15 @@
   cancelLabel="Torna indietro"
   [danger]="true"
   (confirmed)="cancelOrder()"
+/>
+
+<app-confirm-dialog
+  [(open)]="deleteDialogOpen"
+  title="Elimina ordine"
+  message="L'ordine annullato verrà eliminato definitivamente dall'elenco. Operazione irreversibile."
+  confirmLabel="Elimina ordine"
+  cancelLabel="Torna indietro"
+  [danger]="true"
+  [busy]="actionSaving()"
+  (confirmed)="removeOrder()"
 />

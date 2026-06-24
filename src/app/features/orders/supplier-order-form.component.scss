@@ -67,6 +67,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+
+  app-select-menu,
+  app-date-input {
+    --select-menu-width: 100%;
+  }
 }
 
 .po-form__label {
@@ -99,6 +104,17 @@
 
 .po-form__input[aria-invalid='true'] {
   border-color: var(--status-error-fg);
+}
+
+.po-form__input--readonly {
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  cursor: default;
+}
+
+.po-form__input--readonly:focus-visible {
+  border-color: var(--color-border-strong);
+  box-shadow: none;
 }
 
 .po-form__error {
@@ -176,7 +192,7 @@
 
 @include bp.media-up('md') {
   .po-form__line {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 0.85fr) minmax(0, 1.1fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 0.85fr) minmax(0, 1.1fr) minmax(0, 1.1fr) auto;
     align-items: start;
   }
 }
@@ -193,27 +209,19 @@
   font-variant-numeric: tabular-nums;
 }
 
-.po-form__line-field--variant ::ng-deep .select-menu__trigger-label,
-.po-form__line-field--variant ::ng-deep .select-menu__option-label {
-  overflow: visible;
-  text-overflow: unset;
-  white-space: normal;
-  word-break: break-word;
+.po-form__line-field--variant {
+  --select-menu-width: min(100%, calc(var(--select-menu-width-wide) + var(--space-8)));
+}
+
+.po-form__line-field--variant ::ng-deep .select-menu__trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .po-form__error-placeholder {
   display: block;
   min-block-size: calc(var(--text-xs) * 1.333333);
-}
-
-.po-form__line-total {
-  block-size: var(--field-height);
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  font-size: var(--text-base);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text);
 }
 
 .po-form__line-remove {

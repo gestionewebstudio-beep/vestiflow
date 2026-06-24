@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import { SalesOrderFinancialStatus, SalesOrderSource } from '@core/models/sales-order.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -11,7 +12,7 @@ import { ReportPeriodPreset } from '../../models/report-list-query.model';
 @Component({
   selector: 'app-report-filters',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, SelectMenuComponent],
+  imports: [ButtonComponent, DateInputComponent, SelectMenuComponent],
   templateUrl: './report-filters.component.html',
   styleUrl: './report-filters.component.scss',
 })
@@ -69,12 +70,12 @@ export class ReportFiltersComponent {
     this.financialStatusChange.emit(value ?? '');
   }
 
-  protected onDateFromInput(event: Event): void {
-    this.dateFromChange.emit((event.target as HTMLInputElement).value);
+  protected onDateFromChange(value: string): void {
+    this.dateFromChange.emit(value);
   }
 
-  protected onDateToInput(event: Event): void {
-    this.dateToChange.emit((event.target as HTMLInputElement).value);
+  protected onDateToChange(value: string): void {
+    this.dateToChange.emit(value);
   }
 
   private isPeriodPreset(value: string): value is ReportPeriodPreset {

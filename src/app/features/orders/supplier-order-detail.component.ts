@@ -167,6 +167,11 @@ export class SupplierOrderDetailComponent {
       canManageSupplierOrders(this.authService.currentUser())
     );
   });
+  protected readonly canDelete = computed(
+    () =>
+      this.order()?.status === SupplierOrderStatus.Cancelled &&
+      canManageSupplierOrders(this.authService.currentUser()),
+  );
   protected readonly canReceive = computed(() => {
     const status = this.order()?.status;
     return status === SupplierOrderStatus.Sent || status === SupplierOrderStatus.PartiallyReceived;
@@ -186,6 +191,7 @@ export class SupplierOrderDetailComponent {
   protected readonly sendDialogOpen = signal(false);
   protected readonly receiveConfirmDialogOpen = signal(false);
   protected readonly cancelDialogOpen = signal(false);
+  protected readonly deleteDialogOpen = signal(false);
 
   readonly receiveForm = this.fb.group({
     rows: this.fb.array<ReturnType<SupplierOrderDetailComponent['createReceiveRow']>>([]),
@@ -240,6 +246,10 @@ export class SupplierOrderDetailComponent {
 
   protected requestCancel(): void {
     this.cancelDialogOpen.set(true);
+  }
+
+  protected requestDelete(): void {
+    this.deleteDialogOpen.set(true);
   }
 
   protected requestReceiveConfirm(): void {
@@ -328,6 +338,27 @@ export class SupplierOrderDetailComponent {
         next: () => {
           this._actionState.set({ status: 'idle' });
           this.reload();
+        },
+        error: (err: unknown) => {
+          this._actionState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  protected removeOrder(): void {
+    const order = this.order();
+    if (!order || this.actionSaving()) {
+      return;
+    }
+    this.deleteDialogOpen.set(false);
+    this._actionState.set({ status: 'saving' });
+    this.actionSubscription = this.service
+      .deleteOrder(order.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this._actionState.set({ status: 'idle' });
+          void this.router.navigateByUrl(this.listPath);
         },
         error: (err: unknown) => {
           this._actionState.set({ status: 'error', error: this.toAppError(err) });

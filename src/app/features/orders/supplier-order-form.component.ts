@@ -25,6 +25,7 @@ import {
   zeroMoney,
 } from '@core/utils/money.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -32,6 +33,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { ProductService } from '@features/products/services/product.service';
+import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
 import { SupplierOrderService } from './services/supplier-order.service';
@@ -53,6 +55,7 @@ type SubmitState =
   imports: [
     ReactiveFormsModule,
     ButtonComponent,
+    DateInputComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -123,12 +126,7 @@ export class SupplierOrderFormComponent {
   private readonly variants = toSignal(this.productService.getVariantSummaries(), {
     initialValue: [],
   });
-  protected readonly variantOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.variants().map((variant) => ({
-      value: variant.variantId,
-      label: `${variant.title} (${variant.sku})`,
-    })),
-  );
+  protected readonly variantOptions = computed(() => toVariantSelectMenuOptions(this.variants()));
 
   private readonly locations = toSignal(this.inventoryService.getLocations(), {
     initialValue: [],

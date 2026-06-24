@@ -208,6 +208,15 @@ export class SupplierOrdersService {
     });
   }
 
+  /** Elimina definitivamente un ordine annullato (righe in cascade). */
+  async delete(tenantId: string, id: string): Promise<void> {
+    const order = await this.getById(tenantId, id);
+    if (order.status !== SupplierOrderStatus.cancelled) {
+      throw new ConflictException('Solo gli ordini annullati possono essere eliminati.');
+    }
+    await this.prisma.supplierOrder.delete({ where: { id } });
+  }
+
   /** Transizione bozza → inviato (rende l'ordine ricevibile). */
   async send(tenantId: string, id: string): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id);

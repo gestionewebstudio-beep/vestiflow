@@ -24,6 +24,7 @@ describe('SupplierOrdersService', () => {
         findFirst: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
       supplierOrderLine: {
         update: vi.fn(),
@@ -358,5 +359,37 @@ describe('SupplierOrdersService', () => {
     await expect(service.cancel(tenantId, 'po-1')).resolves.toMatchObject({
       status: SupplierOrderStatus.cancelled,
     });
+  });
+
+  it('delete rimuove solo ordini annullati', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.cancelled,
+      lines: [],
+    });
+    prisma.supplierOrder.delete.mockResolvedValue({ id: 'po-1' });
+    const service = new SupplierOrdersService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(service.delete(tenantId, 'po-1')).resolves.toBeUndefined();
+    expect(prisma.supplierOrder.delete).toHaveBeenCalledWith({ where: { id: 'po-1' } });
+  });
+
+  it('delete rifiuta ordini non annullati', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.sent,
+      lines: [],
+    });
+    const service = new SupplierOrdersService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(service.delete(tenantId, 'po-1')).rejects.toBeInstanceOf(ConflictException);
   });
 });

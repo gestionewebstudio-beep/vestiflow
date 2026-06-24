@@ -1,6 +1,7 @@
 <div class="product-table-scroll">
   <table class="product-table">
     <colgroup>
+      <col class="product-table__col product-table__col--select" />
       <col class="product-table__col product-table__col--name" />
       <col class="product-table__col product-table__col--brand" />
       <col class="product-table__col product-table__col--category" />
@@ -15,6 +16,24 @@
     </colgroup>
     <thead class="product-table__head">
       <tr>
+        <th scope="col" class="product-table__cell--select">
+          <label class="product-table__select-all">
+            <input
+              #selectAllCheckbox
+              type="checkbox"
+              class="product-table__checkbox"
+              [checked]="allOnPageSelected()"
+              [attr.aria-label]="
+                allOnPageSelected()
+                  ? 'Deseleziona tutti i prodotti in pagina'
+                  : 'Seleziona tutti i prodotti in pagina'
+              "
+              (click)="$event.stopPropagation()"
+              (change)="onSelectAllClick($event)"
+            />
+            <span class="sr-only">Seleziona tutti</span>
+          </label>
+        </th>
         <th scope="col" [attr.aria-sort]="ariaSort('name')">
           <button
             type="button"
@@ -92,6 +111,21 @@
           (keydown.enter)="rowClick.emit(product)"
           (keydown.space)="$event.preventDefault(); rowClick.emit(product)"
         >
+          <td class="product-table__cell--select" data-label="Seleziona">
+            <label
+              class="product-table__select-row"
+              [attr.aria-label]="'Seleziona ' + product.name"
+            >
+              <input
+                type="checkbox"
+                class="product-table__checkbox"
+                [checked]="isSelected(product)"
+                (click)="$event.stopPropagation()"
+                (change)="onSelectionClick($event, product)"
+              />
+              <span class="sr-only">{{ product.name }}</span>
+            </label>
+          </td>
           <td class="product-table__name" data-label="Nome">{{ product.name }}</td>
           <td class="product-table__brand" data-label="Brand">{{ product.brand ?? '—' }}</td>
           <td class="product-table__category" data-label="Categoria">

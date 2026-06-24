@@ -7,7 +7,10 @@ import {
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
+
+import { filterSelectMenuOptions } from '@shared/utils/select-menu-filter.util';
 
 import type { SelectMenuOption } from './select-menu.model';
 
@@ -30,9 +33,12 @@ import type { SelectMenuOption } from './select-menu.model';
   styleUrl: './select-menu.component.scss',
 })
 export class SelectMenuComponent {
+  private static nextInstanceId = 0;
+
   // REASON: ElementRef.nativeElement e' tipizzato any in Angular; il host e' sempre HTMLElement.
   private readonly hostElement: HTMLElement = inject(ElementRef<HTMLElement>)
     .nativeElement as HTMLElement;
+  protected readonly searchInputId = `select-menu-search-${++SelectMenuComponent.nextInstanceId}`;
 
   readonly options = input.required<readonly SelectMenuOption[]>();
   /** Valore selezionato; stringa vuota o null = opzione placeholder. */
@@ -56,11 +62,32 @@ export class SelectMenuComponent {
   readonly matchInputHeight = input<boolean>(false);
   readonly invalid = input<boolean>(false);
   readonly describedBy = input<string>();
+  /** Campo ricerca sticky nel pannello (utile per liste lunghe, es. varianti). */
+  readonly searchable = input<boolean>(false);
+  readonly searchPlaceholder = input<string>('Cerca…');
+  readonly searchAriaLabel = input<string>('Cerca nelle opzioni');
 
   readonly valueChange = output<string | null>();
   readonly valuesChange = output<readonly string[]>();
 
+  private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
+
   protected readonly open = signal(false);
+  protected readonly searchQuery = signal('');
+
+  protected readonly visibleOptions = computed(() => {
+    if (!this.searchable()) {
+      return this.options();
+    }
+    return filterSelectMenuOptions(this.options(), this.searchQuery());
+  });
+
+  protected readonly showSearchEmptyState = computed(
+    () =>
+      this.searchable() &&
+      this.searchQuery().trim().length > 0 &&
+      this.visibleOptions().length === 0,
+  );
 
   protected readonly selectedOption = computed(() => {
     const current = this.value() ?? '';
@@ -111,12 +138,40 @@ export class SelectMenuComponent {
     return (this.value() ?? '') === option.value;
   }
 
+  protected optionAriaLabel(option: SelectMenuOption): string {
+    if (option.detail) {
+      return `${option.label}, SKU ${option.detail}`;
+    }
+    return option.label;
+  }
+
   protected toggle(): void {
-    this.open.update((isOpen) => !isOpen);
+    const willOpen = !this.open();
+    if (willOpen && this.searchable()) {
+      this.searchQuery.set('');
+      queueMicrotask(() => this.searchInput()?.nativeElement.focus());
+    }
+    if (!willOpen) {
+      this.searchQuery.set('');
+    }
+    this.open.set(willOpen);
   }
 
   protected close(): void {
     this.open.set(false);
+    this.searchQuery.set('');
+  }
+
+  protected onSearchInput(event: Event): void {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) {
+      return;
+    }
+    this.searchQuery.set(target.value);
+  }
+
+  protected onSearchKeydown(event: KeyboardEvent): void {
+    event.stopPropagation();
   }
 
   protected select(option: SelectMenuOption): void {

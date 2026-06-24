@@ -80,6 +80,10 @@
     table-layout: fixed;
   }
 
+  .product-table__col--select {
+    inline-size: 3rem;
+  }
+
   .product-table__col--name {
     inline-size: 24%;
   }
@@ -152,6 +156,31 @@
     text-align: end;
     white-space: nowrap;
   }
+
+  .product-table tbody td.product-table__cell--select,
+  .product-table__head th.product-table__cell--select {
+    text-align: center;
+    white-space: nowrap;
+  }
+}
+
+.product-table__select-all,
+.product-table__select-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--btn-min-height);
+  min-block-size: var(--btn-min-height);
+  margin: 0;
+  cursor: pointer;
+}
+
+.product-table__checkbox {
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-link);
 }
 
 @include bp.media-down('lg') {
