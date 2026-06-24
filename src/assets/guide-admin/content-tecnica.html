@@ -1,218 +1,168 @@
-<h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">
-  VestiFlow — Guida operatore, proprietario e sviluppatore
-</h1>
-<p><strong>Versione documento:</strong> 1.5 — Giugno 2026</p>
-<p>
-  <strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>),
-  proprietario del prodotto, sviluppatori che mantengono il gestionale.
-</p>
-<p>
-  <strong>Visibilità:</strong> accessibile solo come
-  <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in
-  <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce
-  <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.
-</p>
-<hr />
+<h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
+<p><strong>Versione documento:</strong> 1.6 — Giugno 2026</p>
+<p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
+<p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
+<hr>
 <h2 id="indice-operatore">Indice operatore</h2>
 <ol>
-  <li><a href="#1-ruolo-operatore-piattaforma">Ruolo operatore piattaforma</a></li>
-  <li><a href="#2-architettura-e-stack">Architettura e stack</a></li>
-  <li><a href="#3-modello-multi-tenant">Modello multi-tenant</a></li>
-  <li><a href="#4-struttura-repository">Struttura repository</a></li>
-  <li><a href="#5-ambiente-di-sviluppo-locale">Ambiente di sviluppo locale</a></li>
-  <li><a href="#6-variabili-dambiente">Variabili d&#39;ambiente</a></li>
-  <li><a href="#7-onboarding-nuovo-cliente-tenant">Onboarding nuovo cliente (tenant)</a></li>
-  <li><a href="#8-autenticazione-e-ruoli">Autenticazione e ruoli</a></li>
-  <li><a href="#9-integrazione-shopify-tecnica">Integrazione Shopify (tecnica)</a></li>
-  <li>
-    <a href="#10-supabase-database-auth-storage-rls">Supabase: database, Auth, Storage, RLS</a>
-  </li>
-  <li><a href="#11-dominio-dati-principale">Dominio dati principale</a></li>
-  <li><a href="#12-api-e-permessi-tenant">API e permessi tenant</a></li>
-  <li><a href="#13-import-ed-export-csv">Import ed export CSV</a></li>
-  <li><a href="#14-scanner-barcode">Scanner barcode</a></li>
-  <li><a href="#15-generazione-guide-htmlpdf">Generazione guide (HTML/PDF)</a></li>
-  <li><a href="#16-build-test-e-ci">Build, test e CI</a></li>
-  <li><a href="#17-deploy-produzione">Deploy produzione</a></li>
-  <li><a href="#18-sicurezza-e-checklist-pre-release">Sicurezza e checklist pre-release</a></li>
-  <li><a href="#19-troubleshooting-tecnico">Troubleshooting tecnico</a></li>
-  <li><a href="#20-limitazioni-note-e-roadmap">Limitazioni note e roadmap</a></li>
+<li><a href="#1-ruolo-operatore-piattaforma">Ruolo operatore piattaforma</a></li>
+<li><a href="#2-architettura-e-stack">Architettura e stack</a></li>
+<li><a href="#3-modello-multi-tenant">Modello multi-tenant</a></li>
+<li><a href="#4-struttura-repository">Struttura repository</a></li>
+<li><a href="#5-ambiente-di-sviluppo-locale">Ambiente di sviluppo locale</a></li>
+<li><a href="#6-variabili-dambiente">Variabili d&#39;ambiente</a></li>
+<li><a href="#7-onboarding-nuovo-cliente-tenant">Onboarding nuovo cliente (tenant)</a></li>
+<li><a href="#8-autenticazione-e-ruoli">Autenticazione e ruoli</a></li>
+<li><a href="#9-integrazione-shopify-tecnica">Integrazione Shopify (tecnica)</a></li>
+<li><a href="#10-supabase-database-auth-storage-rls">Supabase: database, Auth, Storage, RLS</a></li>
+<li><a href="#11-dominio-dati-principale">Dominio dati principale</a></li>
+<li><a href="#12-api-e-permessi-tenant">API e permessi tenant</a></li>
+<li><a href="#13-import-ed-export-csv">Import ed export CSV</a></li>
+<li><a href="#14-scanner-barcode">Scanner barcode</a></li>
+<li><a href="#15-generazione-guide-htmlpdf">Generazione guide (HTML/PDF)</a></li>
+<li><a href="#16-build-test-e-ci">Build, test e CI</a></li>
+<li><a href="#17-deploy-produzione">Deploy produzione</a></li>
+<li><a href="#18-sicurezza-e-checklist-pre-release">Sicurezza e checklist pre-release</a></li>
+<li><a href="#19-troubleshooting-tecnico">Troubleshooting tecnico</a></li>
+<li><a href="#20-limitazioni-note-e-roadmap">Limitazioni note e roadmap</a></li>
 </ol>
-<hr />
+<hr>
 <h2 id="1-ruolo-operatore-piattaforma">1. Ruolo operatore piattaforma</h2>
-<p>
-  L&#39;<strong>operatore piattaforma</strong> (tu, come proprietario/sviluppatore) non coincide con
-  il <strong>Titolare</strong> di un tenant negozio.
-</p>
+<p>L&#39;<strong>operatore piattaforma</strong> (tu, come proprietario/sviluppatore) non coincide con il <strong>Titolare</strong> di un tenant negozio.</p>
 <table>
-  <thead>
-    <tr>
-      <th>Concetto</th>
-      <th>Dove vive</th>
-      <th>Come si ottiene</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Platform admin</strong></td>
-      <td>Flag <code>isPlatformAdmin</code> nel profilo utente API</td>
-      <td>Email in <code>PLATFORM_ADMIN_EMAILS</code> (backend)</td>
-    </tr>
-    <tr>
-      <td><strong>Titolare tenant</strong></td>
-      <td>Ruolo <code>owner</code> nel DB tenant</td>
-      <td>Scelto al provisioning in <strong>Nuovo cliente</strong></td>
-    </tr>
-    <tr>
-      <td><strong>Ruoli negozio</strong></td>
-      <td><code>owner</code>, <code>admin</code>, <code>manager</code>, <code>clerk</code></td>
-      <td>Assegnati al create tenant; <strong>non</strong> modificabili self-service oggi</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Concetto</th>
+<th>Dove vive</th>
+<th>Come si ottiene</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Platform admin</strong></td>
+<td>Flag <code>isPlatformAdmin</code> nel profilo utente API</td>
+<td>Email in <code>PLATFORM_ADMIN_EMAILS</code> (backend)</td>
+</tr>
+<tr>
+<td><strong>Titolare tenant</strong></td>
+<td>Ruolo <code>owner</code> nel DB tenant</td>
+<td>Scelto al provisioning in <strong>Nuovo cliente</strong></td>
+</tr>
+<tr>
+<td><strong>Ruoli negozio</strong></td>
+<td><code>owner</code>, <code>admin</code>, <code>manager</code>, <code>clerk</code></td>
+<td>Assegnati al create tenant; <strong>non</strong> modificabili self-service oggi</td>
+</tr>
+</tbody></table>
 <h3 id="cosa-vede-un-platform-admin-in-ui">Cosa vede un platform admin in UI</h3>
 <p>Shell <strong>dedicata</strong> (non le schermate operative del negozio):</p>
 <table>
-  <thead>
-    <tr>
-      <th>Voce menu</th>
-      <th>Route</th>
-      <th>Contenuto</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Clienti</strong></td>
-      <td><code>/app/admin/clients</code></td>
-      <td>Elenco tenant + form <strong>Nuovo cliente</strong></td>
-    </tr>
-    <tr>
-      <td><strong>Impostazioni</strong></td>
-      <td><code>/app/admin/account</code></td>
-      <td>Profilo operatore, foto, MFA, tema</td>
-    </tr>
-    <tr>
-      <td><strong>Guida tecnica</strong></td>
-      <td><code>/app/admin/guide</code></td>
-      <td>Questo manuale</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  In topbar: <strong>tema</strong>, <strong>avatar</strong> (clic → Impostazioni),
-  <strong>Esci</strong>. <strong>Nessun</strong> selettore sede né indicatore sync Shopify (non sei
-  dentro un tenant negozio).
-</p>
-<p>
-  Per gestire catalogo/magazzino di un cliente: accedi con le
-  <strong>credenziali del titolare</strong> di quel tenant (account negozio), non con l&#39;account
-  operatore piattaforma.
-</p>
+<thead>
+<tr>
+<th>Voce menu</th>
+<th>Route</th>
+<th>Contenuto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Clienti</strong></td>
+<td><code>/app/admin/clients</code></td>
+<td>Elenco tenant + form <strong>Nuovo cliente</strong></td>
+</tr>
+<tr>
+<td><strong>Impostazioni</strong></td>
+<td><code>/app/admin/account</code></td>
+<td>Profilo operatore, foto, MFA, tema</td>
+</tr>
+<tr>
+<td><strong>Guida tecnica</strong></td>
+<td><code>/app/admin/guide</code></td>
+<td>Questo manuale</td>
+</tr>
+</tbody></table>
+<p>In topbar: <strong>tema</strong>, <strong>avatar</strong> (clic → Impostazioni), <strong>Esci</strong>. <strong>Nessun</strong> selettore sede né indicatore sync Shopify (non sei dentro un tenant negozio).</p>
+<p>Per gestire catalogo/magazzino di un cliente: accedi con le <strong>credenziali del titolare</strong> di quel tenant (account negozio), non con l&#39;account operatore piattaforma.</p>
 <h3 id="backend">Backend</h3>
-<p>
-  Endpoint sotto <code>/api/v1/admin/tenants</code> protetti da <code>JwtAuthGuard</code> +
-  <code>PlatformAdminGuard</code> (verifica email contro env).
-</p>
-<hr />
+<p>Endpoint sotto <code>/api/v1/admin/tenants</code> protetti da <code>JwtAuthGuard</code> + <code>PlatformAdminGuard</code> (verifica email contro env).</p>
+<hr>
 <h2 id="2-architettura-e-stack">2. Architettura e stack</h2>
 <table>
-  <thead>
-    <tr>
-      <th>Componente</th>
-      <th>Tecnologia</th>
-      <th>Ruolo</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Frontend</strong></td>
-      <td>Angular 21+ (standalone, signals, OnPush)</td>
-      <td>SPA/PWA gestionale</td>
-    </tr>
-    <tr>
-      <td><strong>Hosting frontend</strong></td>
-      <td>Firebase App Hosting (o equivalente static)</td>
-      <td>CDN + HTTPS</td>
-    </tr>
-    <tr>
-      <td><strong>Backend API</strong></td>
-      <td>NestJS</td>
-      <td>Business logic, Shopify OAuth, webhook</td>
-    </tr>
-    <tr>
-      <td><strong>Hosting API</strong></td>
-      <td>Railway (tipico)</td>
-      <td>Node 22, env secrets</td>
-    </tr>
-    <tr>
-      <td><strong>Database</strong></td>
-      <td>PostgreSQL via Supabase</td>
-      <td>Dati multi-tenant</td>
-    </tr>
-    <tr>
-      <td><strong>Auth</strong></td>
-      <td>Supabase Auth (JWT HS256)</td>
-      <td>Login email/password, MFA opzionale</td>
-    </tr>
-    <tr>
-      <td><strong>Storage immagini</strong></td>
-      <td>Supabase Storage bucket <code>product-media</code></td>
-      <td>Upload media prodotti</td>
-    </tr>
-    <tr>
-      <td><strong>Storage avatar</strong></td>
-      <td>Supabase Storage bucket <code>user-avatars</code></td>
-      <td>Foto profilo utente (public)</td>
-    </tr>
-    <tr>
-      <td><strong>E-commerce</strong></td>
-      <td>Shopify Admin API + webhook</td>
-      <td>Catalogo, stock, ordini, clienti</td>
-    </tr>
-    <tr>
-      <td><strong>E-commerce alt.</strong></td>
-      <td>TikTok Shop Open API + OAuth (parziale)</td>
-      <td>Catalogo push + giacenze — early stage</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  <strong>Regola:</strong> il frontend <strong>non</strong> contiene secret Shopify né service role
-  Supabase. Tutto passa dall&#39;API.
-</p>
-<hr />
+<thead>
+<tr>
+<th>Componente</th>
+<th>Tecnologia</th>
+<th>Ruolo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Frontend</strong></td>
+<td>Angular 21+ (standalone, signals, OnPush)</td>
+<td>SPA/PWA gestionale</td>
+</tr>
+<tr>
+<td><strong>Hosting frontend</strong></td>
+<td>Firebase App Hosting (o equivalente static)</td>
+<td>CDN + HTTPS</td>
+</tr>
+<tr>
+<td><strong>Backend API</strong></td>
+<td>NestJS</td>
+<td>Business logic, Shopify OAuth, webhook</td>
+</tr>
+<tr>
+<td><strong>Hosting API</strong></td>
+<td>Railway (tipico)</td>
+<td>Node 22, env secrets</td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td>PostgreSQL via Supabase</td>
+<td>Dati multi-tenant</td>
+</tr>
+<tr>
+<td><strong>Auth</strong></td>
+<td>Supabase Auth (JWT HS256)</td>
+<td>Login email/password, MFA opzionale</td>
+</tr>
+<tr>
+<td><strong>Storage immagini</strong></td>
+<td>Supabase Storage bucket <code>product-media</code></td>
+<td>Upload media prodotti</td>
+</tr>
+<tr>
+<td><strong>Storage avatar</strong></td>
+<td>Supabase Storage bucket <code>user-avatars</code></td>
+<td>Foto profilo utente (public)</td>
+</tr>
+<tr>
+<td><strong>E-commerce</strong></td>
+<td>Shopify Admin API + webhook</td>
+<td>Catalogo, stock, ordini, clienti</td>
+</tr>
+<tr>
+<td><strong>E-commerce alt.</strong></td>
+<td>TikTok Shop Open API + OAuth (parziale)</td>
+<td>Catalogo push + giacenze — early stage</td>
+</tr>
+</tbody></table>
+<p><strong>Regola:</strong> il frontend <strong>non</strong> contiene secret Shopify né service role Supabase. Tutto passa dall&#39;API.</p>
+<hr>
 <h2 id="3-modello-multi-tenant">3. Modello multi-tenant</h2>
 <ul>
-  <li>
-    Ogni <strong>tenant</strong> = un&#39;azienda cliente =
-    <strong>un canale e-commerce</strong> collegato (Shopify, TikTok Shop) oppure
-    <strong>solo gestionale</strong>.
-  </li>
-  <li>
-    Campo <strong><code>channelProfile</code></strong> sul tenant: <code>gestionale</code> |
-    <code>shopify</code> | <code>tiktok_shop</code> — determina quali pannelli Integrazione
-    compaiono in Impostazioni lato cliente.
-  </li>
-  <li>
-    Isolamento dati: colonna <code>tenantId</code> su entità business; filtro obbligatorio lato API.
-  </li>
-  <li>
-    <strong>Location</strong> ≠ <strong>Store</strong>: lo stock è per location (semantica Shopify);
-    lo store è entità commerciale.
-  </li>
-  <li><strong>Variante</strong> = unità minima inventario (SKU univoco interno).</li>
-  <li>
-    <strong>Due shop Shopify distinti</strong> → <strong>due tenant</strong> VestiFlow separati.
-  </li>
-  <li><strong>Più location nello stesso shop</strong> → un tenant, N location sincronizzate.</li>
+<li>Ogni <strong>tenant</strong> = un&#39;azienda cliente = <strong>un canale e-commerce</strong> collegato (Shopify, TikTok Shop) oppure <strong>solo gestionale</strong>.</li>
+<li>Campo <strong><code>channelProfile</code></strong> sul tenant: <code>gestionale</code> | <code>shopify</code> | <code>tiktok_shop</code> — determina quali pannelli Integrazione compaiono in Impostazioni lato cliente.</li>
+<li>Isolamento dati: colonna <code>tenantId</code> su entità business; filtro obbligatorio lato API.</li>
+<li><strong>Location</strong> ≠ <strong>Store</strong>: lo stock è per location (semantica Shopify); lo store è entità commerciale.</li>
+<li><strong>Variante</strong> = unità minima inventario (SKU univoco interno).</li>
+<li><strong>Due shop Shopify distinti</strong> → <strong>due tenant</strong> VestiFlow separati.</li>
+<li><strong>Più location nello stesso shop</strong> → un tenant, N location sincronizzate.</li>
 </ul>
-<hr />
+<hr>
 <h2 id="4-struttura-repository">4. Struttura repository</h2>
 <pre><code>vestiflow/
 ├── src/app/              # Frontend Angular
 │   ├── core/             # Auth, guards, permissions, HTTP
 │   ├── shared/           # Componenti UI riutilizzabili
-│   ├── features/         # Feature lazy-loaded (products, inventory, admin, guide…)
+│   ├── features/         # Feature lazy-loaded (products, inventory, sales, admin, guide…)
 │   └── layout/           # Shell sidebar + topbar
 ├── api/                  # Backend NestJS
 │   ├── src/admin/        # Provisioning tenant (platform admin)
@@ -225,18 +175,15 @@
 ├── src/assets/guide-admin/ # Guida tecnica (solo route admin)
 └── scripts/              # generate-guide-*, check-rls, environment prod
 </code></pre>
-<p>
-  Alias TypeScript: <code>@core/*</code>, <code>@shared/*</code>, <code>@features/*</code>,
-  <code>@env/*</code>.
-</p>
-<hr />
+<p>Alias TypeScript: <code>@core/*</code>, <code>@shared/*</code>, <code>@features/*</code>, <code>@env/*</code>.</p>
+<hr>
 <h2 id="5-ambiente-di-sviluppo-locale">5. Ambiente di sviluppo locale</h2>
 <h3 id="requisiti">Requisiti</h3>
 <ul>
-  <li>Node.js <strong>22</strong> LTS (<code>.nvmrc</code>)</li>
-  <li>npm (lockfile committato)</li>
-  <li>Progetto Supabase (URL + anon key + service role per API)</li>
-  <li>Account Shopify Partners (app custom) per test OAuth</li>
+<li>Node.js <strong>22</strong> LTS (<code>.nvmrc</code>)</li>
+<li>npm (lockfile committato)</li>
+<li>Progetto Supabase (URL + anon key + service role per API)</li>
+<li>Account Shopify Partners (app custom) per test OAuth</li>
 </ul>
 <h3 id="avvio">Avvio</h3>
 <pre><code class="language-bash"># Frontend (porta 4200)
@@ -251,1262 +198,975 @@ npx prisma migrate dev
 npm run start:dev
 </code></pre>
 <h3 id="shopify-in-locale">Shopify in locale</h3>
-<p>
-  Shopify richiede URL <strong>pubblici</strong> per OAuth callback e webhook. Usa
-  <strong>ngrok</strong> o <strong>cloudflared</strong>:
-</p>
+<p>Shopify richiede URL <strong>pubblici</strong> per OAuth callback e webhook. Usa <strong>ngrok</strong> o <strong>cloudflared</strong>:</p>
 <ol>
-  <li>Tunnel verso <code>localhost:3000</code></li>
-  <li>
-    Imposta <code>SHOPIFY_APP_URL</code> e <code>FRONTEND_URL</code> nel <code>api/.env</code>
-  </li>
-  <li>Aggiorna redirect URL nell&#39;app Partners</li>
+<li>Tunnel verso <code>localhost:3000</code></li>
+<li>Imposta <code>SHOPIFY_APP_URL</code> e <code>FRONTEND_URL</code> nel <code>api/.env</code></li>
+<li>Aggiorna redirect URL nell&#39;app Partners</li>
 </ol>
 <h3 id="pwa-locale">PWA locale</h3>
 <pre><code class="language-bash">npm run build:pwa:local
 npm run serve:pwa
 </code></pre>
-<hr />
+<hr>
 <h2 id="6-variabili-dambiente">6. Variabili d&#39;ambiente</h2>
-<h3 id="frontend-env--build-valori-pubblici">
-  Frontend (<code>.env</code> → build, valori <strong>pubblici</strong>)
-</h3>
+<h3 id="frontend-env--build-valori-pubblici">Frontend (<code>.env</code> → build, valori <strong>pubblici</strong>)</h3>
 <p>Vedi <code>.env.example</code> in root:</p>
 <table>
-  <thead>
-    <tr>
-      <th>Variabile</th>
-      <th>Significato</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>VESTIFLOW_API_BASE_URL</code></td>
-      <td>URL API produzione</td>
-    </tr>
-    <tr>
-      <td><code>VESTIFLOW_SUPABASE_URL</code></td>
-      <td>URL Supabase</td>
-    </tr>
-    <tr>
-      <td><code>VESTIFLOW_SUPABASE_ANON_KEY</code></td>
-      <td>Anon/publishable key</td>
-    </tr>
-    <tr>
-      <td><code>VESTIFLOW_ENABLE_BARCODE_SCANNER</code></td>
-      <td>Feature flag scanner</td>
-    </tr>
-    <tr>
-      <td><code>VESTIFLOW_ENABLE_SHOPIFY</code></td>
-      <td>Feature flag integrazione Shopify UI</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Variabile</th>
+<th>Significato</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>VESTIFLOW_API_BASE_URL</code></td>
+<td>URL API produzione</td>
+</tr>
+<tr>
+<td><code>VESTIFLOW_SUPABASE_URL</code></td>
+<td>URL Supabase</td>
+</tr>
+<tr>
+<td><code>VESTIFLOW_SUPABASE_ANON_KEY</code></td>
+<td>Anon/publishable key</td>
+</tr>
+<tr>
+<td><code>VESTIFLOW_ENABLE_BARCODE_SCANNER</code></td>
+<td>Feature flag scanner</td>
+</tr>
+<tr>
+<td><code>VESTIFLOW_ENABLE_SHOPIFY</code></td>
+<td>Feature flag integrazione Shopify UI</td>
+</tr>
+</tbody></table>
 <p><strong>Mai</strong> service role o secret Shopify nel frontend.</p>
 <h3 id="backend-apienv">Backend (<code>api/.env</code>)</h3>
 <p>Vedi <code>api/.env.example</code>:</p>
 <table>
-  <thead>
-    <tr>
-      <th>Variabile</th>
-      <th>Significato</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>DATABASE_URL</code> / <code>DIRECT_URL</code></td>
-      <td>PostgreSQL Supabase</td>
-    </tr>
-    <tr>
-      <td>
-        <code>SUPABASE_URL</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code>,
-        <code>SUPABASE_JWT_SECRET</code>
-      </td>
-      <td>Auth e admin DB</td>
-    </tr>
-    <tr>
-      <td><code>CORS_ORIGINS</code></td>
-      <td>Origini frontend consentite</td>
-    </tr>
-    <tr>
-      <td><code>SHOPIFY_*</code></td>
-      <td>OAuth, scope, cifratura token, rate limit</td>
-    </tr>
-    <tr>
-      <td><code>PLATFORM_ADMIN_EMAILS</code></td>
-      <td>Email operatori (virgola)</td>
-    </tr>
-    <tr>
-      <td><code>SUPABASE_PRODUCT_MEDIA_BUCKET</code></td>
-      <td>Bucket immagini prodotto (<code>product-media</code>)</td>
-    </tr>
-    <tr>
-      <td><code>SUPABASE_USER_AVATARS_BUCKET</code></td>
-      <td>Bucket foto profilo (<code>user-avatars</code>)</td>
-    </tr>
-    <tr>
-      <td><code>TIKTOK_*</code></td>
-      <td>OAuth TikTok Shop, cifratura token, API base</td>
-    </tr>
-    <tr>
-      <td><code>FRONTEND_URL</code></td>
-      <td>Redirect post-OAuth</td>
-    </tr>
-  </tbody>
-</table>
-<hr />
+<thead>
+<tr>
+<th>Variabile</th>
+<th>Significato</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>DATABASE_URL</code> / <code>DIRECT_URL</code></td>
+<td>PostgreSQL Supabase</td>
+</tr>
+<tr>
+<td><code>SUPABASE_URL</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code>, <code>SUPABASE_JWT_SECRET</code></td>
+<td>Auth e admin DB</td>
+</tr>
+<tr>
+<td><code>CORS_ORIGINS</code></td>
+<td>Origini frontend consentite</td>
+</tr>
+<tr>
+<td><code>SHOPIFY_*</code></td>
+<td>OAuth, scope, cifratura token, rate limit</td>
+</tr>
+<tr>
+<td><code>PLATFORM_ADMIN_EMAILS</code></td>
+<td>Email operatori (virgola)</td>
+</tr>
+<tr>
+<td><code>SUPABASE_PRODUCT_MEDIA_BUCKET</code></td>
+<td>Bucket immagini prodotto (<code>product-media</code>)</td>
+</tr>
+<tr>
+<td><code>SUPABASE_USER_AVATARS_BUCKET</code></td>
+<td>Bucket foto profilo (<code>user-avatars</code>)</td>
+</tr>
+<tr>
+<td><code>TIKTOK_*</code></td>
+<td>OAuth TikTok Shop, cifratura token, API base</td>
+</tr>
+<tr>
+<td><code>FRONTEND_URL</code></td>
+<td>Redirect post-OAuth</td>
+</tr>
+</tbody></table>
+<hr>
 <h2 id="7-onboarding-nuovo-cliente-tenant">7. Onboarding nuovo cliente (tenant)</h2>
-<p>
-  <strong>UI:</strong> <code>/app/admin/clients</code> (solo platform admin) — tabella
-  <strong>Clienti registrati</strong> e pulsante <strong>Nuovo cliente</strong>.
-</p>
+<p><strong>UI:</strong> <code>/app/admin/clients</code> (solo platform admin) — tabella <strong>Clienti registrati</strong> e pulsante <strong>Nuovo cliente</strong>.</p>
 <h3 id="procedura-creazione">Procedura creazione</h3>
 <ol>
-  <li><strong>Identificazione</strong> — nome commerciale, ragione sociale opzionale</li>
-  <li><strong>Anagrafica</strong> — P.IVA, CF, sede, contatti (opzionali)</li>
-  <li>
-    <strong>Profilo canale</strong> — <strong>Solo gestionale</strong>, <strong>Shopify</strong> o
-    <strong>TikTok Shop</strong> (determina integrazioni visibili al cliente)
-  </li>
-  <li>
-    <strong>Primo accesso</strong> — ruolo VestiFlow (<code>owner</code> default), nome, email,
-    <strong>password iniziale</strong> (scelta dall’admin)
-  </li>
-  <li>
-    <strong>Setup</strong> — nome negozio e location iniziale (opzionali; default «Negozio
-    principale»)
-  </li>
+<li><strong>Identificazione</strong> — nome commerciale, ragione sociale opzionale</li>
+<li><strong>Anagrafica</strong> — P.IVA, CF, sede, contatti (opzionali)</li>
+<li><strong>Profilo canale</strong> — <strong>Solo gestionale</strong>, <strong>Shopify</strong> o <strong>TikTok Shop</strong> (determina integrazioni visibili al cliente)</li>
+<li><strong>Primo accesso</strong> — ruolo VestiFlow (<code>owner</code> default), nome, email, <strong>password iniziale</strong> (scelta dall’admin)</li>
+<li><strong>Setup</strong> — nome negozio e location iniziale (opzionali; default «Negozio principale»)</li>
 </ol>
-<p>
-  Il backend crea: tenant, utente Supabase Auth con password, store, location, profilo utente
-  collegato.
-</p>
+<p>Il backend crea: tenant, utente Supabase Auth con password, store, location, profilo utente collegato.</p>
 <h3 id="dopo-il-provisioning">Dopo il provisioning</h3>
-<p>
-  Consegna credenziali al titolare <strong>in modo sicuro</strong> (email + password). Il titolare
-  accede da <code>/login</code> e può cambiare password da Impostazioni o tramite «Password
-  dimenticata».
-</p>
+<p>Consegna credenziali al titolare <strong>in modo sicuro</strong> (email + password). Il titolare accede da <code>/login</code> e può cambiare password da Impostazioni o tramite «Password dimenticata».</p>
 <blockquote>
-  <p>
-    <strong>Invito email (standby):</strong> il flusso con invito Supabase al titolare esiste nel
-    codice ma è <strong>disabilitato</strong> finché non è attivo Supabase a pagamento con SMTP.
-    Riattivazione: variabile Railway <code>SUPABASE_OWNER_EMAIL_INVITE=true</code> + configurazione
-    redirect/template Supabase (vedi commit/feature invito).
-  </p>
+<p><strong>Invito email (standby):</strong> il flusso con invito Supabase al titolare esiste nel codice ma è <strong>disabilitato</strong> finché non è attivo Supabase a pagamento con SMTP. Riattivazione: variabile Railway <code>SUPABASE_OWNER_EMAIL_INVITE=true</code> + configurazione redirect/template Supabase (vedi commit/feature invito).</p>
 </blockquote>
 <p>Il titolare completa in base al profilo canale:</p>
 <table>
-  <thead>
-    <tr>
-      <th>Profilo canale</th>
-      <th>Passi titolare</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Shopify</strong></td>
-      <td>MFA → OAuth Shopify → sync location → webhook → import</td>
-    </tr>
-    <tr>
-      <td><strong>TikTok Shop</strong></td>
-      <td>MFA → OAuth TikTok Shop → verifica location</td>
-    </tr>
-    <tr>
-      <td><strong>Solo gestionale</strong></td>
-      <td>MFA → catalogo e magazzino solo in VestiFlow</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Profilo canale</th>
+<th>Passi titolare</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Shopify</strong></td>
+<td>MFA → OAuth Shopify → sync location → webhook → import</td>
+</tr>
+<tr>
+<td><strong>TikTok Shop</strong></td>
+<td>MFA → OAuth TikTok Shop → verifica location</td>
+</tr>
+<tr>
+<td><strong>Solo gestionale</strong></td>
+<td>MFA → catalogo e magazzino solo in VestiFlow</td>
+</tr>
+</tbody></table>
 <h3 id="modifica-tenant-esistente">Modifica tenant esistente</h3>
-<p>
-  Tabella <strong>Clienti registrati</strong> → click riga → <code>/app/admin/clients/:id</code>.
-</p>
-<p>
-  Modificabile: anagrafica, <strong>profilo canale</strong> (se nessuna integrazione attiva), nome
-  titolare, negozio, location. <strong>Email</strong> e <strong>ruolo</strong> del primo utente sono
-  <strong>sola lettura</strong> in UI (campi disabilitati).
-</p>
-<p>
-  Per cambiare profilo canale con integrazione già connessa: il cliente deve
-  <strong>disconnettere</strong> Shopify o TikTok da Impostazioni prima.
-</p>
+<p>Tabella <strong>Clienti registrati</strong> → click riga → <code>/app/admin/clients/:id</code>.</p>
+<p>Modificabile: anagrafica, <strong>profilo canale</strong> (se nessuna integrazione attiva), nome titolare, negozio, location. <strong>Email</strong> e <strong>ruolo</strong> del primo utente sono <strong>sola lettura</strong> in UI (campi disabilitati).</p>
+<p>Per cambiare profilo canale con integrazione già connessa: il cliente deve <strong>disconnettere</strong> Shopify o TikTok da Impostazioni prima.</p>
 <h3 id="eliminazione-tenant-zona-pericolosa">Eliminazione tenant (zona pericolosa)</h3>
-<p>
-  In <strong>Modifica cliente</strong>, pannello <strong>Zona pericolosa → Elimina cliente</strong>:
-  rimuove tenant, dati negozio, utenti e integrazioni. Operazione <strong>irreversibile</strong> con
-  dialog di conferma.
-</p>
+<p>In <strong>Modifica cliente</strong>, pannello <strong>Zona pericolosa → Elimina cliente</strong>: rimuove tenant, dati negozio, utenti e integrazioni. Operazione <strong>irreversibile</strong> con dialog di conferma.</p>
 <h3 id="api">API</h3>
 <table>
-  <thead>
-    <tr>
-      <th>Metodo</th>
-      <th>Path</th>
-      <th>Azione</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>GET</td>
-      <td><code>/admin/tenants</code></td>
-      <td>Lista tenant</td>
-    </tr>
-    <tr>
-      <td>POST</td>
-      <td><code>/admin/tenants</code></td>
-      <td>Crea tenant + primo utente</td>
-    </tr>
-    <tr>
-      <td>GET</td>
-      <td><code>/admin/tenants/:id</code></td>
-      <td>Dettaglio</td>
-    </tr>
-    <tr>
-      <td>PATCH</td>
-      <td><code>/admin/tenants/:id</code></td>
-      <td>Aggiorna anagrafica/setup</td>
-    </tr>
-    <tr>
-      <td>DELETE</td>
-      <td><code>/admin/tenants/:id</code></td>
-      <td>Elimina tenant e dati</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  Body create include <code>role</code> (<code>owner</code> | <code>admin</code> |
-  <code>manager</code> | <code>clerk</code>) e <code>channelProfile</code> (<code>gestionale</code>
-  | <code>shopify</code> | <code>tiktok_shop</code>).
-</p>
-<hr />
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Azione</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/admin/tenants</code></td>
+<td>Lista tenant</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/admin/tenants</code></td>
+<td>Crea tenant + primo utente</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/admin/tenants/:id</code></td>
+<td>Dettaglio</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/admin/tenants/:id</code></td>
+<td>Aggiorna anagrafica/setup</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/admin/tenants/:id</code></td>
+<td>Elimina tenant e dati</td>
+</tr>
+</tbody></table>
+<p>Body create include <code>role</code> (<code>owner</code> | <code>admin</code> | <code>manager</code> | <code>clerk</code>) e <code>channelProfile</code> (<code>gestionale</code> | <code>shopify</code> | <code>tiktok_shop</code>).</p>
+<hr>
 <h2 id="8-autenticazione-e-ruoli">8. Autenticazione e ruoli</h2>
 <h3 id="flusso-auth">Flusso auth</h3>
 <ol>
-  <li>Login Supabase Auth (frontend)</li>
-  <li>JWT inviato all&#39;API (<code>Authorization: Bearer</code>)</li>
-  <li><code>JwtAuthGuard</code> valida firma con <code>SUPABASE_JWT_SECRET</code></li>
-  <li>Profilo utente + <code>tenantId</code> + ruolo + <code>isPlatformAdmin</code> caricati</li>
+<li>Login Supabase Auth (frontend)</li>
+<li>JWT inviato all&#39;API (<code>Authorization: Bearer</code>)</li>
+<li><code>JwtAuthGuard</code> valida firma con <code>SUPABASE_JWT_SECRET</code></li>
+<li>Profilo utente + <code>tenantId</code> + ruolo + <code>isPlatformAdmin</code> caricati</li>
 </ol>
 <h3 id="ruoli-tenant-ui--api">Ruoli tenant (UI + API)</h3>
 <p>Implementati in <code>tenant-permissions.util.ts</code> (frontend) e guard analoghi lato API.</p>
 <table>
-  <thead>
-    <tr>
-      <th>Permesso chiave</th>
-      <th>Ruoli</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Shopify sync / import catalogo</td>
-      <td>owner, admin</td>
-    </tr>
-    <tr>
-      <td>CRUD prodotti, CSV catalogo</td>
-      <td>owner, admin, manager</td>
-    </tr>
-    <tr>
-      <td>CSV giacenze, ordini fornitori</td>
-      <td>owner, admin, manager</td>
-    </tr>
-    <tr>
-      <td>Movimenti magazzino, inventario fisico</td>
-      <td>tutti</td>
-    </tr>
-    <tr>
-      <td>MFA settings</td>
-      <td>owner, admin, manager</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  Route Angular sensibili: <code>tenantRoleGuard</code> + <code>data.tenantRoutePermission</code>.
-</p>
+<thead>
+<tr>
+<th>Permesso chiave</th>
+<th>Ruoli</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Shopify sync / import catalogo</td>
+<td>owner, admin</td>
+</tr>
+<tr>
+<td>CRUD prodotti, CSV catalogo</td>
+<td>owner, admin, manager</td>
+</tr>
+<tr>
+<td>CSV giacenze, ordini fornitori</td>
+<td>owner, admin, manager</td>
+</tr>
+<tr>
+<td>Movimenti magazzino, inventario fisico</td>
+<td>tutti</td>
+</tr>
+<tr>
+<td>MFA settings</td>
+<td>owner, admin, manager</td>
+</tr>
+</tbody></table>
+<p>Route Angular sensibili: <code>tenantRoleGuard</code> + <code>data.tenantRoutePermission</code>.</p>
 <h3 id="foto-profilo-utente">Foto profilo utente</h3>
 <table>
-  <thead>
-    <tr>
-      <th>Metodo</th>
-      <th>Path</th>
-      <th>Azione</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>POST</td>
-      <td><code>/auth/avatar</code></td>
-      <td>Upload foto (multipart <code>file</code>)</td>
-    </tr>
-    <tr>
-      <td>DELETE</td>
-      <td><code>/auth/avatar</code></td>
-      <td>Rimuove foto e file su Storage</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  Validazione: JPEG/PNG/WebP, max 2 MB. Bucket <strong><code>user-avatars</code></strong> (public).
-  Dopo upload/delete invalida cache profilo JWT (<code>AuthProfileCacheService.invalidate</code>).
-</p>
-<p>
-  UI: <strong>Impostazioni → Profilo</strong> (tenant) e <strong>Impostazioni</strong> operatore
-  (<code>/app/admin/account</code>). Avatar in topbar cliccabile → Impostazioni.
-</p>
-<hr />
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Azione</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/auth/avatar</code></td>
+<td>Upload foto (multipart <code>file</code>)</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/auth/avatar</code></td>
+<td>Rimuove foto e file su Storage</td>
+</tr>
+</tbody></table>
+<p>Validazione: JPEG/PNG/WebP, max 2 MB. Bucket <strong><code>user-avatars</code></strong> (public). Dopo upload/delete invalida cache profilo JWT (<code>AuthProfileCacheService.invalidate</code>).</p>
+<p>UI: <strong>Impostazioni → Profilo</strong> (tenant) e <strong>Impostazioni</strong> operatore (<code>/app/admin/account</code>). Avatar in topbar cliccabile → Impostazioni.</p>
+<hr>
 <h2 id="9-integrazione-shopify-tecnica">9. Integrazione Shopify (tecnica)</h2>
 <h3 id="ownership-sync-riepilogo">Ownership sync (riepilogo)</h3>
 <table>
-  <thead>
-    <tr>
-      <th>Entità</th>
-      <th>Owner</th>
-      <th>Note</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Catalogo prodotti <strong>VestiFlow</strong> (<code>catalogOrigin=vestiflow</code>)</td>
-      <td>VestiFlow</td>
-      <td>
-        CRUD completo; push al save; delete write-through verso Shopify se
-        <code>shopifyProductId</code>
-      </td>
-    </tr>
-    <tr>
-      <td>Catalogo prodotti <strong>Shopify</strong> (<code>catalogOrigin=shopify</code>)</td>
-      <td>Shopify</td>
-      <td>
-        Pull import/webhook; in VF solo PATCH stagione + <code>purchasePriceMinor</code>; no
-        delete/sync manuale/media
-      </td>
-    </tr>
-    <tr>
-      <td>Clienti, ordini online</td>
-      <td>Shopify</td>
-      <td>Read-only in VF</td>
-    </tr>
-    <tr>
-      <td>Giacenze</td>
-      <td>Condiviso</td>
-      <td>VF: carichi/rettifiche; Shopify: vendite</td>
-    </tr>
-    <tr>
-      <td>Location</td>
-      <td>Shopify master</td>
-      <td>Import + mapping; cleanup sedi stale</td>
-    </tr>
-    <tr>
-      <td>Ordini fornitori</td>
-      <td>Solo VestiFlow</td>
-      <td>—</td>
-    </tr>
-    <tr>
-      <td>Anagrafica tenant</td>
-      <td>Solo VestiFlow (admin)</td>
-      <td><code>GET /tenant/company</code> read-only in UI <strong>Sede fisica</strong></td>
-    </tr>
-  </tbody>
-</table>
-<h3 id="origine-catalogo-catalogorigin--shopifycataloglinkkind">
-  Origine catalogo (<code>catalogOrigin</code> / <code>shopifyCatalogLinkKind</code>)
-</h3>
+<thead>
+<tr>
+<th>Entità</th>
+<th>Owner</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Catalogo prodotti <strong>VestiFlow</strong> (<code>catalogOrigin=vestiflow</code>)</td>
+<td>VestiFlow</td>
+<td>CRUD completo; push al save; delete write-through verso Shopify se <code>shopifyProductId</code></td>
+</tr>
+<tr>
+<td>Catalogo prodotti <strong>Shopify</strong> (<code>catalogOrigin=shopify</code>)</td>
+<td>Shopify</td>
+<td>Pull import/webhook; in VF solo PATCH stagione + <code>purchasePriceMinor</code>; no delete/sync manuale/media</td>
+</tr>
+<tr>
+<td>Clienti, ordini online</td>
+<td>Shopify</td>
+<td>Read-only in VF</td>
+</tr>
+<tr>
+<td>Giacenze</td>
+<td>Condiviso</td>
+<td>VF: carichi/rettifiche; Shopify: vendite</td>
+</tr>
+<tr>
+<td>Location</td>
+<td>Shopify master</td>
+<td>Import + mapping; cleanup sedi stale</td>
+</tr>
+<tr>
+<td>Ordini fornitori</td>
+<td>Solo VestiFlow</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Anagrafica tenant</td>
+<td>Solo VestiFlow (admin)</td>
+<td><code>GET /tenant/company</code> read-only in UI <strong>Sede fisica</strong></td>
+</tr>
+</tbody></table>
+<h3 id="origine-catalogo-catalogorigin--shopifycataloglinkkind">Origine catalogo (<code>catalogOrigin</code> / <code>shopifyCatalogLinkKind</code>)</h3>
 <p>Campi su <code>Product</code> (migration <code>0016</code> + <code>0017</code>):</p>
 <table>
-  <thead>
-    <tr>
-      <th>Valore</th>
-      <th>Significato</th>
-      <th>Impostato quando</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>catalogOrigin=vestiflow</code></td>
-      <td>Il gestionale possiede i campi catalogo condivisi</td>
-      <td>Create in VF, import CSV, push verso Shopify (<code>linkKind=pushed</code>)</td>
-    </tr>
-    <tr>
-      <td><code>catalogOrigin=shopify</code></td>
-      <td>Shopify Admin possiede il catalogo</td>
-      <td>Import pull (<code>linkKind=imported</code>) o backfill legacy</td>
-    </tr>
-    <tr>
-      <td><code>shopifyCatalogLinkKind=imported</code></td>
-      <td>Collegato da import Shopify → VF</td>
-      <td><code>ShopifyProductPullService</code></td>
-    </tr>
-    <tr>
-      <td><code>shopifyCatalogLinkKind=pushed</code></td>
-      <td>Creato in VF e inviato al canale</td>
-      <td>Create/push <code>ShopifyProductPushService</code>, import CSV</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Valore</th>
+<th>Significato</th>
+<th>Impostato quando</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>catalogOrigin=vestiflow</code></td>
+<td>Il gestionale possiede i campi catalogo condivisi</td>
+<td>Create in VF, import CSV, push verso Shopify (<code>linkKind=pushed</code>)</td>
+</tr>
+<tr>
+<td><code>catalogOrigin=shopify</code></td>
+<td>Shopify Admin possiede il catalogo</td>
+<td>Import pull (<code>linkKind=imported</code>) o backfill legacy</td>
+</tr>
+<tr>
+<td><code>shopifyCatalogLinkKind=imported</code></td>
+<td>Collegato da import Shopify → VF</td>
+<td><code>ShopifyProductPullService</code></td>
+</tr>
+<tr>
+<td><code>shopifyCatalogLinkKind=pushed</code></td>
+<td>Creato in VF e inviato al canale</td>
+<td>Create/push <code>ShopifyProductPushService</code>, import CSV</td>
+</tr>
+</tbody></table>
 <p>Logica centralizzata in <code>api/src/products/catalog-origin.util.ts</code>:</p>
 <ul>
-  <li>
-    <code>isVestiflowCatalogOwner()</code> — esclude import Shopify e legacy con link alla
-    creazione; include push e prodotti con media locale Supabase
-  </li>
-  <li>
-    <code>shouldSkipShopifyCatalogImport()</code> — pull/webhook
-    <strong>non sovrascrivono</strong> catalogo VF-owned
-  </li>
-  <li>
-    <code>assertShopifyCatalogUpdateAllowed()</code> — su <code>shopify</code>: blocca mutazioni
-    catalogo; consente <code>season</code> + <code>purchasePriceMinor</code>
-  </li>
-  <li>
-    <code>assertShopifyCatalogDeleteAllowed()</code> /
-    <code>assertShopifyCatalogManualSyncAllowed()</code> /
-    <code>assertShopifyCatalogMediaMutationAllowed()</code>
-  </li>
+<li><code>isVestiflowCatalogOwner()</code> — esclude import Shopify e legacy con link alla creazione; include push e prodotti con media locale Supabase</li>
+<li><code>shouldSkipShopifyCatalogImport()</code> — pull/webhook <strong>non sovrascrivono</strong> catalogo VF-owned</li>
+<li><code>assertShopifyCatalogUpdateAllowed()</code> — su <code>shopify</code>: blocca mutazioni catalogo; consente <code>season</code> + <code>purchasePriceMinor</code></li>
+<li><code>assertShopifyCatalogDeleteAllowed()</code> / <code>assertShopifyCatalogManualSyncAllowed()</code> / <code>assertShopifyCatalogMediaMutationAllowed()</code></li>
 </ul>
 <p><strong>Backfill tenant esistenti</strong> (dopo deploy migration):</p>
 <pre><code class="language-bash">cd api &amp;&amp; npm run backfill:catalog-origin        # dry-run
 cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </code></pre>
-<p>
-  <strong>UI tenant:</strong> colonna <strong>Fonte</strong> in lista prodotti; badge
-  <code>Fonte: VestiFlow</code> / <code>Fonte: Shopify</code> in dettaglio; form in modalità
-  <strong>Modifica dati operativi</strong> se <code>catalogOrigin=shopify</code> (<code
-    >catalog-origin.util.ts</code
-  >
-  FE + <code>product-form</code> / <code>product-detail</code>).
-</p>
+<p><strong>UI tenant:</strong> colonna <strong>Fonte</strong> in lista prodotti; badge <code>Fonte: VestiFlow</code> / <code>Fonte: Shopify</code> in dettaglio; form in modalità <strong>Modifica dati operativi</strong> se <code>catalogOrigin=shopify</code> (<code>catalog-origin.util.ts</code> FE + <code>product-form</code> / <code>product-detail</code>).</p>
 <h3 id="taxonomy-shopify-e-metafield-di-categoria">Taxonomy Shopify e metafield di categoria</h3>
 <p>Picker e attributi categoria nel form prodotto (step <strong>Dati generali</strong>).</p>
 <table>
-  <thead>
-    <tr>
-      <th>Layer</th>
-      <th>Percorso / componente</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>API</td>
-      <td>
-        <code>GET /shopify/taxonomy/categories</code>,
-        <code>GET /shopify/taxonomy/category-attributes?categoryId=</code>
-      </td>
-    </tr>
-    <tr>
-      <td>BE</td>
-      <td>
-        <code>ShopifyTaxonomyService</code>, <code>ShopifyCategoryMetafieldsService</code>, util
-        <code>shopify-category-metafields.util.ts</code>
-      </td>
-    </tr>
-    <tr>
-      <td>FE picker categoria</td>
-      <td><code>shopify-taxonomy-picker</code></td>
-    </tr>
-    <tr>
-      <td>FE attributi</td>
-      <td><code>shopify-category-attributes</code> (in <code>product-general-step</code>)</td>
-    </tr>
-    <tr>
-      <td>Persistenza</td>
-      <td>
-        <code>Product.shopifyCategoryMetafields</code> (JSON),
-        <code>shopifyTaxonomyCategoryId</code> / <code>FullName</code>
-      </td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  <strong>Modello <code>shopifyCategoryMetafields</code>:</strong> array di oggetti con campi
-  <code>attributeId</code>, <code>attributeName</code>, <code>namespace</code>, <code>key</code>,
-  <code>metafieldType</code> e array <code>values</code>. Ogni attributo può avere
-  <strong>più valori</strong> in <code>values</code> (allineato a Shopify).
-</p>
-<p>
-  <strong>UI multi-valore:</strong> se <code>metafieldType</code> inizia con <code>list.</code> →
-  <code>SelectMenuComponent</code> in modalità <code>multiple</code> (<code
-    >isShopifyCategoryMetafieldMultiValue</code
-  >
-  in <code>shopify-category-metafield.util.ts</code>). Altrimenti select singola.
-</p>
-<p>
-  <strong>Push:</strong> <code>ShopifyProductPushService</code> →
-  <code>pushCategoryMetafields</code> serializza i GID taxonomy
-  (<code>serializeTaxonomyValueListGids</code>) o crea metaobject per tipo
-  <code>list.metaobject_reference</code>. Import/pull popola lo stesso JSON da metafield prodotto
-  Shopify.
-</p>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Percorso / componente</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>API</td>
+<td><code>GET /shopify/taxonomy/categories</code>, <code>GET /shopify/taxonomy/category-attributes?categoryId=</code></td>
+</tr>
+<tr>
+<td>BE</td>
+<td><code>ShopifyTaxonomyService</code>, <code>ShopifyCategoryMetafieldsService</code>, util <code>shopify-category-metafields.util.ts</code></td>
+</tr>
+<tr>
+<td>FE picker categoria</td>
+<td><code>shopify-taxonomy-picker</code></td>
+</tr>
+<tr>
+<td>FE attributi</td>
+<td><code>shopify-category-attributes</code> (in <code>product-general-step</code>)</td>
+</tr>
+<tr>
+<td>Persistenza</td>
+<td><code>Product.shopifyCategoryMetafields</code> (JSON), <code>shopifyTaxonomyCategoryId</code> / <code>FullName</code></td>
+</tr>
+</tbody></table>
+<p><strong>Modello <code>shopifyCategoryMetafields</code>:</strong> array di oggetti con campi <code>attributeId</code>, <code>attributeName</code>, <code>namespace</code>, <code>key</code>, <code>metafieldType</code> e array <code>values</code>. Ogni attributo può avere <strong>più valori</strong> in <code>values</code> (allineato a Shopify).</p>
+<p><strong>UI multi-valore:</strong> se <code>metafieldType</code> inizia con <code>list.</code> → <code>SelectMenuComponent</code> in modalità <code>multiple</code> (<code>isShopifyCategoryMetafieldMultiValue</code> in <code>shopify-category-metafield.util.ts</code>). Altrimenti select singola.</p>
+<p><strong>Push:</strong> <code>ShopifyProductPushService</code> → <code>pushCategoryMetafields</code> serializza i GID taxonomy (<code>serializeTaxonomyValueListGids</code>) o crea metaobject per tipo <code>list.metaobject_reference</code>. Import/pull popola lo stesso JSON da metafield prodotto Shopify.</p>
 <h3 id="cambio-negozio-e-purge-dati-shopify">Cambio negozio e purge dati Shopify</h3>
-<p>
-  Modulo <code>ShopifyShopChangeService</code> + wizard FE <code>shopify-shop-change-wizard</code>.
-</p>
+<p>Modulo <code>ShopifyShopChangeService</code> + wizard FE <code>shopify-shop-change-wizard</code>.</p>
 <table>
-  <thead>
-    <tr>
-      <th>Endpoint</th>
-      <th>Metodo</th>
-      <th>Ruolo</th>
-      <th>Scopo</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>/shopify/shop-change/preview</code></td>
-      <td>GET</td>
-      <td>owner/admin</td>
-      <td>
-        Conteggi dati collegati a Shopify + blockers (es. ordini fornitori aperti su location
-        Shopify)
-      </td>
-    </tr>
-    <tr>
-      <td><code>/shopify/shop-change/purge</code></td>
-      <td>POST</td>
-      <td>owner/admin</td>
-      <td>
-        Rimuove dati importati/syncati da Shopify (prodotti, varianti, clienti, ordini vendita,
-        location collegate, giacenze/movimenti associati)
-      </td>
-    </tr>
-    <tr>
-      <td><code>/shopify/connection</code></td>
-      <td>DELETE</td>
-      <td>owner/admin</td>
-      <td>Disconnessione OAuth (token revocato); <strong>non</strong> purge catalogo</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Metodo</th>
+<th>Ruolo</th>
+<th>Scopo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/shopify/shop-change/preview</code></td>
+<td>GET</td>
+<td>owner/admin</td>
+<td>Conteggi dati collegati a Shopify + blockers (es. ordini fornitori aperti su location Shopify)</td>
+</tr>
+<tr>
+<td><code>/shopify/shop-change/purge</code></td>
+<td>POST</td>
+<td>owner/admin</td>
+<td>Rimuove dati importati/syncati da Shopify (prodotti, varianti, clienti, ordini vendita, location collegate, giacenze/movimenti associati)</td>
+</tr>
+<tr>
+<td><code>/shopify/connection</code></td>
+<td>DELETE</td>
+<td>owner/admin</td>
+<td>Disconnessione OAuth (token revocato); <strong>non</strong> purge catalogo</td>
+</tr>
+</tbody></table>
 <p><strong>Flussi UI:</strong></p>
 <ul>
-  <li>
-    <strong>Cambia negozio</strong> — wizard mode <code>shop-change</code>: preview → opzione purge
-    → conferma dominio → disconnect → redirect OAuth nuovo shop
-  </li>
-  <li>
-    <strong>Disconnetti e rimuovi dati</strong> — wizard mode <code>disconnect</code>: preview →
-    purge opzionale → disconnect
-  </li>
-  <li><strong>Disconnetti Shopify</strong> — solo DELETE connection, dati locali restano</li>
+<li><strong>Cambia negozio</strong> — wizard mode <code>shop-change</code>: preview → opzione purge → conferma dominio → disconnect → redirect OAuth nuovo shop</li>
+<li><strong>Disconnetti e rimuovi dati</strong> — wizard mode <code>disconnect</code>: preview → purge opzionale → disconnect</li>
+<li><strong>Disconnetti Shopify</strong> — solo DELETE connection, dati locali restano</li>
 </ul>
-<p>
-  <strong>OAuth guard:</strong> tentativo di collegare un dominio diverso da quello attivo senza
-  purge precedente → errore esplicito (evita fork silenzioso tra shop).
-</p>
-<p>
-  <strong>Cosa NON cancella il purge:</strong> ordini fornitori (salvo blocker se legati a location
-  Shopify), anagrafica tenant (<strong>Sede fisica</strong>), utenti tenant, movimenti non legati a
-  entità Shopify rimosse.
-</p>
+<p><strong>OAuth guard:</strong> tentativo di collegare un dominio diverso da quello attivo senza purge precedente → errore esplicito (evita fork silenzioso tra shop).</p>
+<p><strong>Cosa NON cancella il purge:</strong> ordini fornitori (salvo blocker se legati a location Shopify), anagrafica tenant (<strong>Sede fisica</strong>), utenti tenant, movimenti non legati a entità Shopify rimosse.</p>
 <h3 id="eliminazione-prodotto">Eliminazione prodotto</h3>
 <p><code>ProductsService.delete()</code>:</p>
 <ol>
-  <li>
-    <code>assertShopifyCatalogDeleteAllowed()</code> — se <code>catalogOrigin=shopify</code> →
-    <strong>409</strong> con messaggio utente (elimina da Shopify Admin)
-  </li>
-  <li>Verifica assenza movimenti stock sul prodotto</li>
-  <li>
-    Se <code>shopifyProductId</code> presente e <code>catalogOrigin=vestiflow</code> →
-    <code>ShopifyProductPushService.deleteProduct()</code> <strong>prima</strong> del delete DB
-  </li>
-  <li>
-    Errori mappati: <code>not_connected</code>, <code>missing_write_products_scope</code>,
-    <code>shopify_error</code> → <code>422</code> con messaggio utente; DB intatto
-  </li>
+<li><code>assertShopifyCatalogDeleteAllowed()</code> — se <code>catalogOrigin=shopify</code> → <strong>409</strong> con messaggio utente (elimina da Shopify Admin)</li>
+<li>Verifica assenza movimenti stock sul prodotto</li>
+<li>Se <code>shopifyProductId</code> presente e <code>catalogOrigin=vestiflow</code> → <code>ShopifyProductPushService.deleteProduct()</code> <strong>prima</strong> del delete DB</li>
+<li>Errori mappati: <code>not_connected</code>, <code>missing_write_products_scope</code>, <code>shopify_error</code> → <code>422</code> con messaggio utente; DB intatto</li>
 </ol>
-<p>
-  Scope richiesto per delete write-through: <code>write_products</code> (incluso in
-  <code>SHOPIFY_SCOPES</code> default).
-</p>
-<p>
-  FE: pulsante <strong>Elimina</strong> e <strong>Sincronizza con Shopify</strong> nascosti se
-  <code>catalogOrigin=shopify</code>.
-</p>
+<p>Scope richiesto per delete write-through: <code>write_products</code> (incluso in <code>SHOPIFY_SCOPES</code> default).</p>
+<p>FE: pulsante <strong>Elimina</strong> e <strong>Sincronizza con Shopify</strong> nascosti se <code>catalogOrigin=shopify</code>.</p>
 <h3 id="sync-location--comportamento-post-fix">Sync location — comportamento post-fix</h3>
 <p><code>ShopifyLocationSyncService</code>:</p>
 <ul>
-  <li>
-    Importa/aggiorna location da Shopify; <strong>non</strong> collega più automaticamente la sede
-    onboarding <code>LOC-01</code> al primo match Shopify
-  </li>
-  <li>
-    <code>buildLinkedLocationData</code> aggiorna il <strong>nome</strong> da Shopify a ogni re-sync
-  </li>
-  <li>
-    <code>cleanupStaleShopifyLocations</code> rimuove location non più presenti su Shopify API
-  </li>
-  <li>
-    <code>removeEmptyOnboardingLocation</code> elimina sede temporanea onboarding vuota e non
-    collegata dopo sync
-  </li>
-  <li>
-    Dopo sync/disconnect/purge: <code>ShopifyConnectionRefreshService.notifyInvalidated()</code> →
-    shell ricarica location e topbar
-  </li>
+<li>Importa/aggiorna location da Shopify; <strong>non</strong> collega più automaticamente la sede onboarding <code>LOC-01</code> al primo match Shopify</li>
+<li><code>buildLinkedLocationData</code> aggiorna il <strong>nome</strong> da Shopify a ogni re-sync</li>
+<li><code>cleanupStaleShopifyLocations</code> rimuove location non più presenti su Shopify API</li>
+<li><code>removeEmptyOnboardingLocation</code> elimina sede temporanea onboarding vuota e non collegata dopo sync</li>
+<li>Dopo sync/disconnect/purge: <code>ShopifyConnectionRefreshService.notifyInvalidated()</code> → shell ricarica location e topbar</li>
 </ul>
-<p>
-  FE: <code>filterLocationsForTopbar</code> nasconde sede onboarding locale quando Shopify è
-  connesso.
-</p>
+<p>FE: <code>filterLocationsForTopbar</code> nasconde sede onboarding locale quando Shopify è connesso.</p>
 <h3 id="anagrafica-tenant-sede-fisica">Anagrafica tenant (Sede fisica)</h3>
 <table>
-  <thead>
-    <tr>
-      <th>Endpoint</th>
-      <th>Metodo</th>
-      <th>Scopo</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>/tenant/company</code></td>
-      <td>GET</td>
-      <td>
-        Dati commerciali tenant (name, storeName, PIVA, indirizzo, contatti) — read-only lato
-        cliente
-      </td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  Popolati al provisioning admin (<code>create-client</code>). UI:
-  <code>tenant-client-card</code> in Impostazioni.
-</p>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Metodo</th>
+<th>Scopo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/tenant/company</code></td>
+<td>GET</td>
+<td>Dati commerciali tenant (name, storeName, PIVA, indirizzo, contatti) — read-only lato cliente</td>
+</tr>
+</tbody></table>
+<p>Popolati al provisioning admin (<code>create-client</code>). UI: <code>tenant-client-card</code> in Impostazioni.</p>
 <h3 id="oauth">OAuth</h3>
 <ul>
-  <li>Scope default in <code>SHOPIFY_SCOPES</code> (<code>.env.example</code>)</li>
-  <li>Token cifrati at rest (<code>SHOPIFY_TOKEN_ENCRYPTION_KEY</code>)</li>
-  <li>Diagnostica scope in Impostazioni: richiesti vs concessi</li>
+<li>Scope default in <code>SHOPIFY_SCOPES</code> (<code>.env.example</code>)</li>
+<li>Token cifrati at rest (<code>SHOPIFY_TOKEN_ENCRYPTION_KEY</code>)</li>
+<li>Diagnostica scope in Impostazioni: richiesti vs concessi</li>
 </ul>
 <h3 id="webhook">Webhook</h3>
-<p>
-  Registrati con <strong>Attiva aggiornamenti automatici</strong>. Idempotenza lato backend per
-  eventi duplicati/out-of-order.
-</p>
+<p>Registrati con <strong>Attiva aggiornamenti automatici</strong>. Idempotenza lato backend per eventi duplicati/out-of-order.</p>
 <h3 id="limiti-shopify-admin-api--concetto">Limiti Shopify Admin API — concetto</h3>
-<p>
-  Shopify <strong>non addebita le chiamate API</strong> a consumo. Il piano del negozio definisce
-  <strong>quanto velocemente</strong> puoi chiamare le Admin API prima di essere
-  <strong>rallentato</strong> (HTTP <strong>429 Too Many Requests</strong> / throttling). Non esiste
-  un contatore “a pagamento per chiamata”.
-</p>
-<p>
-  VestiFlow usa oggi soprattutto la <strong>REST Admin API</strong> (prodotti, location, inventario,
-  immagini).
-</p>
+<p>Shopify <strong>non addebita le chiamate API</strong> a consumo. Il piano del negozio definisce <strong>quanto velocemente</strong> puoi chiamare le Admin API prima di essere <strong>rallentato</strong> (HTTP <strong>429 Too Many Requests</strong> / throttling). Non esiste un contatore “a pagamento per chiamata”.</p>
+<p>VestiFlow usa oggi soprattutto la <strong>REST Admin API</strong> (prodotti, location, inventario, immagini).</p>
 <p><strong>Documentazione ufficiale Shopify:</strong></p>
 <ul>
-  <li><a href="https://shopify.dev/docs/api/usage/limits">Limiti API (panoramica)</a></li>
-  <li>
-    <a href="https://shopify.dev/docs/api/admin-rest/usage/rate-limits"
-      >Rate limit REST Admin API</a
-    >
-  </li>
+<li><a href="https://shopify.dev/docs/api/usage/limits">Limiti API (panoramica)</a></li>
+<li><a href="https://shopify.dev/docs/api/admin-rest/usage/rate-limits">Rate limit REST Admin API</a></li>
 </ul>
 <p><strong>Fasce tipiche REST (piano negozio → velocità massima):</strong></p>
 <table>
-  <thead>
-    <tr>
-      <th>Piano Shopify (indicativo)</th>
-      <th>REST Admin API</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Basic / Grow (Standard)</td>
-      <td>~<strong>2 richieste/sec</strong>, bucket <strong>40</strong></td>
-    </tr>
-    <tr>
-      <td>Advanced</td>
-      <td>~<strong>4 richieste/sec</strong>, bucket <strong>80</strong></td>
-    </tr>
-    <tr>
-      <td>Plus</td>
-      <td>limiti più alti (fascia Enterprise)</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  Il header <code>X-Shopify-Shop-Api-Call-Limit</code> (es. <code>32/40</code>) indica quanto del
-  bucket è consumato.
-</p>
-<h3 id="cosa-fa-vestiflow-quando-si-avvicina-o-supera-il-limite">
-  Cosa fa VestiFlow quando si avvicina o supera il limite
-</h3>
+<thead>
+<tr>
+<th>Piano Shopify (indicativo)</th>
+<th>REST Admin API</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Basic / Grow (Standard)</td>
+<td>~<strong>2 richieste/sec</strong>, bucket <strong>40</strong></td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td>~<strong>4 richieste/sec</strong>, bucket <strong>80</strong></td>
+</tr>
+<tr>
+<td>Plus</td>
+<td>limiti più alti (fascia Enterprise)</td>
+</tr>
+</tbody></table>
+<p>Il header <code>X-Shopify-Shop-Api-Call-Limit</code> (es. <code>32/40</code>) indica quanto del bucket è consumato.</p>
+<h3 id="cosa-fa-vestiflow-quando-si-avvicina-o-supera-il-limite">Cosa fa VestiFlow quando si avvicina o supera il limite</h3>
 <p>Implementazione in <code>api/src/shopify/</code>:</p>
 <table>
-  <thead>
-    <tr>
-      <th>Componente</th>
-      <th>Ruolo</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>ShopifyRateLimiterService</code></td>
-      <td>Throttle <strong>per shop</strong> prima di ogni richiesta outbound</td>
-    </tr>
-    <tr>
-      <td><code>ShopifyAdminClient.request()</code></td>
-      <td>Applica throttle, legge header bucket, <strong>retry su 429</strong></td>
-    </tr>
-    <tr>
-      <td><code>ShopifyProductPullService</code></td>
-      <td>
-        <strong>Mutex</strong> import catalogo (un import per tenant alla volta, process-local)
-      </td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Componente</th>
+<th>Ruolo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ShopifyRateLimiterService</code></td>
+<td>Throttle <strong>per shop</strong> prima di ogni richiesta outbound</td>
+</tr>
+<tr>
+<td><code>ShopifyAdminClient.request()</code></td>
+<td>Applica throttle, legge header bucket, <strong>retry su 429</strong></td>
+</tr>
+<tr>
+<td><code>ShopifyProductPullService</code></td>
+<td><strong>Mutex</strong> import catalogo (un import per tenant alla volta, process-local)</td>
+</tr>
+</tbody></table>
 <p><strong>Comportamento:</strong></p>
 <ol>
-  <li>
-    <strong>Intervallo minimo</strong> tra richieste (default 550 ms ≈ 1,8 req/s, sotto il limite
-    Basic 2/s).
-  </li>
-  <li>
-    Se <code>X-Shopify-Shop-Api-Call-Limit</code> ≥ soglia (<strong>85%</strong> del bucket), pausa
-    <strong>1 s</strong> prima delle richieste successive.
-  </li>
-  <li>
-    Su <strong>HTTP 429</strong>: legge <code>Retry-After</code>, backoff esponenziale, fino a
-    <strong>5</strong> retry; poi errore 429 con messaggio utente:
-    <em>«Shopify ha limitato temporaneamente le richieste API…»</em>.
-  </li>
-  <li>
-    <strong>Import catalogo</strong>: enrichment leggero (<code>skipRemoteMetadata: true</code>,
-    niente costi varianti extra) per ridurre chiamate; <strong>non avviare due import</strong> sullo
-    stesso tenant in parallelo.
-  </li>
-  <li>
-    <strong>Webhook</strong> prodotti/ordini/giacenze: <strong>0 chiamate outbound</strong> —
-    Shopify invia i dati a VestiFlow.
-  </li>
+<li><strong>Intervallo minimo</strong> tra richieste (default 550 ms ≈ 1,8 req/s, sotto il limite Basic 2/s).</li>
+<li>Se <code>X-Shopify-Shop-Api-Call-Limit</code> ≥ soglia (<strong>85%</strong> del bucket), pausa <strong>1 s</strong> prima delle richieste successive.</li>
+<li>Su <strong>HTTP 429</strong>: legge <code>Retry-After</code>, backoff esponenziale, fino a <strong>5</strong> retry; poi errore 429 con messaggio utente: <em>«Shopify ha limitato temporaneamente le richieste API…»</em>.</li>
+<li><strong>Import catalogo</strong>: enrichment leggero (<code>skipRemoteMetadata: true</code>, niente costi varianti extra) per ridurre chiamate; <strong>non avviare due import</strong> sullo stesso tenant in parallelo.</li>
+<li><strong>Webhook</strong> prodotti/ordini/giacenze: <strong>0 chiamate outbound</strong> — Shopify invia i dati a VestiFlow.</li>
 </ol>
 <p><strong>Variabili env (REST outbound):</strong></p>
 <table>
-  <thead>
-    <tr>
-      <th>Variabile</th>
-      <th>Default</th>
-      <th>Effetto</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>SHOPIFY_API_MIN_INTERVAL_MS</code></td>
-      <td>550</td>
-      <td>Pausa minima tra richieste</td>
-    </tr>
-    <tr>
-      <td><code>SHOPIFY_API_MAX_RETRIES</code></td>
-      <td>5</td>
-      <td>Retry su HTTP 429</td>
-    </tr>
-    <tr>
-      <td><code>SHOPIFY_API_BUCKET_HIGH_WATERMARK</code></td>
-      <td>0.85</td>
-      <td>Pausa se secchio pieno</td>
-    </tr>
-    <tr>
-      <td><code>SHOPIFY_API_BUCKET_PAUSE_MS</code></td>
-      <td>1000</td>
-      <td>Durata pausa secchio</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  <strong>Nota deploy:</strong> il rate limiter Shopify è <strong>process-local</strong>. Con più
-  repliche Railway ogni istanza ha il proprio contatore (comportamento conservativo, non
-  centralizzato).
-</p>
+<thead>
+<tr>
+<th>Variabile</th>
+<th>Default</th>
+<th>Effetto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SHOPIFY_API_MIN_INTERVAL_MS</code></td>
+<td>550</td>
+<td>Pausa minima tra richieste</td>
+</tr>
+<tr>
+<td><code>SHOPIFY_API_MAX_RETRIES</code></td>
+<td>5</td>
+<td>Retry su HTTP 429</td>
+</tr>
+<tr>
+<td><code>SHOPIFY_API_BUCKET_HIGH_WATERMARK</code></td>
+<td>0.85</td>
+<td>Pausa se secchio pieno</td>
+</tr>
+<tr>
+<td><code>SHOPIFY_API_BUCKET_PAUSE_MS</code></td>
+<td>1000</td>
+<td>Durata pausa secchio</td>
+</tr>
+</tbody></table>
+<p><strong>Nota deploy:</strong> il rate limiter Shopify è <strong>process-local</strong>. Con più repliche Railway ogni istanza ha il proprio contatore (comportamento conservativo, non centralizzato).</p>
 <p><strong>Chiamate indicative per operazione:</strong></p>
 <table>
-  <thead>
-    <tr>
-      <th>Operazione</th>
-      <th>Chiamate Shopify (ordine di grandezza)</th>
-      <th>Note</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Import catalogo (Shopify → VF)</td>
-      <td>~4 per 1000 prodotti (pagine da 250)</td>
-      <td>
-        Lento con cataloghi grandi: <strong>normale</strong>; imposta
-        <code>catalogOrigin=shopify</code>
-      </td>
-    </tr>
-    <tr>
-      <td>Webhook prodotti/giacenze/ordini</td>
-      <td>0 outbound</td>
-      <td>Event-driven; skip catalogo se <code>vestiflow</code>-owned</td>
-    </tr>
-    <tr>
-      <td>Push prodotto al save (VF → Shopify)</td>
-      <td>1–N per prodotto</td>
-      <td>Solo <code>catalogOrigin=vestiflow</code>; imposta <code>linkKind=pushed</code></td>
-    </tr>
-    <tr>
-      <td>Delete prodotto (VF → Shopify)</td>
-      <td>1</td>
-      <td>Solo <code>catalogOrigin=vestiflow</code> + <code>shopifyProductId</code></td>
-    </tr>
-    <tr>
-      <td>Purge dati Shopify</td>
-      <td>0 outbound (delete DB locale)</td>
-      <td>Dopo purge, riconnessione OAuth</td>
-    </tr>
-    <tr>
-      <td>Push giacenza dopo movimento</td>
-      <td>~1 per movimento</td>
-      <td>Write-through inventario</td>
-    </tr>
-    <tr>
-      <td>Sync location</td>
-      <td>1</td>
-      <td>Trascurabile</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Operazione</th>
+<th>Chiamate Shopify (ordine di grandezza)</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Import catalogo (Shopify → VF)</td>
+<td>~4 per 1000 prodotti (pagine da 250)</td>
+<td>Lento con cataloghi grandi: <strong>normale</strong>; imposta <code>catalogOrigin=shopify</code></td>
+</tr>
+<tr>
+<td>Webhook prodotti/giacenze/ordini</td>
+<td>0 outbound</td>
+<td>Event-driven; skip catalogo se <code>vestiflow</code>-owned</td>
+</tr>
+<tr>
+<td>Push prodotto al save (VF → Shopify)</td>
+<td>1–N per prodotto</td>
+<td>Solo <code>catalogOrigin=vestiflow</code>; imposta <code>linkKind=pushed</code></td>
+</tr>
+<tr>
+<td>Delete prodotto (VF → Shopify)</td>
+<td>1</td>
+<td>Solo <code>catalogOrigin=vestiflow</code> + <code>shopifyProductId</code></td>
+</tr>
+<tr>
+<td>Purge dati Shopify</td>
+<td>0 outbound (delete DB locale)</td>
+<td>Dopo purge, riconnessione OAuth</td>
+</tr>
+<tr>
+<td>Push giacenza dopo movimento</td>
+<td>~1 per movimento</td>
+<td>Write-through inventario</td>
+</tr>
+<tr>
+<td>Sync location</td>
+<td>1</td>
+<td>Trascurabile</td>
+</tr>
+</tbody></table>
 <p><strong>Cosa fare se un cliente vede errori 429:</strong></p>
 <ol>
-  <li>
-    Non ripremere import/sync in loop — attendere 1–2 minuti e <strong>un solo</strong> retry.
-  </li>
-  <li>Evitare import catalogo + sync massivo contemporanei sullo stesso negozio.</li>
-  <li>
-    In Railway, verificare env rate limit (non abbassare
-    <code>SHOPIFY_API_MIN_INTERVAL_MS</code> sotto 500 ms su piani Basic).
-  </li>
-  <li>
-    Cataloghi molto grandi: l’import può richiedere diversi minuti; il backend riprova da solo fino
-    al limite retry.
-  </li>
+<li>Non ripremere import/sync in loop — attendere 1–2 minuti e <strong>un solo</strong> retry.</li>
+<li>Evitare import catalogo + sync massivo contemporanei sullo stesso negozio.</li>
+<li>In Railway, verificare env rate limit (non abbassare <code>SHOPIFY_API_MIN_INTERVAL_MS</code> sotto 500 ms su piani Basic).</li>
+<li>Cataloghi molto grandi: l’import può richiedere diversi minuti; il backend riprova da solo fino al limite retry.</li>
 </ol>
-<p>
-  <strong>Non ancora implementato (roadmap):</strong> coda lavori persistente in background per bulk
-  multi-tenant; oggi le operazioni massicce sono serializzate per shop/tenant ma restano sincrone
-  nella request HTTP.
-</p>
-<h3 id="rate-limiting-rest-admin-api--riferimento-rapido-env">
-  Rate limiting (REST Admin API) — riferimento rapido env
-</h3>
+<p><strong>Non ancora implementato (roadmap):</strong> coda lavori persistente in background per bulk multi-tenant; oggi le operazioni massicce sono serializzate per shop/tenant ma restano sincrone nella request HTTP.</p>
+<h3 id="rate-limiting-rest-admin-api--riferimento-rapido-env">Rate limiting (REST Admin API) — riferimento rapido env</h3>
 <p>Vedi tabella variabili sopra. Valori in <code>api/.env.example</code>.</p>
-<p>
-  Import catalogo: enrichment ridotto (<code>skipRemoteMetadata</code>) + mutex un import per shop.
-</p>
+<p>Import catalogo: enrichment ridotto (<code>skipRemoteMetadata</code>) + mutex un import per shop.</p>
 <h3 id="troubleshooting-read_products">Troubleshooting <code>read_products</code></h3>
 <ol>
-  <li>
-    App Partners: versione attiva include <code>read_products</code>, <code>read_inventory</code>
-  </li>
-  <li><code>SHOPIFY_API_KEY</code> Railway = Client ID app</li>
-  <li>Disinstalla app dal negozio Shopify</li>
-  <li>Disconnetti + riconnetti in VestiFlow</li>
-  <li>Verifica riga <strong>Catalogo prodotti → Lettura</strong> in Impostazioni</li>
+<li>App Partners: versione attiva include <code>read_products</code>, <code>read_inventory</code></li>
+<li><code>SHOPIFY_API_KEY</code> Railway = Client ID app</li>
+<li>Disinstalla app dal negozio Shopify</li>
+<li>Disconnetti + riconnetti in VestiFlow</li>
+<li>Verifica riga <strong>Catalogo prodotti → Lettura</strong> in Impostazioni</li>
 </ol>
 <h3 id="protected-customer-data">Protected customer data</h3>
-<p>
-  Ordini/clienti webhook possono richiedere approvazione Partners. Catalogo/giacenze non dipendono
-  da questo.
-</p>
+<p>Ordini/clienti webhook possono richiedere approvazione Partners. Catalogo/giacenze non dipendono da questo.</p>
 <h3 id="integrazione-tiktok-shop-tecnica">Integrazione TikTok Shop (tecnica)</h3>
 <blockquote>
-  <p>
-    <strong>Stato: early / parziale.</strong> OAuth + push catalogo (create/update) + push giacenze
-    dopo movimenti VF. Non implementati: import da TikTok, webhook, vendite/clienti, parità
-    funzionale con Shopify. Aggiornare questa sezione quando l&#39;integrazione sarà completa.
-  </p>
+<p><strong>Stato: early / parziale.</strong> OAuth + push catalogo (create/update) + push giacenze dopo movimenti VF. Non implementati: import da TikTok, webhook, vendite/clienti, parità funzionale con Shopify. Aggiornare questa sezione quando l&#39;integrazione sarà completa.</p>
 </blockquote>
 <p>Modulo <code>api/src/tiktok/</code> (OAuth, connessione, sync catalogo e inventory push).</p>
 <table>
-  <thead>
-    <tr>
-      <th>Aspetto</th>
-      <th>Dettaglio</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Profilo tenant</strong></td>
-      <td>Solo tenant <code>channelProfile = tiktok_shop</code> vedono pannello Impostazioni</td>
-    </tr>
-    <tr>
-      <td><strong>OAuth</strong></td>
-      <td>
-        Partner Center → env <code>TIKTOK_APP_KEY</code>, <code>TIKTOK_APP_SECRET</code>,
-        <code>TIKTOK_SERVICE_ID</code>
-      </td>
-    </tr>
-    <tr>
-      <td><strong>Token</strong></td>
-      <td>Cifrati at rest (<code>TIKTOK_TOKEN_ENCRYPTION_KEY</code>)</td>
-    </tr>
-    <tr>
-      <td><strong>Sync scope</strong></td>
-      <td>Push prodotti create/update; giacenze dopo carico/scarico VF</td>
-    </tr>
-    <tr>
-      <td><strong>Non in scope</strong></td>
-      <td>Vendite e clienti TikTok in UI (a differenza di Shopify)</td>
-    </tr>
-    <tr>
-      <td><strong>Permessi UI</strong></td>
-      <td>Collegamento: owner/admin (<code>canManageTikTokConnection</code>)</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  Callback OAuth: query <code>?tiktok=connected|error|disconnected</code> su ritorno frontend
-  Impostazioni.
-</p>
-<p>
-  Variabili aggiuntive in <code>api/.env.example</code>: <code>TIKTOK_APP_URL</code>,
-  <code>TIKTOK_OAUTH_CALLBACK_URL</code>, URL API/auth opzionali.
-</p>
-<hr />
+<thead>
+<tr>
+<th>Aspetto</th>
+<th>Dettaglio</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Profilo tenant</strong></td>
+<td>Solo tenant <code>channelProfile = tiktok_shop</code> vedono pannello Impostazioni</td>
+</tr>
+<tr>
+<td><strong>OAuth</strong></td>
+<td>Partner Center → env <code>TIKTOK_APP_KEY</code>, <code>TIKTOK_APP_SECRET</code>, <code>TIKTOK_SERVICE_ID</code></td>
+</tr>
+<tr>
+<td><strong>Token</strong></td>
+<td>Cifrati at rest (<code>TIKTOK_TOKEN_ENCRYPTION_KEY</code>)</td>
+</tr>
+<tr>
+<td><strong>Sync scope</strong></td>
+<td>Push prodotti create/update; giacenze dopo carico/scarico VF</td>
+</tr>
+<tr>
+<td><strong>Non in scope</strong></td>
+<td>Vendite e clienti TikTok in UI (a differenza di Shopify)</td>
+</tr>
+<tr>
+<td><strong>Permessi UI</strong></td>
+<td>Collegamento: owner/admin (<code>canManageTikTokConnection</code>)</td>
+</tr>
+</tbody></table>
+<p>Callback OAuth: query <code>?tiktok=connected|error|disconnected</code> su ritorno frontend Impostazioni.</p>
+<p>Variabili aggiuntive in <code>api/.env.example</code>: <code>TIKTOK_APP_URL</code>, <code>TIKTOK_OAUTH_CALLBACK_URL</code>, URL API/auth opzionali.</p>
+<hr>
 <h2 id="10-supabase-database-auth-storage-rls">10. Supabase: database, Auth, Storage, RLS</h2>
 <h3 id="prisma">Prisma</h3>
 <ul>
-  <li>Schema: <code>api/prisma/schema.prisma</code></li>
-  <li>Migration: <code>npx prisma migrate dev</code> (locale), deploy in CI/CD API</li>
+<li>Schema: <code>api/prisma/schema.prisma</code></li>
+<li>Migration: <code>npx prisma migrate dev</code> (locale), deploy in CI/CD API</li>
 </ul>
 <h3 id="rls-obbligatoria">RLS obbligatoria</h3>
-<p>
-  Ogni tabella business deve avere RLS attiva. CI esegue
-  <code>scripts/check-rls.mjs</code> (workflow <code>.github/workflows/security.yml</code>) con anon
-  key: <strong>zero righe</strong> leggibili.
-</p>
+<p>Ogni tabella business deve avere RLS attiva. CI esegue <code>scripts/check-rls.mjs</code> (workflow <code>.github/workflows/security.yml</code>) con anon key: <strong>zero righe</strong> leggibili.</p>
 <h3 id="storage">Storage</h3>
 <ul>
-  <li>
-    Bucket <strong><code>product-media</code></strong> public per immagini prodotto
-  </li>
-  <li>
-    Bucket <strong><code>user-avatars</code></strong> public per foto profilo utente
-  </li>
-  <li>
-    Upload via API (service role); avatar: <code>UserAvatarService</code>, prodotti: pipeline
-    esistente
-  </li>
+<li>Bucket <strong><code>product-media</code></strong> public per immagini prodotto</li>
+<li>Bucket <strong><code>user-avatars</code></strong> public per foto profilo utente</li>
+<li>Upload via API (service role); avatar: <code>UserAvatarService</code>, prodotti: pipeline esistente</li>
 </ul>
 <h3 id="auth">Auth</h3>
 <ul>
-  <li>Utenti creati al provisioning (<code>admin-tenants.service</code>)</li>
-  <li>MFA: Supabase TOTP, UI in Impostazioni</li>
+<li>Utenti creati al provisioning (<code>admin-tenants.service</code>)</li>
+<li>MFA: Supabase TOTP, UI in Impostazioni</li>
 </ul>
-<hr />
+<hr>
 <h2 id="11-dominio-dati-principale">11. Dominio dati principale</h2>
 <table>
-  <thead>
-    <tr>
-      <th>Entità</th>
-      <th>Note</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>Tenant</code></td>
-      <td>Azienda cliente</td>
-    </tr>
-    <tr>
-      <td><code>User</code></td>
-      <td>Profilo app, <code>tenantId</code>, ruolo</td>
-    </tr>
-    <tr>
-      <td><code>Store</code> / <code>Location</code></td>
-      <td>Store commerciale; location per stock</td>
-    </tr>
-    <tr>
-      <td><code>Product</code> / <code>ProductVariant</code></td>
-      <td>
-        Opzioni generiche; SKU univoco; <code>catalogOrigin</code>,
-        <code>shopifyCatalogLinkKind</code>, <code>shopifyCategoryMetafields</code>, taxonomy
-        categoria
-      </td>
-    </tr>
-    <tr>
-      <td><code>InventoryLevel</code></td>
-      <td><code>variantId</code> × <code>locationId</code>, stati quantità</td>
-    </tr>
-    <tr>
-      <td><code>StockMovement</code></td>
-      <td>Audit trail obbligatorio</td>
-    </tr>
-    <tr>
-      <td><code>SupplierOrder</code></td>
-      <td>Solo VF</td>
-    </tr>
-    <tr>
-      <td><code>SalesOrder</code> / <code>Customer</code></td>
-      <td>Import Shopify, read-only UI</td>
-    </tr>
-    <tr>
-      <td><code>ShopifyConnection</code></td>
-      <td>Token, scope, stato sync per tenant</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Entità</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Tenant</code></td>
+<td>Azienda cliente</td>
+</tr>
+<tr>
+<td><code>User</code></td>
+<td>Profilo app, <code>tenantId</code>, ruolo</td>
+</tr>
+<tr>
+<td><code>Store</code> / <code>Location</code></td>
+<td>Store commerciale; location per stock</td>
+</tr>
+<tr>
+<td><code>Product</code> / <code>ProductVariant</code></td>
+<td>Opzioni generiche; SKU univoco; <code>catalogOrigin</code>, <code>shopifyCatalogLinkKind</code>, <code>shopifyCategoryMetafields</code>, taxonomy categoria</td>
+</tr>
+<tr>
+<td><code>InventoryLevel</code></td>
+<td><code>variantId</code> × <code>locationId</code>, stati quantità</td>
+</tr>
+<tr>
+<td><code>StockMovement</code></td>
+<td>Audit trail obbligatorio; origine <code>vestiflow_pos</code> per vendite/storni al banco (profilo gestionale)</td>
+</tr>
+<tr>
+<td><code>SupplierOrder</code></td>
+<td>Solo VF</td>
+</tr>
+<tr>
+<td><code>SalesOrder</code> / <code>Customer</code></td>
+<td>Import Shopify, read-only UI; assenti in UI profilo Solo gestionale</td>
+</tr>
+<tr>
+<td><code>ShopifyConnection</code></td>
+<td>Token, scope, stato sync per tenant</td>
+</tr>
+</tbody></table>
 <p>Denaro: <strong>interi minor units</strong> (<code>Money.amountMinor</code>), mai float.</p>
-<hr />
+<hr>
 <h2 id="12-api-e-permessi-tenant">12. API e permessi tenant</h2>
-<p>
-  Base URL: <code>/api/v1</code>. Header <code>Authorization</code> obbligatorio (salvo health).
-</p>
+<p>Base URL: <code>/api/v1</code>. Header <code>Authorization</code> obbligatorio (salvo health).</p>
 <h3 id="rate-limiting-api-vestiflow-nestjs">Rate limiting API VestiFlow (NestJS)</h3>
-<p>
-  Separato dai limiti Shopify: protezione anti brute-force / DoS sull’<strong>API propria</strong>.
-</p>
+<p>Separato dai limiti Shopify: protezione anti brute-force / DoS sull’<strong>API propria</strong>.</p>
 <table>
-  <thead>
-    <tr>
-      <th>Parametro</th>
-      <th>Valore</th>
-      <th>Dove</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Limite globale</td>
-      <td><strong>300 richieste / minuto / IP</strong></td>
-      <td><code>ThrottlerModule</code> in <code>api/src/app.module.ts</code></td>
-    </tr>
-    <tr>
-      <td>Guard</td>
-      <td><code>ThrottlerGuard</code> su tutte le route</td>
-      <td>Eccetto route marcate <code>@Public()</code></td>
-    </tr>
-    <tr>
-      <td>Webhook Shopify inbound</td>
-      <td><strong>Esclusi</strong> dal throttling globale</td>
-      <td><code>shopify-webhooks.controller.ts</code> — non perdere eventi legittimi</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  Se un client supera 300 req/min riceve <strong>429</strong>; il frontend lo mappa in
-  <code>AppError</code> kind <code>rate_limited</code> (<em>«Troppe richieste, riprova tra poco»</em
-  >).
-</p>
+<thead>
+<tr>
+<th>Parametro</th>
+<th>Valore</th>
+<th>Dove</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Limite globale</td>
+<td><strong>300 richieste / minuto / IP</strong></td>
+<td><code>ThrottlerModule</code> in <code>api/src/app.module.ts</code></td>
+</tr>
+<tr>
+<td>Guard</td>
+<td><code>ThrottlerGuard</code> su tutte le route</td>
+<td>Eccetto route marcate <code>@Public()</code></td>
+</tr>
+<tr>
+<td>Webhook Shopify inbound</td>
+<td><strong>Esclusi</strong> dal throttling globale</td>
+<td><code>shopify-webhooks.controller.ts</code> — non perdere eventi legittimi</td>
+</tr>
+</tbody></table>
+<p>Se un client supera 300 req/min riceve <strong>429</strong>; il frontend lo mappa in <code>AppError</code> kind <code>rate_limited</code> (<em>«Troppe richieste, riprova tra poco»</em>).</p>
 <p>Pattern service NestJS:</p>
 <ul>
-  <li>Validazione DTO (<code>class-validator</code>)</li>
-  <li>Filtro <code>tenantId</code> da JWT</li>
-  <li>Errori → messaggi utente in italiano dove applicabile</li>
+<li>Validazione DTO (<code>class-validator</code>)</li>
+<li>Filtro <code>tenantId</code> da JWT</li>
+<li>Errori → messaggi utente in italiano dove applicabile</li>
 </ul>
 <p>Frontend: <code>HttpClient</code> + interceptor auth/error; mock disabilitati in prod.</p>
-<hr />
+<hr>
 <h2 id="13-import-ed-export-csv">13. Import ed export CSV</h2>
 <h3 id="catalogo-prodotti">Catalogo prodotti</h3>
 <table>
-  <thead>
-    <tr>
-      <th></th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Export</strong></td>
-      <td><code>GET /products/export/csv</code> — formato Shopify CSV</td>
-    </tr>
-    <tr>
-      <td><strong>Import</strong></td>
-      <td>
-        <code>POST /products/import/csv</code> — preview + commit; imposta
-        <code>catalogOrigin=vestiflow</code>, <code>linkKind=pushed</code>
-      </td>
-    </tr>
-    <tr>
-      <td><strong>UI</strong></td>
-      <td>Prodotti → Esporta / Importa CSV</td>
-    </tr>
-    <tr>
-      <td><strong>Permessi</strong></td>
-      <td>manager+</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Export</strong></td>
+<td><code>GET /products/export/csv</code> — formato Shopify CSV</td>
+</tr>
+<tr>
+<td><strong>Import</strong></td>
+<td><code>POST /products/import/csv</code> — preview + commit; imposta <code>catalogOrigin=vestiflow</code>, <code>linkKind=pushed</code></td>
+</tr>
+<tr>
+<td><strong>UI</strong></td>
+<td>Prodotti → Esporta / Importa CSV</td>
+</tr>
+<tr>
+<td><strong>Permessi</strong></td>
+<td>manager+</td>
+</tr>
+</tbody></table>
 <h3 id="giacenze">Giacenze</h3>
 <table>
-  <thead>
-    <tr>
-      <th></th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Export</strong></td>
-      <td><code>GET /inventory/levels/export/csv</code></td>
-    </tr>
-    <tr>
-      <td><strong>Import</strong></td>
-      <td><code>POST /inventory/levels/import/csv</code> — rettifiche</td>
-    </tr>
-    <tr>
-      <td><strong>Colonne import</strong></td>
-      <td>SKU, Location (nome esatto), Disponibile</td>
-    </tr>
-    <tr>
-      <td><strong>UI</strong></td>
-      <td>Magazzino → Giacenze</td>
-    </tr>
-    <tr>
-      <td><strong>Permessi</strong></td>
-      <td>manager+</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Export</strong></td>
+<td><code>GET /inventory/levels/export/csv</code></td>
+</tr>
+<tr>
+<td><strong>Import</strong></td>
+<td><code>POST /inventory/levels/import/csv</code> — rettifiche</td>
+</tr>
+<tr>
+<td><strong>Colonne import</strong></td>
+<td>SKU, Location (nome esatto), Disponibile</td>
+</tr>
+<tr>
+<td><strong>UI</strong></td>
+<td>Magazzino → Giacenze</td>
+</tr>
+<tr>
+<td><strong>Permessi</strong></td>
+<td>manager+</td>
+</tr>
+</tbody></table>
 <h3 id="vendite-e-clienti">Vendite e clienti</h3>
 <p>Export CSV dalle liste (filtri rispettati). Sync manuale Shopify: owner/admin.</p>
 <h3 id="ordini-fornitori">Ordini fornitori</h3>
 <table>
-  <thead>
-    <tr>
-      <th>Metodo</th>
-      <th>Path</th>
-      <th>Azione</th>
-      <th>Permessi</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>GET</td>
-      <td><code>/supplier-orders</code></td>
-      <td>Lista paginata (ricerca, filtro stato)</td>
-      <td>autenticato</td>
-    </tr>
-    <tr>
-      <td>GET</td>
-      <td><code>/supplier-orders/:id</code></td>
-      <td>Dettaglio</td>
-      <td>autenticato</td>
-    </tr>
-    <tr>
-      <td>POST</td>
-      <td><code>/supplier-orders</code></td>
-      <td>Crea ordine (bozza o inviato)</td>
-      <td>manager+</td>
-    </tr>
-    <tr>
-      <td>PATCH</td>
-      <td><code>/supplier-orders/:id</code></td>
-      <td>Aggiorna bozza (righe sostituite integralmente)</td>
-      <td>manager+</td>
-    </tr>
-    <tr>
-      <td>POST</td>
-      <td><code>/supplier-orders/:id/send</code></td>
-      <td>Bozza → inviato</td>
-      <td>manager+</td>
-    </tr>
-    <tr>
-      <td>POST</td>
-      <td><code>/supplier-orders/:id/cancel</code></td>
-      <td>Annulla (solo bozza o inviato, non ancora ricevuto)</td>
-      <td>manager+</td>
-    </tr>
-    <tr>
-      <td>DELETE</td>
-      <td><code>/supplier-orders/:id</code></td>
-      <td>Elimina ordine <strong>annullato</strong> (righe in cascade)</td>
-      <td>manager+</td>
-    </tr>
-    <tr>
-      <td>POST</td>
-      <td><code>/supplier-orders/:id/receive</code></td>
-      <td>Ricezione merce + movimenti <code>load</code> + push inventario</td>
-      <td>operativi</td>
-    </tr>
-  </tbody>
-</table>
-<p>
-  Service: <code>SupplierOrdersService</code> (<code>api/src/supplier-orders/</code>). Ricezione in
-  transazione atomica con <code>StockMovement</code>.
-</p>
-<p>
-  <strong>UI tenant:</strong> form ordine con <code>select-menu</code> searchable (fornitore,
-  variante), <code>date-input</code> per data attesa, subtotale riga calcolato; dettaglio con
-  <strong>Elimina ordine</strong> se <code>status=cancelled</code>. Lista prodotti: stampa etichette
-  multi-select (<code>ProductLabelPrintService.triggerDirectPrintMany</code>).
-</p>
-<hr />
-<h2 id="14-scanner-barcode-e-componenti-ui-condivisi">
-  14. Scanner barcode e componenti UI condivisi
-</h2>
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Azione</th>
+<th>Permessi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/supplier-orders</code></td>
+<td>Lista paginata (ricerca, filtro stato)</td>
+<td>autenticato</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/supplier-orders/:id</code></td>
+<td>Dettaglio</td>
+<td>autenticato</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/supplier-orders</code></td>
+<td>Crea ordine (bozza o inviato)</td>
+<td>manager+</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/supplier-orders/:id</code></td>
+<td>Aggiorna bozza (righe sostituite integralmente)</td>
+<td>manager+</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/supplier-orders/:id/send</code></td>
+<td>Bozza → inviato</td>
+<td>manager+</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/supplier-orders/:id/cancel</code></td>
+<td>Annulla (solo bozza o inviato, non ancora ricevuto)</td>
+<td>manager+</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/supplier-orders/:id</code></td>
+<td>Elimina ordine <strong>annullato</strong> (righe in cascade)</td>
+<td>manager+</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/supplier-orders/:id/receive</code></td>
+<td>Ricezione merce + movimenti <code>load</code> + push inventario</td>
+<td>operativi</td>
+</tr>
+</tbody></table>
+<p>Service: <code>SupplierOrdersService</code> (<code>api/src/supplier-orders/</code>). Ricezione in transazione atomica con <code>StockMovement</code>.</p>
+<p><strong>UI tenant:</strong> form ordine con <code>select-menu</code> searchable (fornitore, variante), <code>date-input</code> per data attesa, subtotale riga calcolato; dettaglio con <strong>Elimina ordine</strong> se <code>status=cancelled</code>. Lista prodotti: stampa etichette multi-select (<code>ProductLabelPrintService.triggerDirectPrintMany</code>).</p>
+<h3 id="vendita-al-banco-profilo-solo-gestionale">Vendita al banco (profilo Solo gestionale)</h3>
+<p>Endpoint dedicato per <strong>doppia scansione</strong> al banco: decremento/incremento stock senza creare <code>SalesOrder</code>. Disponibile solo se <code>Tenant.channelProfile === gestionale</code> (<code>assertTenantChannelProfile</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Body / azione</th>
+<th>Permessi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/inventory/retail-scans</code></td>
+<td><code>{ code, locationId, action: &#39;sale&#39; | &#39;return&#39; }</code> — qty fissa 1 per scansione</td>
+<td>operativi+</td>
+</tr>
+</tbody></table>
+<p><strong>Backend:</strong> <code>InventoryService.registerRetailScan()</code> (<code>api/src/inventory/inventory.service.ts</code>).</p>
+<ul>
+<li><code>action: sale</code> → <code>StockMovement</code> tipo <code>sale</code>, origine <code>vestiflow_pos</code></li>
+<li><code>action: return</code> → <code>StockMovement</code> tipo <code>return</code>, origine <code>vestiflow_pos</code></li>
+<li>Lookup variante: stessa semantica di <code>GET /products/variants/by-code/:code</code> (SKU o barcode)</li>
+<li>Vendita rifiutata se <code>available &lt; 1</code> sulla location</li>
+<li>Migration enum: <code>0019_vestiflow_pos_movement_origin</code> → <code>MovementOrigin.vestiflow_pos</code></li>
+</ul>
+<p>I tipi <code>sale</code> e <code>return</code> <strong>non</strong> sono selezionabili nel form manuale <strong>Registra movimento</strong> (solo via retail-scans).</p>
+<p><strong>Frontend:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Rotta</th>
+<th>Componente</th>
+<th>Guard / note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/app/sales/register</code></td>
+<td><code>RetailSaleRegisterComponent</code></td>
+<td><code>gestionaleRetailGuard</code> — solo profilo gestionale</td>
+</tr>
+<tr>
+<td><code>/app/sales</code></td>
+<td>lista ordini Shopify</td>
+<td><code>salesHistoryGuard</code> — redirect gestionale → register</td>
+</tr>
+</tbody></table>
+<ul>
+<li>Service HTTP: <code>InventoryService.registerRetailScan()</code> (<code>src/app/features/inventory/services/inventory.service.ts</code>)</li>
+<li>Shell: voce <strong>Registra vendita</strong> al posto di <strong>Vendite</strong> se <code>showGestionaleRetailSales()</code> (<code>tenant-channel-profile.model.ts</code>)</li>
+<li>Label origine movimento: <strong>Vendita negozio</strong> (<code>inventory-labels.util.ts</code> → <code>MovementOrigin.VestiflowPos</code>)</li>
+</ul>
+<hr>
+<h2 id="14-scanner-barcode-e-componenti-ui-condivisi">14. Scanner barcode e componenti UI condivisi</h2>
 <h3 id="scanner-barcode">Scanner barcode</h3>
 <ul>
-  <li>Componente: <code>shared/components/barcode-scanner</code> (BarcodeDetector API)</li>
-  <li>Flag: <code>VESTIFLOW_ENABLE_BARCODE_SCANNER</code></li>
-  <li>Schermate: Cerca giacenza, Giacenze, Registra movimento, Inventario fisico, Prodotti</li>
-  <li>Lookup API: <code>GET /products/variants/by-code/:code</code> (SKU o barcode esatto)</li>
-  <li>Fallback iOS: input manuale</li>
+<li>Componente: <code>shared/components/barcode-scanner</code> (BarcodeDetector API)</li>
+<li>Flag: <code>VESTIFLOW_ENABLE_BARCODE_SCANNER</code></li>
+<li>Schermate: Cerca giacenza, Giacenze, Registra movimento, <strong>Registra vendita</strong> (vendita + storno), Inventario fisico, Prodotti</li>
+<li>Lookup API: <code>GET /products/variants/by-code/:code</code> (SKU o barcode esatto)</li>
+<li><strong>Pistola USB (keyboard wedge):</strong> nessuna integrazione dedicata — input HTML + Invio; usata su Registra vendita e altre schermate con campo codice</li>
+<li>Fallback iOS: input manuale</li>
 </ul>
 <h3 id="date-e-select-form--filtri">Date e select (form / filtri)</h3>
 <ul>
-  <li>
-    <code>shared/components/date-input</code> — calendario custom al posto di
-    <code>&lt;input type=&quot;date&quot;&gt;</code>; usato in <strong>Report</strong> (filtri
-    periodo) e <strong>Ordini fornitori</strong> (data attesa)
-  </li>
-  <li>
-    <code>shared/components/select-menu</code> — prop opzionale <code>searchable</code> con filtro
-    su label e detail (<code>shared/utils/select-menu-filter.util</code>); usata su select
-    <strong>fornitore</strong> e <strong>variante</strong> nel form ordine fornitore; opzioni
-    variante a due righe (titolo + SKU via <code>variant-select-menu.util</code>)
-  </li>
+<li><code>shared/components/date-input</code> — calendario custom al posto di <code>&lt;input type=&quot;date&quot;&gt;</code>; usato in <strong>Report</strong> (filtri periodo) e <strong>Ordini fornitori</strong> (data attesa)</li>
+<li><code>shared/components/select-menu</code> — prop opzionale <code>searchable</code> con filtro su label e detail (<code>shared/utils/select-menu-filter.util</code>); usata su select <strong>fornitore</strong> e <strong>variante</strong> nel form ordine fornitore; opzioni variante a due righe (titolo + SKU via <code>variant-select-menu.util</code>)</li>
 </ul>
-<hr />
+<hr>
 <h2 id="15-generazione-guide-htmlpdf">15. Generazione guide (HTML/PDF)</h2>
 <pre><code class="language-bash">npm run docs:guide:all
 </code></pre>
 <p>Genera:</p>
 <table>
-  <thead>
-    <tr>
-      <th>Output</th>
-      <th>Contenuto</th>
-      <th>Audience</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>public/guide/content.html</code></td>
-      <td>Solo guida utente</td>
-      <td>Tutti (<code>/app/guide</code>)</td>
-    </tr>
-    <tr>
-      <td><code>public/guide/vestiflow-guida.pdf</code></td>
-      <td>PDF utente</td>
-      <td>Download pubblico in-app</td>
-    </tr>
-    <tr>
-      <td><code>src/assets/guide-admin/content-tecnica.html</code></td>
-      <td>Solo guida operatore/tecnica</td>
-      <td>Platform admin</td>
-    </tr>
-    <tr>
-      <td><code>src/assets/guide-admin/vestiflow-guida-tecnica.pdf</code></td>
-      <td>PDF tecnico</td>
-      <td>Download admin</td>
-    </tr>
-    <tr>
-      <td><code>docs/GUIDA-*.html/pdf</code></td>
-      <td>Sorgenti in repo</td>
-      <td>Documentazione offline</td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Contenuto</th>
+<th>Audience</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>public/guide/content.html</code></td>
+<td>Solo guida utente</td>
+<td>Tutti (<code>/app/guide</code>)</td>
+</tr>
+<tr>
+<td><code>public/guide/vestiflow-guida.pdf</code></td>
+<td>PDF utente</td>
+<td>Download pubblico in-app</td>
+</tr>
+<tr>
+<td><code>src/assets/guide-admin/content-tecnica.html</code></td>
+<td>Solo guida operatore/tecnica</td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><code>src/assets/guide-admin/vestiflow-guida-tecnica.pdf</code></td>
+<td>PDF tecnico</td>
+<td>Download admin</td>
+</tr>
+<tr>
+<td><code>docs/GUIDA-*.html/pdf</code></td>
+<td>Sorgenti in repo</td>
+<td>Documentazione offline</td>
+</tr>
+</tbody></table>
 <p>Markdown sorgenti:</p>
 <ul>
-  <li><code>docs/GUIDA-UTENTE-VESTIFLOW.md</code></li>
-  <li><code>docs/GUIDA-OPERATORE-VESTIFLOW.md</code></li>
+<li><code>docs/GUIDA-UTENTE-VESTIFLOW.md</code></li>
+<li><code>docs/GUIDA-OPERATORE-VESTIFLOW.md</code></li>
 </ul>
 <p>Dopo modifica guide: <strong>rigenerare</strong> e committare HTML/PDF prima del deploy.</p>
-<hr />
+<hr>
 <h2 id="16-build-test-e-ci">16. Build, test e CI</h2>
 <h3 id="frontend">Frontend</h3>
 <pre><code class="language-bash">npm run lint
@@ -1517,232 +1177,217 @@ ng test                # Vitest
 <pre><code class="language-bash">cd api &amp;&amp; npm run lint &amp;&amp; npm run build
 cd api &amp;&amp; npm run test
 </code></pre>
-<h3 id="copertura-automatica--shopify-shop-change--location--delete">
-  Copertura automatica — Shopify shop change / location / delete
-</h3>
+<h3 id="copertura-automatica--shopify-shop-change--location--delete">Copertura automatica — Shopify shop change / location / delete</h3>
 <table>
-  <thead>
-    <tr>
-      <th>Area</th>
-      <th>File test</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Purge / preview shop change</td>
-      <td><code>api/src/shopify/shopify-shop-change.service.spec.ts</code></td>
-    </tr>
-    <tr>
-      <td>Sync location + cleanup onboarding/stale</td>
-      <td><code>api/src/shopify/shopify-location-sync.service.spec.ts</code></td>
-    </tr>
-    <tr>
-      <td>Delete prodotto write-through Shopify</td>
-      <td><code>api/src/products/products.service.spec.ts</code></td>
-    </tr>
-    <tr>
-      <td>Guard <code>catalogOrigin</code> (update/delete/sync/media)</td>
-      <td><code>api/src/products/catalog-origin.util.spec.ts</code></td>
-    </tr>
-    <tr>
-      <td>Wizard UI (anteprima, conferma, disconnect)</td>
-      <td>
-        <code
-          >src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts</code
-        >
-      </td>
-    </tr>
-    <tr>
-      <td>HTTP client shop change / sync location</td>
-      <td>
-        <code
-          >src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts</code
-        >
-      </td>
-    </tr>
-    <tr>
-      <td>E2E wizard (anteprima, step conferma, annulla)</td>
-      <td><code>e2e/shopify.spec.ts</code></td>
-    </tr>
-  </tbody>
-</table>
+<thead>
+<tr>
+<th>Area</th>
+<th>File test</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Purge / preview shop change</td>
+<td><code>api/src/shopify/shopify-shop-change.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Sync location + cleanup onboarding/stale</td>
+<td><code>api/src/shopify/shopify-location-sync.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Delete prodotto write-through Shopify</td>
+<td><code>api/src/products/products.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Guard <code>catalogOrigin</code> (update/delete/sync/media)</td>
+<td><code>api/src/products/catalog-origin.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>Wizard UI (anteprima, conferma, disconnect)</td>
+<td><code>src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts</code></td>
+</tr>
+<tr>
+<td>HTTP client shop change / sync location</td>
+<td><code>src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>E2E wizard (anteprima, step conferma, annulla)</td>
+<td><code>e2e/shopify.spec.ts</code></td>
+</tr>
+<tr>
+<td>Retail scan API (sale/return, profilo, stock)</td>
+<td><code>api/src/inventory/inventory.service.spec.ts</code>, <code>inventory.controller.spec.ts</code></td>
+</tr>
+<tr>
+<td>Guard vendite gestionale vs Shopify</td>
+<td><code>src/app/features/sales/guards/retail-sales.guard.spec.ts</code></td>
+</tr>
+<tr>
+<td>Pagina Registra vendita</td>
+<td><code>src/app/features/sales/pages/retail-sale-register/retail-sale-register.component.spec.ts</code></td>
+</tr>
+<tr>
+<td>HTTP client retail-scans</td>
+<td><code>src/app/features/inventory/services/inventory.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Profilo canale / label origine movimento</td>
+<td><code>tenant-channel-profile.model.spec.ts</code>, <code>inventory-labels.util.spec.ts</code></td>
+</tr>
+</tbody></table>
 <h3 id="ci-github-actions">CI GitHub Actions</h3>
 <ul>
-  <li>
-    <code>security.yml</code>: check RLS Supabase (set secrets <code>SUPABASE_URL</code>,
-    <code>SUPABASE_ANON_KEY</code>)
-  </li>
+<li><code>security.yml</code>: check RLS Supabase (set secrets <code>SUPABASE_URL</code>, <code>SUPABASE_ANON_KEY</code>)</li>
 </ul>
 <p>Estendere pipeline con lint + test + build su PR (best practice repo rules).</p>
-<hr />
+<hr>
 <h2 id="17-deploy-produzione">17. Deploy produzione</h2>
 <h3 id="frontend-1">Frontend</h3>
 <ol>
-  <li>Imposta env build (<code>VESTIFLOW_API_BASE_URL</code>, Supabase anon, flags)</li>
-  <li><code>npm run build</code></li>
-  <li>Deploy <code>dist/vestiflow</code> su Firebase App Hosting</li>
-  <li><code>CORS_ORIGINS</code> API deve includere dominio frontend</li>
+<li>Imposta env build (<code>VESTIFLOW_API_BASE_URL</code>, Supabase anon, flags)</li>
+<li><code>npm run build</code></li>
+<li>Deploy <code>dist/vestiflow</code> su Firebase App Hosting</li>
+<li><code>CORS_ORIGINS</code> API deve includere dominio frontend</li>
 </ol>
 <h3 id="backend-2">Backend</h3>
 <ol>
-  <li>Railway (o altro): env da <code>api/.env.example</code></li>
-  <li><code>prisma migrate deploy</code> in release</li>
-  <li>Verifica <code>PLATFORM_ADMIN_EMAILS</code> con la tua email operatore</li>
-  <li><code>SHOPIFY_APP_URL</code> = URL API pubblico HTTPS</li>
+<li>Railway (o altro): env da <code>api/.env.example</code></li>
+<li><code>prisma migrate deploy</code> in release</li>
+<li>Verifica <code>PLATFORM_ADMIN_EMAILS</code> con la tua email operatore</li>
+<li><code>SHOPIFY_APP_URL</code> = URL API pubblico HTTPS</li>
 </ol>
 <h3 id="post-deploy-smoke-test">Post-deploy smoke test</h3>
 <ul>
-  <li><input disabled="" type="checkbox" /> Login tenant test</li>
-  <li><input disabled="" type="checkbox" /> Platform admin → Clienti → Nuovo cliente (staging)</li>
-  <li><input disabled="" type="checkbox" /> Profilo canale Shopify e TikTok su tenant test</li>
-  <li><input disabled="" type="checkbox" /> OAuth Shopify su tenant test</li>
-  <li><input disabled="" type="checkbox" /> OAuth TikTok Shop su tenant test (se abilitato)</li>
-  <li><input disabled="" type="checkbox" /> Upload foto profilo + avatar topbar</li>
-  <li><input disabled="" type="checkbox" /> Import catalogo + webhook</li>
-  <li><input disabled="" type="checkbox" /> Upload immagine prodotto</li>
-  <li><input disabled="" type="checkbox" /> Guida utente + guida tecnica admin</li>
+<li><input disabled="" type="checkbox"> Login tenant test</li>
+<li><input disabled="" type="checkbox"> Platform admin → Clienti → Nuovo cliente (staging)</li>
+<li><input disabled="" type="checkbox"> Profilo canale Shopify e TikTok su tenant test</li>
+<li><input disabled="" type="checkbox"> OAuth Shopify su tenant test</li>
+<li><input disabled="" type="checkbox"> OAuth TikTok Shop su tenant test (se abilitato)</li>
+<li><input disabled="" type="checkbox"> Upload foto profilo + avatar topbar</li>
+<li><input disabled="" type="checkbox"> Import catalogo + webhook</li>
+<li><input disabled="" type="checkbox"> Tenant <strong>Solo gestionale</strong>: POST retail-scans vendita + storno su variante test</li>
+<li><input disabled="" type="checkbox"> Upload immagine prodotto</li>
+<li><input disabled="" type="checkbox"> Guida utente + guida tecnica admin</li>
 </ul>
-<hr />
+<hr>
 <h2 id="18-sicurezza-e-checklist-pre-release">18. Sicurezza e checklist pre-release</h2>
 <ul>
-  <li><input disabled="" type="checkbox" /> Nessun secret in git (<code>.env</code> gitignored)</li>
-  <li>
-    <input disabled="" type="checkbox" /> RLS attiva su tutte le tabelle (<code
-      >npm run check:rls</code
-    >
-    se script root)
-  </li>
-  <li>
-    <input disabled="" type="checkbox" /> <code>PLATFORM_ADMIN_EMAILS</code> limitato a operatori
-    fidati
-  </li>
-  <li><input disabled="" type="checkbox" /> CORS ristretto ai domini produzione</li>
-  <li><input disabled="" type="checkbox" /> Token Shopify cifrati; revoca su disconnessione</li>
-  <li><input disabled="" type="checkbox" /> MFA disponibile per admin negozio</li>
-  <li>
-    <input disabled="" type="checkbox" /> Dipendenze: <code>npm audit</code> senza high/critical
-  </li>
-  <li><input disabled="" type="checkbox" /> Guide rigenerate se modificate</li>
+<li><input disabled="" type="checkbox"> Nessun secret in git (<code>.env</code> gitignored)</li>
+<li><input disabled="" type="checkbox"> RLS attiva su tutte le tabelle (<code>npm run check:rls</code> se script root)</li>
+<li><input disabled="" type="checkbox"> <code>PLATFORM_ADMIN_EMAILS</code> limitato a operatori fidati</li>
+<li><input disabled="" type="checkbox"> CORS ristretto ai domini produzione</li>
+<li><input disabled="" type="checkbox"> Token Shopify cifrati; revoca su disconnessione</li>
+<li><input disabled="" type="checkbox"> MFA disponibile per admin negozio</li>
+<li><input disabled="" type="checkbox"> Dipendenze: <code>npm audit</code> senza high/critical</li>
+<li><input disabled="" type="checkbox"> Guide rigenerate se modificate</li>
 </ul>
-<hr />
+<hr>
 <h2 id="19-troubleshooting-tecnico">19. Troubleshooting tecnico</h2>
 <table>
-  <thead>
-    <tr>
-      <th>Problema</th>
-      <th>Azione</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>isPlatformAdmin</code> false in UI</td>
-      <td>Verifica email in <code>PLATFORM_ADMIN_EMAILS</code>, ri-login</td>
-    </tr>
-    <tr>
-      <td>403 su <code>/admin/tenants</code></td>
-      <td>Stesso controllo email lato API</td>
-    </tr>
-    <tr>
-      <td>CORS error</td>
-      <td>Aggiungi origin frontend a <code>CORS_ORIGINS</code></td>
-    </tr>
-    <tr>
-      <td>JWT invalid</td>
-      <td>Allinea <code>SUPABASE_JWT_SECRET</code> con dashboard Supabase</td>
-    </tr>
-    <tr>
-      <td>Webhook non arrivano</td>
-      <td>URL tunnel/prod raggiungibile; HTTPS; webhook registrati</td>
-    </tr>
-    <tr>
-      <td>Import catalogo 429 / throttling Shopify</td>
-      <td>
-        Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env
-        <code>SHOPIFY_API_*</code>
-      </td>
-    </tr>
-    <tr>
-      <td>API VestiFlow 429 (troppi click)</td>
-      <td>Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop</td>
-    </tr>
-    <tr>
-      <td>Immagini prodotto 404</td>
-      <td>Bucket <code>product-media</code> esiste ed è public</td>
-    </tr>
-    <tr>
-      <td>Avatar 404 / upload fallito</td>
-      <td>
-        Bucket <code>user-avatars</code> esiste ed è public; env
-        <code>SUPABASE_USER_AVATARS_BUCKET</code>
-      </td>
-    </tr>
-    <tr>
-      <td>TikTok OAuth fallisce</td>
-      <td>
-        Verifica <code>TIKTOK_*</code> env, callback URL pubblico HTTPS, app Partner Center attiva
-      </td>
-    </tr>
-    <tr>
-      <td>Anon key legge dati</td>
-      <td><strong>Critico</strong> — RLS mancante, fix migration immediato</td>
-    </tr>
-  </tbody>
-</table>
-<hr />
+<thead>
+<tr>
+<th>Problema</th>
+<th>Azione</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>isPlatformAdmin</code> false in UI</td>
+<td>Verifica email in <code>PLATFORM_ADMIN_EMAILS</code>, ri-login</td>
+</tr>
+<tr>
+<td>403 su <code>/admin/tenants</code></td>
+<td>Stesso controllo email lato API</td>
+</tr>
+<tr>
+<td>CORS error</td>
+<td>Aggiungi origin frontend a <code>CORS_ORIGINS</code></td>
+</tr>
+<tr>
+<td>JWT invalid</td>
+<td>Allinea <code>SUPABASE_JWT_SECRET</code> con dashboard Supabase</td>
+</tr>
+<tr>
+<td>Webhook non arrivano</td>
+<td>URL tunnel/prod raggiungibile; HTTPS; webhook registrati</td>
+</tr>
+<tr>
+<td>Import catalogo 429 / throttling Shopify</td>
+<td>Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env <code>SHOPIFY_API_*</code></td>
+</tr>
+<tr>
+<td>API VestiFlow 429 (troppi click)</td>
+<td>Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop</td>
+</tr>
+<tr>
+<td>Immagini prodotto 404</td>
+<td>Bucket <code>product-media</code> esiste ed è public</td>
+</tr>
+<tr>
+<td>Avatar 404 / upload fallito</td>
+<td>Bucket <code>user-avatars</code> esiste ed è public; env <code>SUPABASE_USER_AVATARS_BUCKET</code></td>
+</tr>
+<tr>
+<td>TikTok OAuth fallisce</td>
+<td>Verifica <code>TIKTOK_*</code> env, callback URL pubblico HTTPS, app Partner Center attiva</td>
+</tr>
+<tr>
+<td>Anon key legge dati</td>
+<td><strong>Critico</strong> — RLS mancante, fix migration immediato</td>
+</tr>
+</tbody></table>
+<hr>
 <h2 id="20-limitazioni-note-e-roadmap">20. Limitazioni note e roadmap</h2>
 <table>
-  <thead>
-    <tr>
-      <th>Area</th>
-      <th>Stato</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Multi-store commerciali in un tenant</td>
-      <td>Non supportato — un shop = un tenant</td>
-    </tr>
-    <tr>
-      <td>Invito utenti / cambio ruolo self-service</td>
-      <td>Non in UI — solo provisioning iniziale + richiesta operatore</td>
-    </tr>
-    <tr>
-      <td>Sync vendite/clienti TikTok Shop</td>
-      <td>Non implementata — integrazione TikTok ancora parziale</td>
-    </tr>
-    <tr>
-      <td>Integrazione TikTok Shop (parità Shopify)</td>
-      <td>In sviluppo — oggi solo OAuth + push catalogo/giacenze</td>
-    </tr>
-    <tr>
-      <td>Bozze ordine Shopify (draft orders)</td>
-      <td>Non in scope — solo ordini confermati in <strong>Vendite</strong></td>
-    </tr>
-    <tr>
-      <td>Location manuale senza Shopify</td>
-      <td>Parziale (location onboarding); sync Shopify consigliato</td>
-    </tr>
-    <tr>
-      <td>Cassa / corrispettivi IT nativi</td>
-      <td>Non previsti — Shopify POS</td>
-    </tr>
-    <tr>
-      <td>Report server-side avanzati</td>
-      <td>In evoluzione</td>
-    </tr>
-    <tr>
-      <td>Coda bulk Shopify persistente (multi-tenant)</td>
-      <td>Non implementata — operazioni massicce sincrone HTTP</td>
-    </tr>
-    <tr>
-      <td>Notifiche email custom reset password</td>
-      <td>Config Supabase</td>
-    </tr>
-  </tbody>
-</table>
-<hr />
+<thead>
+<tr>
+<th>Area</th>
+<th>Stato</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Multi-store commerciali in un tenant</td>
+<td>Non supportato — un shop = un tenant</td>
+</tr>
+<tr>
+<td>Invito utenti / cambio ruolo self-service</td>
+<td>Non in UI — solo provisioning iniziale + richiesta operatore</td>
+</tr>
+<tr>
+<td>Sync vendite/clienti TikTok Shop</td>
+<td>Non implementata — integrazione TikTok ancora parziale</td>
+</tr>
+<tr>
+<td>Integrazione TikTok Shop (parità Shopify)</td>
+<td>In sviluppo — oggi solo OAuth + push catalogo/giacenze</td>
+</tr>
+<tr>
+<td>Bozze ordine Shopify (draft orders)</td>
+<td>Non in scope — solo ordini confermati in <strong>Vendite</strong></td>
+</tr>
+<tr>
+<td>Location manuale senza Shopify</td>
+<td>Parziale (location onboarding); sync Shopify consigliato</td>
+</tr>
+<tr>
+<td>Cassa / corrispettivi IT nativi</td>
+<td>Non previsti — integrazione esterna; VF registra solo stock (gestionale: retail-scans)</td>
+</tr>
+<tr>
+<td>Vendita al banco profilo gestionale</td>
+<td>Implementata — <code>POST /inventory/retail-scans</code>, UI <code>/app/sales/register</code></td>
+</tr>
+<tr>
+<td>Report server-side avanzati</td>
+<td>In evoluzione</td>
+</tr>
+<tr>
+<td>Coda bulk Shopify persistente (multi-tenant)</td>
+<td>Non implementata — operazioni massicce sincrone HTTP</td>
+</tr>
+<tr>
+<td>Notifiche email custom reset password</td>
+<td>Config Supabase</td>
+</tr>
+</tbody></table>
+<hr>
 <h2 id="contatti">Contatti</h2>
-<p>
-  Manutenzione prodotto: <strong>proprietario VestiFlow</strong> (questo documento è il riferimento
-  operativo interno).
-</p>
+<p>Manutenzione prodotto: <strong>proprietario VestiFlow</strong> (questo documento è il riferimento operativo interno).</p>

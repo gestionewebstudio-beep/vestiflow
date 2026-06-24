@@ -1,0 +1,144 @@
+<section class="retail-register">
+  <header class="retail-register__header">
+    <div class="retail-register__heading">
+      <h1 class="retail-register__title">Registra vendita</h1>
+      <p class="retail-register__subtitle">
+        Dopo l’incasso in cassa, scansiona qui lo stesso barcode per aggiornare le giacenze. Usa
+        <strong>Storno</strong> per i resi.
+      </p>
+    </div>
+    <a class="retail-register__link" routerLink="/app/inventory/movements"> Storico movimenti </a>
+  </header>
+
+  <div class="retail-register__location">
+    <span class="retail-register__label">Location negozio</span>
+    <app-select-menu
+      [options]="locationOptions()"
+      [value]="selectedLocationId() ?? ''"
+      ariaLabel="Location negozio"
+      placeholder="Seleziona location"
+      [fullWidth]="true"
+      (valueChange)="onLocationChange($event)"
+    />
+  </div>
+
+  <div class="retail-register__panels">
+    <section
+      class="retail-register__panel retail-register__panel--sale"
+      aria-labelledby="retail-sale-title"
+    >
+      <h2 id="retail-sale-title" class="retail-register__panel-title">Vendita</h2>
+      <p class="retail-register__panel-intro">
+        Scansiona il barcode del prodotto venduto: la giacenza diminuisce di 1.
+      </p>
+
+      <form class="retail-register__form" [formGroup]="saleForm" (ngSubmit)="submitSale()">
+        <label class="retail-register__field" for="retail-sale-code">
+          <span class="retail-register__label">SKU o barcode</span>
+          <input
+            #saleInput
+            id="retail-sale-code"
+            class="retail-register__input"
+            type="text"
+            formControlName="code"
+            autocomplete="off"
+            spellcheck="false"
+            enterkeyhint="done"
+            placeholder="Scansiona o digita…"
+            [attr.aria-invalid]="saleForm.controls.code.invalid && saleForm.controls.code.touched"
+          />
+        </label>
+        <div class="retail-register__form-actions">
+          @if (barcodeScannerEnabled) {
+            <app-barcode-scanner label="Scansiona barcode" (scanned)="onSaleScanned($event)" />
+          }
+          <app-button type="submit" [loading]="salePending()" [disabled]="salePending()">
+            Registra vendita
+          </app-button>
+        </div>
+      </form>
+
+      @if (saleFeedback(); as feedback) {
+        <p
+          class="retail-register__feedback"
+          [class.retail-register__feedback--error]="feedback.tone === 'error'"
+          [class.retail-register__feedback--success]="feedback.tone === 'success'"
+          role="status"
+        >
+          {{ feedback.message }}
+        </p>
+      }
+    </section>
+
+    <section
+      class="retail-register__panel retail-register__panel--return"
+      aria-labelledby="retail-return-title"
+    >
+      <h2 id="retail-return-title" class="retail-register__panel-title">Storno</h2>
+      <p class="retail-register__panel-intro">
+        Scansiona il barcode del prodotto restituito: la giacenza aumenta di 1.
+      </p>
+
+      <form class="retail-register__form" [formGroup]="returnForm" (ngSubmit)="submitReturn()">
+        <label class="retail-register__field" for="retail-return-code">
+          <span class="retail-register__label">SKU o barcode</span>
+          <input
+            id="retail-return-code"
+            class="retail-register__input"
+            type="text"
+            formControlName="code"
+            autocomplete="off"
+            spellcheck="false"
+            enterkeyhint="done"
+            placeholder="Scansiona o digita…"
+            [attr.aria-invalid]="
+              returnForm.controls.code.invalid && returnForm.controls.code.touched
+            "
+          />
+        </label>
+        <div class="retail-register__form-actions">
+          @if (barcodeScannerEnabled) {
+            <app-barcode-scanner label="Scansiona barcode" (scanned)="onReturnScanned($event)" />
+          }
+          <app-button type="submit" [loading]="returnPending()" [disabled]="returnPending()">
+            Registra storno
+          </app-button>
+        </div>
+      </form>
+
+      @if (returnFeedback(); as feedback) {
+        <p
+          class="retail-register__feedback"
+          [class.retail-register__feedback--error]="feedback.tone === 'error'"
+          [class.retail-register__feedback--success]="feedback.tone === 'success'"
+          role="status"
+        >
+          {{ feedback.message }}
+        </p>
+      }
+    </section>
+  </div>
+
+  @if (sessionLog().length > 0) {
+    <section class="retail-register__log" aria-labelledby="retail-log-title">
+      <h2 id="retail-log-title" class="retail-register__log-title">Ultime registrazioni</h2>
+      <ul class="retail-register__log-list">
+        @for (entry of sessionLog(); track entry.id) {
+          <li class="retail-register__log-item">
+            <span
+              class="retail-register__log-badge"
+              [class.retail-register__log-badge--return]="entry.action === 'return'"
+            >
+              {{ actionLabel(entry.action) }}
+            </span>
+            <span class="retail-register__log-product">{{ entry.productName }}</span>
+            <span class="retail-register__log-meta tabular-nums">
+              {{ entry.sku }} · disp. {{ entry.remainingAvailable }} ·
+              {{ formatTime(entry.at) }}
+            </span>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</section>

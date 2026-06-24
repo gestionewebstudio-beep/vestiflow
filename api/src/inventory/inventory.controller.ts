@@ -34,6 +34,7 @@ import { ImportInventoryBodyDto } from './dto/import-inventory-body.dto';
 import { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
 import { ListInventoryLevelsQueryDto, ListMovementsQueryDto } from './dto/inventory-queries.dto';
 import { RegisterMovementDto } from './dto/register-movement.dto';
+import { RegisterRetailScanDto } from './dto/register-retail-scan.dto';
 import { UpdateInventoryLevelDto } from './dto/update-inventory-level.dto';
 import { UpdateCountLineDto } from './dto/update-count-line.dto';
 import {
@@ -43,7 +44,7 @@ import {
 } from './inventory-count.service';
 import { InventoryExportService } from './inventory-export.service';
 import { InventoryImportService } from './inventory-import.service';
-import { InventoryService, type InventoryLevelWithRefs } from './inventory.service';
+import { InventoryService, type InventoryLevelWithRefs, type RetailScanResult } from './inventory.service';
 
 @Controller('inventory')
 @UseGuards(JwtAuthGuard)
@@ -136,6 +137,16 @@ export class InventoryController {
     @Body() dto: RegisterMovementDto,
   ): Promise<StockMovement> {
     return this.inventory.registerMovement(tenantId, dto, user.displayName, user.id);
+  }
+
+  /** Vendita o storno al banco (solo profilo gestionale). */
+  @Post('retail-scans')
+  registerRetailScan(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Body() dto: RegisterRetailScanDto,
+  ): Promise<RetailScanResult> {
+    return this.inventory.registerRetailScan(tenantId, dto, user.displayName, user.id);
   }
 
   @Get('counts')

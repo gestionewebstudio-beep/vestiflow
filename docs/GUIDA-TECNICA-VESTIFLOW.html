@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 1.5 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 1.6 — Giugno 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -307,7 +307,7 @@ ol {
 ├── src/app/              # Frontend Angular
 │   ├── core/             # Auth, guards, permissions, HTTP
 │   ├── shared/           # Componenti UI riutilizzabili
-│   ├── features/         # Feature lazy-loaded (products, inventory, admin, guide…)
+│   ├── features/         # Feature lazy-loaded (products, inventory, sales, admin, guide…)
 │   └── layout/           # Shell sidebar + topbar
 ├── api/                  # Backend NestJS
 │   ├── src/admin/        # Provisioning tenant (platform admin)
@@ -1026,7 +1026,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><code>StockMovement</code></td>
-<td>Audit trail obbligatorio</td>
+<td>Audit trail obbligatorio; origine <code>vestiflow_pos</code> per vendite/storni al banco (profilo gestionale)</td>
 </tr>
 <tr>
 <td><code>SupplierOrder</code></td>
@@ -1034,7 +1034,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><code>SalesOrder</code> / <code>Customer</code></td>
-<td>Import Shopify, read-only UI</td>
+<td>Import Shopify, read-only UI; assenti in UI profilo Solo gestionale</td>
 </tr>
 <tr>
 <td><code>ShopifyConnection</code></td>
@@ -1198,14 +1198,67 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tbody></table>
 <p>Service: <code>SupplierOrdersService</code> (<code>api/src/supplier-orders/</code>). Ricezione in transazione atomica con <code>StockMovement</code>.</p>
 <p><strong>UI tenant:</strong> form ordine con <code>select-menu</code> searchable (fornitore, variante), <code>date-input</code> per data attesa, subtotale riga calcolato; dettaglio con <strong>Elimina ordine</strong> se <code>status=cancelled</code>. Lista prodotti: stampa etichette multi-select (<code>ProductLabelPrintService.triggerDirectPrintMany</code>).</p>
+<h3 id="vendita-al-banco-profilo-solo-gestionale">Vendita al banco (profilo Solo gestionale)</h3>
+<p>Endpoint dedicato per <strong>doppia scansione</strong> al banco: decremento/incremento stock senza creare <code>SalesOrder</code>. Disponibile solo se <code>Tenant.channelProfile === gestionale</code> (<code>assertTenantChannelProfile</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Body / azione</th>
+<th>Permessi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/inventory/retail-scans</code></td>
+<td><code>{ code, locationId, action: &#39;sale&#39; | &#39;return&#39; }</code> — qty fissa 1 per scansione</td>
+<td>operativi+</td>
+</tr>
+</tbody></table>
+<p><strong>Backend:</strong> <code>InventoryService.registerRetailScan()</code> (<code>api/src/inventory/inventory.service.ts</code>).</p>
+<ul>
+<li><code>action: sale</code> → <code>StockMovement</code> tipo <code>sale</code>, origine <code>vestiflow_pos</code></li>
+<li><code>action: return</code> → <code>StockMovement</code> tipo <code>return</code>, origine <code>vestiflow_pos</code></li>
+<li>Lookup variante: stessa semantica di <code>GET /products/variants/by-code/:code</code> (SKU o barcode)</li>
+<li>Vendita rifiutata se <code>available &lt; 1</code> sulla location</li>
+<li>Migration enum: <code>0019_vestiflow_pos_movement_origin</code> → <code>MovementOrigin.vestiflow_pos</code></li>
+</ul>
+<p>I tipi <code>sale</code> e <code>return</code> <strong>non</strong> sono selezionabili nel form manuale <strong>Registra movimento</strong> (solo via retail-scans).</p>
+<p><strong>Frontend:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Rotta</th>
+<th>Componente</th>
+<th>Guard / note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/app/sales/register</code></td>
+<td><code>RetailSaleRegisterComponent</code></td>
+<td><code>gestionaleRetailGuard</code> — solo profilo gestionale</td>
+</tr>
+<tr>
+<td><code>/app/sales</code></td>
+<td>lista ordini Shopify</td>
+<td><code>salesHistoryGuard</code> — redirect gestionale → register</td>
+</tr>
+</tbody></table>
+<ul>
+<li>Service HTTP: <code>InventoryService.registerRetailScan()</code> (<code>src/app/features/inventory/services/inventory.service.ts</code>)</li>
+<li>Shell: voce <strong>Registra vendita</strong> al posto di <strong>Vendite</strong> se <code>showGestionaleRetailSales()</code> (<code>tenant-channel-profile.model.ts</code>)</li>
+<li>Label origine movimento: <strong>Vendita negozio</strong> (<code>inventory-labels.util.ts</code> → <code>MovementOrigin.VestiflowPos</code>)</li>
+</ul>
 <hr>
 <h2 id="14-scanner-barcode-e-componenti-ui-condivisi">14. Scanner barcode e componenti UI condivisi</h2>
 <h3 id="scanner-barcode">Scanner barcode</h3>
 <ul>
 <li>Componente: <code>shared/components/barcode-scanner</code> (BarcodeDetector API)</li>
 <li>Flag: <code>VESTIFLOW_ENABLE_BARCODE_SCANNER</code></li>
-<li>Schermate: Cerca giacenza, Giacenze, Registra movimento, Inventario fisico, Prodotti</li>
+<li>Schermate: Cerca giacenza, Giacenze, Registra movimento, <strong>Registra vendita</strong> (vendita + storno), Inventario fisico, Prodotti</li>
 <li>Lookup API: <code>GET /products/variants/by-code/:code</code> (SKU o barcode esatto)</li>
+<li><strong>Pistola USB (keyboard wedge):</strong> nessuna integrazione dedicata — input HTML + Invio; usata su Registra vendita e altre schermate con campo codice</li>
 <li>Fallback iOS: input manuale</li>
 </ul>
 <h3 id="date-e-select-form--filtri">Date e select (form / filtri)</h3>
@@ -1305,6 +1358,26 @@ cd api &amp;&amp; npm run test
 <td>E2E wizard (anteprima, step conferma, annulla)</td>
 <td><code>e2e/shopify.spec.ts</code></td>
 </tr>
+<tr>
+<td>Retail scan API (sale/return, profilo, stock)</td>
+<td><code>api/src/inventory/inventory.service.spec.ts</code>, <code>inventory.controller.spec.ts</code></td>
+</tr>
+<tr>
+<td>Guard vendite gestionale vs Shopify</td>
+<td><code>src/app/features/sales/guards/retail-sales.guard.spec.ts</code></td>
+</tr>
+<tr>
+<td>Pagina Registra vendita</td>
+<td><code>src/app/features/sales/pages/retail-sale-register/retail-sale-register.component.spec.ts</code></td>
+</tr>
+<tr>
+<td>HTTP client retail-scans</td>
+<td><code>src/app/features/inventory/services/inventory.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Profilo canale / label origine movimento</td>
+<td><code>tenant-channel-profile.model.spec.ts</code>, <code>inventory-labels.util.spec.ts</code></td>
+</tr>
 </tbody></table>
 <h3 id="ci-github-actions">CI GitHub Actions</h3>
 <ul>
@@ -1336,6 +1409,7 @@ cd api &amp;&amp; npm run test
 <li><input disabled="" type="checkbox"> OAuth TikTok Shop su tenant test (se abilitato)</li>
 <li><input disabled="" type="checkbox"> Upload foto profilo + avatar topbar</li>
 <li><input disabled="" type="checkbox"> Import catalogo + webhook</li>
+<li><input disabled="" type="checkbox"> Tenant <strong>Solo gestionale</strong>: POST retail-scans vendita + storno su variante test</li>
 <li><input disabled="" type="checkbox"> Upload immagine prodotto</li>
 <li><input disabled="" type="checkbox"> Guida utente + guida tecnica admin</li>
 </ul>
@@ -1440,7 +1514,11 @@ cd api &amp;&amp; npm run test
 </tr>
 <tr>
 <td>Cassa / corrispettivi IT nativi</td>
-<td>Non previsti — Shopify POS</td>
+<td>Non previsti — integrazione esterna; VF registra solo stock (gestionale: retail-scans)</td>
+</tr>
+<tr>
+<td>Vendita al banco profilo gestionale</td>
+<td>Implementata — <code>POST /inventory/retail-scans</code>, UI <code>/app/sales/register</code></td>
 </tr>
 <tr>
 <td>Report server-side avanzati</td>

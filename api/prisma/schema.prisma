@@ -66,6 +66,8 @@ enum MovementOrigin {
   manual
   shopify
   tiktok
+  /// Vendita o storno registrati al banco nel profilo solo gestionale.
+  vestiflow_pos
 }
 
 enum ShopifySyncStatus {

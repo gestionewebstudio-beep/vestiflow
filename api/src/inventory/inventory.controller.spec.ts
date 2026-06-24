@@ -14,6 +14,7 @@ describe('InventoryController', () => {
     listLevels: vi.fn(),
     listMovements: vi.fn(),
     registerMovement: vi.fn(),
+    registerRetailScan: vi.fn(),
   };
   const inventoryCount = {
     list: vi.fn(),
@@ -62,6 +63,28 @@ describe('InventoryController', () => {
     await controller.registerMovement(tenantId, user, dto as never);
 
     expect(inventory.registerMovement).toHaveBeenCalledWith(tenantId, dto, 'Mario Rossi', 'user-1');
+  });
+
+  it('registerRetailScan passa displayName utente al service', async () => {
+    const dto = {
+      code: '8001234567890',
+      locationId: 'loc-1',
+      action: 'sale',
+    };
+    const user = { id: 'user-1', displayName: 'Commesso Banco' } as UserProfileDto;
+    inventory.registerRetailScan.mockResolvedValue({
+      movement: { id: 'mov-1' },
+      remainingAvailable: 3,
+    });
+
+    await controller.registerRetailScan(tenantId, user, dto as never);
+
+    expect(inventory.registerRetailScan).toHaveBeenCalledWith(
+      tenantId,
+      dto,
+      'Commesso Banco',
+      'user-1',
+    );
   });
 
   it('listMovements delega al service', async () => {

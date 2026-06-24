@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 1.5 — Giugno 2026
+**Versione documento:** 1.6 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -101,7 +101,7 @@ vestiflow/
 ├── src/app/              # Frontend Angular
 │   ├── core/             # Auth, guards, permissions, HTTP
 │   ├── shared/           # Componenti UI riutilizzabili
-│   ├── features/         # Feature lazy-loaded (products, inventory, admin, guide…)
+│   ├── features/         # Feature lazy-loaded (products, inventory, sales, admin, guide…)
 │   └── layout/           # Shell sidebar + topbar
 ├── api/                  # Backend NestJS
 │   ├── src/admin/        # Provisioning tenant (platform admin)
@@ -549,9 +549,9 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 | `Store` / `Location`         | Store commerciale; location per stock                                                                                      |
 | `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind`, `shopifyCategoryMetafields`, taxonomy categoria |
 | `InventoryLevel`             | `variantId` × `locationId`, stati quantità                                                                                 |
-| `StockMovement`              | Audit trail obbligatorio                                                                                                   |
+| `StockMovement`              | Audit trail obbligatorio; origine `vestiflow_pos` per vendite/storni al banco (profilo gestionale)                         |
 | `SupplierOrder`              | Solo VF                                                                                                                    |
-| `SalesOrder` / `Customer`    | Import Shopify, read-only UI                                                                                               |
+| `SalesOrder` / `Customer`    | Import Shopify, read-only UI; assenti in UI profilo Solo gestionale                                                        |
 | `ShopifyConnection`          | Token, scope, stato sync per tenant                                                                                        |
 
 Denaro: **interi minor units** (`Money.amountMinor`), mai float.
@@ -626,6 +626,35 @@ Service: `SupplierOrdersService` (`api/src/supplier-orders/`). Ricezione in tran
 
 **UI tenant:** form ordine con `select-menu` searchable (fornitore, variante), `date-input` per data attesa, subtotale riga calcolato; dettaglio con **Elimina ordine** se `status=cancelled`. Lista prodotti: stampa etichette multi-select (`ProductLabelPrintService.triggerDirectPrintMany`).
 
+### Vendita al banco (profilo Solo gestionale)
+
+Endpoint dedicato per **doppia scansione** al banco: decremento/incremento stock senza creare `SalesOrder`. Disponibile solo se `Tenant.channelProfile === gestionale` (`assertTenantChannelProfile`).
+
+| Metodo | Path                      | Body / azione                                                                  | Permessi   |
+| ------ | ------------------------- | ------------------------------------------------------------------------------ | ---------- |
+| POST   | `/inventory/retail-scans` | `{ code, locationId, action: 'sale' \| 'return' }` — qty fissa 1 per scansione | operativi+ |
+
+**Backend:** `InventoryService.registerRetailScan()` (`api/src/inventory/inventory.service.ts`).
+
+- `action: sale` → `StockMovement` tipo `sale`, origine `vestiflow_pos`
+- `action: return` → `StockMovement` tipo `return`, origine `vestiflow_pos`
+- Lookup variante: stessa semantica di `GET /products/variants/by-code/:code` (SKU o barcode)
+- Vendita rifiutata se `available < 1` sulla location
+- Migration enum: `0019_vestiflow_pos_movement_origin` → `MovementOrigin.vestiflow_pos`
+
+I tipi `sale` e `return` **non** sono selezionabili nel form manuale **Registra movimento** (solo via retail-scans).
+
+**Frontend:**
+
+| Rotta                 | Componente                    | Guard / note                                         |
+| --------------------- | ----------------------------- | ---------------------------------------------------- |
+| `/app/sales/register` | `RetailSaleRegisterComponent` | `gestionaleRetailGuard` — solo profilo gestionale    |
+| `/app/sales`          | lista ordini Shopify          | `salesHistoryGuard` — redirect gestionale → register |
+
+- Service HTTP: `InventoryService.registerRetailScan()` (`src/app/features/inventory/services/inventory.service.ts`)
+- Shell: voce **Registra vendita** al posto di **Vendite** se `showGestionaleRetailSales()` (`tenant-channel-profile.model.ts`)
+- Label origine movimento: **Vendita negozio** (`inventory-labels.util.ts` → `MovementOrigin.VestiflowPos`)
+
 ---
 
 ## 14. Scanner barcode e componenti UI condivisi
@@ -634,8 +663,9 @@ Service: `SupplierOrdersService` (`api/src/supplier-orders/`). Ricezione in tran
 
 - Componente: `shared/components/barcode-scanner` (BarcodeDetector API)
 - Flag: `VESTIFLOW_ENABLE_BARCODE_SCANNER`
-- Schermate: Cerca giacenza, Giacenze, Registra movimento, Inventario fisico, Prodotti
+- Schermate: Cerca giacenza, Giacenze, Registra movimento, **Registra vendita** (vendita + storno), Inventario fisico, Prodotti
 - Lookup API: `GET /products/variants/by-code/:code` (SKU o barcode esatto)
+- **Pistola USB (keyboard wedge):** nessuna integrazione dedicata — input HTML + Invio; usata su Registra vendita e altre schermate con campo codice
 - Fallback iOS: input manuale
 
 ### Date e select (form / filtri)
@@ -689,15 +719,20 @@ cd api && npm run test
 
 ### Copertura automatica — Shopify shop change / location / delete
 
-| Area                                             | File test                                                                               |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| Purge / preview shop change                      | `api/src/shopify/shopify-shop-change.service.spec.ts`                                   |
-| Sync location + cleanup onboarding/stale         | `api/src/shopify/shopify-location-sync.service.spec.ts`                                 |
-| Delete prodotto write-through Shopify            | `api/src/products/products.service.spec.ts`                                             |
-| Guard `catalogOrigin` (update/delete/sync/media) | `api/src/products/catalog-origin.util.spec.ts`                                          |
-| Wizard UI (anteprima, conferma, disconnect)      | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts` |
-| HTTP client shop change / sync location          | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`     |
-| E2E wizard (anteprima, step conferma, annulla)   | `e2e/shopify.spec.ts`                                                                   |
+| Area                                             | File test                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Purge / preview shop change                      | `api/src/shopify/shopify-shop-change.service.spec.ts`                                      |
+| Sync location + cleanup onboarding/stale         | `api/src/shopify/shopify-location-sync.service.spec.ts`                                    |
+| Delete prodotto write-through Shopify            | `api/src/products/products.service.spec.ts`                                                |
+| Guard `catalogOrigin` (update/delete/sync/media) | `api/src/products/catalog-origin.util.spec.ts`                                             |
+| Wizard UI (anteprima, conferma, disconnect)      | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts`    |
+| HTTP client shop change / sync location          | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`        |
+| E2E wizard (anteprima, step conferma, annulla)   | `e2e/shopify.spec.ts`                                                                      |
+| Retail scan API (sale/return, profilo, stock)    | `api/src/inventory/inventory.service.spec.ts`, `inventory.controller.spec.ts`              |
+| Guard vendite gestionale vs Shopify              | `src/app/features/sales/guards/retail-sales.guard.spec.ts`                                 |
+| Pagina Registra vendita                          | `src/app/features/sales/pages/retail-sale-register/retail-sale-register.component.spec.ts` |
+| HTTP client retail-scans                         | `src/app/features/inventory/services/inventory.service.spec.ts`                            |
+| Profilo canale / label origine movimento         | `tenant-channel-profile.model.spec.ts`, `inventory-labels.util.spec.ts`                    |
 
 ### CI GitHub Actions
 
@@ -732,6 +767,7 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 - [ ] OAuth TikTok Shop su tenant test (se abilitato)
 - [ ] Upload foto profilo + avatar topbar
 - [ ] Import catalogo + webhook
+- [ ] Tenant **Solo gestionale**: POST retail-scans vendita + storno su variante test
 - [ ] Upload immagine prodotto
 - [ ] Guida utente + guida tecnica admin
 
@@ -770,18 +806,19 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 
 ## 20. Limitazioni note e roadmap
 
-| Area                                         | Stato                                                        |
-| -------------------------------------------- | ------------------------------------------------------------ |
-| Multi-store commerciali in un tenant         | Non supportato — un shop = un tenant                         |
-| Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore |
-| Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale       |
-| Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze       |
-| Bozze ordine Shopify (draft orders)          | Non in scope — solo ordini confermati in **Vendite**         |
-| Location manuale senza Shopify               | Parziale (location onboarding); sync Shopify consigliato     |
-| Cassa / corrispettivi IT nativi              | Non previsti — Shopify POS                                   |
-| Report server-side avanzati                  | In evoluzione                                                |
-| Coda bulk Shopify persistente (multi-tenant) | Non implementata — operazioni massicce sincrone HTTP         |
-| Notifiche email custom reset password        | Config Supabase                                              |
+| Area                                         | Stato                                                                                  |
+| -------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Multi-store commerciali in un tenant         | Non supportato — un shop = un tenant                                                   |
+| Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore                           |
+| Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale                                 |
+| Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze                                 |
+| Bozze ordine Shopify (draft orders)          | Non in scope — solo ordini confermati in **Vendite**                                   |
+| Location manuale senza Shopify               | Parziale (location onboarding); sync Shopify consigliato                               |
+| Cassa / corrispettivi IT nativi              | Non previsti — integrazione esterna; VF registra solo stock (gestionale: retail-scans) |
+| Vendita al banco profilo gestionale          | Implementata — `POST /inventory/retail-scans`, UI `/app/sales/register`                |
+| Report server-side avanzati                  | In evoluzione                                                                          |
+| Coda bulk Shopify persistente (multi-tenant) | Non implementata — operazioni massicce sincrone HTTP                                   |
+| Notifiche email custom reset password        | Config Supabase                                                                        |
 
 ---
 

@@ -45,6 +45,31 @@ import {
   type InventoryCountSessionApiRow,
 } from '../models/inventory-count.mapper';
 
+/** Input per vendita o storno al banco (profilo solo gestionale). */
+export interface RegisterRetailScanInput {
+  readonly code: string;
+  readonly locationId: EntityId;
+  readonly action: 'sale' | 'return';
+}
+
+export interface RetailScanResult {
+  readonly variantId: EntityId;
+  readonly productId: EntityId;
+  readonly sku: string;
+  readonly productName: string;
+  readonly remainingAvailable: number;
+  readonly movementId: EntityId;
+}
+
+interface RetailScanResultApiRow {
+  readonly movement: { readonly id: string };
+  readonly variantId: string;
+  readonly productId: string;
+  readonly sku: string;
+  readonly productName: string;
+  readonly remainingAvailable: number;
+}
+
 /** Input per la registrazione di un movimento manuale (carico/scarico/rettifica/trasferimento). */
 export interface RegisterMovementInput {
   readonly type: StockMovement['type'];
@@ -187,6 +212,21 @@ export class InventoryService {
     return this.http
       .post<StockMovementApiRow>(this.url('/inventory/movements'), body)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapStockMovementApiRow));
+  }
+
+  /** Vendita o storno al banco (profilo solo gestionale). */
+  registerRetailScan(input: RegisterRetailScanInput): Observable<RetailScanResult> {
+    return this.http.post<RetailScanResultApiRow>(this.url('/inventory/retail-scans'), input).pipe(
+      timeout(HTTP_TIMEOUT_MS),
+      map((row) => ({
+        variantId: row.variantId,
+        productId: row.productId,
+        sku: row.sku,
+        productName: row.productName,
+        remainingAvailable: row.remainingAvailable,
+        movementId: row.movement.id,
+      })),
+    );
   }
 
   listInventoryCounts(): Observable<readonly InventoryCountSession[]> {

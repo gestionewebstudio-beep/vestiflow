@@ -17,6 +17,9 @@ export default tseslint.config(
       'api/**',
       // HTML di stampa generati da docs/*.md (non template Angular).
       'docs/**/*.html',
+      // Fragment HTML guida in-app (generati da scripts/generate-guide-html.mjs).
+      'public/guide/**',
+      'src/assets/guide-admin/**',
     ],
   },
   {

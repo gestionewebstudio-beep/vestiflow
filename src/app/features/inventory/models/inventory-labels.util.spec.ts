@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { StockStatus } from '@core/models/inventory-level.model';
-import { StockMovementType } from '@core/models/stock-movement.model';
+import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 
 import {
   movementActorLabel,
+  movementOriginLabel,
   movementTypeLabel,
   movementTypeTone,
   stockStatusLabel,
@@ -36,6 +37,19 @@ describe('inventory-labels.util', () => {
       expect(movementActorLabel('Shopify')).toBe('Shopify');
       expect(movementActorLabel('Mario Rossi')).toBe('Mario Rossi');
       expect(movementActorLabel('')).toBe('—');
+    });
+  });
+
+  describe('movementOriginLabel', () => {
+    it('copre tutte le origini movimento', () => {
+      expect(movementOriginLabel(MovementOrigin.Manual)).toBe('Gestionale');
+      expect(movementOriginLabel(MovementOrigin.Shopify)).toBe('Shopify');
+      expect(movementOriginLabel(MovementOrigin.Tiktok)).toBe('TikTok');
+      expect(movementOriginLabel(MovementOrigin.VestiflowPos)).toBe('Vendita negozio');
+    });
+
+    it('restituisce trattino se origine assente', () => {
+      expect(movementOriginLabel(undefined)).toBe('—');
     });
   });
 });

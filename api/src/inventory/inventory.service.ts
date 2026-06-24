@@ -6,14 +6,17 @@ import {
 } from '@nestjs/common';
 import {
   AdjustmentDirection,
+  MovementOrigin,
   Prisma,
   StockMovementType,
+  TenantChannelProfile,
   type InventoryLevel,
   type Location,
   type StockMovement,
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { assertTenantChannelProfile } from '../common/tenant-channel-profile.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type {
@@ -21,6 +24,16 @@ import type {
   ListMovementsQueryDto,
 } from './dto/inventory-queries.dto';
 import type { RegisterMovementDto } from './dto/register-movement.dto';
+import { RetailScanAction, type RegisterRetailScanDto } from './dto/register-retail-scan.dto';
+
+export type RetailScanResult = {
+  readonly movement: StockMovement;
+  readonly variantId: string;
+  readonly productId: string;
+  readonly sku: string;
+  readonly productName: string;
+  readonly remainingAvailable: number;
+};
 
 export type InventoryLevelWithRefs = InventoryLevel & {
   variant: { sku: string; product: { name: string } };
@@ -176,6 +189,80 @@ export class InventoryService {
     });
 
     return movement;
+  }
+
+  /**
+   * Registra una vendita o uno storno al banco (profilo solo gestionale).
+   * Ogni scansione produce un movimento `sale` o `return` con origine `vestiflow_pos`.
+   */
+  async registerRetailScan(
+    tenantId: string,
+    dto: RegisterRetailScanDto,
+    actorDisplayName: string,
+    actorUserId?: string,
+  ): Promise<RetailScanResult> {
+    await assertTenantChannelProfile(this.prisma, tenantId, TenantChannelProfile.gestionale);
+
+    const code = dto.code.trim();
+    if (!code) {
+      throw new NotFoundException('Variante non trovata per SKU o barcode');
+    }
+
+    const variant = await this.prisma.productVariant.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          { sku: { equals: code, mode: 'insensitive' } },
+          { barcode: { equals: code, mode: 'insensitive' } },
+        ],
+      },
+      include: { product: { select: { id: true, name: true } } },
+    });
+    if (!variant) {
+      throw new NotFoundException('Variante non trovata per SKU o barcode');
+    }
+
+    const movementType =
+      dto.action === RetailScanAction.Sale ? StockMovementType.sale : StockMovementType.return;
+    const delta = dto.action === RetailScanAction.Sale ? -1 : 1;
+    const reason =
+      dto.action === RetailScanAction.Sale ? 'Vendita negozio' : 'Storno negozio (reso)';
+
+    const movement = await this.prisma.$transaction(async (tx) => {
+      await this.assertLocationExists(tx, tenantId, dto.locationId);
+      await this.applyDelta(tx, tenantId, variant.id, dto.locationId, delta);
+
+      return tx.stockMovement.create({
+        data: {
+          tenantId,
+          type: movementType,
+          origin: 'vestiflow_pos' as MovementOrigin,
+          variantId: variant.id,
+          sku: variant.sku,
+          locationId: dto.locationId,
+          quantity: 1,
+          reason,
+          createdById: actorUserId ?? null,
+          createdByName: actorDisplayName.trim() || 'Utente',
+        },
+      });
+    });
+
+    const level = await this.prisma.inventoryLevel.findUnique({
+      where: {
+        variantId_locationId: { variantId: variant.id, locationId: dto.locationId },
+      },
+      select: { available: true },
+    });
+
+    return {
+      movement,
+      variantId: variant.id,
+      productId: variant.productId,
+      sku: variant.sku,
+      productName: variant.product.name,
+      remainingAvailable: level?.available ?? 0,
+    };
   }
 
   /** Variazione (con segno) da applicare alla location di origine. */

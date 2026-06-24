@@ -63,3 +63,8 @@ export function showShopifyIntegration(profile: TenantChannelProfile | undefined
 export function showTikTokIntegration(profile: TenantChannelProfile | undefined): boolean {
   return profile === TenantChannelProfile.TikTokShop;
 }
+
+/** Vendita/storno al banco (profilo solo gestionale). */
+export function showGestionaleRetailSales(profile: TenantChannelProfile | undefined): boolean {
+  return profile === TenantChannelProfile.Gestionale;
+}

@@ -69,6 +69,7 @@ const MOVEMENT_ORIGIN_LABELS: Record<MovementOrigin, string> = {
   [MovementOrigin.Manual]: 'Gestionale',
   [MovementOrigin.Shopify]: 'Shopify',
   [MovementOrigin.Tiktok]: 'TikTok',
+  [MovementOrigin.VestiflowPos]: 'Vendita negozio',
 };
 
 export function movementOriginLabel(origin: MovementOrigin | undefined): string {

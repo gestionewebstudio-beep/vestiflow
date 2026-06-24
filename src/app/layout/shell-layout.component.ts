@@ -20,7 +20,10 @@ import {
   hasActiveSupportSession,
 } from '@core/permissions/platform-operator.util';
 import { SupportSessionService } from '@core/support/support-session.service';
-import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import {
+  TenantChannelProfile,
+  showGestionaleRetailSales,
+} from '@core/models/tenant-channel-profile.model';
 import type { EntityId } from '@core/models/common.model';
 import type { Location } from '@core/models/location.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
@@ -244,12 +247,11 @@ export class ShellLayoutComponent {
 
   protected readonly logoutDialogOpen = signal(false);
 
-  private readonly tenantNavItems: readonly NavItem[] = [
+  private readonly tenantNavItemsWithoutSales: readonly NavItem[] = [
     { label: 'Dashboard', icon: 'pi-th-large', route: '/app/dashboard' },
     { label: 'Prodotti', icon: 'pi-tags', route: '/app/products' },
     { label: 'Magazzino', icon: 'pi-box', route: '/app/inventory/lookup' },
     { label: 'Ordini Fornitori', icon: 'pi-truck', route: '/app/orders' },
-    { label: 'Vendite', icon: 'pi-shopping-cart', route: '/app/sales' },
     { label: 'Clienti', icon: 'pi-users', route: '/app/customers' },
     { label: 'Report', icon: 'pi-chart-line', route: '/app/reports' },
     { label: 'Impostazioni', icon: 'pi-cog', route: '/app/settings' },
@@ -286,7 +288,14 @@ export class ShellLayoutComponent {
     if (this.isPlatformOperator()) {
       return [...this.operatorNavItems, this.adminGuideNavItem];
     }
-    return [...this.tenantNavItems, this.guideNavItem];
+
+    const profile = this.currentUser()?.tenantChannelProfile;
+    const salesNavItem: NavItem = showGestionaleRetailSales(profile)
+      ? { label: 'Registra vendita', icon: 'pi-shopping-bag', route: '/app/sales/register' }
+      : { label: 'Vendite', icon: 'pi-shopping-cart', route: '/app/sales' };
+
+    const items = this.tenantNavItemsWithoutSales;
+    return [...items.slice(0, 4), salesNavItem, ...items.slice(4), this.guideNavItem];
   });
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).
@@ -333,6 +342,7 @@ export class ShellLayoutComponent {
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private logoutSubscription: Subscription | null = null;
+  private supportSessionEndSubscription: Subscription | null = null;
 
   onLogoutRequest(): void {
     this.logoutDialogOpen.set(true);
@@ -359,7 +369,7 @@ export class ShellLayoutComponent {
       return;
     }
     this.supportSessionEndLoading.set(true);
-    this.supportSessions
+    this.supportSessionEndSubscription = this.supportSessions
       .endSession()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

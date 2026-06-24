@@ -1,6 +1,6 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 2.5 — Giugno 2026
+**Versione documento:** 2.6 — Giugno 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
@@ -24,7 +24,7 @@
 12. [Vendite e clienti](#12-vendite-e-clienti)
 13. [Report e dashboard](#13-report-e-dashboard)
 14. [Usare VestiFlow da smartphone](#14-usare-vestiflow-da-smartphone)
-15. [Negozio fisico e Shopify POS](#15-negozio-fisico-e-shopify-pos)
+15. [Negozio fisico: vendite al banco](#15-negozio-fisico-vendite-al-banco)
 16. [Profilo, foto e sicurezza account](#16-profilo-foto-e-sicurezza-account)
 17. [Domande frequenti](#17-domande-frequenti)
 18. [Guida nel menu](#18-guida-nel-menu)
@@ -41,6 +41,7 @@ Con un account puoi:
 - vedere e aggiornare **giacenze per sede** (negozio, magazzino, altri punti vendita);
 - registrare **carichi, scarichi, trasferimenti e rettifiche** con storico;
 - creare e ricevere **ordini fornitori**;
+- **registrare vendite e resi al banco** con scansione barcode (profilo **Solo gestionale**);
 - consultare **vendite e clienti** importati da Shopify (profilo Shopify);
 - tenere **catalogo e stock allineati** al canale e-commerce collegato, se presente.
 
@@ -89,8 +90,9 @@ Su desktop resta sempre visibile; su smartphone si apre con l'icona **menu** in 
 | **Prodotti**         | Catalogo, creazione, modifica, import/export CSV                                         |
 | **Magazzino**        | Apre **Cerca giacenza** (ricerca rapida, ideale su mobile)                               |
 | **Ordini Fornitori** | Acquisti dai fornitori                                                                   |
-| **Vendite**          | Ordini da Shopify (sola lettura), export CSV                                             |
-| **Clienti**          | Anagrafica da Shopify (sola lettura), export CSV                                         |
+| **Registra vendita** | Vendite e storni al banco con barcode (**solo profilo Solo gestionale**)                 |
+| **Vendite**          | Ordini da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                  |
+| **Clienti**          | Anagrafica da Shopify (sola lettura), export CSV (**solo profilo Shopify**)              |
 | **Report**           | Indicatori e riepiloghi                                                                  |
 | **Impostazioni**     | Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza |
 | **Guida**            | Manuale utente integrato nell'app                                                        |
@@ -158,6 +160,7 @@ Ogni utente ha un **ruolo VestiFlow** (Titolare, Amministratore, Manager, Commes
 | Ricevere merce su ordine fornitore                 | Sì               | Sì      | Sì       |
 | Consultare giacenze, movimenti, vendite, clienti   | Sì               | Sì      | Sì       |
 | Registrare movimenti di magazzino                  | Sì               | Sì      | Sì       |
+| Registrare vendite e storni al banco (Solo gest.)  | Sì               | Sì      | Sì       |
 | Inventario fisico (conteggio)                      | Sì               | Sì      | Sì       |
 | Attivare MFA (Impostazioni)                        | Sì               | Sì      | No       |
 
@@ -181,6 +184,14 @@ Percorso consigliato per il **titolare** del negozio:
 | 6    | Magazzino → Giacenze     | Controlla stock e registra rettifiche iniziali se serve |
 
 ### Step 4 — in base al profilo canale
+
+**Profilo Solo gestionale:**
+
+| Step | Dove             | Cosa fare                                              |
+| ---- | ---------------- | ------------------------------------------------------ |
+| 4a   | Impostazioni     | Verifica **Sede fisica** e location operative          |
+| 4b   | Prodotti         | Completa barcode/SKU sulle varianti vendute in negozio |
+| 4c   | Registra vendita | Prova una scansione di test dopo il primo carico       |
 
 **Profilo Shopify:**
 
@@ -325,9 +336,10 @@ Solo **Titolare** e **Amministratore** possono collegare o scollegare TikTok Sho
 | ----------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | **Prodotti creati in VestiFlow** (`Fonte: VestiFlow`) | Sì — catalogo completo        | Push al salvataggio verso Shopify/TikTok se connessi                                                                  |
 | **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Solo dati operativi           | Titolo, prezzi vendita, varianti e immagini in **Shopify Admin**; in VestiFlow: **stagione** e **prezzo di acquisto** |
-| **Giacenze**                                          | Sì (carichi, rettifiche…)     | Vendite Shopify via webhook; TikTok dopo movimenti VF                                                                 |
+| **Giacenze**                                          | Sì (carichi, rettifiche…)     | Vendite Shopify via webhook; vendite negozio gestionale via **Registra vendita**; TikTok dopo movimenti VF            |
 | **Ordini fornitori**                                  | Sì, solo in VestiFlow         | Non passano da Shopify/TikTok                                                                                         |
-| **Vendite**                                           | Sola lettura                  | Da Shopify Online e POS (profilo Shopify)                                                                             |
+| **Vendite al banco**                                  | Sì — **Registra vendita**     | Solo profilo **Solo gestionale**; crea movimenti magazzino, non ordine di vendita                                     |
+| **Vendite (lista ordini)**                            | Sola lettura                  | Da Shopify Online e POS (profilo Shopify); non disponibile in profilo Solo gestionale                                 |
 | **Clienti**                                           | Sola lettura                  | Da Shopify (profilo Shopify)                                                                                          |
 | **Sedi (location)**                                   | Import / gestione             | Sync location Shopify se applicabile                                                                                  |
 
@@ -470,7 +482,9 @@ Puoi **scansionare il barcode** sotto il campo Variante per selezionare automati
 | **Trasferimento** | Spostamento tra due sedi                  |
 | **Rettifica**     | Correzione quantità (motivo obbligatorio) |
 
-Ogni movimento resta nello **storico** con data, operatore e origine (gestionale o Shopify).
+Le **vendite** e i **resi al banco** (profilo Solo gestionale) non si registrano qui: usa **Registra vendita** in sidebar. Nello **storico movimenti** compaiono come tipo **Vendita** o **Reso** con origine **Vendita negozio**.
+
+Ogni movimento resta nello **storico** con data, operatore e origine (gestionale, Shopify o vendita negozio).
 
 ### Cercare giacenze (SKU o barcode)
 
@@ -482,6 +496,7 @@ Lo scanner è disponibile anche in:
 
 - **Giacenze** — filtra la tabella dopo la scansione
 - **Registra movimento** — seleziona la variante
+- **Registra vendita** — campo vendita e storno (profilo Solo gestionale)
 - **Inventario fisico** — durante il conteggio
 
 Su **iPhone** la fotocamera può non essere disponibile: usa sempre l'inserimento manuale del codice.
@@ -542,7 +557,34 @@ L'**Annulla ordine** segna l'ordine come annullato ma lo lascia in lista. **Elim
 
 ## 12. Vendite e clienti
 
-### Vendite
+Il menu dipende dal **profilo canale** del negozio:
+
+| Profilo canale      | Voce in sidebar      | Contenuto                                                                             |
+| ------------------- | -------------------- | ------------------------------------------------------------------------------------- |
+| **Solo gestionale** | **Registra vendita** | Scansione vendite e storni al banco — vedi [§15](#15-negozio-fisico-vendite-al-banco) |
+| **Shopify**         | **Vendite**          | Lista ordini sincronizzati (online e POS), sola lettura                               |
+
+### Registra vendita (profilo Solo gestionale)
+
+Schermata **Registra vendita** per aggiornare le giacenze dopo vendita o reso in negozio. **Non sostituisce la cassa fiscale** e non crea un ordine di vendita: registra solo il movimento di magazzino.
+
+**Flusso consigliato (doppia scansione):**
+
+1. Incasso alla **cassa fiscale** o POS esterno.
+2. Scansione dello stesso barcode in **Registra vendita** → **Registra vendita** (scarico 1 pezzo).
+3. Per un reso: pannello **Registra storno** (reingresso 1 pezzo).
+
+**Elementi della schermata:**
+
+- **Sede (location)** — obbligatoria; deve essere quella dove avviene l’operazione.
+- Campo barcode/SKU con **Registra vendita** e **Registra storno**.
+- **Scansione camera** (se abilitata) — icona fotocamera come in Magazzino.
+- **Pistola barcode USB** — funziona come tastiera: focus nel campo, scan, Invio o pulsante.
+- **Sessione corrente** — ultime operazioni della sessione (non sostituisce lo storico movimenti).
+
+Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con origine **Vendita negozio**. Se lo stock **disponibile** è insufficiente, la vendita viene rifiutata.
+
+### Vendite (profilo Shopify)
 
 - Provengono da **Shopify Online** o **Shopify POS**.
 - In VestiFlow sono **sola lettura**.
@@ -553,10 +595,11 @@ L'**Annulla ordine** segna l'ordine come annullato ma lo lascia in lista. **Elim
 | **Sincronizza vendite da Shopify** | Vendite (lista) | Titolare / Admin         |
 | **Esporta CSV**                    | Vendite (lista) | Titolare, Admin, Manager |
 
-### Clienti
+### Clienti (profilo Shopify)
 
 - Anagrafica da Shopify, **sola lettura** in VestiFlow.
 - Per modifiche usa **Shopify Admin**.
+- **Non disponibile** nel profilo Solo gestionale.
 
 | Azione                             | Dove            | Chi                      |
 | ---------------------------------- | --------------- | ------------------------ |
@@ -583,7 +626,7 @@ VestiFlow è una **app web installabile (PWA)**:
 
 - icona sulla home del telefono;
 - apertura a schermo intero;
-- ideale per **Cerca giacenza** e **scanner barcode** in magazzino.
+- ideale per **Cerca giacenza**, **Registra vendita** (Solo gestionale) e **scanner barcode** in magazzino.
 
 ### Installazione
 
@@ -598,18 +641,36 @@ VestiFlow è una **app web installabile (PWA)**:
 
 ---
 
-## 15. Negozio fisico e Shopify POS
+## 15. Negozio fisico: vendite al banco
 
-VestiFlow **non è una cassa**. Le vendite in negozio passano da **Shopify POS**:
+### Profilo Solo gestionale (senza Shopify/TikTok)
 
-| Strumento       | Ruolo                                             |
-| --------------- | ------------------------------------------------- |
-| **Shopify POS** | Cassa su tablet/iPhone in negozio                 |
-| **VestiFlow**   | Riceve vendite POS in **Vendite**, aggiorna stock |
+Per negozi con **cassa fiscale o POS esterno** e VestiFlow solo come gestionale:
+
+1. Incassa alla cassa (VestiFlow non emette scontrini).
+2. Apri **Registra vendita** in sidebar.
+3. Seleziona la **sede** corretta.
+4. Scansiona il barcode (pistola USB o camera) e **Registra vendita**.
+5. Per un reso cliente: **Registra storno** nello stesso schermo.
+
+**Consigli:** mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla **Movimenti** con origine **Vendita negozio** se qualcosa non quadra.
+
+Non compare la lista **Vendite** né **Clienti**: il tracciamento vendite in VestiFlow è il movimento di magazzino.
+
+### Profilo Shopify (Shopify POS)
+
+Vendi in negozio con **Shopify POS**:
+
+| Strumento       | Ruolo                                                      |
+| --------------- | ---------------------------------------------------------- |
+| **Shopify POS** | Cassa su tablet/iPhone in negozio                          |
+| **VestiFlow**   | Riceve vendite POS in **Vendite**, aggiorna stock via sync |
 
 Flusso: vendita POS → Shopify scala giacenza → webhook → VestiFlow (movimento + ordine consultabile).
 
-VestiFlow **non** emette scontrini fiscali: usa il sistema collegato a Shopify o il tuo software fiscale.
+La voce **Registra vendita** **non** compare: non serve doppia scansione se il POS Shopify è collegato.
+
+VestiFlow **non** emette scontrini fiscali in nessun profilo: usa il sistema collegato al POS o il tuo software fiscale.
 
 ---
 
@@ -670,6 +731,20 @@ Con molti prodotti è **normale**. Attendi il messaggio di esito senza ripremere
 ### Vendite o clienti mancanti
 
 Spesso serve l'approvazione dati clienti protetti su Shopify Partners. Catalogo e giacenze funzionano comunque. Chiedi al referente VestiFlow se la sync ordini/clienti è abilitata per il tuo negozio.
+
+**Profilo Solo gestionale:** la lista **Vendite** non esiste per design. Usa **Registra vendita** per aggiornare lo stock e **Storico movimenti** per verificare le operazioni.
+
+### Non vedo «Registra vendita» in sidebar
+
+Il tuo negozio ha probabilmente profilo **Shopify** (o TikTok): le vendite arrivano dal canale e in menu compare **Vendite**, non Registra vendita. Contatta il referente VestiFlow solo se ti serve il profilo Solo gestionale.
+
+### La vendita viene rifiutata («stock insufficiente»)
+
+La sede selezionata non ha quantità **disponibile** ≥ 1 per quella variante. Controlla **Giacenze** per sede, verifica di aver scansionato il codice giusto, oppure registra prima un **carico** se la merce è appena arrivata.
+
+### Ho scansionato due volte per errore
+
+Usa **Registra storno** con lo stesso barcode per reingressare 1 pezzo, oppure chiedi a un responsabile una **rettifica** in Magazzino con motivo documentato.
 
 ### Non trovo un articolo scansionando il barcode
 

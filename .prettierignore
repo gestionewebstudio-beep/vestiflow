@@ -1,2 +1,4 @@
 # HTML generati da scripts/docs (CSS inline, non template Angular).
 docs/**/*.html
+public/guide/**
+src/assets/guide-admin/**

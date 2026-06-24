@@ -1,13 +1,79 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { AdjustmentDirection, StockMovementType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
+import { RetailScanAction } from './dto/register-retail-scan.dto';
 import { InventoryService } from './inventory.service';
 
 describe('InventoryService', () => {
   const tenantId = 'tenant-1';
+
+  function createRetailScanPrismaMock(options?: {
+    channelProfile?: string;
+    variant?: {
+      id: string;
+      productId: string;
+      sku: string;
+      product: { id: string; name: string };
+    } | null;
+    availableBefore?: number;
+    availableAfter?: number;
+    locationFound?: boolean;
+  }) {
+    const movement = {
+      id: 'mov-retail',
+      type: StockMovementType.sale,
+    };
+    const tx = {
+      productVariant: { findFirst: vi.fn() },
+      location: {
+        findFirst: vi.fn().mockResolvedValue(options?.locationFound === false ? null : { id: 'loc-1' }),
+      },
+      inventoryLevel: {
+        upsert: vi.fn().mockResolvedValue({
+          id: 'lvl-1',
+          available: options?.availableBefore ?? 5,
+          onHand: options?.availableBefore ?? 5,
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      stockMovement: {
+        create: vi.fn().mockResolvedValue(movement),
+      },
+    };
+    const prisma = {
+      tenant: {
+        findUnique: vi.fn().mockResolvedValue({
+          channelProfile: options?.channelProfile ?? 'gestionale',
+        }),
+      },
+      productVariant: {
+        findFirst: vi.fn().mockResolvedValue(
+          options?.variant === null
+            ? null
+            : (options?.variant ?? {
+                id: 'var-1',
+                productId: 'prod-1',
+                sku: 'SKU-1',
+                product: { id: 'prod-1', name: 'Maglietta' },
+              }),
+        ),
+      },
+      inventoryLevel: {
+        findUnique: vi.fn().mockResolvedValue({
+          available: options?.availableAfter ?? 4,
+        }),
+      },
+      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+    };
+    return { prisma, tx, movement };
+  }
 
   function createPrismaMock() {
     return {
@@ -365,5 +431,149 @@ describe('InventoryService', () => {
         'Tester',
       ),
     ).resolves.toEqual(movement);
+  });
+
+  it('registerRetailScan crea movimento vendita con origine vestiflow_pos', async () => {
+    const { prisma, tx, movement } = createRetailScanPrismaMock();
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    const result = await service.registerRetailScan(
+      tenantId,
+      { code: '8001234567890', locationId: 'loc-1', action: RetailScanAction.Sale },
+      'Commesso',
+      'user-1',
+    );
+
+    expect(result.movement).toEqual(movement);
+    expect(result.productName).toBe('Maglietta');
+    expect(result.remainingAvailable).toBe(4);
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: StockMovementType.sale,
+          origin: 'vestiflow_pos',
+          quantity: 1,
+          reason: 'Vendita negozio',
+        }),
+      }),
+    );
+  });
+
+  it('registerRetailScan crea movimento reso con origine vestiflow_pos', async () => {
+    const returnMovement = { id: 'mov-return', type: StockMovementType.return };
+    const { prisma, tx } = createRetailScanPrismaMock({ availableAfter: 6 });
+    tx.stockMovement.create.mockResolvedValue(returnMovement);
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    const result = await service.registerRetailScan(
+      tenantId,
+      { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Return },
+      'Commesso',
+    );
+
+    expect(result.movement).toEqual(returnMovement);
+    expect(result.remainingAvailable).toBe(6);
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: StockMovementType.return,
+          origin: 'vestiflow_pos',
+          reason: 'Storno negozio (reso)',
+        }),
+      }),
+    );
+    expect(tx.inventoryLevel.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ available: 6, onHand: 6 }),
+      }),
+    );
+  });
+
+  it('registerRetailScan rifiuta tenant non gestionale', async () => {
+    const { prisma } = createRetailScanPrismaMock({ channelProfile: 'shopify' });
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(
+      service.registerRetailScan(
+        tenantId,
+        { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
+        'Commesso',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('registerRetailScan rifiuta codice vuoto', async () => {
+    const { prisma } = createRetailScanPrismaMock();
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(
+      service.registerRetailScan(
+        tenantId,
+        { code: '   ', locationId: 'loc-1', action: RetailScanAction.Sale },
+        'Commesso',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('registerRetailScan rifiuta variante sconosciuta', async () => {
+    const { prisma } = createRetailScanPrismaMock({ variant: null });
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(
+      service.registerRetailScan(
+        tenantId,
+        { code: 'UNKNOWN', locationId: 'loc-1', action: RetailScanAction.Sale },
+        'Commesso',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('registerRetailScan rifiuta vendita con giacenza insufficiente', async () => {
+    const { prisma, tx } = createRetailScanPrismaMock({ availableBefore: 0 });
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(
+      service.registerRetailScan(
+        tenantId,
+        { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
+        'Commesso',
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('registerRetailScan rifiuta location inesistente', async () => {
+    const { prisma, tx } = createRetailScanPrismaMock({ locationFound: false });
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await expect(
+      service.registerRetailScan(
+        tenantId,
+        { code: 'SKU-1', locationId: 'loc-missing', action: RetailScanAction.Sale },
+        'Commesso',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
   });
 });
