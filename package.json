@@ -36,6 +36,9 @@
     "docs:test-plan": "node scripts/generate-test-plan-html.mjs",
     "docs:test-plan:pdf": "node scripts/generate-test-plan-pdf.mjs",
     "docs:test-plan:all": "npm run docs:test-plan && npm run docs:test-plan:pdf",
+    "docs:infra-costs": "node scripts/generate-infra-costs-html.mjs",
+    "docs:infra-costs:pdf": "node scripts/generate-infra-costs-pdf.mjs",
+    "docs:infra-costs:all": "npm run docs:infra-costs && npm run docs:infra-costs:pdf",
     "icons:generate": "node scripts/generate-icons.mjs",
     "prepare": "husky"
   },
