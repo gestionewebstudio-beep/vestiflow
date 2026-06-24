@@ -11,8 +11,28 @@ import {
   financialStatusTone,
   fulfillmentStatusLabel,
   fulfillmentStatusTone,
+  salesOrderLinesSummary,
   sourceLabel,
 } from './sales-order-labels.util';
+
+describe('salesOrderLinesSummary', () => {
+  it('formatta una riga singola', () => {
+    expect(salesOrderLinesSummary([{ title: 'Pantalone', quantity: 1 }])).toBe('Pantalone');
+  });
+
+  it('formatta quantità e righe multiple', () => {
+    expect(
+      salesOrderLinesSummary([
+        { title: 'Pantalone', quantity: 2 },
+        { title: 'Maglietta', quantity: 1 },
+      ]),
+    ).toBe('Pantalone × 2 + 1 altro');
+  });
+
+  it('restituisce trattino senza righe', () => {
+    expect(salesOrderLinesSummary([])).toBe('—');
+  });
+});
 
 describe('sales-order-labels.util', () => {
   for (const status of Object.values(SalesOrderFinancialStatus)) {

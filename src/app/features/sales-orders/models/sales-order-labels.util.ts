@@ -6,6 +6,7 @@ import {
   SalesOrderFulfillmentStatus,
   SalesOrderSource,
 } from '@core/models/sales-order.model';
+import type { SalesOrderLine } from '@core/models/sales-order.model';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
 const FINANCIAL_LABELS: Record<SalesOrderFinancialStatus, string> = {
@@ -59,4 +60,31 @@ export function fulfillmentStatusTone(status: SalesOrderFulfillmentStatus): Badg
 
 export function sourceLabel(source: SalesOrderSource): string {
   return SOURCE_LABELS[source];
+}
+
+/** Riepilogo righe ordine per lista vendite (titolo Shopify congelato al momento dell'ordine). */
+export function salesOrderLinesSummary(
+  lines: readonly Pick<SalesOrderLine, 'title' | 'quantity'>[],
+): string {
+  if (lines.length === 0) {
+    return '—';
+  }
+
+  const first = lines[0]!;
+  const firstLabel =
+    first.quantity > 1
+      ? `${formatLineTitle(first.title)} × ${first.quantity}`
+      : formatLineTitle(first.title);
+
+  if (lines.length === 1) {
+    return firstLabel;
+  }
+
+  const others = lines.length - 1;
+  return `${firstLabel} + ${others} ${others === 1 ? 'altro' : 'altri'}`;
+}
+
+function formatLineTitle(title: string): string {
+  const trimmed = title.trim();
+  return trimmed.length > 0 ? trimmed : '—';
 }

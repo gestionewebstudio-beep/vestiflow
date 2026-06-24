@@ -50,19 +50,23 @@
   }
 
   .sales-table__col--customer {
-    inline-size: 28%;
+    inline-size: 16%;
+  }
+
+  .sales-table__col--items {
+    inline-size: 22%;
   }
 
   .sales-table__col--channel {
-    inline-size: 12%;
+    inline-size: 10%;
   }
 
   .sales-table__col--payment {
-    inline-size: 14%;
+    inline-size: 12%;
   }
 
   .sales-table__col--fulfillment {
-    inline-size: 14%;
+    inline-size: 12%;
   }
 
   .sales-table__col--total {
@@ -70,7 +74,8 @@
   }
 
   .sales-table__number,
-  .sales-table tbody td[data-label='Cliente'] {
+  .sales-table tbody td[data-label='Cliente'],
+  .sales-table__items {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

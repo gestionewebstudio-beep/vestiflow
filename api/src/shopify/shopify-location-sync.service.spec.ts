@@ -243,11 +243,77 @@ describe('ShopifyLocationSyncService', () => {
       expect.objectContaining({
         where: { id: 'loc-busy' },
         data: expect.objectContaining({
+          isActive: false,
           shopifyLocationId: null,
           shopifySyncStatus: ShopifySyncStatus.not_connected,
         }),
       }),
     );
+  });
+
+  it('elimina tutte le location collegate quando Shopify non ne restituisce nessuna', async () => {
+    const { service, locationDelete } = createService({
+      shopifyLocations: [],
+      tenantLocations: [
+        {
+          id: 'loc-stale',
+          code: 'LOC-03',
+          name: 'Snow City Warehouse',
+          shopifyLocationId: '7777',
+        },
+      ],
+    });
+
+    await service.syncFromShopify(tenantId, shopDomain, accessToken);
+
+    expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-stale' } });
+  });
+
+  it('normalizza GID Shopify nel confronto stale', async () => {
+    const { service, locationDelete } = createService({
+      shopifyLocations: [{ id: 1001, name: 'Negozio attivo', active: true }],
+      tenantLocations: [
+        {
+          id: 'loc-stale',
+          code: 'LOC-05',
+          name: 'Snow City Warehouse',
+          shopifyLocationId: 'gid://shopify/Location/9999',
+        },
+      ],
+    });
+
+    await service.syncFromShopify(tenantId, shopDomain, accessToken);
+
+    expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-stale' } });
+  });
+
+  it('disattiva location VF quando Shopify la segna come non attiva', async () => {
+    const { service, locationUpdate, locationCreate } = createService({
+      shopifyLocations: [{ id: '2002', name: 'Snow City Warehouse', active: false }],
+      tenantLocations: [
+        {
+          id: 'loc-snow',
+          code: 'LOC-03',
+          name: 'Snow City Warehouse',
+          shopifyLocationId: '2002',
+          isActive: true,
+        },
+      ],
+    });
+
+    await service.syncFromShopify(tenantId, shopDomain, accessToken);
+
+    expect(locationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'loc-snow' },
+        data: expect.objectContaining({
+          name: 'Snow City Warehouse',
+          isActive: false,
+          shopifyLocationId: '2002',
+        }),
+      }),
+    );
+    expect(locationCreate).not.toHaveBeenCalled();
   });
 
   it('non elimina LOC-01 onboarding con inventario attivo', async () => {

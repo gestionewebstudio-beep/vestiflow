@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, type SalesOrder, type SalesOrderLine } from '@prisma/client';
+import { type SalesOrder, type SalesOrderLine } from '@prisma/client';
 
 import type { Paginated } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ListSalesOrdersQueryDto } from './dto/list-sales-orders.query.dto';
-import { prismaFinancialFilter, toPrismaSource } from './sales-order.enum-mapper';
+import { buildSalesOrderWhere } from './sales-order-query.util';
 
 export type SalesOrderListRow = SalesOrder & {
   customer: { email: string | null } | null;
+  lines: SalesOrderLine[];
 };
 
 export type SalesOrderDetailRow = SalesOrder & {
@@ -27,27 +28,17 @@ export class SalesOrdersService {
     tenantId: string,
     query: ListSalesOrdersQueryDto,
   ): Promise<Paginated<SalesOrderListRow>> {
-    const financialFilter = prismaFinancialFilter(query.financialStatus);
-    const prismaSource = toPrismaSource(query.source);
-
-    const where: Prisma.SalesOrderWhereInput = {
-      tenantId,
-      ...(financialFilter ? { financialStatus: { in: financialFilter } } : {}),
-      ...(prismaSource ? { source: prismaSource } : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { orderNumber: { contains: query.search, mode: 'insensitive' } },
-              { customerName: { contains: query.search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    };
+    const where = buildSalesOrderWhere(tenantId, query);
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.salesOrder.findMany({
         where,
-        include: { customer: { select: { email: true } } },
+        include: {
+          customer: { select: { email: true } },
+          lines: {
+            orderBy: { id: 'asc' },
+          },
+        },
         orderBy: { placedAt: 'desc' },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,

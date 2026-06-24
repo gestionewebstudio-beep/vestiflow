@@ -1,53 +1,111 @@
 <section class="reports">
   <header class="reports__header">
     <h1 class="reports__title">Report</h1>
-    <p class="reports__subtitle">Sintesi operativa di magazzino e vendite.</p>
+    <p class="reports__subtitle">Sintesi di magazzino (snapshot attuale) e vendite per periodo.</p>
   </header>
+
+  <app-report-filters
+    [period]="displayPeriod()"
+    [dateFrom]="dateFromDraft()"
+    [dateTo]="dateToDraft()"
+    [source]="query().source ?? ''"
+    [financialStatus]="query().financialStatus ?? ''"
+    [hasActiveFilters]="hasActiveFilters()"
+    (periodChange)="onPeriodChange($event)"
+    (dateFromChange)="onDateFromChange($event)"
+    (dateToChange)="onDateToChange($event)"
+    (sourceChange)="onSourceChange($event)"
+    (financialStatusChange)="onFinancialStatusChange($event)"
+    (resetFilters)="resetFilters()"
+  />
 
   @if (loading()) {
     <app-table-skeleton [columns]="4" [rows]="6" />
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else {
-    <div class="reports__kpis">
-      <app-stat-card
-        label="Valore magazzino"
-        [value]="stockValueLabel()"
-        icon="pi-euro"
-        tone="info"
-        hint="Disponibile a prezzo di vendita"
-      />
-      <app-stat-card
-        label="Pezzi disponibili"
-        [value]="availableUnitsLabel()"
-        icon="pi-box"
-        tone="neutral"
-        hint="Su tutte le location"
-      />
-      <app-stat-card
-        label="Varianti sotto soglia"
-        [value]="lowStockLabel()"
-        icon="pi-exclamation-triangle"
-        tone="warning"
-        hint="Sotto soglia o esaurite"
-      />
-      <app-stat-card
-        label="Fatturato"
-        [value]="revenueLabel()"
-        icon="pi-shopping-cart"
-        tone="success"
-        hint="Ordini pagati (lordo)"
-      />
+    <div class="reports__body">
+      <section class="reports__panel reports__panel--kpis" aria-labelledby="report-inventory-kpis">
+        <div class="reports__panel-head">
+          <div class="reports__panel-heading">
+            <h2 id="report-inventory-kpis" class="reports__panel-title">Magazzino</h2>
+            <p class="reports__panel-hint">Snapshot attuale — non filtrato per periodo</p>
+          </div>
+        </div>
+        <div class="reports__kpis">
+          <app-stat-card
+            label="Valore magazzino"
+            [value]="stockValueLabel()"
+            icon="pi-euro"
+            tone="info"
+            hint="Disponibile a prezzo di vendita"
+          />
+          <app-stat-card
+            label="Pezzi disponibili"
+            [value]="availableUnitsLabel()"
+            icon="pi-box"
+            tone="neutral"
+            hint="Su tutte le location"
+          />
+          <app-stat-card
+            label="Varianti sotto soglia"
+            [value]="lowStockLabel()"
+            icon="pi-exclamation-triangle"
+            tone="warning"
+            hint="Sotto soglia o esaurite"
+          />
+        </div>
+      </section>
+
+      <section class="reports__panel reports__panel--kpis" aria-labelledby="report-sales-kpis">
+        <div class="reports__panel-head">
+          <div class="reports__panel-heading">
+            <h2 id="report-sales-kpis" class="reports__panel-title">Vendite</h2>
+            <p class="reports__panel-hint">Periodo: {{ periodLabel() }}</p>
+          </div>
+        </div>
+        <div class="reports__kpis reports__kpis--sales">
+          <app-stat-card
+            label="Fatturato"
+            [value]="revenueLabel()"
+            icon="pi-euro"
+            tone="success"
+            hint="Ordini pagati o con rimborso parziale"
+          />
+          <app-stat-card
+            label="Ordini"
+            [value]="orderCountLabel()"
+            icon="pi-shopping-cart"
+            tone="info"
+            hint="Nel periodo selezionato"
+          />
+          <app-stat-card
+            label="Pezzi venduti"
+            [value]="unitsSoldLabel()"
+            icon="pi-tags"
+            tone="neutral"
+            hint="Su ordini pagati o parzialmente rimborsati"
+          />
+        </div>
+      </section>
+
+      <section class="reports__panel" aria-labelledby="report-inventory">
+        <h2 id="report-inventory" class="reports__panel-title">Giacenze per location</h2>
+        <app-report-location-table [rows]="locationRows()" />
+      </section>
+
+      <section class="reports__panel" aria-labelledby="report-sales">
+        <h2 id="report-sales" class="reports__panel-title">Vendite per stato pagamento</h2>
+        @if (salesEmpty()) {
+          <app-empty-state
+            title="Nessuna vendita nel periodo"
+            description="Prova ad ampliare l'intervallo o azzera i filtri canale e pagamento."
+            icon="pi-chart-bar"
+          />
+        } @else {
+          <app-report-sales-table [rows]="salesRows()" />
+        }
+      </section>
     </div>
-
-    <section class="reports__panel" aria-labelledby="report-inventory">
-      <h2 id="report-inventory" class="reports__panel-title">Giacenze per location</h2>
-      <app-report-location-table [rows]="locationRows()" />
-    </section>
-
-    <section class="reports__panel" aria-labelledby="report-sales">
-      <h2 id="report-sales" class="reports__panel-title">Vendite per stato pagamento</h2>
-      <app-report-sales-table [rows]="salesRows()" />
-    </section>
   }
 </section>

@@ -3,6 +3,7 @@
     <col class="sales-table__col sales-table__col--order" />
     <col class="sales-table__col sales-table__col--date" />
     <col class="sales-table__col sales-table__col--customer" />
+    <col class="sales-table__col sales-table__col--items" />
     <col class="sales-table__col sales-table__col--channel" />
     <col class="sales-table__col sales-table__col--payment" />
     <col class="sales-table__col sales-table__col--fulfillment" />
@@ -13,6 +14,7 @@
       <th scope="col">Ordine</th>
       <th scope="col">Data</th>
       <th scope="col">Cliente</th>
+      <th scope="col">Articoli</th>
       <th scope="col">Canale</th>
       <th scope="col" class="sales-table__cell--payment">Pagamento</th>
       <th scope="col" class="sales-table__cell--fulfillment">Evasione</th>
@@ -35,6 +37,7 @@
         </td>
         <td class="tabular-nums" data-label="Data">{{ formatDate(order.placedAt) }}</td>
         <td data-label="Cliente">{{ order.customerName }}</td>
+        <td class="sales-table__items" data-label="Articoli">{{ linesSummary(order.lines) }}</td>
         <td data-label="Canale">{{ sourceLabel(order.source) }}</td>
         <td class="sales-table__cell--payment" data-label="Pagamento">
           <span class="sales-table__cell-value">

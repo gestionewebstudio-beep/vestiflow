@@ -18,22 +18,22 @@
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (order(); as o) {
     <header class="sales-detail__header">
-      <div class="sales-detail__heading">
-        <h1 class="sales-detail__title tabular-nums">{{ o.orderNumber }}</h1>
-        <p class="sales-detail__customer">{{ o.customerName }}</p>
-      </div>
-      <div class="sales-detail__badges">
-        <app-badge [tone]="financialTone(o.financialStatus)">
-          {{ financialLabel(o.financialStatus) }}
-        </app-badge>
-        <app-badge [tone]="fulfillmentTone(o.fulfillmentStatus)">
-          {{ fulfillmentLabel(o.fulfillmentStatus) }}
-        </app-badge>
-      </div>
+      <h1 class="sales-detail__title tabular-nums">{{ o.orderNumber }}</h1>
+      <p class="sales-detail__customer">{{ o.customerName }}</p>
     </header>
 
     <section class="sales-detail__panel" aria-labelledby="sales-general">
-      <h2 id="sales-general" class="sales-detail__panel-title">Dati ordine</h2>
+      <div class="sales-detail__panel-head sales-detail__panel-head--split">
+        <h2 id="sales-general" class="sales-detail__panel-title">Dati ordine</h2>
+        <div class="sales-detail__badges">
+          <app-badge [tone]="financialTone(o.financialStatus)">
+            {{ financialLabel(o.financialStatus) }}
+          </app-badge>
+          <app-badge [tone]="fulfillmentTone(o.fulfillmentStatus)">
+            {{ fulfillmentLabel(o.fulfillmentStatus) }}
+          </app-badge>
+        </div>
+      </div>
       <app-detail-facts [facts]="facts()" />
     </section>
 

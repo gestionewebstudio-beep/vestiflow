@@ -4,6 +4,7 @@ import { InventoryCountStatus, ShopifySyncStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient, type ShopifyAdminLocation } from './shopify-admin.client';
+import { isSameShopifyLocationId, normalizeShopifyLocationId } from './shopify-location-id.util';
 
 export interface ShopifyLocationSyncResult {
   readonly matchedCount: number;
@@ -40,11 +41,16 @@ export class ShopifyLocationSyncService {
     let importedCount = 0;
     let nextCodeIndex = this.resolveNextLocationCodeIndex(tenantLocations);
 
-    const activeShopifyIds = new Set<string>();
+    /** Id presenti nel catalogo Shopify (attive e disattivate). */
+    const shopifyCatalogIds = new Set<string>();
 
     for (const shopifyLocation of shopifyLocations) {
       const shopifyId = String(shopifyLocation.id);
-      activeShopifyIds.add(shopifyId);
+      const normalizedId = normalizeShopifyLocationId(shopifyId);
+      if (normalizedId) {
+        shopifyCatalogIds.add(normalizedId);
+      }
+
       const match = this.findMatch(tenantLocations, shopifyLocation, shopifyId, usedVfIds);
 
       if (match) {
@@ -53,7 +59,17 @@ export class ShopifyLocationSyncService {
           where: { id: match.id },
           data: this.buildLinkedLocationData(shopifyLocation, shopifyId),
         });
-        matchedCount += 1;
+        if (shopifyLocation.active) {
+          matchedCount += 1;
+        } else {
+          this.logger.log(
+            `Location Shopify disattivata (${tenantId}): ${shopifyLocation.name}`,
+          );
+        }
+        continue;
+      }
+
+      if (!shopifyLocation.active) {
         continue;
       }
 
@@ -84,9 +100,7 @@ export class ShopifyLocationSyncService {
       await this.removeEmptyOnboardingLocation(tenantId);
     }
 
-    if (activeShopifyIds.size > 0) {
-      await this.cleanupStaleShopifyLocations(tenantId, activeShopifyIds);
-    }
+    await this.cleanupStaleShopifyLocations(tenantId, shopifyCatalogIds);
 
     return {
       matchedCount,
@@ -141,7 +155,7 @@ export class ShopifyLocationSyncService {
 
   private async cleanupStaleShopifyLocations(
     tenantId: string,
-    activeShopifyIds: ReadonlySet<string>,
+    shopifyCatalogIds: ReadonlySet<string>,
   ): Promise<void> {
     const linkedLocations = await this.prisma.location.findMany({
       where: { tenantId, shopifyLocationId: { not: null } },
@@ -149,7 +163,8 @@ export class ShopifyLocationSyncService {
 
     for (const location of linkedLocations) {
       const shopifyLocationId = location.shopifyLocationId;
-      if (!shopifyLocationId || activeShopifyIds.has(shopifyLocationId)) {
+      const normalizedId = normalizeShopifyLocationId(shopifyLocationId);
+      if (!normalizedId || shopifyCatalogIds.has(normalizedId)) {
         continue;
       }
 
@@ -164,6 +179,7 @@ export class ShopifyLocationSyncService {
       await this.prisma.location.update({
         where: { id: location.id },
         data: {
+          isActive: false,
           shopifyLocationId: null,
           shopifySyncStatus: ShopifySyncStatus.not_connected,
           shopifyLastSyncAt: null,
@@ -171,7 +187,7 @@ export class ShopifyLocationSyncService {
         },
       });
       this.logger.log(
-        `Scollegata location Shopify obsoleta (${tenantId}): ${location.name}`,
+        `Scollegata e disattivata location Shopify obsoleta (${tenantId}): ${location.name}`,
       );
     }
   }
@@ -183,7 +199,8 @@ export class ShopifyLocationSyncService {
     usedVfIds: ReadonlySet<string>,
   ): Location | undefined {
     const byId = tenantLocations.find(
-      (loc) => !usedVfIds.has(loc.id) && loc.shopifyLocationId === shopifyId,
+      (loc) =>
+        !usedVfIds.has(loc.id) && isSameShopifyLocationId(loc.shopifyLocationId, shopifyId),
     );
     if (byId) {
       return byId;

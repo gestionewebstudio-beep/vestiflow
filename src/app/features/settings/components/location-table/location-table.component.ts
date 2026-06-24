@@ -20,11 +20,15 @@ export class LocationTableComponent {
   readonly groupByShopifySource = input(false);
 
   protected readonly shopifyLocations = computed(() =>
-    this.locations().filter((location) => isShopifyManagedLocation(location)),
+    this.locations().filter((location) => location.isActive && isShopifyManagedLocation(location)),
+  );
+
+  protected readonly archivedShopifyLocations = computed(() =>
+    this.locations().filter((location) => !location.isActive && isShopifyManagedLocation(location)),
   );
 
   protected readonly localLocations = computed(() =>
-    this.locations().filter((location) => !isShopifyManagedLocation(location)),
+    this.locations().filter((location) => location.isActive && !isShopifyManagedLocation(location)),
   );
 
   protected readonly useGroupedLayout = computed(

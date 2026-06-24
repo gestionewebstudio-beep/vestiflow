@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 
 import { serializeCsv } from '../common/csv.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,10 +7,9 @@ import type { ExportSalesOrdersQueryDto } from './dto/export-sales-orders.query.
 import {
   financialStatusDisplayLabel,
   fulfillmentStatusDisplayLabel,
-  prismaFinancialFilter,
   sourceDisplayLabel,
-  toPrismaSource,
 } from './sales-order.enum-mapper';
+import { buildSalesOrderWhere } from './sales-order-query.util';
 
 export const SALES_ORDER_EXPORT_HEADERS = [
   'Numero ordine',
@@ -55,25 +53,7 @@ export class SalesOrdersExportService {
     return serializeCsv(SALES_ORDER_EXPORT_HEADERS, rows);
   }
 
-  private buildWhere(
-    tenantId: string,
-    query: ExportSalesOrdersQueryDto,
-  ): Prisma.SalesOrderWhereInput {
-    const financialFilter = prismaFinancialFilter(query.financialStatus);
-    const prismaSource = toPrismaSource(query.source);
-
-    return {
-      tenantId,
-      ...(financialFilter ? { financialStatus: { in: financialFilter } } : {}),
-      ...(prismaSource ? { source: prismaSource } : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { orderNumber: { contains: query.search, mode: 'insensitive' } },
-              { customerName: { contains: query.search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    };
+  private buildWhere(tenantId: string, query: ExportSalesOrdersQueryDto) {
+    return buildSalesOrderWhere(tenantId, query);
   }
 }

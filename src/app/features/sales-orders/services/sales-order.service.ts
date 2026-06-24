@@ -1,6 +1,6 @@
 import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { map, type Observable, timeout } from 'rxjs';
+import { EMPTY, expand, map, reduce, type Observable, timeout } from 'rxjs';
 
 import { toPaginatedResponse } from '@core/api/api-pagination.mapper';
 import type { ApiPaginated } from '@core/api/api-paginated.model';
@@ -18,6 +18,7 @@ import { mapSalesOrderApiRow, type SalesOrderApiRow } from './sales-order-api.ma
 
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
+const REPORT_FETCH_PAGE_SIZE = 100;
 
 /**
  * Accesso read-only alle vendite via NestJS. Shopify è owner: nessuna scrittura
@@ -33,15 +34,7 @@ export class SalesOrderService {
       .set('page', String(query.page ?? 1))
       .set('pageSize', String(query.pageSize ?? 20));
 
-    if (query.search) {
-      params = params.set('search', query.search);
-    }
-    if (query.financialStatus) {
-      params = params.set('financialStatus', query.financialStatus);
-    }
-    if (query.source) {
-      params = params.set('source', query.source);
-    }
+    params = this.appendSalesOrderFilters(params, query);
 
     return this.http
       .get<ApiPaginated<SalesOrderApiRow>>(this.url('/sales-orders'), { params })
@@ -63,17 +56,30 @@ export class SalesOrderService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSalesOrderApiRow));
   }
 
+  /** Scarica tutte le vendite che matchano i filtri (paginazione automatica). */
+  getAllSalesOrders(
+    query: Omit<SalesOrderListQuery, 'page' | 'pageSize'>,
+  ): Observable<readonly SalesOrder[]> {
+    return this.getSalesOrders({ ...query, page: 1, pageSize: REPORT_FETCH_PAGE_SIZE }).pipe(
+      expand((response) =>
+        response.meta.page < response.meta.totalPages
+          ? this.getSalesOrders({
+              ...query,
+              page: response.meta.page + 1,
+              pageSize: REPORT_FETCH_PAGE_SIZE,
+            })
+          : EMPTY,
+      ),
+      map((response) => response.data),
+      reduce(
+        (accumulator, pageOrders) => [...accumulator, ...pageOrders],
+        [] as readonly SalesOrder[],
+      ),
+    );
+  }
+
   exportSalesOrdersCsv(query: SalesOrderExportQuery): Observable<Blob> {
-    let params = new HttpParams();
-    if (query.search) {
-      params = params.set('search', query.search);
-    }
-    if (query.financialStatus) {
-      params = params.set('financialStatus', query.financialStatus);
-    }
-    if (query.source) {
-      params = params.set('source', query.source);
-    }
+    const params = this.appendSalesOrderFilters(new HttpParams(), query);
 
     return this.http
       .get(this.url('/sales-orders/export/csv'), { params, responseType: 'blob' })
@@ -82,5 +88,25 @@ export class SalesOrderService {
 
   private url(path: string): string {
     return `${this.config.apiBaseUrl}${path}`;
+  }
+
+  private appendSalesOrderFilters(params: HttpParams, query: SalesOrderExportQuery): HttpParams {
+    let next = params;
+    if (query.search) {
+      next = next.set('search', query.search);
+    }
+    if (query.financialStatus) {
+      next = next.set('financialStatus', query.financialStatus);
+    }
+    if (query.source) {
+      next = next.set('source', query.source);
+    }
+    if (query.placedFrom) {
+      next = next.set('placedFrom', query.placedFrom);
+    }
+    if (query.placedTo) {
+      next = next.set('placedTo', query.placedTo);
+    }
+    return next;
   }
 }

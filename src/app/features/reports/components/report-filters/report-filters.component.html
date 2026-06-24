@@ -1,0 +1,87 @@
+<div class="report-filters">
+  <div class="report-filters__head">
+    <h2 class="report-filters__title">Filtri vendite</h2>
+    <p class="report-filters__hint">
+      Periodo, canale e pagamento aggiornano il riepilogo e la tabella vendite.
+    </p>
+  </div>
+
+  <div class="report-filters__toolbar">
+    <div class="report-filters__fields">
+      <div class="report-filters__field report-filters__field--period">
+        <span class="report-filters__label">Periodo</span>
+        <app-select-menu
+          [options]="periodOptions"
+          [value]="period()"
+          ariaLabel="Periodo report vendite"
+          placeholder="Periodo"
+          [compact]="true"
+          [fullWidth]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onPeriodChange($event)"
+        />
+      </div>
+
+      @if (showCustomDates()) {
+        <div class="report-filters__field report-filters__field--date">
+          <label class="report-filters__label" for="report-date-from">Dal</label>
+          <input
+            id="report-date-from"
+            class="report-filters__input"
+            type="date"
+            [value]="dateFrom()"
+            (change)="onDateFromInput($event)"
+          />
+        </div>
+
+        <div class="report-filters__field report-filters__field--date">
+          <label class="report-filters__label" for="report-date-to">Al</label>
+          <input
+            id="report-date-to"
+            class="report-filters__input"
+            type="date"
+            [value]="dateTo()"
+            (change)="onDateToInput($event)"
+          />
+        </div>
+      }
+
+      <div class="report-filters__field report-filters__field--select">
+        <span class="report-filters__label">Canale</span>
+        <app-select-menu
+          [options]="sourceOptions"
+          [value]="source()"
+          ariaLabel="Filtra per canale vendita"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onSourceChange($event)"
+        />
+      </div>
+
+      <div class="report-filters__field report-filters__field--select">
+        <span class="report-filters__label">Pagamento</span>
+        <app-select-menu
+          [options]="financialStatusOptions"
+          [value]="financialStatus()"
+          ariaLabel="Filtra per stato pagamento"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onFinancialStatusChange($event)"
+        />
+      </div>
+    </div>
+
+    <div class="report-filters__actions">
+      <app-button
+        variant="secondary"
+        [disabled]="!hasActiveFilters()"
+        (click)="resetFilters.emit()"
+      >
+        <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        Azzera filtri
+      </app-button>
+    </div>
+  </div>
+</div>

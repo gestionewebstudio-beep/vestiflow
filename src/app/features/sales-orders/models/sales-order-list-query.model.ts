@@ -16,6 +16,9 @@ export interface SalesOrderListQuery {
   readonly search?: string;
   readonly financialStatus?: SalesOrderFinancialStatus;
   readonly source?: SalesOrderSource;
+  /** Data ordine inclusiva (YYYY-MM-DD). */
+  readonly placedFrom?: string;
+  readonly placedTo?: string;
 }
 
 /** Filtri export CSV (stessi filtri lista, senza paginazione). */

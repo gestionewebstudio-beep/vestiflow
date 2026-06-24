@@ -18,6 +18,18 @@ function createLocation(partial: Partial<Location> & Pick<Location, 'id' | 'name
 }
 
 describe('location-selection.util', () => {
+  it('isShopifyManagedLocation richiede shopifyId collegato', () => {
+    expect(
+      isShopifyManagedLocation(
+        createLocation({
+          id: 'loc-ghost',
+          name: 'Fantasma',
+          shopify: { status: ShopifySyncStatus.Synced },
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it('isShopifyManagedLocation riconosce sedi collegate a Shopify', () => {
     expect(
       isShopifyManagedLocation(

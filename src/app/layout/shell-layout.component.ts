@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  DOCUMENT,
   computed,
   effect,
   inject,
@@ -52,6 +53,7 @@ import { InventoryService } from '@features/inventory/services/inventory.service
   styleUrl: './shell-layout.component.scss',
 })
 export class ShellLayoutComponent {
+  private readonly document = inject(DOCUMENT);
   private readonly router = inject(Router);
   private readonly themeService = inject(ThemeService);
   private readonly authService = inject(AuthService);
@@ -108,9 +110,49 @@ export class ShellLayoutComponent {
     }
 
     const selectable = this.topbarLocations();
+    if (selectable.length === 0) {
+      return;
+    }
+
     if (!selectable.some((location) => location.id === activeLocationId)) {
       this.locationContext.setActiveLocation(null);
     }
+  });
+
+  /** Allinea le sedi al catalogo Shopify una volta per sessione (rimuove sedi obsolete). */
+  private readonly sessionLocationSync = effect((onCleanup) => {
+    if (this.isPlatformOperator()) {
+      return;
+    }
+    if (this.shopifySyncStatus() !== ShopifyConnectionStatus.Connected) {
+      return;
+    }
+
+    const storageKey = 'vestiflow-session-location-sync-v3';
+    try {
+      if (this.document.defaultView?.sessionStorage.getItem(storageKey)) {
+        return;
+      }
+    } catch {
+      return;
+    }
+
+    const subscription = this.shopifyConnectionService
+      .syncLocations()
+      .pipe(catchError(() => of(null)))
+      .subscribe((result) => {
+        this.inventoryService.invalidateLocationsCache();
+        if (!result) {
+          return;
+        }
+        try {
+          this.document.defaultView?.sessionStorage.setItem(storageKey, '1');
+        } catch {
+          // sessionStorage non disponibile: nessuna persistenza del flag.
+        }
+      });
+
+    onCleanup(() => subscription.unsubscribe());
   });
 
   /** Connessione Shopify completa per topbar e banner globali. */

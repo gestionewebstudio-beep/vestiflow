@@ -10,6 +10,7 @@ import {
   financialStatusTone,
   fulfillmentStatusLabel,
   fulfillmentStatusTone,
+  salesOrderLinesSummary,
   sourceLabel,
 } from '../../models/sales-order-labels.util';
 
@@ -36,8 +37,10 @@ export class SalesOrderTableComponent {
   protected readonly sourceLabel = sourceLabel;
   protected readonly formatDate = formatDate;
   protected readonly formatMoney = formatMoney;
+  protected readonly linesSummary = salesOrderLinesSummary;
 
   protected rowLabel(order: SalesOrder): string {
-    return `Apri vendita ${order.orderNumber} di ${order.customerName}`;
+    const items = salesOrderLinesSummary(order.lines);
+    return `Apri vendita ${order.orderNumber} di ${order.customerName}, articoli: ${items}`;
   }
 }

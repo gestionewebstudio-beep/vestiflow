@@ -100,7 +100,7 @@ export class SalesOrderListComponent {
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly skeletonColumns = 6;
+  protected readonly skeletonColumns = 7;
   protected readonly pageSizeOptions = SALES_PAGE_SIZE_OPTIONS;
 
   protected readonly financialStatusOptions: readonly SelectMenuOption[] = [

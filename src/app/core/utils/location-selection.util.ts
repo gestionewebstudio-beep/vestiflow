@@ -5,13 +5,17 @@ import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 
 /** Location collegata o sincronizzata con Shopify (sede operativa ecommerce). */
 export function isShopifyManagedLocation(location: Location): boolean {
-  const status = location.shopify?.status;
+  const shopify = location.shopify;
+  if (!shopify?.shopifyId) {
+    return false;
+  }
+
+  const status = shopify.status;
   return (
     status === ShopifySyncStatus.Synced ||
     status === ShopifySyncStatus.Syncing ||
     status === ShopifySyncStatus.OutOfSync ||
-    status === ShopifySyncStatus.Error ||
-    Boolean(location.shopify?.shopifyId)
+    status === ShopifySyncStatus.Error
   );
 }
 

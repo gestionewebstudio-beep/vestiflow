@@ -10,6 +10,12 @@
   gap: var(--space-5);
 }
 
+.reports__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .reports__title {
   margin: 0;
   font-size: var(--text-xl);
@@ -18,27 +24,15 @@
 }
 
 .reports__subtitle {
-  margin: var(--space-1) 0 0;
+  margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
-.reports__kpis {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-3);
-}
-
-@include bp.media-up('md') {
-  .reports__kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@include bp.media-up('lg') {
-  .reports__kpis {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.reports__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 .reports__panel {
@@ -51,9 +45,61 @@
   border-radius: var(--radius-lg);
 }
 
+.reports__panel--kpis {
+  gap: var(--space-4);
+}
+
+.reports__panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+@include bp.media-up('md') {
+  .reports__panel-head {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+.reports__panel-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .reports__panel-title {
   margin: 0;
   font-size: var(--text-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
+}
+
+.reports__panel-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.reports__kpis {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+@include bp.media-up('sm') {
+  .reports__kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@include bp.media-up('lg') {
+  .reports__kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .reports__kpis--sales {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

@@ -5,10 +5,11 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
-import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
+import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
@@ -24,6 +25,7 @@ import {
   fulfillmentStatusTone,
   sourceLabel,
 } from './models/sales-order-labels.util';
+import { salesOrderShopifyDetailFact } from './models/sales-order-shopify-fact.util';
 import { SalesOrderService } from './services/sales-order.service';
 
 type DetailState =
@@ -50,6 +52,7 @@ type DetailState =
 })
 export class SalesOrderDetailComponent {
   private readonly service = inject(SalesOrderService);
+  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -63,6 +66,11 @@ export class SalesOrderDetailComponent {
   protected readonly formatMoney = formatMoney;
 
   private readonly refreshTick = signal(0);
+
+  private readonly shopifyConnection = toSignal(
+    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
+    { initialValue: null as ShopifyConnection | null },
+  );
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   private readonly request = computed(() => ({
@@ -107,13 +115,7 @@ export class SalesOrderDetailComponent {
       { label: 'Cliente', value: order.customerName },
       { label: 'Email', value: order.customerEmail ?? '—' },
       { label: 'Valuta', value: order.currency },
-      {
-        label: 'Shopify',
-        value:
-          order.shopify?.status === ShopifySyncStatus.Synced
-            ? (order.shopify.shopifyId ?? 'Sincronizzato')
-            : 'Non sincronizzato',
-      },
+      salesOrderShopifyDetailFact(order.shopify, this.shopifyConnection()?.shopDomain),
     ];
   });
 

@@ -9,6 +9,9 @@ export interface DetailFact {
   readonly numeric?: boolean;
   /** Occupa l'intera larghezza della griglia (descrizioni, note). */
   readonly wide?: boolean;
+  /** Link opzionale sotto al valore (es. admin Shopify). */
+  readonly href?: string;
+  readonly linkLabel?: string;
 }
 
 /**

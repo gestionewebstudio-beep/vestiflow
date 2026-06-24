@@ -10,7 +10,17 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { catchError, combineLatest, map, of, startWith, switchMap, take } from 'rxjs';
+import {
+  catchError,
+  combineLatest,
+  filter,
+  map,
+  merge,
+  of,
+  startWith,
+  switchMap,
+  take,
+} from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { isPlatformOperator } from '@core/permissions/platform-operator.util';
@@ -48,6 +58,7 @@ import {
   groupShopifyScopesForDisplay,
 } from '@features/integrations/shopify/models/shopify-scope-labels.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
 import { ShopifyShopChangeWizardComponent } from '@features/integrations/shopify/components/shopify-shop-change-wizard/shopify-shop-change-wizard.component';
 import { normalizeShopDomainInput } from '@features/integrations/shopify/models/normalize-shop-domain.util';
 import {
@@ -134,6 +145,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
 })
 export class SettingsComponent {
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly inventoryService = inject(InventoryService);
   private readonly tenantCompanyService = inject(TenantCompanyService);
   private readonly themeService = inject(ThemeService);
@@ -307,13 +319,15 @@ export class SettingsComponent {
   });
 
   protected readonly locations = toSignal(
-    toObservable(this.locationTick).pipe(switchMap(() => this.inventoryService.getLocations())),
+    merge(toObservable(this.locationTick), this.shopifySyncWatch.watchConnectionInvalidated()).pipe(
+      switchMap(() => this.inventoryService.getLocations()),
+    ),
     { initialValue: [] },
   );
 
   protected readonly locationSetupStatus = computed((): SetupStatusItem => {
     const synced = this.locations().filter(
-      (location) => location.shopify?.status === ShopifySyncStatus.Synced,
+      (location) => location.isActive && location.shopify?.status === ShopifySyncStatus.Synced,
     );
     if (synced.length === 0) {
       return {
@@ -445,6 +459,20 @@ export class SettingsComponent {
         });
       }
     });
+
+    combineLatest([toObservable(this.connection), toObservable(this.showShopifyPanel)])
+      .pipe(
+        filter(
+          ([conn, showPanel]) => showPanel && conn?.status === ShopifyConnectionStatus.Connected,
+        ),
+        take(1),
+        switchMap(() => this.shopifyConnectionService.syncLocations()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => this.reloadLocations(),
+        error: () => this.reloadLocations(),
+      });
   }
 
   protected onThemeChange(mode: ThemeMode): void {

@@ -1,16 +1,22 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
-import type { Money } from '@core/models/common.model';
-import { SalesOrderFinancialStatus } from '@core/models/sales-order.model';
-import type { SalesOrder } from '@core/models/sales-order.model';
 import { isLowStock } from '@core/utils/inventory.util';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -19,14 +25,24 @@ import { InventoryService } from '@features/inventory/services/inventory.service
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
 import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
+import type { SalesOrder } from '@core/models/sales-order.model';
 
+import { ReportFiltersComponent } from './components/report-filters/report-filters.component';
 import { ReportLocationTableComponent } from './components/report-location-table/report-location-table.component';
 import { ReportSalesTableComponent } from './components/report-sales-table/report-sales-table.component';
-import type { LocationReportRow, SalesReportRow } from './models/report-view.model';
-
-// Le vendite mock sono poche: una pagina larga copre l'intero dataset.
-// Col backend reale i report avranno endpoint aggregati dedicati.
-const REPORT_SALES_PAGE_SIZE = 100;
+import {
+  formatReportPeriodLabel,
+  parseReportListQuery,
+  ReportPeriodPreset,
+  reportHasActiveFilters,
+  toSalesOrderListFilters,
+} from './models/report-list-query.model';
+import {
+  aggregateSalesReportRows,
+  computeSalesReportSummary,
+  eurMoney,
+} from './models/report-sales.util';
+import type { LocationReportRow } from './models/report-view.model';
 
 interface ReportData {
   readonly levels: readonly InventoryLevel[];
@@ -41,14 +57,16 @@ type ReportState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
- * Report base (smart): KPI di magazzino e vendite aggregati client-side dai
- * service mock. Read-only, nessun filtro persistente in questa prima versione.
+ * Report operativi: magazzino (snapshot) e vendite filtrabili per periodo,
+ * canale e stato pagamento. Filtri vendite persistiti in query params.
  */
 @Component({
   selector: 'app-reports',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    EmptyStateComponent,
     ErrorStateComponent,
+    ReportFiltersComponent,
     StatCardComponent,
     TableSkeletonComponent,
     ReportLocationTableComponent,
@@ -61,29 +79,66 @@ export class ReportsComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly productService = inject(ProductService);
   private readonly salesOrderService = inject(SalesOrderService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   private readonly refreshTick = signal(0);
+  private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
+  /** Aggiornamento immediato del periodo in UI prima del sync URL. */
+  private readonly uiPeriod = signal<ReportPeriodPreset | null>(null);
+
+  constructor() {
+    effect(() => {
+      this.query();
+      this.uiPeriod.set(null);
+    });
+  }
+
+  protected readonly query = computed(() => parseReportListQuery(this.queryParams()));
+  protected readonly displayPeriod = computed(() => this.uiPeriod() ?? this.query().period);
+  protected readonly periodLabel = computed(() =>
+    formatReportPeriodLabel({ ...this.query(), period: this.displayPeriod() }),
+  );
+  protected readonly hasActiveFilters = computed(() => reportHasActiveFilters(this.query()));
+
+  protected readonly dateFromDraft = computed(() => {
+    if (this.displayPeriod() !== ReportPeriodPreset.Custom) {
+      return '';
+    }
+    return this.query().dateFrom ?? todayIsoDate();
+  });
+
+  protected readonly dateToDraft = computed(() => {
+    if (this.displayPeriod() !== ReportPeriodPreset.Custom) {
+      return '';
+    }
+    return this.query().dateTo ?? todayIsoDate();
+  });
+
+  private readonly request = computed(() => ({
+    query: { ...this.query(), period: this.displayPeriod() },
+    tick: this.refreshTick(),
+  }));
 
   private readonly state = toSignal(
-    toObservable(this.refreshTick).pipe(
-      switchMap(() =>
-        forkJoin({
+    toObservable(this.request).pipe(
+      switchMap(({ query }) => {
+        const salesFilters = toSalesOrderListFilters(query);
+        return forkJoin({
           levels: this.inventoryService
             .getLevels({ page: 1, pageSize: 100 })
             .pipe(map((response) => response.data)),
           locations: this.inventoryService.getLocations(),
           summaries: this.productService.getVariantSummaries(),
-          orders: this.salesOrderService
-            .getSalesOrders({ page: 1, pageSize: REPORT_SALES_PAGE_SIZE })
-            .pipe(map((response) => response.data)),
+          orders: this.salesOrderService.getAllSalesOrders(salesFilters),
         }).pipe(
           map((data): ReportState => ({ status: 'success', data })),
           startWith<ReportState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<ReportState>({ status: 'error', error: this.toAppError(err) }),
           ),
-        ),
-      ),
+        );
+      }),
     ),
     { initialValue: { status: 'loading' } satisfies ReportState },
   );
@@ -100,7 +155,6 @@ export class ReportsComponent {
     return current.status === 'success' ? current.data : null;
   });
 
-  /** Aggregato giacenze per location (valore a prezzo di vendita). */
   protected readonly locationRows = computed<readonly LocationReportRow[]>(() => {
     const data = this.data();
     if (!data) {
@@ -126,46 +180,31 @@ export class ReportsComponent {
     });
   });
 
-  /** Aggregato vendite per stato pagamento (solo stati presenti nei dati). */
-  protected readonly salesRows = computed<readonly SalesReportRow[]>(() => {
+  private readonly salesSummary = computed(() => {
+    const data = this.data();
+    if (!data) {
+      return { revenueMinor: 0, orderCount: 0, unitsSold: 0 };
+    }
+    return computeSalesReportSummary(data.orders);
+  });
+
+  protected readonly salesRows = computed(() => {
     const data = this.data();
     if (!data) {
       return [];
     }
-    const byStatus = new Map<SalesOrder['financialStatus'], SalesReportRow>();
-    for (const order of data.orders) {
-      const existing = byStatus.get(order.financialStatus);
-      const units = order.lines.reduce((sum, line) => sum + line.quantity, 0);
-      if (existing) {
-        byStatus.set(order.financialStatus, {
-          status: order.financialStatus,
-          orders: existing.orders + 1,
-          units: existing.units + units,
-          total: {
-            amountMinor: existing.total.amountMinor + order.total.amountMinor,
-            currencyCode: existing.total.currencyCode,
-          },
-        });
-      } else {
-        byStatus.set(order.financialStatus, {
-          status: order.financialStatus,
-          orders: 1,
-          units,
-          total: order.total,
-        });
-      }
-    }
-    return [...byStatus.values()].sort((a, b) => b.total.amountMinor - a.total.amountMinor);
+    return aggregateSalesReportRows(data.orders);
   });
 
-  // ── KPI ─────────────────────────────────────────────────────────────────────
-  protected readonly stockValueLabel = computed(() => {
-    const totalMinor = this.locationRows().reduce(
-      (sum, row) => sum + row.stockValue.amountMinor,
-      0,
-    );
-    return formatMoney(this.eur(totalMinor));
-  });
+  protected readonly salesEmpty = computed(
+    () => !this.loading() && !this.error() && this.salesRows().length === 0,
+  );
+
+  protected readonly stockValueLabel = computed(() =>
+    formatMoney(
+      eurMoney(this.locationRows().reduce((sum, row) => sum + row.stockValue.amountMinor, 0)),
+    ),
+  );
 
   protected readonly availableUnitsLabel = computed(() =>
     String(this.locationRows().reduce((sum, row) => sum + row.availableUnits, 0)),
@@ -175,28 +214,60 @@ export class ReportsComponent {
     String(this.locationRows().reduce((sum, row) => sum + row.lowStockCount, 0)),
   );
 
-  protected readonly revenueLabel = computed(() => {
-    const data = this.data();
-    if (!data) {
-      return formatMoney(this.eur(0));
+  protected readonly revenueLabel = computed(() =>
+    formatMoney(eurMoney(this.salesSummary().revenueMinor)),
+  );
+
+  protected readonly orderCountLabel = computed(() => String(this.salesSummary().orderCount));
+
+  protected readonly unitsSoldLabel = computed(() => String(this.salesSummary().unitsSold));
+
+  protected onPeriodChange(period: ReportPeriodPreset): void {
+    this.uiPeriod.set(period);
+    if (period === ReportPeriodPreset.Custom) {
+      const today = todayIsoDate();
+      this.updateParams({ period, from: today, to: today });
+      return;
     }
-    // Fatturato lordo: ordini pagati o rimborsati parzialmente.
-    const totalMinor = data.orders
-      .filter(
-        (order) =>
-          order.financialStatus === SalesOrderFinancialStatus.Paid ||
-          order.financialStatus === SalesOrderFinancialStatus.PartiallyRefunded,
-      )
-      .reduce((sum, order) => sum + order.total.amountMinor, 0);
-    return formatMoney(this.eur(totalMinor));
-  });
+    this.updateParams({ period, from: null, to: null });
+  }
+
+  protected onDateFromChange(value: string): void {
+    this.updateParams({ from: value || null, period: ReportPeriodPreset.Custom });
+  }
+
+  protected onDateToChange(value: string): void {
+    this.updateParams({ to: value || null, period: ReportPeriodPreset.Custom });
+  }
+
+  protected onSourceChange(value: string): void {
+    this.updateParams({ source: value || null });
+  }
+
+  protected onFinancialStatusChange(value: string): void {
+    this.updateParams({ financialStatus: value || null });
+  }
+
+  protected resetFilters(): void {
+    this.updateParams({
+      period: null,
+      from: null,
+      to: null,
+      source: null,
+      financialStatus: null,
+    });
+  }
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
   }
 
-  private eur(amountMinor: number): Money {
-    return { amountMinor, currencyCode: DEFAULT_CURRENCY };
+  private updateParams(params: Record<string, string | null>): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: params,
+      queryParamsHandling: 'merge',
+    });
   }
 
   private toAppError(err: unknown): AppError {
@@ -205,4 +276,8 @@ export class ReportsComponent {
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
   }
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }

@@ -1,4 +1,5 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import {
@@ -9,7 +10,17 @@ import {
 
 const SOURCE_VALUES = [API_SOURCE_ONLINE, API_SOURCE_POS] as const;
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 export class ListSalesOrdersQueryDto extends PaginationQueryDto {
+  /** Fino a 500 righe per pagina (report e export client-side). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  declare pageSize: number;
+
   @IsOptional()
   @IsString()
   search?: string;
@@ -21,4 +32,14 @@ export class ListSalesOrdersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsIn([...SOURCE_VALUES])
   source?: string;
+
+  /** Data ordine inclusiva (YYYY-MM-DD). */
+  @IsOptional()
+  @Matches(ISO_DATE)
+  placedFrom?: string;
+
+  /** Data ordine inclusiva (YYYY-MM-DD). */
+  @IsOptional()
+  @Matches(ISO_DATE)
+  placedTo?: string;
 }
