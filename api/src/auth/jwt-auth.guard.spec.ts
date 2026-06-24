@@ -8,6 +8,7 @@ import type { PlatformAdminService } from '../common/platform-admin/platform-adm
 import type { PrismaService } from '../prisma/prisma.service';
 import type { SupabaseJwtService } from './supabase-jwt.service';
 import type { SupabaseService } from './supabase.service';
+import type { SupportSessionService } from '../support/support-session.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 describe('JwtAuthGuard', () => {
@@ -17,9 +18,10 @@ describe('JwtAuthGuard', () => {
     verifyAccessToken: vi.fn(),
   };
   const profileCache = { get: vi.fn(), set: vi.fn() };
-  const prisma = { user: { findFirst: vi.fn() } };
+  const prisma = { user: { findFirst: vi.fn() }, tenant: { findUnique: vi.fn() } };
   const platformAdmin = { isPlatformAdmin: vi.fn().mockReturnValue(false) };
   const supabase = { userHasVerifiedTotpFactor: vi.fn() };
+  const supportSessions = { resolveActiveSession: vi.fn() };
 
   const guard = new JwtAuthGuard(
     reflector,
@@ -28,6 +30,7 @@ describe('JwtAuthGuard', () => {
     prisma as unknown as PrismaService,
     platformAdmin as unknown as PlatformAdminService,
     supabase as unknown as SupabaseService,
+    supportSessions as unknown as SupportSessionService,
   );
 
   function context(authHeader?: string) {
@@ -74,7 +77,7 @@ describe('JwtAuthGuard', () => {
     });
 
     const request = {
-      header: () => 'Bearer valid-token',
+      header: (name: string) => (name === 'authorization' ? 'Bearer valid-token' : undefined),
       tenantId: undefined as string | undefined,
       authUserId: undefined as string | undefined,
       appUser: undefined as { displayName: string; role: string } | undefined,

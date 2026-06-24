@@ -6,6 +6,7 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { SUPPORT_SESSION_HEADER } from './support/support-session.constants';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
@@ -33,7 +34,10 @@ async function bootstrap(): Promise<void> {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
-  app.enableCors({ origin: origins });
+  app.enableCors({
+    origin: origins,
+    allowedHeaders: ['Content-Type', 'Authorization', SUPPORT_SESSION_HEADER],
+  });
 
   // Validazione payload globale: whitelist (campi sconosciuti rimossi),
   // forbidNonWhitelisted (payload sospetti rifiutati), transform per i DTO.

@@ -64,7 +64,7 @@ export class AuthService {
     return this.gateway.logout().pipe(tap(() => this.applySession(null)));
   }
 
-  /** Aggiorna l'utente corrente in memoria (es. dopo cambio foto profilo). */
+  /** Aggiorna l'utente corrente in memoria (es. dopo cambio foto profilo o sessione assistenza). */
   setCurrentUser(user: User): void {
     this._currentUser.set(user);
     this._status.set('authenticated');

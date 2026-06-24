@@ -184,7 +184,8 @@ button:disabled {
   app-shell-layout .shell__topbar,
   app-shell-layout .shell__sidebar,
   app-shell-layout .shell__backdrop,
-  app-shell-layout app-pwa-update-banner {
+  app-shell-layout app-pwa-update-banner,
+  app-shell-layout .shell__support-banner {
     display: none !important;
   }
 

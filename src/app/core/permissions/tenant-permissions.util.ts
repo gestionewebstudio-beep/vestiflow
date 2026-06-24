@@ -1,8 +1,13 @@
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 
+import { hasActiveSupportSession } from './platform-operator.util';
+
 /** owner, admin — Shopify OAuth, sync bulk, eliminazione prodotti. */
 export function isTenantAdmin(user: User | null | undefined): boolean {
+  if (hasActiveSupportSession(user)) {
+    return true;
+  }
   return user?.role === UserRole.Owner || user?.role === UserRole.Admin;
 }
 

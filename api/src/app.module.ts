@@ -18,6 +18,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
+import { SupportSessionModule } from './support/support-session.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     PlatformAdminModule,
     PrismaModule,
+    SupportSessionModule,
     AuthModule,
     HealthModule,
     ProductsModule,

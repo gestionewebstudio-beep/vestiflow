@@ -20,6 +20,7 @@ import {
   TenantChannelProfile,
   tenantChannelProfileLabel,
 } from '@core/models/tenant-channel-profile.model';
+import { SupportSessionService } from '@core/support/support-session.service';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -53,6 +54,7 @@ import { AdminTenantsService } from '../../services/admin-tenants.service';
 })
 export class CreateClientComponent {
   private readonly adminTenants = inject(AdminTenantsService);
+  private readonly supportSessions = inject(SupportSessionService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
@@ -91,6 +93,8 @@ export class CreateClientComponent {
 
   protected readonly submitLoading = signal(false);
   protected readonly submitError = signal<string | null>(null);
+  protected readonly supportSessionLoadingId = signal<string | null>(null);
+  protected readonly supportSessionError = signal<string | null>(null);
   protected readonly created = signal<ProvisionedTenant | null>(null);
   protected readonly passwordVisible = signal(false);
   protected readonly passwordMinLength = PASSWORD_MIN_LENGTH;
@@ -162,6 +166,30 @@ export class CreateClientComponent {
 
   protected openTenant(tenant: TenantSummary): void {
     void this.router.navigate(['/app/admin/clients', tenant.id]);
+  }
+
+  protected openSupportSession(tenant: TenantSummary, event: Event): void {
+    event.stopPropagation();
+    if (this.supportSessionLoadingId()) {
+      return;
+    }
+
+    this.supportSessionError.set(null);
+    this.supportSessionLoadingId.set(tenant.id);
+
+    this.supportSessions
+      .startSession(tenant.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.supportSessionLoadingId.set(null);
+          this.supportSessions.enterTenantWorkspace();
+        },
+        error: (err: unknown) => {
+          this.supportSessionLoadingId.set(null);
+          this.supportSessionError.set(this.supportSessions.mapStartError(err));
+        },
+      });
   }
 
   protected togglePasswordVisibility(): void {

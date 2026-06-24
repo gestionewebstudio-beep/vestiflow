@@ -1,6 +1,14 @@
 import type { User, TenantChannelProfile } from '@prisma/client';
 
 /** Profilo utente esposto al frontend (allineato a `User` Angular). */
+export interface SupportSessionProfileDto {
+  readonly sessionId: string;
+  readonly targetTenantId: string;
+  readonly targetTenantName: string;
+  readonly expiresAt: string;
+}
+
+/** Profilo utente esposto al frontend (allineato a `User` Angular). */
 export interface UserProfileDto {
   readonly id: string;
   readonly tenantId: string;
@@ -13,6 +21,7 @@ export interface UserProfileDto {
   readonly storeIds: readonly string[];
   readonly isActive: boolean;
   readonly isPlatformAdmin: boolean;
+  readonly supportSession?: SupportSessionProfileDto;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

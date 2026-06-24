@@ -4,6 +4,7 @@ import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 
 import {
+  hasActiveSupportSession,
   isPlatformOperator,
   isTenantWorkspaceUrl,
   PLATFORM_OPERATOR_HOME,
@@ -30,6 +31,31 @@ describe('platform-operator.util', () => {
   it('isPlatformOperator riconosce isPlatformAdmin', () => {
     expect(isPlatformOperator(baseUser)).toBe(true);
     expect(isPlatformOperator({ ...baseUser, isPlatformAdmin: false })).toBe(false);
+  });
+
+  it('isPlatformOperator è false con sessione assistenza attiva', () => {
+    expect(
+      isPlatformOperator({
+        ...baseUser,
+        supportSession: {
+          sessionId: 's1',
+          targetTenantId: 't2',
+          targetTenantName: 'Cliente',
+          expiresAt: '2026-06-22T16:00:00.000Z',
+        },
+      }),
+    ).toBe(false);
+    expect(
+      hasActiveSupportSession({
+        ...baseUser,
+        supportSession: {
+          sessionId: 's1',
+          targetTenantId: 't2',
+          targetTenantName: 'Cliente',
+          expiresAt: '2026-06-22T16:00:00.000Z',
+        },
+      }),
+    ).toBe(true);
   });
 
   it('isTenantWorkspaceUrl distingue area admin', () => {

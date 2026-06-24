@@ -13,6 +13,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { isAppError } from '@core/models/app-error.model';
+import { SupportSessionService } from '@core/support/support-session.service';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -58,6 +59,7 @@ type TenantLoadState =
 })
 export class EditClientComponent {
   private readonly adminTenants = inject(AdminTenantsService);
+  private readonly supportSessions = inject(SupportSessionService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
@@ -107,6 +109,8 @@ export class EditClientComponent {
 
   protected readonly submitLoading = signal(false);
   protected readonly submitError = signal<string | null>(null);
+  protected readonly supportSessionLoading = signal(false);
+  protected readonly supportSessionError = signal<string | null>(null);
   protected readonly saved = signal(false);
   protected readonly deleteDialogOpen = signal(false);
   protected readonly deleteLoading = signal(false);
@@ -209,6 +213,30 @@ export class EditClientComponent {
     this.saved.set(false);
     this.submitError.set(null);
     void this.router.navigateByUrl(this.router.url, { onSameUrlNavigation: 'reload' });
+  }
+
+  protected openSupportSession(): void {
+    const detail = this.tenant();
+    if (!detail || this.supportSessionLoading()) {
+      return;
+    }
+
+    this.supportSessionError.set(null);
+    this.supportSessionLoading.set(true);
+
+    this.supportSessions
+      .startSession(detail.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.supportSessionLoading.set(false);
+          this.supportSessions.enterTenantWorkspace();
+        },
+        error: (err: unknown) => {
+          this.supportSessionLoading.set(false);
+          this.supportSessionError.set(this.supportSessions.mapStartError(err));
+        },
+      });
   }
 
   protected openDeleteDialog(): void {

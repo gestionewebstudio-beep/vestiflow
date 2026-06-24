@@ -175,6 +175,7 @@ model Tenant {
   tiktokConnection   TikTokConnection?
   tiktokCredential   TikTokCredential?
   tiktokOAuthStates  TikTokOAuthState[]
+  supportSessionsAsTarget SupportSession[] @relation("SupportSessionTarget")
 
   @@map("tenants")
 }
@@ -197,10 +198,28 @@ model User {
 
   tenant Tenant      @relation(fields: [tenantId], references: [id])
   stores UserStore[]
+  supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
 
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("users")
+}
+
+/// Sessione assistenza: operatore piattaforma che accede al gestionale di un cliente.
+model SupportSession {
+  id             String    @id @default(uuid()) @db.Uuid
+  operatorUserId String    @map("operator_user_id") @db.Uuid
+  targetTenantId String    @map("target_tenant_id") @db.Uuid
+  expiresAt      DateTime  @map("expires_at")
+  endedAt        DateTime? @map("ended_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  operator     User   @relation("SupportSessionOperator", fields: [operatorUserId], references: [id])
+  targetTenant Tenant @relation("SupportSessionTarget", fields: [targetTenantId], references: [id])
+
+  @@index([operatorUserId, endedAt])
+  @@index([targetTenantId])
+  @@map("support_sessions")
 }
 
 model Store {

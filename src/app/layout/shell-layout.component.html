@@ -1,4 +1,8 @@
-<div class="shell" [class.shell--drawer-open]="drawerOpen()">
+<div
+  class="shell"
+  [class.shell--drawer-open]="drawerOpen()"
+  [class.shell--support-banner]="showSupportSessionBanner()"
+>
   <app-pwa-update-banner />
   @if (showShopifyErrorBanner()) {
     <div class="shell__shopify-banner" role="status">
@@ -70,4 +74,22 @@
   <main class="shell__content">
     <router-outlet />
   </main>
+
+  @if (showSupportSessionBanner()) {
+    <div class="shell__support-banner" role="status">
+      <p class="shell__support-banner-text">
+        <i class="pi pi-headphones" aria-hidden="true"></i>
+        Assistenza — {{ supportSession()?.targetTenantName }}
+        <span class="shell__support-banner-meta">Sessione attiva (max 2 ore)</span>
+      </p>
+      <button
+        type="button"
+        class="shell__support-banner-exit"
+        [disabled]="supportSessionEndLoading()"
+        (click)="onEndSupportSession()"
+      >
+        Esci dall'assistenza
+      </button>
+    </div>
+  }
 </div>

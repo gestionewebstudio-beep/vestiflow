@@ -15,7 +15,11 @@ import { catchError, filter, map, merge, of, switchMap, type Subscription } from
 import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
 import { ThemeService } from '@core/services/theme.service';
-import { isPlatformOperator } from '@core/permissions/platform-operator.util';
+import {
+  isPlatformOperator,
+  hasActiveSupportSession,
+} from '@core/permissions/platform-operator.util';
+import { SupportSessionService } from '@core/support/support-session.service';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { EntityId } from '@core/models/common.model';
 import type { Location } from '@core/models/location.model';
@@ -62,6 +66,7 @@ export class ShellLayoutComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
+  private readonly supportSessions = inject(SupportSessionService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly themeMode = this.themeService.mode;
@@ -69,6 +74,12 @@ export class ShellLayoutComponent {
   readonly activeLocationId = this.locationContext.activeLocationId;
 
   readonly isPlatformOperator = computed(() => isPlatformOperator(this.currentUser()));
+
+  readonly supportSession = computed(() => this.currentUser()?.supportSession ?? null);
+
+  readonly showSupportSessionBanner = computed(() => hasActiveSupportSession(this.currentUser()));
+
+  readonly supportSessionEndLoading = signal(false);
 
   readonly showSidebarLogout = computed(() => this.currentUser() != null);
 
@@ -334,11 +345,31 @@ export class ShellLayoutComponent {
 
   onLogoutConfirm(): void {
     this.logoutDialogOpen.set(false);
+    this.supportSessions.clearSession();
     this.logoutSubscription = this.authService
       .logout()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         void this.router.navigateByUrl('/login');
+      });
+  }
+
+  onEndSupportSession(): void {
+    if (this.supportSessionEndLoading()) {
+      return;
+    }
+    this.supportSessionEndLoading.set(true);
+    this.supportSessions
+      .endSession()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.supportSessionEndLoading.set(false);
+          this.supportSessions.exitTenantWorkspace();
+        },
+        error: () => {
+          this.supportSessionEndLoading.set(false);
+        },
       });
   }
 }

@@ -84,7 +84,13 @@ export class DashboardComponent {
   );
 
   private readonly shopifyConnection = toSignal(
-    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
+    toObservable(this.showShopifyPanel).pipe(
+      switchMap((show) =>
+        show
+          ? this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null)))
+          : of(null),
+      ),
+    ),
     { initialValue: null },
   );
 

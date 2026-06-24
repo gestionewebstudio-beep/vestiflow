@@ -16,7 +16,15 @@ const TENANT_WORKSPACE_PREFIXES = [
 ] as const;
 
 export function isPlatformOperator(user: User | null | undefined): boolean {
-  return user?.isPlatformAdmin === true;
+  if (!user?.isPlatformAdmin) {
+    return false;
+  }
+  return !hasActiveSupportSession(user);
+}
+
+/** Operatore piattaforma con sessione assistenza attiva nel gestionale cliente. */
+export function hasActiveSupportSession(user: User | null | undefined): boolean {
+  return Boolean(user?.supportSession);
 }
 
 /** Route riservate al gestionale negozio (non all'operatore piattaforma). */

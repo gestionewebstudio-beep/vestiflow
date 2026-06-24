@@ -8,8 +8,23 @@
       <p class="create-client__subtitle">
         {{ detail.name }} · creato il {{ formatDateTime(detail.createdAt) }}
       </p>
+      <div class="create-client__header-actions">
+        <app-button
+          type="button"
+          variant="secondary"
+          [loading]="supportSessionLoading()"
+          [disabled]="supportSessionLoading()"
+          (click)="openSupportSession()"
+        >
+          Apri gestionale (assistenza)
+        </app-button>
+      </div>
     }
   </header>
+
+  @if (supportSessionError(); as message) {
+    <p class="create-client__alert" role="alert">{{ message }}</p>
+  }
 
   @if (loading()) {
     <app-table-skeleton [columns]="1" [rows]="8" />

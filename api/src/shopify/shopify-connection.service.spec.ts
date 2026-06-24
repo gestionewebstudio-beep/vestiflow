@@ -70,10 +70,15 @@ describe('ShopifyConnectionService', () => {
     await expect(service.isAutoSyncEnabled('tenant-1')).resolves.toBe(false);
   });
 
-  it('getForTenant fallisce se record assente', async () => {
+  it('getForTenant restituisce not_connected se record assente', async () => {
     const { service } = createService(null);
 
-    await expect(service.getForTenant('tenant-1')).rejects.toBeInstanceOf(NotFoundException);
+    const dto = await service.getForTenant('tenant-1');
+
+    expect(dto.status).toBe(ShopifyConnectionStatus.not_connected);
+    expect(dto.tenantId).toBe('tenant-1');
+    expect(dto.shopDomain).toBeNull();
+    expect(dto.autoSyncEnabled).toBe(false);
   });
 
   it('getForTenant restituisce DTO not_connected senza 404', async () => {

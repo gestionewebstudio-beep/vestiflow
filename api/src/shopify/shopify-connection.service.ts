@@ -23,7 +23,7 @@ export class ShopifyConnectionService {
   async getForTenant(tenantId: string): Promise<ShopifyConnectionDto> {
     let connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
     if (!connection) {
-      throw new NotFoundException('Connessione Shopify non trovata');
+      return this.buildNotConnectedDto(tenantId);
     }
 
     if (connection.status === ShopifyConnectionStatus.not_connected) {
@@ -231,6 +231,28 @@ export class ShopifyConnectionService {
       cleared: true,
       productsReset: productsReset.count,
       locationsReset: locationsReset.count,
+    };
+  }
+
+  private buildNotConnectedDto(tenantId: string): ShopifyConnectionDto {
+    const now = new Date().toISOString();
+    return {
+      id: tenantId,
+      tenantId,
+      status: ShopifyConnectionStatus.not_connected,
+      shopDomain: null,
+      displayName: null,
+      apiVersion: this.shopifyConfig.apiVersion,
+      scopes: [],
+      scopeDiagnostics: this.buildScopeDiagnosticsDto([]),
+      lastConnectedAt: null,
+      lastSyncAt: null,
+      webhooksActivatedAt: null,
+      webhooksActiveCount: null,
+      autoSyncEnabled: false,
+      lastError: null,
+      createdAt: now,
+      updatedAt: now,
     };
   }
 
