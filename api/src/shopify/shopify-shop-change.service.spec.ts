@@ -1,5 +1,5 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { SupplierOrderStatus } from '@prisma/client';
+import { BadRequestException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { Prisma, SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
@@ -11,13 +11,19 @@ describe('ShopifyShopChangeService', () => {
   function createLocationMocks() {
     const shopifyLocation = {
       id: 'loc-shopify',
+      name: 'Shop location',
+      addressLine1: '123 Main St',
       shopifyLocationId: 'gid://shopify/Location/1',
-      code: 'LOC-01',
+      shopifyLastSyncAt: new Date('2026-01-01'),
+      code: 'LOC-02',
     };
     const orphanLocation = {
       id: 'loc-orphan',
+      name: 'Orphan',
+      addressLine1: '456 Side St',
       shopifyLocationId: null,
-      code: 'LOC-02',
+      shopifyLastSyncAt: null,
+      code: 'LOC-03',
     };
 
     return {
@@ -68,14 +74,22 @@ describe('ShopifyShopChangeService', () => {
       },
       inventoryCountSession: {
         count: vi.fn().mockResolvedValue(0),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
       supplierOrder: {
         findMany: vi.fn().mockResolvedValue([]),
         count: vi.fn().mockResolvedValue(0),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      store: {
+        findFirst: vi.fn().mockResolvedValue({ name: 'Negozio test' }),
       },
       location,
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
+          productVariant: {
+            findMany: vi.fn().mockResolvedValue([{ id: 'var-1' }]),
+          },
           inventoryCountLine: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
           stockMovement: {
             deleteMany: vi.fn().mockResolvedValue({ count: 6 }),
@@ -93,8 +107,17 @@ describe('ShopifyShopChangeService', () => {
             delete: location.delete,
             update: location.update,
           },
-          inventoryCountSession: { count: vi.fn().mockResolvedValue(0) },
-          supplierOrder: { count: vi.fn().mockResolvedValue(0) },
+          inventoryCountSession: {
+            count: vi.fn().mockResolvedValue(0),
+            deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+          },
+          supplierOrder: {
+            count: vi.fn().mockResolvedValue(0),
+            deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+          },
+          store: {
+            findFirst: vi.fn().mockResolvedValue({ name: 'Negozio test' }),
+          },
         }),
       ),
     };
@@ -184,5 +207,23 @@ describe('ShopifyShopChangeService', () => {
         }),
       }),
     );
+  });
+
+  it('purge mappa vincoli FK Prisma in 422', async () => {
+    const { service, prisma } = createService();
+    const fkError = new Prisma.PrismaClientKnownRequestError('FK', {
+      code: 'P2003',
+      clientVersion: 'test',
+    });
+    prisma.$transaction.mockRejectedValue(fkError);
+
+    await expect(
+      service.purge(tenantId, {
+        confirmShopDomain: 'old.myshopify.com',
+        purgeCatalog: true,
+        purgeCustomers: true,
+        purgeOrders: true,
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 });

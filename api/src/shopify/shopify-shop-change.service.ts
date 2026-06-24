@@ -5,8 +5,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { InventoryCountStatus, ShopifySyncStatus, SupplierOrderStatus } from '@prisma/client';
-import type { Prisma } from '@prisma/client';
+import { Prisma, ShopifySyncStatus, SupplierOrderStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import type { PurgeShopifyDataDto } from './dto/purge-shopify-data.dto';
@@ -16,6 +15,12 @@ const OPEN_SUPPLIER_ORDER_STATUSES: readonly SupplierOrderStatus[] = [
   SupplierOrderStatus.sent,
   SupplierOrderStatus.partially_received,
 ];
+
+/** Purge può coinvolere molte righe (catalogo + movimenti + ordini). */
+const PURGE_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 120_000,
+} as const;
 
 export interface ShopifyShopChangeBlocker {
   readonly code: 'supplier_orders_open';
@@ -124,49 +129,56 @@ export class ShopifyShopChangeService {
       locations: 0,
     };
 
-    await this.prisma.$transaction(async (tx) => {
-      if (dto.purgeCatalog && shopifyVariantIds.length > 0) {
-        const countLines = await tx.inventoryCountLine.deleteMany({
-          where: { tenantId, variantId: { in: [...shopifyVariantIds] } },
-        });
-        purged.inventoryCountLines = countLines.count;
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (dto.purgeOrders) {
+          const orders = await tx.salesOrder.deleteMany({
+            where: { tenantId, shopifyOrderId: { not: null } },
+          });
+          purged.salesOrders = orders.count;
+        }
 
-        const movements = await tx.stockMovement.deleteMany({
-          where: { tenantId, variantId: { in: [...shopifyVariantIds] } },
-        });
-        purged.stockMovements = movements.count;
+        if (dto.purgeCatalog) {
+          const variantIds = await this.listShopifyLinkedVariantIdsInTx(tx, tenantId);
 
-        const levels = await tx.inventoryLevel.deleteMany({
-          where: { tenantId, variantId: { in: [...shopifyVariantIds] } },
-        });
-        purged.inventoryLevels = levels.count;
-      }
+          if (variantIds.length > 0) {
+            const countLines = await tx.inventoryCountLine.deleteMany({
+              where: { tenantId, variantId: { in: variantIds } },
+            });
+            purged.inventoryCountLines = countLines.count;
 
-      if (dto.purgeCatalog) {
-        const products = await tx.product.deleteMany({
-          where: { tenantId, shopifyProductId: { not: null } },
-        });
-        purged.products = products.count;
-      }
+            const movements = await tx.stockMovement.deleteMany({
+              where: { tenantId, variantId: { in: variantIds } },
+            });
+            purged.stockMovements = movements.count;
 
-      if (dto.purgeOrders) {
-        const orders = await tx.salesOrder.deleteMany({
-          where: { tenantId, shopifyOrderId: { not: null } },
-        });
-        purged.salesOrders = orders.count;
-      }
+            const levels = await tx.inventoryLevel.deleteMany({
+              where: { tenantId, variantId: { in: variantIds } },
+            });
+            purged.inventoryLevels = levels.count;
+          }
 
-      if (dto.purgeCustomers) {
-        const customers = await tx.customer.deleteMany({
-          where: { tenantId, shopifyCustomerId: { not: null } },
-        });
-        purged.customers = customers.count;
-      }
+          const products = await tx.product.deleteMany({
+            where: { tenantId, shopifyProductId: { not: null } },
+          });
+          purged.products = products.count;
+        }
 
-      if (dto.purgeCatalog || dto.purgeCustomers || dto.purgeOrders) {
-        purged.locations = await this.cleanupShopifyLocations(tx, tenantId);
-      }
-    });
+        if (dto.purgeCustomers) {
+          const customers = await tx.customer.deleteMany({
+            where: { tenantId, shopifyCustomerId: { not: null } },
+          });
+          purged.customers = customers.count;
+        }
+
+        if (dto.purgeCatalog || dto.purgeCustomers || dto.purgeOrders) {
+          purged.locations = await this.cleanupShopifyLocations(tx, tenantId, dto.purgeCatalog);
+        }
+      }, PURGE_TRANSACTION_OPTIONS);
+    } catch (error) {
+      this.logger.error(`Purge dati Shopify fallita (${tenantId})`, error);
+      throw this.mapPurgeError(error);
+    }
 
     this.logger.log(
       `Purge dati Shopify (${tenantId}, ${currentShopDomain}): prodotti=${purged.products} clienti=${purged.customers} ordini=${purged.salesOrders} location=${purged.locations}`,
@@ -200,11 +212,41 @@ export class ShopifyShopChangeService {
   }
 
   private async listShopifyLinkedVariantIds(tenantId: string): Promise<string[]> {
-    const variants = await this.prisma.productVariant.findMany({
+    return this.listShopifyLinkedVariantIdsInTx(this.prisma, tenantId);
+  }
+
+  private async listShopifyLinkedVariantIdsInTx(
+    db: Prisma.TransactionClient | PrismaService,
+    tenantId: string,
+  ): Promise<string[]> {
+    const variants = await db.productVariant.findMany({
       where: { tenantId, product: { shopifyProductId: { not: null } } },
       select: { id: true },
     });
     return variants.map((variant) => variant.id);
+  }
+
+  private mapPurgeError(error: unknown): Error {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2003') {
+        return new UnprocessableEntityException(
+          'Impossibile rimuovere alcuni dati Shopify perché sono ancora collegati ad altre operazioni nel gestionale. Chiudi gli ordini fornitore aperti e riprova.',
+        );
+      }
+      if (error.code === 'P2028') {
+        return new UnprocessableEntityException(
+          'Operazione troppo lunga: attendi qualche minuto e riprova.',
+        );
+      }
+    }
+
+    if (error instanceof Error && /expired transaction/i.test(error.message)) {
+      return new UnprocessableEntityException(
+        'Operazione troppo lunga: attendi qualche minuto e riprova.',
+      );
+    }
+
+    return error instanceof Error ? error : new Error(String(error));
   }
 
   private async countShopifyData(
@@ -260,21 +302,34 @@ export class ShopifyShopChangeService {
   private async countRemovableShopifyLocations(
     tenantId: string,
   ): Promise<{ linked: number; removable: number }> {
-    const locations = await this.prisma.location.findMany({
-      where: { tenantId },
-      select: { id: true, shopifyLocationId: true, code: true },
-    });
+    const [locations, primaryStore] = await Promise.all([
+      this.prisma.location.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          addressLine1: true,
+          shopifyLocationId: true,
+          shopifyLastSyncAt: true,
+        },
+      }),
+      this.prisma.store.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: 'asc' },
+        select: { name: true },
+      }),
+    ]);
 
+    const primaryStoreName = primaryStore?.name ?? null;
     let linked = 0;
     let removable = 0;
 
     for (const location of locations) {
-      const shopifyLinked = Boolean(location.shopifyLocationId);
-      const shopifyOrphan = !shopifyLinked && this.isShopifyImportedLocationCode(location.code);
-      if (!shopifyLinked && !shopifyOrphan) {
+      if (!this.isShopifyManagedImport(location, primaryStoreName)) {
         continue;
       }
-      if (shopifyLinked) {
+      if (location.shopifyLocationId) {
         linked += 1;
       }
       if (await this.canDeleteLocation(this.prisma, tenantId, location.id)) {
@@ -288,22 +343,36 @@ export class ShopifyShopChangeService {
   private async cleanupShopifyLocations(
     tx: Prisma.TransactionClient,
     tenantId: string,
+    purgeCatalog: boolean,
   ): Promise<number> {
-    const locations = await tx.location.findMany({
-      where: { tenantId },
-      select: { id: true, shopifyLocationId: true, code: true },
-    });
+    const [locations, primaryStore] = await Promise.all([
+      tx.location.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          addressLine1: true,
+          shopifyLocationId: true,
+          shopifyLastSyncAt: true,
+        },
+      }),
+      tx.store.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: 'asc' },
+        select: { name: true },
+      }),
+    ]);
 
+    const primaryStoreName = primaryStore?.name ?? null;
     let deleted = 0;
 
     for (const location of locations) {
-      const shopifyLinked = Boolean(location.shopifyLocationId);
-      const shopifyOrphan =
-        !shopifyLinked && this.isShopifyImportedLocationCode(location.code);
-
-      if (!shopifyLinked && !shopifyOrphan) {
+      if (!this.isShopifyManagedImport(location, primaryStoreName)) {
         continue;
       }
+
+      await this.prepareShopifyLocationForRemoval(tx, tenantId, location.id, purgeCatalog);
 
       if (await this.canDeleteLocation(tx, tenantId, location.id)) {
         await tx.location.delete({ where: { id: location.id } });
@@ -311,20 +380,96 @@ export class ShopifyShopChangeService {
         continue;
       }
 
-      if (shopifyLinked) {
-        await tx.location.update({
-          where: { id: location.id },
-          data: {
-            shopifyLocationId: null,
-            shopifySyncStatus: ShopifySyncStatus.not_connected,
-            shopifyLastSyncAt: null,
-            shopifyLastError: null,
-          },
-        });
-      }
+      await this.archiveShopifyLocation(tx, location.id);
+      this.logger.warn(
+        `Location Shopify archiviata (${tenantId}, ${location.code ?? location.id}): rimangono ordini fornitore o altri riferimenti.`,
+      );
     }
 
     return deleted;
+  }
+
+  /** Ripulisso sedi Shopify residue dopo disconnect/purge (idempotente). */
+  async cleanupResidualShopifyLocations(tenantId: string): Promise<{ deleted: number }> {
+    let deleted = 0;
+    await this.prisma.$transaction(async (tx) => {
+      deleted = await this.cleanupShopifyLocations(tx, tenantId, true);
+    }, PURGE_TRANSACTION_OPTIONS);
+    return { deleted };
+  }
+
+  /**
+   * Rimuove dipendenze inventariali (e ordini fornitore chiusi) che impediscono
+   * l'eliminazione delle sedi importate da Shopify durante la purge.
+   */
+  private async prepareShopifyLocationForRemoval(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    locationId: string,
+    purgeCatalog: boolean,
+  ): Promise<void> {
+    await this.removeInventoryCountSessionsAtLocation(tx, tenantId, locationId);
+
+    const levels = await tx.inventoryLevel.deleteMany({
+      where: { tenantId, locationId },
+    });
+    const movements = await tx.stockMovement.deleteMany({
+      where: {
+        tenantId,
+        OR: [{ locationId }, { targetLocationId: locationId }],
+      },
+    });
+
+    if (levels.count > 0 || movements.count > 0) {
+      this.logger.log(
+        `Purge location (${tenantId}, ${locationId}): rimossi ${levels.count} livelli inventario e ${movements.count} movimenti.`,
+      );
+    }
+
+    if (!purgeCatalog) {
+      return;
+    }
+
+    const supplierOrders = await tx.supplierOrder.deleteMany({
+      where: {
+        tenantId,
+        destinationLocationId: locationId,
+        status: { notIn: [...OPEN_SUPPLIER_ORDER_STATUSES] },
+      },
+    });
+    if (supplierOrders.count > 0) {
+      this.logger.log(
+        `Purge location (${tenantId}, ${locationId}): rimossi ${supplierOrders.count} ordini fornitore chiusi.`,
+      );
+    }
+  }
+
+  /** Sede Shopify non eliminabile: scollega e nascondi dal selettore operativo. */
+  private async archiveShopifyLocation(
+    tx: Prisma.TransactionClient,
+    locationId: string,
+  ): Promise<void> {
+    await tx.location.update({
+      where: { id: locationId },
+      data: {
+        isActive: false,
+        shopifyLocationId: null,
+        shopifySyncStatus: ShopifySyncStatus.not_connected,
+        shopifyLastSyncAt: null,
+        shopifyLastError: null,
+      },
+    });
+  }
+
+  /** Sessioni di conteggio (anche completate) bloccano DELETE location (FK RESTRICT). */
+  private async removeInventoryCountSessionsAtLocation(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    locationId: string,
+  ): Promise<void> {
+    await tx.inventoryCountSession.deleteMany({
+      where: { tenantId, locationId },
+    });
   }
 
   private async canDeleteLocation(
@@ -345,7 +490,6 @@ export class ShopifyShopChangeService {
         where: {
           tenantId,
           locationId,
-          status: InventoryCountStatus.in_progress,
         },
       }),
     ]);
@@ -355,6 +499,44 @@ export class ShopifyShopChangeService {
 
   private isShopifyImportedLocationCode(code: string | null | undefined): boolean {
     return /^LOC-\d+$/i.test(code?.trim() ?? '');
+  }
+
+  /**
+   * Distingue sedi importate/sincronizzate da Shopify dalla sede LOC-01 di onboarding.
+   * Dopo disconnect i metadati Shopify sono azzerati: si usa codice, nome e indirizzo.
+   */
+  private isShopifyManagedImport(
+    location: {
+      readonly shopifyLocationId: string | null;
+      readonly shopifyLastSyncAt: Date | null;
+      readonly code: string | null;
+      readonly name: string;
+      readonly addressLine1: string | null;
+    },
+    primaryStoreName: string | null,
+  ): boolean {
+    if (location.shopifyLocationId || location.shopifyLastSyncAt) {
+      return true;
+    }
+
+    if (!this.isShopifyImportedLocationCode(location.code)) {
+      return false;
+    }
+
+    const code = location.code?.trim().toUpperCase() ?? '';
+    if (code !== 'LOC-01') {
+      return true;
+    }
+
+    if (!location.addressLine1?.trim()) {
+      return false;
+    }
+
+    if (primaryStoreName && location.name.trim() !== primaryStoreName.trim()) {
+      return true;
+    }
+
+    return false;
   }
 
   private async findBlockers(

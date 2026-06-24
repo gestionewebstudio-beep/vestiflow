@@ -1,6 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import { tenantChannelProfileLabel } from '@core/models/tenant-channel-profile.model';
+import {
+  tenantChannelProfileBadgeTone,
+  tenantChannelProfileLabel,
+} from '@core/models/tenant-channel-profile.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 
 import {
@@ -22,6 +25,10 @@ export class TenantClientCardComponent {
 
   protected readonly channelProfileLabel = computed(() =>
     tenantChannelProfileLabel(this.company().channelProfile),
+  );
+
+  protected readonly channelProfileTone = computed(() =>
+    tenantChannelProfileBadgeTone(this.company().channelProfile),
   );
 
   protected readonly extendedFields = computed(() =>

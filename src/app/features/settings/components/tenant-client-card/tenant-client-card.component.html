@@ -13,7 +13,7 @@
         <td data-label="Negozio">{{ displayCell(company().storeName) }}</td>
         <td data-label="Profilo">
           <span class="tenant-client-table__cell-value">
-            <app-badge tone="neutral">{{ channelProfileLabel() }}</app-badge>
+            <app-badge [tone]="channelProfileTone()">{{ channelProfileLabel() }}</app-badge>
           </span>
         </td>
       </tr>

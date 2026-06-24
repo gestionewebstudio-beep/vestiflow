@@ -5,7 +5,12 @@ import type { Location } from '@core/models/location.model';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 
-import { filterLocationsForTopbar, isShopifyManagedLocation } from './location-selection.util';
+import {
+  filterLocationsForSettings,
+  filterLocationsForTopbar,
+  isShopifyImportResidualLocation,
+  isShopifyManagedLocation,
+} from './location-selection.util';
 
 function createLocation(partial: Partial<Location> & Pick<Location, 'id' | 'name'>): Location {
   return {
@@ -51,6 +56,32 @@ describe('location-selection.util', () => {
     ).toBe(false);
   });
 
+  it('isShopifyImportResidualLocation distingue LOC-01 onboarding da import Shopify', () => {
+    expect(
+      isShopifyImportResidualLocation(
+        createLocation({ id: 'local', name: 'Mimmo Test VF', code: 'LOC-01' }),
+        'Mimmo Test VF',
+      ),
+    ).toBe(false);
+
+    expect(
+      isShopifyImportResidualLocation(
+        createLocation({
+          id: 'shopify',
+          name: 'My Custom Location',
+          code: 'LOC-01',
+          address: {
+            line1: '123 Main St',
+            city: 'Toronto',
+            postalCode: 'A1A 1A1',
+            country: 'CA',
+          },
+        }),
+        'Mimmo Test VF',
+      ),
+    ).toBe(true);
+  });
+
   it('filterLocationsForTopbar esclude sede locale se Shopify è connesso', () => {
     const locations = [
       createLocation({ id: 'local', name: 'Mimmo Test VF', code: 'LOC-01' }),
@@ -67,6 +98,39 @@ describe('location-selection.util', () => {
     });
 
     expect(filtered.map((location) => location.id)).toEqual(['shop']);
+  });
+
+  it('filterLocationsForTopbar con Shopify scollegato non mostra sedi operative', () => {
+    const locations = [
+      createLocation({
+        id: 'residual',
+        name: 'My Custom Location',
+        code: 'LOC-01',
+      }),
+    ];
+
+    const filtered = filterLocationsForTopbar(locations, {
+      channelProfile: TenantChannelProfile.Shopify,
+      shopifyConnectionStatus: ShopifyConnectionStatus.NotConnected,
+      primaryStoreName: 'Mimmo Test VF',
+    });
+
+    expect(filtered).toEqual([]);
+  });
+
+  it('filterLocationsForSettings con Shopify scollegato mantiene sede locale', () => {
+    const locations = [
+      createLocation({ id: 'local', name: 'Mimmo Test VF', code: 'LOC-01' }),
+      createLocation({ id: 'residual', name: 'My Custom Location', code: 'LOC-02' }),
+    ];
+
+    const filtered = filterLocationsForSettings(locations, {
+      channelProfile: TenantChannelProfile.Shopify,
+      shopifyConnectionStatus: ShopifyConnectionStatus.NotConnected,
+      primaryStoreName: 'Mimmo Test VF',
+    });
+
+    expect(filtered.map((location) => location.id)).toEqual(['local']);
   });
 
   it('filterLocationsForTopbar mantiene tutte le sedi per profilo gestionale', () => {

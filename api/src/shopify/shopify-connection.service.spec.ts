@@ -70,10 +70,31 @@ describe('ShopifyConnectionService', () => {
     await expect(service.isAutoSyncEnabled('tenant-1')).resolves.toBe(false);
   });
 
-  it('getForTenant fallisce se Shopify non connesso', async () => {
+  it('getForTenant fallisce se record assente', async () => {
     const { service } = createService(null);
 
     await expect(service.getForTenant('tenant-1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('getForTenant restituisce DTO not_connected senza 404', async () => {
+    const { service } = createService({
+      ...connectedRow,
+      status: ShopifyConnectionStatus.not_connected,
+      shopDomain: null,
+      displayName: null,
+      scopes: [],
+      lastErrorMessage: 'Errore legacy',
+      lastErrorCode: 'product_sync_failed',
+      lastSyncAt: new Date('2026-01-01'),
+    });
+
+    const dto = await service.getForTenant('tenant-1');
+
+    expect(dto.status).toBe(ShopifyConnectionStatus.not_connected);
+    expect(dto.shopDomain).toBeNull();
+    expect(dto.lastError).toBeNull();
+    expect(dto.lastSyncAt).toBeNull();
+    expect(dto.autoSyncEnabled).toBe(false);
   });
 
   it('getForTenant restituisce DTO connessione', async () => {

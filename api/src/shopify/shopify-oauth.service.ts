@@ -26,6 +26,7 @@ import {
   ShopifyLocationSyncService,
   type ShopifyLocationSyncResult,
 } from './shopify-location-sync.service';
+import { ShopifyShopChangeService } from './shopify-shop-change.service';
 import {
   buildShopifyScopeDiagnostics,
   mergeShopifyScopes,
@@ -50,6 +51,7 @@ export class ShopifyOAuthService {
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyLocationSync: ShopifyLocationSyncService,
+    private readonly shopifyShopChange: ShopifyShopChangeService,
   ) {}
 
   async beginAuth(tenantId: string, shopInput: string): Promise<{ authorizeUrl: string }> {
@@ -228,6 +230,7 @@ export class ShopifyOAuthService {
   async disconnect(tenantId: string): Promise<void> {
     await this.revokeShopifyAccessToken(tenantId);
     await this.shopifyConnection.clearSetupStatus(tenantId);
+    await this.shopifyShopChange.cleanupResidualShopifyLocations(tenantId);
     await this.prisma.$transaction([
       this.prisma.shopifyCredential.deleteMany({ where: { tenantId } }),
       this.prisma.shopifyConnection.updateMany({
@@ -238,10 +241,17 @@ export class ShopifyOAuthService {
           displayName: null,
           scopes: [],
           lastConnectedAt: null,
+          lastSyncAt: null,
+          autoSyncEnabled: false,
+          webhooksActivatedAt: null,
+          webhooksActiveCount: null,
+          lastErrorMessage: null,
+          lastErrorCode: null,
+          lastErrorAt: null,
         },
       }),
       this.prisma.location.updateMany({
-        where: { tenantId },
+        where: { tenantId, shopifyLocationId: { not: null } },
         data: {
           shopifyLocationId: null,
           shopifySyncStatus: ShopifySyncStatus.not_connected,

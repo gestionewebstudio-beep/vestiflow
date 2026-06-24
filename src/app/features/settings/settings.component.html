@@ -101,7 +101,7 @@
 
       @if (connectionLoading()) {
         <app-table-skeleton [columns]="2" [rows]="3" />
-      } @else if (connectionNotFound()) {
+      } @else if (shopifyConnectable()) {
         <p class="settings__muted">
           Nessuna connessione Shopify attiva. Inserisci il dominio dello shop e avvia
           l'autorizzazione OAuth: i token restano solo sul server.
@@ -541,14 +541,19 @@
             negozio.
           </p>
         }
-        @if (locations().length > 0) {
+        @if (visibleLocations().length > 0) {
           <app-location-table
-            [locations]="locations()"
+            [locations]="visibleLocations()"
             [showShopifyColumn]="showShopifyLocationColumn()"
             [groupByShopifySource]="showShopifyLocationColumn()"
           />
-        } @else {
+        } @else if (locationsLoading()) {
           <app-table-skeleton [columns]="4" [rows]="3" />
+        } @else {
+          <p class="settings__shopify-locations-empty">
+            Nessuna sede operativa configurata. Collega Shopify e sincronizza le location per
+            importare le sedi del negozio.
+          </p>
         }
       </div>
     </section>

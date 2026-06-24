@@ -23,6 +23,7 @@ import {
   shopifyConnectionStatusTone,
 } from '@features/integrations/shopify/models/shopify-connection-labels.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
+import { isShopifySyncUiActive } from '@features/integrations/shopify/models/shopify-connection-state.util';
 
 import { LowStockTableComponent } from './components/low-stock-table/low-stock-table.component';
 import { RecentSalesTableComponent } from './components/recent-sales-table/recent-sales-table.component';
@@ -87,7 +88,16 @@ export class DashboardComponent {
     { initialValue: null },
   );
 
-  protected readonly shopifyConnectionSummary = computed(() => this.shopifyConnection());
+  protected readonly shopifyConnectionSummary = computed(() => {
+    const connection = this.shopifyConnection();
+    if (!connection) {
+      return null;
+    }
+    if (!isShopifySyncUiActive(connection.status)) {
+      return { ...connection, lastError: undefined, lastSyncAt: undefined };
+    }
+    return connection;
+  });
 
   /** Nome della location attiva (per contestualizzare i KPI di stock). */
   protected readonly activeLocationName = computed(() => {

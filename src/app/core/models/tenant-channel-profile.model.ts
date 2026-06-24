@@ -1,3 +1,5 @@
+import type { BadgeTone } from '@shared/components/badge/badge.component';
+
 /** Profilo canale scelto in provisioning piattaforma (allineato a Prisma `TenantChannelProfile`). */
 export const TenantChannelProfile = {
   Gestionale: 'gestionale',
@@ -40,6 +42,18 @@ const PROFILE_LABELS: Record<TenantChannelProfile, string> = {
 
 export function tenantChannelProfileLabel(profile: TenantChannelProfile): string {
   return PROFILE_LABELS[profile];
+}
+
+/** Allineato al badge «Fonte» in catalogo prodotti (`catalogOriginTone`). */
+export function tenantChannelProfileBadgeTone(profile: TenantChannelProfile): BadgeTone {
+  switch (profile) {
+    case TenantChannelProfile.Shopify:
+      return 'info';
+    case TenantChannelProfile.Gestionale:
+      return 'vestiflow';
+    default:
+      return 'neutral';
+  }
 }
 
 export function showShopifyIntegration(profile: TenantChannelProfile | undefined): boolean {

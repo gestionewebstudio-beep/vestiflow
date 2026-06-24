@@ -35,9 +35,11 @@ import {
 import { resolveUserAccessLabel } from '@core/models/user-role-labels.util';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import type { IsoDateString } from '@core/models/common.model';
+import type { Location } from '@core/models/location.model';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ThemeService } from '@core/services/theme.service';
 import { formatDateTime } from '@core/utils/date.util';
+import { filterLocationsForSettings } from '@core/utils/location-selection.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -271,14 +273,41 @@ export class SettingsComponent {
     () => this.connectionState().status === 'not-found',
   );
 
+  /** Mostra form OAuth: nessun record oppure stato not_connected (post-disconnect). */
+  protected readonly shopifyConnectable = computed(() => {
+    const current = this.connectionState();
+    if (current.status === 'not-found') {
+      return true;
+    }
+    return (
+      current.status === 'success' &&
+      current.connection.status === ShopifyConnectionStatus.NotConnected
+    );
+  });
+
+  protected readonly shopifyConnectionStatus = computed((): ShopifyConnectionStatus => {
+    const current = this.connectionState();
+    if (current.status === 'success') {
+      return current.connection.status;
+    }
+    return ShopifyConnectionStatus.NotConnected;
+  });
+
   protected readonly connectionError = computed(() => {
     const current = this.connectionState();
     return current.status === 'error' ? current.error : null;
   });
 
+  /** Connessione attiva o in errore/reauth — esclude not_connected (form collegamento). */
   protected readonly connection = computed(() => {
     const current = this.connectionState();
-    return current.status === 'success' ? current.connection : null;
+    if (current.status !== 'success') {
+      return null;
+    }
+    if (current.connection.status === ShopifyConnectionStatus.NotConnected) {
+      return null;
+    }
+    return current.connection;
   });
 
   protected readonly groupedShopifyScopes = computed(() => {
@@ -320,13 +349,35 @@ export class SettingsComponent {
 
   protected readonly locations = toSignal(
     merge(toObservable(this.locationTick), this.shopifySyncWatch.watchConnectionInvalidated()).pipe(
-      switchMap(() => this.inventoryService.getLocations()),
+      switchMap(() =>
+        this.inventoryService.getLocations().pipe(
+          map((locations) => ({ status: 'success' as const, locations })),
+          startWith({ status: 'loading' as const }),
+          catchError(() => of({ status: 'error' as const, locations: [] as readonly Location[] })),
+        ),
+      ),
     ),
-    { initialValue: [] },
+    { initialValue: { status: 'loading' as const, locations: [] as readonly Location[] } },
+  );
+
+  protected readonly locationsLoading = computed(() => this.locations().status === 'loading');
+
+  protected readonly locationItems = computed(() => {
+    const state = this.locations();
+    return state.status === 'success' ? state.locations : [];
+  });
+
+  /** Con Shopify scollegato nasconde residui import; non effettua chiamate API. */
+  protected readonly visibleLocations = computed(() =>
+    filterLocationsForSettings(this.locationItems(), {
+      channelProfile: this.tenantChannelProfile(),
+      shopifyConnectionStatus: this.shopifyConnectionStatus(),
+      primaryStoreName: this.tenantCompany()?.storeName ?? null,
+    }),
   );
 
   protected readonly locationSetupStatus = computed((): SetupStatusItem => {
-    const synced = this.locations().filter(
+    const synced = this.locationItems().filter(
       (location) => location.isActive && location.shopify?.status === ShopifySyncStatus.Synced,
     );
     if (synced.length === 0) {

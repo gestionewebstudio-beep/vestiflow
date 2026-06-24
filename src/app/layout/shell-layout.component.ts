@@ -32,6 +32,7 @@ import type { ThemeMode } from '@shared/models/theme.model';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
 import { InventoryService } from '@features/inventory/services/inventory.service';
+import { isShopifySyncUiActive } from '@features/integrations/shopify/models/shopify-connection-state.util';
 
 /**
  * Shell applicativa: topbar + sidebar + area contenuti con singola regione di
@@ -105,12 +106,16 @@ export class ShellLayoutComponent {
 
   private readonly syncActiveLocationWithTopbar = effect(() => {
     const activeLocationId = this.activeLocationId();
-    if (!activeLocationId) {
+    const selectable = this.topbarLocations();
+
+    if (selectable.length === 0) {
+      if (activeLocationId) {
+        this.locationContext.setActiveLocation(null);
+      }
       return;
     }
 
-    const selectable = this.topbarLocations();
-    if (selectable.length === 0) {
+    if (!activeLocationId) {
       return;
     }
 
@@ -180,16 +185,40 @@ export class ShellLayoutComponent {
     () => this.shopifyConnection()?.status ?? null,
   );
 
-  readonly shopifyLastSyncAt = computed(() => this.shopifyConnection()?.lastSyncAt ?? null);
+  /** Indicatore sync in topbar: nascosto se Shopify non è connesso. */
+  readonly shopifySyncStatusForTopbar = computed(() => {
+    const status = this.shopifySyncStatus();
+    return isShopifySyncUiActive(status) ? status : null;
+  });
 
-  readonly shopifyAutoSyncEnabled = computed(() => this.shopifyConnection()?.autoSyncEnabled);
+  readonly shopifyLastSyncAt = computed(() => {
+    if (!isShopifySyncUiActive(this.shopifySyncStatus())) {
+      return null;
+    }
+    return this.shopifyConnection()?.lastSyncAt ?? null;
+  });
 
-  readonly shopifyLastError = computed(() => this.shopifyConnection()?.lastError?.message ?? null);
+  readonly shopifyAutoSyncEnabled = computed(() => {
+    if (!isShopifySyncUiActive(this.shopifySyncStatus())) {
+      return undefined;
+    }
+    return this.shopifyConnection()?.autoSyncEnabled;
+  });
+
+  readonly shopifyLastError = computed(() => {
+    if (!isShopifySyncUiActive(this.shopifySyncStatus())) {
+      return null;
+    }
+    return this.shopifyConnection()?.lastError?.message ?? null;
+  });
 
   private readonly shopifyErrorBannerDismissed = signal(false);
 
   readonly showShopifyErrorBanner = computed(() => {
     if (this.shopifyErrorBannerDismissed()) {
+      return false;
+    }
+    if (!isShopifySyncUiActive(this.shopifySyncStatus())) {
       return false;
     }
     return Boolean(this.shopifyConnection()?.lastError);

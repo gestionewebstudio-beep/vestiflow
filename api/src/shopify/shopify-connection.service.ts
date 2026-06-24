@@ -22,15 +22,22 @@ export class ShopifyConnectionService {
 
   async getForTenant(tenantId: string): Promise<ShopifyConnectionDto> {
     let connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
-    if (!connection || connection.status === 'not_connected') {
+    if (!connection) {
       throw new NotFoundException('Connessione Shopify non trovata');
+    }
+
+    if (connection.status === ShopifyConnectionStatus.not_connected) {
+      return this.toDto(connection);
     }
 
     if (connection.status === ShopifyConnectionStatus.error) {
       await this.healStaleErrorStatus(tenantId);
       connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
-      if (!connection || connection.status === 'not_connected') {
+      if (!connection) {
         throw new NotFoundException('Connessione Shopify non trovata');
+      }
+      if (connection.status === ShopifyConnectionStatus.not_connected) {
+        return this.toDto(connection);
       }
     }
 
@@ -244,12 +251,20 @@ export class ShopifyConnectionService {
       scopes: connection.scopes,
       scopeDiagnostics,
       lastConnectedAt: connection.lastConnectedAt?.toISOString() ?? null,
-      lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
+      lastSyncAt:
+        connection.status === ShopifyConnectionStatus.not_connected
+          ? null
+          : (connection.lastSyncAt?.toISOString() ?? null),
       webhooksActivatedAt: connection.webhooksActivatedAt?.toISOString() ?? null,
       webhooksActiveCount: connection.webhooksActiveCount,
-      autoSyncEnabled: connection.autoSyncEnabled,
+      autoSyncEnabled:
+        connection.status === ShopifyConnectionStatus.not_connected
+          ? false
+          : connection.autoSyncEnabled,
       lastError:
-        !hideScopeDuplicate && connection.lastErrorMessage
+        connection.status !== ShopifyConnectionStatus.not_connected &&
+        !hideScopeDuplicate &&
+        connection.lastErrorMessage
           ? {
               message: toShopifyUserMessage(
                 connection.lastErrorCode ?? undefined,
