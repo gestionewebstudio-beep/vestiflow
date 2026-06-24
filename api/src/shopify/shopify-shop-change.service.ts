@@ -8,6 +8,7 @@ import {
 import { Prisma, ShopifySyncStatus, SupplierOrderStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { isShopifyManagedImportLocation } from './shopify-location-import.util';
 import type { PurgeShopifyDataDto } from './dto/purge-shopify-data.dto';
 
 const OPEN_SUPPLIER_ORDER_STATUSES: readonly SupplierOrderStatus[] = [
@@ -326,7 +327,7 @@ export class ShopifyShopChangeService {
     let removable = 0;
 
     for (const location of locations) {
-      if (!this.isShopifyManagedImport(location, primaryStoreName)) {
+      if (!isShopifyManagedImportLocation(location, primaryStoreName)) {
         continue;
       }
       if (location.shopifyLocationId) {
@@ -368,7 +369,7 @@ export class ShopifyShopChangeService {
     let deleted = 0;
 
     for (const location of locations) {
-      if (!this.isShopifyManagedImport(location, primaryStoreName)) {
+      if (!isShopifyManagedImportLocation(location, primaryStoreName)) {
         continue;
       }
 
@@ -495,48 +496,6 @@ export class ShopifyShopChangeService {
     ]);
 
     return levels === 0 && movements === 0 && supplierOrders === 0 && countSessions === 0;
-  }
-
-  private isShopifyImportedLocationCode(code: string | null | undefined): boolean {
-    return /^LOC-\d+$/i.test(code?.trim() ?? '');
-  }
-
-  /**
-   * Distingue sedi importate/sincronizzate da Shopify dalla sede LOC-01 di onboarding.
-   * Dopo disconnect i metadati Shopify sono azzerati: si usa codice, nome e indirizzo.
-   */
-  private isShopifyManagedImport(
-    location: {
-      readonly shopifyLocationId: string | null;
-      readonly shopifyLastSyncAt: Date | null;
-      readonly code: string | null;
-      readonly name: string;
-      readonly addressLine1: string | null;
-    },
-    primaryStoreName: string | null,
-  ): boolean {
-    if (location.shopifyLocationId || location.shopifyLastSyncAt) {
-      return true;
-    }
-
-    if (!this.isShopifyImportedLocationCode(location.code)) {
-      return false;
-    }
-
-    const code = location.code?.trim().toUpperCase() ?? '';
-    if (code !== 'LOC-01') {
-      return true;
-    }
-
-    if (!location.addressLine1?.trim()) {
-      return false;
-    }
-
-    if (primaryStoreName && location.name.trim() !== primaryStoreName.trim()) {
-      return true;
-    }
-
-    return false;
   }
 
   private async findBlockers(

@@ -5,6 +5,7 @@ import { InventoryCountStatus, ShopifySyncStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient, type ShopifyAdminLocation } from './shopify-admin.client';
 import { isSameShopifyLocationId, normalizeShopifyLocationId } from './shopify-location-id.util';
+import { isShopifyManagedImportLocation } from './shopify-location-import.util';
 
 export interface ShopifyLocationSyncResult {
   readonly matchedCount: number;
@@ -101,12 +102,77 @@ export class ShopifyLocationSyncService {
     }
 
     await this.cleanupStaleShopifyLocations(tenantId, shopifyCatalogIds);
+    await this.cleanupUnlinkedImportLocations(tenantId);
 
     return {
       matchedCount,
       importedCount,
       totalCount: shopifyLocations.length,
     };
+  }
+
+  /** Rimuove residui di import Shopify non collegati (es. dopo disconnect incompleto). */
+  async cleanupUnlinkedImportLocations(tenantId: string): Promise<number> {
+    const [locations, primaryStore] = await Promise.all([
+      this.prisma.location.findMany({
+        where: {
+          tenantId,
+          isActive: true,
+          shopifyLocationId: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          addressLine1: true,
+          shopifyLocationId: true,
+          shopifyLastSyncAt: true,
+        },
+      }),
+      this.prisma.store.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: 'asc' },
+        select: { name: true },
+      }),
+    ]);
+
+    const primaryStoreName = primaryStore?.name ?? null;
+    let removed = 0;
+
+    for (const location of locations) {
+      if (location.shopifyLocationId) {
+        continue;
+      }
+
+      if (!isShopifyManagedImportLocation(location, primaryStoreName)) {
+        continue;
+      }
+
+      if (await this.canDeleteLocation(tenantId, location.id)) {
+        await this.prisma.location.delete({ where: { id: location.id } });
+        removed += 1;
+        this.logger.log(
+          `Rimossa location import Shopify non collegata (${tenantId}): ${location.name}`,
+        );
+        continue;
+      }
+
+      await this.prisma.location.update({
+        where: { id: location.id },
+        data: {
+          isActive: false,
+          shopifySyncStatus: ShopifySyncStatus.not_connected,
+          shopifyLastSyncAt: null,
+          shopifyLastError: null,
+        },
+      });
+      removed += 1;
+      this.logger.log(
+        `Archiviata location import Shopify non collegata (${tenantId}): ${location.name}`,
+      );
+    }
+
+    return removed;
   }
 
   /** Rimuove la sede LOC-01 creata in onboarding se vuota e sostituita dalle sedi Shopify. */

@@ -203,7 +203,33 @@ describe('ShopifyLocationSyncService', () => {
     expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-onboarding' } });
   });
 
-  it('elimina location Shopify stale senza dati operativi', async () => {
+    it('elimina residui import non collegati dopo il sync', async () => {
+      const { service, locationDelete } = createService({
+        tenantLocations: [
+          {
+            id: 'loc-local',
+            code: 'LOC-01',
+            name: 'Negozio',
+            shopifyLocationId: null,
+            isActive: true,
+          },
+          {
+            id: 'loc-residual',
+            code: 'LOC-02',
+            name: 'My Custom Location',
+            shopifyLocationId: null,
+            addressLine1: '123 Main St',
+            isActive: true,
+          },
+        ],
+      });
+
+      await service.syncFromShopify(tenantId, shopDomain, accessToken);
+
+      expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-residual' } });
+    });
+
+    it('elimina location Shopify stale senza dati operativi', async () => {
     const { service, locationDelete } = createService({
       shopifyLocations: [{ id: '1001', name: 'Negozio attivo', active: true }],
       tenantLocations: [

@@ -101,7 +101,14 @@ export function filterLocationsForSettings(
   }
 
   if (context.shopifyConnectionStatus === ShopifyConnectionStatus.Connected) {
-    return activeLocations;
+    const shopifyLocations = activeLocations.filter(isShopifyManagedLocation);
+    if (shopifyLocations.length > 0) {
+      return shopifyLocations;
+    }
+
+    return activeLocations.filter(
+      (location) => !isShopifyImportResidualLocation(location, context.primaryStoreName),
+    );
   }
 
   return activeLocations.filter(

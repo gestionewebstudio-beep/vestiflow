@@ -118,6 +118,29 @@ describe('location-selection.util', () => {
     expect(filtered).toEqual([]);
   });
 
+  it('filterLocationsForSettings con Shopify connesso mostra solo sedi Shopify', () => {
+    const locations = [
+      createLocation({ id: 'local', name: 'Mimmo Test VF', code: 'LOC-01' }),
+      createLocation({
+        id: 'shop',
+        name: 'Shop location',
+        shopify: { status: ShopifySyncStatus.Synced, shopifyId: '2' },
+      }),
+      createLocation({
+        id: 'residual',
+        name: 'My Custom Location',
+        code: 'LOC-02',
+      }),
+    ];
+
+    const filtered = filterLocationsForSettings(locations, {
+      channelProfile: TenantChannelProfile.Shopify,
+      shopifyConnectionStatus: ShopifyConnectionStatus.Connected,
+    });
+
+    expect(filtered.map((location) => location.id)).toEqual(['shop']);
+  });
+
   it('filterLocationsForSettings con Shopify scollegato mantiene sede locale', () => {
     const locations = [
       createLocation({ id: 'local', name: 'Mimmo Test VF', code: 'LOC-01' }),
