@@ -11,8 +11,15 @@ import {
 import type { Customer } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
-import { RolesGuard } from '../common/auth/roles.guard';
+import {
+  CUSTOMERS_VIEW_PERMISSIONS,
+  TenantPermission,
+} from '../auth/tenant-permission.constants';
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from '../common/auth/tenant-permissions.decorator';
+import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CustomersExportService } from './customers-export.service';
@@ -21,7 +28,7 @@ import { ExportCustomersQueryDto } from './dto/export-customers.query.dto';
 import { ListCustomersQueryDto } from './dto/list-customers.query.dto';
 
 @Controller('customers')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class CustomersController {
   constructor(
     private readonly customers: CustomersService,
@@ -29,6 +36,7 @@ export class CustomersController {
   ) {}
 
   @Get()
+  @RequireAnyPermissions(CUSTOMERS_VIEW_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCustomersQueryDto,
@@ -37,8 +45,7 @@ export class CustomersController {
   }
 
   @Get('export/csv')
-  @UseGuards(RolesGuard)
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.ReportsExport)
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCsv(
     @CurrentTenant() tenantId: string,
@@ -53,6 +60,7 @@ export class CustomersController {
   }
 
   @Get(':id')
+  @RequireAnyPermissions(CUSTOMERS_VIEW_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,

@@ -10,6 +10,7 @@ import type { AppError } from '@core/models/app-error.model';
 import { SalesOrderFulfillmentStatus } from '@core/models/sales-order.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
 import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
+import { canManageShopifyConnection } from '@core/permissions/tenant-permissions.util';
 import { isLowStock } from '@core/utils/inventory.util';
 import { formatDateTimeShort } from '@core/utils/date.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -79,9 +80,10 @@ export class DashboardComponent {
   protected readonly connectionStatusTone = shopifyConnectionStatusTone;
   protected readonly formatDateTimeShort = formatDateTimeShort;
 
-  protected readonly showShopifyPanel = computed(() =>
-    showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
-  );
+  protected readonly showShopifyPanel = computed(() => {
+    const user = this.authService.currentUser();
+    return showShopifyIntegration(user?.tenantChannelProfile) && canManageShopifyConnection(user);
+  });
 
   private readonly shopifyConnection = toSignal(
     toObservable(this.showShopifyPanel).pipe(

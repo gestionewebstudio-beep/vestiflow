@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -23,6 +24,7 @@ import type { Subscription } from 'rxjs';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { AdjustmentDirection, StockMovementType } from '@core/models/stock-movement.model';
@@ -73,6 +75,7 @@ export class MovementFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly inventoryService = inject(InventoryService);
   private readonly operationalLocations = inject(OperationalLocationsService);
+  private readonly locationContext = inject(LocationContextService);
   private readonly productService = inject(ProductService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
@@ -114,11 +117,25 @@ export class MovementFormComponent {
   );
 
   protected readonly locationSelectOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.operationalLocations.locations().map((location) => ({
+    this.operationalLocations.actionLocations().map((location) => ({
       value: location.id,
       label: location.name,
     })),
   );
+
+  protected readonly targetLocationSelectOptions = computed<readonly SelectMenuOption[]>(() => {
+    const sourceId = this.form.controls.locationId.value;
+    return this.operationalLocations
+      .transferTargetLocations()
+      .filter((location) => location.id !== sourceId)
+      .map((location) => ({
+        value: location.id,
+        label: location.name,
+      }));
+  });
+
+  protected readonly isFixedSingleStore = this.operationalLocations.isFixedSingleStore;
+  protected readonly fixedSingleStoreLabel = this.operationalLocations.fixedSingleStoreLabel;
 
   readonly form = this.fb.group({
     type: this.fb.control<StockMovementType>(StockMovementType.Load, {
@@ -135,6 +152,17 @@ export class MovementFormComponent {
   });
 
   constructor() {
+    effect(() => {
+      const fixedId = this.operationalLocations.fixedSingleStoreLocationId();
+      if (!fixedId) {
+        return;
+      }
+      this.form.controls.locationId.setValue(fixedId);
+      if (this.locationContext.activeLocationId() !== fixedId) {
+        this.locationContext.setActiveLocation(fixedId);
+      }
+    });
+
     const variantId = this.route.snapshot.queryParamMap.get('variantId');
     if (variantId) {
       this.form.controls.variantId.setValue(variantId);
@@ -277,6 +305,9 @@ export class MovementFormComponent {
   }
 
   protected onLocationSelect(value: string | null): void {
+    if (this.isFixedSingleStore()) {
+      return;
+    }
     this.form.controls.locationId.setValue(value ?? '');
     this.form.controls.locationId.markAsTouched();
   }
@@ -363,8 +394,15 @@ export class MovementFormComponent {
   }
 
   private locationName(id: string): string {
+    const fromWrite = this.operationalLocations
+      .writeLocations()
+      .find((candidate) => candidate.id === id);
+    if (fromWrite) {
+      return fromWrite.name;
+    }
     return (
-      this.operationalLocations.locations().find((candidate) => candidate.id === id)?.name ?? ''
+      this.operationalLocations.transferTargetLocations().find((candidate) => candidate.id === id)
+        ?.name ?? ''
     );
   }
 

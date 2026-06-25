@@ -44,6 +44,7 @@ import {
 } from '@core/models/tenant-channel-profile.model';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { AdminTenantsService } from '../../services/admin-tenants.service';
+import { AdminTenantUsersPanelComponent } from '../../components/admin-tenant-users-panel/admin-tenant-users-panel.component';
 
 type TenantLoadState =
   | { readonly status: 'loading' }
@@ -62,6 +63,7 @@ type TenantLoadState =
     TableSkeletonComponent,
     AdminTenantProfileFieldsComponent,
     SelectMenuComponent,
+    AdminTenantUsersPanelComponent,
   ],
   templateUrl: './edit-client.component.html',
   styleUrl: '../create-client/create-client.component.scss',

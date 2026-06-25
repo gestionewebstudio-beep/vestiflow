@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AdjustmentDirection, StockMovementType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { InventoryService } from './inventory.service';
 import {
   InventoryCsvParseError,
@@ -94,6 +95,7 @@ export class InventoryImportService {
   async importCsv(
     tenantId: string,
     csvText: string,
+    user: UserProfileDto,
     options: InventoryImportOptions = {},
   ): Promise<InventoryImportResult> {
     const parsedRows = this.parseCsvOrThrow(csvText);
@@ -176,7 +178,7 @@ export class InventoryImportService {
       }
 
       try {
-        await this.applyRow(tenantId, {
+        await this.applyRow(tenantId, user, {
           key: item.key,
           rowNumber: item.rowNumber,
           variantTitle: item.variantTitle,
@@ -371,7 +373,11 @@ export class InventoryImportService {
     return items;
   }
 
-  private async applyRow(tenantId: string, row: ResolvedImportRow): Promise<void> {
+  private async applyRow(
+    tenantId: string,
+    user: UserProfileDto,
+    row: ResolvedImportRow,
+  ): Promise<void> {
     if (row.delta !== 0) {
       await this.inventory.registerMovement(
         tenantId,
@@ -384,6 +390,8 @@ export class InventoryImportService {
           reason: 'Import CSV giacenze',
         },
         'Import CSV',
+        undefined,
+        user,
       );
     }
 

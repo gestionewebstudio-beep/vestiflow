@@ -7,11 +7,21 @@ import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model'
 import type { Location } from '@core/models/location.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { isPlatformOperator } from '@core/permissions/platform-operator.util';
-import { filterLocationsForOperationalSelection } from '@core/utils/location-selection.util';
+import {
+  filterLocationsForInventorySelection,
+  isLicensedOperationalLocation,
+} from '@core/utils/location-selection.util';
+import {
+  filterLocationsForRead,
+  filterLocationsByUserAssignment,
+  resolveFixedOperationalLocationId,
+  isFixedSingleStoreUser,
+} from '@core/utils/user-location-scope.util';
 
 import { InventoryService } from '@features/inventory/services/inventory.service';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
+import { canManageShopifyConnection } from '@core/permissions/tenant-permissions.util';
 
 /**
  * Location selezionabili per operazioni (topbar, filtri magazzino, form).
@@ -27,15 +37,17 @@ export class OperationalLocationsService {
   private readonly shopifyConnection = toSignal<ShopifyConnection | null>(
     merge(
       of(void 0),
-      this.shopifySyncWatch.watchSyncCompleted(),
-      this.shopifySyncWatch.watchConnectionInvalidated(),
+      toObservable(this.authService.currentUser).pipe(map(() => 'user' as const)),
+      this.shopifySyncWatch.watchSyncCompleted().pipe(map(() => 'sync' as const)),
+      this.shopifySyncWatch.watchConnectionInvalidated().pipe(map(() => 'connection' as const)),
     ).pipe(
       switchMap(() => {
-        if (isPlatformOperator(this.authService.currentUser())) {
+        const user = this.authService.currentUser();
+        if (isPlatformOperator(user)) {
           return of(null);
         }
-        const profile = this.authService.currentUser()?.tenantChannelProfile;
-        if (profile !== TenantChannelProfile.Shopify) {
+        const profile = user?.tenantChannelProfile;
+        if (profile !== TenantChannelProfile.Shopify || !canManageShopifyConnection(user)) {
           return of(null);
         }
         return this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null)));
@@ -73,11 +85,72 @@ export class OperationalLocationsService {
   /** Tutte le location del tenant (anagrafica grezza). */
   readonly allTenantLocations = this.allLocations;
 
-  /** Sedi attive nel piano, selezionabili in UI operativa. */
-  readonly locations = computed(() =>
-    filterLocationsForOperationalSelection(this.allLocations(), {
-      channelProfile: this.authService.currentUser()?.tenantChannelProfile,
-      shopifyConnectionStatus: this.shopifyConnectionStatus(),
-    }),
+  private readonly licensedOperationalLocations = computed(() =>
+    this.allLocations().filter(isLicensedOperationalLocation),
   );
+
+  private readonly inventoryLocationContext = computed(() => {
+    const user = this.authService.currentUser();
+    return {
+      channelProfile: user?.tenantChannelProfile,
+      shopifyConnectionStatus: this.shopifyConnectionStatus(),
+    };
+  });
+
+  /** Sedi visibili in consultazione (liste, filtri, topbar, report). */
+  readonly locations = computed(() => {
+    const user = this.authService.currentUser();
+    const filtered = filterLocationsForInventorySelection(
+      this.licensedOperationalLocations(),
+      this.inventoryLocationContext(),
+    );
+    const scoped = filterLocationsForRead(filtered, user);
+    return this.withAssignedLocationFallback(scoped, user);
+  });
+
+  /** Destinazioni trasferimento: tutte le sedi operative licenziate (origine resta sulla sede assegnata). */
+  readonly transferTargetLocations = computed(() =>
+    filterLocationsForInventorySelection(
+      this.licensedOperationalLocations(),
+      this.inventoryLocationContext(),
+    ),
+  );
+
+  /** Sedi su cui l'utente può agire (form movimenti origine, inventario, vendite al banco). */
+  readonly writeLocations = computed(() => {
+    const user = this.authService.currentUser();
+    const filtered = filterLocationsForInventorySelection(
+      this.licensedOperationalLocations(),
+      this.inventoryLocationContext(),
+    );
+    const scoped = filterLocationsByUserAssignment(filtered, user);
+    return this.withAssignedLocationFallback(scoped, user);
+  });
+
+  /** Alias esplicito per form e liste operative magazzino. */
+  readonly actionLocations = this.writeLocations;
+
+  readonly isFixedSingleStore = computed(() =>
+    isFixedSingleStoreUser(this.authService.currentUser()),
+  );
+
+  readonly fixedSingleStoreLocationId = computed(() =>
+    resolveFixedOperationalLocationId(this.authService.currentUser()),
+  );
+
+  readonly fixedSingleStoreLabel = computed(
+    () => this.authService.currentUser()?.assignedLocationName ?? null,
+  );
+
+  /** Commesso/manager: se il filtro Shopify restituisce vuoto, usa la sede assegnata licenziata. */
+  private withAssignedLocationFallback(
+    scoped: readonly Location[],
+    user: ReturnType<AuthService['currentUser']>,
+  ): readonly Location[] {
+    if (scoped.length > 0 || !isFixedSingleStoreUser(user)) {
+      return scoped;
+    }
+    const licensed = this.allLocations().filter(isLicensedOperationalLocation);
+    return filterLocationsByUserAssignment(licensed, user);
+  }
 }

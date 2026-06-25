@@ -7,11 +7,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
+import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { RetailScanAction } from './dto/register-retail-scan.dto';
 import { InventoryService } from './inventory.service';
 
 describe('InventoryService', () => {
   const tenantId = 'tenant-1';
+  const ownerUser = testOwnerUser();
 
   function createRetailScanPrismaMock(options?: {
     channelProfile?: string;
@@ -315,6 +317,8 @@ describe('InventoryService', () => {
           direction: AdjustmentDirection.increase,
         } as never,
         'Tester',
+        'user-1',
+        ownerUser,
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -354,6 +358,8 @@ describe('InventoryService', () => {
         quantity: 2,
       } as never,
       'Mario Rossi',
+      'user-1',
+      ownerUser,
     );
 
     expect(result).toEqual(movement);
@@ -399,6 +405,8 @@ describe('InventoryService', () => {
         quantity: 3,
       } as never,
       'Mario Rossi',
+      'user-1',
+      ownerUser,
     );
 
     expect(result).toEqual(movement);
@@ -425,6 +433,8 @@ describe('InventoryService', () => {
           quantity: 1,
         } as never,
         'Tester',
+        'user-1',
+        ownerUser,
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -447,6 +457,8 @@ describe('InventoryService', () => {
           quantity: 1,
         } as never,
         'Tester',
+        'user-1',
+        ownerUser,
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -483,6 +495,8 @@ describe('InventoryService', () => {
           quantity: 5,
         } as never,
         'Tester',
+        'user-1',
+        ownerUser,
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
@@ -527,6 +541,8 @@ describe('InventoryService', () => {
         quantity: 3,
       } as never,
       'Mario Rossi',
+      'user-1',
+      ownerUser,
     );
 
     expect(result).toEqual(movement);
@@ -574,6 +590,8 @@ describe('InventoryService', () => {
           reason: 'Rottura imballo',
         } as never,
         'Tester',
+        'user-1',
+        ownerUser,
       ),
     ).resolves.toEqual(movement);
   });
@@ -591,6 +609,7 @@ describe('InventoryService', () => {
       { code: '8001234567890', locationId: 'loc-1', action: RetailScanAction.Sale },
       'Commesso',
       'user-1',
+      ownerUser,
     );
 
     expect(result.movement).toEqual(movement);
@@ -622,6 +641,8 @@ describe('InventoryService', () => {
       tenantId,
       { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Return },
       'Commesso',
+      'user-1',
+      ownerUser,
     );
 
     expect(result.movement).toEqual(returnMovement);
@@ -654,6 +675,8 @@ describe('InventoryService', () => {
       tenantId,
       { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
       'Commesso',
+      'user-1',
+      ownerUser,
     );
 
     expect(result.movement).toEqual(movement);
@@ -672,6 +695,8 @@ describe('InventoryService', () => {
       tenantId,
       { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
       'Commesso',
+      'user-1',
+      ownerUser,
     );
 
     expect(result.movement).toEqual(movement);
@@ -690,6 +715,8 @@ describe('InventoryService', () => {
         tenantId,
         { code: '   ', locationId: 'loc-1', action: RetailScanAction.Sale },
         'Commesso',
+      'user-1',
+      ownerUser,
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
@@ -706,6 +733,8 @@ describe('InventoryService', () => {
         tenantId,
         { code: 'UNKNOWN', locationId: 'loc-1', action: RetailScanAction.Sale },
         'Commesso',
+      'user-1',
+      ownerUser,
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
@@ -722,6 +751,8 @@ describe('InventoryService', () => {
         tenantId,
         { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
         'Commesso',
+      'user-1',
+      ownerUser,
       ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
@@ -739,6 +770,8 @@ describe('InventoryService', () => {
         tenantId,
         { code: 'SKU-1', locationId: 'loc-missing', action: RetailScanAction.Sale },
         'Commesso',
+      'user-1',
+      ownerUser,
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(tx.stockMovement.create).not.toHaveBeenCalled();

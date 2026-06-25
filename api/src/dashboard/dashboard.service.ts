@@ -2,9 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, SupplierOrderStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import {
   locationScopeToInventoryLevelFilter,
-  resolveLicensedLocationScope,
+  resolveOperationalLocationScope,
 } from '../inventory/licensed-location-scope.util';
 
 interface SelectedOption {
@@ -42,8 +43,12 @@ const LOW_STOCK_ROWS_LIMIT = 100;
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getSummary(tenantId: string, locationId?: string): Promise<DashboardSummary> {
-    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, locationId);
+  async getSummary(
+    tenantId: string,
+    locationId: string | undefined,
+    user?: UserProfileDto,
+  ): Promise<DashboardSummary> {
+    const scope = await resolveOperationalLocationScope(this.prisma, tenantId, user, locationId);
     if (!scope) {
       return {
         productCount: 0,

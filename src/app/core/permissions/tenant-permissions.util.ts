@@ -1,62 +1,232 @@
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
+import { TenantPermission, type TenantPermissionKey } from '@core/models/tenant-permission.model';
 
-import { hasActiveSupportSession } from './platform-operator.util';
+import {
+  hasAnyTenantPermission,
+  hasFullTenantAccess,
+  hasTenantPermission,
+} from './user-permissions.util';
 
-/** owner, admin — Shopify OAuth, sync bulk, eliminazione prodotti. */
+/** Permessi sufficienti per aprire la sezione Prodotti (nav + liste). */
+export const CATALOG_SECTION_PERMISSIONS = [
+  TenantPermission.CatalogManage,
+  TenantPermission.CatalogImportExport,
+  TenantPermission.CatalogDelete,
+  TenantPermission.InventoryManage,
+  TenantPermission.InventoryImportExport,
+  TenantPermission.SupplierOrdersManage,
+  TenantPermission.SupplierOrdersReceive,
+] as const satisfies readonly TenantPermissionKey[];
+
+/** Permessi sufficienti per aprire la sezione Magazzino (nav + consultazione). */
+export const INVENTORY_SECTION_PERMISSIONS = [
+  TenantPermission.InventoryManage,
+  TenantPermission.InventoryImportExport,
+  TenantPermission.InventoryViewAllLocations,
+] as const satisfies readonly TenantPermissionKey[];
+
+export const SUPPLIER_ORDERS_VIEW_PERMISSIONS = [
+  TenantPermission.SupplierOrdersManage,
+  TenantPermission.SupplierOrdersReceive,
+] as const satisfies readonly TenantPermissionKey[];
+
+export const CUSTOMERS_VIEW_PERMISSIONS = [
+  TenantPermission.CustomersView,
+  TenantPermission.CustomersManage,
+] as const satisfies readonly TenantPermissionKey[];
+
+export const REQUIRED_TENANT_PERMISSIONS_KEY = 'requiredTenantPermissions';
+
+export type RequiredTenantPermissionsMode = 'any' | 'all';
+
+export const REQUIRED_TENANT_PERMISSIONS_MODE_KEY = 'requiredTenantPermissionsMode';
+
+/** Titolare o ruolo admin (permessi granulari sulle singole azioni). */
 export function isTenantAdmin(user: User | null | undefined): boolean {
-  if (hasActiveSupportSession(user)) {
+  if (hasFullTenantAccess(user)) {
     return true;
   }
-  return user?.role === UserRole.Owner || user?.role === UserRole.Admin;
+  return user?.role === UserRole.Admin;
 }
 
-/** owner, admin, manager — catalogo, CSV, ordini fornitori (creazione/invio). */
+/** Accesso operativo manager: almeno un permesso di gestione catalogo/magazzino/ordini. */
 export function isTenantManager(user: User | null | undefined): boolean {
-  return isTenantAdmin(user) || user?.role === UserRole.Manager;
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return (
+    hasTenantPermission(user, TenantPermission.CatalogManage) ||
+    hasTenantPermission(user, TenantPermission.CatalogImportExport) ||
+    hasTenantPermission(user, TenantPermission.SupplierOrdersManage) ||
+    hasTenantPermission(user, TenantPermission.InventoryImportExport) ||
+    hasTenantPermission(user, TenantPermission.InventoryManage)
+  );
 }
 
-/** Alias semantico: connessione Shopify e sync da liste (allineato a ADMIN_ROLES API). */
 export function canManageShopifyConnection(user: User | null | undefined): boolean {
-  return isTenantAdmin(user);
+  return hasFullTenantAccess(user);
 }
 
-/** Connessione TikTok Shop — stessi ruoli della connessione Shopify. */
 export function canManageTikTokConnection(user: User | null | undefined): boolean {
-  return isTenantAdmin(user);
+  return canManageShopifyConnection(user);
 }
 
-/** Creazione/modifica prodotti, import/export CSV catalogo e giacenze. */
 export function canManageCatalog(user: User | null | undefined): boolean {
-  return isTenantManager(user);
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.CatalogManage);
 }
 
-/** Push singolo prodotto verso Shopify (allineato a MANAGER_ROLES API). */
+export function canImportExportCatalog(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.CatalogImportExport);
+}
+
+export function canImportExportInventory(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.InventoryImportExport);
+}
+
+/** Sync catalogo Shopify da liste prodotti (permesso CSV prodotti). */
+export function canSyncCatalogFromShopify(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return canImportExportCatalog(user);
+}
+
+/** Sync giacenze Shopify da magazzino (permesso CSV giacenze). */
+export function canSyncInventoryFromShopify(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return canImportExportInventory(user);
+}
+
+/** Sync clienti/vendite da Shopify (export dati). */
+export function canSyncShopifyOperationalData(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return canExportOperationalData(user);
+}
+
 export function canSyncProductToShopify(user: User | null | undefined): boolean {
-  return isTenantManager(user);
+  return canSyncCatalogFromShopify(user);
 }
 
-/** Eliminazione prodotti (allineato a ADMIN_ROLES API). */
 export function canDeleteProducts(user: User | null | undefined): boolean {
-  return isTenantAdmin(user);
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.CatalogDelete);
 }
 
-/** Export CSV vendite/clienti (allineato a MANAGER_ROLES API). */
 export function canExportOperationalData(user: User | null | undefined): boolean {
-  return isTenantManager(user);
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.ReportsExport);
 }
 
-/** Creazione e invio ordini fornitore (ricezione aperta a tutti i ruoli autenticati). */
 export function canManageSupplierOrders(user: User | null | undefined): boolean {
-  return isTenantManager(user);
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.SupplierOrdersManage);
 }
 
-/** MFA in Impostazioni: titolare, admin e operatori piattaforma. */
+export function canReceiveSupplierOrders(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return (
+    hasTenantPermission(user, TenantPermission.SupplierOrdersReceive) ||
+    hasTenantPermission(user, TenantPermission.SupplierOrdersManage)
+  );
+}
+
+export function canViewSupplierOrders(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasAnyTenantPermission(user, SUPPLIER_ORDERS_VIEW_PERMISSIONS);
+}
+
+export function canViewReports(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.ReportsView);
+}
+
+export function canViewCustomers(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasAnyTenantPermission(user, CUSTOMERS_VIEW_PERMISSIONS);
+}
+
+export function canManageCustomers(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.CustomersManage);
+}
+
+export function canAccessCatalogSection(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasAnyTenantPermission(user, CATALOG_SECTION_PERMISSIONS);
+}
+
+export function canAccessInventorySection(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasAnyTenantPermission(user, INVENTORY_SECTION_PERMISSIONS);
+}
+
+export function canManageSettingsCompany(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.SettingsCompany);
+}
+
+export function canManageInventory(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.InventoryManage);
+}
+
+export function canViewInventoryAllLocations(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.InventoryViewAllLocations);
+}
+
+export function canRegisterRetailSales(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.RetailRegister);
+}
+
 export function canManageMfa(user: User | null | undefined): boolean {
   if (!user) {
     return false;
   }
-  return isTenantAdmin(user) || user.isPlatformAdmin;
+  return hasFullTenantAccess(user) || user.isPlatformAdmin;
 }
 
 export type TenantRoutePermission = 'admin' | 'manager';
@@ -67,5 +237,11 @@ export function hasTenantRoutePermission(
   user: User | null | undefined,
   permission: TenantRoutePermission,
 ): boolean {
-  return permission === 'admin' ? isTenantAdmin(user) : isTenantManager(user);
+  if (permission === 'admin') {
+    return (
+      hasFullTenantAccess(user) ||
+      (user?.role === UserRole.Admin && hasTenantPermission(user, TenantPermission.SettingsCompany))
+    );
+  }
+  return isTenantManager(user);
 }

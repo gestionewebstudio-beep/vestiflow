@@ -11,6 +11,11 @@ import type {
   TenantSummary,
   UpdateTenantPayload,
 } from '../models/admin-tenant.model';
+import type {
+  CreateTenantUserPayload,
+  TenantUser,
+  UpdateTenantUserPayload,
+} from '../models/admin-tenant-user.model';
 
 const HTTP_TIMEOUT_MS = 15000;
 
@@ -72,6 +77,37 @@ export class AdminTenantsService {
         readonly locationSelectionChangeGranted: boolean;
         readonly canChangeLicensedLocations: boolean;
       }>(`${this.config.apiBaseUrl}/admin/tenants/${tenantId}/grant-location-selection-change`, {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  listTenantUsers(tenantId: string): Observable<readonly TenantUser[]> {
+    return this.http
+      .get<readonly TenantUser[]>(`${this.config.apiBaseUrl}/admin/tenants/${tenantId}/users`)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  createTenantUser(tenantId: string, payload: CreateTenantUserPayload): Observable<TenantUser> {
+    return this.http
+      .post<TenantUser>(`${this.config.apiBaseUrl}/admin/tenants/${tenantId}/users`, payload)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  updateTenantUser(
+    tenantId: string,
+    userId: string,
+    payload: UpdateTenantUserPayload,
+  ): Observable<TenantUser> {
+    return this.http
+      .patch<TenantUser>(
+        `${this.config.apiBaseUrl}/admin/tenants/${tenantId}/users/${userId}`,
+        payload,
+      )
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  deleteTenantUser(tenantId: string, userId: string): Observable<void> {
+    return this.http
+      .delete<void>(`${this.config.apiBaseUrl}/admin/tenants/${tenantId}/users/${userId}`)
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 }

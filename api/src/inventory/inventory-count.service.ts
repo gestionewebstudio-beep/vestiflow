@@ -17,12 +17,15 @@ import {
 import type { Paginated } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
 import type { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
 import {
+  INVENTORY_VIEW_SCOPE_MODE,
   locationScopeToCountSessionFilter,
-  resolveLicensedLocationScope,
+  resolveOperationalLocationScope,
 } from './licensed-location-scope.util';
+import { assertUserCanAccessLocation } from './user-location-scope.util';
 
 export type InventoryCountSessionSummary = InventoryCountSession & {
   location: { name: string };
@@ -48,8 +51,15 @@ export class InventoryCountService {
   async list(
     tenantId: string,
     query: ListInventoryCountsQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<InventoryCountSessionSummary>> {
-    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+    const scope = await resolveOperationalLocationScope(
+      this.prisma,
+      tenantId,
+      user,
+      query.locationId,
+      INVENTORY_VIEW_SCOPE_MODE,
+    );
     if (!scope) {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
@@ -111,7 +121,10 @@ export class InventoryCountService {
   async create(
     tenantId: string,
     dto: CreateInventoryCountDto,
+    user: UserProfileDto,
   ): Promise<InventoryCountSessionDetail> {
+    assertUserCanAccessLocation(user, dto.locationId);
+
     const location = await this.prisma.location.findFirst({
       where: { id: dto.locationId, tenantId, licensedInVf: true, isActive: true },
       select: { id: true },
@@ -184,8 +197,10 @@ export class InventoryCountService {
     sessionId: string,
     lineId: string,
     countedQuantity: number,
+    user: UserProfileDto,
   ): Promise<InventoryCountLine> {
     const session = await this.assertEditableSession(tenantId, sessionId);
+    assertUserCanAccessLocation(user, session.locationId);
 
     const line = await this.prisma.inventoryCountLine.findFirst({
       where: { id: lineId, sessionId: session.id, tenantId },
@@ -200,8 +215,13 @@ export class InventoryCountService {
     });
   }
 
-  async submitForReview(tenantId: string, sessionId: string): Promise<InventoryCountSessionDetail> {
+  async submitForReview(
+    tenantId: string,
+    sessionId: string,
+    user: UserProfileDto,
+  ): Promise<InventoryCountSessionDetail> {
     const session = await this.assertEditableSession(tenantId, sessionId);
+    assertUserCanAccessLocation(user, session.locationId);
 
     const counted = await this.prisma.inventoryCountLine.count({
       where: { sessionId: session.id, countedQuantity: { not: null } },
@@ -220,7 +240,11 @@ export class InventoryCountService {
     return this.getById(tenantId, sessionId);
   }
 
-  async finalize(tenantId: string, sessionId: string): Promise<InventoryCountSessionDetail> {
+  async finalize(
+    tenantId: string,
+    sessionId: string,
+    user: UserProfileDto,
+  ): Promise<InventoryCountSessionDetail> {
     const session = await this.prisma.inventoryCountSession.findFirst({
       where: { id: sessionId, tenantId },
       include: { lines: true },
@@ -228,6 +252,7 @@ export class InventoryCountService {
     if (!session) {
       throw new NotFoundException('Sessione inventario non trovata');
     }
+    assertUserCanAccessLocation(user, session.locationId);
     if (session.status !== InventoryCountStatus.review) {
       throw new ConflictException(
         'La sessione deve essere in revisione prima di applicare le rettifiche.',
@@ -289,13 +314,18 @@ export class InventoryCountService {
     return this.getById(tenantId, sessionId);
   }
 
-  async cancel(tenantId: string, sessionId: string): Promise<InventoryCountSessionDetail> {
+  async cancel(
+    tenantId: string,
+    sessionId: string,
+    user: UserProfileDto,
+  ): Promise<InventoryCountSessionDetail> {
     const session = await this.prisma.inventoryCountSession.findFirst({
       where: { id: sessionId, tenantId },
     });
     if (!session) {
       throw new NotFoundException('Sessione inventario non trovata');
     }
+    assertUserCanAccessLocation(user, session.locationId);
     if (
       session.status === InventoryCountStatus.completed ||
       session.status === InventoryCountStatus.cancelled
@@ -311,13 +341,18 @@ export class InventoryCountService {
     return this.getById(tenantId, sessionId);
   }
 
-  async deleteCancelled(tenantId: string, sessionId: string): Promise<void> {
+  async deleteCancelled(
+    tenantId: string,
+    sessionId: string,
+    user: UserProfileDto,
+  ): Promise<void> {
     const session = await this.prisma.inventoryCountSession.findFirst({
       where: { id: sessionId, tenantId },
     });
     if (!session) {
       throw new NotFoundException('Sessione inventario non trovata');
     }
+    assertUserCanAccessLocation(user, session.locationId);
     if (session.status !== InventoryCountStatus.cancelled) {
       throw new ConflictException('Solo le sessioni annullate possono essere eliminate.');
     }

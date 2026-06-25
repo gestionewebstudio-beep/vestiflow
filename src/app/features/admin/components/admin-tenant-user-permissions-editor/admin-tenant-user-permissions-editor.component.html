@@ -1,0 +1,41 @@
+@if (isOwnerRole()) {
+  <p class="permissions-editor__owner-note" role="note">
+    Il titolare ha sempre accesso completo al gestionale. Puoi creare più profili titolare.
+  </p>
+} @else {
+  <div class="permissions-editor" [class.permissions-editor--compact]="compact()">
+    <div class="permissions-editor__toolbar">
+      <span class="permissions-editor__toolbar-label">Permessi personalizzati</span>
+      <button type="button" class="permissions-editor__reset" (click)="resetToRoleDefaults()">
+        Ripristina preset ruolo
+      </button>
+    </div>
+
+    <div class="permissions-editor__grid">
+      @for (group of permissionGroups; track group) {
+        @if (definitionsForGroup(group).length > 0) {
+          <fieldset class="permissions-editor__group">
+            <legend class="permissions-editor__group-title">{{ groupLabels[group] }}</legend>
+            <ul class="permissions-editor__list">
+              @for (definition of definitionsForGroup(group); track definition.key) {
+                <li class="permissions-editor__item">
+                  <app-hover-tooltip [text]="definition.hint">
+                    <label class="permissions-editor__label">
+                      <input
+                        type="checkbox"
+                        class="permissions-editor__checkbox"
+                        [checked]="isChecked(definition.key)"
+                        (change)="onToggle(definition.key, $any($event.target).checked)"
+                      />
+                      <span class="permissions-editor__name">{{ definition.label }}</span>
+                    </label>
+                  </app-hover-tooltip>
+                </li>
+              }
+            </ul>
+          </fieldset>
+        }
+      }
+    </div>
+  </div>
+}

@@ -1,10 +1,19 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { forkJoin, of, switchMap } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { canManageInventory } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
@@ -58,6 +67,7 @@ type LookupState =
 })
 export class StockLookupComponent {
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly authService = inject(AuthService);
   private readonly productService = inject(ProductService);
   private readonly inventoryService = inject(InventoryService);
   private readonly operationalLocations = inject(OperationalLocationsService);
@@ -71,6 +81,10 @@ export class StockLookupComponent {
   protected readonly canInstallPwa = this.pwaInstall.canInstall;
 
   protected readonly lookupState = signal<LookupState>({ status: 'idle' });
+
+  protected readonly canManageInventory = computed(() =>
+    canManageInventory(this.authService.currentUser()),
+  );
 
   protected readonly searchForm = this.fb.group({
     code: this.fb.control('', { validators: [Validators.required, Validators.maxLength(100)] }),

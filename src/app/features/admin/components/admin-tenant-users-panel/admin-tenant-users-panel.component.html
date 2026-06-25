@@ -1,0 +1,240 @@
+<section class="admin-users" aria-labelledby="admin-users-title">
+  <h3 id="admin-users-title" class="admin-users__title">Utenti del cliente</h3>
+  <p class="admin-users__hint">
+    Il titolare ha sempre accesso completo (puoi crearne più di uno). Per gli altri ruoli scegli
+    sede operativa e permessi: ad esempio un commesso può vedere tutte le giacenze ma intervenire
+    solo sulla propria sede.
+  </p>
+
+  @if (loading()) {
+    <p class="admin-users__status" role="status">Caricamento utenti…</p>
+  } @else if (loadError(); as message) {
+    <p class="admin-users__alert" role="alert">{{ message }}</p>
+  } @else {
+    @if (rowError(); as message) {
+      <p class="admin-users__alert" role="alert">{{ message }}</p>
+    }
+
+    <div class="admin-users__table-wrap">
+      <table class="admin-users__table">
+        <thead>
+          <tr>
+            <th scope="col">Nome</th>
+            <th scope="col">Email</th>
+            <th scope="col">Ruolo</th>
+            <th scope="col">Sede operativa</th>
+            <th scope="col">Permessi</th>
+            <th scope="col">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of users(); track user.id) {
+            <tr>
+              <td>{{ user.displayName }}</td>
+              <td>{{ user.email }}</td>
+              <td class="admin-users__cell-select">
+                <app-select-menu
+                  [options]="roleOptions"
+                  [value]="user.role"
+                  ariaLabel="Ruolo utente"
+                  placeholder="Ruolo"
+                  [compact]="true"
+                  [includeEmptyOption]="false"
+                  (valueChange)="onRowRoleSelect(user, $event)"
+                />
+              </td>
+              <td class="admin-users__cell-select">
+                @if (rowRequiresLocation(user.role)) {
+                  <app-select-menu
+                    [options]="locationOptions()"
+                    [value]="user.assignedLocationId ?? ''"
+                    ariaLabel="Sede operativa utente"
+                    placeholder="Seleziona sede"
+                    [compact]="true"
+                    [includeEmptyOption]="false"
+                    (valueChange)="onRowLocationSelect(user, $event)"
+                  />
+                } @else {
+                  <span class="admin-users__all-locations">Tutte le sedi</span>
+                }
+              </td>
+              <td>
+                @if (isOwnerRole(user.role)) {
+                  <span class="admin-users__all-locations">Accesso completo</span>
+                } @else {
+                  <button
+                    type="button"
+                    class="admin-users__permissions-toggle"
+                    [attr.aria-expanded]="permissionsExpanded(user.id)"
+                    (click)="togglePermissionsPanel(user.id)"
+                  >
+                    Personalizza
+                  </button>
+                }
+              </td>
+              <td class="admin-users__cell-actions">
+                @if (canDeleteUser(user)) {
+                  <app-button
+                    type="button"
+                    variant="ghost"
+                    [loading]="rowDeletingId() === user.id"
+                    [disabled]="rowDeletingId() !== null || rowSavingId() !== null"
+                    (click)="openDeleteDialog(user)"
+                  >
+                    Elimina
+                  </app-button>
+                } @else {
+                  <span class="admin-users__all-locations" aria-hidden="true">—</span>
+                }
+              </td>
+            </tr>
+            @if (!isOwnerRole(user.role) && permissionsExpanded(user.id)) {
+              <tr class="admin-users__permissions-row">
+                <td colspan="6">
+                  <app-admin-tenant-user-permissions-editor
+                    [role]="user.role"
+                    [permissions]="effectivePermissions(user)"
+                    [compact]="true"
+                    (permissionsChange)="onRowPermissionsChange(user, $event)"
+                  />
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (!hasActiveLocations()) {
+      <p class="admin-users__note" role="note">
+        Nessuna sede attiva: il cliente deve completare la selezione sedi prima di assegnare manager
+        e commessi.
+      </p>
+    }
+
+    <div class="admin-users__create">
+      @if (createSuccess()) {
+        <p class="admin-users__success admin-users__create-feedback" role="status">
+          Utente creato.
+        </p>
+      }
+      @if (createError(); as message) {
+        <p class="admin-users__alert admin-users__create-feedback" role="alert">{{ message }}</p>
+      }
+
+      <div class="admin-users__create-toolbar">
+        <app-button
+          type="button"
+          [disabled]="!hasActiveLocations()"
+          [attr.aria-expanded]="createFormOpen()"
+          aria-controls="admin-users-create-panel"
+          (click)="toggleCreateForm()"
+        >
+          <i
+            class="pi"
+            [class.pi-plus]="!createFormOpen()"
+            [class.pi-times]="createFormOpen()"
+            aria-hidden="true"
+          ></i>
+          {{ createFormOpen() ? 'Annulla' : 'Nuovo utente' }}
+        </app-button>
+      </div>
+
+      <div
+        id="admin-users-create-panel"
+        class="admin-users__create-panel"
+        [class.admin-users__create-panel--open]="createFormOpen()"
+        [attr.aria-hidden]="!createFormOpen()"
+      >
+        <div class="admin-users__create-panel-inner">
+          <form
+            class="admin-users__create-form"
+            [formGroup]="createForm"
+            (ngSubmit)="submitCreate()"
+          >
+            <div class="admin-users__create-fields">
+              <label class="admin-users__field">
+                <span class="admin-users__label">Nome visualizzato</span>
+                <input class="admin-users__input" type="text" formControlName="displayName" />
+              </label>
+              <label class="admin-users__field">
+                <span class="admin-users__label">Email</span>
+                <input
+                  class="admin-users__input"
+                  type="email"
+                  formControlName="email"
+                  autocomplete="off"
+                />
+              </label>
+              <label class="admin-users__field">
+                <span class="admin-users__label">Password iniziale</span>
+                <input
+                  class="admin-users__input"
+                  type="password"
+                  formControlName="password"
+                  autocomplete="new-password"
+                />
+              </label>
+              <div class="admin-users__field">
+                <span class="admin-users__label" id="create-user-role-label">Ruolo</span>
+                <app-select-menu
+                  [options]="roleOptions"
+                  [value]="createForm.controls.role.value"
+                  ariaLabel="Ruolo nuovo utente"
+                  placeholder="Ruolo"
+                  [fullWidth]="true"
+                  [matchInputHeight]="true"
+                  [includeEmptyOption]="false"
+                  (valueChange)="onCreateRoleSelect($event)"
+                />
+              </div>
+              @if (createRequiresLocation()) {
+                <div class="admin-users__field">
+                  <span class="admin-users__label" id="create-user-location-label"
+                    >Sede operativa</span
+                  >
+                  <app-select-menu
+                    [options]="locationOptions()"
+                    [value]="createForm.controls.assignedLocationId.value"
+                    ariaLabel="Sede operativa nuovo utente"
+                    placeholder="Seleziona sede"
+                    [fullWidth]="true"
+                    [matchInputHeight]="true"
+                    [includeEmptyOption]="false"
+                    (valueChange)="onCreateLocationSelect($event)"
+                  />
+                </div>
+              }
+            </div>
+            <div class="admin-users__create-permissions">
+              <app-admin-tenant-user-permissions-editor
+                [role]="createForm.controls.role.value"
+                [permissions]="createPermissions()"
+                (permissionsChange)="onCreatePermissionsChange($event)"
+              />
+            </div>
+            <div class="admin-users__create-actions">
+              <app-button type="submit" [loading]="createLoading()" [disabled]="createLoading()">
+                Crea utente
+              </app-button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (userPendingDelete(); as pendingUser) {
+    <app-confirm-dialog
+      [(open)]="deleteDialogOpen"
+      title="Eliminare l'utente?"
+      [message]="deleteDialogMessage()"
+      confirmLabel="Elimina utente"
+      cancelLabel="Annulla"
+      [danger]="true"
+      [busy]="rowDeletingId() === pendingUser.id"
+      (confirmed)="confirmDeleteUser()"
+      (dismissed)="cancelDeleteUser()"
+    />
+  }
+</section>

@@ -28,6 +28,11 @@ export interface User extends TenantScoped, Timestamped {
   readonly role: UserRole;
   /** Negozi a cui l'utente ha accesso. */
   readonly storeIds: readonly EntityId[];
+  /** Sede operativa fissa (manager/commesso). Null = tutte le sedi attive. */
+  readonly assignedLocationId: EntityId | null;
+  readonly assignedLocationName: string | null;
+  /** Permessi granulari (titolare: ignorati, accesso pieno). */
+  readonly permissions: readonly string[];
   readonly isActive: boolean;
   /** Admin Vestiflow: provisioning clienti (da PLATFORM_ADMIN_EMAILS). */
   readonly isPlatformAdmin: boolean;

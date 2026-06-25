@@ -26,8 +26,16 @@ import {
 } from '../common/upload/multer-upload.options';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ADMIN_ROLES, MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
-import { RolesGuard } from '../common/auth/roles.guard';
+import {
+  CATALOG_SECTION_PERMISSIONS,
+  SHOPIFY_CATALOG_SYNC_PERMISSIONS,
+  TenantPermission,
+} from '../auth/tenant-permission.constants';
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from '../common/auth/tenant-permissions.decorator';
+import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -71,7 +79,7 @@ class VariantByCodeQueryDto {
 }
 
 @Controller('products')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class ProductsController {
   constructor(
     private readonly products: ProductsService,
@@ -81,6 +89,7 @@ export class ProductsController {
   ) {}
 
   @Get()
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
     @Query() query: ListProductsQueryDto,
@@ -89,11 +98,13 @@ export class ProductsController {
   }
 
   @Get('facets')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   getFacets(@CurrentTenant() tenantId: string) {
     return this.products.getFacets(tenantId);
   }
 
   @Get('variants/summaries')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   listVariantSummaries(
     @CurrentTenant() tenantId: string,
     @Query() query: ListVariantSummariesQueryDto,
@@ -101,8 +112,8 @@ export class ProductsController {
     return this.products.listVariantSummaries(tenantId, query);
   }
 
-  // Prima di ':id' per non essere catturata dalla route parametrica.
   @Get('sku-availability')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   checkSku(
     @CurrentTenant() tenantId: string,
     @Query() query: SkuAvailabilityQueryDto,
@@ -111,6 +122,7 @@ export class ProductsController {
   }
 
   @Get('barcode-availability')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   checkBarcode(
     @CurrentTenant() tenantId: string,
     @Query() query: BarcodeAvailabilityQueryDto,
@@ -123,6 +135,7 @@ export class ProductsController {
   }
 
   @Get('variants/by-code')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   findVariantByCode(
     @CurrentTenant() tenantId: string,
     @Query() query: VariantByCodeQueryDto,
@@ -137,7 +150,7 @@ export class ProductsController {
   }
 
   @Post('import/preview')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.CatalogImportExport)
   @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   previewImport(@CurrentTenant() tenantId: string, @UploadedFile() file: Express.Multer.File) {
     this.assertCsvFile(file);
@@ -145,7 +158,7 @@ export class ProductsController {
   }
 
   @Post('import')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.CatalogImportExport)
   @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   importProducts(
     @CurrentTenant() tenantId: string,
@@ -160,7 +173,7 @@ export class ProductsController {
   }
 
   @Get('export/csv')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.CatalogImportExport)
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCsv(
     @CurrentTenant() tenantId: string,
@@ -175,6 +188,7 @@ export class ProductsController {
   }
 
   @Get(':id')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -183,7 +197,7 @@ export class ProductsController {
   }
 
   @Post()
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.CatalogManage)
   create(
     @CurrentTenant() tenantId: string,
     @Body() dto: CreateProductDto,
@@ -192,7 +206,7 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.CatalogManage)
   update(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -202,13 +216,13 @@ export class ProductsController {
   }
 
   @Post(':id/sync-shopify')
-  @Roles(...MANAGER_ROLES)
+  @RequireAnyPermissions(SHOPIFY_CATALOG_SYNC_PERMISSIONS)
   syncToShopify(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.products.syncToShopify(tenantId, id);
   }
 
   @Post(':id/images')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.CatalogManage)
   @UseInterceptors(FileInterceptor('file', productImageUploadMulterOptions))
   uploadImage(
     @CurrentTenant() tenantId: string,
@@ -219,7 +233,7 @@ export class ProductsController {
   }
 
   @Delete(':id/images/:imageId')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.CatalogManage)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteImage(
     @CurrentTenant() tenantId: string,
@@ -230,7 +244,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  @Roles(...ADMIN_ROLES)
+  @RequirePermissions(TenantPermission.CatalogDelete)
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(
     @CurrentTenant() tenantId: string,

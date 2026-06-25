@@ -40,18 +40,26 @@
       }
     </div>
 
-    @if (locations().length > 0) {
+    @if (locations().length > 0 || (locationSelectorLocked() && fixedLocationLabel())) {
       <div class="app-topbar__store">
-        <app-select-menu
-          [options]="locationOptions()"
-          [value]="activeLocationValue()"
-          ariaLabel="Location attiva"
-          placeholder="Tutte le location"
-          triggerIcon="pi-shop"
-          [compact]="true"
-          [toolbarChip]="true"
-          (valueChange)="onLocationChange($event)"
-        />
+        @if (showFixedLocationLabel(); as label) {
+          <span class="app-topbar__store-fixed" [title]="fixedLocationTitle()">
+            <i class="pi pi-shop" aria-hidden="true"></i>
+            {{ label }}
+          </span>
+        } @else {
+          <app-select-menu
+            [options]="locationOptions()"
+            [value]="activeLocationValue()"
+            ariaLabel="Location attiva"
+            placeholder="Tutte le location"
+            triggerIcon="pi-shop"
+            [compact]="true"
+            [toolbarChip]="true"
+            [includeEmptyOption]="!locationSelectorLocked()"
+            (valueChange)="onLocationChange($event)"
+          />
+        }
       </div>
     }
 

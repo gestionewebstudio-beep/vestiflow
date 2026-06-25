@@ -1,9 +1,11 @@
 import { Controller, Delete, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
+import { UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ADMIN_ROLES, Roles } from '../common/auth/roles.decorator';
+import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
+import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { TikTokConnectionDto } from './tiktok-config.service';
@@ -13,7 +15,7 @@ import { TikTokConnectionService } from './tiktok-connection.service';
 import { TikTokOAuthService } from './tiktok-oauth.service';
 
 @Controller('tiktok')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class TikTokController {
   constructor(
     private readonly tiktokConnection: TikTokConnectionService,
@@ -22,12 +24,15 @@ export class TikTokController {
   ) {}
 
   @Get('connection')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   getConnection(@CurrentTenant() tenantId: string): Promise<TikTokConnectionDto> {
     return this.tiktokConnection.getForTenant(tenantId);
   }
 
   @Post('auth/begin')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   beginAuth(@CurrentTenant() tenantId: string): Promise<{ authorizeUrl: string }> {
     return this.tiktokOAuth.beginAuth(tenantId);
   }
@@ -47,14 +52,16 @@ export class TikTokController {
   }
 
   @Delete('connection')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   async disconnect(@CurrentTenant() tenantId: string): Promise<{ disconnected: true }> {
     await this.tiktokOAuth.disconnect(tenantId);
     return { disconnected: true };
   }
 
   @Post('connection/clear-errors')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   clearErrors(@CurrentTenant() tenantId: string): Promise<ClearTikTokErrorsResult> {
     return this.tiktokConnection.clearErrors(tenantId);
   }

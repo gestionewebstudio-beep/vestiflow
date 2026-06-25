@@ -25,12 +25,15 @@ import type { Subscription } from 'rxjs';
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
-import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
+import {
+  canImportExportInventory,
+  canManageInventory,
+  canSyncInventoryFromShopify,
+} from '@core/permissions/tenant-permissions.util';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import { StockStatus } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
@@ -46,10 +49,8 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 
 import { ProductService } from '@features/products/services/product.service';
 import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
-import {
-  canManageShopifySync,
-  isShopifyConnected,
-} from '@features/integrations/shopify/models/shopify-page-sync.util';
+import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
+import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.util';
 import {
   formatShopifyInventorySyncFeedback,
   type ShopifySyncFeedback,
@@ -152,19 +153,20 @@ export class InventoryLevelsComponent {
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
 
-  private readonly shopifyConnection = toSignal(
-    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
-    { initialValue: null as ShopifyConnection | null },
+  protected readonly showShopifyInventorySync = computed(() => {
+    const user = this.authService.currentUser();
+    if (!canSyncInventoryFromShopify(user)) {
+      return false;
+    }
+    return showShopifyIntegration(user?.tenantChannelProfile);
+  });
+
+  protected readonly canImportExportInventory = computed(() =>
+    canImportExportInventory(this.authService.currentUser()),
   );
 
-  protected readonly showShopifyInventorySync = computed(
-    () =>
-      isShopifyConnected(this.shopifyConnection()) &&
-      canManageShopifySync(this.authService.currentUser()),
-  );
-
-  protected readonly canManageCatalog = computed(() =>
-    canManageCatalog(this.authService.currentUser()),
+  protected readonly canManageInventory = computed(() =>
+    canManageInventory(this.authService.currentUser()),
   );
 
   private readonly listFilters = computed(() => ({
@@ -223,8 +225,10 @@ export class InventoryLevelsComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
-    // Il cambio dal selettore topbar si riflette sul filtro di pagina.
     effect(() => {
+      if (!canSwitchOperationalLocation(this.authService.currentUser())) {
+        return;
+      }
       this.locationFilter.set(this.locationContext.activeLocationId() ?? '');
     });
 

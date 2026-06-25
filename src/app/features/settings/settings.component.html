@@ -57,6 +57,47 @@
     </section>
   }
 
+  @if (showLocationsSection()) {
+    <section class="settings__panel" aria-labelledby="settings-locations-panel">
+      <h2 id="settings-locations-panel" class="settings__panel-title">Location</h2>
+      @if (showShopifyLocationColumn()) {
+        <p class="settings__panel-hint">
+          Sedi operative per il magazzino, importate da Shopify con «Sincronizza location».
+        </p>
+      } @else {
+        <p class="settings__panel-hint">
+          Dopo la connessione Shopify, sincronizza le location per importare le sedi operative del
+          negozio.
+        </p>
+      }
+      @if (visibleLocations().length > 0) {
+        <app-location-table
+          [locations]="visibleLocations()"
+          [showShopifyColumn]="showShopifyLocationColumn()"
+          [showLicensedColumn]="showShopifyLocationColumn()"
+          [groupByShopifySource]="showShopifyLocationColumn()"
+        />
+        @if (showLocationLicensingPanel()) {
+          <app-location-licensing-panel
+            [locations]="visibleLocations()"
+            [licensedLocationCount]="licensedLocationCount()"
+            [canManage]="canManageLocationSelection()"
+            [selectionLocked]="locationSelectionLocked()"
+            [selectionChangeGranted]="locationSelectionChangeGranted()"
+            (saved)="onLocationLicensingSaved()"
+          />
+        }
+      } @else if (locationsLoading()) {
+        <app-table-skeleton [columns]="4" [rows]="3" />
+      } @else {
+        <p class="settings__shopify-locations-empty">
+          Nessuna sede operativa configurata. Collega Shopify e sincronizza le location per
+          importare le sedi del negozio.
+        </p>
+      }
+    </section>
+  }
+
   @if (showTikTokPanel()) {
     <!-- ── TikTok Shop ─────────────────────────────────────────────────────── -->
     <section class="settings__panel" aria-labelledby="settings-tiktok">
@@ -528,45 +569,6 @@
           </div>
         }
       }
-
-      <div class="settings__shopify-locations" aria-labelledby="settings-locations">
-        <h3 id="settings-locations" class="settings__shopify-locations-title">Location</h3>
-        @if (showShopifyLocationColumn()) {
-          <p class="settings__shopify-locations-hint">
-            Sedi operative per il magazzino, importate da Shopify con «Sincronizza location».
-          </p>
-        } @else {
-          <p class="settings__shopify-locations-hint">
-            Dopo la connessione Shopify, sincronizza le location per importare le sedi operative del
-            negozio.
-          </p>
-        }
-        @if (visibleLocations().length > 0) {
-          <app-location-table
-            [locations]="visibleLocations()"
-            [showShopifyColumn]="showShopifyLocationColumn()"
-            [showLicensedColumn]="showShopifyLocationColumn()"
-            [groupByShopifySource]="showShopifyLocationColumn()"
-          />
-          @if (showLocationLicensingPanel()) {
-            <app-location-licensing-panel
-              [locations]="visibleLocations()"
-              [licensedLocationCount]="licensedLocationCount()"
-              [canManage]="canManageLocationSelection()"
-              [selectionLocked]="locationSelectionLocked()"
-              [selectionChangeGranted]="locationSelectionChangeGranted()"
-              (saved)="onLocationLicensingSaved()"
-            />
-          }
-        } @else if (locationsLoading()) {
-          <app-table-skeleton [columns]="4" [rows]="3" />
-        } @else {
-          <p class="settings__shopify-locations-empty">
-            Nessuna sede operativa configurata. Collega Shopify e sincronizza le location per
-            importare le sedi del negozio.
-          </p>
-        }
-      </div>
     </section>
 
     <app-shopify-shop-change-wizard

@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
+import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { DashboardService } from './dashboard.service';
 
 describe('DashboardService', () => {
+  const ownerUser = testOwnerUser();
   it('getSummary aggrega KPI, availableUnits e compone i titoli varianti sotto soglia', async () => {
     const levels = [
       {
@@ -41,7 +43,7 @@ describe('DashboardService', () => {
     };
 
     const service = new DashboardService(prisma as unknown as PrismaService);
-    const summary = await service.getSummary('tenant-1', 'loc-1');
+    const summary = await service.getSummary('tenant-1', 'loc-1', ownerUser);
 
     expect(summary.productCount).toBe(12);
     expect(summary.incomingSupplierOrders).toBe(3);
@@ -74,7 +76,7 @@ describe('DashboardService', () => {
     };
 
     const service = new DashboardService(prisma as unknown as PrismaService);
-    await service.getSummary('tenant-1');
+    await service.getSummary('tenant-1', undefined, ownerUser);
 
     expect(prisma.inventoryLevel.aggregate).toHaveBeenCalledWith(
       expect.objectContaining({

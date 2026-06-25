@@ -1,0 +1,11 @@
+<span class="hover-tooltip" [class.hover-tooltip--bottom]="position() === 'bottom'">
+  <span class="hover-tooltip__trigger">
+    <ng-content />
+  </span>
+  <span class="hover-tooltip__bubble" role="tooltip">
+    {{ tooltipLines().body }}
+    @if (tooltipLines().note; as note) {
+      <span class="hover-tooltip__note">{{ note }}</span>
+    }
+  </span>
+</span>

@@ -78,7 +78,11 @@ export class JwtAuthGuard implements CanActivate {
 
     const user = await this.prisma.user.findFirst({
       where: { authUserId: verified.authUserId },
-      include: { stores: true, tenant: { select: { name: true, channelProfile: true } } },
+      include: {
+        stores: true,
+        tenant: { select: { name: true, channelProfile: true } },
+        assignedLocation: { select: { id: true, name: true } },
+      },
     });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Profilo applicativo non trovato o disabilitato');

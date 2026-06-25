@@ -25,6 +25,9 @@ export interface UserProfileApi {
   readonly avatarUrl?: string | null;
   readonly role: string;
   readonly storeIds: readonly string[];
+  readonly assignedLocationId?: string | null;
+  readonly assignedLocationName?: string | null;
+  readonly permissions?: readonly string[];
   readonly isActive: boolean;
   readonly isPlatformAdmin: boolean;
   readonly supportSession?: SupportSessionApi;
@@ -43,6 +46,9 @@ export function mapUserProfileFromApi(row: UserProfileApi): User {
     avatarUrl: row.avatarUrl ?? null,
     role: row.role as UserRole,
     storeIds: row.storeIds,
+    assignedLocationId: row.assignedLocationId ?? null,
+    assignedLocationName: row.assignedLocationName ?? null,
+    permissions: row.permissions ?? [],
     isActive: row.isActive,
     isPlatformAdmin: row.isPlatformAdmin,
     supportSession: row.supportSession,

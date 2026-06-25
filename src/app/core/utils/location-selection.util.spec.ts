@@ -7,6 +7,7 @@ import { ShopifySyncStatus } from '@core/models/shopify.model';
 
 import {
   filterLocationsForSettings,
+  filterLocationsForInventorySelection,
   filterLocationsForTopbar,
   isLicensedOperationalLocation,
   isShopifyImportResidualLocation,
@@ -118,6 +119,30 @@ describe('location-selection.util', () => {
     });
 
     expect(filtered).toEqual([]);
+  });
+
+  it('filterLocationsForInventorySelection con Shopify scollegato include sedi già sincronizzate', () => {
+    const locations = [
+      createLocation({ id: 'local', name: 'Mimmo Test VF', code: 'LOC-01' }),
+      createLocation({
+        id: 'shop',
+        name: 'Shop location',
+        shopify: { status: ShopifySyncStatus.Synced, shopifyId: '2' },
+      }),
+      createLocation({
+        id: 'custom',
+        name: 'My Custom Location',
+        shopify: { status: ShopifySyncStatus.Synced, shopifyId: '3' },
+      }),
+    ];
+
+    const filtered = filterLocationsForInventorySelection(locations, {
+      channelProfile: TenantChannelProfile.Shopify,
+      shopifyConnectionStatus: ShopifyConnectionStatus.NotConnected,
+      primaryStoreName: 'Mimmo Test VF',
+    });
+
+    expect(filtered.map((location) => location.id)).toEqual(['shop', 'custom']);
   });
 
   it('filterLocationsForSettings con Shopify connesso mostra solo sedi Shopify', () => {

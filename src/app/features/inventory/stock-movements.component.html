@@ -1,10 +1,12 @@
 <section class="stock-movements">
   <header class="stock-movements__header">
     <h1 class="stock-movements__title">Movimenti di magazzino</h1>
-    <app-button (click)="newMovement()">
-      <i class="pi pi-plus" aria-hidden="true"></i>
-      Registra movimento
-    </app-button>
+    @if (canManageInventory()) {
+      <app-button (click)="newMovement()">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+        Registra movimento
+      </app-button>
+    }
   </header>
 
   <app-inventory-tabs />
@@ -51,7 +53,7 @@
       title="Nessun movimento"
       description="Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento."
       icon="pi-arrow-right-arrow-left"
-      ctaLabel="Registra movimento"
+      [ctaLabel]="canManageInventory() ? 'Registra movimento' : undefined"
       (ctaClick)="newMovement()"
     />
   } @else {

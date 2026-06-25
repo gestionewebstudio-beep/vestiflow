@@ -12,8 +12,16 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
-import { RolesGuard } from '../common/auth/roles.guard';
+import {
+  SUPPLIER_ORDERS_RECEIVE_PERMISSIONS,
+  SUPPLIER_ORDERS_VIEW_PERMISSIONS,
+  TenantPermission,
+} from '../auth/tenant-permission.constants';
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from '../common/auth/tenant-permissions.decorator';
+import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
@@ -23,11 +31,12 @@ import { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
 import { SupplierOrdersService, type SupplierOrderWithLines } from './supplier-orders.service';
 
 @Controller('supplier-orders')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class SupplierOrdersController {
   constructor(private readonly supplierOrders: SupplierOrdersService) {}
 
   @Get()
+  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
     @Query() query: ListSupplierOrdersQueryDto,
@@ -36,6 +45,7 @@ export class SupplierOrdersController {
   }
 
   @Get(':id')
+  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -44,7 +54,7 @@ export class SupplierOrdersController {
   }
 
   @Post()
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.SupplierOrdersManage)
   create(
     @CurrentTenant() tenantId: string,
     @Body() dto: CreateSupplierOrderDto,
@@ -53,7 +63,7 @@ export class SupplierOrdersController {
   }
 
   @Post(':id/send')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.SupplierOrdersManage)
   send(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -62,7 +72,7 @@ export class SupplierOrdersController {
   }
 
   @Patch(':id')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.SupplierOrdersManage)
   update(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -72,7 +82,7 @@ export class SupplierOrdersController {
   }
 
   @Post(':id/cancel')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.SupplierOrdersManage)
   cancel(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -81,7 +91,7 @@ export class SupplierOrdersController {
   }
 
   @Delete(':id')
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.SupplierOrdersManage)
   delete(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -90,6 +100,7 @@ export class SupplierOrdersController {
   }
 
   @Post(':id/receive')
+  @RequireAnyPermissions(SUPPLIER_ORDERS_RECEIVE_PERMISSIONS)
   receive(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,

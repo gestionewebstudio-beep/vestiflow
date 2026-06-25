@@ -10,8 +10,9 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
-import { RolesGuard } from '../common/auth/roles.guard';
+import { TenantPermission } from '../auth/tenant-permission.constants';
+import { RequirePermissions } from '../common/auth/tenant-permissions.decorator';
+import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { ExportSalesOrdersQueryDto } from './dto/export-sales-orders.query.dto';
@@ -24,7 +25,7 @@ import {
 } from './sales-orders.service';
 
 @Controller('sales-orders')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class SalesOrdersController {
   constructor(
     private readonly salesOrders: SalesOrdersService,
@@ -40,8 +41,7 @@ export class SalesOrdersController {
   }
 
   @Get('export/csv')
-  @UseGuards(RolesGuard)
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.ReportsExport)
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCsv(
     @CurrentTenant() tenantId: string,

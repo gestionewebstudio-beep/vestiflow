@@ -45,6 +45,10 @@ export class AppTopbarComponent {
   readonly locations = input<readonly Location[]>([]);
   /** Location attiva corrente; null = tutte. */
   readonly activeLocationId = input<EntityId | null>(null);
+  /** Se true, la sede è fissa (manager/commesso) e non si può cambiare. */
+  readonly locationSelectorLocked = input<boolean>(false);
+  /** Etichetta sede fissa quando il selettore è bloccato. */
+  readonly fixedLocationLabel = input<string | null>(null);
   /** Stato connessione Shopify; null = non ancora caricato (indicatore nascosto). */
   readonly syncStatus = input<ShopifyConnectionStatus | null>(null);
   /** Timestamp ultimo sync Shopify (ISO), se disponibile. */
@@ -78,6 +82,27 @@ export class AppTopbarComponent {
       value: location.id,
       label: location.name,
     })),
+  );
+
+  /** Etichetta fissa quando c'è una sola sede (select inutile). */
+  protected readonly singleLocationLabel = computed(() => {
+    const list = this.locations();
+    if (list.length !== 1) {
+      return null;
+    }
+    return list[0]?.name ?? null;
+  });
+
+  /** Mostra testo fisso al posto del select (sede bloccata o unica sede disponibile). */
+  protected readonly showFixedLocationLabel = computed(() => {
+    if (this.locationSelectorLocked()) {
+      return this.fixedLocationLabel();
+    }
+    return this.singleLocationLabel();
+  });
+
+  protected readonly fixedLocationTitle = computed(() =>
+    this.locationSelectorLocked() ? 'Sede operativa assegnata' : 'Sede operativa',
   );
 
   /** Valore stringa per il select-menu (EntityId o vuoto). */

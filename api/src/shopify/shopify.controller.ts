@@ -1,9 +1,22 @@
 import { Body, Controller, Delete, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
+import { UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ADMIN_ROLES, Roles } from '../common/auth/roles.decorator';
+import {
+  CATALOG_SECTION_PERMISSIONS,
+  SHOPIFY_CATALOG_SYNC_PERMISSIONS,
+  SHOPIFY_INVENTORY_SYNC_PERMISSIONS,
+  SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS,
+  TenantPermission,
+} from '../auth/tenant-permission.constants';
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from '../common/auth/tenant-permissions.decorator';
+import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
+import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import { BeginShopifyAuthDto } from './dto/begin-shopify-auth.dto';
@@ -32,7 +45,7 @@ import type {
 } from './shopify-shop-change.service';
 
 @Controller('shopify')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class ShopifyController {
   constructor(
     private readonly shopifyConnection: ShopifyConnectionService,
@@ -48,12 +61,15 @@ export class ShopifyController {
   ) {}
 
   @Get('connection')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   getConnection(@CurrentTenant() tenantId: string): Promise<ShopifyConnectionDto> {
     return this.shopifyConnection.getForTenant(tenantId);
   }
 
   @Post('auth/begin')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   beginAuth(
     @CurrentTenant() tenantId: string,
     @Body() dto: BeginShopifyAuthDto,
@@ -76,20 +92,23 @@ export class ShopifyController {
   }
 
   @Delete('connection')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   async disconnect(@CurrentTenant() tenantId: string): Promise<{ disconnected: true }> {
     await this.shopifyOAuth.disconnect(tenantId);
     return { disconnected: true };
   }
 
   @Get('shop-change/preview')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   previewShopChange(@CurrentTenant() tenantId: string): Promise<ShopifyShopChangePreview> {
     return this.shopifyShopChange.preview(tenantId);
   }
 
   @Post('shop-change/purge')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   purgeShopifyData(
     @CurrentTenant() tenantId: string,
     @Body() dto: PurgeShopifyDataDto,
@@ -98,7 +117,8 @@ export class ShopifyController {
   }
 
   @Post('sync/locations')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   async syncLocations(@CurrentTenant() tenantId: string) {
     const result = await this.shopifyOAuth.resyncLocations(tenantId);
     const autoLicensed = await this.locationLicensing.tryAutoLicenseSingleShopifyLocation(tenantId);
@@ -106,21 +126,23 @@ export class ShopifyController {
   }
 
   @Post('sync/webhooks')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   async syncWebhooks(@CurrentTenant() tenantId: string) {
     const result = await this.shopifyOAuth.resyncWebhooks(tenantId);
     return { synced: true as const, ...result };
   }
 
   @Post('sync/webhooks/disable')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   async disableWebhooks(@CurrentTenant() tenantId: string) {
     const result = await this.shopifyOAuth.disableWebhooks(tenantId);
     return { disabled: true as const, ...result };
   }
 
   @Post('sync/products')
-  @Roles(...ADMIN_ROLES)
+  @RequireAnyPermissions(SHOPIFY_CATALOG_SYNC_PERMISSIONS)
   async syncProducts(
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyCatalogSyncResult> {
@@ -129,7 +151,7 @@ export class ShopifyController {
   }
 
   @Post('sync/inventory')
-  @Roles(...ADMIN_ROLES)
+  @RequireAnyPermissions(SHOPIFY_INVENTORY_SYNC_PERMISSIONS)
   async syncInventory(
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyInventoryPullResult> {
@@ -138,7 +160,7 @@ export class ShopifyController {
   }
 
   @Post('sync/customers')
-  @Roles(...ADMIN_ROLES)
+  @RequireAnyPermissions(SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS)
   async syncCustomers(
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyCustomersPullResult> {
@@ -147,7 +169,7 @@ export class ShopifyController {
   }
 
   @Post('sync/orders')
-  @Roles(...ADMIN_ROLES)
+  @RequireAnyPermissions(SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS)
   async syncOrders(
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyOrdersPullResult> {
@@ -156,12 +178,14 @@ export class ShopifyController {
   }
 
   @Post('connection/clear-errors')
-  @Roles(...ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
   async clearErrors(@CurrentTenant() tenantId: string): Promise<ClearShopifyErrorsResult> {
     return this.shopifyConnection.clearErrors(tenantId);
   }
 
   @Get('taxonomy/categories')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   async listTaxonomyCategories(
     @CurrentTenant() tenantId: string,
     @Query() query: ListTaxonomyCategoriesQueryDto,
@@ -175,6 +199,7 @@ export class ShopifyController {
   }
 
   @Get('taxonomy/category-attributes')
+  @RequirePermissions(TenantPermission.CatalogManage)
   async listCategoryAttributes(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCategoryAttributesQueryDto,

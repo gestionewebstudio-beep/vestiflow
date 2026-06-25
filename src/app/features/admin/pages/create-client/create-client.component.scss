@@ -214,6 +214,16 @@
   justify-content: flex-end;
 }
 
+.create-client__actions--page-footer {
+  margin-block-start: var(--space-6);
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-width) solid var(--color-border);
+}
+
+.create-client__page-footer-alert {
+  margin-block-start: var(--space-6);
+}
+
 .create-client__inline-action {
   margin-block-start: var(--space-4);
 }

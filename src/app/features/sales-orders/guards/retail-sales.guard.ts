@@ -6,17 +6,19 @@ import {
   TenantChannelProfile,
   showRetailSalesRegister,
 } from '@core/models/tenant-channel-profile.model';
+import { canRegisterRetailSales } from '@core/permissions/tenant-permissions.util';
 
-/** Route vendita al banco: tutti i profili canale (gestionale, Shopify, TikTok). */
+/** Route vendita al banco: profilo canale + permesso retail.register. */
 export const retailSalesRegisterGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  const user = auth.currentUser();
 
-  if (showRetailSalesRegister(auth.currentUser()?.tenantChannelProfile)) {
+  if (showRetailSalesRegister(user?.tenantChannelProfile) && canRegisterRetailSales(user)) {
     return true;
   }
 
-  return router.createUrlTree(['/app/sales']);
+  return router.createUrlTree(['/app/dashboard']);
 };
 
 /** Storico vendite Shopify: reindirizza il profilo gestionale al banco. */

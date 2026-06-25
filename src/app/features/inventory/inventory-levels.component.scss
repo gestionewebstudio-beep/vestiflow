@@ -128,3 +128,17 @@
   font-size: var(--text-sm);
   color: var(--status-error-fg);
 }
+
+.inventory-levels__location-fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  block-size: var(--field-height);
+  padding-inline: var(--space-2);
+  color: var(--color-text-muted);
+  background-color: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}

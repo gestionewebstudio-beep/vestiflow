@@ -15,7 +15,10 @@ import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { AuthService } from '@core/auth';
-import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
+import {
+  canManageSupplierOrders,
+  canReceiveSupplierOrders,
+} from '@core/permissions/tenant-permissions.util';
 import type { Location } from '@core/models/location.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import type { SupplierOrder, SupplierOrderLine } from '@core/models/supplier-order.model';
@@ -174,6 +177,9 @@ export class SupplierOrderDetailComponent {
   );
   protected readonly canReceive = computed(() => {
     const status = this.order()?.status;
+    if (!canReceiveSupplierOrders(this.authService.currentUser())) {
+      return false;
+    }
     return status === SupplierOrderStatus.Sent || status === SupplierOrderStatus.PartiallyReceived;
   });
 

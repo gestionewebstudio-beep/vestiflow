@@ -16,12 +16,16 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import {
+  INVENTORY_VIEW_SCOPE_MODE,
+  INVENTORY_ACTION_SCOPE_MODE,
   locationScopeToInventoryLevelFilter,
   locationScopeToMovementFilter,
-  resolveLicensedLocationScope,
+  resolveOperationalLocationScope,
 } from './licensed-location-scope.util';
+import { assertUserCanAccessLocation } from './user-location-scope.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type {
   ListInventoryLevelsQueryDto,
@@ -74,20 +78,28 @@ export class InventoryService {
   async listLevels(
     tenantId: string,
     query: ListInventoryLevelsQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<InventoryLevelWithRefs>> {
     const search = query.search?.trim();
     if (search) {
-      return this.listLevelsForSearch(tenantId, query, search);
+      return this.listLevelsForSearch(tenantId, query, search, user);
     }
-    return this.listLevelsPaginated(tenantId, query);
+    return this.listLevelsPaginated(tenantId, query, user);
   }
 
   /** Elenco paginato delle sole righe già presenti in inventario (browse senza ricerca). */
   private async listLevelsPaginated(
     tenantId: string,
     query: ListInventoryLevelsQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<InventoryLevelWithRefs>> {
-    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+    const scope = await resolveOperationalLocationScope(
+      this.prisma,
+      tenantId,
+      user,
+      query.locationId,
+      INVENTORY_VIEW_SCOPE_MODE,
+    );
     if (!scope) {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
@@ -126,6 +138,7 @@ export class InventoryService {
     tenantId: string,
     query: ListInventoryLevelsQueryDto,
     search: string,
+    user?: UserProfileDto,
   ): Promise<Paginated<InventoryLevelWithRefs>> {
     const variantWhere: Prisma.ProductVariantWhereInput = {
       tenantId,
@@ -133,7 +146,13 @@ export class InventoryService {
       ...buildInventoryVariantSearchWhere(search),
     };
 
-    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+    const scope = await resolveOperationalLocationScope(
+      this.prisma,
+      tenantId,
+      user,
+      query.locationId,
+      INVENTORY_VIEW_SCOPE_MODE,
+    );
     if (!scope) {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
@@ -242,8 +261,15 @@ export class InventoryService {
   async listMovements(
     tenantId: string,
     query: ListMovementsQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<StockMovement>> {
-    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+    const scope = await resolveOperationalLocationScope(
+      this.prisma,
+      tenantId,
+      user,
+      query.locationId,
+      INVENTORY_VIEW_SCOPE_MODE,
+    );
     if (!scope) {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
@@ -285,9 +311,14 @@ export class InventoryService {
     tenantId: string,
     dto: RegisterMovementDto,
     actorDisplayName: string,
-    actorUserId?: string,
+    actorUserId: string | undefined,
+    user: UserProfileDto,
   ): Promise<StockMovement> {
     this.assertMovementShape(dto);
+    assertUserCanAccessLocation(user, dto.locationId, 'write');
+    if (dto.targetLocationId) {
+      assertUserCanAccessLocation(user, dto.targetLocationId, 'transferDestination');
+    }
 
     const movement = await this.prisma.$transaction(async (tx) => {
       const variant = await tx.productVariant.findFirst({
@@ -347,8 +378,11 @@ export class InventoryService {
     tenantId: string,
     dto: RegisterRetailScanDto,
     actorDisplayName: string,
-    actorUserId?: string,
+    actorUserId: string | undefined,
+    user: UserProfileDto,
   ): Promise<RetailScanResult> {
+    assertUserCanAccessLocation(user, dto.locationId);
+
     const code = dto.code.trim();
     if (!code) {
       throw new NotFoundException('Variante non trovata per SKU o barcode');
@@ -476,6 +510,7 @@ export class InventoryService {
     tenantId: string,
     id: string,
     minThreshold: number,
+    user?: UserProfileDto,
   ): Promise<InventoryLevelWithRefs> {
     const level = await this.prisma.inventoryLevel.findFirst({
       where: { id, tenantId },
@@ -483,6 +518,9 @@ export class InventoryService {
     });
     if (!level) {
       throw new NotFoundException('Giacenza non trovata');
+    }
+    if (user) {
+      assertUserCanAccessLocation(user, level.locationId);
     }
     return this.prisma.inventoryLevel.update({
       where: { id },

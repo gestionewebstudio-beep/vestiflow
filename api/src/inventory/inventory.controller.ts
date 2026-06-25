@@ -19,13 +19,23 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { InventoryCountLine, Location, StockMovement } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 
 import { csvUploadMulterOptions } from '../common/upload/multer-upload.options';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { ADMIN_ROLES, MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
+import {
+  INVENTORY_SECTION_PERMISSIONS,
+  TenantPermission,
+} from '../auth/tenant-permission.constants';
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from '../common/auth/tenant-permissions.decorator';
+import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
+import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
@@ -51,7 +61,7 @@ import { InventoryService, type InventoryLevelWithRefs, type RetailScanResult } 
 import { LocationLicensingService } from './location-licensing.service';
 
 @Controller('inventory')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class InventoryController {
   constructor(
     private readonly inventory: InventoryService,
@@ -63,13 +73,14 @@ export class InventoryController {
   ) {}
 
   @Get('locations')
+  @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
   listLocations(@CurrentTenant() tenantId: string): Promise<Location[]> {
     return this.inventory.listLocations(tenantId);
   }
 
   @Put('locations/licensed')
   @UseGuards(RolesGuard)
-  @Roles(...ADMIN_ROLES)
+  @Roles(UserRole.owner)
   setLicensedLocations(
     @CurrentTenant() tenantId: string,
     @Body() dto: SetLicensedLocationsDto,
@@ -78,14 +89,14 @@ export class InventoryController {
   }
 
   @Get('levels/export/csv')
-  @UseGuards(RolesGuard)
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.InventoryImportExport)
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportLevelsCsv(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ExportInventoryLevelsQueryDto,
   ): Promise<StreamableFile> {
-    const csv = await this.inventoryExport.exportCsv(tenantId, query);
+    const csv = await this.inventoryExport.exportCsv(tenantId, query, user);
     const stamp = new Date().toISOString().slice(0, 10);
     return new StreamableFile(Buffer.from(csv, 'utf-8'), {
       type: 'text/csv; charset=utf-8',
@@ -94,8 +105,7 @@ export class InventoryController {
   }
 
   @Post('levels/import/preview')
-  @UseGuards(RolesGuard)
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.InventoryImportExport)
   @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   previewLevelsImport(
     @CurrentTenant() tenantId: string,
@@ -106,87 +116,98 @@ export class InventoryController {
   }
 
   @Post('levels/import')
-  @UseGuards(RolesGuard)
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.InventoryImportExport)
   @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   importLevels(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @UploadedFile() file: Express.Multer.File,
     @Body() body: ImportInventoryBodyDto,
   ) {
     this.assertCsvFile(file);
     const keys = body.keys?.filter((key) => key.trim().length > 0);
-    return this.inventoryImport.importCsv(tenantId, file.buffer.toString('utf-8'), { keys });
+    return this.inventoryImport.importCsv(tenantId, file.buffer.toString('utf-8'), user, { keys });
   }
 
   @Get('reports/location-summary')
+  @RequirePermissions(TenantPermission.ReportsView)
   locationInventoryReport(@CurrentTenant() tenantId: string) {
     return this.inventoryReport.locationSummary(tenantId);
   }
 
   @Get('levels')
+  @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
   listLevels(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListInventoryLevelsQueryDto,
   ): Promise<Paginated<InventoryLevelWithRefs>> {
-    return this.inventory.listLevels(tenantId, query);
+    return this.inventory.listLevels(tenantId, query, user);
   }
 
   @Patch('levels/:id')
-  @UseGuards(RolesGuard)
-  @Roles(...MANAGER_ROLES)
+  @RequirePermissions(TenantPermission.InventoryManage)
   updateLevelMinThreshold(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id') id: string,
     @Body() dto: UpdateInventoryLevelDto,
   ) {
-    return this.inventory.updateLevelMinThreshold(tenantId, id, dto.minThreshold);
+    return this.inventory.updateLevelMinThreshold(tenantId, id, dto.minThreshold, user);
   }
 
   @Get('movements')
+  @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
   listMovements(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListMovementsQueryDto,
   ): Promise<Paginated<StockMovement>> {
-    return this.inventory.listMovements(tenantId, query);
+    return this.inventory.listMovements(tenantId, query, user);
   }
 
   @Post('movements')
+  @RequirePermissions(TenantPermission.InventoryManage)
   registerMovement(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: RegisterMovementDto,
   ): Promise<StockMovement> {
-    return this.inventory.registerMovement(tenantId, dto, user.displayName, user.id);
+    return this.inventory.registerMovement(tenantId, dto, user.displayName, user.id, user);
   }
 
-  /** Vendita o storno al banco (tutti i profili canale). */
   @Post('retail-scans')
+  @RequirePermissions(TenantPermission.RetailRegister)
   registerRetailScan(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: RegisterRetailScanDto,
   ): Promise<RetailScanResult> {
-    return this.inventory.registerRetailScan(tenantId, dto, user.displayName, user.id);
+    return this.inventory.registerRetailScan(tenantId, dto, user.displayName, user.id, user);
   }
 
   @Get('counts')
+  @RequirePermissions(TenantPermission.InventoryManage)
   listCounts(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListInventoryCountsQueryDto,
   ): Promise<Paginated<InventoryCountSessionSummary>> {
-    return this.inventoryCount.list(tenantId, query);
+    return this.inventoryCount.list(tenantId, query, user);
   }
 
   @Post('counts')
+  @RequirePermissions(TenantPermission.InventoryManage)
   createCount(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Body() dto: CreateInventoryCountDto,
   ): Promise<InventoryCountSessionDetail> {
-    return this.inventoryCount.create(tenantId, dto);
+    return this.inventoryCount.create(tenantId, dto, user);
   }
 
   @Get('counts/:id')
+  @RequirePermissions(TenantPermission.InventoryManage)
   getCount(
     @CurrentTenant() tenantId: string,
     @Param('id') id: string,
@@ -195,43 +216,62 @@ export class InventoryController {
   }
 
   @Patch('counts/:sessionId/lines/:lineId')
+  @RequirePermissions(TenantPermission.InventoryManage)
   updateCountLine(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('sessionId') sessionId: string,
     @Param('lineId') lineId: string,
     @Body() dto: UpdateCountLineDto,
   ): Promise<InventoryCountLine> {
-    return this.inventoryCount.updateLine(tenantId, sessionId, lineId, dto.countedQuantity);
+    return this.inventoryCount.updateLine(
+      tenantId,
+      sessionId,
+      lineId,
+      dto.countedQuantity,
+      user,
+    );
   }
 
   @Post('counts/:id/submit')
+  @RequirePermissions(TenantPermission.InventoryManage)
   submitCount(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id') id: string,
   ): Promise<InventoryCountSessionDetail> {
-    return this.inventoryCount.submitForReview(tenantId, id);
+    return this.inventoryCount.submitForReview(tenantId, id, user);
   }
 
   @Post('counts/:id/finalize')
+  @RequirePermissions(TenantPermission.InventoryManage)
   finalizeCount(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id') id: string,
   ): Promise<InventoryCountSessionDetail> {
-    return this.inventoryCount.finalize(tenantId, id);
+    return this.inventoryCount.finalize(tenantId, id, user);
   }
 
   @Post('counts/:id/cancel')
+  @RequirePermissions(TenantPermission.InventoryManage)
   cancelCount(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id') id: string,
   ): Promise<InventoryCountSessionDetail> {
-    return this.inventoryCount.cancel(tenantId, id);
+    return this.inventoryCount.cancel(tenantId, id, user);
   }
 
   @Delete('counts/:id')
+  @RequirePermissions(TenantPermission.InventoryManage)
   @HttpCode(HttpStatus.NO_CONTENT)
-  deleteCount(@CurrentTenant() tenantId: string, @Param('id') id: string): Promise<void> {
-    return this.inventoryCount.deleteCancelled(tenantId, id);
+  deleteCount(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id') id: string,
+  ): Promise<void> {
+    return this.inventoryCount.deleteCancelled(tenantId, id, user);
   }
 
   private assertCsvFile(

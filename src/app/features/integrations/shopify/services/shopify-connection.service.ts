@@ -1,9 +1,12 @@
 import { inject, Injectable } from '@angular/core';
-import { map, type Observable, tap, timeout } from 'rxjs';
+import { EMPTY, map, type Observable, tap, timeout } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ApiHttpClient } from '@core/http/api-http.client';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
+import { isPlatformOperator } from '@core/permissions/platform-operator.util';
+import { canManageShopifyConnection } from '@core/permissions/tenant-permissions.util';
 
 import { shopifyConnectionFromDto } from '../models/shopify-connection.mapper';
 import type { ShopifyConnectionDto } from '../models/shopify-connection.dto';
@@ -41,8 +44,14 @@ export class ShopifyConnectionService {
   private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
   private readonly connectionRefresh = inject(ShopifyConnectionRefreshService);
+  private readonly authService = inject(AuthService);
 
   getConnection(): Observable<ShopifyConnection> {
+    const user = this.authService.currentUser();
+    if (isPlatformOperator(user) || !canManageShopifyConnection(user)) {
+      return EMPTY;
+    }
+
     return this.http
       .get<ShopifyConnectionDto>(`${this.config.apiBaseUrl}/shopify/connection`)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(shopifyConnectionFromDto));

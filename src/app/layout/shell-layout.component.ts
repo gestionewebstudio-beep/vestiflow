@@ -8,7 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { catchError, filter, merge, of, switchMap, type Subscription } from 'rxjs';
 
@@ -40,6 +40,19 @@ import { ShopifyConnectionService } from '@features/integrations/shopify/service
 import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
 import { InventoryService } from '@features/inventory/services/inventory.service';
 import { isShopifySyncUiActive } from '@features/integrations/shopify/models/shopify-connection-state.util';
+import {
+  canAccessCatalogSection,
+  canAccessInventorySection,
+  canRegisterRetailSales,
+  canViewCustomers,
+  canViewReports,
+  canViewSupplierOrders,
+  canManageShopifyConnection,
+} from '@core/permissions/tenant-permissions.util';
+import {
+  canSwitchOperationalLocation,
+  resolveFixedOperationalLocationId,
+} from '@core/utils/user-location-scope.util';
 
 /**
  * Shell applicativa: topbar + sidebar + area contenuti con singola regione di
@@ -87,16 +100,54 @@ export class ShellLayoutComponent {
 
   readonly showSidebarLogout = computed(() => this.currentUser() != null);
 
-  /** Location selezionabili in topbar (sedi attive nel piano). */
-  readonly topbarLocations = this.operationalLocations.locations;
+  /** Sede operativa in topbar: sede assegnata per commesso/manager, tutte per titolare/admin. */
+  readonly topbarLocations = this.operationalLocations.writeLocations;
+
+  readonly locationSelectorLocked = computed(
+    () => !canSwitchOperationalLocation(this.currentUser()),
+  );
+
+  readonly fixedLocationLabel = computed(() => {
+    const user = this.currentUser();
+    if (canSwitchOperationalLocation(user)) {
+      return null;
+    }
+    return user?.assignedLocationName ?? null;
+  });
+
+  private readonly pinFixedOperationalLocation = effect(() => {
+    const fixedId = resolveFixedOperationalLocationId(this.currentUser());
+    if (!fixedId) {
+      return;
+    }
+    const selectable = this.topbarLocations();
+    if (!selectable.some((location) => location.id === fixedId)) {
+      return;
+    }
+    if (this.activeLocationId() !== fixedId) {
+      this.locationContext.setActiveLocation(fixedId);
+    }
+  });
 
   private readonly syncActiveLocationWithTopbar = effect(() => {
     const activeLocationId = this.activeLocationId();
     const selectable = this.topbarLocations();
+    const fixedId = resolveFixedOperationalLocationId(this.currentUser());
 
     if (selectable.length === 0) {
+      if (fixedId) {
+        return;
+      }
       if (activeLocationId) {
         this.locationContext.setActiveLocation(null);
+      }
+      return;
+    }
+
+    if (selectable.length === 1) {
+      const onlyId = selectable[0]?.id;
+      if (onlyId && activeLocationId !== onlyId) {
+        this.locationContext.setActiveLocation(onlyId);
       }
       return;
     }
@@ -150,15 +201,17 @@ export class ShellLayoutComponent {
   readonly shopifyConnection = toSignal<ShopifyConnection | null>(
     merge(
       of(void 0),
+      toObservable(this.authService.currentUser),
       this.shopifySyncWatch.watchSyncCompleted(),
       this.shopifySyncWatch.watchConnectionInvalidated(),
     ).pipe(
       switchMap(() => {
-        if (isPlatformOperator(this.authService.currentUser())) {
+        const user = this.authService.currentUser();
+        if (isPlatformOperator(user)) {
           return of(null);
         }
-        const profile = this.authService.currentUser()?.tenantChannelProfile;
-        if (profile !== TenantChannelProfile.Shopify) {
+        const profile = user?.tenantChannelProfile;
+        if (profile !== TenantChannelProfile.Shopify || !canManageShopifyConnection(user)) {
           return of(null);
         }
         return this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null)));
@@ -219,51 +272,6 @@ export class ShellLayoutComponent {
 
   protected readonly logoutDialogOpen = signal(false);
 
-  private readonly tenantNavItemsWithoutSales: readonly NavItem[] = [
-    {
-      label: 'Dashboard',
-      icon: 'pi-th-large',
-      route: '/app/dashboard',
-      activeRoutePrefix: '/app/dashboard',
-    },
-    {
-      label: 'Prodotti',
-      icon: 'pi-tags',
-      route: '/app/products',
-      activeRoutePrefix: '/app/products',
-    },
-    {
-      label: 'Magazzino',
-      icon: 'pi-box',
-      route: '/app/inventory/lookup',
-      activeRoutePrefix: '/app/inventory',
-    },
-    {
-      label: 'Ordini Fornitori',
-      icon: 'pi-truck',
-      route: '/app/orders',
-      activeRoutePrefix: '/app/orders',
-    },
-    {
-      label: 'Clienti',
-      icon: 'pi-users',
-      route: '/app/customers',
-      activeRoutePrefix: '/app/customers',
-    },
-    {
-      label: 'Report',
-      icon: 'pi-chart-line',
-      route: '/app/reports',
-      activeRoutePrefix: '/app/reports',
-    },
-    {
-      label: 'Impostazioni',
-      icon: 'pi-cog',
-      route: '/app/settings',
-      activeRoutePrefix: '/app/settings',
-    },
-  ];
-
   private readonly operatorNavItems: readonly NavItem[] = [
     {
       label: 'Clienti',
@@ -298,10 +306,11 @@ export class ShellLayoutComponent {
       return [...this.operatorNavItems, this.adminGuideNavItem];
     }
 
-    const profile = this.currentUser()?.tenantChannelProfile;
+    const user = this.currentUser();
+    const profile = user?.tenantChannelProfile;
     const salesNavItems: NavItem[] = [];
 
-    if (showRetailSalesRegister(profile)) {
+    if (showRetailSalesRegister(profile) && canRegisterRetailSales(user)) {
       salesNavItems.push({
         label: 'Registra vendita',
         icon: 'pi-shopping-bag',
@@ -320,8 +329,70 @@ export class ShellLayoutComponent {
       });
     }
 
-    const items = this.tenantNavItemsWithoutSales;
-    return [...items.slice(0, 4), ...salesNavItems, ...items.slice(4), this.guideNavItem];
+    const tenantItems: NavItem[] = [
+      {
+        label: 'Dashboard',
+        icon: 'pi-th-large',
+        route: '/app/dashboard',
+        activeRoutePrefix: '/app/dashboard',
+      },
+    ];
+
+    if (canAccessCatalogSection(user)) {
+      tenantItems.push({
+        label: 'Prodotti',
+        icon: 'pi-tags',
+        route: '/app/products',
+        activeRoutePrefix: '/app/products',
+      });
+    }
+
+    if (canAccessInventorySection(user)) {
+      tenantItems.push({
+        label: 'Magazzino',
+        icon: 'pi-box',
+        route: '/app/inventory/lookup',
+        activeRoutePrefix: '/app/inventory',
+      });
+    }
+
+    if (canViewSupplierOrders(user)) {
+      tenantItems.push({
+        label: 'Ordini Fornitori',
+        icon: 'pi-truck',
+        route: '/app/orders',
+        activeRoutePrefix: '/app/orders',
+      });
+    }
+
+    tenantItems.push(...salesNavItems);
+
+    if (canViewCustomers(user)) {
+      tenantItems.push({
+        label: 'Clienti',
+        icon: 'pi-users',
+        route: '/app/customers',
+        activeRoutePrefix: '/app/customers',
+      });
+    }
+
+    if (canViewReports(user)) {
+      tenantItems.push({
+        label: 'Report',
+        icon: 'pi-chart-line',
+        route: '/app/reports',
+        activeRoutePrefix: '/app/reports',
+      });
+    }
+
+    tenantItems.push({
+      label: 'Impostazioni',
+      icon: 'pi-cog',
+      route: '/app/settings',
+      activeRoutePrefix: '/app/settings',
+    });
+
+    return [...tenantItems, this.guideNavItem];
   });
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).
@@ -346,6 +417,9 @@ export class ShellLayoutComponent {
   }
 
   onLocationChange(locationId: EntityId | null): void {
+    if (this.locationSelectorLocked()) {
+      return;
+    }
     this.locationContext.setActiveLocation(locationId);
   }
 

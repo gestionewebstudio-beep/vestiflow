@@ -10,20 +10,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import {
-  catchError,
-  combineLatest,
-  filter,
-  map,
-  merge,
-  of,
-  startWith,
-  switchMap,
-  take,
-} from 'rxjs';
+import { catchError, combineLatest, filter, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { isPlatformOperator } from '@core/permissions/platform-operator.util';
+import { hasFullTenantAccess } from '@core/permissions/user-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
@@ -31,6 +22,7 @@ import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import {
   canManageMfa as userCanManageMfa,
   canManageShopifyConnection,
+  canManageTikTokConnection,
 } from '@core/permissions/tenant-permissions.util';
 import { resolveUserAccessLabel } from '@core/models/user-role-labels.util';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
@@ -102,6 +94,7 @@ type TenantCompanyState =
   | { readonly status: 'loading' }
   | { readonly status: 'success'; readonly company: TenantCompany }
   | { readonly status: 'skip' }
+  | { readonly status: 'forbidden' }
   | { readonly status: 'error'; readonly error: string };
 
 type ShopifyBanner = 'connected' | 'connected-warn' | 'error' | 'disconnected';
@@ -171,11 +164,13 @@ export class SettingsComponent {
   protected readonly tenantChannelProfile = computed(
     () => this.currentUser()?.tenantChannelProfile,
   );
-  protected readonly showShopifyPanel = computed(() =>
-    showShopifyIntegration(this.tenantChannelProfile()),
+  protected readonly showShopifyPanel = computed(
+    () => showShopifyIntegration(this.tenantChannelProfile()) && this.canManageShopify(),
   );
-  protected readonly showTikTokPanel = computed(() =>
-    showTikTokIntegration(this.tenantChannelProfile()),
+  protected readonly showTikTokPanel = computed(
+    () =>
+      showTikTokIntegration(this.tenantChannelProfile()) &&
+      canManageTikTokConnection(this.currentUser()),
   );
   protected readonly settingsSubtitle = computed(() => {
     if (this.showShopifyPanel()) {
@@ -228,16 +223,19 @@ export class SettingsComponent {
         return this.tenantCompanyService.getCompany().pipe(
           map((company): TenantCompanyState => ({ status: 'success', company })),
           startWith({ status: 'loading' } as const),
-          catchError((err: unknown) =>
-            of({
+          catchError((err: unknown) => {
+            if (isAppError(err) && err.kind === AppErrorKind.Forbidden) {
+              return of({ status: 'forbidden' } satisfies TenantCompanyState);
+            }
+            return of({
               status: 'error',
               error: this.extractErrorMessage(err),
-            } satisfies TenantCompanyState),
-          ),
+            } satisfies TenantCompanyState);
+          }),
         );
       }),
     ),
-    { initialValue: { status: 'loading' } satisfies TenantCompanyState },
+    { initialValue: { status: 'skip' } satisfies TenantCompanyState },
   );
 
   protected readonly tenantCompanyLoading = computed(
@@ -348,21 +346,32 @@ export class SettingsComponent {
   protected readonly canManageMfa = computed(() => userCanManageMfa(this.currentUser()));
 
   protected readonly showTenantCompanyPanel = computed(() => {
-    const user = this.currentUser();
-    return Boolean(user && !isPlatformOperator(user));
+    const state = this.tenantCompanyState();
+    return state.status === 'loading' || state.status === 'success' || state.status === 'error';
   });
 
+  protected readonly canManageLicensedLocationsAsOwner = computed(() =>
+    hasFullTenantAccess(this.currentUser()),
+  );
+
+  protected readonly showLocationsSection = computed(
+    () => this.showShopifyPanel() && this.canManageLicensedLocationsAsOwner(),
+  );
+
   protected readonly locations = toSignal(
-    merge(toObservable(this.locationTick), this.shopifySyncWatch.watchConnectionInvalidated()).pipe(
-      switchMap(() =>
-        this.inventoryService.getLocations().pipe(
+    combineLatest([toObservable(this.locationTick), toObservable(this.showLocationsSection)]).pipe(
+      switchMap(([, shouldLoad]) => {
+        if (!shouldLoad) {
+          return of({ status: 'skip' as const, locations: [] as readonly Location[] });
+        }
+        return this.inventoryService.getLocations().pipe(
           map((locations) => ({ status: 'success' as const, locations })),
           startWith({ status: 'loading' as const }),
           catchError(() => of({ status: 'error' as const, locations: [] as readonly Location[] })),
-        ),
-      ),
+        );
+      }),
     ),
-    { initialValue: { status: 'loading' as const, locations: [] as readonly Location[] } },
+    { initialValue: { status: 'skip' as const, locations: [] as readonly Location[] } },
   );
 
   protected readonly locationsLoading = computed(() => this.locations().status === 'loading');
@@ -442,11 +451,12 @@ export class SettingsComponent {
   );
 
   protected readonly canManageLocationSelection = computed(
-    () => this.canManageShopify() && this.canChangeLicensedLocations(),
+    () => this.canManageLicensedLocationsAsOwner() && this.canChangeLicensedLocations(),
   );
 
   protected readonly showLocationLicensingPanel = computed(
     () =>
+      this.canManageLicensedLocationsAsOwner() &&
       showShopifyIntegration(this.tenantChannelProfile()) &&
       this.shopifyConnectionStatus() === ShopifyConnectionStatus.Connected &&
       this.visibleLocations().some((location) => isShopifyManagedLocation(location)),

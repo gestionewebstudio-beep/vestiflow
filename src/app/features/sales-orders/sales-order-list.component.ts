@@ -36,7 +36,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
 import {
-  canManageShopifySync,
+  canSyncShopifyCustomersOrOrders,
   isShopifyConnected,
 } from '@features/integrations/shopify/models/shopify-page-sync.util';
 import {
@@ -135,7 +135,7 @@ export class SalesOrderListComponent {
   protected readonly showShopifyOrdersSync = computed(
     () =>
       isShopifyConnected(this.shopifyConnection()) &&
-      canManageShopifySync(this.authService.currentUser()),
+      canSyncShopifyCustomersOrOrders(this.authService.currentUser()),
   );
 
   protected readonly canExportData = computed(() =>

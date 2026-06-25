@@ -12,8 +12,11 @@ import { Router } from '@angular/router';
 import { catchError, forkJoin, map, of, skip, startWith, switchMap } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
+import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { canManageInventory } from '@core/permissions/tenant-permissions.util';
+import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Location } from '@core/models/location.model';
@@ -77,6 +80,7 @@ const EMPTY_META: PageMeta = {
 })
 export class StockMovementsComponent {
   private readonly inventoryService = inject(InventoryService);
+  private readonly authService = inject(AuthService);
   private readonly locationContext = inject(LocationContextService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
@@ -102,9 +106,15 @@ export class StockMovementsComponent {
   // La location parte dal contesto globale (selettore topbar).
   protected readonly locationFilter = signal(this.locationContext.activeLocationId() ?? '');
 
+  protected readonly canManageInventory = computed(() =>
+    canManageInventory(this.authService.currentUser()),
+  );
+
   constructor() {
-    // Il cambio dal selettore topbar si riflette sul filtro di pagina.
     effect(() => {
+      if (!canSwitchOperationalLocation(this.authService.currentUser())) {
+        return;
+      }
       this.locationFilter.set(this.locationContext.activeLocationId() ?? '');
     });
 

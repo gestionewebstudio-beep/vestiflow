@@ -38,7 +38,13 @@
         <p class="create-client__success" role="status">Modifiche salvate.</p>
       }
 
-      <form class="create-client__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <form
+        id="edit-client-form"
+        class="create-client__form"
+        [formGroup]="form"
+        (ngSubmit)="onSubmit()"
+        novalidate
+      >
         <section class="create-client__section" aria-labelledby="edit-client-company">
           <h3 id="edit-client-company" class="create-client__section-title">Identificazione</h3>
           <label class="create-client__field" for="edit-tenant-name">
@@ -264,18 +270,32 @@
             }
           </div>
         </section>
-
-        @if (submitError(); as message) {
-          <p class="create-client__alert" role="alert">{{ message }}</p>
-        }
-
-        <div class="create-client__actions">
-          <app-button type="submit" [loading]="submitLoading()" [disabled]="submitLoading()">
-            Salva modifiche
-          </app-button>
-        </div>
       </form>
     </section>
+
+    <section class="create-client__panel" aria-labelledby="edit-client-users-title">
+      <app-admin-tenant-users-panel
+        [tenantId]="detail.id"
+        [activeLocations]="detail.activeLocations"
+      />
+    </section>
+
+    @if (submitError(); as message) {
+      <p class="create-client__alert create-client__page-footer-alert" role="alert">
+        {{ message }}
+      </p>
+    }
+
+    <div class="create-client__actions create-client__actions--page-footer">
+      <app-button
+        type="submit"
+        form="edit-client-form"
+        [loading]="submitLoading()"
+        [disabled]="submitLoading()"
+      >
+        Salva modifiche
+      </app-button>
+    </div>
 
     <section
       class="create-client__panel create-client__panel--danger"

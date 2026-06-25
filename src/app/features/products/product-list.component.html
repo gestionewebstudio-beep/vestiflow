@@ -2,7 +2,7 @@
   <header class="product-list__header">
     <h1 class="product-list__title">Prodotti</h1>
     <div class="product-list__actions">
-      @if (showShopifyCatalogImport()) {
+      @if (showShopifyCatalogSync()) {
         <app-button
           variant="secondary"
           loadingIndicator="icon"
@@ -11,10 +11,10 @@
           (click)="importCatalogFromShopify()"
         >
           <i class="pi pi-sync" aria-hidden="true"></i>
-          Importa catalogo da Shopify
+          Sincronizza catalogo da Shopify
         </app-button>
       }
-      @if (canManageCatalog()) {
+      @if (canImportExportCatalog()) {
         <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
           <i class="pi pi-download" aria-hidden="true"></i>
           @if (exporting()) {
@@ -27,6 +27,8 @@
           <i class="pi pi-upload" aria-hidden="true"></i>
           Importa CSV
         </app-button>
+      }
+      @if (canManageCatalog()) {
         <app-button (click)="createProduct()">
           <i class="pi pi-plus" aria-hidden="true"></i>
           Aggiungi prodotto

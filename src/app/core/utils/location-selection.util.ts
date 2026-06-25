@@ -97,6 +97,42 @@ export function filterLocationsForTopbar(
 /** Stesse regole del selettore topbar: filtri, form e scelte operative. */
 export const filterLocationsForOperationalSelection = filterLocationsForTopbar;
 
+/**
+ * Location per consultazione inventario, filtri giacenze e destinazione trasferimenti.
+ * A differenza del topbar, include sedi Shopify già sincronizzate anche senza stato
+ * connessione in UI (es. commesso senza permesso integrazioni).
+ */
+export function filterLocationsForInventorySelection(
+  locations: readonly Location[],
+  context: LocationFilterContext,
+): readonly Location[] {
+  const activeLicensed = locations.filter(isLicensedOperationalLocation);
+
+  if (context.channelProfile !== TenantChannelProfile.Shopify) {
+    return activeLicensed;
+  }
+
+  if (context.shopifyConnectionStatus === ShopifyConnectionStatus.Connected) {
+    const shopifyLocations = activeLicensed.filter(isShopifyManagedLocation);
+    if (shopifyLocations.length > 0) {
+      return shopifyLocations;
+    }
+
+    return activeLicensed.filter(
+      (location) => !isShopifyImportResidualLocation(location, context.primaryStoreName),
+    );
+  }
+
+  const shopifyManaged = activeLicensed.filter(isShopifyManagedLocation);
+  if (shopifyManaged.length > 0) {
+    return shopifyManaged;
+  }
+
+  return activeLicensed.filter(
+    (location) => !isShopifyImportResidualLocation(location, context.primaryStoreName),
+  );
+}
+
 /** Location visibili in Impostazioni (include sede locale, esclude residui Shopify). */
 export function filterLocationsForSettings(
   locations: readonly Location[],

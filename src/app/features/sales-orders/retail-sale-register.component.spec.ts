@@ -6,7 +6,10 @@ import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { AuthService } from '@core/auth';
 import { AppErrorKind } from '@core/models/app-error.model';
+import { UserRole } from '@core/models/user.model';
+import type { User } from '@core/models/user.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 
@@ -34,6 +37,37 @@ const SCAN_RESULT = {
   movementId: 'mov-1',
 };
 
+const ownerUser: User = {
+  id: 'u1',
+  tenantId: 't1',
+  email: 'owner@test.it',
+  displayName: 'Owner',
+  avatarUrl: null,
+  role: UserRole.Owner,
+  storeIds: [],
+  isActive: true,
+  isPlatformAdmin: false,
+  tenantChannelProfile: 'gestionale',
+  tenantName: 'Cliente test',
+  assignedLocationId: null,
+  assignedLocationName: null,
+  permissions: [],
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+function authServiceProvider(): {
+  provide: typeof AuthService;
+  useValue: { currentUser: () => User };
+} {
+  return {
+    provide: AuthService,
+    useValue: {
+      currentUser: () => ownerUser,
+    },
+  };
+}
+
 describe('RetailSaleRegisterComponent', () => {
   const registerRetailScan = vi.fn();
   const setActiveLocation = vi.fn();
@@ -50,6 +84,7 @@ describe('RetailSaleRegisterComponent', () => {
     await render(RetailSaleRegisterComponent, {
       providers: [
         provideRouter([]),
+        authServiceProvider(),
         {
           provide: APP_CONFIG,
           useValue: {
@@ -142,6 +177,7 @@ describe('RetailSaleRegisterComponent', () => {
     await render(RetailSaleRegisterComponent, {
       providers: [
         provideRouter([]),
+        authServiceProvider(),
         {
           provide: APP_CONFIG,
           useValue: {

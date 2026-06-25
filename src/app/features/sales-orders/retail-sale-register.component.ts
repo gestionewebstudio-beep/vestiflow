@@ -6,6 +6,7 @@ import {
   ElementRef,
   afterNextRender,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
@@ -16,6 +17,7 @@ import { RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
 import { LocationContextService } from '@core/services/location-context.service';
@@ -62,6 +64,7 @@ let sessionEntryCounter = 0;
 })
 export class RetailSaleRegisterComponent {
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly authService = inject(AuthService);
   private readonly inventoryService = inject(InventoryService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
@@ -82,15 +85,33 @@ export class RetailSaleRegisterComponent {
   });
 
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
-    this.operationalLocations.locations().map((location) => ({
+    this.operationalLocations.actionLocations().map((location) => ({
       value: location.id,
       label: location.name,
     })),
   );
 
+  protected readonly isFixedSingleStore = this.operationalLocations.isFixedSingleStore;
+  protected readonly fixedLocationLabel = this.operationalLocations.fixedSingleStoreLabel;
+
   protected readonly selectedLocationId = signal<EntityId | null>(
     this.locationContext.activeLocationId(),
   );
+
+  private readonly pinFixedOperationalLocation = effect(() => {
+    const fixedId = this.operationalLocations.fixedSingleStoreLocationId();
+    if (!fixedId) {
+      return;
+    }
+    const selectable = this.operationalLocations.actionLocations();
+    if (!selectable.some((location) => location.id === fixedId)) {
+      return;
+    }
+    this.selectedLocationId.set(fixedId);
+    if (this.locationContext.activeLocationId() !== fixedId) {
+      this.locationContext.setActiveLocation(fixedId);
+    }
+  });
 
   protected readonly salePending = signal(false);
   protected readonly returnPending = signal(false);
@@ -112,6 +133,9 @@ export class RetailSaleRegisterComponent {
   }
 
   protected onLocationChange(value: string | null): void {
+    if (this.isFixedSingleStore()) {
+      return;
+    }
     this.selectedLocationId.set(value);
     this.locationContext.setActiveLocation(value);
   }

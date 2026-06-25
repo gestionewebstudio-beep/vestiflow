@@ -201,10 +201,15 @@ model User {
   avatarUrl          String?  @map("avatar_url")
   avatarStoragePath  String?  @map("avatar_storage_path")
   isActive           Boolean  @default(true) @map("is_active")
+  /// Sede operativa fissa (manager/commesso). Null = tutte le sedi attive (titolare/admin).
+  assignedLocationId String?  @map("assigned_location_id") @db.Uuid
+  /// Permessi granulari (chiavi). Il titolare ignora l'array (accesso pieno).
+  permissions        String[] @default([]) @map("permissions")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   tenant Tenant      @relation(fields: [tenantId], references: [id])
+  assignedLocation Location? @relation("UserAssignedLocation", fields: [assignedLocationId], references: [id], onDelete: SetNull)
   stores UserStore[]
   supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
 
@@ -293,6 +298,7 @@ model Location {
   incomingTransfers StockMovement[]  @relation("MovementTargetLocation")
   supplierOrders    SupplierOrder[]
   inventoryCounts   InventoryCountSession[]
+  usersAssigned     User[]           @relation("UserAssignedLocation")
 
   @@index([tenantId])
   @@map("locations")

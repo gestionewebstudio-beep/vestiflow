@@ -24,10 +24,13 @@ import type { Subscription } from 'rxjs';
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
-import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
+import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
+import {
+  canImportExportCatalog,
+  canManageCatalog,
+} from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { ProductStatus } from '@core/models/product.model';
 import type { Product } from '@core/models/product.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -44,10 +47,6 @@ import type {
   ProductStatusOption,
 } from './components/product-toolbar/product-toolbar.component';
 import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
-import {
-  canManageShopifySync,
-  isShopifyConnected,
-} from '@features/integrations/shopify/models/shopify-page-sync.util';
 import {
   formatShopifyProductsSyncFeedback,
   type ShopifySyncFeedback,
@@ -164,19 +163,18 @@ export class ProductListComponent {
     return anySelected && !this.allOnPageSelected();
   });
 
-  private readonly shopifyConnection = toSignal(
-    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
-    { initialValue: null as ShopifyConnection | null },
-  );
-
-  protected readonly showShopifyCatalogImport = computed(
+  protected readonly showShopifyCatalogSync = computed(
     () =>
-      isShopifyConnected(this.shopifyConnection()) &&
-      canManageShopifySync(this.authService.currentUser()),
+      this.canImportExportCatalog() &&
+      showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
   );
 
   protected readonly showShopifyColumn = computed(() =>
-    isShopifyConnected(this.shopifyConnection()),
+    showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
+  );
+
+  protected readonly canImportExportCatalog = computed(() =>
+    canImportExportCatalog(this.authService.currentUser()),
   );
 
   protected readonly canManageCatalog = computed(() =>

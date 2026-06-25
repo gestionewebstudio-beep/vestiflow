@@ -2,26 +2,58 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
+import { TenantPermission } from '@core/models/tenant-permission.model';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import { UserRole } from '@core/models/user.model';
+import type { User } from '@core/models/user.model';
 
 import { ShopifyConnectionService } from './shopify-connection.service';
 
 const API_BASE = 'http://localhost:3000/api/v1';
 
+function authUserOwner(): User {
+  return {
+    id: 'u1',
+    tenantId: 'tenant-1',
+    email: 'owner@test.it',
+    displayName: 'Owner',
+    avatarUrl: null,
+    role: UserRole.Owner,
+    storeIds: [],
+    isActive: true,
+    isPlatformAdmin: false,
+    tenantChannelProfile: TenantChannelProfile.Shopify,
+    tenantName: 'Test',
+    assignedLocationId: null,
+    assignedLocationName: null,
+    permissions: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+}
+
 describe('ShopifyConnectionService (HTTP)', () => {
   let service: ShopifyConnectionService;
   let httpMock: HttpTestingController;
+  const authMock = { currentUser: vi.fn(() => authUserOwner()) };
 
   beforeEach(() => {
+    authMock.currentUser.mockImplementation(() => authUserOwner());
     TestBed.configureTestingModule({
       providers: [
         ShopifyConnectionService,
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: APP_CONFIG, useValue: { apiBaseUrl: API_BASE } },
+        {
+          provide: AuthService,
+          useValue: authMock,
+        },
       ],
     });
     service = TestBed.inject(ShopifyConnectionService);
@@ -51,6 +83,17 @@ describe('ShopifyConnectionService (HTTP)', () => {
     const result = await promise;
     expect(result.status).toBe(ShopifyConnectionStatus.Connected);
     expect(result.shopDomain).toBe('store.myshopify.com');
+  });
+
+  it('getConnection non chiama API senza ruolo titolare', async () => {
+    authMock.currentUser.mockReturnValue({
+      ...authUserOwner(),
+      role: UserRole.Clerk,
+      permissions: [TenantPermission.CatalogImportExport],
+    });
+
+    await expect(firstValueFrom(service.getConnection())).rejects.toThrow();
+    httpMock.expectNone(`${API_BASE}/shopify/connection`);
   });
 
   it('beginAuth invia shop e restituisce authorizeUrl', async () => {

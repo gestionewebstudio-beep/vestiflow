@@ -1,0 +1,115 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+  inline-size: 100%;
+}
+
+.permissions-editor__owner-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.permissions-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.permissions-editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.permissions-editor__toolbar-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.permissions-editor__reset {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-interactive);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.permissions-editor__grid {
+  display: grid;
+  gap: var(--card-gap);
+  grid-template-columns: minmax(0, 1fr);
+
+  @include bp.media-up('md') {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include bp.media-up('lg') {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.permissions-editor__group {
+  margin: 0;
+  padding: var(--card-pad-sm);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  min-inline-size: 0;
+  overflow: visible;
+}
+
+.permissions-editor__group-title {
+  margin-block-end: var(--space-2);
+  padding-inline: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.permissions-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.permissions-editor__label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+  inline-size: 100%;
+}
+
+.permissions-editor__checkbox {
+  flex-shrink: 0;
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  margin-block-start: var(--space-1);
+}
+
+.permissions-editor__name {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: var(--space-1);
+  text-decoration-color: var(--color-text-muted);
+}
+
+.permissions-editor__name:hover {
+  text-decoration-color: var(--color-interactive);
+}

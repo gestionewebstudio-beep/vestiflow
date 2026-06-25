@@ -1,10 +1,17 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { catchError, of } from 'rxjs';
 
-import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { LocationContextService } from '@core/services/location-context.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -33,11 +40,14 @@ export class InventoryCountNewComponent {
   protected readonly submitError = signal<AppError | null>(null);
 
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
-    this.operationalLocations.locations().map((location) => ({
+    this.operationalLocations.actionLocations().map((location) => ({
       value: location.id,
       label: location.name,
     })),
   );
+
+  protected readonly isFixedSingleStore = this.operationalLocations.isFixedSingleStore;
+  protected readonly fixedSingleStoreLabel = this.operationalLocations.fixedSingleStoreLabel;
 
   protected readonly form = this.fb.group({
     name: this.fb.control(this.defaultSessionName(), {
@@ -49,11 +59,27 @@ export class InventoryCountNewComponent {
     notes: this.fb.control('', { validators: [Validators.maxLength(500)] }),
   });
 
+  constructor() {
+    effect(() => {
+      const fixedId = this.operationalLocations.fixedSingleStoreLocationId();
+      if (!fixedId) {
+        return;
+      }
+      this.form.controls.locationId.setValue(fixedId);
+      if (this.locationContext.activeLocationId() !== fixedId) {
+        this.locationContext.setActiveLocation(fixedId);
+      }
+    });
+  }
+
   protected cancel(): void {
     void this.router.navigate(['/app/inventory/counts']);
   }
 
   protected onLocationSelect(value: string | null): void {
+    if (this.isFixedSingleStore()) {
+      return;
+    }
     this.form.controls.locationId.setValue(value ?? '');
     this.form.controls.locationId.markAsTouched();
   }

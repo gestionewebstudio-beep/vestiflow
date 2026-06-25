@@ -72,7 +72,13 @@
     <section class="create-client__panel" aria-labelledby="create-client-form-title">
       <h2 id="create-client-form-title" class="create-client__panel-title">Dati cliente</h2>
 
-      <form class="create-client__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <form
+        id="create-client-form"
+        class="create-client__form"
+        [formGroup]="form"
+        (ngSubmit)="onSubmit()"
+        novalidate
+      >
         <section class="create-client__section" aria-labelledby="create-client-company">
           <h3 id="create-client-company" class="create-client__section-title">Identificazione</h3>
           <label class="create-client__field" for="client-tenant-name">
@@ -278,21 +284,26 @@
             </p>
           }
         </section>
-
-        @if (submitError(); as message) {
-          <p class="create-client__alert" role="alert">{{ message }}</p>
-        }
-
-        <div class="create-client__actions">
-          <app-button type="button" variant="secondary" (click)="closeCreateForm()"
-            >Annulla</app-button
-          >
-          <app-button type="submit" [loading]="submitLoading()" [disabled]="submitLoading()">
-            Crea cliente
-          </app-button>
-        </div>
       </form>
     </section>
+
+    @if (submitError(); as message) {
+      <p class="create-client__alert create-client__page-footer-alert" role="alert">
+        {{ message }}
+      </p>
+    }
+
+    <div class="create-client__actions create-client__actions--page-footer">
+      <app-button type="button" (click)="closeCreateForm()">Annulla</app-button>
+      <app-button
+        type="submit"
+        form="create-client-form"
+        [loading]="submitLoading()"
+        [disabled]="submitLoading()"
+      >
+        Crea cliente
+      </app-button>
+    </div>
   } @else {
     <header class="create-client__header">
       <h1 class="create-client__title">Clienti</h1>

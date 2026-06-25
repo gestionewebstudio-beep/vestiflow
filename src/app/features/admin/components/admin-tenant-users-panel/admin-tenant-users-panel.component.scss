@@ -1,0 +1,209 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+  overflow: visible;
+}
+
+.admin-users {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow: visible;
+}
+
+.admin-users__title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.admin-users__hint,
+.admin-users__note,
+.admin-users__status {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.admin-users__alert {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+
+.admin-users__success {
+  margin: 0;
+  color: var(--color-success);
+  font-size: var(--text-sm);
+}
+
+.admin-users__table-wrap {
+  overflow: visible;
+}
+
+@include bp.media-down('md') {
+  .admin-users__table-wrap {
+    overflow-x: auto;
+    padding-block-end: var(--space-2);
+  }
+}
+
+.admin-users__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.admin-users__table th,
+.admin-users__table td {
+  padding: var(--space-2);
+  border-bottom: var(--border-width) solid var(--color-border);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.admin-users__table th {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.admin-users__table th:nth-child(3),
+.admin-users__table th:nth-child(4),
+.admin-users__cell-select {
+  min-inline-size: var(--select-menu-width);
+}
+
+.admin-users__cell-select {
+  position: relative;
+  overflow: visible;
+}
+
+.admin-users__cell-actions {
+  text-align: end;
+  white-space: nowrap;
+}
+
+.admin-users__cell-select ::ng-deep .select-menu-host {
+  display: inline-flex;
+  max-inline-size: 100%;
+}
+
+.admin-users__cell-select ::ng-deep .select-menu--open {
+  z-index: var(--z-dropdown);
+}
+
+.admin-users__all-locations {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.admin-users__create {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border);
+  overflow: visible;
+}
+
+.admin-users__create-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.admin-users__create-feedback {
+  margin: 0;
+}
+
+.admin-users__create-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--transition-slow) ease;
+}
+
+.admin-users__create-panel--open {
+  grid-template-rows: 1fr;
+}
+
+.admin-users__create-panel-inner {
+  overflow: hidden;
+  min-block-size: 0;
+}
+
+.admin-users__create-panel:not(.admin-users__create-panel--open) .admin-users__create-panel-inner {
+  visibility: hidden;
+}
+
+.admin-users__create-panel--open .admin-users__create-panel-inner {
+  visibility: visible;
+}
+
+.admin-users__create-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-2);
+  overflow: visible;
+}
+
+.admin-users__permissions-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-interactive);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.admin-users__permissions-row td {
+  padding-block: var(--space-3);
+  background: var(--color-bg-subtle);
+}
+
+.admin-users__create-fields {
+  display: grid;
+  gap: var(--space-3);
+  max-inline-size: var(--content-narrow);
+  overflow: visible;
+}
+
+.admin-users__create-permissions {
+  margin-block-start: var(--space-1);
+}
+
+.admin-users__create-fields ::ng-deep .select-menu-host--full {
+  --select-menu-width: 100%;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.admin-users__create-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.admin-users__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow: visible;
+}
+
+.admin-users__label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.admin-users__input {
+  block-size: var(--btn-min-height);
+  padding-inline: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+}

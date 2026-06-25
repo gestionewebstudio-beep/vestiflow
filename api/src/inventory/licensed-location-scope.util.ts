@@ -2,6 +2,9 @@ import type { Prisma } from '@prisma/client';
 
 import type { PrismaService } from '../prisma/prisma.service';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { applyReadLocationScope, applyWriteLocationScope } from './user-location-scope.util';
+
 export type LicensedLocationScope = readonly string[];
 
 type LocationReader = Pick<PrismaService, 'location'>;
@@ -12,6 +15,14 @@ const licensedOperationalWhere = (tenantId: string) =>
     licensedInVf: true,
     isActive: true,
   }) as const;
+
+export type LocationScopeMode = 'read' | 'write';
+
+/** Scope consultazione (liste giacenze/movimenti). */
+export const INVENTORY_VIEW_SCOPE_MODE: LocationScopeMode = 'read';
+
+/** Scope azioni (export, registrazione movimenti, inventario fisico). */
+export const INVENTORY_ACTION_SCOPE_MODE: LocationScopeMode = 'write';
 
 /**
  * Sedi operative incluse nel piano. Con locationId singolo verifica che sia licenziata.
@@ -37,6 +48,26 @@ export async function resolveLicensedLocationScope(
   });
 
   return locations.length > 0 ? locations.map((row) => row.id) : null;
+}
+
+/** Scope licenziato tenant ∩ permessi/sede utente. */
+export async function resolveOperationalLocationScope(
+  db: LocationReader,
+  tenantId: string,
+  user: UserProfileDto | undefined,
+  locationId?: string,
+  mode: LocationScopeMode = 'read',
+): Promise<LicensedLocationScope | null> {
+  const licensed = await resolveLicensedLocationScope(db, tenantId, locationId);
+  if (!licensed) {
+    return null;
+  }
+  if (!user) {
+    return licensed;
+  }
+  return mode === 'write'
+    ? applyWriteLocationScope(licensed, user)
+    : applyReadLocationScope(licensed, user);
 }
 
 export function locationScopeToInventoryLevelFilter(

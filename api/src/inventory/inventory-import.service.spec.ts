@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { InventoryService } from './inventory.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { InventoryImportService } from './inventory-import.service';
 
 const SAMPLE_CSV = `SKU,Location,Disponibile,Soglia minima
@@ -11,6 +12,7 @@ UNKNOWN-SKU,Milano,5,
 `;
 
 describe('InventoryImportService', () => {
+  const ownerUser = testOwnerUser();
   function createService(options: {
     variants?: Array<{
       id: string;
@@ -101,7 +103,7 @@ describe('InventoryImportService', () => {
     });
 
     const csv = `SKU,Location,Disponibile\nSKU-RED-M,Napoli,10\n`;
-    const result = await service.importCsv('tenant-1', csv);
+    const result = await service.importCsv('tenant-1', csv, ownerUser);
 
     expect(result.updated).toBe(1);
     expect(result.failed).toBe(0);
@@ -114,6 +116,8 @@ describe('InventoryImportService', () => {
         quantity: 2,
       }),
       'Import CSV',
+      undefined,
+      ownerUser,
     );
   });
 });

@@ -14,7 +14,7 @@
           Sincronizza giacenze da Shopify
         </app-button>
       }
-      @if (canManageCatalog()) {
+      @if (canImportExportInventory()) {
         <app-button variant="secondary" [disabled]="exporting()" (click)="exportInventory()">
           <i class="pi pi-download" aria-hidden="true"></i>
           @if (exporting()) {
@@ -28,10 +28,12 @@
           Importa CSV
         </app-button>
       }
-      <app-button (click)="newMovement()">
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Registra movimento
-      </app-button>
+      @if (canManageInventory()) {
+        <app-button (click)="newMovement()">
+          <i class="pi pi-plus" aria-hidden="true"></i>
+          Registra movimento
+        </app-button>
+      }
     </div>
   </header>
 

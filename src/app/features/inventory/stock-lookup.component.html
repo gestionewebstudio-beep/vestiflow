@@ -86,13 +86,15 @@
             >
               Dettaglio prodotto
             </a>
-            <a
-              class="stock-lookup__link"
-              [routerLink]="['/app/inventory/movements/new']"
-              [queryParams]="movementQueryParams(result.variant.variantId)"
-            >
-              Registra movimento
-            </a>
+            @if (canManageInventory()) {
+              <a
+                class="stock-lookup__link"
+                [routerLink]="['/app/inventory/movements/new']"
+                [queryParams]="movementQueryParams(result.variant.variantId)"
+              >
+                Registra movimento
+              </a>
+            }
           </div>
 
           @if (result.levels.length > 0) {

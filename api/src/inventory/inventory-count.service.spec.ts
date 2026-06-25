@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
+import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { InventoryCountService } from './inventory-count.service';
 
 describe('InventoryCountService', () => {
   const tenantId = 'tenant-1';
+  const ownerUser = testOwnerUser();
 
   function createService() {
     const prisma = {
@@ -56,7 +58,7 @@ describe('InventoryCountService', () => {
     prisma.location.findFirst.mockResolvedValue(null);
 
     await expect(
-      service.create(tenantId, { locationId: 'missing', name: 'Conteggio' } as never),
+      service.create(tenantId, { locationId: 'missing', name: 'Conteggio' } as never, ownerUser),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -84,7 +86,7 @@ describe('InventoryCountService', () => {
     });
 
     await expect(
-      service.create(tenantId, { locationId: 'loc-1', name: ' Conteggio ' } as never),
+      service.create(tenantId, { locationId: 'loc-1', name: ' Conteggio ' } as never, ownerUser),
     ).resolves.toMatchObject({ id: 'count-1', lines: expect.any(Array) });
   });
 
@@ -96,7 +98,7 @@ describe('InventoryCountService', () => {
     });
     prisma.inventoryCountSession.delete = vi.fn().mockResolvedValue(undefined);
 
-    await expect(service.deleteCancelled(tenantId, 'count-1')).resolves.toBeUndefined();
+    await expect(service.deleteCancelled(tenantId, 'count-1', ownerUser)).resolves.toBeUndefined();
     expect(prisma.inventoryCountSession.delete).toHaveBeenCalledWith({ where: { id: 'count-1' } });
   });
 
@@ -107,7 +109,7 @@ describe('InventoryCountService', () => {
       status: 'in_progress',
     });
 
-    await expect(service.deleteCancelled(tenantId, 'count-1')).rejects.toThrow(
+    await expect(service.deleteCancelled(tenantId, 'count-1', ownerUser)).rejects.toThrow(
       'Solo le sessioni annullate possono essere eliminate.',
     );
   });

@@ -9,17 +9,29 @@ import {
   serializeInventoryLevelsCsv,
   type InventoryExportHeader,
 } from './import/inventory-csv.util';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import {
+  INVENTORY_ACTION_SCOPE_MODE,
   locationScopeToInventoryLevelFilter,
-  resolveLicensedLocationScope,
+  resolveOperationalLocationScope,
 } from './licensed-location-scope.util';
 
 @Injectable()
 export class InventoryExportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async exportCsv(tenantId: string, query: ExportInventoryLevelsQueryDto): Promise<string> {
-    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+  async exportCsv(
+    tenantId: string,
+    query: ExportInventoryLevelsQueryDto,
+    user?: UserProfileDto,
+  ): Promise<string> {
+    const scope = await resolveOperationalLocationScope(
+      this.prisma,
+      tenantId,
+      user,
+      query.locationId,
+      INVENTORY_ACTION_SCOPE_MODE,
+    );
     if (!scope) {
       return serializeInventoryLevelsCsv([]);
     }

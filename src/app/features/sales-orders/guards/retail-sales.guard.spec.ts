@@ -22,6 +22,9 @@ function userWithProfile(profile: User['tenantChannelProfile']): User {
     isPlatformAdmin: false,
     tenantChannelProfile: profile,
     tenantName: 'Cliente test',
+    assignedLocationId: null,
+    assignedLocationName: null,
+    permissions: [],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };

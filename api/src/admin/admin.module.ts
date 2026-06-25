@@ -9,10 +9,11 @@ import {
 } from './admin-support-sessions.controller';
 import { AdminTenantsController } from './admin-tenants.controller';
 import { AdminTenantsService } from './admin-tenants.service';
+import { AdminTenantUsersService } from './admin-tenant-users.service';
 
 @Module({
   imports: [AuthModule, SupportSessionModule, LocationLicensingModule],
   controllers: [AdminTenantsController, AdminSupportSessionsController, AdminTenantsSupportController],
-  providers: [AdminTenantsService],
+  providers: [AdminTenantsService, AdminTenantUsersService],
 })
 export class AdminModule {}

@@ -157,7 +157,7 @@ export class SupplierOrderFormComponent {
   );
 
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.operationalLocations.locations().map((location) => ({
+    this.operationalLocations.writeLocations().map((location) => ({
       value: location.id,
       label: location.name,
     })),
