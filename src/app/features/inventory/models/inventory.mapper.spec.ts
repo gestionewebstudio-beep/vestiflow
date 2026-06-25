@@ -23,6 +23,7 @@ const locationDto: LocationDto = {
     country: 'IT',
   },
   isActive: true,
+  licensedInVf: true,
   storeId: 'store-1',
   shopify: { status: ShopifySyncStatus.Synced, shopifyId: 'gid://shopify/Location/1' },
   createdAt: '2026-01-01T00:00:00.000Z',

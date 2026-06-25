@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { LocationLicensingModule } from '../inventory/location-licensing.module';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
@@ -25,6 +26,7 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
 import { ShopifyShopChangeService } from './shopify-shop-change.service';
 
 @Module({
+  imports: [LocationLicensingModule],
   controllers: [ShopifyController, ShopifyWebhooksController],
   providers: [
     ShopifyConfigService,

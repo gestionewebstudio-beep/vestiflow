@@ -76,7 +76,10 @@ describe('InventoryService', () => {
 
   function createPrismaMock() {
     return {
-      location: { findMany: vi.fn() },
+      location: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'loc-1' }]),
+        findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
+      },
       productVariant: { findMany: vi.fn() },
       inventoryLevel: {
         findMany: vi.fn(),
@@ -106,6 +109,55 @@ describe('InventoryService', () => {
       where: { tenantId },
       orderBy: { name: 'asc' },
     });
+  });
+
+  it('listLevels senza locationId filtra solo sedi licenziate attive', async () => {
+    const prisma = createPrismaMock();
+    prisma.location.findMany.mockResolvedValue([{ id: 'loc-1' }, { id: 'loc-2' }]);
+    prisma.inventoryLevel.findMany.mockResolvedValue([]);
+    prisma.inventoryLevel.count.mockResolvedValue(0);
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await service.listLevels(tenantId, { page: 1, pageSize: 10 } as never);
+
+    expect(prisma.location.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId,
+          licensedInVf: true,
+          isActive: true,
+        }),
+      }),
+    );
+    expect(prisma.inventoryLevel.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId,
+          locationId: { in: ['loc-1', 'loc-2'] },
+        }),
+      }),
+    );
+  });
+
+  it('listLevels con locationId non licenziata restituisce pagina vuota', async () => {
+    const prisma = createPrismaMock();
+    prisma.location.findFirst.mockResolvedValue(null);
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    const result = await service.listLevels(tenantId, {
+      page: 1,
+      pageSize: 10,
+      locationId: 'loc-unlicensed',
+    } as never);
+
+    expect(result).toEqual({ items: [], total: 0, page: 1, pageSize: 10 });
+    expect(prisma.inventoryLevel.findMany).not.toHaveBeenCalled();
   });
 
   it('listLevels pagina risultati senza ricerca', async () => {
@@ -221,6 +273,28 @@ describe('InventoryService', () => {
 
     expect(result.page).toBe(2);
     expect(result.items).toEqual(items);
+  });
+
+  it('listMovements senza locationId filtra solo sedi licenziate attive', async () => {
+    const prisma = createPrismaMock();
+    prisma.location.findMany.mockResolvedValue([{ id: 'loc-1' }]);
+    prisma.stockMovement.findMany.mockResolvedValue([]);
+    prisma.stockMovement.count.mockResolvedValue(0);
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    await service.listMovements(tenantId, { page: 1, pageSize: 10 } as never);
+
+    expect(prisma.stockMovement.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId,
+          locationId: 'loc-1',
+        }),
+      }),
+    );
   });
 
   it('registerMovement rifiuta rettifica senza motivo', async () => {

@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, SupplierOrderStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  locationScopeToInventoryLevelFilter,
+  resolveLicensedLocationScope,
+} from '../inventory/licensed-location-scope.util';
 
 interface SelectedOption {
   readonly name: string;
@@ -39,9 +43,21 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getSummary(tenantId: string, locationId?: string): Promise<DashboardSummary> {
+    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, locationId);
+    if (!scope) {
+      return {
+        productCount: 0,
+        incomingSupplierOrders: 0,
+        availableUnits: 0,
+        lowStockCount: 0,
+        levels: [],
+        locations: [],
+      };
+    }
+
     const scopedWhere: Prisma.InventoryLevelWhereInput = {
       tenantId,
-      ...(locationId ? { locationId } : {}),
+      ...locationScopeToInventoryLevelFilter(scope),
     };
 
     const lowStockWhere: Prisma.InventoryLevelWhereInput = {
@@ -83,7 +99,12 @@ export class DashboardService {
         take: LOW_STOCK_ROWS_LIMIT,
       }),
       this.prisma.location.findMany({
-        where: { tenantId },
+        where: {
+          tenantId,
+          licensedInVf: true,
+          isActive: true,
+          id: { in: [...scope] },
+        },
         select: { id: true, name: true },
         orderBy: { name: 'asc' },
       }),

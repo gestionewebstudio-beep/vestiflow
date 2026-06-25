@@ -11,6 +11,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { TenantChannelProfile } from '@prisma/client';
 
+import type { LocationLicenseSummaryDto } from '../inventory/location-licensing.service';
+import { LocationLicensingService } from '../inventory/location-licensing.service';
 import { SupabaseService } from '../auth/supabase.service';
 import { isSupabaseOwnerEmailInviteEnabled } from '../auth/supabase-owner-provisioning.util';
 import { assertTenantChannelProfileChangeAllowed } from '../common/tenant-channel-profile.util';
@@ -26,6 +28,9 @@ import {
   tenantProfileCreateData,
   tenantProfileReplaceData,
 } from './tenant-profile.util';
+import {
+  TENANT_LICENSED_LOCATION_MIN,
+} from '../common/tenant-location-license.constants';
 import { deleteTenantData } from './tenant-delete.util';
 
 @Injectable()
@@ -37,6 +42,7 @@ export class AdminTenantsService {
     private readonly supabase: SupabaseService,
     private readonly platformAdmin: PlatformAdminService,
     private readonly config: ConfigService,
+    private readonly locationLicensing: LocationLicensingService,
   ) {}
 
   async listTenants(): Promise<TenantSummaryDto[]> {
@@ -101,11 +107,28 @@ export class AdminTenantsService {
     const owner = tenant.users[0] ?? null;
     const store = tenant.stores[0] ?? null;
     const location = tenant.locations[0] ?? null;
+    const licenseSummary = await this.locationLicensing.getSummary(tenantId);
+    const activeLocationRows = await this.prisma.location.findMany({
+      where: { tenantId, licensedInVf: true },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        isActive: true,
+        shopifyLocationId: true,
+      },
+    });
 
     return {
       id: tenant.id,
       name: tenant.name,
       channelProfile: tenant.channelProfile,
+      licensedLocationCount: licenseSummary.licensedLocationCount,
+      licensedLocationActiveCount: licenseSummary.licensedLocationActiveCount,
+      locationSelectionLocked: licenseSummary.locationSelectionLocked,
+      locationSelectionChangeGranted: licenseSummary.locationSelectionChangeGranted,
+      canChangeLicensedLocations: licenseSummary.canChangeLicensedLocations,
       createdAt: tenant.createdAt.toISOString(),
       profile: {
         legalName: tenant.legalName,
@@ -130,6 +153,13 @@ export class AdminTenantsService {
           }
         : null,
       store: store ? { id: store.id, name: store.name } : null,
+      activeLocations: activeLocationRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        code: row.code,
+        isActive: row.isActive,
+        shopifyLocationId: row.shopifyLocationId,
+      })),
       location: location
         ? {
             id: location.id,
@@ -165,6 +195,10 @@ export class AdminTenantsService {
       await assertTenantChannelProfileChangeAllowed(this.prisma, tenantId, dto.channelProfile);
     }
 
+    if (dto.licensedLocationCount !== undefined) {
+      this.locationLicensing.assertLicensedLocationCount(dto.licensedLocationCount);
+    }
+
     const profileUpdate = tenantProfileReplaceData(dto);
     const locationAddress = locationAddressFromProfile(dto);
 
@@ -174,9 +208,20 @@ export class AdminTenantsService {
         data: {
           ...(dto.tenantName ? { name: dto.tenantName.trim() } : {}),
           ...(dto.channelProfile ? { channelProfile: dto.channelProfile } : {}),
+          ...(dto.licensedLocationCount !== undefined
+            ? { licensedLocationCount: dto.licensedLocationCount }
+            : {}),
           ...profileUpdate,
         },
       });
+
+      if (dto.licensedLocationCount !== undefined) {
+        await this.locationLicensing.applyAdminLicensedLocationLimit(
+          tenantId,
+          dto.licensedLocationCount,
+          tx,
+        );
+      }
 
       if (dto.ownerDisplayName && existing.users[0]) {
         await tx.user.update({
@@ -258,6 +303,8 @@ export class AdminTenantsService {
         : dto.locationName?.trim() || storeName;
     const profileData = tenantProfileCreateData(dto);
     const locationAddress = locationAddressFromProfile(dto);
+    const licensedLocationCount = dto.licensedLocationCount ?? TENANT_LICENSED_LOCATION_MIN;
+    this.locationLicensing.assertLicensedLocationCount(licensedLocationCount);
 
     const existingAppUser = await this.prisma.user.findFirst({
       where: { email: { equals: ownerEmail, mode: 'insensitive' } },
@@ -320,6 +367,7 @@ export class AdminTenantsService {
           data: {
             name: dto.tenantName.trim(),
             channelProfile,
+            licensedLocationCount,
             ...profileData,
           },
         });
@@ -338,6 +386,7 @@ export class AdminTenantsService {
             storeId: store.id,
             name: locationName,
             code: 'LOC-01',
+            licensedInVf: channelProfile !== TenantChannelProfile.shopify,
             ...locationAddress,
           },
         });
@@ -372,6 +421,11 @@ export class AdminTenantsService {
       await this.supabase.deleteAuthUser(authUserId).catch(() => undefined);
       throw error;
     }
+  }
+
+  async grantLocationSelectionChange(tenantId: string): Promise<LocationLicenseSummaryDto> {
+    await this.assertProvisionedClientTenant(tenantId);
+    return this.locationLicensing.grantLocationSelectionChange(tenantId);
   }
 
   async resendOwnerInvite(tenantId: string): Promise<{ readonly ownerEmail: string }> {

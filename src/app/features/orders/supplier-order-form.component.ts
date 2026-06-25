@@ -24,6 +24,7 @@ import {
   parseMoneyInput,
   zeroMoney,
 } from '@core/utils/money.util';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -70,6 +71,7 @@ export class SupplierOrderFormComponent {
   private readonly supplierService = inject(SupplierService);
   private readonly productService = inject(ProductService);
   private readonly inventoryService = inject(InventoryService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -128,11 +130,11 @@ export class SupplierOrderFormComponent {
   });
   protected readonly variantOptions = computed(() => toVariantSelectMenuOptions(this.variants()));
 
-  private readonly locations = toSignal(this.inventoryService.getLocations(), {
-    initialValue: [],
-  });
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.locations().map((location) => ({ value: location.id, label: location.name })),
+    this.operationalLocations.locations().map((location) => ({
+      value: location.id,
+      label: location.name,
+    })),
   );
 
   readonly form = this.fb.group({

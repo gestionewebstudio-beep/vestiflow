@@ -15,6 +15,9 @@
               <th scope="col">Codice</th>
               <th scope="col">Stato</th>
               <th scope="col">Shopify</th>
+              @if (showLicensedColumn()) {
+                <th scope="col">VestiFlow</th>
+              }
             </tr>
           </thead>
           <tbody>
@@ -39,6 +42,15 @@
                     }}</app-badge>
                   </span>
                 </td>
+                @if (showLicensedColumn()) {
+                  <td data-label="VestiFlow">
+                    <span class="location-table__cell-value">
+                      <app-badge [tone]="licensedTone(location)">{{
+                        licensedLabel(location)
+                      }}</app-badge>
+                    </span>
+                  </td>
+                }
               </tr>
             }
           </tbody>

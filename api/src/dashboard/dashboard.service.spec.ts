@@ -33,7 +33,10 @@ describe('DashboardService', () => {
         findMany: vi.fn().mockResolvedValue(levels),
         fields: { minThreshold: 'minThreshold' },
       },
-      location: { findMany: vi.fn().mockResolvedValue(locations) },
+      location: {
+        findMany: vi.fn().mockResolvedValue(locations),
+        findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
+      },
       $transaction: vi.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
 
@@ -49,6 +52,36 @@ describe('DashboardService', () => {
     expect(prisma.inventoryLevel.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ tenantId: 'tenant-1', locationId: 'loc-1' }),
+      }),
+    );
+  });
+
+  it('getSummary senza locationId aggrega solo sedi licenziate attive', async () => {
+    const prisma = {
+      product: { count: vi.fn().mockResolvedValue(0) },
+      supplierOrder: { count: vi.fn().mockResolvedValue(0) },
+      inventoryLevel: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { available: 10 } }),
+        count: vi.fn().mockResolvedValue(0),
+        findMany: vi.fn().mockResolvedValue([]),
+        fields: { minThreshold: 'minThreshold' },
+      },
+      location: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'loc-1' }, { id: 'loc-2' }]),
+        findFirst: vi.fn(),
+      },
+      $transaction: vi.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
+    };
+
+    const service = new DashboardService(prisma as unknown as PrismaService);
+    await service.getSummary('tenant-1');
+
+    expect(prisma.inventoryLevel.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant-1',
+          locationId: { in: ['loc-1', 'loc-2'] },
+        }),
       }),
     );
   });

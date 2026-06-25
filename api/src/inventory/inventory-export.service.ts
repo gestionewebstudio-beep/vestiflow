@@ -9,14 +9,23 @@ import {
   serializeInventoryLevelsCsv,
   type InventoryExportHeader,
 } from './import/inventory-csv.util';
+import {
+  locationScopeToInventoryLevelFilter,
+  resolveLicensedLocationScope,
+} from './licensed-location-scope.util';
 
 @Injectable()
 export class InventoryExportService {
   constructor(private readonly prisma: PrismaService) {}
 
   async exportCsv(tenantId: string, query: ExportInventoryLevelsQueryDto): Promise<string> {
+    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+    if (!scope) {
+      return serializeInventoryLevelsCsv([]);
+    }
+
     const levels = await this.prisma.inventoryLevel.findMany({
-      where: this.buildWhere(tenantId, query),
+      where: this.buildWhere(tenantId, query, scope),
       include: {
         variant: {
           select: {
@@ -51,10 +60,11 @@ export class InventoryExportService {
   private buildWhere(
     tenantId: string,
     query: ExportInventoryLevelsQueryDto,
+    scope: readonly string[],
   ): Prisma.InventoryLevelWhereInput {
     return {
       tenantId,
-      ...(query.locationId ? { locationId: query.locationId } : {}),
+      ...locationScopeToInventoryLevelFilter(scope),
       ...(query.search
         ? {
             variant: buildInventoryVariantSearchWhere(query.search),

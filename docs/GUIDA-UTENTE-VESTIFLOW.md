@@ -1,6 +1,6 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 2.9 — Giugno 2026
+**Versione documento:** 3.0 — Giugno 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
@@ -115,7 +115,7 @@ Ordine da sinistra a destra (desktop):
 
 - **VestiFlow** — nome del gestionale
 - **Tema** — chiaro / scuro / sistema (icona sole, luna, monitor)
-- **Selettore location** — filtra le operazioni per la sede attiva (negozio, magazzino, ecc.)
+- **Selettore location** — filtra le operazioni per la **sede attiva** (solo le sedi incluse nel tuo piano e attivate in VestiFlow; vedi [§5 Sedi](#sedi-location))
 - **Sync Shopify** — chip con icona e **data/ora ultimo sync**; il punto colorato indica lo stato (verde = ok). Clic → Impostazioni
 - **Avatar profilo** — foto o iniziali; **clic → Impostazioni**
 - **Esci** — logout con conferma (desktop in topbar; su smartphone in fondo al menu ☰)
@@ -126,11 +126,11 @@ Su smartphone il menu hamburger apre la sidebar; tema, location e sync restano i
 
 Il contenuto di **Impostazioni** dipende dal **profilo canale** del tuo negozio (scelto in fase di attivazione). L’ordine dei pannelli è sempre: **Profilo** → **Sede fisica** (se presente) → integrazione canale → **Sicurezza account** → **Aspetto**.
 
-| Profilo canale      | Pannelli visibili in Impostazioni                                                                     |
-| ------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Solo gestionale** | Profilo, **Sede fisica**, Sicurezza, Aspetto — nessuna integrazione e-commerce                        |
-| **Shopify**         | Profilo, **Sede fisica**, **Integrazione Shopify** (inclusa tabella **Location**), Sicurezza, Aspetto |
-| **TikTok Shop**     | Profilo, **Sede fisica**, Integrazione TikTok Shop, Sicurezza, Aspetto                                |
+| Profilo canale      | Pannelli visibili in Impostazioni                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Solo gestionale** | Profilo, **Sede fisica**, Sicurezza, Aspetto — nessuna integrazione e-commerce                                   |
+| **Shopify**         | Profilo, **Sede fisica**, **Integrazione Shopify** (Location + **Sedi attive in VestiFlow**), Sicurezza, Aspetto |
+| **TikTok Shop**     | Profilo, **Sede fisica**, Integrazione TikTok Shop, Sicurezza, Aspetto                                           |
 
 #### Sede fisica (anagrafica cliente)
 
@@ -160,6 +160,7 @@ Ogni utente ha un **ruolo VestiFlow** (Titolare, Amministratore, Manager, Commes
 | Operazione                                         | Titolare / Admin | Manager | Commesso |
 | -------------------------------------------------- | ---------------- | ------- | -------- |
 | Collegare Shopify / TikTok Shop, sync sedi, import | Sì               | No      | No       |
+| Selezionare e salvare **sedi attive in VestiFlow** | Sì               | No      | No       |
 | Sync manuale vendite / clienti / giacenze          | Sì               | No      | No       |
 | Creare e modificare prodotti, import/export CSV    | Sì               | Sì      | No       |
 | Export/import CSV giacenze                         | Sì               | Sì      | No       |
@@ -203,13 +204,14 @@ Percorso consigliato per il **titolare** del negozio:
 
 **Profilo Shopify:**
 
-| Step | Dove             | Cosa fare                                                    |
-| ---- | ---------------- | ------------------------------------------------------------ |
-| 4a   | Impostazioni     | Collega il negozio Shopify                                   |
-| 4b   | Impostazioni     | **Sincronizza location** (sedi)                              |
-| 4c   | Impostazioni     | **Attiva aggiornamenti automatici**                          |
-| 4d   | Impostazioni     | **Importa catalogo da Shopify** (se hai già prodotti online) |
-| 4e   | Registra vendita | Prova scansione test se vendi in negozio con cassa esterna   |
+| Step | Dove             | Cosa fare                                                                          |
+| ---- | ---------------- | ---------------------------------------------------------------------------------- |
+| 4a   | Impostazioni     | Collega il negozio Shopify                                                         |
+| 4b   | Impostazioni     | **Sincronizza location** (importa le sedi da Shopify)                              |
+| 4c   | Impostazioni     | **Sedi attive in VestiFlow** — seleziona le sedi del piano e **Salva sedi attive** |
+| 4d   | Impostazioni     | **Attiva aggiornamenti automatici**                                                |
+| 4e   | Impostazioni     | **Importa catalogo da Shopify** (se hai già prodotti online)                       |
+| 4f   | Registra vendita | Prova scansione test se vendi in negozio con cassa esterna                         |
 
 **Profilo TikTok Shop:**
 
@@ -223,11 +225,30 @@ Percorso consigliato per il **titolare** del negozio:
 
 ### Sedi (location)
 
-Una **sede** è un luogo dove conti le giacenze (negozio, magazzino, secondo punto vendita). Con profilo **Shopify**, le sedi operative si gestiscono in **Impostazioni → Integrazione Shopify → Location** e nel **selettore location** in alto.
+Una **sede** è un luogo dove conti le giacenze (negozio, magazzino, secondo punto vendita). Con profilo **Shopify**, le location importate si vedono in **Impostazioni → Integrazione Shopify** (tabella **Location**); le sedi **operative** in VestiFlow si scelgono nel pannello **Sedi attive in VestiFlow** e nel **selettore location** in alto.
+
+#### Piano sedi e selezione attiva
+
+Il tuo contratto include un numero massimo di **sedi operative** in VestiFlow (es. 1, 3 o 10). Non tutte le location presenti su Shopify devono essere attive nel gestionale: ne selezioni fino al limite del piano.
+
+| Fase                   | Cosa succede                                                                                                                 |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **Dopo sync location** | Compaiono tutte le sedi Shopify importate; nel pannello **Sedi attive in VestiFlow** scegli quali attivare (entro il limite) |
+| **Primo salvataggio**  | Clic **Salva sedi attive** — da quel momento la scelta è **bloccata**                                                        |
+| **Dopo il blocco**     | Vedi solo le sedi attive; compare il messaggio _«Contatta l'assistenza per modificare le sedi attive»_                       |
+| **Cambio sedi**        | Solo il **referente VestiFlow** può sbloccarti **una volta**; poi salvi di nuovo e la selezione si riblocca                  |
+
+Solo **Titolare** e **Amministratore** possono salvare la selezione sedi.
+
+**Eccezione piano 1 sede:** se Shopify espone **una sola** location attiva, VestiFlow può pre-selezionarla al sync, ma il **blocco** scatta solo dopo il tuo **primo salvataggio** esplicito (se il piano prevede più sedi o devi confermare).
+
+#### Sync e sedi locali
 
 Dopo **Sincronizza location**, compaiono le **Sedi Shopify** (importate dal negozio online) separate dalle eventuali **Sedi locali**. All’attivazione può esistere una sede temporanea di onboarding: viene rimossa automaticamente al primo sync se non ha giacenze.
 
-**Più sedi nello stesso shop Shopify** (es. Napoli + magazzino): supportato. **Due shop Shopify distinti** (due domini): servono **due account VestiFlow** separati — contatta il referente.
+Magazzino, movimenti, giacenze e selettore in topbar mostrano **solo le sedi attive** nel piano — non tutte quelle presenti su Shopify.
+
+**Più sedi nello stesso shop Shopify** (es. Napoli + magazzino): supportato entro il limite contrattuale. **Due shop Shopify distinti** (due domini): servono **due account VestiFlow** separati — contatta il referente.
 
 ---
 
@@ -249,7 +270,8 @@ Dopo **Sincronizza location**, compaiono le **Sedi Shopify** (importate dal nego
 
 | Azione                              | Dove         | Perché                                                     |
 | ----------------------------------- | ------------ | ---------------------------------------------------------- |
-| **Sincronizza location**            | Impostazioni | Importa e collega le sedi Shopify                          |
+| **Sincronizza location**            | Impostazioni | Importa le sedi da Shopify                                 |
+| **Sedi attive in VestiFlow**        | Impostazioni | Scegli quali sedi usare nel gestionale (entro il piano)    |
 | **Attiva aggiornamenti automatici** | Impostazioni | Riceve prodotti, giacenze, ordini e clienti in tempo reale |
 | **Importa catalogo da Shopify**     | Impostazioni | Scarica i prodotti già presenti online                     |
 
@@ -260,6 +282,7 @@ Dopo **Sincronizza location**, compaiono le **Sedi Shopify** (importate dal nego
 | Pulsante                               | Quando usarlo                                       |
 | -------------------------------------- | --------------------------------------------------- |
 | **Sincronizza location**               | Primo setup o nuova sede su Shopify Admin           |
+| **Salva sedi attive**                  | Dopo sync: conferma quali sedi usare in VestiFlow   |
 | **Attiva aggiornamenti automatici**    | Dopo connessione o cambio permessi app              |
 | **Disattiva aggiornamenti automatici** | Pausa sync temporanea                               |
 | **Importa catalogo da Shopify**        | Allineamento completo del catalogo                  |
@@ -342,16 +365,16 @@ Solo **Titolare** e **Amministratore** possono collegare o scollegare TikTok Sho
 
 ## 8. Cosa si sincronizza e dove
 
-| Dato                                                  | Dove si modifica in VestiFlow | Note                                                                                                                  |
-| ----------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **Prodotti creati in VestiFlow** (`Fonte: VestiFlow`) | Sì — catalogo completo        | Push al salvataggio verso Shopify/TikTok se connessi                                                                  |
-| **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Solo dati operativi           | Titolo, prezzi vendita, varianti e immagini in **Shopify Admin**; in VestiFlow: **stagione** e **prezzo di acquisto** |
-| **Giacenze**                                          | Sì (carichi, rettifiche…)     | Vendite Shopify via webhook; vendite negozio via **Registra vendita** (tutti i profili); push canale dopo scansione   |
-| **Ordini fornitori**                                  | Sì, solo in VestiFlow         | Non passano da Shopify/TikTok                                                                                         |
-| **Vendite al banco**                                  | Sì — **Registra vendita**     | Tutti i profili; movimento magazzino (origine **Vendita negozio**), non ordine di vendita                             |
-| **Vendite (lista ordini)**                            | Sola lettura                  | Da Shopify Online e POS (**solo profilo Shopify**)                                                                    |
-| **Clienti**                                           | Sola lettura                  | Da Shopify (profilo Shopify)                                                                                          |
-| **Sedi (location)**                                   | Import / gestione             | Sync location Shopify se applicabile                                                                                  |
+| Dato                                                  | Dove si modifica in VestiFlow             | Note                                                                                                                  |
+| ----------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Prodotti creati in VestiFlow** (`Fonte: VestiFlow`) | Sì — catalogo completo                    | Push al salvataggio verso Shopify/TikTok se connessi                                                                  |
+| **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Solo dati operativi                       | Titolo, prezzi vendita, varianti e immagini in **Shopify Admin**; in VestiFlow: **stagione** e **prezzo di acquisto** |
+| **Giacenze**                                          | Sì (carichi, rettifiche…)                 | Vendite Shopify via webhook; vendite negozio via **Registra vendita** (tutti i profili); push canale dopo scansione   |
+| **Ordini fornitori**                                  | Sì, solo in VestiFlow                     | Non passano da Shopify/TikTok                                                                                         |
+| **Vendite al banco**                                  | Sì — **Registra vendita**                 | Tutti i profili; movimento magazzino (origine **Vendita negozio**), non ordine di vendita                             |
+| **Vendite (lista ordini)**                            | Sola lettura                              | Da Shopify Online e POS (**solo profilo Shopify**)                                                                    |
+| **Clienti**                                           | Sola lettura                              | Da Shopify (profilo Shopify)                                                                                          |
+| **Sedi (location)**                                   | Sync + **selezione attiva** (entro piano) | Solo sedi attive in magazzino, movimenti e topbar; blocco dopo primo salvataggio                                      |
 
 ### Etichetta «Fonte» (catalogo)
 
@@ -756,9 +779,10 @@ Con molti prodotti è **normale**. Attendi il messaggio di esito senza ripremere
 ### Le giacenze non coincidono
 
 1. Hai fatto **Sincronizza location**?
-2. In **Impostazioni → Location** ogni sede usata è **Sincronizzata**?
-3. Controlla lo **storico movimenti** (origine gestionale vs Shopify)
-4. Verifica la **sede selezionata** in alto
+2. Hai **selezionato e salvato** le sedi attive in **Sedi attive in VestiFlow**?
+3. In **Impostazioni → Location** ogni sede usata è **Sincronizzata**?
+4. Controlla lo **storico movimenti** (origine gestionale vs Shopify)
+5. Verifica la **sede selezionata** in alto (solo sedi attive nel piano)
 
 ### Vendite o clienti mancanti
 
@@ -793,7 +817,19 @@ Usa JPEG, PNG o WebP, max 5 MB. Riprova dopo qualche minuto se il servizio era i
 
 ### Ho più sedi: le vedo tutte?
 
-Sì, se sono **location nello stesso shop Shopify**: configura le sedi in Shopify Admin, poi **Sincronizza location** in Impostazioni (dentro **Integrazione Shopify**). Controlla il selettore location in alto. Le sedi Shopify sono elencate separatamente dalle sedi locali.
+Dipende dal **piano** e dalla **selezione attiva**:
+
+1. Configura le location in **Shopify Admin**, poi **Sincronizza location** in Impostazioni.
+2. Nel pannello **Sedi attive in VestiFlow** seleziona fino al numero di sedi incluse nel contratto e clic **Salva sedi attive**.
+3. Il **selettore location** in alto e il magazzino mostrano **solo** quelle attive — non tutte le location Shopify se ne hai importate di più.
+
+Per **cambiare** le sedi attive dopo il primo salvataggio contatta il **referente VestiFlow** (non puoi modificarle da solo).
+
+### Non posso modificare le sedi attive
+
+Dopo il **primo salvataggio** la selezione è **bloccata** per policy commerciale. Compare il messaggio _«Contatta l'assistenza per modificare le sedi attive»_. Il referente VestiFlow può concederti **un solo round** di modifica; dopo il nuovo salvataggio si riblocca.
+
+Se vedi _«Modifica consentita una sola volta…»_, seleziona le nuove sedi e salva subito.
 
 ### Devo cambiare negozio Shopify (altro dominio)
 

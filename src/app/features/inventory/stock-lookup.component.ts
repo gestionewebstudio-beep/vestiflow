@@ -10,6 +10,7 @@ import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
 import { LocationContextService } from '@core/services/location-context.service';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { PwaInstallService } from '@core/services/pwa-install.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
@@ -59,6 +60,7 @@ export class StockLookupComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly productService = inject(ProductService);
   private readonly inventoryService = inject(InventoryService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
   private readonly pwaInstall = inject(PwaInstallService);
   private readonly config = inject(APP_CONFIG);
@@ -97,7 +99,15 @@ export class StockLookupComponent {
       )
       .subscribe({
         next: ({ variant, levels, locations }) => {
-          this.lookupState.set({ status: 'success', variant, levels, locations });
+          const operationalIds = new Set(
+            this.operationalLocations.locations().map((location) => location.id),
+          );
+          this.lookupState.set({
+            status: 'success',
+            variant,
+            levels: levels.filter((level) => operationalIds.has(level.locationId)),
+            locations: locations.filter((location) => operationalIds.has(location.id)),
+          });
         },
         error: (err: unknown) => {
           this.lookupState.set(this.toErrorState(err));

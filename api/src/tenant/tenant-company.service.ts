@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
+import { LocationLicensingService } from '../inventory/location-licensing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { TenantCompanyDto } from './dto/tenant-company.dto';
 
 @Injectable()
 export class TenantCompanyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly locationLicensing: LocationLicensingService,
+  ) {}
 
   async getCompany(tenantId: string): Promise<TenantCompanyDto> {
     const tenant = await this.prisma.tenant.findUnique({
@@ -19,10 +23,17 @@ export class TenantCompanyService {
       throw new NotFoundException('Azienda non trovata');
     }
 
+    const licenseSummary = await this.locationLicensing.getSummary(tenantId);
+
     return {
       name: tenant.name,
       channelProfile: tenant.channelProfile,
       storeName: tenant.stores[0]?.name ?? null,
+      licensedLocationCount: licenseSummary.licensedLocationCount,
+      licensedLocationActiveCount: licenseSummary.licensedLocationActiveCount,
+      locationSelectionLocked: licenseSummary.locationSelectionLocked,
+      locationSelectionChangeGranted: licenseSummary.locationSelectionChangeGranted,
+      canChangeLicensedLocations: licenseSummary.canChangeLicensedLocations,
       profile: {
         legalName: tenant.legalName,
         vatNumber: tenant.vatNumber,

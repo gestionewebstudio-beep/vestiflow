@@ -10,16 +10,16 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { catchError, of, type Subscription } from 'rxjs';
+import type { Subscription } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
-import type { Location } from '@core/models/location.model';
 import { LocationContextService } from '@core/services/location-context.service';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -63,6 +63,7 @@ let sessionEntryCounter = 0;
 export class RetailSaleRegisterComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly inventoryService = inject(InventoryService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly document = inject(DOCUMENT);
@@ -80,13 +81,11 @@ export class RetailSaleRegisterComponent {
     code: this.fb.control('', { validators: [Validators.required, Validators.maxLength(100)] }),
   });
 
-  private readonly locations = toSignal(
-    this.inventoryService.getLocations().pipe(catchError(() => of([] as readonly Location[]))),
-    { initialValue: [] as readonly Location[] },
-  );
-
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
-    this.locations().map((location) => ({ value: location.id, label: location.name })),
+    this.operationalLocations.locations().map((location) => ({
+      value: location.id,
+      label: location.name,
+    })),
   );
 
   protected readonly selectedLocationId = signal<EntityId | null>(

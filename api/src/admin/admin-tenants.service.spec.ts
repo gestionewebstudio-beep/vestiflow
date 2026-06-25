@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PlatformAdminService } from '../common/platform-admin/platform-admin.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { SupabaseService } from '../auth/supabase.service';
+import type { LocationLicensingService } from '../inventory/location-licensing.service';
 import { AdminTenantsService } from './admin-tenants.service';
 
 describe('AdminTenantsService', () => {
@@ -24,6 +25,7 @@ describe('AdminTenantsService', () => {
       },
       location: {
         create: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
       },
       user: {
         findMany: vi.fn(),
@@ -46,15 +48,28 @@ describe('AdminTenantsService', () => {
     const config = {
       get: (key: string) => options?.config?.[key],
     } as ConfigService;
+    const locationLicensing = {
+      assertLicensedLocationCount: vi.fn(),
+      applyAdminLicensedLocationLimit: vi.fn().mockResolvedValue(0),
+      grantLocationSelectionChange: vi.fn(),
+      getSummary: vi.fn().mockResolvedValue({
+        licensedLocationCount: 2,
+        licensedLocationActiveCount: 2,
+        locationSelectionLocked: false,
+        locationSelectionChangeGranted: false,
+        canChangeLicensedLocations: true,
+      }),
+    };
 
     const service = new AdminTenantsService(
       prisma as unknown as PrismaService,
       supabase as unknown as SupabaseService,
       platformAdmin as unknown as PlatformAdminService,
       config,
+      locationLicensing as unknown as LocationLicensingService,
     );
 
-    return { service, prisma, platformAdmin, supabase, config };
+    return { service, prisma, platformAdmin, supabase, config, locationLicensing };
   }
 
   it('listTenants esclude tenant con utenti platform admin', async () => {
@@ -93,6 +108,95 @@ describe('AdminTenantsService', () => {
     prisma.user.findMany.mockResolvedValue([{ email: 'operator@vestiflow.test' }]);
 
     await expect(service.getTenantById('tenant-op')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('getTenantById include sedi attive licenziate in VestiFlow', async () => {
+    const { service, prisma, locationLicensing } = createService();
+    prisma.user.findMany.mockResolvedValue([{ email: 'owner@test.it' }]);
+    prisma.tenant.findUnique.mockResolvedValue({
+      id: 'tenant-1',
+      name: 'Cliente',
+      channelProfile: TenantChannelProfile.shopify,
+      createdAt: new Date('2026-01-01'),
+      legalName: null,
+      vatNumber: null,
+      fiscalCode: null,
+      phone: null,
+      pec: null,
+      sdiCode: null,
+      addressLine1: null,
+      addressLine2: null,
+      city: null,
+      province: null,
+      postalCode: null,
+      countryCode: 'IT',
+      users: [
+        {
+          id: 'user-1',
+          email: 'owner@test.it',
+          displayName: 'Titolare',
+          role: 'owner',
+        },
+      ],
+      stores: [{ id: 'store-1', name: 'Negozio' }],
+      locations: [{ id: 'loc-legacy', name: 'Legacy', addressLine1: null, addressLine2: null, city: null, province: null, postalCode: null, countryCode: 'IT' }],
+    });
+    prisma.location.findMany.mockResolvedValue([
+      {
+        id: 'loc-a',
+        name: 'Snow City Warehouse',
+        code: 'LOC-03',
+        isActive: true,
+        shopifyLocationId: 'gid://shopify/Location/3',
+      },
+    ]);
+    locationLicensing.getSummary.mockResolvedValue({
+      licensedLocationCount: 1,
+      licensedLocationActiveCount: 1,
+      locationSelectionLocked: true,
+      locationSelectionChangeGranted: false,
+      canChangeLicensedLocations: false,
+    });
+
+    const detail = await service.getTenantById('tenant-1');
+
+    expect(prisma.location.findMany).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-1', licensedInVf: true },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        isActive: true,
+        shopifyLocationId: true,
+      },
+    });
+    expect(detail.activeLocations).toEqual([
+      {
+        id: 'loc-a',
+        name: 'Snow City Warehouse',
+        code: 'LOC-03',
+        isActive: true,
+        shopifyLocationId: 'gid://shopify/Location/3',
+      },
+    ]);
+    expect(detail.canChangeLicensedLocations).toBe(false);
+  });
+
+  it('grantLocationSelectionChange delega al licensing service', async () => {
+    const { service, prisma, locationLicensing } = createService();
+    prisma.user.findMany.mockResolvedValue([{ email: 'owner@test.it' }]);
+    locationLicensing.grantLocationSelectionChange.mockResolvedValue({
+      licensedLocationCount: 1,
+      licensedLocationActiveCount: 1,
+      locationSelectionLocked: true,
+      locationSelectionChangeGranted: true,
+      canChangeLicensedLocations: true,
+    });
+
+    await service.grantLocationSelectionChange('tenant-1');
+
+    expect(locationLicensing.grantLocationSelectionChange).toHaveBeenCalledWith('tenant-1');
   });
 
   it('createTenant usa createAuthUser con password se invito email disabilitato', async () => {
@@ -188,5 +292,71 @@ describe('AdminTenantsService', () => {
     );
     expect(supabase.createAuthUser).not.toHaveBeenCalled();
     expect(result.ownerInviteSent).toBe(true);
+  });
+
+  it('updateTenant abbassa limite sedi e applica trim licenze in transazione', async () => {
+    const { service, prisma, locationLicensing } = createService();
+    const tenantRecord = {
+      id: 'tenant-1',
+      name: 'Cliente',
+      channelProfile: TenantChannelProfile.shopify,
+      createdAt: new Date('2026-01-01'),
+      legalName: null,
+      vatNumber: null,
+      fiscalCode: null,
+      phone: null,
+      pec: null,
+      sdiCode: null,
+      addressLine1: null,
+      addressLine2: null,
+      city: null,
+      province: null,
+      postalCode: null,
+      countryCode: 'IT',
+      users: [
+        {
+          id: 'user-1',
+          email: 'owner@test.it',
+          displayName: 'Titolare',
+          role: 'owner',
+        },
+      ],
+      stores: [{ id: 'store-1', name: 'Negozio' }],
+      locations: [{ id: 'loc-1', name: 'Shop', addressLine1: null, addressLine2: null, city: null, province: null, postalCode: null, countryCode: 'IT' }],
+    };
+
+    prisma.user.findMany.mockResolvedValue([{ email: 'owner@test.it' }]);
+    prisma.tenant.findUnique.mockResolvedValue(tenantRecord);
+    locationLicensing.applyAdminLicensedLocationLimit.mockResolvedValue(1);
+    locationLicensing.getSummary.mockResolvedValue({
+      licensedLocationCount: 1,
+      licensedLocationActiveCount: 1,
+      locationSelectionLocked: true,
+      locationSelectionChangeGranted: false,
+      canChangeLicensedLocations: false,
+    });
+
+    const tx = {
+      tenant: { update: vi.fn().mockResolvedValue({}) },
+      user: { update: vi.fn() },
+      store: { update: vi.fn() },
+      location: { update: vi.fn() },
+    };
+    prisma.$transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) =>
+      callback(tx),
+    );
+
+    const result = await service.updateTenant('tenant-1', {
+      licensedLocationCount: 1,
+    } as never);
+
+    expect(locationLicensing.assertLicensedLocationCount).toHaveBeenCalledWith(1);
+    expect(locationLicensing.applyAdminLicensedLocationLimit).toHaveBeenCalledWith(
+      'tenant-1',
+      1,
+      tx,
+    );
+    expect(result.licensedLocationCount).toBe(1);
+    expect(result.licensedLocationActiveCount).toBe(1);
   });
 });

@@ -3,6 +3,11 @@ import type { Location } from '@core/models/location.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 
+/** Location attiva nel piano contrattuale del tenant. */
+export function isLicensedOperationalLocation(location: Location): boolean {
+  return location.isActive && location.licensedInVf;
+}
+
 /** Location collegata o sincronizzata con Shopify (sede operativa ecommerce). */
 export function isShopifyManagedLocation(location: Location): boolean {
   const shopify = location.shopify;
@@ -75,19 +80,22 @@ export function filterLocationsForTopbar(
   locations: readonly Location[],
   context: LocationFilterContext,
 ): readonly Location[] {
-  const activeLocations = locations.filter((location) => location.isActive);
+  const licensedLocations = locations.filter(isLicensedOperationalLocation);
 
   if (context.channelProfile !== TenantChannelProfile.Shopify) {
-    return activeLocations;
+    return licensedLocations;
   }
 
   if (context.shopifyConnectionStatus !== ShopifyConnectionStatus.Connected) {
     return [];
   }
 
-  const shopifyLocations = activeLocations.filter(isShopifyManagedLocation);
-  return shopifyLocations.length > 0 ? shopifyLocations : activeLocations;
+  const shopifyLocations = licensedLocations.filter(isShopifyManagedLocation);
+  return shopifyLocations.length > 0 ? shopifyLocations : licensedLocations;
 }
+
+/** Stesse regole del selettore topbar: filtri, form e scelte operative. */
+export const filterLocationsForOperationalSelection = filterLocationsForTopbar;
 
 /** Location visibili in Impostazioni (include sede locale, esclude residui Shopify). */
 export function filterLocationsForSettings(

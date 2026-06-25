@@ -10,6 +10,7 @@ describe('AdminTenantsController', () => {
     getTenantById: vi.fn(),
     updateTenant: vi.fn(),
     deleteTenant: vi.fn(),
+    grantLocationSelectionChange: vi.fn(),
   };
 
   const controller = new AdminTenantsController(
@@ -54,5 +55,19 @@ describe('AdminTenantsController', () => {
     await controller.deleteTenant('tenant-1');
 
     expect(adminTenants.deleteTenant).toHaveBeenCalledWith('tenant-1');
+  });
+
+  it('grantLocationSelectionChange delega al service', async () => {
+    adminTenants.grantLocationSelectionChange.mockResolvedValue({
+      licensedLocationCount: 2,
+      licensedLocationActiveCount: 1,
+      locationSelectionLocked: true,
+      locationSelectionChangeGranted: true,
+      canChangeLicensedLocations: true,
+    });
+
+    await controller.grantLocationSelectionChange('tenant-1');
+
+    expect(adminTenants.grantLocationSelectionChange).toHaveBeenCalledWith('tenant-1');
   });
 });

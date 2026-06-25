@@ -1,0 +1,70 @@
+<section class="location-licensing" aria-labelledby="location-licensing-title">
+  <h3 id="location-licensing-title" class="location-licensing__title">Sedi attive in VestiFlow</h3>
+  <p class="location-licensing__hint">
+    Il tuo piano include
+    <strong>{{ licensedLocationCount() }}</strong>
+    {{ licensedLocationCount() === 1 ? 'sede operativa' : 'sedi operative' }}. Scegli quali location
+    Shopify usare nel gestionale (magazzino, movimenti, giacenze).
+  </p>
+
+  @if (selectableLocations().length === 0) {
+    <p class="location-licensing__empty">
+      Sincronizza le location da Shopify per poter selezionare le sedi operative.
+    </p>
+  } @else {
+    <ul class="location-licensing__list">
+      @for (location of selectableLocations(); track location.id) {
+        <li class="location-licensing__item">
+          <label class="location-licensing__label">
+            <input
+              type="checkbox"
+              class="location-licensing__checkbox"
+              [checked]="isSelected(location.id)"
+              [disabled]="!canManage() || submitLoading()"
+              (change)="toggleLocation(location.id)"
+            />
+            <span class="location-licensing__name">{{ location.name }}</span>
+            @if (location.code) {
+              <span class="location-licensing__code tabular-nums">{{ location.code }}</span>
+            }
+          </label>
+        </li>
+      }
+    </ul>
+
+    <p class="location-licensing__counter tabular-nums">
+      Selezionate: {{ selectedCount() }} / {{ licensedLocationCount() }}
+    </p>
+
+    @if (limitErrorMessage(); as message) {
+      <p class="location-licensing__error" role="alert">{{ message }}</p>
+    }
+
+    @if (canManage()) {
+      <div class="location-licensing__actions">
+        <app-button
+          type="button"
+          [loading]="submitLoading()"
+          [disabled]="!canSave()"
+          (click)="onSave()"
+        >
+          Salva sedi attive
+        </app-button>
+      </div>
+    }
+  }
+
+  @if (submitError(); as message) {
+    <p class="location-licensing__error" role="alert">{{ message }}</p>
+  }
+
+  @if (showGrantedHint()) {
+    <p class="location-licensing__notice location-licensing__notice--footer" role="status">
+      Modifica consentita una sola volta. Salva per confermare le sedi attive.
+    </p>
+  } @else if (showLockedMessage()) {
+    <p class="location-licensing__notice location-licensing__notice--footer" role="status">
+      Contatta l'assistenza per modificare le sedi attive.
+    </p>
+  }
+</section>

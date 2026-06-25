@@ -8,12 +8,13 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
-import { catchError, filter, map, merge, of, switchMap, type Subscription } from 'rxjs';
+import { catchError, filter, merge, of, switchMap, type Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { ThemeService } from '@core/services/theme.service';
 import {
   isPlatformOperator,
@@ -26,10 +27,8 @@ import {
   showSalesOrderHistory,
 } from '@core/models/tenant-channel-profile.model';
 import type { EntityId } from '@core/models/common.model';
-import type { Location } from '@core/models/location.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
-import { filterLocationsForTopbar } from '@core/utils/location-selection.util';
 import { AppSidebarComponent } from '@shared/components/app-sidebar/app-sidebar.component';
 import { AppTopbarComponent } from '@shared/components/app-topbar/app-topbar.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -67,6 +66,7 @@ export class ShellLayoutComponent {
   private readonly themeService = inject(ThemeService);
   private readonly authService = inject(AuthService);
   private readonly locationContext = inject(LocationContextService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly inventoryService = inject(InventoryService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
@@ -87,37 +87,8 @@ export class ShellLayoutComponent {
 
   readonly showSidebarLogout = computed(() => this.currentUser() != null);
 
-  /** Tutte le location del tenant (caricamento grezzo). */
-  private readonly allLocations = toSignal(
-    merge(
-      toObservable(this.currentUser).pipe(map((user) => ({ kind: 'user' as const, user }))),
-      this.shopifySyncWatch
-        .watchConnectionInvalidated()
-        .pipe(map(() => ({ kind: 'refresh' as const }))),
-    ).pipe(
-      switchMap((event) => {
-        const user = event.kind === 'user' ? event.user : this.authService.currentUser();
-        if (isPlatformOperator(user)) {
-          return of([] as readonly Location[]);
-        }
-        if (event.kind === 'refresh') {
-          this.inventoryService.invalidateLocationsCache();
-        }
-        return this.inventoryService
-          .getLocations()
-          .pipe(catchError(() => of([] as readonly Location[])));
-      }),
-    ),
-    { initialValue: [] as readonly Location[] },
-  );
-
-  /** Location selezionabili in topbar (esclude sede locale di onboarding con Shopify). */
-  readonly topbarLocations = computed(() =>
-    filterLocationsForTopbar(this.allLocations(), {
-      channelProfile: this.currentUser()?.tenantChannelProfile,
-      shopifyConnectionStatus: this.shopifySyncStatus(),
-    }),
-  );
+  /** Location selezionabili in topbar (sedi attive nel piano). */
+  readonly topbarLocations = this.operationalLocations.locations;
 
   private readonly syncActiveLocationWithTopbar = effect(() => {
     const activeLocationId = this.activeLocationId();

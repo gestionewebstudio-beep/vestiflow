@@ -227,6 +227,25 @@
         <section class="create-client__section" aria-labelledby="create-client-setup">
           <h3 id="create-client-setup" class="create-client__section-title">Setup iniziale</h3>
 
+          <div class="create-client__field">
+            <span class="create-client__field-label" id="client-licensed-locations-label"
+              >Sedi incluse nel piano</span
+            >
+            <app-select-menu
+              ariaLabel="Sedi incluse nel piano"
+              placeholder="Seleziona…"
+              [options]="licensedLocationOptions"
+              [value]="form.controls.licensedLocationCount.value.toString()"
+              [includeEmptyOption]="false"
+              [fullWidth]="true"
+              [matchInputHeight]="true"
+              (valueChange)="onLicensedLocationCountSelect($event)"
+            />
+            <span class="create-client__hint"
+              >Quante location Shopify il cliente potrà attivare in VestiFlow (max 10).</span
+            >
+          </div>
+
           <label class="create-client__field" for="client-store-name">
             <span class="create-client__field-label">Nome negozio (opzionale)</span>
             <input

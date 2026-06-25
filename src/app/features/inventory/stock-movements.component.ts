@@ -13,6 +13,7 @@ import { catchError, forkJoin, map, of, skip, startWith, switchMap } from 'rxjs'
 
 import type { PageMeta } from '@core/models/api.model';
 import { LocationContextService } from '@core/services/location-context.service';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Location } from '@core/models/location.model';
@@ -77,6 +78,7 @@ const EMPTY_META: PageMeta = {
 export class StockMovementsComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly locationContext = inject(LocationContextService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -172,7 +174,10 @@ export class StockMovementsComponent {
   });
 
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.locations().map((location) => ({ value: location.id, label: location.name })),
+    this.operationalLocations.locations().map((location) => ({
+      value: location.id,
+      label: location.name,
+    })),
   );
 
   protected readonly meta = computed<PageMeta>(() => {

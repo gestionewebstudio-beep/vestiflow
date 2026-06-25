@@ -12,6 +12,7 @@ import {
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../common/platform-admin/platform-admin.guard';
+import type { LocationLicenseSummaryDto } from '../inventory/location-licensing.service';
 import { AdminTenantsService } from './admin-tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import type { ProvisionedTenantDto } from './dto/provisioned-tenant.dto';
@@ -50,6 +51,13 @@ export class AdminTenantsController {
   @Delete(':id')
   deleteTenant(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.adminTenants.deleteTenant(id);
+  }
+
+  @Post(':id/grant-location-selection-change')
+  grantLocationSelectionChange(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<LocationLicenseSummaryDto> {
+    return this.adminTenants.grantLocationSelectionChange(id);
   }
 
   @Post(':id/resend-owner-invite')

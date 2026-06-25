@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TenantChannelProfile } from '@prisma/client';
 
 import type { PrismaService } from '../prisma/prisma.service';
+import type { LocationLicensingService } from '../inventory/location-licensing.service';
 import { TenantCompanyService } from './tenant-company.service';
 
 describe('TenantCompanyService', () => {
@@ -11,12 +12,28 @@ describe('TenantCompanyService', () => {
       findUnique: vi.fn(),
     },
   };
+  const locationLicensing = {
+    getSummary: vi.fn().mockResolvedValue({
+      licensedLocationCount: 2,
+      licensedLocationActiveCount: 1,
+    }),
+  };
 
   let service: TenantCompanyService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new TenantCompanyService(prisma as unknown as PrismaService);
+    locationLicensing.getSummary.mockResolvedValue({
+      licensedLocationCount: 2,
+      licensedLocationActiveCount: 1,
+      locationSelectionLocked: false,
+      locationSelectionChangeGranted: false,
+      canChangeLicensedLocations: true,
+    });
+    service = new TenantCompanyService(
+      prisma as unknown as PrismaService,
+      locationLicensing as unknown as LocationLicensingService,
+    );
   });
 
   it('getCompany mappa anagrafica e negozio principale', async () => {
@@ -42,6 +59,11 @@ describe('TenantCompanyService', () => {
       name: 'Mimmo Test VF',
       channelProfile: TenantChannelProfile.shopify,
       storeName: 'Negozio principale',
+      licensedLocationCount: 2,
+      licensedLocationActiveCount: 1,
+      locationSelectionLocked: false,
+      locationSelectionChangeGranted: false,
+      canChangeLicensedLocations: true,
       profile: {
         legalName: 'Mimmo Test VF Srl',
         vatNumber: '12345678901',

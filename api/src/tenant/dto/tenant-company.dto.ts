@@ -20,5 +20,10 @@ export interface TenantCompanyDto {
   readonly name: string;
   readonly channelProfile: TenantChannelProfile;
   readonly storeName: string | null;
+  readonly licensedLocationCount: number;
+  readonly licensedLocationActiveCount: number;
+  readonly locationSelectionLocked: boolean;
+  readonly locationSelectionChangeGranted: boolean;
+  readonly canChangeLicensedLocations: boolean;
   readonly profile: TenantCompanyProfileDto;
 }

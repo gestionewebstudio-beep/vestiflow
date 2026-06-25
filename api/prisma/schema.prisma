@@ -155,6 +155,12 @@ model Tenant {
   province     String?
   postalCode   String? @map("postal_code")
   countryCode  String? @map("country_code")
+  /// Sedi operative incluse nel contratto (max 10).
+  licensedLocationCount Int @default(1) @map("licensed_location_count")
+  /// Blocco scelta sedi attive: dopo il primo salvataggio cliente o migrazione con sedi già attive.
+  locationSelectionLocked Boolean @default(false) @map("location_selection_locked")
+  /// Sblocco one-shot concesso dall'admin piattaforma per un nuovo round di selezione.
+  locationSelectionChangeGranted Boolean @default(false) @map("location_selection_change_granted")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -261,7 +267,9 @@ model Location {
   name      String
   code      String?
   isActive  Boolean  @default(true) @map("is_active")
-  /// Store servito da questa location (un magazzino può non averne).
+  /// Sede operativa in VestiFlow (entro licensedLocationCount del tenant).
+  licensedInVf Boolean @default(false) @map("licensed_in_vf")
+  /// Store servito da questa location (un magazzino può non averene).
   storeId   String?  @map("store_id") @db.Uuid
   // Indirizzo denormalizzato (display/etichette, non entità a sé).
   addressLine1 String? @map("address_line1")

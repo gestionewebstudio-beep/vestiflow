@@ -214,6 +214,69 @@
   justify-content: flex-end;
 }
 
+.create-client__inline-action {
+  margin-block-start: var(--space-4);
+}
+
+.create-client__section--store-setup {
+  gap: var(--space-5);
+}
+
+.create-client__field--store-active-locations {
+  gap: var(--space-3);
+}
+
+.create-client__field--store-active-locations .create-client__hint,
+.create-client__field--store-active-locations .create-client__success,
+.create-client__field--store-active-locations .create-client__alert {
+  margin-block-start: var(--space-2);
+}
+
+.create-client__field--store-active-locations .create-client__inline-action {
+  margin-block-start: var(--space-5);
+}
+
+.create-client__active-locations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.create-client__active-location-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.create-client__active-location-input {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  inline-size: 100%;
+}
+
+.create-client__active-location-input .create-client__input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding-inline-end: calc(var(--space-16) + var(--space-2));
+}
+
+.create-client__active-location-code {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.create-client__active-location-badge {
+  font-size: var(--text-xs);
+  color: var(--status-warning-fg);
+}
+
 .create-client__facts {
   display: grid;
   grid-template-columns: 1fr;

@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { AppErrorKind } from '@core/models/app-error.model';
 import { LocationContextService } from '@core/services/location-context.service';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
@@ -61,6 +62,12 @@ describe('RetailSaleRegisterComponent', () => {
           useValue: {
             getLocations: () => of(LOCATIONS),
             registerRetailScan,
+          },
+        },
+        {
+          provide: OperationalLocationsService,
+          useValue: {
+            locations: () => LOCATIONS,
           },
         },
         {
@@ -147,6 +154,12 @@ describe('RetailSaleRegisterComponent', () => {
           useValue: {
             getLocations: () => of([]),
             registerRetailScan,
+          },
+        },
+        {
+          provide: OperationalLocationsService,
+          useValue: {
+            locations: () => [],
           },
         },
         {

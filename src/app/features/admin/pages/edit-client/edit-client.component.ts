@@ -15,12 +15,21 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { isAppError } from '@core/models/app-error.model';
 import { SupportSessionService } from '@core/support/support-session.service';
 import { formatDateTime } from '@core/utils/date.util';
+import {
+  TENANT_LICENSED_LOCATION_MAX,
+  TENANT_LICENSED_LOCATION_MIN,
+  TENANT_LICENSED_LOCATION_OPTIONS,
+} from '@core/constants/tenant-location-license.constants';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { AdminTenantProfileFieldsComponent } from '../../components/admin-tenant-profile-fields/admin-tenant-profile-fields.component';
+import {
+  canAdminGrantLocationSelectionChange,
+  resolveAdminLocationSelectionStatusLabel,
+} from '../../models/admin-location-selection.util';
 import type { TenantDetail } from '../../models/admin-tenant.model';
 import {
   createTenantProfileControls,
@@ -72,6 +81,10 @@ export class EditClientComponent {
     value: option.value,
     label: option.label,
   }));
+  protected readonly licensedLocationOptions = TENANT_LICENSED_LOCATION_OPTIONS.map((count) => ({
+    value: String(count),
+    label: count === 1 ? '1 sede' : `${count} sedi`,
+  }));
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   private readonly tenantId = computed(() => this.params().get('tenantId') ?? '');
@@ -111,6 +124,9 @@ export class EditClientComponent {
   protected readonly submitError = signal<string | null>(null);
   protected readonly supportSessionLoading = signal(false);
   protected readonly supportSessionError = signal<string | null>(null);
+  protected readonly grantLocationChangeLoading = signal(false);
+  protected readonly grantLocationChangeError = signal<string | null>(null);
+  protected readonly grantLocationChangeSuccess = signal(false);
   protected readonly saved = signal(false);
   protected readonly deleteDialogOpen = signal(false);
   protected readonly deleteLoading = signal(false);
@@ -127,6 +143,22 @@ export class EditClientComponent {
     );
   });
 
+  protected readonly canGrantLocationSelectionChange = computed(() => {
+    const detail = this.tenant();
+    if (!detail) {
+      return false;
+    }
+    return canAdminGrantLocationSelectionChange(detail);
+  });
+
+  protected readonly locationSelectionStatusLabel = computed(() => {
+    const detail = this.tenant();
+    if (!detail) {
+      return '';
+    }
+    return resolveAdminLocationSelectionStatusLabel(detail);
+  });
+
   protected readonly form = this.fb.group({
     tenantName: this.fb.control('', {
       validators: [Validators.required, Validators.minLength(2), Validators.maxLength(120)],
@@ -139,7 +171,13 @@ export class EditClientComponent {
       validators: [Validators.required],
     }),
     storeName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
-    locationName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
+    licensedLocationCount: this.fb.control(TENANT_LICENSED_LOCATION_MIN, {
+      validators: [
+        Validators.required,
+        Validators.min(TENANT_LICENSED_LOCATION_MIN),
+        Validators.max(TENANT_LICENSED_LOCATION_MAX),
+      ],
+    }),
   });
 
   constructor() {
@@ -164,6 +202,19 @@ export class EditClientComponent {
     this.form.controls.channelProfile.markAsTouched();
   }
 
+  protected onLicensedLocationCountSelect(value: string | null): void {
+    const parsed = Number(value);
+    if (
+      !Number.isInteger(parsed) ||
+      parsed < TENANT_LICENSED_LOCATION_MIN ||
+      parsed > TENANT_LICENSED_LOCATION_MAX
+    ) {
+      return;
+    }
+    this.form.controls.licensedLocationCount.setValue(parsed);
+    this.form.controls.licensedLocationCount.markAsTouched();
+  }
+
   private isChannelProfile(value: string): value is TenantChannelProfile {
     return (Object.values(TenantChannelProfile) as readonly string[]).includes(value);
   }
@@ -181,15 +232,14 @@ export class EditClientComponent {
 
     const raw = this.form.getRawValue();
     const storeName = raw.storeName.trim();
-    const locationName = raw.locationName.trim();
 
     this.adminTenants
       .updateTenant(detail.id, {
         tenantName: raw.tenantName.trim(),
         ownerDisplayName: raw.ownerDisplayName.trim(),
         channelProfile: raw.channelProfile,
+        licensedLocationCount: raw.licensedLocationCount,
         ...(storeName ? { storeName } : {}),
-        ...(locationName ? { locationName } : {}),
         ...profilePayloadFromForm(raw),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -212,7 +262,39 @@ export class EditClientComponent {
   protected reload(): void {
     this.saved.set(false);
     this.submitError.set(null);
+    this.grantLocationChangeSuccess.set(false);
+    this.grantLocationChangeError.set(null);
     void this.router.navigateByUrl(this.router.url, { onSameUrlNavigation: 'reload' });
+  }
+
+  protected grantLocationSelectionChange(): void {
+    const detail = this.tenant();
+    if (!detail || this.grantLocationChangeLoading() || !this.canGrantLocationSelectionChange()) {
+      return;
+    }
+
+    this.grantLocationChangeLoading.set(true);
+    this.grantLocationChangeError.set(null);
+    this.grantLocationChangeSuccess.set(false);
+
+    this.adminTenants
+      .grantLocationSelectionChange(detail.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.grantLocationChangeLoading.set(false);
+          this.grantLocationChangeSuccess.set(true);
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this.grantLocationChangeLoading.set(false);
+          if (isAppError(err)) {
+            this.grantLocationChangeError.set(err.message);
+            return;
+          }
+          this.grantLocationChangeError.set('Concessione cambio sede non riuscita. Riprova.');
+        },
+      });
   }
 
   protected openSupportSession(): void {

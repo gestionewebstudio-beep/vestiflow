@@ -24,6 +24,7 @@ import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ListTaxonomyCategoriesQueryDto } from './dto/list-taxonomy-categories.query.dto';
 import { ListCategoryAttributesQueryDto } from './dto/list-category-attributes.query.dto';
 import { PurgeShopifyDataDto } from './dto/purge-shopify-data.dto';
+import { LocationLicensingService } from '../inventory/location-licensing.service';
 import { ShopifyShopChangeService } from './shopify-shop-change.service';
 import type {
   ShopifyShopChangePreview,
@@ -43,6 +44,7 @@ export class ShopifyController {
     private readonly shopifyOrdersPull: ShopifyOrdersPullService,
     private readonly shopifyTaxonomy: ShopifyTaxonomyService,
     private readonly shopifyShopChange: ShopifyShopChangeService,
+    private readonly locationLicensing: LocationLicensingService,
   ) {}
 
   @Get('connection')
@@ -99,7 +101,8 @@ export class ShopifyController {
   @Roles(...ADMIN_ROLES)
   async syncLocations(@CurrentTenant() tenantId: string) {
     const result = await this.shopifyOAuth.resyncLocations(tenantId);
-    return { synced: true as const, ...result };
+    const autoLicensed = await this.locationLicensing.tryAutoLicenseSingleShopifyLocation(tenantId);
+    return { synced: true as const, autoLicensed, ...result };
   }
 
   @Post('sync/webhooks')

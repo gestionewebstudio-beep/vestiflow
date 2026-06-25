@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 1.9 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 2.0 — Giugno 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -501,9 +501,10 @@ npm run serve:pwa
 <li><strong>Anagrafica</strong> — P.IVA, CF, sede, contatti (opzionali)</li>
 <li><strong>Profilo canale</strong> — <strong>Solo gestionale</strong>, <strong>Shopify</strong> o <strong>TikTok Shop</strong> (determina integrazioni visibili al cliente)</li>
 <li><strong>Primo accesso</strong> — ruolo VestiFlow (<code>owner</code> default), nome, email, <strong>password iniziale</strong> (scelta dall’admin)</li>
+<li><strong>Piano sedi</strong> — <strong>Sedi incluse nel piano</strong> (1–10): numero massimo di location operative in VestiFlow per questo contratto</li>
 <li><strong>Setup</strong> — nome negozio e location iniziale (opzionali; default «Negozio principale»)</li>
 </ol>
-<p>Il backend crea: tenant, utente Supabase Auth con password, store, location, profilo utente collegato.</p>
+<p>Il backend crea: tenant, utente Supabase Auth con password, store, location (con <code>licensedInVf: true</code> solo se profilo <strong>Solo gestionale</strong>; con Shopify la licenza si assegna dopo sync + selezione cliente), profilo utente collegato.</p>
 <h3 id="dopo-il-provisioning">Dopo il provisioning</h3>
 <p>Consegna credenziali al titolare <strong>in modo sicuro</strong> (email + password). Il titolare accede da <code>/login</code> e può cambiare password da Impostazioni o tramite «Password dimenticata».</p>
 <blockquote>
@@ -519,7 +520,7 @@ npm run serve:pwa
 </thead>
 <tbody><tr>
 <td><strong>Shopify</strong></td>
-<td>MFA → OAuth Shopify → sync location → webhook → import</td>
+<td>MFA → OAuth Shopify → sync location → <strong>Sedi attive in VestiFlow</strong> → webhook → import</td>
 </tr>
 <tr>
 <td><strong>TikTok Shop</strong></td>
@@ -532,7 +533,10 @@ npm run serve:pwa
 </tbody></table>
 <h3 id="modifica-tenant-esistente">Modifica tenant esistente</h3>
 <p>Tabella <strong>Clienti registrati</strong> → click riga → <code>/app/admin/clients/:id</code>.</p>
-<p>Modificabile: anagrafica, <strong>profilo canale</strong> (se nessuna integrazione attiva), nome titolare, negozio, location. <strong>Email</strong> e <strong>ruolo</strong> del primo utente sono <strong>sola lettura</strong> in UI (campi disabilitati).</p>
+<p>Modificabile: anagrafica, <strong>profilo canale</strong> (se nessuna integrazione attiva), <strong>Sedi incluse nel piano</strong> (1–10), nome titolare, negozio. <strong>Email</strong> e <strong>ruolo</strong> del primo utente sono <strong>sola lettura</strong> in UI (campi disabilitati).</p>
+<p><strong>Sedi attive (read-only):</strong> sotto il selettore piano compare l’elenco delle location attualmente <strong>attive in VestiFlow</strong> (<code>licensedInVf: true</code>), con nome in campi disabilitati (non è più editabile il «nome location» di provisioning). Se il cliente non ha ancora salvato la selezione, l’elenco può essere vuoto.</p>
+<p><strong>Concedi cambio sede:</strong> pulsante visibile quando la selezione è <strong>bloccata</strong> e non c’è già una concessione one-shot in corso. Imposta <code>locationSelectionChangeGranted=true</code> sul tenant: il cliente può modificare <strong>una volta</strong> le sedi attive in Impostazioni; al salvataggio la selezione si <strong>riblocca</strong> e la concessione viene azzerata.</p>
+<p><strong>Riduzione piano sedi:</strong> se abbassi <strong>Sedi incluse nel piano</strong> sotto il numero di sedi già attive, l’API <strong>disattiva</strong> le eccedenze (mantiene le più vecchie per <code>createdAt</code>, le altre passano a <code>licensedInVf: false</code>). Non sblocca la selezione: il cliente non può riattivare sedi diverse finché non gli concedi il cambio sede.</p>
 <p>Da questa pagina (e dalla tabella clienti) puoi avviare <strong>Apri gestionale (assistenza)</strong> — vedi <a href="#sessione-assistenza-al-gestionale-cliente">§1 Sessione assistenza</a>.</p>
 <p>Per cambiare profilo canale con integrazione già connessa: il cliente deve <strong>disconnettere</strong> Shopify o TikTok da Impostazioni prima.</p>
 <h3 id="eliminazione-tenant-zona-pericolosa">Eliminazione tenant (zona pericolosa)</h3>
@@ -573,6 +577,11 @@ npm run serve:pwa
 </tr>
 <tr>
 <td>POST</td>
+<td><code>/admin/tenants/:id/grant-location-selection-change</code></td>
+<td>Concede al cliente un round di modifica sedi attive</td>
+</tr>
+<tr>
+<td>POST</td>
 <td><code>/admin/tenants/:id/support-session</code></td>
 <td>Avvia sessione assistenza (2 h)</td>
 </tr>
@@ -582,8 +591,8 @@ npm run serve:pwa
 <td>Termina sessione assistenza attiva</td>
 </tr>
 </tbody></table>
-<p>Body create include <code>role</code> (<code>owner</code> | <code>admin</code> | <code>manager</code> | <code>clerk</code>) e <code>channelProfile</code> (<code>gestionale</code> | <code>shopify</code> | <code>tiktok_shop</code>).</p>
-<p>Migration DB: <code>0018_support_sessions</code> — tabella <code>support_sessions</code>. In produzione: <code>npm run prisma:deploy</code> (o equivalente Railway) prima di usare assistenza.</p>
+<p>Body create include <code>role</code> (<code>owner</code> | <code>admin</code> | <code>manager</code> | <code>clerk</code>), <code>channelProfile</code> (<code>gestionale</code> | <code>shopify</code> | <code>tiktok_shop</code>) e <code>licensedLocationCount</code> (default <code>1</code>, max <code>10</code>).</p>
+<p>Migration DB: <code>0018_support_sessions</code> — tabella <code>support_sessions</code>; <code>0021_tenant_location_licensing</code> — <code>licensed_location_count</code>, <code>licensed_in_vf</code>; <code>0022_location_selection_lock</code> — blocco selezione + concessione admin. In produzione: <code>npm run prisma:deploy</code> (o equivalente Railway) prima di usare licensing sedi e assistenza.</p>
 <hr>
 <h2 id="8-autenticazione-e-ruoli">8. Autenticazione e ruoli</h2>
 <h3 id="flusso-auth">Flusso auth</h3>
@@ -690,7 +699,7 @@ npm run serve:pwa
 <tr>
 <td>Location</td>
 <td>Shopify master</td>
-<td>Import + mapping; cleanup sedi stale</td>
+<td>Import + mapping; cleanup sedi stale; <strong>operatività VF</strong> via <code>licensedInVf</code> + piano tenant</td>
 </tr>
 <tr>
 <td>Ordini fornitori</td>
@@ -836,7 +845,69 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <li><code>removeEmptyOnboardingLocation</code> elimina sede temporanea onboarding vuota e non collegata dopo sync</li>
 <li>Dopo sync/disconnect/purge: <code>ShopifyConnectionRefreshService.notifyInvalidated()</code> → shell ricarica location e topbar</li>
 </ul>
-<p>FE: <code>filterLocationsForTopbar</code> nasconde sede onboarding locale quando Shopify è connesso.</p>
+<p>FE: <code>filterLocationsForTopbar</code> e <code>OperationalLocationsService</code> espongono <strong>solo</strong> location con <code>licensedInVf: true</code> e <code>isActive: true</code> (nasconde anche sede onboarding locale quando Shopify è connesso).</p>
+<h3 id="licensing-sedi-e-blocco-selezione">Licensing sedi e blocco selezione</h3>
+<p>Modulo <code>LocationLicensingService</code> (<code>api/src/inventory/location-licensing.service.ts</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Concetto</th>
+<th>Campo / comportamento</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Piano contrattuale</strong></td>
+<td><code>Tenant.licensedLocationCount</code> (1–10), impostato in create/edit admin</td>
+</tr>
+<tr>
+<td><strong>Sede operativa VF</strong></td>
+<td><code>Location.licensedInVf</code> — solo queste compaiono in topbar, magazzino, movimenti, export CSV giacenze</td>
+</tr>
+<tr>
+<td><strong>Blocco selezione</strong></td>
+<td><code>Tenant.locationSelectionLocked</code> — dopo primo salvataggio cliente (<code>PUT /inventory/locations/licensed</code>)</td>
+</tr>
+<tr>
+<td><strong>Concessione admin</strong></td>
+<td><code>Tenant.locationSelectionChangeGranted</code> — one-shot; azzerata al salvataggio cliente</td>
+</tr>
+<tr>
+<td><strong>API summary</strong></td>
+<td><code>canChangeLicensedLocations = !locked || granted</code> in <code>GET /tenant/company</code> e <code>GET /admin/tenants/:id</code></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Metodo</th>
+<th>Ruolo</th>
+<th>Scopo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/inventory/locations/licensed</code></td>
+<td>PUT</td>
+<td>owner/admin</td>
+<td>Cliente salva elenco <code>locationIds</code> attive (≤ piano); default <code>lockAfterSave: true</code></td>
+</tr>
+<tr>
+<td><code>/admin/tenants/:id/grant-location-selection-change</code></td>
+<td>POST</td>
+<td>platform admin</td>
+<td>Sblocca <strong>un</strong> round di modifica per il tenant</td>
+</tr>
+</tbody></table>
+<p>Regole business:</p>
+<ul>
+<li><strong>403</strong> se il cliente tenta di salvare con selezione bloccata e senza concessione.</li>
+<li><strong>Auto-licenza singola sede Shopify:</strong> se piano = 1 e Shopify espone 1 sola location attiva, <code>tryAutoLicenseSingleShopifyLocation()</code> pre-seleziona senza bloccare (<code>lockAfterSave: false</code>, <code>bypassSelectionLock: true</code>); il blocco scatta al primo salvataggio esplicito del cliente quando applicabile.</li>
+<li><strong>Trim admin:</strong> abbassare <code>licensedLocationCount</code> disattiva le sedi in eccesso (FIFO per <code>createdAt</code>), <strong>senza</strong> sbloccare la selezione.</li>
+<li><strong>Scope inventario:</strong> <code>licensed-location-scope.util.ts</code> filtra query movimenti, giacenze, inventario fisico, retail-scans su sedi licenziate.</li>
+</ul>
+<p>FE tenant: <code>location-licensing-panel</code> in Impostazioni (Shopify); messaggi blocco/concessione in fondo al pannello.</p>
+<p>FE admin: <code>edit-client</code> — elenco <code>activeLocations</code> read-only + <strong>Concedi cambio sede</strong>.</p>
+<p>Migration: <code>0021_tenant_location_licensing</code>, <code>0022_location_selection_lock</code> (backfill: tenant con sedi già <code>licensedInVf</code> → <code>locationSelectionLocked=true</code>).</p>
 <h3 id="anagrafica-tenant-sede-fisica">Anagrafica tenant (Sede fisica)</h3>
 <table>
 <thead>
@@ -1088,7 +1159,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </thead>
 <tbody><tr>
 <td><code>Tenant</code></td>
-<td>Azienda cliente</td>
+<td>Azienda cliente; <code>licensedLocationCount</code>, <code>locationSelectionLocked</code>, <code>locationSelectionChangeGranted</code></td>
 </tr>
 <tr>
 <td><code>User</code></td>
@@ -1096,7 +1167,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><code>Store</code> / <code>Location</code></td>
-<td>Store commerciale; location per stock</td>
+<td>Store commerciale; location per stock; <code>licensedInVf</code> = sede operativa nel piano VF</td>
 </tr>
 <tr>
 <td><code>Product</code> / <code>ProductVariant</code></td>
@@ -1202,7 +1273,11 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </thead>
 <tbody><tr>
 <td><strong>Lista</strong></td>
-<td><code>GET /inventory/levels</code> — paginata; query <code>locationId</code>, <code>search</code>, <code>lowStockOnly</code>, <code>page</code>, <code>pageSize</code>. <strong>Con <code>search</code>:</strong> espande varianti trovate (SKU/barcode/nome) anche senza riga in DB, una riga per sede con quantità 0. <strong>Senza <code>search</code>:</strong> solo righe esistenti in <code>inventory_levels</code>.</td>
+<td><code>GET /inventory/levels</code> — paginata; query <code>locationId</code>, <code>search</code>, <code>lowStockOnly</code>, <code>page</code>, <code>pageSize</code>. Solo location <strong>licenziate e attive</strong>. <strong>Con <code>search</code>:</strong> espande varianti trovate (SKU/barcode/nome) anche senza riga in DB, una riga per sede con quantità 0. <strong>Senza <code>search</code>:</strong> solo righe esistenti in <code>inventory_levels</code>.</td>
+</tr>
+<tr>
+<td><strong>Sedi attive</strong></td>
+<td><code>PUT /inventory/locations/licensed</code> — body <code>{ locationIds: string[] }</code>; owner/admin; vedi <a href="#licensing-sedi-e-blocco-selezione">§9 Licensing sedi</a></td>
 </tr>
 <tr>
 <td><strong>Export</strong></td>
@@ -1484,6 +1559,30 @@ cd api &amp;&amp; npm run test
 <td>Evidenza sidebar su sotto-route</td>
 <td><code>src/app/shared/utils/nav-link-active.util.spec.ts</code></td>
 </tr>
+<tr>
+<td>Licensing sedi + blocco selezione (BE)</td>
+<td><code>api/src/inventory/location-licensing.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Scope query su sedi licenziate</td>
+<td><code>api/src/inventory/licensed-location-scope.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>Admin grant + trim piano / activeLocations</td>
+<td><code>api/src/admin/admin-tenants.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Pannello Sedi attive (FE)</td>
+<td><code>src/app/features/settings/components/location-licensing-panel/*.spec.ts</code></td>
+</tr>
+<tr>
+<td>Util lock/grant UI</td>
+<td><code>src/app/core/utils/location-selection-lock.util.spec.ts</code>, <code>admin-location-selection.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>Summary licensing in tenant company</td>
+<td><code>src/app/features/settings/models/tenant-company.model.spec.ts</code>, <code>tenant-company.service.spec.ts</code></td>
+</tr>
 </tbody></table>
 <h3 id="ci-github-actions">CI GitHub Actions</h3>
 <ul>
@@ -1513,6 +1612,9 @@ cd api &amp;&amp; npm run test
 <li><input disabled="" type="checkbox"> Platform admin → <strong>Apri gestionale (assistenza)</strong> su tenant test → banner + operazione magazzino → <strong>Esci dall&#39;assistenza</strong></li>
 <li><input disabled="" type="checkbox"> Profilo canale Shopify e TikTok su tenant test</li>
 <li><input disabled="" type="checkbox"> OAuth Shopify su tenant test</li>
+<li><input disabled="" type="checkbox"> Tenant Shopify: sync location → <strong>Sedi attive in VestiFlow</strong> → salva → verifica blocco UI</li>
+<li><input disabled="" type="checkbox"> Platform admin → Modifica cliente → <strong>Concedi cambio sede</strong> → cliente modifica e salva → riblocco</li>
+<li><input disabled="" type="checkbox"> Riduzione <strong>Sedi incluse nel piano</strong> su tenant con 2+ sedi attive → trim automatico</li>
 <li><input disabled="" type="checkbox"> OAuth TikTok Shop su tenant test (se abilitato)</li>
 <li><input disabled="" type="checkbox"> Upload foto profilo + avatar topbar</li>
 <li><input disabled="" type="checkbox"> Import catalogo + webhook</li>
@@ -1531,7 +1633,7 @@ cd api &amp;&amp; npm run test
 <li><input disabled="" type="checkbox"> CORS ristretto ai domini produzione</li>
 <li><input disabled="" type="checkbox"> Token Shopify cifrati; revoca su disconnessione</li>
 <li><input disabled="" type="checkbox"> MFA disponibile per admin negozio</li>
-<li><input disabled="" type="checkbox"> Migration <code>0018_support_sessions</code> applicata in produzione</li>
+<li><input disabled="" type="checkbox"> Migration <code>0018_support_sessions</code>, <code>0021_tenant_location_licensing</code>, <code>0022_location_selection_lock</code> applicate in produzione</li>
 <li><input disabled="" type="checkbox"> Sessioni assistenza tracciate in <code>support_sessions</code> (nessuna password condivisa per supporto)</li>
 <li><input disabled="" type="checkbox"> Dipendenze: <code>npm audit</code> senza high/critical</li>
 <li><input disabled="" type="checkbox"> Guide rigenerate se modificate</li>
@@ -1602,8 +1704,12 @@ cd api &amp;&amp; npm run test
 <td>Tenant contiene utente platform admin, oppure email operatore non in <code>PLATFORM_ADMIN_EMAILS</code></td>
 </tr>
 <tr>
-<td>404 <code>/shopify/connection</code> in assistenza</td>
-<td>Comportamento atteso se Shopify non connesso — API risponde <code>not_connected</code> (non errore bloccante)</td>
+<td>403 «Selezione sedi bloccata» su PUT licensed</td>
+<td>Concedi cambio sede da admin o verifica <code>locationSelectionLocked</code> / <code>locationSelectionChangeGranted</code></td>
+</tr>
+<tr>
+<td>Cliente vede tutte le location Shopify in magazzino</td>
+<td>Non ha salvato <strong>Sedi attive</strong> o piano &gt; sedi selezionate; verifica <code>licensedInVf</code></td>
 </tr>
 </tbody></table>
 <hr>
@@ -1640,8 +1746,12 @@ cd api &amp;&amp; npm run test
 <td>Non in scope — solo ordini confermati in <strong>Vendite</strong></td>
 </tr>
 <tr>
+<td>Rotazione sedi attive oltre limite piano</td>
+<td>Bloccata lato API — solo <strong>Concedi cambio sede</strong> + salvataggio cliente entro <code>licensedLocationCount</code></td>
+</tr>
+<tr>
 <td>Location manuale senza Shopify</td>
-<td>Parziale (location onboarding); sync Shopify consigliato</td>
+<td>Parziale (location onboarding); sync Shopify consigliato; licensing via <code>licensedInVf</code></td>
 </tr>
 <tr>
 <td>Cassa / corrispettivi IT nativi</td>

@@ -1,7 +1,11 @@
-import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TenantChannelProfile } from '@prisma/client';
 
+import {
+  TENANT_LICENSED_LOCATION_MAX,
+  TENANT_LICENSED_LOCATION_MIN,
+} from '../../common/tenant-location-license.constants';
 import { TenantProfileFieldsDto } from './tenant-profile-fields.dto';
 
 function trimToUndefined({ value }: { value: unknown }): unknown {
@@ -44,4 +48,11 @@ export class UpdateTenantDto extends TenantProfileFieldsDto {
   @MaxLength(120)
   @Transform(trimToUndefined)
   locationName?: string;
+
+  /** Sedi operative incluse nel contratto (1–10). */
+  @IsOptional()
+  @IsInt()
+  @Min(TENANT_LICENSED_LOCATION_MIN)
+  @Max(TENANT_LICENSED_LOCATION_MAX)
+  licensedLocationCount?: number;
 }

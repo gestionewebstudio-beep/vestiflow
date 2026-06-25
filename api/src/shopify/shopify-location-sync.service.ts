@@ -84,6 +84,7 @@ export class ShopifyLocationSyncService {
           name: shopifyLocation.name.trim(),
           code,
           isActive: shopifyLocation.active,
+          licensedInVf: false,
           ...this.mapShopifyAddress(shopifyLocation),
           shopifyLocationId: shopifyId,
           shopifySyncStatus: ShopifySyncStatus.synced,

@@ -545,8 +545,19 @@
           <app-location-table
             [locations]="visibleLocations()"
             [showShopifyColumn]="showShopifyLocationColumn()"
+            [showLicensedColumn]="showShopifyLocationColumn()"
             [groupByShopifySource]="showShopifyLocationColumn()"
           />
+          @if (showLocationLicensingPanel()) {
+            <app-location-licensing-panel
+              [locations]="visibleLocations()"
+              [licensedLocationCount]="licensedLocationCount()"
+              [canManage]="canManageLocationSelection()"
+              [selectionLocked]="locationSelectionLocked()"
+              [selectionChangeGranted]="locationSelectionChangeGranted()"
+              (saved)="onLocationLicensingSaved()"
+            />
+          }
         } @else if (locationsLoading()) {
           <app-table-skeleton [columns]="4" [rows]="3" />
         } @else {

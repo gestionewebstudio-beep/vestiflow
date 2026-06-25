@@ -39,31 +39,34 @@ export function patchTenantProfileForm(form: FormGroup, detail: TenantDetail): v
     countryCode: detail.profile.countryCode ?? 'IT',
     ownerDisplayName: detail.owner?.displayName ?? '',
     channelProfile: detail.channelProfile,
+    licensedLocationCount: detail.licensedLocationCount,
     storeName: detail.store?.name ?? '',
-    locationName: detail.location?.name ?? '',
   });
 }
 
 export function profilePayloadFromForm(
-  raw: Record<string, string>,
+  raw: Record<string, string | number | boolean | null | undefined>,
 ): Record<string, string | undefined> {
-  const optional = (value: string): string | undefined => {
-    const trimmed = value.trim();
+  const optional = (value: string | number | boolean | null | undefined): string | undefined => {
+    if (typeof value !== 'string' && typeof value !== 'number') {
+      return undefined;
+    }
+    const trimmed = (typeof value === 'string' ? value : String(value)).trim();
     return trimmed.length > 0 ? trimmed : undefined;
   };
 
   return {
-    legalName: optional(raw['legalName'] ?? ''),
-    vatNumber: optional(raw['vatNumber'] ?? ''),
-    fiscalCode: optional(raw['fiscalCode'] ?? ''),
-    phone: optional(raw['phone'] ?? ''),
-    pec: optional(raw['pec'] ?? ''),
-    sdiCode: optional(raw['sdiCode'] ?? ''),
-    addressLine1: optional(raw['addressLine1'] ?? ''),
-    addressLine2: optional(raw['addressLine2'] ?? ''),
-    city: optional(raw['city'] ?? ''),
-    province: optional(raw['province'] ?? ''),
-    postalCode: optional(raw['postalCode'] ?? ''),
-    countryCode: optional(raw['countryCode'] ?? ''),
+    legalName: optional(raw['legalName']),
+    vatNumber: optional(raw['vatNumber']),
+    fiscalCode: optional(raw['fiscalCode']),
+    phone: optional(raw['phone']),
+    pec: optional(raw['pec']),
+    sdiCode: optional(raw['sdiCode']),
+    addressLine1: optional(raw['addressLine1']),
+    addressLine2: optional(raw['addressLine2']),
+    city: optional(raw['city']),
+    province: optional(raw['province']),
+    postalCode: optional(raw['postalCode']),
+    countryCode: optional(raw['countryCode']),
   };
 }

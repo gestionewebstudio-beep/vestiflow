@@ -17,6 +17,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
+import {
+  locationScopeToInventoryLevelFilter,
+  locationScopeToMovementFilter,
+  resolveLicensedLocationScope,
+} from './licensed-location-scope.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type {
   ListInventoryLevelsQueryDto,
@@ -74,9 +79,14 @@ export class InventoryService {
     tenantId: string,
     query: ListInventoryLevelsQueryDto,
   ): Promise<Paginated<InventoryLevelWithRefs>> {
+    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+    if (!scope) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
     const where: Prisma.InventoryLevelWhereInput = {
       tenantId,
-      ...(query.locationId ? { locationId: query.locationId } : {}),
+      ...locationScopeToInventoryLevelFilter(scope),
       ...(query.lowStockOnly
         ? { available: { lte: this.prisma.inventoryLevel.fields.minThreshold } }
         : {}),
@@ -113,6 +123,11 @@ export class InventoryService {
       ...buildInventoryVariantSearchWhere(search),
     };
 
+    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+    if (!scope) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
     const [variants, locations] = await Promise.all([
       this.prisma.productVariant.findMany({
         where: variantWhere,
@@ -127,7 +142,9 @@ export class InventoryService {
       this.prisma.location.findMany({
         where: {
           tenantId,
-          ...(query.locationId ? { id: query.locationId } : {}),
+          licensedInVf: true,
+          isActive: true,
+          id: { in: [...scope] },
         },
         select: { id: true, name: true },
         orderBy: { name: 'asc' },
@@ -143,7 +160,7 @@ export class InventoryService {
       where: {
         tenantId,
         variantId: { in: variantIds },
-        ...(query.locationId ? { locationId: query.locationId } : {}),
+        ...locationScopeToInventoryLevelFilter(scope),
       },
       include: {
         variant: { select: { sku: true, product: { select: { name: true } } } },
@@ -211,9 +228,14 @@ export class InventoryService {
     tenantId: string,
     query: ListMovementsQueryDto,
   ): Promise<Paginated<StockMovement>> {
+    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+    if (!scope) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
     const where: Prisma.StockMovementWhereInput = {
       tenantId,
-      ...(query.locationId ? { locationId: query.locationId } : {}),
+      ...locationScopeToMovementFilter(scope),
       ...(query.variantId ? { variantId: query.variantId } : {}),
       ...(query.type ? { type: query.type } : {}),
       ...(query.from || query.to
@@ -426,11 +448,11 @@ export class InventoryService {
     locationId: string,
   ): Promise<void> {
     const location = await tx.location.findFirst({
-      where: { id: locationId, tenantId },
+      where: { id: locationId, tenantId, licensedInVf: true, isActive: true },
       select: { id: true },
     });
     if (!location) {
-      throw new NotFoundException('Location non trovata');
+      throw new NotFoundException('Location non trovata o non attiva nel tuo piano');
     }
   }
 

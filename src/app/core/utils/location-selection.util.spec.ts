@@ -8,6 +8,7 @@ import { ShopifySyncStatus } from '@core/models/shopify.model';
 import {
   filterLocationsForSettings,
   filterLocationsForTopbar,
+  isLicensedOperationalLocation,
   isShopifyImportResidualLocation,
   isShopifyManagedLocation,
 } from './location-selection.util';
@@ -18,6 +19,7 @@ function createLocation(partial: Partial<Location> & Pick<Location, 'id' | 'name
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     isActive: true,
+    licensedInVf: true,
     ...partial,
   };
 }
@@ -168,5 +170,47 @@ describe('location-selection.util', () => {
     });
 
     expect(filtered).toHaveLength(2);
+  });
+
+  it('isLicensedOperationalLocation richiede licensedInVf e isActive', () => {
+    expect(
+      isLicensedOperationalLocation(
+        createLocation({ id: 'active', name: 'Attiva', licensedInVf: true, isActive: true }),
+      ),
+    ).toBe(true);
+    expect(
+      isLicensedOperationalLocation(
+        createLocation({ id: 'inactive', name: 'Off', licensedInVf: false, isActive: true }),
+      ),
+    ).toBe(false);
+    expect(
+      isLicensedOperationalLocation(
+        createLocation({ id: 'shopify-off', name: 'Off', licensedInVf: true, isActive: false }),
+      ),
+    ).toBe(false);
+  });
+
+  it('filterLocationsForTopbar esclude sedi non licenziate anche se attive su Shopify', () => {
+    const locations = [
+      createLocation({
+        id: 'licensed',
+        name: 'Shop location',
+        licensedInVf: true,
+        shopify: { status: ShopifySyncStatus.Synced, shopifyId: '1' },
+      }),
+      createLocation({
+        id: 'unlicensed',
+        name: 'Snow City Warehouse',
+        licensedInVf: false,
+        shopify: { status: ShopifySyncStatus.Synced, shopifyId: '2' },
+      }),
+    ];
+
+    const filtered = filterLocationsForTopbar(locations, {
+      channelProfile: TenantChannelProfile.Shopify,
+      shopifyConnectionStatus: ShopifyConnectionStatus.Connected,
+    });
+
+    expect(filtered.map((location) => location.id)).toEqual(['licensed']);
   });
 });

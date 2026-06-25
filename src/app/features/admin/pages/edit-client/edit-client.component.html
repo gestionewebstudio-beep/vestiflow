@@ -149,8 +149,39 @@
           </div>
         </section>
 
-        <section class="create-client__section" aria-labelledby="edit-client-setup">
+        <section
+          class="create-client__section create-client__section--store-setup"
+          aria-labelledby="edit-client-setup"
+        >
           <h3 id="edit-client-setup" class="create-client__section-title">Negozio e location</h3>
+
+          <div class="create-client__field">
+            <span class="create-client__field-label" id="edit-licensed-locations-label"
+              >Sedi incluse nel piano</span
+            >
+            <app-select-menu
+              ariaLabel="Sedi incluse nel piano"
+              placeholder="Seleziona…"
+              [options]="licensedLocationOptions"
+              [value]="form.controls.licensedLocationCount.value.toString()"
+              [includeEmptyOption]="false"
+              [fullWidth]="true"
+              [matchInputHeight]="true"
+              (valueChange)="onLicensedLocationCountSelect($event)"
+            />
+            @if (detail.licensedLocationActiveCount > 0) {
+              <span class="create-client__hint"
+                >Attualmente attive in VestiFlow: {{ detail.licensedLocationActiveCount }} /
+                {{ detail.licensedLocationCount }}. Se abbassi il limite, le sedi in eccesso vengono
+                disattivate automaticamente (restano le più vecchie).</span
+              >
+            } @else {
+              <span class="create-client__hint"
+                >Il cliente sceglierà le sedi dopo il sync Shopify (max
+                {{ detail.licensedLocationCount }}).</span
+              >
+            }
+          </div>
 
           <label class="create-client__field" for="edit-store-name">
             <span class="create-client__field-label">Nome negozio</span>
@@ -162,15 +193,76 @@
             />
           </label>
 
-          <label class="create-client__field" for="edit-location-name">
-            <span class="create-client__field-label">Nome location</span>
-            <input
-              id="edit-location-name"
-              class="create-client__input"
-              type="text"
-              formControlName="locationName"
-            />
-          </label>
+          <div
+            class="create-client__field create-client__field--span-full create-client__field--store-active-locations"
+          >
+            <span class="create-client__field-label" id="edit-active-locations-label"
+              >Sedi attive in VestiFlow</span
+            >
+            @if (detail.activeLocations.length > 0) {
+              <div
+                class="create-client__active-locations"
+                aria-labelledby="edit-active-locations-label"
+              >
+                @for (activeLocation of detail.activeLocations; track activeLocation.id) {
+                  <div class="create-client__active-location-field">
+                    <div class="create-client__active-location-input">
+                      <input
+                        type="text"
+                        class="create-client__input create-client__input--readonly"
+                        [value]="activeLocation.name"
+                        readonly
+                        tabindex="-1"
+                        aria-readonly="true"
+                        [attr.aria-label]="'Sede attiva: ' + activeLocation.name"
+                      />
+                      @if (activeLocation.code) {
+                        <span class="create-client__active-location-code tabular-nums">{{
+                          activeLocation.code
+                        }}</span>
+                      }
+                    </div>
+                    @if (!activeLocation.isActive) {
+                      <span class="create-client__active-location-badge">Disattiva su Shopify</span>
+                    }
+                  </div>
+                }
+              </div>
+            } @else {
+              <input
+                type="text"
+                class="create-client__input create-client__input--readonly"
+                value="Nessuna sede attiva"
+                readonly
+                tabindex="-1"
+                aria-readonly="true"
+                aria-labelledby="edit-active-locations-label"
+              />
+            }
+
+            @if (locationSelectionStatusLabel(); as statusLabel) {
+              <p class="create-client__hint">{{ statusLabel }}</p>
+            }
+            @if (grantLocationChangeSuccess()) {
+              <p class="create-client__success" role="status">Cambio sede concesso al cliente.</p>
+            }
+            @if (grantLocationChangeError(); as message) {
+              <p class="create-client__alert" role="alert">{{ message }}</p>
+            }
+            @if (canGrantLocationSelectionChange()) {
+              <div class="create-client__inline-action">
+                <app-button
+                  type="button"
+                  variant="secondary"
+                  [loading]="grantLocationChangeLoading()"
+                  [disabled]="grantLocationChangeLoading()"
+                  (click)="grantLocationSelectionChange()"
+                >
+                  Concedi cambio sede
+                </app-button>
+              </div>
+            }
+          </div>
         </section>
 
         @if (submitError(); as message) {

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ChannelsModule } from '../channels/channels.module';
+import { LocationLicensingModule } from './location-licensing.module';
 import { InventoryCountService } from './inventory-count.service';
 import { InventoryController } from './inventory.controller';
 import { InventoryExportService } from './inventory-export.service';
@@ -8,7 +9,7 @@ import { InventoryImportService } from './inventory-import.service';
 import { InventoryService } from './inventory.service';
 
 @Module({
-  imports: [ChannelsModule],
+  imports: [ChannelsModule, LocationLicensingModule],
   controllers: [InventoryController],
   providers: [
     InventoryService,
@@ -16,5 +17,6 @@ import { InventoryService } from './inventory.service';
     InventoryExportService,
     InventoryImportService,
   ],
+  exports: [LocationLicensingModule],
 })
 export class InventoryModule {}

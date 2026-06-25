@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AppErrorKind } from '@core/models/app-error.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { ProductService } from '@features/products/services/product.service';
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
@@ -64,6 +65,12 @@ describe('SupplierOrderFormComponent', () => {
         {
           provide: InventoryService,
           useValue: { getLocations: () => of(LOCATIONS) },
+        },
+        {
+          provide: OperationalLocationsService,
+          useValue: {
+            locations: () => LOCATIONS,
+          },
         },
         {
           provide: SupplierOrderService,

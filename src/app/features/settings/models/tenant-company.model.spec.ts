@@ -5,6 +5,7 @@ import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model'
 import {
   buildTenantClientExtendedFields,
   tenantClientExtendedDetailsMeta,
+  tenantCompanyFromDto,
   type TenantCompany,
 } from './tenant-company.model';
 
@@ -12,6 +13,11 @@ const baseCompany = (profile: Partial<TenantCompany['profile']> = {}): TenantCom
   name: 'Boutique Napoli',
   channelProfile: TenantChannelProfile.Shopify,
   storeName: 'Negozio principale',
+  licensedLocationCount: 1,
+  licensedLocationActiveCount: 1,
+  locationSelectionLocked: false,
+  locationSelectionChangeGranted: false,
+  canChangeLicensedLocations: true,
   profile: {
     legalName: null,
     vatNumber: null,
@@ -60,5 +66,22 @@ describe('tenant-company.model extended fields', () => {
     expect(tenantClientExtendedDetailsMeta(0)).toBe('');
     expect(tenantClientExtendedDetailsMeta(1)).toBe('1 dato registrato');
     expect(tenantClientExtendedDetailsMeta(3)).toBe('3 dati registrati');
+  });
+
+  it('tenantCompanyFromDto mappa flag blocco selezione sedi', () => {
+    const company = tenantCompanyFromDto({
+      name: 'Cliente',
+      channelProfile: TenantChannelProfile.Shopify,
+      storeName: 'Negozio',
+      licensedLocationCount: 2,
+      licensedLocationActiveCount: 1,
+      locationSelectionLocked: true,
+      locationSelectionChangeGranted: false,
+      canChangeLicensedLocations: false,
+      profile: baseCompany().profile,
+    });
+
+    expect(company.locationSelectionLocked).toBe(true);
+    expect(company.canChangeLicensedLocations).toBe(false);
   });
 });

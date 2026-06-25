@@ -20,6 +20,11 @@ export interface TenantCompany {
   readonly name: string;
   readonly channelProfile: TenantChannelProfile;
   readonly storeName: string | null;
+  readonly licensedLocationCount: number;
+  readonly licensedLocationActiveCount: number;
+  readonly locationSelectionLocked: boolean;
+  readonly locationSelectionChangeGranted: boolean;
+  readonly canChangeLicensedLocations: boolean;
   readonly profile: TenantCompanyProfile;
 }
 
@@ -27,6 +32,11 @@ export interface TenantCompanyDto {
   readonly name: string;
   readonly channelProfile: TenantChannelProfile;
   readonly storeName: string | null;
+  readonly licensedLocationCount: number;
+  readonly licensedLocationActiveCount: number;
+  readonly locationSelectionLocked: boolean;
+  readonly locationSelectionChangeGranted: boolean;
+  readonly canChangeLicensedLocations: boolean;
   readonly profile: TenantCompanyProfile;
 }
 
@@ -35,6 +45,11 @@ export function tenantCompanyFromDto(dto: TenantCompanyDto): TenantCompany {
     name: dto.name.trim(),
     channelProfile: dto.channelProfile,
     storeName: dto.storeName?.trim() || null,
+    licensedLocationCount: dto.licensedLocationCount,
+    licensedLocationActiveCount: dto.licensedLocationActiveCount,
+    locationSelectionLocked: dto.locationSelectionLocked,
+    locationSelectionChangeGranted: dto.locationSelectionChangeGranted,
+    canChangeLicensedLocations: dto.canChangeLicensedLocations,
     profile: {
       legalName: dto.profile.legalName?.trim() || null,
       vatNumber: dto.profile.vatNumber?.trim() || null,

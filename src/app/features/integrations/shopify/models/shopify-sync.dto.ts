@@ -1,5 +1,6 @@
 export interface ShopifySyncLocationsDto {
   readonly synced: true;
+  readonly autoLicensed?: boolean;
   readonly matchedCount: number;
   readonly importedCount: number;
   readonly totalCount: number;

@@ -10,7 +10,10 @@ describe('InventoryCountService', () => {
 
   function createService() {
     const prisma = {
-      location: { findFirst: vi.fn() },
+      location: {
+        findFirst: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       inventoryLevel: { findMany: vi.fn() },
       inventoryCountSession: {
         findMany: vi.fn(),

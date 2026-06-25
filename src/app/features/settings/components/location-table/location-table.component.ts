@@ -17,6 +17,7 @@ import type { BadgeTone } from '@shared/components/badge/badge.component';
 export class LocationTableComponent {
   readonly locations = input.required<readonly Location[]>();
   readonly showShopifyColumn = input(true);
+  readonly showLicensedColumn = input(false);
   readonly groupByShopifySource = input(false);
 
   protected readonly shopifyLocations = computed(() =>
@@ -74,5 +75,13 @@ export class LocationTableComponent {
       default:
         return 'neutral';
     }
+  }
+
+  protected licensedLabel(location: Location): string {
+    return location.licensedInVf ? 'Attiva in VF' : 'Non attiva';
+  }
+
+  protected licensedTone(location: Location): BadgeTone {
+    return location.licensedInVf ? 'success' : 'neutral';
   }
 }

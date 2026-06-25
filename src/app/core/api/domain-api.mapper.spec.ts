@@ -162,6 +162,7 @@ describe('domain-api.mapper', () => {
         postalCode: '80100',
         countryCode: 'IT',
         shopifySyncStatus: ShopifySyncStatus.NotConnected,
+        licensedInVf: true,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
       });
@@ -183,6 +184,7 @@ describe('domain-api.mapper', () => {
         name: 'Deposito',
         isActive: true,
         shopifySyncStatus: ShopifySyncStatus.NotConnected,
+        licensedInVf: true,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
       });

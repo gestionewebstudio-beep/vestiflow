@@ -1,5 +1,5 @@
 <h1 id="vestiflow--guida-per-lutente">VestiFlow — Guida per l&#39;utente</h1>
-<p><strong>Versione documento:</strong> 2.8 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 3.0 — Giugno 2026</p>
 <p><strong>Per chi è questa guida:</strong> titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.</p>
 <p><strong>Prodotto:</strong> VestiFlow — gestionale web multi-sede per <strong>retail e negozi con inventario fisico</strong>, con integrazione opzionale a <strong>Shopify</strong> o <strong>TikTok Shop</strong> (in base al profilo scelto per il tuo negozio). Adatto ad abbigliamento, accessori, cosmetica, food con varianti, e-commerce Shopify e altri settori con SKU e magazzino. L&#39;integrazione <strong>TikTok Shop è ancora parziale</strong> — vedi <a href="#7-collegare-tiktok-shop">§7</a>.</p>
 <hr>
@@ -167,7 +167,7 @@
 <ul>
 <li><strong>VestiFlow</strong> — nome del gestionale</li>
 <li><strong>Tema</strong> — chiaro / scuro / sistema (icona sole, luna, monitor)</li>
-<li><strong>Selettore location</strong> — filtra le operazioni per la sede attiva (negozio, magazzino, ecc.)</li>
+<li><strong>Selettore location</strong> — filtra le operazioni per la <strong>sede attiva</strong> (solo le sedi incluse nel tuo piano e attivate in VestiFlow; vedi <a href="#sedi-location">§5 Sedi</a>)</li>
 <li><strong>Sync Shopify</strong> — chip con icona e <strong>data/ora ultimo sync</strong>; il punto colorato indica lo stato (verde = ok). Clic → Impostazioni</li>
 <li><strong>Avatar profilo</strong> — foto o iniziali; <strong>clic → Impostazioni</strong></li>
 <li><strong>Esci</strong> — logout con conferma (desktop in topbar; su smartphone in fondo al menu ☰)</li>
@@ -188,7 +188,7 @@
 </tr>
 <tr>
 <td><strong>Shopify</strong></td>
-<td>Profilo, <strong>Sede fisica</strong>, <strong>Integrazione Shopify</strong> (inclusa tabella <strong>Location</strong>), Sicurezza, Aspetto</td>
+<td>Profilo, <strong>Sede fisica</strong>, <strong>Integrazione Shopify</strong> (Location + <strong>Sedi attive in VestiFlow</strong>), Sicurezza, Aspetto</td>
 </tr>
 <tr>
 <td><strong>TikTok Shop</strong></td>
@@ -242,6 +242,12 @@
 </thead>
 <tbody><tr>
 <td>Collegare Shopify / TikTok Shop, sync sedi, import</td>
+<td>Sì</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Selezionare e salvare <strong>sedi attive in VestiFlow</strong></td>
 <td>Sì</td>
 <td>No</td>
 <td>No</td>
@@ -400,20 +406,25 @@
 <tr>
 <td>4b</td>
 <td>Impostazioni</td>
-<td><strong>Sincronizza location</strong> (sedi)</td>
+<td><strong>Sincronizza location</strong> (importa le sedi da Shopify)</td>
 </tr>
 <tr>
 <td>4c</td>
 <td>Impostazioni</td>
-<td><strong>Attiva aggiornamenti automatici</strong></td>
+<td><strong>Sedi attive in VestiFlow</strong> — seleziona le sedi del piano e <strong>Salva sedi attive</strong></td>
 </tr>
 <tr>
 <td>4d</td>
 <td>Impostazioni</td>
-<td><strong>Importa catalogo da Shopify</strong> (se hai già prodotti online)</td>
+<td><strong>Attiva aggiornamenti automatici</strong></td>
 </tr>
 <tr>
 <td>4e</td>
+<td>Impostazioni</td>
+<td><strong>Importa catalogo da Shopify</strong> (se hai già prodotti online)</td>
+</tr>
+<tr>
+<td>4f</td>
 <td>Registra vendita</td>
 <td>Prova scansione test se vendi in negozio con cassa esterna</td>
 </tr>
@@ -445,9 +456,39 @@
 </tbody></table>
 <p><strong>Profilo Solo gestionale:</strong> salta il collegamento e-commerce; usa catalogo e magazzino solo in VestiFlow.</p>
 <h3 id="sedi-location">Sedi (location)</h3>
-<p>Una <strong>sede</strong> è un luogo dove conti le giacenze (negozio, magazzino, secondo punto vendita). Con profilo <strong>Shopify</strong>, le sedi operative si gestiscono in <strong>Impostazioni → Integrazione Shopify → Location</strong> e nel <strong>selettore location</strong> in alto.</p>
+<p>Una <strong>sede</strong> è un luogo dove conti le giacenze (negozio, magazzino, secondo punto vendita). Con profilo <strong>Shopify</strong>, le location importate si vedono in <strong>Impostazioni → Integrazione Shopify</strong> (tabella <strong>Location</strong>); le sedi <strong>operative</strong> in VestiFlow si scelgono nel pannello <strong>Sedi attive in VestiFlow</strong> e nel <strong>selettore location</strong> in alto.</p>
+<h4 id="piano-sedi-e-selezione-attiva">Piano sedi e selezione attiva</h4>
+<p>Il tuo contratto include un numero massimo di <strong>sedi operative</strong> in VestiFlow (es. 1, 3 o 10). Non tutte le location presenti su Shopify devono essere attive nel gestionale: ne selezioni fino al limite del piano.</p>
+<table>
+<thead>
+<tr>
+<th>Fase</th>
+<th>Cosa succede</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Dopo sync location</strong></td>
+<td>Compaiono tutte le sedi Shopify importate; nel pannello <strong>Sedi attive in VestiFlow</strong> scegli quali attivare (entro il limite)</td>
+</tr>
+<tr>
+<td><strong>Primo salvataggio</strong></td>
+<td>Clic <strong>Salva sedi attive</strong> — da quel momento la scelta è <strong>bloccata</strong></td>
+</tr>
+<tr>
+<td><strong>Dopo il blocco</strong></td>
+<td>Vedi solo le sedi attive; compare il messaggio <em>«Contatta l&#39;assistenza per modificare le sedi attive»</em></td>
+</tr>
+<tr>
+<td><strong>Cambio sedi</strong></td>
+<td>Solo il <strong>referente VestiFlow</strong> può sbloccarti <strong>una volta</strong>; poi salvi di nuovo e la selezione si riblocca</td>
+</tr>
+</tbody></table>
+<p>Solo <strong>Titolare</strong> e <strong>Amministratore</strong> possono salvare la selezione sedi.</p>
+<p><strong>Eccezione piano 1 sede:</strong> se Shopify espone <strong>una sola</strong> location attiva, VestiFlow può pre-selezionarla al sync, ma il <strong>blocco</strong> scatta solo dopo il tuo <strong>primo salvataggio</strong> esplicito (se il piano prevede più sedi o devi confermare).</p>
+<h4 id="sync-e-sedi-locali">Sync e sedi locali</h4>
 <p>Dopo <strong>Sincronizza location</strong>, compaiono le <strong>Sedi Shopify</strong> (importate dal negozio online) separate dalle eventuali <strong>Sedi locali</strong>. All’attivazione può esistere una sede temporanea di onboarding: viene rimossa automaticamente al primo sync se non ha giacenze.</p>
-<p><strong>Più sedi nello stesso shop Shopify</strong> (es. Napoli + magazzino): supportato. <strong>Due shop Shopify distinti</strong> (due domini): servono <strong>due account VestiFlow</strong> separati — contatta il referente.</p>
+<p>Magazzino, movimenti, giacenze e selettore in topbar mostrano <strong>solo le sedi attive</strong> nel piano — non tutte quelle presenti su Shopify.</p>
+<p><strong>Più sedi nello stesso shop Shopify</strong> (es. Napoli + magazzino): supportato entro il limite contrattuale. <strong>Due shop Shopify distinti</strong> (due domini): servono <strong>due account VestiFlow</strong> separati — contatta il referente.</p>
 <hr>
 <h2 id="6-collegare-shopify">6. Collegare Shopify</h2>
 <h3 id="prerequisiti">Prerequisiti</h3>
@@ -474,7 +515,12 @@
 <tbody><tr>
 <td><strong>Sincronizza location</strong></td>
 <td>Impostazioni</td>
-<td>Importa e collega le sedi Shopify</td>
+<td>Importa le sedi da Shopify</td>
+</tr>
+<tr>
+<td><strong>Sedi attive in VestiFlow</strong></td>
+<td>Impostazioni</td>
+<td>Scegli quali sedi usare nel gestionale (entro il piano)</td>
 </tr>
 <tr>
 <td><strong>Attiva aggiornamenti automatici</strong></td>
@@ -501,6 +547,10 @@
 <tbody><tr>
 <td><strong>Sincronizza location</strong></td>
 <td>Primo setup o nuova sede su Shopify Admin</td>
+</tr>
+<tr>
+<td><strong>Salva sedi attive</strong></td>
+<td>Dopo sync: conferma quali sedi usare in VestiFlow</td>
 </tr>
 <tr>
 <td><strong>Attiva aggiornamenti automatici</strong></td>
@@ -669,8 +719,8 @@
 </tr>
 <tr>
 <td><strong>Sedi (location)</strong></td>
-<td>Import / gestione</td>
-<td>Sync location Shopify se applicabile</td>
+<td>Sync + <strong>selezione attiva</strong> (entro piano)</td>
+<td>Solo sedi attive in magazzino, movimenti e topbar; blocco dopo primo salvataggio</td>
 </tr>
 </tbody></table>
 <h3 id="etichetta-fonte-catalogo">Etichetta «Fonte» (catalogo)</h3>
@@ -865,6 +915,14 @@
 <td>Conteggio periodico con chiusura e rettifiche</td>
 </tr>
 </tbody></table>
+<h3 id="elenco-e-ricerca-in-giacenze">Elenco e ricerca in Giacenze</h3>
+<p>Senza testo nella <strong>barra di ricerca</strong>, la tab <strong>Giacenze</strong> elenca solo articoli <strong>già tracciati</strong> in magazzino (carichi, vendite, sync Shopify, rettifiche, inventario fisico, ecc.).</p>
+<p>Per trovare un prodotto <strong>mai movimentato</strong> o con <strong>giacenza zero</strong> su una sede:</p>
+<ul>
+<li>digita <strong>SKU</strong>, <strong>barcode</strong> o <strong>nome prodotto</strong> nella ricerca della tab Giacenze, oppure</li>
+<li>usa la tab <strong>Cerca</strong> (ottimizzata per mobile).</li>
+</ul>
+<p>In entrambi i casi vedi la variante con disponibile <strong>0</strong> e stato <strong>Esaurito</strong> se non c&#39;è stock. Il primo <strong>carico</strong>, <strong>rettifica</strong> o <strong>import CSV</strong> crea la riga inventario definitiva.</p>
 <h3 id="azioni-principali-giacenze">Azioni principali (Giacenze)</h3>
 <table>
 <thead>
@@ -933,7 +991,7 @@
 </ol>
 <p>Lo scanner è disponibile anche in:</p>
 <ul>
-<li><strong>Giacenze</strong> — filtra la tabella dopo la scansione</li>
+<li><strong>Giacenze</strong> — filtra la tabella dopo la scansione (mostra anche articoli a zero se non ancora tracciati)</li>
 <li><strong>Registra movimento</strong> — seleziona la variante</li>
 <li><strong>Registra vendita</strong> — campo vendita e storno</li>
 <li><strong>Inventario fisico</strong> — durante il conteggio</li>
@@ -1196,9 +1254,10 @@
 <h3 id="le-giacenze-non-coincidono">Le giacenze non coincidono</h3>
 <ol>
 <li>Hai fatto <strong>Sincronizza location</strong>?</li>
+<li>Hai <strong>selezionato e salvato</strong> le sedi attive in <strong>Sedi attive in VestiFlow</strong>?</li>
 <li>In <strong>Impostazioni → Location</strong> ogni sede usata è <strong>Sincronizzata</strong>?</li>
 <li>Controlla lo <strong>storico movimenti</strong> (origine gestionale vs Shopify)</li>
-<li>Verifica la <strong>sede selezionata</strong> in alto</li>
+<li>Verifica la <strong>sede selezionata</strong> in alto (solo sedi attive nel piano)</li>
 </ol>
 <h3 id="vendite-o-clienti-mancanti">Vendite o clienti mancanti</h3>
 <p>Spesso serve l&#39;approvazione dati clienti protetti su Shopify Partners. Catalogo e giacenze funzionano comunque. Chiedi al referente VestiFlow se la sync ordini/clienti è abilitata per il tuo negozio.</p>
@@ -1219,7 +1278,16 @@
 <h3 id="upload-immagine-prodotto-fallito">Upload immagine prodotto fallito</h3>
 <p>Usa JPEG, PNG o WebP, max 5 MB. Riprova dopo qualche minuto se il servizio era in manutenzione.</p>
 <h3 id="ho-più-sedi-le-vedo-tutte">Ho più sedi: le vedo tutte?</h3>
-<p>Sì, se sono <strong>location nello stesso shop Shopify</strong>: configura le sedi in Shopify Admin, poi <strong>Sincronizza location</strong> in Impostazioni (dentro <strong>Integrazione Shopify</strong>). Controlla il selettore location in alto. Le sedi Shopify sono elencate separatamente dalle sedi locali.</p>
+<p>Dipende dal <strong>piano</strong> e dalla <strong>selezione attiva</strong>:</p>
+<ol>
+<li>Configura le location in <strong>Shopify Admin</strong>, poi <strong>Sincronizza location</strong> in Impostazioni.</li>
+<li>Nel pannello <strong>Sedi attive in VestiFlow</strong> seleziona fino al numero di sedi incluse nel contratto e clic <strong>Salva sedi attive</strong>.</li>
+<li>Il <strong>selettore location</strong> in alto e il magazzino mostrano <strong>solo</strong> quelle attive — non tutte le location Shopify se ne hai importate di più.</li>
+</ol>
+<p>Per <strong>cambiare</strong> le sedi attive dopo il primo salvataggio contatta il <strong>referente VestiFlow</strong> (non puoi modificarle da solo).</p>
+<h3 id="non-posso-modificare-le-sedi-attive">Non posso modificare le sedi attive</h3>
+<p>Dopo il <strong>primo salvataggio</strong> la selezione è <strong>bloccata</strong> per policy commerciale. Compare il messaggio <em>«Contatta l&#39;assistenza per modificare le sedi attive»</em>. Il referente VestiFlow può concederti <strong>un solo round</strong> di modifica; dopo il nuovo salvataggio si riblocca.</p>
+<p>Se vedi <em>«Modifica consentita una sola volta…»</em>, seleziona le nuove sedi e salva subito.</p>
 <h3 id="devo-cambiare-negozio-shopify-altro-dominio">Devo cambiare negozio Shopify (altro dominio)</h3>
 <p>Usa <strong>Cambia negozio</strong> in Impostazioni, non il semplice <strong>Disconnetti Shopify</strong>. Segui la procedura guidata e, se indicato, rimuovi i dati importati prima di collegare il nuovo shop.</p>
 <h3 id="ho-eliminato-un-prodotto-ma-resta-su-shopify-o-viceversa">Ho eliminato un prodotto ma resta su Shopify (o viceversa)</h3>

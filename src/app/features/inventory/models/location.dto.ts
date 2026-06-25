@@ -13,6 +13,7 @@ export interface LocationDto {
   readonly code?: string;
   readonly address?: Address;
   readonly isActive: boolean;
+  readonly licensedInVf: boolean;
   /** Store servito (opzionale: un magazzino può non averne). */
   readonly storeId?: EntityId;
   readonly shopify?: ShopifyLink;

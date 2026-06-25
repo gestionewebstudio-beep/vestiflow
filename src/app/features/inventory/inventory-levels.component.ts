@@ -27,6 +27,7 @@ import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import { LocationContextService } from '@core/services/location-context.service';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
@@ -118,6 +119,7 @@ export class InventoryLevelsComponent {
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly authService = inject(AuthService);
   private readonly locationContext = inject(LocationContextService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
@@ -261,7 +263,10 @@ export class InventoryLevelsComponent {
   });
 
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.locations().map((location) => ({ value: location.id, label: location.name })),
+    this.operationalLocations.locations().map((location) => ({
+      value: location.id,
+      label: location.name,
+    })),
   );
 
   protected readonly meta = computed<PageMeta>(() => {

@@ -22,6 +22,11 @@ import {
 } from '@core/models/tenant-channel-profile.model';
 import { SupportSessionService } from '@core/support/support-session.service';
 import { formatDateTime } from '@core/utils/date.util';
+import {
+  TENANT_LICENSED_LOCATION_MAX,
+  TENANT_LICENSED_LOCATION_MIN,
+  TENANT_LICENSED_LOCATION_OPTIONS,
+} from '@core/constants/tenant-location-license.constants';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -75,6 +80,10 @@ export class CreateClientComponent {
     value: option.value,
     label: option.label,
   }));
+  protected readonly licensedLocationOptions = TENANT_LICENSED_LOCATION_OPTIONS.map((count) => ({
+    value: String(count),
+    label: count === 1 ? '1 sede' : `${count} sedi`,
+  }));
   protected readonly tenantChannelProfileLabel = tenantChannelProfileLabel;
   protected readonly selectedChannelProfileDescription = computed(() => {
     const value = this.form.controls.channelProfile.value;
@@ -119,6 +128,13 @@ export class CreateClientComponent {
     }),
     storeName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
     locationName: this.fb.control('', { validators: [Validators.maxLength(120)] }),
+    licensedLocationCount: this.fb.control(TENANT_LICENSED_LOCATION_MIN, {
+      validators: [
+        Validators.required,
+        Validators.min(TENANT_LICENSED_LOCATION_MIN),
+        Validators.max(TENANT_LICENSED_LOCATION_MAX),
+      ],
+    }),
   });
 
   constructor() {
@@ -148,6 +164,19 @@ export class CreateClientComponent {
     }
     this.form.controls.role.setValue(value);
     this.form.controls.role.markAsTouched();
+  }
+
+  protected onLicensedLocationCountSelect(value: string | null): void {
+    const parsed = Number(value);
+    if (
+      !Number.isInteger(parsed) ||
+      parsed < TENANT_LICENSED_LOCATION_MIN ||
+      parsed > TENANT_LICENSED_LOCATION_MAX
+    ) {
+      return;
+    }
+    this.form.controls.licensedLocationCount.setValue(parsed);
+    this.form.controls.licensedLocationCount.markAsTouched();
   }
 
   private isUserRole(value: string): value is UserRoleType {
@@ -217,6 +246,7 @@ export class CreateClientComponent {
         ownerPassword: raw.ownerPassword,
         role: raw.role,
         channelProfile: raw.channelProfile,
+        licensedLocationCount: raw.licensedLocationCount,
         ...(storeName ? { storeName } : {}),
         ...(locationName ? { locationName } : {}),
         ...profilePayloadFromForm(raw),
@@ -230,6 +260,7 @@ export class CreateClientComponent {
             countryCode: 'IT',
             role: UserRole.Owner,
             channelProfile: TenantChannelProfile.Gestionale,
+            licensedLocationCount: TENANT_LICENSED_LOCATION_MIN,
           });
           this.loadTenants();
         },

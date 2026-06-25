@@ -25,6 +25,7 @@ export interface CreateTenantPayload extends TenantProfileFields {
   readonly role?: UserRole;
   readonly storeName?: string;
   readonly locationName?: string;
+  readonly licensedLocationCount?: number;
 }
 
 export interface UpdateTenantPayload extends TenantProfileFields {
@@ -33,6 +34,7 @@ export interface UpdateTenantPayload extends TenantProfileFields {
   readonly ownerDisplayName?: string;
   readonly storeName?: string;
   readonly locationName?: string;
+  readonly licensedLocationCount?: number;
 }
 
 export interface ProvisionedTenant {
@@ -60,10 +62,23 @@ export interface TenantSummary {
   readonly vatNumber: string | null;
 }
 
+export interface TenantActiveLocation {
+  readonly id: string;
+  readonly name: string;
+  readonly code: string | null;
+  readonly isActive: boolean;
+  readonly shopifyLocationId: string | null;
+}
+
 export interface TenantDetail {
   readonly id: string;
   readonly name: string;
   readonly channelProfile: TenantChannelProfile;
+  readonly licensedLocationCount: number;
+  readonly licensedLocationActiveCount: number;
+  readonly locationSelectionLocked: boolean;
+  readonly locationSelectionChangeGranted: boolean;
+  readonly canChangeLicensedLocations: boolean;
   readonly createdAt: string;
   readonly profile: {
     readonly legalName: string | null;
@@ -89,6 +104,7 @@ export interface TenantDetail {
     readonly id: string;
     readonly name: string;
   } | null;
+  readonly activeLocations: readonly TenantActiveLocation[];
   readonly location: {
     readonly id: string;
     readonly name: string;

@@ -69,6 +69,7 @@ export interface LocationApiRow {
   readonly name: string;
   readonly code?: string | null;
   readonly isActive: boolean;
+  readonly licensedInVf: boolean;
   readonly storeId?: string | null;
   readonly addressLine1?: string | null;
   readonly addressLine2?: string | null;
@@ -261,6 +262,7 @@ export function mapLocationApiRow(row: LocationApiRow): Location {
     name: row.name,
     code: row.code ?? undefined,
     isActive: row.isActive,
+    licensedInVf: row.licensedInVf,
     storeId: row.storeId ?? undefined,
     address: hasAddress
       ? {

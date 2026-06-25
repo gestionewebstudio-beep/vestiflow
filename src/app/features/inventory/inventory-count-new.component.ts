@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { catchError, of } from 'rxjs';
 
 import { LocationContextService } from '@core/services/location-context.service';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -25,18 +25,18 @@ import { InventoryService } from './services/inventory.service';
 export class InventoryCountNewComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly inventoryService = inject(InventoryService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
 
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<AppError | null>(null);
 
-  private readonly locations = toSignal(this.inventoryService.getLocations(), {
-    initialValue: [] as const,
-  });
-
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
-    this.locations().map((location) => ({ value: location.id, label: location.name })),
+    this.operationalLocations.locations().map((location) => ({
+      value: location.id,
+      label: location.name,
+    })),
   );
 
   protected readonly form = this.fb.group({

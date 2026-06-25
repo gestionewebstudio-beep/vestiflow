@@ -39,7 +39,10 @@ import type { Location } from '@core/models/location.model';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ThemeService } from '@core/services/theme.service';
 import { formatDateTime } from '@core/utils/date.util';
-import { filterLocationsForSettings } from '@core/utils/location-selection.util';
+import {
+  filterLocationsForSettings,
+  isShopifyManagedLocation,
+} from '@core/utils/location-selection.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -82,6 +85,7 @@ import {
 } from '@core/models/tenant-channel-profile.model';
 
 import { LocationTableComponent } from './components/location-table/location-table.component';
+import { LocationLicensingPanelComponent } from './components/location-licensing-panel/location-licensing-panel.component';
 import { TenantClientCardComponent } from './components/tenant-client-card/tenant-client-card.component';
 import { MfaSettingsComponent } from './components/mfa-settings/mfa-settings.component';
 import { TenantCompanyService } from './services/tenant-company.service';
@@ -136,6 +140,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     ReactiveFormsModule,
     TableSkeletonComponent,
     LocationTableComponent,
+    LocationLicensingPanelComponent,
     TenantClientCardComponent,
     MfaSettingsComponent,
     TikTokIntegrationPanelComponent,
@@ -377,15 +382,21 @@ export class SettingsComponent {
   );
 
   protected readonly locationSetupStatus = computed((): SetupStatusItem => {
+    const limit = this.tenantCompany()?.licensedLocationCount ?? 1;
     const synced = this.locationItems().filter(
-      (location) => location.isActive && location.shopify?.status === ShopifySyncStatus.Synced,
+      (location) =>
+        location.isActive &&
+        location.licensedInVf &&
+        location.shopify?.status === ShopifySyncStatus.Synced,
     );
     if (synced.length === 0) {
       return {
         active: false,
-        label: 'Location non collegate',
+        label: 'Sedi non attivate',
         detail:
-          'Premi «Sincronizza location» per importare le sedi da Shopify e collegarle a VestiFlow.',
+          limit === 1
+            ? 'Sincronizza le location da Shopify e seleziona la sede operativa inclusa nel piano.'
+            : `Sincronizza le location da Shopify e seleziona fino a ${limit} sedi operative.`,
       };
     }
 
@@ -409,6 +420,46 @@ export class SettingsComponent {
       detail: `${countLabel}${timeLabel}`,
     };
   });
+
+  protected readonly licensedLocationCount = computed(
+    () => this.tenantCompany()?.licensedLocationCount ?? 1,
+  );
+
+  protected readonly licensedLocationActiveCount = computed(
+    () => this.tenantCompany()?.licensedLocationActiveCount ?? 0,
+  );
+
+  protected readonly canChangeLicensedLocations = computed(
+    () => this.tenantCompany()?.canChangeLicensedLocations ?? true,
+  );
+
+  protected readonly locationSelectionLocked = computed(
+    () => this.tenantCompany()?.locationSelectionLocked ?? false,
+  );
+
+  protected readonly locationSelectionChangeGranted = computed(
+    () => this.tenantCompany()?.locationSelectionChangeGranted ?? false,
+  );
+
+  protected readonly canManageLocationSelection = computed(
+    () => this.canManageShopify() && this.canChangeLicensedLocations(),
+  );
+
+  protected readonly showLocationLicensingPanel = computed(
+    () =>
+      showShopifyIntegration(this.tenantChannelProfile()) &&
+      this.shopifyConnectionStatus() === ShopifyConnectionStatus.Connected &&
+      this.visibleLocations().some((location) => isShopifyManagedLocation(location)),
+  );
+
+  protected onLocationLicensingSaved(): void {
+    this.reloadLocations();
+    this.reloadTenantCompany();
+    this.showActionFeedback({
+      tone: 'success',
+      message: 'Sedi attive aggiornate.',
+    });
+  }
 
   protected readonly webhooksSetupStatus = computed((): SetupStatusItem => {
     const conn = this.connection();
@@ -776,6 +827,7 @@ export class SettingsComponent {
         next: (result) => {
           this.syncLocationsLoading.set(false);
           this.reloadLocations();
+          this.reloadTenantCompany();
           this.showActionFeedback({
             tone: 'success',
             message: this.formatLocationSyncFeedback(result),
@@ -941,7 +993,15 @@ export class SettingsComponent {
       return 'Sync completata: nessuna modifica alle location.';
     }
 
-    return `${parts.join(', ')} (${result.totalCount} sedi su Shopify).`;
+    const base = `${parts.join(', ')} (${result.totalCount} sedi su Shopify).`;
+    if (result.autoLicensed) {
+      return `${base} La sede unica è stata attivata automaticamente nel piano.`;
+    }
+    if (this.licensedLocationCount() > 1 || this.licensedLocationActiveCount() === 0) {
+      return `${base} Seleziona le sedi da attivare in VestiFlow.`;
+    }
+
+    return base;
   }
 
   private formatClearErrorsFeedback(result: ShopifyClearErrorsDto): ActionFeedback {

@@ -14,6 +14,7 @@ import type { Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
@@ -57,6 +58,7 @@ type SubmitState =
 export class MovementFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly inventoryService = inject(InventoryService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly productService = inject(ProductService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
@@ -83,9 +85,6 @@ export class MovementFormComponent {
   protected readonly variants = toSignal(this.productService.getVariantSummaries(), {
     initialValue: [],
   });
-  protected readonly locations = toSignal(this.inventoryService.getLocations(), {
-    initialValue: [],
-  });
 
   protected readonly variantSelectOptions = computed<readonly SelectMenuOption[]>(() =>
     this.variants().map((variant) => ({
@@ -95,7 +94,10 @@ export class MovementFormComponent {
   );
 
   protected readonly locationSelectOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.locations().map((location) => ({ value: location.id, label: location.name })),
+    this.operationalLocations.locations().map((location) => ({
+      value: location.id,
+      label: location.name,
+    })),
   );
 
   readonly form = this.fb.group({
@@ -313,7 +315,9 @@ export class MovementFormComponent {
   }
 
   private locationName(id: string): string {
-    return this.locations().find((candidate) => candidate.id === id)?.name ?? '';
+    return (
+      this.operationalLocations.locations().find((candidate) => candidate.id === id)?.name ?? ''
+    );
   }
 
   private availableAt(locationId: string): number {

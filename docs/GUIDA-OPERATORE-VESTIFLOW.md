@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 1.9 — Giugno 2026
+**Versione documento:** 2.0 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -239,9 +239,10 @@ Vedi `api/.env.example`:
 2. **Anagrafica** — P.IVA, CF, sede, contatti (opzionali)
 3. **Profilo canale** — **Solo gestionale**, **Shopify** o **TikTok Shop** (determina integrazioni visibili al cliente)
 4. **Primo accesso** — ruolo VestiFlow (`owner` default), nome, email, **password iniziale** (scelta dall’admin)
-5. **Setup** — nome negozio e location iniziale (opzionali; default «Negozio principale»)
+5. **Piano sedi** — **Sedi incluse nel piano** (1–10): numero massimo di location operative in VestiFlow per questo contratto
+6. **Setup** — nome negozio e location iniziale (opzionali; default «Negozio principale»)
 
-Il backend crea: tenant, utente Supabase Auth con password, store, location, profilo utente collegato.
+Il backend crea: tenant, utente Supabase Auth con password, store, location (con `licensedInVf: true` solo se profilo **Solo gestionale**; con Shopify la licenza si assegna dopo sync + selezione cliente), profilo utente collegato.
 
 ### Dopo il provisioning
 
@@ -251,17 +252,23 @@ Consegna credenziali al titolare **in modo sicuro** (email + password). Il titol
 
 Il titolare completa in base al profilo canale:
 
-| Profilo canale      | Passi titolare                                         |
-| ------------------- | ------------------------------------------------------ |
-| **Shopify**         | MFA → OAuth Shopify → sync location → webhook → import |
-| **TikTok Shop**     | MFA → OAuth TikTok Shop → verifica location            |
-| **Solo gestionale** | MFA → catalogo e magazzino solo in VestiFlow           |
+| Profilo canale      | Passi titolare                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| **Shopify**         | MFA → OAuth Shopify → sync location → **Sedi attive in VestiFlow** → webhook → import |
+| **TikTok Shop**     | MFA → OAuth TikTok Shop → verifica location                                           |
+| **Solo gestionale** | MFA → catalogo e magazzino solo in VestiFlow                                          |
 
 ### Modifica tenant esistente
 
 Tabella **Clienti registrati** → click riga → `/app/admin/clients/:id`.
 
-Modificabile: anagrafica, **profilo canale** (se nessuna integrazione attiva), nome titolare, negozio, location. **Email** e **ruolo** del primo utente sono **sola lettura** in UI (campi disabilitati).
+Modificabile: anagrafica, **profilo canale** (se nessuna integrazione attiva), **Sedi incluse nel piano** (1–10), nome titolare, negozio. **Email** e **ruolo** del primo utente sono **sola lettura** in UI (campi disabilitati).
+
+**Sedi attive (read-only):** sotto il selettore piano compare l’elenco delle location attualmente **attive in VestiFlow** (`licensedInVf: true`), con nome in campi disabilitati (non è più editabile il «nome location» di provisioning). Se il cliente non ha ancora salvato la selezione, l’elenco può essere vuoto.
+
+**Concedi cambio sede:** pulsante visibile quando la selezione è **bloccata** e non c’è già una concessione one-shot in corso. Imposta `locationSelectionChangeGranted=true` sul tenant: il cliente può modificare **una volta** le sedi attive in Impostazioni; al salvataggio la selezione si **riblocca** e la concessione viene azzerata.
+
+**Riduzione piano sedi:** se abbassi **Sedi incluse nel piano** sotto il numero di sedi già attive, l’API **disattiva** le eccedenze (mantiene le più vecchie per `createdAt`, le altre passano a `licensedInVf: false`). Non sblocca la selezione: il cliente non può riattivare sedi diverse finché non gli concedi il cambio sede.
 
 Da questa pagina (e dalla tabella clienti) puoi avviare **Apri gestionale (assistenza)** — vedi [§1 Sessione assistenza](#sessione-assistenza-al-gestionale-cliente).
 
@@ -273,19 +280,20 @@ In **Modifica cliente**, pannello **Zona pericolosa → Elimina cliente**: rimuo
 
 ### API
 
-| Metodo | Path                                 | Azione                             |
-| ------ | ------------------------------------ | ---------------------------------- |
-| GET    | `/admin/tenants`                     | Lista tenant                       |
-| POST   | `/admin/tenants`                     | Crea tenant + primo utente         |
-| GET    | `/admin/tenants/:id`                 | Dettaglio                          |
-| PATCH  | `/admin/tenants/:id`                 | Aggiorna anagrafica/setup          |
-| DELETE | `/admin/tenants/:id`                 | Elimina tenant e dati              |
-| POST   | `/admin/tenants/:id/support-session` | Avvia sessione assistenza (2 h)    |
-| DELETE | `/admin/support-sessions/current`    | Termina sessione assistenza attiva |
+| Metodo | Path                                                 | Azione                                              |
+| ------ | ---------------------------------------------------- | --------------------------------------------------- |
+| GET    | `/admin/tenants`                                     | Lista tenant                                        |
+| POST   | `/admin/tenants`                                     | Crea tenant + primo utente                          |
+| GET    | `/admin/tenants/:id`                                 | Dettaglio                                           |
+| PATCH  | `/admin/tenants/:id`                                 | Aggiorna anagrafica/setup                           |
+| DELETE | `/admin/tenants/:id`                                 | Elimina tenant e dati                               |
+| POST   | `/admin/tenants/:id/grant-location-selection-change` | Concede al cliente un round di modifica sedi attive |
+| POST   | `/admin/tenants/:id/support-session`                 | Avvia sessione assistenza (2 h)                     |
+| DELETE | `/admin/support-sessions/current`                    | Termina sessione assistenza attiva                  |
 
-Body create include `role` (`owner` | `admin` | `manager` | `clerk`) e `channelProfile` (`gestionale` | `shopify` | `tiktok_shop`).
+Body create include `role` (`owner` | `admin` | `manager` | `clerk`), `channelProfile` (`gestionale` | `shopify` | `tiktok_shop`) e `licensedLocationCount` (default `1`, max `10`).
 
-Migration DB: `0018_support_sessions` — tabella `support_sessions`. In produzione: `npm run prisma:deploy` (o equivalente Railway) prima di usare assistenza.
+Migration DB: `0018_support_sessions` — tabella `support_sessions`; `0021_tenant_location_licensing` — `licensed_location_count`, `licensed_in_vf`; `0022_location_selection_lock` — blocco selezione + concessione admin. In produzione: `npm run prisma:deploy` (o equivalente Railway) prima di usare licensing sedi e assistenza.
 
 ---
 
@@ -347,7 +355,7 @@ UI: **Impostazioni → Profilo** (tenant) e **Impostazioni** operatore (`/app/ad
 | Catalogo prodotti **Shopify** (`catalogOrigin=shopify`)     | Shopify                | Pull import/webhook; in VF solo PATCH stagione + `purchasePriceMinor`; no delete/sync manuale/media |
 | Clienti, ordini online                                      | Shopify                | Read-only in VF                                                                                     |
 | Giacenze                                                    | Condiviso              | VF: carichi/rettifiche; Shopify: vendite                                                            |
-| Location                                                    | Shopify master         | Import + mapping; cleanup sedi stale                                                                |
+| Location                                                    | Shopify master         | Import + mapping; cleanup sedi stale; **operatività VF** via `licensedInVf` + piano tenant          |
 | Ordini fornitori                                            | Solo VestiFlow         | —                                                                                                   |
 | Anagrafica tenant                                           | Solo VestiFlow (admin) | `GET /tenant/company` read-only in UI **Sede fisica**                                               |
 
@@ -439,7 +447,37 @@ FE: pulsante **Elimina** e **Sincronizza con Shopify** nascosti se `catalogOrigi
 - `removeEmptyOnboardingLocation` elimina sede temporanea onboarding vuota e non collegata dopo sync
 - Dopo sync/disconnect/purge: `ShopifyConnectionRefreshService.notifyInvalidated()` → shell ricarica location e topbar
 
-FE: `filterLocationsForTopbar` nasconde sede onboarding locale quando Shopify è connesso.
+FE: `filterLocationsForTopbar` e `OperationalLocationsService` espongono **solo** location con `licensedInVf: true` e `isActive: true` (nasconde anche sede onboarding locale quando Shopify è connesso).
+
+### Licensing sedi e blocco selezione
+
+Modulo `LocationLicensingService` (`api/src/inventory/location-licensing.service.ts`).
+
+| Concetto               | Campo / comportamento                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Piano contrattuale** | `Tenant.licensedLocationCount` (1–10), impostato in create/edit admin                                   |
+| **Sede operativa VF**  | `Location.licensedInVf` — solo queste compaiono in topbar, magazzino, movimenti, export CSV giacenze    |
+| **Blocco selezione**   | `Tenant.locationSelectionLocked` — dopo primo salvataggio cliente (`PUT /inventory/locations/licensed`) |
+| **Concessione admin**  | `Tenant.locationSelectionChangeGranted` — one-shot; azzerata al salvataggio cliente                     |
+| **API summary**        | `canChangeLicensedLocations = !locked \|\| granted` in `GET /tenant/company` e `GET /admin/tenants/:id` |
+
+| Endpoint                                             | Metodo | Ruolo          | Scopo                                                                              |
+| ---------------------------------------------------- | ------ | -------------- | ---------------------------------------------------------------------------------- |
+| `/inventory/locations/licensed`                      | PUT    | owner/admin    | Cliente salva elenco `locationIds` attive (≤ piano); default `lockAfterSave: true` |
+| `/admin/tenants/:id/grant-location-selection-change` | POST   | platform admin | Sblocca **un** round di modifica per il tenant                                     |
+
+Regole business:
+
+- **403** se il cliente tenta di salvare con selezione bloccata e senza concessione.
+- **Auto-licenza singola sede Shopify:** se piano = 1 e Shopify espone 1 sola location attiva, `tryAutoLicenseSingleShopifyLocation()` pre-seleziona senza bloccare (`lockAfterSave: false`, `bypassSelectionLock: true`); il blocco scatta al primo salvataggio esplicito del cliente quando applicabile.
+- **Trim admin:** abbassare `licensedLocationCount` disattiva le sedi in eccesso (FIFO per `createdAt`), **senza** sbloccare la selezione.
+- **Scope inventario:** `licensed-location-scope.util.ts` filtra query movimenti, giacenze, inventario fisico, retail-scans su sedi licenziate.
+
+FE tenant: `location-licensing-panel` in Impostazioni (Shopify); messaggi blocco/concessione in fondo al pannello.
+
+FE admin: `edit-client` — elenco `activeLocations` read-only + **Concedi cambio sede**.
+
+Migration: `0021_tenant_location_licensing`, `0022_location_selection_lock` (backfill: tenant con sedi già `licensedInVf` → `locationSelectionLocked=true`).
 
 ### Anagrafica tenant (Sede fisica)
 
@@ -597,9 +635,9 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 
 | Entità                       | Note                                                                                                                                                                                                                                                                                                        |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Tenant`                     | Azienda cliente                                                                                                                                                                                                                                                                                             |
+| `Tenant`                     | Azienda cliente; `licensedLocationCount`, `locationSelectionLocked`, `locationSelectionChangeGranted`                                                                                                                                                                                                       |
 | `User`                       | Profilo app, `tenantId`, ruolo                                                                                                                                                                                                                                                                              |
-| `Store` / `Location`         | Store commerciale; location per stock                                                                                                                                                                                                                                                                       |
+| `Store` / `Location`         | Store commerciale; location per stock; `licensedInVf` = sede operativa nel piano VF                                                                                                                                                                                                                         |
 | `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind`, `shopifyCategoryMetafields`, taxonomy categoria                                                                                                                                                                                  |
 | `InventoryLevel`             | `variantId` × `locationId`, stati quantità. Riga creata al primo movimento/sync/rettifica/import; senza riga il prodotto non compare nel browse Giacenze. Con `GET /inventory/levels?search=…` l'API include anche varianti match senza riga (quantità 0, id sintetico `virtual:{variantId}:{locationId}`). |
 | `StockMovement`              | Audit trail obbligatorio; origine `vestiflow_pos` per vendite/storni al banco (tutti i profili canale)                                                                                                                                                                                                      |
@@ -651,14 +689,15 @@ Frontend: `HttpClient` + interceptor auth/error; mock disabilitati in prod.
 
 ### Giacenze
 
-|                    |                                                                                                                                                                                                                                                                                               |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Lista**          | `GET /inventory/levels` — paginata; query `locationId`, `search`, `lowStockOnly`, `page`, `pageSize`. **Con `search`:** espande varianti trovate (SKU/barcode/nome) anche senza riga in DB, una riga per sede con quantità 0. **Senza `search`:** solo righe esistenti in `inventory_levels`. |
-| **Export**         | `GET /inventory/levels/export/csv`                                                                                                                                                                                                                                                            |
-| **Import**         | `POST /inventory/levels/import/csv` — rettifiche                                                                                                                                                                                                                                              |
-| **Colonne import** | SKU, Location (nome esatto), Disponibile                                                                                                                                                                                                                                                      |
-| **UI**             | Magazzino → Giacenze                                                                                                                                                                                                                                                                          |
-| **Permessi**       | lista: autenticato; export/import: manager+                                                                                                                                                                                                                                                   |
+|                    |                                                                                                                                                                                                                                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Lista**          | `GET /inventory/levels` — paginata; query `locationId`, `search`, `lowStockOnly`, `page`, `pageSize`. Solo location **licenziate e attive**. **Con `search`:** espande varianti trovate (SKU/barcode/nome) anche senza riga in DB, una riga per sede con quantità 0. **Senza `search`:** solo righe esistenti in `inventory_levels`. |
+| **Sedi attive**    | `PUT /inventory/locations/licensed` — body `{ locationIds: string[] }`; owner/admin; vedi [§9 Licensing sedi](#licensing-sedi-e-blocco-selezione)                                                                                                                                                                                    |
+| **Export**         | `GET /inventory/levels/export/csv`                                                                                                                                                                                                                                                                                                   |
+| **Import**         | `POST /inventory/levels/import/csv` — rettifiche                                                                                                                                                                                                                                                                                     |
+| **Colonne import** | SKU, Location (nome esatto), Disponibile                                                                                                                                                                                                                                                                                             |
+| **UI**             | Magazzino → Giacenze                                                                                                                                                                                                                                                                                                                 |
+| **Permessi**       | lista: autenticato; export/import: manager+                                                                                                                                                                                                                                                                                          |
 
 ### Vendite e clienti
 
@@ -786,21 +825,27 @@ cd api && npm run test
 
 ### Copertura automatica — Shopify shop change / location / delete
 
-| Area                                                | File test                                                                               |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Purge / preview shop change                         | `api/src/shopify/shopify-shop-change.service.spec.ts`                                   |
-| Sync location + cleanup onboarding/stale            | `api/src/shopify/shopify-location-sync.service.spec.ts`                                 |
-| Delete prodotto write-through Shopify               | `api/src/products/products.service.spec.ts`                                             |
-| Guard `catalogOrigin` (update/delete/sync/media)    | `api/src/products/catalog-origin.util.spec.ts`                                          |
-| Wizard UI (anteprima, conferma, disconnect)         | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts` |
-| HTTP client shop change / sync location             | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`     |
-| E2E wizard (anteprima, step conferma, annulla)      | `e2e/shopify.spec.ts`                                                                   |
-| Retail scan API (sale/return, profili, push canale) | `api/src/inventory/inventory.service.spec.ts`, `inventory.controller.spec.ts`           |
-| Guard vendite / retail register                     | `src/app/features/sales-orders/guards/retail-sales.guard.spec.ts`                       |
-| Pagina Registra vendita                             | `src/app/features/sales-orders/retail-sale-register.component.spec.ts`                  |
-| HTTP client retail-scans                            | `src/app/features/inventory/services/inventory.service.spec.ts`                         |
-| Profilo canale / label origine movimento            | `tenant-channel-profile.model.spec.ts`, `inventory-labels.util.spec.ts`                 |
-| Evidenza sidebar su sotto-route                     | `src/app/shared/utils/nav-link-active.util.spec.ts`                                     |
+| Area                                                | File test                                                                                          |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Purge / preview shop change                         | `api/src/shopify/shopify-shop-change.service.spec.ts`                                              |
+| Sync location + cleanup onboarding/stale            | `api/src/shopify/shopify-location-sync.service.spec.ts`                                            |
+| Delete prodotto write-through Shopify               | `api/src/products/products.service.spec.ts`                                                        |
+| Guard `catalogOrigin` (update/delete/sync/media)    | `api/src/products/catalog-origin.util.spec.ts`                                                     |
+| Wizard UI (anteprima, conferma, disconnect)         | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts`            |
+| HTTP client shop change / sync location             | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`                |
+| E2E wizard (anteprima, step conferma, annulla)      | `e2e/shopify.spec.ts`                                                                              |
+| Retail scan API (sale/return, profili, push canale) | `api/src/inventory/inventory.service.spec.ts`, `inventory.controller.spec.ts`                      |
+| Guard vendite / retail register                     | `src/app/features/sales-orders/guards/retail-sales.guard.spec.ts`                                  |
+| Pagina Registra vendita                             | `src/app/features/sales-orders/retail-sale-register.component.spec.ts`                             |
+| HTTP client retail-scans                            | `src/app/features/inventory/services/inventory.service.spec.ts`                                    |
+| Profilo canale / label origine movimento            | `tenant-channel-profile.model.spec.ts`, `inventory-labels.util.spec.ts`                            |
+| Evidenza sidebar su sotto-route                     | `src/app/shared/utils/nav-link-active.util.spec.ts`                                                |
+| Licensing sedi + blocco selezione (BE)              | `api/src/inventory/location-licensing.service.spec.ts`                                             |
+| Scope query su sedi licenziate                      | `api/src/inventory/licensed-location-scope.util.spec.ts`                                           |
+| Admin grant + trim piano / activeLocations          | `api/src/admin/admin-tenants.service.spec.ts`                                                      |
+| Pannello Sedi attive (FE)                           | `src/app/features/settings/components/location-licensing-panel/*.spec.ts`                          |
+| Util lock/grant UI                                  | `src/app/core/utils/location-selection-lock.util.spec.ts`, `admin-location-selection.util.spec.ts` |
+| Summary licensing in tenant company                 | `src/app/features/settings/models/tenant-company.model.spec.ts`, `tenant-company.service.spec.ts`  |
 
 ### CI GitHub Actions
 
@@ -833,6 +878,9 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 - [ ] Platform admin → **Apri gestionale (assistenza)** su tenant test → banner + operazione magazzino → **Esci dall'assistenza**
 - [ ] Profilo canale Shopify e TikTok su tenant test
 - [ ] OAuth Shopify su tenant test
+- [ ] Tenant Shopify: sync location → **Sedi attive in VestiFlow** → salva → verifica blocco UI
+- [ ] Platform admin → Modifica cliente → **Concedi cambio sede** → cliente modifica e salva → riblocco
+- [ ] Riduzione **Sedi incluse nel piano** su tenant con 2+ sedi attive → trim automatico
 - [ ] OAuth TikTok Shop su tenant test (se abilitato)
 - [ ] Upload foto profilo + avatar topbar
 - [ ] Import catalogo + webhook
@@ -852,7 +900,7 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 - [ ] CORS ristretto ai domini produzione
 - [ ] Token Shopify cifrati; revoca su disconnessione
 - [ ] MFA disponibile per admin negozio
-- [ ] Migration `0018_support_sessions` applicata in produzione
+- [ ] Migration `0018_support_sessions`, `0021_tenant_location_licensing`, `0022_location_selection_lock` applicate in produzione
 - [ ] Sessioni assistenza tracciate in `support_sessions` (nessuna password condivisa per supporto)
 - [ ] Dipendenze: `npm audit` senza high/critical
 - [ ] Guide rigenerate se modificate
@@ -861,42 +909,44 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 
 ## 19. Troubleshooting tecnico
 
-| Problema                                 | Azione                                                                                             |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `isPlatformAdmin` false in UI            | Verifica email in `PLATFORM_ADMIN_EMAILS`, ri-login                                                |
-| 403 su `/admin/tenants`                  | Stesso controllo email lato API                                                                    |
-| CORS error                               | Aggiungi origin frontend a `CORS_ORIGINS`                                                          |
-| JWT invalid                              | Allinea `SUPABASE_JWT_SECRET` con dashboard Supabase                                               |
-| Webhook non arrivano                     | URL tunnel/prod raggiungibile; HTTPS; webhook registrati                                           |
-| Import catalogo 429 / throttling Shopify | Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env `SHOPIFY_API_*`  |
-| API VestiFlow 429 (troppi click)         | Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop                             |
-| Immagini prodotto 404                    | Bucket `product-media` esiste ed è public                                                          |
-| Avatar 404 / upload fallito              | Bucket `user-avatars` esiste ed è public; env `SUPABASE_USER_AVATARS_BUCKET`                       |
-| TikTok OAuth fallisce                    | Verifica `TIKTOK_*` env, callback URL pubblico HTTPS, app Partner Center attiva                    |
-| Anon key legge dati                      | **Critico** — RLS mancante, fix migration immediato                                                |
-| 500 su `POST .../support-session`        | Migration `0018_support_sessions` non applicata — `npm run prisma:deploy` in `api/`                |
-| 401 «Sessione assistenza non valida»     | Sessione scaduta (>2 h) o chiusa; riavvia da Clienti. Verifica header inviato dall'interceptor     |
-| 403 assistenza su tenant                 | Tenant contiene utente platform admin, oppure email operatore non in `PLATFORM_ADMIN_EMAILS`       |
-| 404 `/shopify/connection` in assistenza  | Comportamento atteso se Shopify non connesso — API risponde `not_connected` (non errore bloccante) |
+| Problema                                            | Azione                                                                                               |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `isPlatformAdmin` false in UI                       | Verifica email in `PLATFORM_ADMIN_EMAILS`, ri-login                                                  |
+| 403 su `/admin/tenants`                             | Stesso controllo email lato API                                                                      |
+| CORS error                                          | Aggiungi origin frontend a `CORS_ORIGINS`                                                            |
+| JWT invalid                                         | Allinea `SUPABASE_JWT_SECRET` con dashboard Supabase                                                 |
+| Webhook non arrivano                                | URL tunnel/prod raggiungibile; HTTPS; webhook registrati                                             |
+| Import catalogo 429 / throttling Shopify            | Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env `SHOPIFY_API_*`    |
+| API VestiFlow 429 (troppi click)                    | Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop                               |
+| Immagini prodotto 404                               | Bucket `product-media` esiste ed è public                                                            |
+| Avatar 404 / upload fallito                         | Bucket `user-avatars` esiste ed è public; env `SUPABASE_USER_AVATARS_BUCKET`                         |
+| TikTok OAuth fallisce                               | Verifica `TIKTOK_*` env, callback URL pubblico HTTPS, app Partner Center attiva                      |
+| Anon key legge dati                                 | **Critico** — RLS mancante, fix migration immediato                                                  |
+| 500 su `POST .../support-session`                   | Migration `0018_support_sessions` non applicata — `npm run prisma:deploy` in `api/`                  |
+| 401 «Sessione assistenza non valida»                | Sessione scaduta (>2 h) o chiusa; riavvia da Clienti. Verifica header inviato dall'interceptor       |
+| 403 assistenza su tenant                            | Tenant contiene utente platform admin, oppure email operatore non in `PLATFORM_ADMIN_EMAILS`         |
+| 403 «Selezione sedi bloccata» su PUT licensed       | Concedi cambio sede da admin o verifica `locationSelectionLocked` / `locationSelectionChangeGranted` |
+| Cliente vede tutte le location Shopify in magazzino | Non ha salvato **Sedi attive** o piano > sedi selezionate; verifica `licensedInVf`                   |
 
 ---
 
 ## 20. Limitazioni note e roadmap
 
-| Area                                         | Stato                                                                                    |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Multi-store commerciali in un tenant         | Non supportato — un shop = un tenant                                                     |
-| Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore                             |
-| Sessione assistenza platform admin → tenant  | Implementata — 2 h, read/write, audit `support_sessions`, banner UI                      |
-| Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale                                   |
-| Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze                                   |
-| Bozze ordine Shopify (draft orders)          | Non in scope — solo ordini confermati in **Vendite**                                     |
-| Location manuale senza Shopify               | Parziale (location onboarding); sync Shopify consigliato                                 |
-| Cassa / corrispettivi IT nativi              | Non previsti — integrazione esterna; VF registra stock (retail-scans tutti i profili)    |
-| Vendita al banco                             | Implementata — `POST /inventory/retail-scans`, UI `/app/sales/register`, tutti i profili |
-| Report server-side avanzati                  | In evoluzione                                                                            |
-| Coda bulk Shopify persistente (multi-tenant) | Non implementata — operazioni massicce sincrone HTTP                                     |
-| Notifiche email custom reset password        | Config Supabase                                                                          |
+| Area                                         | Stato                                                                                                |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Multi-store commerciali in un tenant         | Non supportato — un shop = un tenant                                                                 |
+| Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore                                         |
+| Sessione assistenza platform admin → tenant  | Implementata — 2 h, read/write, audit `support_sessions`, banner UI                                  |
+| Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale                                               |
+| Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze                                               |
+| Bozze ordine Shopify (draft orders)          | Non in scope — solo ordini confermati in **Vendite**                                                 |
+| Rotazione sedi attive oltre limite piano     | Bloccata lato API — solo **Concedi cambio sede** + salvataggio cliente entro `licensedLocationCount` |
+| Location manuale senza Shopify               | Parziale (location onboarding); sync Shopify consigliato; licensing via `licensedInVf`               |
+| Cassa / corrispettivi IT nativi              | Non previsti — integrazione esterna; VF registra stock (retail-scans tutti i profili)                |
+| Vendita al banco                             | Implementata — `POST /inventory/retail-scans`, UI `/app/sales/register`, tutti i profili             |
+| Report server-side avanzati                  | In evoluzione                                                                                        |
+| Coda bulk Shopify persistente (multi-tenant) | Non implementata — operazioni massicce sincrone HTTP                                                 |
+| Notifiche email custom reset password        | Config Supabase                                                                                      |
 
 ---
 

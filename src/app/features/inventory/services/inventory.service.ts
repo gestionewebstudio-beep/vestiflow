@@ -1,6 +1,16 @@
 import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { map, of, type Observable, shareReplay, switchMap, throwError, timeout } from 'rxjs';
+import {
+  map,
+  of,
+  Subject,
+  tap,
+  type Observable,
+  shareReplay,
+  switchMap,
+  throwError,
+  timeout,
+} from 'rxjs';
 
 import { toPaginatedResponse } from '@core/api/api-pagination.mapper';
 import type { ApiPaginated } from '@core/api/api-paginated.model';
@@ -105,6 +115,12 @@ export class InventoryService {
   private readonly config = inject(APP_CONFIG);
 
   private locationsCache: TimedCache<readonly Location[]> | null = null;
+  private readonly locationsInvalidatedSubject = new Subject<void>();
+
+  /** Emesso quando la cache location va ricaricata (sync Shopify, licenze, ecc.). */
+  watchLocationsInvalidated(): Observable<void> {
+    return this.locationsInvalidatedSubject.asObservable();
+  }
 
   getLocations(): Observable<readonly Location[]> {
     if (!this.locationsCache || this.locationsCache.expiresAt <= Date.now()) {
@@ -123,6 +139,28 @@ export class InventoryService {
   /** Forza il refresh dopo creazione/modifica location (futuro). */
   invalidateLocationsCache(): void {
     this.locationsCache = null;
+    this.locationsInvalidatedSubject.next();
+  }
+
+  setLicensedLocations(locationIds: readonly string[]): Observable<{
+    readonly licensedLocationCount: number;
+    readonly licensedLocationActiveCount: number;
+    readonly locationSelectionLocked: boolean;
+    readonly locationSelectionChangeGranted: boolean;
+    readonly canChangeLicensedLocations: boolean;
+  }> {
+    return this.http
+      .put<{
+        readonly licensedLocationCount: number;
+        readonly licensedLocationActiveCount: number;
+        readonly locationSelectionLocked: boolean;
+        readonly locationSelectionChangeGranted: boolean;
+        readonly canChangeLicensedLocations: boolean;
+      }>(this.url('/inventory/locations/licensed'), { locationIds })
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        tap(() => this.invalidateLocationsCache()),
+      );
   }
 
   getLocationById(locationId: EntityId): Observable<Location> {

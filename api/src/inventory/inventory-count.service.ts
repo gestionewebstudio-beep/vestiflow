@@ -19,6 +19,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
 import type { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
+import {
+  locationScopeToCountSessionFilter,
+  resolveLicensedLocationScope,
+} from './licensed-location-scope.util';
 
 export type InventoryCountSessionSummary = InventoryCountSession & {
   location: { name: string };
@@ -45,9 +49,14 @@ export class InventoryCountService {
     tenantId: string,
     query: ListInventoryCountsQueryDto,
   ): Promise<Paginated<InventoryCountSessionSummary>> {
+    const scope = await resolveLicensedLocationScope(this.prisma, tenantId, query.locationId);
+    if (!scope) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
     const where: Prisma.InventoryCountSessionWhereInput = {
       tenantId,
-      ...(query.locationId ? { locationId: query.locationId } : {}),
+      ...locationScopeToCountSessionFilter(scope),
       ...(query.status ? { status: query.status } : {}),
     };
 
@@ -104,11 +113,11 @@ export class InventoryCountService {
     dto: CreateInventoryCountDto,
   ): Promise<InventoryCountSessionDetail> {
     const location = await this.prisma.location.findFirst({
-      where: { id: dto.locationId, tenantId },
+      where: { id: dto.locationId, tenantId, licensedInVf: true, isActive: true },
       select: { id: true },
     });
     if (!location) {
-      throw new NotFoundException('Location non trovata');
+      throw new NotFoundException('Location non trovata o non attiva nel tuo piano');
     }
 
     const levels = await this.prisma.inventoryLevel.findMany({

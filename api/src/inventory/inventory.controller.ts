@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   StreamableFile,
   UploadedFile,
@@ -24,7 +25,7 @@ import { csvUploadMulterOptions } from '../common/upload/multer-upload.options';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
+import { ADMIN_ROLES, MANAGER_ROLES, Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
@@ -35,6 +36,7 @@ import { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.d
 import { ListInventoryLevelsQueryDto, ListMovementsQueryDto } from './dto/inventory-queries.dto';
 import { RegisterMovementDto } from './dto/register-movement.dto';
 import { RegisterRetailScanDto } from './dto/register-retail-scan.dto';
+import { SetLicensedLocationsDto } from './dto/set-licensed-locations.dto';
 import { UpdateInventoryLevelDto } from './dto/update-inventory-level.dto';
 import { UpdateCountLineDto } from './dto/update-count-line.dto';
 import {
@@ -45,6 +47,7 @@ import {
 import { InventoryExportService } from './inventory-export.service';
 import { InventoryImportService } from './inventory-import.service';
 import { InventoryService, type InventoryLevelWithRefs, type RetailScanResult } from './inventory.service';
+import { LocationLicensingService } from './location-licensing.service';
 
 @Controller('inventory')
 @UseGuards(JwtAuthGuard)
@@ -54,11 +57,22 @@ export class InventoryController {
     private readonly inventoryCount: InventoryCountService,
     private readonly inventoryExport: InventoryExportService,
     private readonly inventoryImport: InventoryImportService,
+    private readonly locationLicensing: LocationLicensingService,
   ) {}
 
   @Get('locations')
   listLocations(@CurrentTenant() tenantId: string): Promise<Location[]> {
     return this.inventory.listLocations(tenantId);
+  }
+
+  @Put('locations/licensed')
+  @UseGuards(RolesGuard)
+  @Roles(...ADMIN_ROLES)
+  setLicensedLocations(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: SetLicensedLocationsDto,
+  ) {
+    return this.locationLicensing.setLicensedLocations(tenantId, dto.locationIds);
   }
 
   @Get('levels/export/csv')

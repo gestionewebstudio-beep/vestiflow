@@ -56,4 +56,22 @@ export class AdminTenantsService {
       }>(`${this.config.apiBaseUrl}/admin/tenants/${tenantId}/resend-owner-invite`, {})
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
+
+  grantLocationSelectionChange(tenantId: string): Observable<{
+    readonly licensedLocationCount: number;
+    readonly licensedLocationActiveCount: number;
+    readonly locationSelectionLocked: boolean;
+    readonly locationSelectionChangeGranted: boolean;
+    readonly canChangeLicensedLocations: boolean;
+  }> {
+    return this.http
+      .post<{
+        readonly licensedLocationCount: number;
+        readonly licensedLocationActiveCount: number;
+        readonly locationSelectionLocked: boolean;
+        readonly locationSelectionChangeGranted: boolean;
+        readonly canChangeLicensedLocations: boolean;
+      }>(`${this.config.apiBaseUrl}/admin/tenants/${tenantId}/grant-location-selection-change`, {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
 }

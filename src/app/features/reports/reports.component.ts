@@ -16,6 +16,7 @@ import type { InventoryLevel } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
 import { isLowStock } from '@core/utils/inventory.util';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
@@ -77,6 +78,7 @@ type ReportState =
 })
 export class ReportsComponent {
   private readonly inventoryService = inject(InventoryService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly productService = inject(ProductService);
   private readonly salesOrderService = inject(SalesOrderService);
   private readonly route = inject(ActivatedRoute);
@@ -163,7 +165,7 @@ export class ReportsComponent {
     const priceByVariant = new Map(
       data.summaries.map((summary) => [summary.variantId, summary.sellingPrice]),
     );
-    return data.locations.map((location): LocationReportRow => {
+    return this.operationalLocations.locations().map((location): LocationReportRow => {
       const levels = data.levels.filter((level) => level.locationId === location.id);
       const stockValueMinor = levels.reduce((sum, level) => {
         const price = priceByVariant.get(level.variantId);
