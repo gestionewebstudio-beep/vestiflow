@@ -97,6 +97,12 @@ export interface InventoryLevelApiRow {
   readonly reserved: number;
   readonly minThreshold: number;
   readonly updatedAt: string;
+  readonly variant?: {
+    readonly sku: string;
+    readonly optionValues?: readonly { readonly name: string; readonly value: string }[];
+    readonly product: { readonly name: string };
+  };
+  readonly location?: { readonly name: string };
 }
 
 export interface StockMovementApiRow {

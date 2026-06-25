@@ -9,6 +9,8 @@ import { CatalogOrigin, Prisma, ShopifyCatalogLinkKind, type Product, type Produ
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { buildInventoryVariantSearchWhere } from '../inventory/inventory-variant-search.util';
+import { buildVariantTitle } from '../inventory/import/inventory-csv.util';
 import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
 import {
@@ -24,6 +26,9 @@ import {
 } from './catalog-origin.util';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import type { ListProductsQueryDto } from './dto/list-products.query.dto';
+import type { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
+import type { ProductFacetsDto } from './dto/product-facets.dto';
+import type { VariantSummaryDto } from './dto/variant-summary.dto';
 import type { UpdateProductDto } from './dto/update-product.dto';
 import type { UpdateVariantDto } from './dto/update-variant.dto';
 
@@ -133,6 +138,90 @@ export class ProductsService {
       page: query.page,
       pageSize: query.pageSize,
     };
+  }
+
+  /** Facets distinti per filtri lista prodotti (intero catalogo tenant). */
+  async getFacets(tenantId: string): Promise<ProductFacetsDto> {
+    const baseWhere = { tenantId } as const;
+
+    const [categories, brands, seasons] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { ...baseWhere, category: { not: null, notIn: [''] } },
+        select: { category: true },
+        distinct: ['category'],
+        orderBy: { category: 'asc' },
+      }),
+      this.prisma.product.findMany({
+        where: { ...baseWhere, brand: { not: null, notIn: [''] } },
+        select: { brand: true },
+        distinct: ['brand'],
+        orderBy: { brand: 'asc' },
+      }),
+      this.prisma.product.findMany({
+        where: { ...baseWhere, season: { not: null, notIn: [''] } },
+        select: { season: true },
+        distinct: ['season'],
+        orderBy: { season: 'asc' },
+      }),
+    ]);
+
+    return {
+      categories: categories
+        .map((row) => row.category?.trim())
+        .filter((value): value is string => Boolean(value)),
+      brands: brands
+        .map((row) => row.brand?.trim())
+        .filter((value): value is string => Boolean(value)),
+      seasons: seasons
+        .map((row) => row.season?.trim())
+        .filter((value): value is string => Boolean(value)),
+    };
+  }
+
+  /** Vista leggera varianti per select/report (paginata, ricerca server-side). */
+  async listVariantSummaries(
+    tenantId: string,
+    query: ListVariantSummariesQueryDto,
+  ): Promise<Paginated<VariantSummaryDto>> {
+    const search = query.search?.trim();
+    const where: Prisma.ProductVariantWhereInput = {
+      tenantId,
+      ...(query.variantId ? { id: query.variantId } : {}),
+      ...(search ? buildInventoryVariantSearchWhere(search) : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.productVariant.findMany({
+        where,
+        select: {
+          id: true,
+          productId: true,
+          sku: true,
+          optionValues: true,
+          currency: true,
+          sellingPriceMinor: true,
+          product: { select: { name: true } },
+        },
+        orderBy: [{ product: { name: 'asc' } }, { sku: 'asc' }],
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      this.prisma.productVariant.count({ where }),
+    ]);
+
+    const items: VariantSummaryDto[] = rows.map((row) => ({
+      variantId: row.id,
+      productId: row.productId,
+      sku: row.sku,
+      productName: row.product.name,
+      title: buildVariantTitle(row.product.name, row.optionValues),
+      sellingPrice: {
+        amountMinor: row.sellingPriceMinor,
+        currencyCode: row.currency,
+      },
+    }));
+
+    return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
   async getById(tenantId: string, id: string): Promise<ProductWithVariants> {

@@ -36,16 +36,36 @@ import {
   type ImportPreviewApiResponse,
 } from '../models/product-import.mapper';
 import { PRODUCT_SEASON_STANDARD_VALUES } from '../models/product-season.options';
-import { variantTitle } from '../models/product-variant.util';
 import { toCreateProductBody, toUpdateProductBody } from './product-api.mapper';
 
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 120_000;
 /** Push Shopify con metaobject categoria: può richiedere decine di secondi. */
 const SHOPIFY_SYNC_HTTP_TIMEOUT_MS = 120_000;
-const FACET_PAGE_SIZE = 100;
-const VARIANT_SUMMARIES_CACHE_MS = 60_000;
 const FILTER_OPTIONS_CACHE_MS = 5 * 60_000;
+const DEFAULT_VARIANT_SUMMARY_PAGE_SIZE = 25;
+
+interface ProductFacetsApiRow {
+  readonly categories: readonly string[];
+  readonly brands: readonly string[];
+  readonly seasons: readonly string[];
+}
+
+interface VariantSummaryApiRow {
+  readonly variantId: EntityId;
+  readonly productId: EntityId;
+  readonly sku: string;
+  readonly productName: string;
+  readonly title: string;
+  readonly sellingPrice: { readonly amountMinor: number; readonly currencyCode: string };
+}
+
+export interface VariantSummarySearchQuery {
+  readonly search?: string;
+  readonly variantId?: EntityId;
+  readonly page?: number;
+  readonly pageSize?: number;
+}
 
 interface TimedCache<T> {
   readonly expiresAt: number;
@@ -61,7 +81,6 @@ export class ProductService {
   private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
-  private variantSummariesCache: TimedCache<readonly VariantSummary[]> | null = null;
   private filterOptionsCache: TimedCache<ProductFilterOptions> | null = null;
 
   getProducts(query: ProductListQuery): Observable<PaginatedResponse<Product>> {
@@ -89,12 +108,11 @@ export class ProductService {
 
   getFilterOptions(): Observable<ProductFilterOptions> {
     if (!this.filterOptionsCache || this.filterOptionsCache.expiresAt <= Date.now()) {
-      const params = new HttpParams().set('page', '1').set('pageSize', String(FACET_PAGE_SIZE));
       this.filterOptionsCache = {
         expiresAt: Date.now() + FILTER_OPTIONS_CACHE_MS,
-        value$: this.http.get<ApiPaginated<ProductApiRow>>(this.url('/products'), { params }).pipe(
+        value$: this.http.get<ProductFacetsApiRow>(this.url('/products/facets')).pipe(
           timeout(HTTP_TIMEOUT_MS),
-          map((response) => this.deriveFilterOptions(response.items.map(mapProductApiRow))),
+          map((facets) => this.mergeFilterOptions(facets)),
           shareReplay({ bufferSize: 1, refCount: false }),
         ),
       };
@@ -115,26 +133,31 @@ export class ProductService {
     );
   }
 
-  getVariantSummaries(): Observable<readonly VariantSummary[]> {
-    if (!this.variantSummariesCache || this.variantSummariesCache.expiresAt <= Date.now()) {
-      const params = new HttpParams()
-        .set('page', '1')
-        .set('pageSize', String(FACET_PAGE_SIZE))
-        .set('includeVariants', 'true');
-      this.variantSummariesCache = {
-        expiresAt: Date.now() + VARIANT_SUMMARIES_CACHE_MS,
-        value$: this.http.get<ApiPaginated<ProductApiRow>>(this.url('/products'), { params }).pipe(
-          timeout(HTTP_TIMEOUT_MS),
-          map((response) => this.toVariantSummaries(response.items)),
-          shareReplay({ bufferSize: 1, refCount: false }),
-        ),
-      };
+  searchVariantSummaries(
+    query: VariantSummarySearchQuery = {},
+  ): Observable<readonly VariantSummary[]> {
+    let params = new HttpParams()
+      .set('page', String(query.page ?? 1))
+      .set('pageSize', String(query.pageSize ?? DEFAULT_VARIANT_SUMMARY_PAGE_SIZE));
+
+    if (query.search?.trim()) {
+      params = params.set('search', query.search.trim());
     }
-    return this.variantSummariesCache.value$;
+    if (query.variantId) {
+      params = params.set('variantId', query.variantId);
+    }
+
+    return this.http
+      .get<ApiPaginated<VariantSummaryApiRow>>(this.url('/products/variants/summaries'), {
+        params,
+      })
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((response) => response.items.map((row) => this.mapVariantSummaryApiRow(row))),
+      );
   }
 
   invalidateVariantSummariesCache(): void {
-    this.variantSummariesCache = null;
     this.filterOptionsCache = null;
   }
 
@@ -308,34 +331,26 @@ export class ProductService {
     return `${this.config.apiBaseUrl}${path}`;
   }
 
-  private deriveFilterOptions(products: readonly Product[]): ProductFilterOptions {
-    const categories = this.distinctSorted(products.map((product) => product.category));
-    const brands = this.distinctSorted(products.map((product) => product.brand));
-    const seasons = this.distinctSorted([
-      ...PRODUCT_SEASON_STANDARD_VALUES,
-      ...products.map((product) => product.season),
-    ]);
-    return { categories, brands, seasons };
+  private mergeFilterOptions(facets: ProductFacetsApiRow): ProductFilterOptions {
+    return {
+      categories: this.distinctSorted(facets.categories),
+      brands: this.distinctSorted(facets.brands),
+      seasons: this.distinctSorted([...PRODUCT_SEASON_STANDARD_VALUES, ...facets.seasons]),
+    };
   }
 
-  private toVariantSummaries(rows: readonly ProductApiRow[]): readonly VariantSummary[] {
-    const summaries: VariantSummary[] = [];
-    for (const row of rows) {
-      const product = mapProductApiRow(row);
-      for (const variantRow of row.variants ?? []) {
-        const variant = mapProductVariantApiRow(variantRow);
-        const options = variantTitle(variant.optionValues);
-        summaries.push({
-          variantId: variant.id,
-          productId: product.id,
-          sku: variant.sku,
-          productName: product.name,
-          title: options ? `${product.name} — ${options}` : product.name,
-          sellingPrice: variant.sellingPrice,
-        });
-      }
-    }
-    return summaries;
+  private mapVariantSummaryApiRow(row: VariantSummaryApiRow): VariantSummary {
+    return {
+      variantId: row.variantId,
+      productId: row.productId,
+      sku: row.sku,
+      productName: row.productName,
+      title: row.title,
+      sellingPrice: {
+        amountMinor: row.sellingPrice.amountMinor,
+        currencyCode: row.sellingPrice.currencyCode,
+      },
+    };
   }
 
   private distinctSorted(values: readonly (string | undefined)[]): readonly string[] {

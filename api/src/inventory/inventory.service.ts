@@ -40,12 +40,20 @@ export type RetailScanResult = {
 };
 
 export type InventoryLevelWithRefs = InventoryLevel & {
-  variant: { sku: string; product: { name: string } };
+  variant: { sku: string; optionValues: Prisma.JsonValue; product: { name: string } };
   location: { name: string };
 };
 
 /** Limite varianti espandibili in ricerca (variante × location). */
 const MAX_SEARCH_VARIANTS = 100;
+
+const LEVEL_VARIANT_INCLUDE = {
+  sku: true,
+  optionValues: true,
+  product: { select: { name: true } },
+} as const;
+
+const LEVEL_LOCATION_INCLUDE = { name: true } as const;
 
 @Injectable()
 export class InventoryService {
@@ -87,6 +95,7 @@ export class InventoryService {
     const where: Prisma.InventoryLevelWhereInput = {
       tenantId,
       ...locationScopeToInventoryLevelFilter(scope),
+      ...(query.variantId ? { variantId: query.variantId } : {}),
       ...(query.lowStockOnly
         ? { available: { lte: this.prisma.inventoryLevel.fields.minThreshold } }
         : {}),
@@ -96,8 +105,8 @@ export class InventoryService {
       this.prisma.inventoryLevel.findMany({
         where,
         include: {
-          variant: { select: { sku: true, product: { select: { name: true } } } },
-          location: { select: { name: true } },
+          variant: { select: LEVEL_VARIANT_INCLUDE },
+          location: { select: LEVEL_LOCATION_INCLUDE },
         },
         orderBy: { updatedAt: 'desc' },
         skip: (query.page - 1) * query.pageSize,
@@ -120,6 +129,7 @@ export class InventoryService {
   ): Promise<Paginated<InventoryLevelWithRefs>> {
     const variantWhere: Prisma.ProductVariantWhereInput = {
       tenantId,
+      ...(query.variantId ? { id: query.variantId } : {}),
       ...buildInventoryVariantSearchWhere(search),
     };
 
@@ -134,6 +144,7 @@ export class InventoryService {
         select: {
           id: true,
           sku: true,
+          optionValues: true,
           product: { select: { name: true } },
         },
         orderBy: [{ product: { name: 'asc' } }, { sku: 'asc' }],
@@ -163,7 +174,7 @@ export class InventoryService {
         ...locationScopeToInventoryLevelFilter(scope),
       },
       include: {
-        variant: { select: { sku: true, product: { select: { name: true } } } },
+        variant: { select: LEVEL_VARIANT_INCLUDE },
         location: { select: { name: true } },
       },
     });
@@ -204,7 +215,7 @@ export class InventoryService {
 
   private buildVirtualInventoryLevel(
     tenantId: string,
-    variant: { id: string; sku: string; product: { name: string } },
+    variant: { id: string; sku: string; optionValues?: Prisma.JsonValue; product: { name: string } },
     location: { id: string; name: string },
   ): InventoryLevelWithRefs {
     return {
@@ -219,7 +230,11 @@ export class InventoryService {
       reserved: 0,
       minThreshold: 0,
       updatedAt: new Date(0),
-      variant: { sku: variant.sku, product: { name: variant.product.name } },
+      variant: {
+        sku: variant.sku,
+        optionValues: variant.optionValues ?? [],
+        product: { name: variant.product.name },
+      },
       location: { name: location.name },
     };
   }
@@ -464,7 +479,7 @@ export class InventoryService {
   ): Promise<InventoryLevelWithRefs> {
     const level = await this.prisma.inventoryLevel.findFirst({
       where: { id, tenantId },
-      include: { variant: { select: { sku: true, product: { select: { name: true } } } } },
+      include: { variant: { select: LEVEL_VARIANT_INCLUDE } },
     });
     if (!level) {
       throw new NotFoundException('Giacenza non trovata');
@@ -473,7 +488,7 @@ export class InventoryService {
       where: { id },
       data: { minThreshold },
       include: {
-        variant: { select: { sku: true, product: { select: { name: true } } } },
+        variant: { select: LEVEL_VARIANT_INCLUDE },
         location: { select: { name: true } },
       },
     });

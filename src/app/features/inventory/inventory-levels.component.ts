@@ -44,7 +44,6 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
 import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
 import {
@@ -60,6 +59,7 @@ import { ShopifySyncWatchService } from '@features/integrations/shopify/services
 
 import { InventoryLevelTableComponent } from './components/inventory-level-table/inventory-level-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
+import type { InventoryLevelListItem } from './models/inventory-list.mapper';
 import type { InventoryLevelRow } from './models/inventory-view.model';
 import {
   DEFAULT_INVENTORY_PAGE_SIZE,
@@ -69,9 +69,8 @@ import type { InventoryLevelsListQuery } from './models/inventory-list-query.mod
 import { InventoryService } from './services/inventory.service';
 
 interface LevelsData {
-  readonly levels: readonly InventoryLevel[];
+  readonly levels: readonly InventoryLevelListItem[];
   readonly locations: readonly Location[];
-  readonly summaries: readonly VariantSummary[];
   readonly meta: PageMeta;
 }
 
@@ -92,7 +91,7 @@ const EMPTY_META: PageMeta = {
 
 /**
  * Giacenze per variante × location (smart). Filtri e paginazione server-side;
- * join client-side con catalogo per display SKU/titolo.
+ * SKU/titolo dalla risposta API (ref variante inclusi).
  */
 @Component({
   selector: 'app-inventory-levels',
@@ -177,11 +176,13 @@ export class InventoryLevelsComponent {
 
   private readonly levelsQuery = computed((): InventoryLevelsListQuery => {
     const status = this.statusFilter();
+    const variantId = this.variantIdFilter();
     return {
       page: this.page(),
       pageSize: this.pageSize(),
       locationId: this.locationFilter() || undefined,
       search: this.search().trim() || undefined,
+      variantId: variantId || undefined,
       lowStockOnly: status === 'low' ? true : undefined,
     };
   });
@@ -197,15 +198,13 @@ export class InventoryLevelsComponent {
         forkJoin({
           levels: this.inventoryService.getLevels(query),
           locations: this.inventoryService.getLocations(),
-          summaries: this.productService.getVariantSummaries(),
         }).pipe(
           map(
-            ({ levels, locations, summaries }): LevelsState => ({
+            ({ levels, locations }): LevelsState => ({
               status: 'success',
               data: {
                 levels: levels.data,
                 locations,
-                summaries,
                 meta: levels.meta,
               },
             }),
@@ -274,39 +273,34 @@ export class InventoryLevelsComponent {
     return current.status === 'success' ? current.data.meta : EMPTY_META;
   });
 
-  /** Righe join-ate; filtri ok/empty/variantId restano client-side (API parziale). */
+  /** Righe per tabella; filtri ok/empty restano client-side (API gestisce low stock e variantId). */
   protected readonly rows = computed<readonly InventoryLevelRow[]>(() => {
     const current = this.state();
     if (current.status !== 'success') {
       return [];
     }
-    const { levels, locations, summaries } = current.data;
+    const { levels, locations } = current.data;
     const locationById = new Map(locations.map((location) => [location.id, location]));
-    const summaryByVariant = new Map(summaries.map((summary) => [summary.variantId, summary]));
     const status = this.statusFilter();
-    const variantId = this.variantIdFilter();
 
     return levels
-      .map((level): InventoryLevelRow => {
-        const summary = summaryByVariant.get(level.variantId);
-        return {
+      .map(
+        (level): InventoryLevelRow => ({
           id: level.id,
           variantId: level.variantId,
-          sku: summary?.sku ?? level.variantId,
-          title: summary?.title ?? level.variantId,
-          locationName: locationById.get(level.locationId)?.name ?? level.locationId,
+          sku: level.displaySku,
+          title: level.displayTitle,
+          locationName:
+            level.locationName ?? locationById.get(level.locationId)?.name ?? level.locationId,
           available: level.available,
           onHand: level.onHand,
           committed: level.committed,
           incoming: level.incoming,
           minThreshold: level.minThreshold,
           status: this.statusOf(level),
-        };
-      })
+        }),
+      )
       .filter((row) => {
-        if (variantId && row.variantId !== variantId) {
-          return false;
-        }
         if (status === StockStatus.Empty && row.status !== StockStatus.Empty) {
           return false;
         }

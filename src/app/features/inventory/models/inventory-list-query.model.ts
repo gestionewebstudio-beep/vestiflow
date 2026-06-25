@@ -8,8 +8,9 @@ export interface InventoryLevelsListQuery {
   readonly page?: number;
   readonly pageSize?: number;
   readonly locationId?: string;
-  /** Ricerca su SKU o nome prodotto. */
+  /** Ricerca su SKU, barcode o nome prodotto. */
   readonly search?: string;
+  readonly variantId?: string;
   readonly lowStockOnly?: boolean;
 }
 

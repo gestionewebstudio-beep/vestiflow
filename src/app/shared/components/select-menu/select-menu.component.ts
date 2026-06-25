@@ -66,9 +66,12 @@ export class SelectMenuComponent {
   readonly searchable = input<boolean>(false);
   readonly searchPlaceholder = input<string>('Cerca…');
   readonly searchAriaLabel = input<string>('Cerca nelle opzioni');
+  /** Se false, la ricerca emette `searchChange` senza filtrare le opzioni in locale (es. lookup server-side). */
+  readonly filterOptionsLocally = input<boolean>(true);
 
   readonly valueChange = output<string | null>();
   readonly valuesChange = output<readonly string[]>();
+  readonly searchChange = output<string>();
 
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
@@ -77,6 +80,9 @@ export class SelectMenuComponent {
 
   protected readonly visibleOptions = computed(() => {
     if (!this.searchable()) {
+      return this.options();
+    }
+    if (!this.filterOptionsLocally()) {
       return this.options();
     }
     return filterSelectMenuOptions(this.options(), this.searchQuery());
@@ -168,6 +174,9 @@ export class SelectMenuComponent {
       return;
     }
     this.searchQuery.set(target.value);
+    if (!this.filterOptionsLocally()) {
+      this.searchChange.emit(target.value);
+    }
   }
 
   protected onSearchKeydown(event: KeyboardEvent): void {

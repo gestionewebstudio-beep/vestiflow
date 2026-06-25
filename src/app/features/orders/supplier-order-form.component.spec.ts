@@ -60,7 +60,10 @@ describe('SupplierOrderFormComponent', () => {
         },
         {
           provide: ProductService,
-          useValue: { getVariantSummaries: () => of(VARIANTS) },
+          useValue: {
+            searchVariantSummaries: (query?: { search?: string }) =>
+              query?.search && query.search.length >= 2 ? of(VARIANTS) : of([]),
+          },
         },
         {
           provide: InventoryService,
@@ -113,8 +116,9 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('option', { name: 'Milano' }));
 
     await user.click(screen.getAllByRole('button', { name: 'Variante' })[0]!);
+    await user.type(screen.getByLabelText('Cerca variante per prodotto o SKU'), 'mag');
     await user.click(
-      screen.getByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
     );
 
     await user.clear(screen.getByLabelText('Quantità'));

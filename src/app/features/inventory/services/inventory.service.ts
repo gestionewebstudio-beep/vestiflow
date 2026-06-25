@@ -47,6 +47,10 @@ import type {
   StockMovementsListQuery,
 } from '../models/inventory-list-query.model';
 import { DEFAULT_INVENTORY_PAGE_SIZE } from '../models/inventory-list-query.model';
+import {
+  mapInventoryLevelListItem,
+  type InventoryLevelListItem,
+} from '../models/inventory-list.mapper';
 
 import {
   mapInventoryCountLineApiRow,
@@ -98,6 +102,16 @@ export interface RegisterMovementInput {
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 120000;
 const LEVELS_BY_VARIANT_PAGE_SIZE = 100;
+
+export interface LocationInventoryReportRow {
+  readonly locationId: EntityId;
+  readonly locationName: string;
+  readonly trackedVariants: number;
+  readonly availableUnits: number;
+  readonly lowStockCount: number;
+  readonly stockValueMinor: number;
+  readonly currencyCode: string;
+}
 const LOCATIONS_CACHE_MS = 5 * 60_000;
 
 interface TimedCache<T> {
@@ -170,13 +184,16 @@ export class InventoryService {
     );
   }
 
-  getLevels(query: InventoryLevelsListQuery = {}): Observable<PaginatedResponse<InventoryLevel>> {
+  getLevels(
+    query: InventoryLevelsListQuery = {},
+  ): Observable<PaginatedResponse<InventoryLevelListItem>> {
     let params = new HttpParams()
       .set('page', String(query.page ?? 1))
       .set('pageSize', String(query.pageSize ?? DEFAULT_INVENTORY_PAGE_SIZE));
 
     if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.search) params = params.set('search', query.search);
+    if (query.variantId) params = params.set('variantId', query.variantId);
     if (query.lowStockOnly) params = params.set('lowStockOnly', 'true');
 
     return this.http
@@ -186,23 +203,31 @@ export class InventoryService {
         map((response) => {
           const paginated = toPaginatedResponse(response);
           return {
-            data: paginated.data.map(mapInventoryLevelApiRow),
+            data: paginated.data.map(mapInventoryLevelListItem),
             meta: paginated.meta,
           };
         }),
       );
   }
 
-  getLevelsByVariant(variantId: EntityId): Observable<readonly InventoryLevel[]> {
-    return this.getLevels({ page: 1, pageSize: LEVELS_BY_VARIANT_PAGE_SIZE }).pipe(
-      map((response) => response.data.filter((level) => level.variantId === variantId)),
-    );
+  getLevelsByVariant(variantId: EntityId): Observable<readonly InventoryLevelListItem[]> {
+    return this.getLevels({
+      variantId,
+      page: 1,
+      pageSize: LEVELS_BY_VARIANT_PAGE_SIZE,
+    }).pipe(map((response) => response.data));
   }
 
-  getLevelsByLocation(locationId: EntityId): Observable<readonly InventoryLevel[]> {
+  getLevelsByLocation(locationId: EntityId): Observable<readonly InventoryLevelListItem[]> {
     return this.getLevels({ locationId, page: 1, pageSize: LEVELS_BY_VARIANT_PAGE_SIZE }).pipe(
       map((response) => response.data),
     );
+  }
+
+  getLocationInventoryReport(): Observable<readonly LocationInventoryReportRow[]> {
+    return this.http
+      .get<readonly LocationInventoryReportRow[]>(this.url('/inventory/reports/location-summary'))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   getMovements(query: StockMovementsListQuery = {}): Observable<PaginatedResponse<StockMovement>> {

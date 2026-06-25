@@ -6,6 +6,7 @@ import { InventoryCountService } from './inventory-count.service';
 import { InventoryController } from './inventory.controller';
 import { InventoryExportService } from './inventory-export.service';
 import { InventoryImportService } from './inventory-import.service';
+import { InventoryReportService } from './inventory-report.service';
 import { InventoryService } from './inventory.service';
 
 @Module({
@@ -16,6 +17,7 @@ import { InventoryService } from './inventory.service';
     InventoryCountService,
     InventoryExportService,
     InventoryImportService,
+    InventoryReportService,
   ],
   exports: [LocationLicensingModule],
 })

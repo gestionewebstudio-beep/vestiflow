@@ -46,6 +46,7 @@ import {
 } from './inventory-count.service';
 import { InventoryExportService } from './inventory-export.service';
 import { InventoryImportService } from './inventory-import.service';
+import { InventoryReportService } from './inventory-report.service';
 import { InventoryService, type InventoryLevelWithRefs, type RetailScanResult } from './inventory.service';
 import { LocationLicensingService } from './location-licensing.service';
 
@@ -57,6 +58,7 @@ export class InventoryController {
     private readonly inventoryCount: InventoryCountService,
     private readonly inventoryExport: InventoryExportService,
     private readonly inventoryImport: InventoryImportService,
+    private readonly inventoryReport: InventoryReportService,
     private readonly locationLicensing: LocationLicensingService,
   ) {}
 
@@ -115,6 +117,11 @@ export class InventoryController {
     this.assertCsvFile(file);
     const keys = body.keys?.filter((key) => key.trim().length > 0);
     return this.inventoryImport.importCsv(tenantId, file.buffer.toString('utf-8'), { keys });
+  }
+
+  @Get('reports/location-summary')
+  locationInventoryReport(@CurrentTenant() tenantId: string) {
+    return this.inventoryReport.locationSummary(tenantId);
   }
 
   @Get('levels')

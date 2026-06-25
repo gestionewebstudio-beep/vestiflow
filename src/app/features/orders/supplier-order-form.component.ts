@@ -9,7 +9,16 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  forkJoin,
+  map,
+  of,
+  startWith,
+  switchMap,
+} from 'rxjs';
 import type { Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -33,7 +42,9 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
+import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
@@ -44,6 +55,9 @@ type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
+
+const VARIANT_SEARCH_DEBOUNCE_MS = 300;
+const VARIANT_SEARCH_MIN_CHARS = 2;
 
 /**
  * Creazione ordine fornitore (smart). Righe dinamiche (variante + quantità +
@@ -125,10 +139,22 @@ export class SupplierOrderFormComponent {
     this.suppliers().map((supplier) => ({ value: supplier.id, label: supplier.name })),
   );
 
-  private readonly variants = toSignal(this.productService.getVariantSummaries(), {
-    initialValue: [],
-  });
-  protected readonly variantOptions = computed(() => toVariantSelectMenuOptions(this.variants()));
+  protected readonly variantSearchDraft = signal('');
+
+  private readonly searchedVariants = toSignal(
+    toObservable(this.variantSearchDraft).pipe(
+      debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
+      distinctUntilChanged(),
+      switchMap((search) => {
+        const term = search.trim();
+        if (term.length < VARIANT_SEARCH_MIN_CHARS) {
+          return of([] as readonly VariantSummary[]);
+        }
+        return this.productService.searchVariantSummaries({ search: term, pageSize: 30 });
+      }),
+    ),
+    { initialValue: [] as readonly VariantSummary[] },
+  );
 
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
     this.operationalLocations.locations().map((location) => ({
@@ -147,6 +173,39 @@ export class SupplierOrderFormComponent {
   protected get lines(): FormArray<ReturnType<SupplierOrderFormComponent['createLine']>> {
     return this.form.controls.lines;
   }
+
+  private readonly selectedVariantIds = toSignal(
+    this.form.controls.lines.valueChanges.pipe(
+      startWith(this.form.getRawValue().lines),
+      map((lines) => [...new Set(lines.map((line) => line.variantId).filter(Boolean))]),
+    ),
+    { initialValue: [] as string[] },
+  );
+
+  private readonly pinnedVariants = toSignal(
+    toObservable(this.selectedVariantIds).pipe(
+      switchMap((ids) => {
+        if (ids.length === 0) {
+          return of([] as readonly VariantSummary[]);
+        }
+        return forkJoin(
+          ids.map((variantId) =>
+            this.productService.searchVariantSummaries({ variantId }).pipe(
+              map((rows) => rows[0] ?? null),
+              catchError(() => of(null)),
+            ),
+          ),
+        ).pipe(map((rows) => rows.filter((row): row is VariantSummary => row !== null)));
+      }),
+    ),
+    { initialValue: [] as readonly VariantSummary[] },
+  );
+
+  protected readonly variantOptions = computed(() =>
+    toVariantSelectMenuOptions(
+      mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()),
+    ),
+  );
 
   // Snapshot reattivo del form per il totale a video.
   private readonly formValue = toSignal(this.form.valueChanges, {
@@ -204,6 +263,10 @@ export class SupplierOrderFormComponent {
   protected onLocationSelect(value: string | null): void {
     this.form.controls.destinationLocationId.setValue(value ?? '');
     this.form.controls.destinationLocationId.markAsTouched();
+  }
+
+  protected onVariantSearch(value: string): void {
+    this.variantSearchDraft.set(value);
   }
 
   protected onVariantSelect(index: number, value: string | null): void {

@@ -24,6 +24,10 @@ export class ListInventoryLevelsQueryDto extends PaginationQueryDto {
   search?: string;
 
   @IsOptional()
+  @IsUUID()
+  variantId?: string;
+
+  @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   lowStockOnly?: boolean;

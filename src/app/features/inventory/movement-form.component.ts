@@ -6,10 +6,18 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-import { of, switchMap } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  map,
+  of,
+  startWith,
+  switchMap,
+} from 'rxjs';
 import type { Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
@@ -17,17 +25,20 @@ import { APP_CONFIG } from '@core/config/app-config.token';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { InventoryLevel } from '@core/models/inventory-level.model';
 import { AdjustmentDirection, StockMovementType } from '@core/models/stock-movement.model';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
+import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
+import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
+import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
 
 import { InventoryService } from './services/inventory.service';
 import type { RegisterMovementInput } from './services/inventory.service';
+import type { InventoryLevelListItem } from './models/inventory-list.mapper';
 
 /** Tipi registrabili manualmente (vendite/resi arrivano da POS/Shopify). */
 const MANUAL_TYPES = [
@@ -36,6 +47,9 @@ const MANUAL_TYPES = [
   { value: StockMovementType.Adjustment, label: 'Rettifica' },
   { value: StockMovementType.Transfer, label: 'Trasferimento' },
 ] as const;
+
+const VARIANT_SEARCH_DEBOUNCE_MS = 300;
+const VARIANT_SEARCH_MIN_CHARS = 2;
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -82,15 +96,21 @@ export class MovementFormComponent {
   protected readonly MovementType = StockMovementType;
   protected readonly Direction = AdjustmentDirection;
 
-  protected readonly variants = toSignal(this.productService.getVariantSummaries(), {
-    initialValue: [],
-  });
+  protected readonly variantSearchDraft = signal('');
 
-  protected readonly variantSelectOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.variants().map((variant) => ({
-      value: variant.variantId,
-      label: `${variant.title} (${variant.sku})`,
-    })),
+  private readonly searchedVariants = toSignal(
+    toObservable(this.variantSearchDraft).pipe(
+      debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
+      distinctUntilChanged(),
+      switchMap((search) => {
+        const term = search.trim();
+        if (term.length < VARIANT_SEARCH_MIN_CHARS) {
+          return of([] as readonly VariantSummary[]);
+        }
+        return this.productService.searchVariantSummaries({ search: term, pageSize: 30 });
+      }),
+    ),
+    { initialValue: [] as readonly VariantSummary[] },
   );
 
   protected readonly locationSelectOptions = computed<readonly SelectMenuOption[]>(() =>
@@ -121,6 +141,30 @@ export class MovementFormComponent {
     }
   }
 
+  private readonly pinnedVariant = toSignal(
+    this.form.controls.variantId.valueChanges.pipe(
+      startWith(this.form.controls.variantId.value),
+      switchMap((variantId) =>
+        variantId
+          ? this.productService.searchVariantSummaries({ variantId }).pipe(
+              map((rows) => rows[0] ?? null),
+              catchError(() => of(null)),
+            )
+          : of(null),
+      ),
+    ),
+    { initialValue: null as VariantSummary | null },
+  );
+
+  protected readonly variantSelectOptions = computed<readonly SelectMenuOption[]>(() =>
+    toVariantSelectMenuOptions(
+      mergeVariantSummaries(
+        this.pinnedVariant() ? [this.pinnedVariant()!] : [],
+        this.searchedVariants(),
+      ),
+    ),
+  );
+
   // Tipo corrente come signal (guida campi condizionali e validator dinamici).
   private readonly typeValue = toSignal(this.form.controls.type.valueChanges, {
     initialValue: this.form.controls.type.value,
@@ -137,10 +181,10 @@ export class MovementFormComponent {
       switchMap((variantId) =>
         variantId
           ? this.inventoryService.getLevelsByVariant(variantId)
-          : of([] as readonly InventoryLevel[]),
+          : of([] as readonly InventoryLevelListItem[]),
       ),
     ),
-    { initialValue: [] as readonly InventoryLevel[] },
+    { initialValue: [] as readonly InventoryLevelListItem[] },
   );
 
   // Fase del flusso: edit -> review -> (submit).
@@ -163,7 +207,7 @@ export class MovementFormComponent {
   /** Riepilogo per la fase di conferma (snapshot leggibile + impatto atteso). */
   protected readonly review = computed(() => {
     const raw = this.form.getRawValue();
-    const variant = this.variants().find((candidate) => candidate.variantId === raw.variantId);
+    const variant = this.pinnedVariant();
     const locationName = this.locationName(raw.locationId);
     const targetName = this.locationName(raw.targetLocationId);
     const qty = Number(raw.quantity);
@@ -205,6 +249,10 @@ export class MovementFormComponent {
     if (value) {
       this.form.controls.type.setValue(value as StockMovementType);
     }
+  }
+
+  protected onVariantSearch(value: string): void {
+    this.variantSearchDraft.set(value);
   }
 
   protected onVariantSelect(value: string | null): void {
@@ -264,7 +312,7 @@ export class MovementFormComponent {
       return;
     }
     const raw = this.form.getRawValue();
-    const variant = this.variants().find((candidate) => candidate.variantId === raw.variantId);
+    const variant = this.pinnedVariant();
     const user = this.authService.currentUser();
 
     const input: RegisterMovementInput = {

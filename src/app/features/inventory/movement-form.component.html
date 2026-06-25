@@ -37,9 +37,14 @@
             placeholder="Seleziona una variante…"
             [compact]="true"
             [fullWidth]="true"
+            [searchable]="true"
+            [filterOptionsLocally]="false"
+            searchPlaceholder="Cerca per prodotto o SKU…"
+            searchAriaLabel="Cerca variante per prodotto o SKU"
             [invalid]="fieldInvalid('variantId')"
             describedBy="mov-variant-error"
             (valueChange)="onVariantSelect($event)"
+            (searchChange)="onVariantSearch($event)"
           />
           @if (fieldInvalid('variantId')) {
             <p id="mov-variant-error" class="movement-form__error">Seleziona la variante.</p>

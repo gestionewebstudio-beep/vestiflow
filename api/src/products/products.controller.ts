@@ -32,6 +32,7 @@ import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
+import { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductMediaService } from './product-media.service';
 import { ProductsExportService } from './products-export.service';
@@ -85,6 +86,19 @@ export class ProductsController {
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<ProductWithVariants>> {
     return this.products.list(tenantId, query);
+  }
+
+  @Get('facets')
+  getFacets(@CurrentTenant() tenantId: string) {
+    return this.products.getFacets(tenantId);
+  }
+
+  @Get('variants/summaries')
+  listVariantSummaries(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ListVariantSummariesQueryDto,
+  ) {
+    return this.products.listVariantSummaries(tenantId, query);
   }
 
   // Prima di ':id' per non essere catturata dalla route parametrica.

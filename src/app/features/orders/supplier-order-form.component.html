@@ -159,10 +159,12 @@
                   [compact]="true"
                   [fullWidth]="true"
                   [searchable]="true"
+                  [filterOptionsLocally]="false"
                   searchPlaceholder="Cerca per prodotto o SKU…"
                   searchAriaLabel="Cerca variante per prodotto o SKU"
                   [invalid]="lineFieldInvalid(i, 'variantId')"
                   (valueChange)="onVariantSelect(i, $event)"
+                  (searchChange)="onVariantSearch($event)"
                 />
                 @if (lineFieldInvalid(i, 'variantId')) {
                   <p class="po-form__error">Seleziona la variante.</p>

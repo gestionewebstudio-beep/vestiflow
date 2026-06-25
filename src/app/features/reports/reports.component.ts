@@ -12,19 +12,16 @@ import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { InventoryLevel } from '@core/models/inventory-level.model';
-import type { Location } from '@core/models/location.model';
-import { isLowStock } from '@core/utils/inventory.util';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { InventoryService } from '@features/inventory/services/inventory.service';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductService } from '@features/products/services/product.service';
+import {
+  InventoryService,
+  type LocationInventoryReportRow,
+} from '@features/inventory/services/inventory.service';
 import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
 import type { SalesOrder } from '@core/models/sales-order.model';
 
@@ -46,9 +43,7 @@ import {
 import type { LocationReportRow } from './models/report-view.model';
 
 interface ReportData {
-  readonly levels: readonly InventoryLevel[];
-  readonly locations: readonly Location[];
-  readonly summaries: readonly VariantSummary[];
+  readonly locationReport: readonly LocationInventoryReportRow[];
   readonly orders: readonly SalesOrder[];
 }
 
@@ -78,8 +73,6 @@ type ReportState =
 })
 export class ReportsComponent {
   private readonly inventoryService = inject(InventoryService);
-  private readonly operationalLocations = inject(OperationalLocationsService);
-  private readonly productService = inject(ProductService);
   private readonly salesOrderService = inject(SalesOrderService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -127,11 +120,7 @@ export class ReportsComponent {
       switchMap(({ query }) => {
         const salesFilters = toSalesOrderListFilters(query);
         return forkJoin({
-          levels: this.inventoryService
-            .getLevels({ page: 1, pageSize: 100 })
-            .pipe(map((response) => response.data)),
-          locations: this.inventoryService.getLocations(),
-          summaries: this.productService.getVariantSummaries(),
+          locationReport: this.inventoryService.getLocationInventoryReport(),
           orders: this.salesOrderService.getAllSalesOrders(salesFilters),
         }).pipe(
           map((data): ReportState => ({ status: 'success', data })),
@@ -162,24 +151,19 @@ export class ReportsComponent {
     if (!data) {
       return [];
     }
-    const priceByVariant = new Map(
-      data.summaries.map((summary) => [summary.variantId, summary.sellingPrice]),
+    return data.locationReport.map(
+      (row): LocationReportRow => ({
+        locationId: row.locationId,
+        locationName: row.locationName,
+        trackedVariants: row.trackedVariants,
+        availableUnits: row.availableUnits,
+        lowStockCount: row.lowStockCount,
+        stockValue: {
+          amountMinor: row.stockValueMinor,
+          currencyCode: row.currencyCode || DEFAULT_CURRENCY,
+        },
+      }),
     );
-    return this.operationalLocations.locations().map((location): LocationReportRow => {
-      const levels = data.levels.filter((level) => level.locationId === location.id);
-      const stockValueMinor = levels.reduce((sum, level) => {
-        const price = priceByVariant.get(level.variantId);
-        return sum + Math.max(0, level.available) * (price?.amountMinor ?? 0);
-      }, 0);
-      return {
-        locationId: location.id,
-        locationName: location.name,
-        trackedVariants: levels.length,
-        availableUnits: levels.reduce((sum, level) => sum + level.available, 0),
-        lowStockCount: levels.filter((level) => isLowStock(level)).length,
-        stockValue: { amountMinor: stockValueMinor, currencyCode: DEFAULT_CURRENCY },
-      };
-    });
   });
 
   private readonly salesSummary = computed(() => {

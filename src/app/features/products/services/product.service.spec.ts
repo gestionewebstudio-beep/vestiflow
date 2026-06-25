@@ -146,41 +146,50 @@ describe('ProductService (HTTP)', () => {
     expect(result.sku).toBe('SKU-XYZ');
   });
 
-  it('getVariantSummaries riusa la cache HTTP', async () => {
-    const firstPromise = firstValueFrom(service.getVariantSummaries());
-    const secondPromise = firstValueFrom(service.getVariantSummaries());
+  it('getFilterOptions interroga /products/facets e riusa la cache', async () => {
+    const firstPromise = firstValueFrom(service.getFilterOptions());
+    const secondPromise = firstValueFrom(service.getFilterOptions());
 
-    const req = httpMock.expectOne((request) => request.url.startsWith(`${API_BASE}/products`));
+    const req = httpMock.expectOne(`${API_BASE}/products/facets`);
+    req.flush({
+      categories: ['Maglieria'],
+      brands: ['Brand A'],
+      seasons: ['SS26'],
+    });
+
+    const [first, second] = await Promise.all([firstPromise, secondPromise]);
+    expect(first.categories).toContain('Maglieria');
+    expect(second.brands).toContain('Brand A');
+  });
+
+  it('searchVariantSummaries interroga endpoint paginato dedicato', async () => {
+    const promise = firstValueFrom(
+      service.searchVariantSummaries({ search: 'magli', pageSize: 10 }),
+    );
+
+    const req = httpMock.expectOne((request) =>
+      request.url.startsWith(`${API_BASE}/products/variants/summaries`),
+    );
+    expect(req.request.params.get('search')).toBe('magli');
+    expect(req.request.params.get('pageSize')).toBe('10');
     req.flush({
       items: [
         {
-          id: 'prod-1',
-          tenantId: 'tenant-1',
-          name: 'Maglietta',
-          status: ProductStatus.Active,
-          options: [{ name: 'Taglia', values: ['M'] }],
-          shopifySyncStatus: 'not_connected',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-          variants: [
-            {
-              id: 'var-1',
-              productId: 'prod-1',
-              sku: 'SKU-M',
-              optionValues: [{ name: 'Taglia', value: 'M' }],
-              sellingPriceMinor: 2990,
-              currency: 'EUR',
-            },
-          ],
+          variantId: 'var-1',
+          productId: 'prod-1',
+          sku: 'SKU-M',
+          productName: 'Maglietta',
+          title: 'Maglietta — M',
+          sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
         },
       ],
       total: 1,
       page: 1,
-      pageSize: 100,
+      pageSize: 10,
     });
 
-    const [first, second] = await Promise.all([firstPromise, secondPromise]);
-    expect(first.length).toBe(1);
-    expect(second[0]?.sku).toBe('SKU-M');
+    const result = await promise;
+    expect(result.length).toBe(1);
+    expect(result[0]?.sku).toBe('SKU-M');
   });
 });
