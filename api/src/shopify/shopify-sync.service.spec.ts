@@ -162,6 +162,44 @@ describe('ShopifySyncService', () => {
     );
   });
 
+  it('applyInventoryLevelFromShopify allinea livello esistente con update atomico', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
+    prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
+
+    const tx = {
+      inventoryLevel: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 10, onHand: 10 }),
+      },
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      stockMovement: {
+        create: vi.fn().mockResolvedValue({}),
+      },
+    };
+    prisma.$transaction.mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx));
+
+    const result = await service.applyInventoryLevelFromShopify(
+      'tenant-1',
+      'inv-1',
+      'shop-loc-1',
+      4,
+      'Sync inventario Shopify',
+    );
+
+    expect(result).toBe('updated');
+    // Update atomico via SQL parametrizzato (no read-modify-write su onHand).
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: StockMovementType.sale,
+          origin: MovementOrigin.shopify,
+          quantity: 6,
+        }),
+      }),
+    );
+  });
+
   it('applyInventoryLevelFromShopify restituisce unchanged se quantità uguale', async () => {
     const { service, prisma } = createService();
     prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });

@@ -294,7 +294,7 @@ export class ShopifyProductPullService {
               optionValues: this.mapVariantOptions(
                 remote,
                 variant,
-              ) as unknown as Prisma.InputJsonValue,
+              ),
               barcode: variant.barcode ?? null,
               currency: 'EUR',
               sellingPriceMinor: shopifyDecimalToMinor(variant.price ?? '0'),

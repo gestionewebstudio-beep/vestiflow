@@ -29,7 +29,7 @@ describe('CustomersService', () => {
       page: 1,
       pageSize: 20,
       search: 'mario',
-    } as never);
+    });
 
     expect(result).toEqual({ items, total: 1, page: 1, pageSize: 20 });
   });

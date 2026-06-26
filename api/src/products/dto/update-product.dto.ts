@@ -50,6 +50,7 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => ShopifyCategoryMetafieldDto)
   shopifyCategoryMetafields?: ShopifyCategoryMetafieldDto[];
@@ -66,6 +67,7 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(50)
   @IsString({ each: true })
   @MaxLength(100, { each: true })
   tags?: string[];
@@ -83,6 +85,7 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => UpdateVariantDto)
   variants?: UpdateVariantDto[];

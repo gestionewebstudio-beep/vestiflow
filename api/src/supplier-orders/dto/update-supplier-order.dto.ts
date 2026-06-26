@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsISO8601,
@@ -32,6 +33,7 @@ export class UpdateSupplierOrderDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(500)
   @ValidateNested({ each: true })
   @Type(() => CreateSupplierOrderLineDto)
   lines!: CreateSupplierOrderLineDto[];

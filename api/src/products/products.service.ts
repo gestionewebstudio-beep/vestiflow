@@ -793,7 +793,7 @@ function normalizeListProductRow(
   item: ProductWithVariants | ProductListRow,
 ): ProductWithVariants {
   if ('variants' in item && Array.isArray(item.variants)) {
-    return item as ProductWithVariants;
+    return item;
   }
   return {
     ...item,

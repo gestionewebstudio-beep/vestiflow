@@ -24,7 +24,7 @@ describe('SuppliersController', () => {
     const dto = { name: 'Nuovo fornitore' };
     supplierOrders.createSupplier.mockResolvedValue({ id: 'sup-2', ...dto });
 
-    await controller.create(tenantId, dto as never);
+    await controller.create(tenantId, dto);
 
     expect(supplierOrders.createSupplier).toHaveBeenCalledWith(tenantId, dto);
   });

@@ -23,7 +23,7 @@ describe('CustomersController', () => {
     const query = { page: 1, pageSize: 20 };
     customers.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 });
 
-    await controller.list(tenantId, query as never);
+    await controller.list(tenantId, query);
 
     expect(customers.list).toHaveBeenCalledWith(tenantId, query);
   });
@@ -37,7 +37,7 @@ describe('CustomersController', () => {
 
   it('exportCsv restituisce StreamableFile CSV', async () => {
     const query = { search: 'mario' };
-    const file = await controller.exportCsv(tenantId, query as never);
+    const file = await controller.exportCsv(tenantId, query);
 
     expect(customersExport.exportCsv).toHaveBeenCalledWith(tenantId, query);
     expect(file.options.type).toContain('text/csv');

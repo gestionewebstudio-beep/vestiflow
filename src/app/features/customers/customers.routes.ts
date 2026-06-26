@@ -6,21 +6,19 @@ import {
   REQUIRED_TENANT_PERMISSIONS_KEY,
 } from '@core/permissions/tenant-permissions.util';
 
-import { CustomerDetailComponent } from './customer-detail.component';
-import { CustomerListComponent } from './customer-list.component';
-
 export const customersRoutes: Routes = [
   {
     path: '',
     title: 'VestiFlow · Clienti',
-    component: CustomerListComponent,
+    loadComponent: () => import('./customer-list.component').then((m) => m.CustomerListComponent),
     canActivate: [tenantPermissionGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CUSTOMERS_VIEW_PERMISSIONS },
   },
   {
     path: ':id',
     title: 'VestiFlow · Dettaglio cliente',
-    component: CustomerDetailComponent,
+    loadComponent: () =>
+      import('./customer-detail.component').then((m) => m.CustomerDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CUSTOMERS_VIEW_PERMISSIONS },
   },

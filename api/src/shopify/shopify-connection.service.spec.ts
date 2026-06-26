@@ -1,4 +1,4 @@
-import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { UnprocessableEntityException } from '@nestjs/common';
 import { ShopifyConnectionStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 

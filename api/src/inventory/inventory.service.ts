@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import {
   AdjustmentDirection,
-  MovementOrigin,
   Prisma,
   StockMovementType,
   type InventoryLevel,
@@ -18,9 +17,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
+import { applyInventoryDelta } from './inventory-level-delta.util';
 import {
   INVENTORY_VIEW_SCOPE_MODE,
-  INVENTORY_ACTION_SCOPE_MODE,
   locationScopeToInventoryLevelFilter,
   locationScopeToMovementFilter,
   resolveOperationalLocationScope,
@@ -416,7 +415,7 @@ export class InventoryService {
         data: {
           tenantId,
           type: movementType,
-          origin: 'vestiflow_pos' as MovementOrigin,
+          origin: 'vestiflow_pos',
           variantId: variant.id,
           sku: variant.sku,
           locationId: dto.locationId,
@@ -474,21 +473,7 @@ export class InventoryService {
     locationId: string,
     delta: number,
   ): Promise<void> {
-    const level = await tx.inventoryLevel.upsert({
-      where: { variantId_locationId: { variantId, locationId } },
-      create: { tenantId, variantId, locationId },
-      update: {},
-    });
-    const nextAvailable = level.available + delta;
-    if (delta < 0 && nextAvailable < 0) {
-      throw new UnprocessableEntityException(
-        `Disponibilità insufficiente: richiesti ${Math.abs(delta)}, disponibili ${level.available}.`,
-      );
-    }
-    await tx.inventoryLevel.update({
-      where: { id: level.id },
-      data: { onHand: level.onHand + delta, available: nextAvailable },
-    });
+    await applyInventoryDelta(tx, tenantId, variantId, locationId, delta);
   }
 
   private async assertLocationExists(

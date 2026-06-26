@@ -35,7 +35,7 @@ describe('ProductsController', () => {
     const query = { page: 1, pageSize: 10 };
     products.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 10 });
 
-    await controller.list(tenantId, query as never);
+    await controller.list(tenantId, query);
 
     expect(products.list).toHaveBeenCalledWith(tenantId, query);
   });
@@ -44,7 +44,7 @@ describe('ProductsController', () => {
     products.checkSkuAvailability.mockResolvedValue({ sku: 'SKU-1', available: true });
 
     await expect(
-      controller.checkSku(tenantId, { sku: 'SKU-1' } as never),
+      controller.checkSku(tenantId, { sku: 'SKU-1' }),
     ).resolves.toEqual({ sku: 'SKU-1', available: true });
   });
 
@@ -55,7 +55,7 @@ describe('ProductsController', () => {
     });
 
     await expect(
-      controller.checkBarcode(tenantId, { barcode: '8001234567890' } as never),
+      controller.checkBarcode(tenantId, { barcode: '8001234567890' }),
     ).resolves.toEqual({ barcode: '8001234567890', available: true });
   });
 
@@ -71,7 +71,7 @@ describe('ProductsController', () => {
     } as Express.Multer.File;
     productsImport.importCsv.mockResolvedValue({ imported: 1, skipped: 0, failed: 0, products: [] });
 
-    await controller.importProducts(tenantId, file, { handles: ['handle-a'] } as never);
+    await controller.importProducts(tenantId, file, { handles: ['handle-a'] });
 
     expect(productsImport.importCsv).toHaveBeenCalledWith(
       tenantId,
@@ -99,7 +99,7 @@ describe('ProductsController', () => {
   });
 
   it('exportCsv restituisce StreamableFile', async () => {
-    const file = await controller.exportCsv(tenantId, {} as never);
+    const file = await controller.exportCsv(tenantId, {});
 
     expect(productsExport.exportCsv).toHaveBeenCalledWith(tenantId, {});
     expect(file.options.disposition).toContain('prodotti-vestiflow');
@@ -109,7 +109,7 @@ describe('ProductsController', () => {
     products.findVariantByCode.mockResolvedValue({ sku: 'SKU-1' });
 
     await expect(
-      controller.findVariantByCode(tenantId, { code: 'SKU-1' } as never),
+      controller.findVariantByCode(tenantId, { code: 'SKU-1' }),
     ).resolves.toEqual({ sku: 'SKU-1' });
   });
 
@@ -117,7 +117,7 @@ describe('ProductsController', () => {
     const dto = { name: 'Aggiornato' };
     products.update.mockResolvedValue({ id: 'prod-1', name: 'Aggiornato' });
 
-    await controller.update(tenantId, 'prod-1', dto as never);
+    await controller.update(tenantId, 'prod-1', dto);
 
     expect(products.update).toHaveBeenCalledWith(tenantId, 'prod-1', dto);
   });

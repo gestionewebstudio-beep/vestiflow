@@ -40,7 +40,7 @@ describe('ProductsExportService', () => {
     };
     const service = new ProductsExportService(prisma as unknown as PrismaService);
 
-    const csv = await service.exportCsv('tenant-1', { search: 'maglietta' } as never);
+    const csv = await service.exportCsv('tenant-1', { search: 'maglietta' });
 
     expect(prisma.product.findMany).toHaveBeenCalled();
     expect(csv).toContain('Maglietta');

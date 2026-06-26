@@ -31,7 +31,7 @@ describe('SalesOrdersService', () => {
       search: '1001',
       financialStatus: 'paid',
       source: 'shopify',
-    } as never);
+    });
 
     expect(result.items).toEqual(items);
     expect(result.total).toBe(1);

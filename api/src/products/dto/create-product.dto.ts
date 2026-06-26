@@ -24,7 +24,9 @@ export class ProductOptionDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @IsString({ each: true })
+  @MaxLength(100, { each: true })
   values!: string[];
 }
 
@@ -46,6 +48,7 @@ export class CreateVariantDto {
   sku!: string;
 
   @IsArray()
+  @ArrayMaxSize(3)
   @ValidateNested({ each: true })
   @Type(() => VariantOptionValueDto)
   optionValues!: VariantOptionValueDto[];
@@ -104,6 +107,7 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => ShopifyCategoryMetafieldDto)
   shopifyCategoryMetafields?: ShopifyCategoryMetafieldDto[];
@@ -121,6 +125,7 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(50)
   @IsString({ each: true })
   @MaxLength(100, { each: true })
   tags?: string[];
@@ -136,6 +141,7 @@ export class CreateProductDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => CreateVariantDto)
   variants!: CreateVariantDto[];

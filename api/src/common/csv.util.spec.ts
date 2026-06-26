@@ -26,7 +26,7 @@ describe('csv.util', () => {
     });
 
     it('usa stringa vuota per celle mancanti', () => {
-      const csv = serializeCsv(['A', 'B'], [{ A: 'x' } as Record<string, string>]);
+      const csv = serializeCsv(['A', 'B'], [{ A: 'x' }]);
       expect(csv).toBe('A,B\nx,\n');
     });
   });

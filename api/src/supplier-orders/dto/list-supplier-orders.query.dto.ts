@@ -1,4 +1,3 @@
-import { Type } from 'class-transformer';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { SupplierOrderStatus } from '@prisma/client';
 

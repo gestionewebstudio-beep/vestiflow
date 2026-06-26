@@ -33,6 +33,7 @@ export class SalesOrdersController {
   ) {}
 
   @Get()
+  @RequirePermissions(TenantPermission.ReportsView)
   list(
     @CurrentTenant() tenantId: string,
     @Query() query: ListSalesOrdersQueryDto,
@@ -56,6 +57,7 @@ export class SalesOrdersController {
   }
 
   @Get(':id')
+  @RequirePermissions(TenantPermission.ReportsView)
   getById(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,

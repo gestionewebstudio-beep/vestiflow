@@ -30,7 +30,7 @@ const baseUser = (overrides: Partial<UserProfileDto> = {}): UserProfileDto =>
     createdAt: '',
     updatedAt: '',
     ...overrides,
-  }) as UserProfileDto;
+  });
 
 describe('user-location-scope.util', () => {
   it('hasUnrestrictedLocationAccess per owner e admin', () => {

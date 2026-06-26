@@ -18,6 +18,8 @@
     "backfill:catalog-origin": "node scripts/backfill-catalog-origin.mjs",
     "backfill:catalog-origin:apply": "node scripts/backfill-catalog-origin.mjs --apply",
     "provision:e2e-users": "node scripts/provision-e2e-permission-users.mjs",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -46,8 +48,13 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^25.9.2",
     "@vitest/coverage-v8": "^4.0.8",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^17.7.0",
     "prisma": "^6.19.3",
     "typescript": "5.9",
+    "typescript-eslint": "^8.62.0",
     "vitest": "^4.0.8"
   },
   "overrides": {

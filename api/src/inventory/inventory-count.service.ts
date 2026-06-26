@@ -26,6 +26,7 @@ import {
   resolveOperationalLocationScope,
 } from './licensed-location-scope.util';
 import { assertUserCanAccessLocation } from './user-location-scope.util';
+import { applyInventoryDelta } from './inventory-level-delta.util';
 
 export type InventoryCountSessionSummary = InventoryCountSession & {
   location: { name: string };
@@ -385,20 +386,9 @@ export class InventoryCountService {
     locationId: string,
     delta: number,
   ): Promise<void> {
-    const level = await tx.inventoryLevel.upsert({
-      where: { variantId_locationId: { variantId, locationId } },
-      create: { tenantId, variantId, locationId },
-      update: {},
-    });
-    const nextAvailable = level.available + delta;
-    if (delta < 0 && nextAvailable < 0) {
-      throw new UnprocessableEntityException(
-        `Disponibilità insufficiente per SKU in rettifica inventario (disponibili ${level.available}).`,
-      );
-    }
-    await tx.inventoryLevel.update({
-      where: { id: level.id },
-      data: { onHand: level.onHand + delta, available: nextAvailable },
+    await applyInventoryDelta(tx, tenantId, variantId, locationId, delta, {
+      insufficientMessage: (available) =>
+        `Disponibilità insufficiente per SKU in rettifica inventario (disponibili ${available}).`,
     });
   }
 }

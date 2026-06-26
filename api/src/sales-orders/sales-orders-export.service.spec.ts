@@ -26,7 +26,7 @@ describe('SalesOrdersExportService', () => {
     };
     const service = new SalesOrdersExportService(prisma as unknown as PrismaService);
 
-    const csv = await service.exportCsv('tenant-1', {} as never);
+    const csv = await service.exportCsv('tenant-1', {});
 
     expect(csv).toContain('1001');
     expect(csv).toContain('59.00');

@@ -598,7 +598,6 @@ export function buildCategoryMetaobjectFieldsPayload(
 
   for (const definition of fieldDefinitions) {
     const typeName = definition.typeName;
-    const typeNorm = typeName.trim().toLowerCase();
 
     if (definition.key === 'label' || isTextMetaobjectFieldType(typeName)) {
       payload.push({ key: definition.key, value: taxonomyValue.name });

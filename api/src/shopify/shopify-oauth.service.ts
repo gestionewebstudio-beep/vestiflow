@@ -8,9 +8,6 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import {
-  SalesOrderFinancialStatus,
-  SalesOrderFulfillmentStatus,
-  SalesOrderSource,
   ShopifyConnectionStatus,
   ShopifySyncStatus,
   TenantChannelProfile,

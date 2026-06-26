@@ -1,15 +1,19 @@
 import { Routes } from '@angular/router';
 
+import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
+import { TenantPermission } from '@core/models/tenant-permission.model';
+import { REQUIRED_TENANT_PERMISSIONS_KEY } from '@core/permissions/tenant-permissions.util';
+
 import { retailSalesRegisterGuard, salesHistoryGuard } from './guards/retail-sales.guard';
-import { SalesOrderDetailComponent } from './sales-order-detail.component';
-import { SalesOrderListComponent } from './sales-order-list.component';
 
 export const salesOrdersRoutes: Routes = [
   {
     path: '',
     title: 'VestiFlow · Vendite',
-    component: SalesOrderListComponent,
-    canActivate: [salesHistoryGuard],
+    loadComponent: () =>
+      import('./sales-order-list.component').then((m) => m.SalesOrderListComponent),
+    canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
   },
   {
     path: 'register',
@@ -21,7 +25,9 @@ export const salesOrdersRoutes: Routes = [
   {
     path: ':id',
     title: 'VestiFlow · Dettaglio vendita',
-    component: SalesOrderDetailComponent,
-    canActivate: [salesHistoryGuard],
+    loadComponent: () =>
+      import('./sales-order-detail.component').then((m) => m.SalesOrderDetailComponent),
+    canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
   },
 ];

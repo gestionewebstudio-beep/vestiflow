@@ -21,7 +21,7 @@ export function testOwnerUser(overrides: Partial<UserProfileDto> = {}): UserProf
     createdAt: '',
     updatedAt: '',
     ...overrides,
-  } as UserProfileDto;
+  };
 }
 
 export function testClerkUser(overrides: Partial<UserProfileDto> = {}): UserProfileDto {

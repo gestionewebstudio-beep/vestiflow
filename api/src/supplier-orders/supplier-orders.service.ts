@@ -16,6 +16,7 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
@@ -413,19 +414,7 @@ export class SupplierOrdersService {
     reason: string,
     externalRef: string,
   ): Promise<void> {
-    const level = await tx.inventoryLevel.upsert({
-      where: { variantId_locationId: { variantId, locationId } },
-      create: { tenantId, variantId, locationId },
-      update: {},
-    });
-
-    await tx.inventoryLevel.update({
-      where: { id: level.id },
-      data: {
-        onHand: level.onHand + quantity,
-        available: level.available + quantity,
-      },
-    });
+    await applyInventoryDelta(tx, tenantId, variantId, locationId, quantity);
 
     await tx.stockMovement.create({
       data: {

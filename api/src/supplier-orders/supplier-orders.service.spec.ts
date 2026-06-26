@@ -61,7 +61,7 @@ describe('SupplierOrdersService', () => {
       {} as ChannelSyncFacade,
     );
 
-    await service.createSupplier(tenantId, { name: '  Fornitore  ' } as never);
+    await service.createSupplier(tenantId, { name: '  Fornitore  ' });
 
     expect(prisma.supplier.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -79,7 +79,7 @@ describe('SupplierOrdersService', () => {
       {} as ChannelSyncFacade,
     );
 
-    const result = await service.list(tenantId, { page: 1, pageSize: 10, search: 'PO' } as never);
+    const result = await service.list(tenantId, { page: 1, pageSize: 10, search: 'PO' });
 
     expect(result.total).toBe(1);
   });
@@ -97,7 +97,7 @@ describe('SupplierOrdersService', () => {
         supplierId: 'missing',
         destinationLocationId: 'loc-1',
         lines: [],
-      } as never),
+      }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -122,7 +122,7 @@ describe('SupplierOrdersService', () => {
         supplierId: 'sup-1',
         destinationLocationId: 'loc-1',
         lines: [{ variantId: 'var-1', orderedQuantity: 5, unitCostMinor: 1000 }],
-      } as never),
+      }),
     ).resolves.toMatchObject({ id: 'po-new', reference: 'PO-2026-0001' });
   });
 
@@ -223,7 +223,7 @@ describe('SupplierOrdersService', () => {
     );
 
     await expect(
-      service.receive(tenantId, 'po-1', { lines: [{ lineId: 'line-1', quantity: 5 }] } as never),
+      service.receive(tenantId, 'po-1', { lines: [{ lineId: 'line-1', quantity: 5 }] }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -261,7 +261,7 @@ describe('SupplierOrdersService', () => {
       },
       inventoryLevel: {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', onHand: 0, available: 0 }),
-        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       stockMovement: { create: vi.fn().mockResolvedValue({}) },
     };
@@ -275,7 +275,7 @@ describe('SupplierOrdersService', () => {
     );
 
     await expect(
-      service.receive(tenantId, 'po-1', { lines: [{ lineId: 'line-1', quantity: 2 }] } as never),
+      service.receive(tenantId, 'po-1', { lines: [{ lineId: 'line-1', quantity: 2 }] }),
     ).resolves.toMatchObject({ status: SupplierOrderStatus.received });
     expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
   });
@@ -296,7 +296,7 @@ describe('SupplierOrdersService', () => {
         destinationLocationId: 'loc-1',
         status: SupplierOrderStatus.received,
         lines: [{ variantId: 'var-1', orderedQuantity: 1, unitCostMinor: 100 }],
-      } as never),
+      }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -335,7 +335,7 @@ describe('SupplierOrdersService', () => {
     await expect(
       service.update(tenantId, 'po-1', {
         lines: [{ variantId: 'var-1', orderedQuantity: 3, unitCostMinor: 500 }],
-      } as never),
+      }),
     ).resolves.toMatchObject({ id: 'po-1' });
   });
 

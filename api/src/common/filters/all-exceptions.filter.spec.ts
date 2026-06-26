@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  HttpException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';

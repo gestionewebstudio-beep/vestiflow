@@ -73,7 +73,7 @@ describe('InventoryExportService', () => {
     ]);
     const service = new InventoryExportService(prisma as unknown as PrismaService);
 
-    const csv = await service.exportCsv('tenant-1', {} as never);
+    const csv = await service.exportCsv('tenant-1', {});
 
     expect(csv).toContain('SKU-LOW');
   });
@@ -83,7 +83,7 @@ describe('InventoryExportService', () => {
     prisma.location.findMany.mockResolvedValue([]);
     const service = new InventoryExportService(prisma as unknown as PrismaService);
 
-    const csv = await service.exportCsv('tenant-1', {} as never);
+    const csv = await service.exportCsv('tenant-1', {});
 
     expect(prisma.inventoryLevel.findMany).not.toHaveBeenCalled();
     expect(csv.split('\n').length).toBeGreaterThanOrEqual(1);
@@ -96,7 +96,7 @@ describe('InventoryExportService', () => {
     prisma.inventoryLevel.findMany.mockResolvedValue([]);
     const service = new InventoryExportService(prisma as unknown as PrismaService);
 
-    await service.exportCsv('tenant-1', {} as never);
+    await service.exportCsv('tenant-1', {});
 
     expect(prisma.inventoryLevel.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

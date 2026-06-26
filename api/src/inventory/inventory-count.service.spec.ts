@@ -41,7 +41,7 @@ describe('InventoryCountService', () => {
     const { service, prisma } = createService();
     prisma.$transaction.mockResolvedValue([[], 0]);
 
-    const result = await service.list(tenantId, { page: 1, pageSize: 10 } as never);
+    const result = await service.list(tenantId, { page: 1, pageSize: 10 });
 
     expect(result).toEqual({ items: [], total: 0, page: 1, pageSize: 10 });
   });
@@ -58,7 +58,7 @@ describe('InventoryCountService', () => {
     prisma.location.findFirst.mockResolvedValue(null);
 
     await expect(
-      service.create(tenantId, { locationId: 'missing', name: 'Conteggio' } as never, ownerUser),
+      service.create(tenantId, { locationId: 'missing', name: 'Conteggio' }, ownerUser),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -86,7 +86,7 @@ describe('InventoryCountService', () => {
     });
 
     await expect(
-      service.create(tenantId, { locationId: 'loc-1', name: ' Conteggio ' } as never, ownerUser),
+      service.create(tenantId, { locationId: 'loc-1', name: ' Conteggio ' }, ownerUser),
     ).resolves.toMatchObject({ id: 'count-1', lines: expect.any(Array) });
   });
 

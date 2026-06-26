@@ -43,6 +43,8 @@ describe('InventoryService', () => {
           onHand: options?.availableBefore ?? 5,
         }),
         update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: (options?.availableBefore ?? 5) >= 1 ? 1 : 0 }),
+        findUnique: vi.fn().mockResolvedValue({ available: options?.availableBefore ?? 5 }),
       },
       stockMovement: {
         create: vi.fn().mockResolvedValue(movement),
@@ -123,7 +125,7 @@ describe('InventoryService', () => {
       {} as ChannelSyncFacade,
     );
 
-    await service.listLevels(tenantId, { page: 1, pageSize: 10 } as never);
+    await service.listLevels(tenantId, { page: 1, pageSize: 10 });
 
     expect(prisma.location.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -156,7 +158,7 @@ describe('InventoryService', () => {
       page: 1,
       pageSize: 10,
       locationId: 'loc-unlicensed',
-    } as never);
+    });
 
     expect(result).toEqual({ items: [], total: 0, page: 1, pageSize: 10 });
     expect(prisma.inventoryLevel.findMany).not.toHaveBeenCalled();
@@ -177,7 +179,7 @@ describe('InventoryService', () => {
       pageSize: 10,
       locationId: 'loc-1',
       lowStockOnly: true,
-    } as never);
+    });
 
     expect(result).toEqual({ items, total: 1, page: 1, pageSize: 10 });
     expect(prisma.inventoryLevel.findMany).toHaveBeenCalledWith(
@@ -211,7 +213,7 @@ describe('InventoryService', () => {
       page: 1,
       pageSize: 10,
       search: 'SKU-1',
-    } as never);
+    });
 
     expect(result.total).toBe(1);
     expect(result.items).toHaveLength(1);
@@ -240,7 +242,7 @@ describe('InventoryService', () => {
       page: 1,
       pageSize: 10,
       search: 'SKU',
-    } as never);
+    });
 
     expect(prisma.productVariant.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -287,7 +289,7 @@ describe('InventoryService', () => {
       {} as ChannelSyncFacade,
     );
 
-    await service.listMovements(tenantId, { page: 1, pageSize: 10 } as never);
+    await service.listMovements(tenantId, { page: 1, pageSize: 10 });
 
     expect(prisma.stockMovement.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -315,7 +317,7 @@ describe('InventoryService', () => {
           locationId: 'loc-1',
           quantity: 1,
           direction: AdjustmentDirection.increase,
-        } as never,
+        },
         'Tester',
         'user-1',
         ownerUser,
@@ -334,7 +336,7 @@ describe('InventoryService', () => {
       },
       inventoryLevel: {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 5, onHand: 5 }),
-        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       stockMovement: {
         create: vi.fn().mockResolvedValue(movement),
@@ -356,16 +358,16 @@ describe('InventoryService', () => {
         variantId: 'var-1',
         locationId: 'loc-1',
         quantity: 2,
-      } as never,
+      },
       'Mario Rossi',
       'user-1',
       ownerUser,
     );
 
     expect(result).toEqual(movement);
-    expect(tx.inventoryLevel.update).toHaveBeenCalledWith({
-      where: { id: 'lvl-1' },
-      data: { onHand: 7, available: 7 },
+    expect(tx.inventoryLevel.updateMany).toHaveBeenCalledWith({
+      where: { tenantId, variantId: 'var-1', locationId: 'loc-1' },
+      data: { onHand: { increment: 2 }, available: { increment: 2 } },
     });
     expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
   });
@@ -381,7 +383,7 @@ describe('InventoryService', () => {
       },
       inventoryLevel: {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 10, onHand: 10 }),
-        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       stockMovement: {
         create: vi.fn().mockResolvedValue(movement),
@@ -403,16 +405,16 @@ describe('InventoryService', () => {
         variantId: 'var-1',
         locationId: 'loc-1',
         quantity: 3,
-      } as never,
+      },
       'Mario Rossi',
       'user-1',
       ownerUser,
     );
 
     expect(result).toEqual(movement);
-    expect(tx.inventoryLevel.update).toHaveBeenCalledWith({
-      where: { id: 'lvl-1' },
-      data: { onHand: 7, available: 7 },
+    expect(tx.inventoryLevel.updateMany).toHaveBeenCalledWith({
+      where: { tenantId, variantId: 'var-1', locationId: 'loc-1', available: { gte: 3 } },
+      data: { onHand: { increment: -3 }, available: { increment: -3 } },
     });
   });
 
@@ -431,7 +433,7 @@ describe('InventoryService', () => {
           variantId: 'var-1',
           locationId: 'loc-1',
           quantity: 1,
-        } as never,
+        },
         'Tester',
         'user-1',
         ownerUser,
@@ -455,7 +457,7 @@ describe('InventoryService', () => {
           locationId: 'loc-1',
           targetLocationId: 'loc-1',
           quantity: 1,
-        } as never,
+        },
         'Tester',
         'user-1',
         ownerUser,
@@ -473,7 +475,8 @@ describe('InventoryService', () => {
       },
       inventoryLevel: {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 1, onHand: 1 }),
-        update: vi.fn(),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        findUnique: vi.fn().mockResolvedValue({ available: 1 }),
       },
       stockMovement: { create: vi.fn() },
     };
@@ -493,7 +496,7 @@ describe('InventoryService', () => {
           variantId: 'var-1',
           locationId: 'loc-1',
           quantity: 5,
-        } as never,
+        },
         'Tester',
         'user-1',
         ownerUser,
@@ -516,7 +519,7 @@ describe('InventoryService', () => {
           .fn()
           .mockResolvedValueOnce({ id: 'lvl-src', available: 10, onHand: 10 })
           .mockResolvedValueOnce({ id: 'lvl-dst', available: 2, onHand: 2 }),
-        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       stockMovement: {
         create: vi.fn().mockResolvedValue(movement),
@@ -539,14 +542,14 @@ describe('InventoryService', () => {
         locationId: 'loc-1',
         targetLocationId: 'loc-2',
         quantity: 3,
-      } as never,
+      },
       'Mario Rossi',
       'user-1',
       ownerUser,
     );
 
     expect(result).toEqual(movement);
-    expect(tx.inventoryLevel.update).toHaveBeenCalledTimes(2);
+    expect(tx.inventoryLevel.updateMany).toHaveBeenCalledTimes(2);
     expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', [
       'loc-1',
       'loc-2',
@@ -564,7 +567,7 @@ describe('InventoryService', () => {
       },
       inventoryLevel: {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 5, onHand: 5 }),
-        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       stockMovement: {
         create: vi.fn().mockResolvedValue(movement),
@@ -588,7 +591,7 @@ describe('InventoryService', () => {
           quantity: 2,
           direction: AdjustmentDirection.decrease,
           reason: 'Rottura imballo',
-        } as never,
+        },
         'Tester',
         'user-1',
         ownerUser,
@@ -656,9 +659,9 @@ describe('InventoryService', () => {
         }),
       }),
     );
-    expect(tx.inventoryLevel.update).toHaveBeenCalledWith(
+    expect(tx.inventoryLevel.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ available: 6, onHand: 6 }),
+        data: { onHand: { increment: 1 }, available: { increment: 1 } },
       }),
     );
   });

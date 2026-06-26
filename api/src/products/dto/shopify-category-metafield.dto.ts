@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
-  IsOptional,
   IsString,
   MaxLength,
   MinLength,
@@ -42,6 +42,7 @@ export class ShopifyCategoryMetafieldDto {
   metafieldType!: string;
 
   @IsArray()
+  @ArrayMaxSize(500)
   @ValidateNested({ each: true })
   @Type(() => ShopifyCategoryMetafieldValueDto)
   values!: ShopifyCategoryMetafieldValueDto[];

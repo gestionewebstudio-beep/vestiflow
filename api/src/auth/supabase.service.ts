@@ -313,7 +313,7 @@ export class SupabaseService {
       return body as AdminMfaFactor[];
     }
     if (typeof body === 'object' && body !== null && 'factors' in body) {
-      const nested = (body as { factors: unknown }).factors;
+      const nested = (body).factors;
       return Array.isArray(nested) ? (nested as AdminMfaFactor[]) : [];
     }
     return [];

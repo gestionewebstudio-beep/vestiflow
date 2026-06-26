@@ -60,7 +60,7 @@ describe('ShopifyController', () => {
   it('beginAuth delega a OAuth', async () => {
     shopifyOAuth.beginAuth.mockResolvedValue({ authorizeUrl: 'https://shop.myshopify.com/admin/oauth' });
 
-    await expect(controller.beginAuth(tenantId, { shop: 'shop.myshopify.com' } as never)).resolves
+    await expect(controller.beginAuth(tenantId, { shop: 'shop.myshopify.com' })).resolves
       .toMatchObject({ authorizeUrl: expect.stringContaining('shopify') });
   });
 
@@ -103,7 +103,7 @@ describe('ShopifyController', () => {
     shopifyTaxonomy.listCategories.mockResolvedValue([{ id: 'cat-1', name: 'Abbigliamento' }]);
 
     await expect(
-      controller.listTaxonomyCategories(tenantId, { search: 'shirt' } as never),
+      controller.listTaxonomyCategories(tenantId, { search: 'shirt' }),
     ).resolves.toEqual({ items: [{ id: 'cat-1', name: 'Abbigliamento' }] });
   });
 
@@ -144,7 +144,7 @@ describe('ShopifyController', () => {
         purgeCatalog: true,
         purgeCustomers: true,
         purgeOrders: true,
-      } as never),
+      }),
     ).resolves.toEqual({ purged: { products: 1 } });
   });
 });

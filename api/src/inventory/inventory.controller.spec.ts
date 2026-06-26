@@ -205,7 +205,7 @@ describe('InventoryController', () => {
 
 
 
-    await controller.listMovements(tenantId, user, query as never);
+    await controller.listMovements(tenantId, user, query);
 
 
 
@@ -221,7 +221,7 @@ describe('InventoryController', () => {
 
 
 
-    const file = await controller.exportLevelsCsv(tenantId, user, {} as never);
+    const file = await controller.exportLevelsCsv(tenantId, user, {});
 
 
 
@@ -271,7 +271,7 @@ describe('InventoryController', () => {
 
 
 
-    await controller.importLevels(tenantId, user, file, { keys: ['sku|loc'] } as never);
+    await controller.importLevels(tenantId, user, file, { keys: ['sku|loc'] });
 
 
 
@@ -299,7 +299,7 @@ describe('InventoryController', () => {
 
 
 
-    await controller.createCount(tenantId, user, dto as never);
+    await controller.createCount(tenantId, user, dto);
 
 
 
@@ -317,7 +317,7 @@ describe('InventoryController', () => {
 
 
 
-    await controller.listCounts(tenantId, user, query as never);
+    await controller.listCounts(tenantId, user, query);
 
 
 

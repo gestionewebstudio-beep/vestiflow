@@ -348,7 +348,7 @@ describe('AdminTenantsService', () => {
 
     const result = await service.updateTenant('tenant-1', {
       licensedLocationCount: 1,
-    } as never);
+    });
 
     expect(locationLicensing.assertLicensedLocationCount).toHaveBeenCalledWith(1);
     expect(locationLicensing.applyAdminLicensedLocationLimit).toHaveBeenCalledWith(

@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { setInventoryAvailableAbsolute } from '../inventory/inventory-level-delta.util';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
@@ -248,13 +249,7 @@ export class ShopifySyncService {
       }
 
       if (level) {
-        await tx.inventoryLevel.update({
-          where: { id: level.id },
-          data: {
-            onHand: level.onHand + delta,
-            available: normalizedAvailable,
-          },
-        });
+        await setInventoryAvailableAbsolute(tx, level.id, normalizedAvailable);
       } else {
         await tx.inventoryLevel.create({
           data: {

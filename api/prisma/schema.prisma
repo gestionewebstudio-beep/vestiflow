@@ -140,61 +140,61 @@ enum InventoryCountStatus {
 // ── Tenant & utenti ──────────────────────────────────────────────────────────
 
 model Tenant {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  channelProfile TenantChannelProfile @default(shopify) @map("channel_profile")
-  legalName    String? @map("legal_name")
-  vatNumber    String? @map("vat_number")
-  fiscalCode   String? @map("fiscal_code")
-  phone        String?
-  pec          String?
-  sdiCode      String? @map("sdi_code")
-  addressLine1 String? @map("address_line1")
-  addressLine2 String? @map("address_line2")
-  city         String?
-  province     String?
-  postalCode   String? @map("postal_code")
-  countryCode  String? @map("country_code")
+  id                             String               @id @default(uuid()) @db.Uuid
+  name                           String
+  channelProfile                 TenantChannelProfile @default(shopify) @map("channel_profile")
+  legalName                      String?              @map("legal_name")
+  vatNumber                      String?              @map("vat_number")
+  fiscalCode                     String?              @map("fiscal_code")
+  phone                          String?
+  pec                            String?
+  sdiCode                        String?              @map("sdi_code")
+  addressLine1                   String?              @map("address_line1")
+  addressLine2                   String?              @map("address_line2")
+  city                           String?
+  province                       String?
+  postalCode                     String?              @map("postal_code")
+  countryCode                    String?              @map("country_code")
   /// Sedi operative incluse nel contratto (max 10).
-  licensedLocationCount Int @default(1) @map("licensed_location_count")
+  licensedLocationCount          Int                  @default(1) @map("licensed_location_count")
   /// Blocco scelta sedi attive: dopo il primo salvataggio cliente o migrazione con sedi già attive.
-  locationSelectionLocked Boolean @default(false) @map("location_selection_locked")
+  locationSelectionLocked        Boolean              @default(false) @map("location_selection_locked")
   /// Sblocco one-shot concesso dall'admin piattaforma per un nuovo round di selezione.
-  locationSelectionChangeGranted Boolean @default(false) @map("location_selection_change_granted")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  locationSelectionChangeGranted Boolean              @default(false) @map("location_selection_change_granted")
+  createdAt                      DateTime             @default(now()) @map("created_at")
+  updatedAt                      DateTime             @updatedAt @map("updated_at")
 
-  users              User[]
-  stores             Store[]
-  locations          Location[]
-  products           Product[]
-  productImages      ProductImage[]
-  variants           ProductVariant[]
-  inventoryLevels    InventoryLevel[]
-  stockMovements     StockMovement[]
-  inventoryCounts    InventoryCountSession[]
-  suppliers          Supplier[]
-  supplierOrders     SupplierOrder[]
-  customers          Customer[]
-  salesOrders        SalesOrder[]
-  shopifyConnection  ShopifyConnection?
-  shopifyCredential  ShopifyCredential?
-  shopifyOAuthStates ShopifyOAuthState[]
-  tiktokConnection   TikTokConnection?
-  tiktokCredential   TikTokCredential?
-  tiktokOAuthStates  TikTokOAuthState[]
-  supportSessionsAsTarget SupportSession[] @relation("SupportSessionTarget")
+  users                   User[]
+  stores                  Store[]
+  locations               Location[]
+  products                Product[]
+  productImages           ProductImage[]
+  variants                ProductVariant[]
+  inventoryLevels         InventoryLevel[]
+  stockMovements          StockMovement[]
+  inventoryCounts         InventoryCountSession[]
+  suppliers               Supplier[]
+  supplierOrders          SupplierOrder[]
+  customers               Customer[]
+  salesOrders             SalesOrder[]
+  shopifyConnection       ShopifyConnection?
+  shopifyCredential       ShopifyCredential?
+  shopifyOAuthStates      ShopifyOAuthState[]
+  tiktokConnection        TikTokConnection?
+  tiktokCredential        TikTokCredential?
+  tiktokOAuthStates       TikTokOAuthState[]
+  supportSessionsAsTarget SupportSession[]        @relation("SupportSessionTarget")
 
   @@map("tenants")
 }
 
 model User {
-  id          String   @id @default(uuid()) @db.Uuid
-  tenantId    String   @map("tenant_id") @db.Uuid
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
   /// Id dell'utente in Supabase Auth (sub del JWT). L'identità vive lì,
   /// qui vivono profilo applicativo e ruolo.
-  authUserId  String?  @unique @map("auth_user_id") @db.Uuid
-  email       String
+  authUserId         String?  @unique @map("auth_user_id") @db.Uuid
+  email              String
   displayName        String   @map("display_name")
   role               UserRole @default(clerk)
   /// URL pubblico foto profilo (Supabase Storage).
@@ -205,12 +205,12 @@ model User {
   assignedLocationId String?  @map("assigned_location_id") @db.Uuid
   /// Permessi granulari (chiavi). Il titolare ignora l'array (accesso pieno).
   permissions        String[] @default([]) @map("permissions")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant      @relation(fields: [tenantId], references: [id])
-  assignedLocation Location? @relation("UserAssignedLocation", fields: [assignedLocationId], references: [id], onDelete: SetNull)
-  stores UserStore[]
+  tenant                    Tenant           @relation(fields: [tenantId], references: [id])
+  assignedLocation          Location?        @relation("UserAssignedLocation", fields: [assignedLocationId], references: [id], onDelete: SetNull)
+  stores                    UserStore[]
   supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
 
   @@unique([tenantId, email])
@@ -267,88 +267,90 @@ model UserStore {
 // ── Location (porta l'inventario, semantica Shopify) ────────────────────────
 
 model Location {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @map("tenant_id") @db.Uuid
-  name      String
-  code      String?
-  isActive  Boolean  @default(true) @map("is_active")
+  id                String            @id @default(uuid()) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  name              String
+  code              String?
+  isActive          Boolean           @default(true) @map("is_active")
   /// Sede operativa in VestiFlow (entro licensedLocationCount del tenant).
-  licensedInVf Boolean @default(false) @map("licensed_in_vf")
+  licensedInVf      Boolean           @default(false) @map("licensed_in_vf")
   /// Store servito da questa location (un magazzino può non averene).
-  storeId   String?  @map("store_id") @db.Uuid
+  storeId           String?           @map("store_id") @db.Uuid
   // Indirizzo denormalizzato (display/etichette, non entità a sé).
-  addressLine1 String? @map("address_line1")
-  addressLine2 String? @map("address_line2")
-  city         String?
-  province     String?
-  postalCode   String? @map("postal_code")
-  countryCode  String? @map("country_code")
+  addressLine1      String?           @map("address_line1")
+  addressLine2      String?           @map("address_line2")
+  city              String?
+  province          String?
+  postalCode        String?           @map("postal_code")
+  countryCode       String?           @map("country_code")
   // Collegamento Shopify Location: solo id pubblici, nessun segreto.
-  shopifyLocationId String?            @map("shopify_location_id")
-  shopifySyncStatus ShopifySyncStatus  @default(not_connected) @map("shopify_sync_status")
-  shopifyLastSyncAt DateTime?          @map("shopify_last_sync_at")
-  shopifyLastError  String?            @map("shopify_last_error")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  shopifyLocationId String?           @map("shopify_location_id")
+  shopifySyncStatus ShopifySyncStatus @default(not_connected) @map("shopify_sync_status")
+  shopifyLastSyncAt DateTime?         @map("shopify_last_sync_at")
+  shopifyLastError  String?           @map("shopify_last_error")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
 
-  tenant            Tenant           @relation(fields: [tenantId], references: [id])
-  store             Store?           @relation(fields: [storeId], references: [id])
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id])
+  store             Store?                  @relation(fields: [storeId], references: [id])
   inventoryLevels   InventoryLevel[]
-  movements         StockMovement[]  @relation("MovementLocation")
-  incomingTransfers StockMovement[]  @relation("MovementTargetLocation")
+  movements         StockMovement[]         @relation("MovementLocation")
+  incomingTransfers StockMovement[]         @relation("MovementTargetLocation")
   supplierOrders    SupplierOrder[]
   inventoryCounts   InventoryCountSession[]
-  usersAssigned     User[]           @relation("UserAssignedLocation")
+  usersAssigned     User[]                  @relation("UserAssignedLocation")
 
   @@index([tenantId])
+  // Lookup sync Shopify Location per tenant (mapping giacenze).
+  @@index([tenantId, shopifyLocationId])
   @@map("locations")
 }
 
 // ── Catalogo: prodotti e varianti ────────────────────────────────────────────
 
 model Product {
-  id          String        @id @default(uuid()) @db.Uuid
-  tenantId    String        @map("tenant_id") @db.Uuid
-  name        String
-  description String?
-  brand       String?
+  id                              String                  @id @default(uuid()) @db.Uuid
+  tenantId                        String                  @map("tenant_id") @db.Uuid
+  name                            String
+  description                     String?
+  brand                           String?
   /// Tipo prodotto Shopify (REST product_type) — organizzazione interna negozio.
-  category    String?
+  category                        String?
   /// Categoria Standard Product Taxonomy (GraphQL), es. gid://shopify/TaxonomyCategory/...
-  shopifyTaxonomyCategoryId       String? @map("shopify_taxonomy_category_id")
-  shopifyTaxonomyCategoryFullName String? @map("shopify_taxonomy_category_full_name")
-  season      String?
+  shopifyTaxonomyCategoryId       String?                 @map("shopify_taxonomy_category_id")
+  shopifyTaxonomyCategoryFullName String?                 @map("shopify_taxonomy_category_full_name")
+  season                          String?
   /// Tag prodotto (forma Shopify: lista normalizzata, es. ['estate','donna']).
-  tags        String[]      @default([])
+  tags                            String[]                @default([])
   /// SEO importato da Shopify (metafields global title_tag / description_tag).
-  seoTitle       String? @map("seo_title")
-  seoDescription String? @map("seo_description")
+  seoTitle                        String?                 @map("seo_title")
+  seoDescription                  String?                 @map("seo_description")
   /// Collezioni Shopify collegate [{ id, title }] — read-only lato sync.
-  shopifyCollections Json @default("[]") @map("shopify_collections")
+  shopifyCollections              Json                    @default("[]") @map("shopify_collections")
   /// Metafields Shopify importati [{ namespace, key, value, type? }] — snapshot.
-  shopifyMetafields  Json @default("[]") @map("shopify_metafields")
+  shopifyMetafields               Json                    @default("[]") @map("shopify_metafields")
   /// Attributi categoria Shopify [{ attributeId, key, namespace, values: [{ id, name }] }].
-  shopifyCategoryMetafields Json @default("[]") @map("shopify_category_metafields")
-  status      ProductStatus @default(draft)
+  shopifyCategoryMetafields       Json                    @default("[]") @map("shopify_category_metafields")
+  status                          ProductStatus           @default(draft)
   /// Chi possiede il catalogo ecommerce: vestiflow (creato in gestionale) o shopify (import).
-  catalogOrigin CatalogOrigin @default(vestiflow) @map("catalog_origin")
+  catalogOrigin                   CatalogOrigin           @default(vestiflow) @map("catalog_origin")
   /// Modalità collegamento Shopify; null su dati legacy pre-migrazione.
-  shopifyCatalogLinkKind ShopifyCatalogLinkKind? @map("shopify_catalog_link_kind")
+  shopifyCatalogLinkKind          ShopifyCatalogLinkKind? @map("shopify_catalog_link_kind")
   /// Assi opzione (max 3, vincolo Shopify): [{ name: 'Taglia', values: ['S','M'] }]
-  options     Json          @default("[]")
+  options                         Json                    @default("[]")
   // Collegamento Shopify Product: solo id pubblici.
-  shopifyProductId  String?           @map("shopify_product_id")
-  shopifySyncStatus ShopifySyncStatus @default(not_connected) @map("shopify_sync_status")
-  shopifyLastSyncAt DateTime?         @map("shopify_last_sync_at")
-  shopifyLastError  String?           @map("shopify_last_error")
+  shopifyProductId                String?                 @map("shopify_product_id")
+  shopifySyncStatus               ShopifySyncStatus       @default(not_connected) @map("shopify_sync_status")
+  shopifyLastSyncAt               DateTime?               @map("shopify_last_sync_at")
+  shopifyLastError                String?                 @map("shopify_last_error")
   /// Categoria TikTok Shop (id Partner API) — obbligatoria per push catalogo.
-  tiktokCategoryId  String?           @map("tiktok_category_id")
-  tiktokProductId   String?           @map("tiktok_product_id")
-  tiktokSyncStatus  TikTokSyncStatus  @default(not_connected) @map("tiktok_sync_status")
-  tiktokLastSyncAt  DateTime?         @map("tiktok_last_sync_at")
-  tiktokLastError   String?           @map("tiktok_last_error")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  tiktokCategoryId                String?                 @map("tiktok_category_id")
+  tiktokProductId                 String?                 @map("tiktok_product_id")
+  tiktokSyncStatus                TikTokSyncStatus        @default(not_connected) @map("tiktok_sync_status")
+  tiktokLastSyncAt                DateTime?               @map("tiktok_last_sync_at")
+  tiktokLastError                 String?                 @map("tiktok_last_error")
+  createdAt                       DateTime                @default(now()) @map("created_at")
+  updatedAt                       DateTime                @updatedAt @map("updated_at")
 
   tenant   Tenant           @relation(fields: [tenantId], references: [id])
   variants ProductVariant[]
@@ -384,31 +386,31 @@ model ProductImage {
 }
 
 model ProductVariant {
-  id        String  @id @default(uuid()) @db.Uuid
-  tenantId  String  @map("tenant_id") @db.Uuid
-  productId String  @map("product_id") @db.Uuid
+  id                     String   @id @default(uuid()) @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
+  productId              String   @map("product_id") @db.Uuid
   /// Univoco per tenant: regola interna del gestionale. In import da Shopify
   /// gli SKU duplicati/vuoti NON rompono il sync: vanno gestiti come anomalie
   /// PRIMA dell'insert (regole-gestionale, clausola di realtà).
-  sku       String
+  sku                    String
   /// Valori opzione (forma Shopify selectedOptions): [{ name, value }]
-  optionValues Json @default("[]") @map("option_values")
-  barcode   String?
+  optionValues           Json     @default("[]") @map("option_values")
+  barcode                String?
   // Denaro in unità minori intere (mai float).
-  currency               String @default("EUR")
-  sellingPriceMinor      Int    @map("selling_price_minor")
-  purchasePriceMinor     Int?   @map("purchase_price_minor")
-  compareAtPriceMinor    Int?   @map("compare_at_price_minor")
+  currency               String   @default("EUR")
+  sellingPriceMinor      Int      @map("selling_price_minor")
+  purchasePriceMinor     Int?     @map("purchase_price_minor")
+  compareAtPriceMinor    Int?     @map("compare_at_price_minor")
   // Collegamento Shopify: variante e inventory item.
-  shopifyVariantId         String? @map("shopify_variant_id")
-  shopifyInventoryItemId   String? @map("shopify_inventory_item_id")
+  shopifyVariantId       String?  @map("shopify_variant_id")
+  shopifyInventoryItemId String?  @map("shopify_inventory_item_id")
   /// SKU id TikTok Shop (Partner API) per sync giacenze.
-  tiktokSkuId              String? @map("tiktok_sku_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  tiktokSkuId            String?  @map("tiktok_sku_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
-  tenant          Tenant           @relation(fields: [tenantId], references: [id])
-  product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant          Tenant               @relation(fields: [tenantId], references: [id])
+  product         Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
   inventoryLevels InventoryLevel[]
   movements       StockMovement[]
   countLines      InventoryCountLine[]
@@ -417,6 +419,10 @@ model ProductVariant {
   @@unique([tenantId, barcode])
   @@index([productId])
   @@index([tenantId])
+  // Lookup sync Shopify/TikTok per tenant (webhook inventory, push/pull).
+  @@index([tenantId, shopifyInventoryItemId])
+  @@index([tenantId, shopifyVariantId])
+  @@index([tenantId, tiktokSkuId])
   @@map("product_variants")
 }
 
@@ -425,16 +431,16 @@ model ProductVariant {
 /// Giacenza per variante × location. Quantity states allineati a Shopify;
 /// available può essere negativo (oversell).
 model InventoryLevel {
-  id           String @id @default(uuid()) @db.Uuid
-  tenantId     String @map("tenant_id") @db.Uuid
-  variantId    String @map("variant_id") @db.Uuid
-  locationId   String @map("location_id") @db.Uuid
-  onHand       Int    @default(0) @map("on_hand")
-  available    Int    @default(0)
-  committed    Int    @default(0)
-  incoming     Int    @default(0)
-  reserved     Int    @default(0)
-  minThreshold Int    @default(0) @map("min_threshold")
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  variantId    String   @map("variant_id") @db.Uuid
+  locationId   String   @map("location_id") @db.Uuid
+  onHand       Int      @default(0) @map("on_hand")
+  available    Int      @default(0)
+  committed    Int      @default(0)
+  incoming     Int      @default(0)
+  reserved     Int      @default(0)
+  minThreshold Int      @default(0) @map("min_threshold")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id])
@@ -483,7 +489,7 @@ model InventoryCountLine {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   session InventoryCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  variant ProductVariant      @relation(fields: [variantId], references: [id])
+  variant ProductVariant        @relation(fields: [variantId], references: [id])
 
   @@unique([sessionId, variantId])
   @@index([sessionId])
@@ -494,25 +500,25 @@ model InventoryCountLine {
 /// Log immutabile: ogni modifica inventariale produce una riga qui
 /// (regole-gestionale: mai update silenziosi). Append-only by design.
 model StockMovement {
-  id               String              @id @default(uuid()) @db.Uuid
-  tenantId         String              @map("tenant_id") @db.Uuid
+  id               String               @id @default(uuid()) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
   type             StockMovementType
-  origin           MovementOrigin      @default(manual)
-  variantId        String              @map("variant_id") @db.Uuid
+  origin           MovementOrigin       @default(manual)
+  variantId        String               @map("variant_id") @db.Uuid
   /// Snapshot SKU al momento del movimento (audit anche se la variante cambia).
   sku              String
-  locationId       String              @map("location_id") @db.Uuid
+  locationId       String               @map("location_id") @db.Uuid
   /// Solo trasferimenti: destinazione.
-  targetLocationId String?             @map("target_location_id") @db.Uuid
+  targetLocationId String?              @map("target_location_id") @db.Uuid
   quantity         Int
   direction        AdjustmentDirection?
   reason           String?
   /// Riferimento esterno (es. id ordine Shopify che ha generato la vendita).
-  externalRef      String?             @map("external_ref")
-  createdAt        DateTime            @default(now()) @map("created_at")
-  createdById      String?             @map("created_by_id") @db.Uuid
+  externalRef      String?              @map("external_ref")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  createdById      String?              @map("created_by_id") @db.Uuid
   /// Snapshot del nome operatore (audit stabile anche se l'utente cambia nome).
-  createdByName    String              @map("created_by_name")
+  createdByName    String               @map("created_by_name")
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id])
   variant        ProductVariant @relation(fields: [variantId], references: [id])
@@ -546,22 +552,22 @@ model Supplier {
 }
 
 model SupplierOrder {
-  id         String              @id @default(uuid()) @db.Uuid
-  tenantId   String              @map("tenant_id") @db.Uuid
+  id                    String              @id @default(uuid()) @db.Uuid
+  tenantId              String              @map("tenant_id") @db.Uuid
   /// Riferimento leggibile (es. 'PO-2026-0042'), univoco per tenant.
-  reference  String
-  supplierId String              @map("supplier_id") @db.Uuid
+  reference             String
+  supplierId            String              @map("supplier_id") @db.Uuid
   /// Snapshot nome fornitore (display stabile).
-  supplierName String            @map("supplier_name")
+  supplierName          String              @map("supplier_name")
   /// Location di destinazione merce (il frontend la chiama ancora storeId:
   /// da allineare al wiring — la semantica è location).
-  destinationLocationId String   @map("destination_location_id") @db.Uuid
-  status     SupplierOrderStatus @default(draft)
-  currency   String              @default("EUR")
-  totalMinor Int                 @default(0) @map("total_minor")
-  expectedAt DateTime?           @map("expected_at")
-  createdAt  DateTime            @default(now()) @map("created_at")
-  updatedAt  DateTime            @updatedAt @map("updated_at")
+  destinationLocationId String              @map("destination_location_id") @db.Uuid
+  status                SupplierOrderStatus @default(draft)
+  currency              String              @default("EUR")
+  totalMinor            Int                 @default(0) @map("total_minor")
+  expectedAt            DateTime?           @map("expected_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
 
   tenant              Tenant              @relation(fields: [tenantId], references: [id])
   supplier            Supplier            @relation(fields: [supplierId], references: [id])
@@ -592,22 +598,22 @@ model SupplierOrderLine {
 // ── Clienti e vendite (owner: Shopify per l'ecommerce) ──────────────────────
 
 model Customer {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @map("tenant_id") @db.Uuid
-  firstName String   @map("first_name")
-  lastName  String   @map("last_name")
-  email     String?
-  phone     String?
-  notes     String?
-  addressLine1 String? @map("address_line1")
-  addressLine2 String? @map("address_line2")
-  city         String?
-  province     String?
-  postalCode   String? @map("postal_code")
-  countryCode  String? @map("country_code")
-  shopifyCustomerId String? @map("shopify_customer_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  firstName         String   @map("first_name")
+  lastName          String   @map("last_name")
+  email             String?
+  phone             String?
+  notes             String?
+  addressLine1      String?  @map("address_line1")
+  addressLine2      String?  @map("address_line2")
+  city              String?
+  province          String?
+  postalCode        String?  @map("postal_code")
+  countryCode       String?  @map("country_code")
+  shopifyCustomerId String?  @map("shopify_customer_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   tenant Tenant       @relation(fields: [tenantId], references: [id])
   orders SalesOrder[]
@@ -669,24 +675,24 @@ model SalesOrderLine {
 /// Una connessione per tenant. I token OAuth NON vivono qui: stanno cifrati
 /// in storage dedicato lato server (o secret manager), mai esposti via API.
 model ShopifyConnection {
-  id              String                  @id @default(uuid()) @db.Uuid
-  tenantId        String                  @unique @map("tenant_id") @db.Uuid
-  status          ShopifyConnectionStatus @default(not_connected)
-  shopDomain      String?                 @map("shop_domain")
-  displayName     String?                 @map("display_name")
-  apiVersion      String?                 @map("api_version")
-  scopes          String[]                @default([])
-  lastConnectedAt DateTime?               @map("last_connected_at")
-  lastSyncAt      DateTime?               @map("last_sync_at")
-  webhooksActivatedAt DateTime?           @map("webhooks_activated_at")
-  webhooksActiveCount Int?                @map("webhooks_active_count")
+  id                  String                  @id @default(uuid()) @db.Uuid
+  tenantId            String                  @unique @map("tenant_id") @db.Uuid
+  status              ShopifyConnectionStatus @default(not_connected)
+  shopDomain          String?                 @map("shop_domain")
+  displayName         String?                 @map("display_name")
+  apiVersion          String?                 @map("api_version")
+  scopes              String[]                @default([])
+  lastConnectedAt     DateTime?               @map("last_connected_at")
+  lastSyncAt          DateTime?               @map("last_sync_at")
+  webhooksActivatedAt DateTime?               @map("webhooks_activated_at")
+  webhooksActiveCount Int?                    @map("webhooks_active_count")
   /// Webhook Shopify attivi: ordini, clienti, prodotti e giacenze in tempo reale.
-  autoSyncEnabled     Boolean               @default(false) @map("auto_sync_enabled")
-  lastErrorMessage String?                @map("last_error_message")
-  lastErrorCode    String?                @map("last_error_code")
-  lastErrorAt      DateTime?              @map("last_error_at")
-  createdAt       DateTime                @default(now()) @map("created_at")
-  updatedAt       DateTime                @updatedAt @map("updated_at")
+  autoSyncEnabled     Boolean                 @default(false) @map("auto_sync_enabled")
+  lastErrorMessage    String?                 @map("last_error_message")
+  lastErrorCode       String?                 @map("last_error_code")
+  lastErrorAt         DateTime?               @map("last_error_at")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -725,21 +731,21 @@ model ShopifyOAuthState {
 // ── Integrazione TikTok Shop (stato connessione, MAI token nel modello API) ─
 
 model TikTokConnection {
-  id              String                 @id @default(uuid()) @db.Uuid
-  tenantId        String                 @unique @map("tenant_id") @db.Uuid
-  status          TikTokConnectionStatus @default(not_connected)
-  shopId          String?                @map("shop_id")
-  shopCipher      String?                @map("shop_cipher")
-  displayName     String?                @map("display_name")
-  region          String?
-  scopes          String[]               @default([])
-  lastConnectedAt DateTime?              @map("last_connected_at")
-  lastSyncAt      DateTime?              @map("last_sync_at")
-  lastErrorMessage String?               @map("last_error_message")
-  lastErrorCode    String?               @map("last_error_code")
-  lastErrorAt      DateTime?             @map("last_error_at")
-  createdAt       DateTime               @default(now()) @map("created_at")
-  updatedAt       DateTime               @updatedAt @map("updated_at")
+  id               String                 @id @default(uuid()) @db.Uuid
+  tenantId         String                 @unique @map("tenant_id") @db.Uuid
+  status           TikTokConnectionStatus @default(not_connected)
+  shopId           String?                @map("shop_id")
+  shopCipher       String?                @map("shop_cipher")
+  displayName      String?                @map("display_name")
+  region           String?
+  scopes           String[]               @default([])
+  lastConnectedAt  DateTime?              @map("last_connected_at")
+  lastSyncAt       DateTime?              @map("last_sync_at")
+  lastErrorMessage String?                @map("last_error_message")
+  lastErrorCode    String?                @map("last_error_code")
+  lastErrorAt      DateTime?              @map("last_error_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -747,16 +753,16 @@ model TikTokConnection {
 }
 
 model TikTokCredential {
-  tenantId        String   @id @map("tenant_id") @db.Uuid
-  shopId          String   @map("shop_id")
-  shopCipher      String   @map("shop_cipher")
-  accessTokenEnc  String   @map("access_token_enc")
-  refreshTokenEnc String   @map("refresh_token_enc")
+  tenantId              String    @id @map("tenant_id") @db.Uuid
+  shopId                String    @map("shop_id")
+  shopCipher            String    @map("shop_cipher")
+  accessTokenEnc        String    @map("access_token_enc")
+  refreshTokenEnc       String    @map("refresh_token_enc")
   accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
   refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
-  scopes          String[] @default([])
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  scopes                String[]  @default([])
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 

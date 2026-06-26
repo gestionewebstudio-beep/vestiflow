@@ -27,6 +27,7 @@ describe('ProductsService', () => {
       productVariant: {
         findFirst: vi.fn(),
         findMany: vi.fn(),
+        count: vi.fn(),
       },
       stockMovement: { count: vi.fn() },
       $transaction: vi
@@ -73,7 +74,7 @@ describe('ProductsService', () => {
     prisma.product.findMany.mockResolvedValue(items);
     prisma.product.count.mockResolvedValue(1);
 
-    const result = await service.list(tenantId, { page: 1, pageSize: 10 } as never);
+    const result = await service.list(tenantId, { page: 1, pageSize: 10 });
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toMatchObject({ id: 'prod-1', name: 'Maglietta' });
@@ -359,9 +360,80 @@ describe('ProductsService', () => {
     prisma.product.findFirst.mockResolvedValue(product);
 
     await expect(
-      service.update(tenantId, 'prod-1', { name: 'Nuovo nome' } as never),
+      service.update(tenantId, 'prod-1', { name: 'Nuovo nome' }),
     ).resolves.toMatchObject({ id: 'prod-1', name: 'Vecchio' });
 
     expect(channelSync.enqueueProductPush).toHaveBeenCalledWith(tenantId, 'prod-1');
+  });
+
+  it('getFacets restituisce valori distinti, trimmati e filtrati per tenant', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findMany
+      .mockResolvedValueOnce([{ category: ' Maglieria ' }, { category: 'Pantaloni' }])
+      .mockResolvedValueOnce([{ brand: 'Acme' }])
+      .mockResolvedValueOnce([{ season: 'FW26' }, { season: '' }]);
+
+    const facets = await service.getFacets(tenantId);
+
+    expect(facets.categories).toEqual(['Maglieria', 'Pantaloni']);
+    expect(facets.brands).toEqual(['Acme']);
+    expect(facets.seasons).toEqual(['FW26']);
+    expect(prisma.product.findMany).toHaveBeenCalledTimes(3);
+    const firstCall = prisma.product.findMany.mock.calls[0]?.[0] as {
+      where: { tenantId: string };
+      distinct: string[];
+    };
+    expect(firstCall.where.tenantId).toBe(tenantId);
+    expect(firstCall.distinct).toEqual(['category']);
+  });
+
+  it('listVariantSummaries pagina e mappa con prezzo in unità minori', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findMany.mockResolvedValue([
+      {
+        id: 'var-1',
+        productId: 'prod-1',
+        sku: 'SKU-1',
+        optionValues: [{ name: 'Taglia', value: 'M' }],
+        currency: 'EUR',
+        sellingPriceMinor: 1990,
+        product: { name: 'Maglietta' },
+      },
+    ]);
+    prisma.productVariant.count.mockResolvedValue(1);
+
+    const result = await service.listVariantSummaries(tenantId, {
+      page: 1,
+      pageSize: 20,
+    } as never);
+
+    expect(result.total).toBe(1);
+    expect(result.items[0]).toMatchObject({
+      variantId: 'var-1',
+      sku: 'SKU-1',
+      productName: 'Maglietta',
+      sellingPrice: { amountMinor: 1990, currencyCode: 'EUR' },
+    });
+    const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: { tenantId: string } })
+      .where;
+    expect(where.tenantId).toBe(tenantId);
+  });
+
+  it('listVariantSummaries applica ricerca e filtro variantId', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findMany.mockResolvedValue([]);
+    prisma.productVariant.count.mockResolvedValue(0);
+
+    await service.listVariantSummaries(tenantId, {
+      page: 1,
+      pageSize: 10,
+      search: 'mag',
+      variantId: 'var-9',
+    } as never);
+
+    const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> })
+      .where;
+    expect(where.tenantId).toBe(tenantId);
+    expect(where.id).toBe('var-9');
   });
 });

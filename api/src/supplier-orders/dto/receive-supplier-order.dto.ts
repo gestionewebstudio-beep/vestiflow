@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsInt, IsUUID, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsInt,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 export class ReceiveSupplierOrderLineDto {
   @IsUUID()
@@ -14,6 +22,7 @@ export class ReceiveSupplierOrderLineDto {
 export class ReceiveSupplierOrderDto {
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(500)
   @ValidateNested({ each: true })
   @Type(() => ReceiveSupplierOrderLineDto)
   lines!: ReceiveSupplierOrderLineDto[];

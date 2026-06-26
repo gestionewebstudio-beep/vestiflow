@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { TenantPermission } from '../auth/tenant-permission.constants';
+import { TENANT_PERMISSIONS_KEY } from '../common/auth/tenant-permissions.decorator';
 import type { SalesOrdersExportService } from './sales-orders-export.service';
 import type { SalesOrdersService } from './sales-orders.service';
 import { SalesOrdersController } from './sales-orders.controller';
@@ -19,11 +21,24 @@ describe('SalesOrdersController', () => {
     salesOrdersExport as unknown as SalesOrdersExportService,
   );
 
+  it('protegge list e getById con permesso reports.view', () => {
+    const listPerms = Reflect.getMetadata(
+      TENANT_PERMISSIONS_KEY,
+      SalesOrdersController.prototype.list,
+    ) as string[];
+    const detailPerms = Reflect.getMetadata(
+      TENANT_PERMISSIONS_KEY,
+      SalesOrdersController.prototype.getById,
+    ) as string[];
+    expect(listPerms).toContain(TenantPermission.ReportsView);
+    expect(detailPerms).toContain(TenantPermission.ReportsView);
+  });
+
   it('list delega al service', async () => {
     const query = { page: 1, pageSize: 10 };
     salesOrders.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 10 });
 
-    await controller.list(tenantId, query as never);
+    await controller.list(tenantId, query);
 
     expect(salesOrders.list).toHaveBeenCalledWith(tenantId, query);
   });
@@ -35,7 +50,7 @@ describe('SalesOrdersController', () => {
   });
 
   it('exportCsv restituisce StreamableFile CSV', async () => {
-    const file = await controller.exportCsv(tenantId, {} as never);
+    const file = await controller.exportCsv(tenantId, {});
 
     expect(salesOrdersExport.exportCsv).toHaveBeenCalledWith(tenantId, {});
     expect(file.options.disposition).toContain('vendite-vestiflow');

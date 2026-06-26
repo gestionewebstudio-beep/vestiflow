@@ -22,7 +22,7 @@ describe('SupplierOrdersController', () => {
     const query = { page: 1, pageSize: 20 };
     supplierOrders.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 });
 
-    await controller.list(tenantId, query as never);
+    await controller.list(tenantId, query);
 
     expect(supplierOrders.list).toHaveBeenCalledWith(tenantId, query);
   });

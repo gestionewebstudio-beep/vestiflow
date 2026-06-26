@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   ArrayUnique,
   IsArray,
   IsBoolean,
@@ -39,7 +40,9 @@ export class CreateTenantUserDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
+  @ArrayMaxSize(100)
   @IsString({ each: true })
+  @MaxLength(100, { each: true })
   readonly permissions?: readonly string[];
 }
 
@@ -65,7 +68,9 @@ export class UpdateTenantUserDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
+  @ArrayMaxSize(100)
   @IsString({ each: true })
+  @MaxLength(100, { each: true })
   readonly permissions?: readonly string[];
 }
 
