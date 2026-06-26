@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 2.0 — Giugno 2026
+**Versione documento:** 2.1 — Giugno 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -37,11 +37,11 @@
 
 L'**operatore piattaforma** (tu, come proprietario/sviluppatore) non coincide con il **Titolare** di un tenant negozio.
 
-| Concetto            | Dove vive                                     | Come si ottiene                                                    |
-| ------------------- | --------------------------------------------- | ------------------------------------------------------------------ |
-| **Platform admin**  | Flag `isPlatformAdmin` nel profilo utente API | Email in `PLATFORM_ADMIN_EMAILS` (backend)                         |
-| **Titolare tenant** | Ruolo `owner` nel DB tenant                   | Scelto al provisioning in **Nuovo cliente**                        |
-| **Ruoli negozio**   | `owner`, `admin`, `manager`, `clerk`          | Assegnati al create tenant; **non** modificabili self-service oggi |
+| Concetto            | Dove vive                                     | Come si ottiene                                                                                             |
+| ------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Platform admin**  | Flag `isPlatformAdmin` nel profilo utente API | Email in `PLATFORM_ADMIN_EMAILS` (backend)                                                                  |
+| **Titolare tenant** | Ruolo `owner` nel DB tenant                   | Scelto al provisioning in **Nuovo cliente**                                                                 |
+| **Ruoli negozio**   | `owner`, `admin`, `manager`, `clerk`          | Provisioning in **Nuovo cliente**; ulteriori utenti e permessi in **Modifica cliente → Utenti del cliente** |
 
 ### Cosa vede un platform admin in UI
 
@@ -264,6 +264,8 @@ Tabella **Clienti registrati** → click riga → `/app/admin/clients/:id`.
 
 Modificabile: anagrafica, **profilo canale** (se nessuna integrazione attiva), **Sedi incluse nel piano** (1–10), nome titolare, negozio. **Email** e **ruolo** del primo utente sono **sola lettura** in UI (campi disabilitati).
 
+**Utenti del cliente:** pannello in fondo a **Modifica cliente** (`admin-tenant-users-panel`). Permette di elencare, creare, aggiornare (ruolo, sede assegnata, permessi granulari) ed **eliminare** utenti tenant (icona cestino; il **titolare** non è eliminabile). I permessi partono dal preset del ruolo (`ROLE_DEFAULT_PERMISSIONS`) e possono essere personalizzati con checkbox; chiavi obsolete (es. `settings.integrations`) vengono filtrate al save (FE + BE). Dopo modifica permessi il cliente deve **re-login** o hard refresh per allineare menu e CTA.
+
 **Sedi attive (read-only):** sotto il selettore piano compare l’elenco delle location attualmente **attive in VestiFlow** (`licensedInVf: true`), con nome in campi disabilitati (non è più editabile il «nome location» di provisioning). Se il cliente non ha ancora salvato la selezione, l’elenco può essere vuoto.
 
 **Concedi cambio sede:** pulsante visibile quando la selezione è **bloccata** e non c’è già una concessione one-shot in corso. Imposta `locationSelectionChangeGranted=true` sul tenant: il cliente può modificare **una volta** le sedi attive in Impostazioni; al salvataggio la selezione si **riblocca** e la concessione viene azzerata.
@@ -288,6 +290,10 @@ In **Modifica cliente**, pannello **Zona pericolosa → Elimina cliente**: rimuo
 | PATCH  | `/admin/tenants/:id`                                 | Aggiorna anagrafica/setup                           |
 | DELETE | `/admin/tenants/:id`                                 | Elimina tenant e dati                               |
 | POST   | `/admin/tenants/:id/grant-location-selection-change` | Concede al cliente un round di modifica sedi attive |
+| GET    | `/admin/tenants/:id/users`                           | Lista utenti tenant                                 |
+| POST   | `/admin/tenants/:id/users`                           | Crea utente tenant                                  |
+| PATCH  | `/admin/tenants/:id/users/:userId`                   | Aggiorna utente (ruolo, permessi, sede)             |
+| DELETE | `/admin/tenants/:id/users/:userId`                   | Elimina utente (non `owner`)                        |
 | POST   | `/admin/tenants/:id/support-session`                 | Avvia sessione assistenza (2 h)                     |
 | DELETE | `/admin/support-sessions/current`                    | Termina sessione assistenza attiva                  |
 
@@ -318,19 +324,47 @@ Se la richiesta include l'header `X-Vestiflow-Support-Session` con un ID session
 
 Persistenza client: `sessionStorage` (`SUPPORT_SESSION_STORAGE_KEY`). Restore al bootstrap in `app.config.ts`; interceptor HTTP allega l'header su ogni chiamata finché la sessione è attiva.
 
-### Ruoli tenant (UI + API)
+### Permessi granulari tenant (UI + API)
 
-Implementati in `tenant-permissions.util.ts` (frontend) e guard analoghi lato API.
+Il **titolare** (`owner`) ha sempre accesso completo (`hasFullTenantAccess`); i permessi persistiti su `User.permissions` non lo limitano.
 
-| Permesso chiave                        | Ruoli                 |
-| -------------------------------------- | --------------------- |
-| Shopify sync / import catalogo         | owner, admin          |
-| CRUD prodotti, CSV catalogo            | owner, admin, manager |
-| CSV giacenze, ordini fornitori         | owner, admin, manager |
-| Movimenti magazzino, inventario fisico | tutti                 |
-| MFA settings                           | owner, admin, manager |
+Per `admin`, `manager`, `clerk` valgono chiavi `TenantPermission` (FE: `tenant-permission.model.ts`, BE: `tenant-permission.constants.ts`). Preset per ruolo: `ROLE_DEFAULT_PERMISSIONS`. Normalizzazione e filtro chiavi legacy: `user-permissions.util.ts` (FE + BE).
 
-Route Angular sensibili: `tenantRoleGuard` + `data.tenantRoutePermission`.
+| Chiave                                | Gruppo    | Uso principale                                                                |
+| ------------------------------------- | --------- | ----------------------------------------------------------------------------- |
+| `inventory.view_all_locations`        | inventory | Filtri giacenze/movimenti su tutte le sedi (azioni restano su sede operativa) |
+| `inventory.manage`                    | inventory | Carichi, scarichi, trasferimenti, rettifiche, inventario fisico               |
+| `inventory.import_export`             | inventory | CSV giacenze + sync giacenze Shopify                                          |
+| `catalog.manage`                      | catalog   | CRUD prodotti                                                                 |
+| `catalog.import_export`               | catalog   | CSV catalogo + sync/import catalogo Shopify                                   |
+| `catalog.delete`                      | catalog   | Delete prodotto                                                               |
+| `supplier_orders.manage`              | orders    | CRUD ordini fornitore                                                         |
+| `supplier_orders.receive`             | orders    | Ricezione merce                                                               |
+| `retail.register`                     | orders    | `POST /inventory/retail-scans`, pagina Registra vendita                       |
+| `reports.view`                        | reports   | Dashboard e Report                                                            |
+| `reports.export`                      | reports   | Export CSV + sync vendite/clienti Shopify                                     |
+| `settings.company`                    | settings  | `GET /tenant/company`, pannello Sede fisica                                   |
+| `customers.view` / `customers.manage` | customers | Lista clienti / gestione (se prevista)                                        |
+
+**Rimosso:** `settings.integrations` — filtrato al save admin e in normalizzazione profilo.
+
+**Solo titolare** (`hasFullTenantAccess`, `@Roles(owner)` su controller OAuth): connessione/disconnessione Shopify e TikTok, sync location, salvataggio sedi attive, shop-change wizard.
+
+**Guard frontend:** `tenantPermissionGuard` + `data.tenantPermissions` sulle route; sidebar filtrata da `tenant-permissions.util.ts`. **Guard backend:** `TenantPermissionsGuard` + decorator `@RequirePermissions(...)`; `RolesGuard` per operazioni owner-only.
+
+**Scope sedi:** `OperationalLocationsService` (FE) distingue `locations` (lettura/filtri), `writeLocations` (azioni topbar) e `transferTargetLocations`. BE: `user-location-scope.util.ts` → `assertUserCanAccessLocation` con scope `read` / `write` / `transferDestination`. Topbar: commesso/manager con sede assegnata → etichetta fissa; titolare/admin con più sedi → select.
+
+**Admin utenti:** `AdminTenantUsersService` (`api/src/admin/admin-tenant-users.service.ts`); UI `admin-tenant-users-panel` in Modifica cliente.
+
+**Sync Shopify vs permessi:**
+
+| Operazione           | Permesso                  |
+| -------------------- | ------------------------- |
+| Import/sync catalogo | `catalog.import_export`   |
+| Sync giacenze        | `inventory.import_export` |
+| Sync vendite/clienti | `reports.export`          |
+
+Route Angular sensibili: `tenantPermissionGuard` (sostituisce il vecchio guard solo-ruolo dove applicabile).
 
 ### Foto profilo utente
 
@@ -408,11 +442,11 @@ Picker e attributi categoria nel form prodotto (step **Dati generali**).
 
 Modulo `ShopifyShopChangeService` + wizard FE `shopify-shop-change-wizard`.
 
-| Endpoint                       | Metodo | Ruolo       | Scopo                                                                                                                                     |
-| ------------------------------ | ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `/shopify/shop-change/preview` | GET    | owner/admin | Conteggi dati collegati a Shopify + blockers (es. ordini fornitori aperti su location Shopify)                                            |
-| `/shopify/shop-change/purge`   | POST   | owner/admin | Rimuove dati importati/syncati da Shopify (prodotti, varianti, clienti, ordini vendita, location collegate, giacenze/movimenti associati) |
-| `/shopify/connection`          | DELETE | owner/admin | Disconnessione OAuth (token revocato); **non** purge catalogo                                                                             |
+| Endpoint                       | Metodo | Ruolo | Scopo                                                                                                                                     |
+| ------------------------------ | ------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `/shopify/shop-change/preview` | GET    | owner | Conteggi dati collegati a Shopify + blockers (es. ordini fornitori aperti su location Shopify)                                            |
+| `/shopify/shop-change/purge`   | POST   | owner | Rimuove dati importati/syncati da Shopify (prodotti, varianti, clienti, ordini vendita, location collegate, giacenze/movimenti associati) |
+| `/shopify/connection`          | DELETE | owner | Disconnessione OAuth (token revocato); **non** purge catalogo                                                                             |
 
 **Flussi UI:**
 
@@ -463,7 +497,7 @@ Modulo `LocationLicensingService` (`api/src/inventory/location-licensing.service
 
 | Endpoint                                             | Metodo | Ruolo          | Scopo                                                                              |
 | ---------------------------------------------------- | ------ | -------------- | ---------------------------------------------------------------------------------- |
-| `/inventory/locations/licensed`                      | PUT    | owner/admin    | Cliente salva elenco `locationIds` attive (≤ piano); default `lockAfterSave: true` |
+| `/inventory/locations/licensed`                      | PUT    | owner          | Cliente salva elenco `locationIds` attive (≤ piano); default `lockAfterSave: true` |
 | `/admin/tenants/:id/grant-location-selection-change` | POST   | platform admin | Sblocca **un** round di modifica per il tenant                                     |
 
 Regole business:
@@ -592,14 +626,14 @@ Ordini/clienti webhook possono richiedere approvazione Partners. Catalogo/giacen
 
 Modulo `api/src/tiktok/` (OAuth, connessione, sync catalogo e inventory push).
 
-| Aspetto            | Dettaglio                                                                       |
-| ------------------ | ------------------------------------------------------------------------------- |
-| **Profilo tenant** | Solo tenant `channelProfile = tiktok_shop` vedono pannello Impostazioni         |
-| **OAuth**          | Partner Center → env `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET`, `TIKTOK_SERVICE_ID` |
-| **Token**          | Cifrati at rest (`TIKTOK_TOKEN_ENCRYPTION_KEY`)                                 |
-| **Sync scope**     | Push prodotti create/update; giacenze dopo carico/scarico VF                    |
-| **Non in scope**   | Vendite e clienti TikTok in UI (a differenza di Shopify)                        |
-| **Permessi UI**    | Collegamento: owner/admin (`canManageTikTokConnection`)                         |
+| Aspetto            | Dettaglio                                                                              |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| **Profilo tenant** | Solo tenant `channelProfile = tiktok_shop` vedono pannello Impostazioni                |
+| **OAuth**          | Partner Center → env `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET`, `TIKTOK_SERVICE_ID`        |
+| **Token**          | Cifrati at rest (`TIKTOK_TOKEN_ENCRYPTION_KEY`)                                        |
+| **Sync scope**     | Push prodotti create/update; giacenze dopo carico/scarico VF                           |
+| **Non in scope**   | Vendite e clienti TikTok in UI (a differenza di Shopify)                               |
+| **Permessi UI**    | Collegamento OAuth: solo `owner` (`canManageTikTokConnection` / `hasFullTenantAccess`) |
 
 Callback OAuth: query `?tiktok=connected|error|disconnected` su ritorno frontend Impostazioni.
 
@@ -636,7 +670,7 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 | Entità                       | Note                                                                                                                                                                                                                                                                                                        |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Tenant`                     | Azienda cliente; `licensedLocationCount`, `locationSelectionLocked`, `locationSelectionChangeGranted`                                                                                                                                                                                                       |
-| `User`                       | Profilo app, `tenantId`, ruolo                                                                                                                                                                                                                                                                              |
+| `User`                       | Profilo app, `tenantId`, ruolo, `permissions[]` (permessi granulari; ignorati per `owner`)                                                                                                                                                                                                                  |
 | `Store` / `Location`         | Store commerciale; location per stock; `licensedInVf` = sede operativa nel piano VF                                                                                                                                                                                                                         |
 | `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind`, `shopifyCategoryMetafields`, taxonomy categoria                                                                                                                                                                                  |
 | `InventoryLevel`             | `variantId` × `locationId`, stati quantità. Riga creata al primo movimento/sync/rettifica/import; senza riga il prodotto non compare nel browse Giacenze. Con `GET /inventory/levels?search=…` l'API include anche varianti match senza riga (quantità 0, id sintetico `virtual:{variantId}:{locationId}`). |
@@ -653,6 +687,13 @@ Denaro: **interi minor units** (`Money.amountMinor`), mai float.
 ## 12. API e permessi tenant
 
 Base URL: `/api/v1`. Header `Authorization` obbligatorio (salvo health).
+
+### Enforcement permessi (NestJS)
+
+- `TenantPermissionsGuard` + `@RequirePermissions(...)` su endpoint sensibili (catalogo, magazzino, export, ordini fornitori).
+- `RolesGuard` + `@Roles('owner')` su OAuth Shopify/TikTok, licensing sedi, shop-change.
+- Normalizzazione permessi utente: `api/src/auth/user-permissions.util.ts` (`normalizeStoredPermissions`, rimozione chiavi obsolete).
+- Scope location su mutazioni inventario: `api/src/inventory/user-location-scope.util.ts`.
 
 ### Rate limiting API VestiFlow (NestJS)
 
@@ -680,41 +721,41 @@ Frontend: `HttpClient` + interceptor auth/error; mock disabilitati in prod.
 
 ### Catalogo prodotti
 
-|              |                                                                                                      |
-| ------------ | ---------------------------------------------------------------------------------------------------- |
-| **Export**   | `GET /products/export/csv` — formato Shopify CSV                                                     |
-| **Import**   | `POST /products/import/csv` — preview + commit; imposta `catalogOrigin=vestiflow`, `linkKind=pushed` |
-| **UI**       | Prodotti → Esporta / Importa CSV                                                                     |
-| **Permessi** | manager+                                                                                             |
+|              |                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **Export**   | `GET /products/export/csv` — formato Shopify CSV                                                                         |
+| **Import**   | `POST /products/import/csv` — preview + commit; imposta `catalogOrigin=vestiflow`, `linkKind=pushed`                     |
+| **UI**       | Prodotti → Esporta / Importa CSV                                                                                         |
+| **Permessi** | `catalog.import_export` (import/sync); `catalog.manage` (CRUD); `catalog.delete` (delete); export anche `reports.export` |
 
 ### Giacenze
 
 |                    |                                                                                                                                                                                                                                                                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Lista**          | `GET /inventory/levels` — paginata; query `locationId`, `search`, `lowStockOnly`, `page`, `pageSize`. Solo location **licenziate e attive**. **Con `search`:** espande varianti trovate (SKU/barcode/nome) anche senza riga in DB, una riga per sede con quantità 0. **Senza `search`:** solo righe esistenti in `inventory_levels`. |
-| **Sedi attive**    | `PUT /inventory/locations/licensed` — body `{ locationIds: string[] }`; owner/admin; vedi [§9 Licensing sedi](#licensing-sedi-e-blocco-selezione)                                                                                                                                                                                    |
+| **Sedi attive**    | `PUT /inventory/locations/licensed` — body `{ locationIds: string[] }`; **solo owner**; vedi [§9 Licensing sedi](#licensing-sedi-e-blocco-selezione)                                                                                                                                                                                 |
 | **Export**         | `GET /inventory/levels/export/csv`                                                                                                                                                                                                                                                                                                   |
 | **Import**         | `POST /inventory/levels/import/csv` — rettifiche                                                                                                                                                                                                                                                                                     |
 | **Colonne import** | SKU, Location (nome esatto), Disponibile                                                                                                                                                                                                                                                                                             |
 | **UI**             | Magazzino → Giacenze                                                                                                                                                                                                                                                                                                                 |
-| **Permessi**       | lista: autenticato; export/import: manager+                                                                                                                                                                                                                                                                                          |
+| **Permessi**       | lista: autenticato; export/import/sync giacenze: `inventory.import_export`; export CSV anche `reports.export`; mutazioni: `inventory.manage`                                                                                                                                                                                         |
 
 ### Vendite e clienti
 
-Export CSV dalle liste (filtri rispettati). Sync manuale Shopify: owner/admin.
+Export CSV dalle liste (filtri rispettati). Sync manuale Shopify vendite/clienti: `reports.export`. Connessione OAuth Shopify/TikTok: solo `owner`.
 
 ### Ordini fornitori
 
-| Metodo | Path                           | Azione                                               | Permessi    |
-| ------ | ------------------------------ | ---------------------------------------------------- | ----------- |
-| GET    | `/supplier-orders`             | Lista paginata (ricerca, filtro stato)               | autenticato |
-| GET    | `/supplier-orders/:id`         | Dettaglio                                            | autenticato |
-| POST   | `/supplier-orders`             | Crea ordine (bozza o inviato)                        | manager+    |
-| PATCH  | `/supplier-orders/:id`         | Aggiorna bozza (righe sostituite integralmente)      | manager+    |
-| POST   | `/supplier-orders/:id/send`    | Bozza → inviato                                      | manager+    |
-| POST   | `/supplier-orders/:id/cancel`  | Annulla (solo bozza o inviato, non ancora ricevuto)  | manager+    |
-| DELETE | `/supplier-orders/:id`         | Elimina ordine **annullato** (righe in cascade)      | manager+    |
-| POST   | `/supplier-orders/:id/receive` | Ricezione merce + movimenti `load` + push inventario | operativi   |
+| Metodo | Path                           | Azione                                               | Permessi                  |
+| ------ | ------------------------------ | ---------------------------------------------------- | ------------------------- |
+| GET    | `/supplier-orders`             | Lista paginata (ricerca, filtro stato)               | autenticato               |
+| GET    | `/supplier-orders/:id`         | Dettaglio                                            | autenticato               |
+| POST   | `/supplier-orders`             | Crea ordine (bozza o inviato)                        | `supplier_orders.manage`  |
+| PATCH  | `/supplier-orders/:id`         | Aggiorna bozza (righe sostituite integralmente)      | `supplier_orders.manage`  |
+| POST   | `/supplier-orders/:id/send`    | Bozza → inviato                                      | `supplier_orders.manage`  |
+| POST   | `/supplier-orders/:id/cancel`  | Annulla (solo bozza o inviato, non ancora ricevuto)  | `supplier_orders.manage`  |
+| DELETE | `/supplier-orders/:id`         | Elimina ordine **annullato** (righe in cascade)      | `supplier_orders.manage`  |
+| POST   | `/supplier-orders/:id/receive` | Ricezione merce + movimenti `load` + push inventario | `supplier_orders.receive` |
 
 Service: `SupplierOrdersService` (`api/src/supplier-orders/`). Ricezione in transazione atomica con `StockMovement`.
 
@@ -724,9 +765,9 @@ Service: `SupplierOrdersService` (`api/src/supplier-orders/`). Ricezione in tran
 
 Endpoint dedicato per **doppia scansione** al banco: decremento/incremento stock senza creare `SalesOrder`. Disponibile per `gestionale`, `shopify` e `tiktok_shop`.
 
-| Metodo | Path                      | Body / azione                                                                  | Permessi   |
-| ------ | ------------------------- | ------------------------------------------------------------------------------ | ---------- |
-| POST   | `/inventory/retail-scans` | `{ code, locationId, action: 'sale' \| 'return' }` — qty fissa 1 per scansione | operativi+ |
+| Metodo | Path                      | Body / azione                                                                  | Permessi          |
+| ------ | ------------------------- | ------------------------------------------------------------------------------ | ----------------- |
+| POST   | `/inventory/retail-scans` | `{ code, locationId, action: 'sale' \| 'return' }` — qty fissa 1 per scansione | `retail.register` |
 
 **Backend:** `InventoryService.registerRetailScan()` (`api/src/inventory/inventory.service.ts`).
 
@@ -825,27 +866,36 @@ cd api && npm run test
 
 ### Copertura automatica — Shopify shop change / location / delete
 
-| Area                                                | File test                                                                                          |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Purge / preview shop change                         | `api/src/shopify/shopify-shop-change.service.spec.ts`                                              |
-| Sync location + cleanup onboarding/stale            | `api/src/shopify/shopify-location-sync.service.spec.ts`                                            |
-| Delete prodotto write-through Shopify               | `api/src/products/products.service.spec.ts`                                                        |
-| Guard `catalogOrigin` (update/delete/sync/media)    | `api/src/products/catalog-origin.util.spec.ts`                                                     |
-| Wizard UI (anteprima, conferma, disconnect)         | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts`            |
-| HTTP client shop change / sync location             | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`                |
-| E2E wizard (anteprima, step conferma, annulla)      | `e2e/shopify.spec.ts`                                                                              |
-| Retail scan API (sale/return, profili, push canale) | `api/src/inventory/inventory.service.spec.ts`, `inventory.controller.spec.ts`                      |
-| Guard vendite / retail register                     | `src/app/features/sales-orders/guards/retail-sales.guard.spec.ts`                                  |
-| Pagina Registra vendita                             | `src/app/features/sales-orders/retail-sale-register.component.spec.ts`                             |
-| HTTP client retail-scans                            | `src/app/features/inventory/services/inventory.service.spec.ts`                                    |
-| Profilo canale / label origine movimento            | `tenant-channel-profile.model.spec.ts`, `inventory-labels.util.spec.ts`                            |
-| Evidenza sidebar su sotto-route                     | `src/app/shared/utils/nav-link-active.util.spec.ts`                                                |
-| Licensing sedi + blocco selezione (BE)              | `api/src/inventory/location-licensing.service.spec.ts`                                             |
-| Scope query su sedi licenziate                      | `api/src/inventory/licensed-location-scope.util.spec.ts`                                           |
-| Admin grant + trim piano / activeLocations          | `api/src/admin/admin-tenants.service.spec.ts`                                                      |
-| Pannello Sedi attive (FE)                           | `src/app/features/settings/components/location-licensing-panel/*.spec.ts`                          |
-| Util lock/grant UI                                  | `src/app/core/utils/location-selection-lock.util.spec.ts`, `admin-location-selection.util.spec.ts` |
-| Summary licensing in tenant company                 | `src/app/features/settings/models/tenant-company.model.spec.ts`, `tenant-company.service.spec.ts`  |
+| Area                                                 | File test                                                                                                                        |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Purge / preview shop change                          | `api/src/shopify/shopify-shop-change.service.spec.ts`                                                                            |
+| Sync location + cleanup onboarding/stale             | `api/src/shopify/shopify-location-sync.service.spec.ts`                                                                          |
+| Delete prodotto write-through Shopify                | `api/src/products/products.service.spec.ts`                                                                                      |
+| Guard `catalogOrigin` (update/delete/sync/media)     | `api/src/products/catalog-origin.util.spec.ts`                                                                                   |
+| Wizard UI (anteprima, conferma, disconnect)          | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts`                                          |
+| HTTP client shop change / sync location              | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`                                              |
+| E2E wizard (anteprima, step conferma, annulla)       | `e2e/shopify.spec.ts`                                                                                                            |
+| Retail scan API (sale/return, profili, push canale)  | `api/src/inventory/inventory.service.spec.ts`, `inventory.controller.spec.ts`                                                    |
+| Guard vendite / retail register                      | `src/app/features/sales-orders/guards/retail-sales.guard.spec.ts`                                                                |
+| Pagina Registra vendita                              | `src/app/features/sales-orders/retail-sale-register.component.spec.ts`                                                           |
+| HTTP client retail-scans                             | `src/app/features/inventory/services/inventory.service.spec.ts`                                                                  |
+| Profilo canale / label origine movimento             | `tenant-channel-profile.model.spec.ts`, `inventory-labels.util.spec.ts`                                                          |
+| Evidenza sidebar su sotto-route                      | `src/app/shared/utils/nav-link-active.util.spec.ts`                                                                              |
+| Licensing sedi + blocco selezione (BE)               | `api/src/inventory/location-licensing.service.spec.ts`                                                                           |
+| Scope query su sedi licenziate                       | `api/src/inventory/licensed-location-scope.util.spec.ts`                                                                         |
+| Admin grant + trim piano / activeLocations           | `api/src/admin/admin-tenants.service.spec.ts`                                                                                    |
+| Pannello Sedi attive (FE)                            | `src/app/features/settings/components/location-licensing-panel/*.spec.ts`                                                        |
+| Util lock/grant UI                                   | `src/app/core/utils/location-selection-lock.util.spec.ts`, `admin-location-selection.util.spec.ts`                               |
+| Summary licensing in tenant company                  | `src/app/features/settings/models/tenant-company.model.spec.ts`, `tenant-company.service.spec.ts`                                |
+| Permessi tenant (FE util + guard)                    | `src/app/core/permissions/tenant-permissions.util.spec.ts`, `tenant-permission.guard.spec.ts`                                    |
+| Permessi utente / legacy keys                        | `src/app/core/permissions/user-permissions.util.spec.ts`, `api/src/auth/user-permissions.util.spec.ts`                           |
+| Scope sedi utente (FE + BE)                          | `src/app/core/utils/user-location-scope.util.spec.ts`, `api/src/inventory/user-location-scope.util.spec.ts`                      |
+| Topbar sede fissa vs select                          | `src/app/shared/components/app-topbar/app-topbar.component.spec.ts`                                                              |
+| Admin save utenti / filtro permessi                  | `api/src/admin/admin-tenant-users.service.spec.ts`                                                                               |
+| E2E permessi commesso (base)                         | `e2e/permissions.spec.ts` — variabili `E2E_CLERK_*` in `.env`                                                                    |
+| E2E permessi owner/admin                             | `e2e/permissions-owner.spec.ts` — `E2E_USER_*` + sessione setup                                                                  |
+| E2E permessi granulari (catalog vs inventory import) | `e2e/permissions-granular.spec.ts` — `E2E_CLERK_CATALOG_IMPORT_*`, `E2E_CLERK_INVENTORY_IMPORT_*`                                |
+| Provision utenti E2E granulari                       | `npm run provision:e2e-users` → `api/scripts/provision-e2e-permission-users.mjs` (credenziali solo in `.env`, non in codice app) |
 
 ### CI GitHub Actions
 

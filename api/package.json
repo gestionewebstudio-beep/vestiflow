@@ -17,6 +17,7 @@
     "prisma:seed": "prisma db seed",
     "backfill:catalog-origin": "node scripts/backfill-catalog-origin.mjs",
     "backfill:catalog-origin:apply": "node scripts/backfill-catalog-origin.mjs --apply",
+    "provision:e2e-users": "node scripts/provision-e2e-permission-users.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

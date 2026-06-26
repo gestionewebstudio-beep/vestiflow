@@ -1,6 +1,6 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 3.0 — Giugno 2026
+**Versione documento:** 3.1 — Giugno 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
@@ -115,7 +115,11 @@ Ordine da sinistra a destra (desktop):
 
 - **VestiFlow** — nome del gestionale
 - **Tema** — chiaro / scuro / sistema (icona sole, luna, monitor)
-- **Selettore location** — filtra le operazioni per la **sede attiva** (solo le sedi incluse nel tuo piano e attivate in VestiFlow; vedi [§5 Sedi](#sedi-location))
+- **Selettore location** — indica la **sede operativa** per carichi, scarichi, trasferimenti e vendite al banco (solo sedi attive nel piano; vedi [§5 Sedi](#sedi-location)). Comportamento:
+  - **Titolare** o **Amministratore** con più sedi: menu a tendina per cambiare sede attiva.
+  - **Manager** o **Commesso** con **sede assegnata**: compare solo l’**etichetta** della sede (nessun cambio sede in topbar).
+  - **Una sola sede** disponibile: etichetta fissa per tutti.
+  - Nei **filtri** di Magazzino (es. Giacenze) puoi vedere altre sedi se hai il permesso «Vedere giacenze di tutte le sedi»; le **azioni** restano comunque sulla sede operativa in topbar.
 - **Sync Shopify** — chip con icona e **data/ora ultimo sync**; il punto colorato indica lo stato (verde = ok). Clic → Impostazioni
 - **Avatar profilo** — foto o iniziali; **clic → Impostazioni**
 - **Esci** — logout con conferma (desktop in topbar; su smartphone in fondo al menu ☰)
@@ -134,7 +138,7 @@ Il contenuto di **Impostazioni** dipende dal **profilo canale** del tuo negozio 
 
 #### Sede fisica (anagrafica cliente)
 
-Pannello **Sede fisica** in Impostazioni: mostra i dati commerciali registrati da VestiFlow all’attivazione (ragione sociale, negozio, P.IVA, indirizzo, contatti). È **indipendente** dalle sedi operative Shopify elencate sotto **Integrazione Shopify → Location**. I dettagli fiscali e di contatto opzionali sono in un riquadro espandibile **Dati fiscali e contatti**.
+Pannello **Sede fisica** in Impostazioni: mostra i dati commerciali registrati da VestiFlow all’attivazione (ragione sociale, negozio, P.IVA, indirizzo, contatti). È **indipendente** dalle sedi operative Shopify elencate sotto **Integrazione Shopify → Location**. I dettagli fiscali e di contatti opzionali sono in un riquadro espandibile **Dati fiscali e contatti**. Il pannello è visibile se il tuo account ha il permesso **Impostazioni azienda** (tipico per Titolare e Amministratore).
 
 ### Messaggi comuni
 
@@ -155,25 +159,62 @@ Ogni utente ha un **ruolo VestiFlow** (Titolare, Amministratore, Manager, Commes
 | **Manager**        | Responsabile magazzino o acquisti |
 | **Commesso**       | Operatore negozio o magazzino     |
 
-### Cosa puoi fare (in sintesi)
+Il **Titolare** ha sempre **accesso completo** (tutti i permessi), inclusa la **connessione OAuth** a Shopify e TikTok Shop.
 
-| Operazione                                         | Titolare / Admin | Manager | Commesso |
-| -------------------------------------------------- | ---------------- | ------- | -------- |
-| Collegare Shopify / TikTok Shop, sync sedi, import | Sì               | No      | No       |
-| Selezionare e salvare **sedi attive in VestiFlow** | Sì               | No      | No       |
-| Sync manuale vendite / clienti / giacenze          | Sì               | No      | No       |
-| Creare e modificare prodotti, import/export CSV    | Sì               | Sì      | No       |
-| Export/import CSV giacenze                         | Sì               | Sì      | No       |
-| Export CSV vendite e clienti                       | Sì               | Sì      | No       |
-| Creare e inviare ordini fornitori                  | Sì               | Sì      | No       |
-| Ricevere merce su ordine fornitore                 | Sì               | Sì      | Sì       |
-| Consultare giacenze, movimenti, vendite, clienti   | Sì               | Sì      | Sì       |
-| Registrare movimenti di magazzino                  | Sì               | Sì      | Sì       |
-| Registrare vendite e storni al banco               | Sì               | Sì      | Sì       |
-| Inventario fisico (conteggio)                      | Sì               | Sì      | Sì       |
-| Attivare MFA (Impostazioni)                        | Sì               | Sì      | No       |
+Per **Amministratore**, **Manager** e **Commesso** il referente VestiFlow assegna un set di **permessi granulari** (checkbox al momento della creazione o modifica utente). Si parte da un **preset** legato al ruolo, personalizzabile utente per utente. Se un pulsante, una voce di menu o una pagina non compare, manca il permesso richiesto — non necessariamente «il ruolo intero».
 
-Se un pulsante o una pagina non compare, il tuo ruolo non lo consente. Per nuovi account o cambio ruolo contatta il **referente VestiFlow** che ha attivato il gestionale.
+**Dopo una modifica permessi** da parte del referente: **esci e rientra** oppure ricarica con **Ctrl+F5** (Mac: **Cmd+Shift+R**) così menu e pulsanti si allineano al profilo aggiornato.
+
+### Permessi granulari (cosa controllano)
+
+| Permesso                             | Cosa abilita                                                                                               |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **Vedere giacenze di tutte le sedi** | Consulta stock e movimenti oltre la sede assegnata (le **azioni** restano sulla sede operativa in topbar). |
+| **Gestire giacenze**                 | Carichi, scarichi, trasferimenti, rettifiche, inventario fisico, **Registra movimento**.                   |
+| **Import/export e sync giacenze**    | Export/import CSV giacenze e pulsante **Sincronizza giacenze da Shopify**.                                 |
+| **Gestire catalogo**                 | Crea e modifica prodotti, varianti e prezzi.                                                               |
+| **Import/export e sync prodotti**    | Export/import CSV catalogo, **Importa da Shopify** e **Sincronizza catalogo** dalla lista prodotti.        |
+| **Eliminare prodotti**               | Rimozione prodotti dal catalogo (nei limiti previsti da Fonte/sync).                                       |
+| **Gestire ordini fornitore**         | Crea, modifica, invia e annulla ordini fornitore.                                                          |
+| **Ricevere ordini fornitore**        | Registra merce in arrivo da ordine fornitore.                                                              |
+| **Registrare vendite al banco**      | Schermata **Registra vendita** (vendite e storni).                                                         |
+| **Consultare report**                | Dashboard e sezione **Report**.                                                                            |
+| **Esportare dati**                   | Export CSV vendite, clienti, giacenze, catalogo; sync manuale **vendite** e **clienti** da Shopify.        |
+| **Impostazioni azienda**             | Pannello **Sede fisica** in Impostazioni.                                                                  |
+| **Visualizzare clienti**             | Lista e dettaglio clienti (sola lettura, profilo Shopify).                                                 |
+| **Gestire clienti**                  | Crea/modifica anagrafiche clienti (solo profili che lo prevedono).                                         |
+
+**Nota:** consultare giacenze, movimenti e liste di base sulla **propria sede** è in generalità consentito agli utenti autenticati; le righe sopra governano le **azioni** e le aree sensibili.
+
+### Operazioni riservate al Titolare
+
+| Operazione                                                              | Chi                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------ |
+| Collegare / disconnettere **Shopify** o **TikTok Shop** (OAuth)         | Solo **Titolare**                                |
+| **Sincronizza location**, **Salva sedi attive**, cambio negozio Shopify | Solo **Titolare** (Amministratore **non** basta) |
+
+L’**Amministratore** con preset completo ha tutti i permessi granulari tranne la connessione OAuth ai canali e-commerce.
+
+### Preset tipici per ruolo (punto di partenza)
+
+I valori sotto sono i default **prima** di eventuali personalizzazioni del referente VestiFlow.
+
+| Operazione                                      | Titolare | Admin (preset) | Manager (preset) | Commesso (preset)         |
+| ----------------------------------------------- | -------- | -------------- | ---------------- | ------------------------- |
+| Connessione Shopify / TikTok                    | Sì       | No             | No               | No                        |
+| Sync sedi / salva sedi attive                   | Sì       | No             | No               | No                        |
+| Catalogo completo + import/export/sync prodotti | Sì       | Sì             | Sì               | No                        |
+| Elimina prodotti                                | Sì       | Sì             | No               | No                        |
+| Giacenze + import/export/sync giacenze          | Sì       | Sì             | Sì               | No                        |
+| Movimenti / inventario fisico                   | Sì       | Sì             | Sì               | Sì                        |
+| Vede tutte le sedi (filtri)                     | Sì       | Sì             | Sì               | No                        |
+| Ordini fornitore (gestione)                     | Sì       | Sì             | Sì               | No                        |
+| Ricezione merce                                 | Sì       | Sì             | Sì               | Sì                        |
+| Registra vendita al banco                       | Sì       | Sì             | Sì               | Sì                        |
+| Report + export CSV / sync vendite-clienti      | Sì       | Sì             | Sì               | Solo consultazione report |
+| Sede fisica (anagrafica)                        | Sì       | Sì             | No               | No                        |
+
+Per nuovi account, cambio permessi o sede assegnata contatta il **referente VestiFlow** che ha attivato il gestionale.
 
 **Buona pratica:** ogni persona deve avere il proprio account, senza condividere password.
 
@@ -238,7 +279,7 @@ Il tuo contratto include un numero massimo di **sedi operative** in VestiFlow (e
 | **Dopo il blocco**     | Vedi solo le sedi attive; compare il messaggio _«Contatta l'assistenza per modificare le sedi attive»_                       |
 | **Cambio sedi**        | Solo il **referente VestiFlow** può sbloccarti **una volta**; poi salvi di nuovo e la selezione si riblocca                  |
 
-Solo **Titolare** e **Amministratore** possono salvare la selezione sedi.
+Solo il **Titolare** può salvare la selezione sedi (l’Amministratore non basta per questa operazione).
 
 **Eccezione piano 1 sede:** se Shopify espone **una sola** location attiva, VestiFlow può pre-selezionarla al sync, ma il **blocco** scatta solo dopo il tuo **primo salvataggio** esplicito (se il piano prevede più sedi o devi confermare).
 
@@ -257,7 +298,7 @@ Magazzino, movimenti, giacenze e selettore in topbar mostrano **solo le sedi att
 ### Prerequisiti
 
 - Negozio Shopify attivo (`nome-negozio.myshopify.com`)
-- Ruolo **Titolare** o **Amministratore** in VestiFlow
+- Ruolo **Titolare** in VestiFlow (solo il titolare avvia OAuth e sync sedi)
 
 ### Procedura
 
@@ -291,7 +332,7 @@ Magazzino, movimenti, giacenze e selettore in topbar mostrano **solo le sedi att
 | **Disconnetti Shopify**                | Scollegamento senza cancellare i dati locali        |
 | **Disconnetti e rimuovi dati**         | Scollegamento + rimozione dati importati da Shopify |
 
-Solo **Titolare** e **Amministratore** vedono questi pulsanti.
+Solo il **Titolare** vede i pulsanti di connessione, sync sedi e gestione OAuth.
 
 ### Cambiare negozio Shopify o rimuovere i dati importati
 
@@ -335,7 +376,7 @@ Disponibile solo con profilo canale **TikTok Shop** (scelto in fase di attivazio
 ### Prerequisiti
 
 - Negozio attivo su **TikTok Shop Partner Center**
-- Ruolo **Titolare** o **Amministratore** in VestiFlow
+- Ruolo **Titolare** in VestiFlow
 
 ### Procedura
 
@@ -359,7 +400,7 @@ Disponibile solo con profilo canale **TikTok Shop** (scelto in fase di attivazio
 | **Ripristina connessione** | Errore OAuth o token scaduto        |
 | **Disconnetti**            | Cambio negozio o reset collegamento |
 
-Solo **Titolare** e **Amministratore** possono collegare o scollegare TikTok Shop.
+Solo il **Titolare** può collegare o scollegare TikTok Shop.
 
 ---
 
@@ -457,11 +498,14 @@ Dopo l’eliminazione riuscita di un prodotto **Fonte: VestiFlow**, la scheda sc
 
 ### Import ed export CSV (catalogo)
 
-| Azione                 | Dove                    | Cosa fa                                            |
-| ---------------------- | ----------------------- | -------------------------------------------------- |
-| **Esporta CSV**        | Prodotti (lista)        | Scarica catalogo (SKU, varianti, prezzi, metadati) |
-| **Importa CSV**        | Prodotti → Importa CSV  | Carica prodotti da foglio formato Shopify          |
-| **Importa da Shopify** | Prodotti o Impostazioni | Sync massiva dal negozio online (non è un CSV)     |
+| Azione                              | Dove                    | Cosa fa                                            | Permesso richiesto                |
+| ----------------------------------- | ----------------------- | -------------------------------------------------- | --------------------------------- |
+| **Esporta CSV**                     | Prodotti (lista)        | Scarica catalogo (SKU, varianti, prezzi, metadati) | **Esportare dati**                |
+| **Importa CSV**                     | Prodotti → Importa CSV  | Carica prodotti da foglio formato Shopify          | Import/export e sync **prodotti** |
+| **Sincronizza catalogo da Shopify** | Prodotti (lista)        | Allinea catalogo dal negozio online                | Import/export e sync **prodotti** |
+| **Importa da Shopify**              | Prodotti o Impostazioni | Sync massiva catalogo                              | Import/export e sync **prodotti** |
+| **Crea / modifica prodotto**        | Lista o dettaglio       | CRUD catalogo                                      | Gestire **catalogo**              |
+| **Elimina prodotto**                | Dettaglio               | Rimozione (se consentita da Fonte)                 | **Eliminare prodotti**            |
 
 L'export serve per backup o lavorare in Excel. L'import CSV **non** sostituisce il sync Shopify: usa il percorso adatto al tuo caso.
 
@@ -501,12 +545,12 @@ In entrambi i casi vedi la variante con disponibile **0** e stato **Esaurito** s
 
 ### Azioni principali (Giacenze)
 
-| Pulsante                            | Funzione                                     |
-| ----------------------------------- | -------------------------------------------- |
-| **Sincronizza giacenze da Shopify** | Allinea quantità da Shopify (Titolare/Admin) |
-| **Esporta CSV**                     | Scarica giacenze (SKU, sede, quantità)       |
-| **Importa CSV**                     | Carica rettifiche da file                    |
-| **Registra movimento**              | Carico, scarico, trasferimento o rettifica   |
+| Pulsante                            | Funzione                                   | Permesso richiesto                |
+| ----------------------------------- | ------------------------------------------ | --------------------------------- |
+| **Sincronizza giacenze da Shopify** | Allinea quantità da Shopify                | Import/export e sync **giacenze** |
+| **Esporta CSV**                     | Scarica giacenze (SKU, sede, quantità)     | **Esportare dati**                |
+| **Importa CSV**                     | Carica rettifiche da file                  | Import/export e sync **giacenze** |
+| **Registra movimento**              | Carico, scarico, trasferimento o rettifica | Gestire **giacenze**              |
 
 ### Registrare un movimento
 
@@ -637,10 +681,10 @@ Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con ori
 - In VestiFlow sono **sola lettura**.
 - Filtri: stato pagamento, canale (online / negozio), ricerca ordine o cliente.
 
-| Azione                             | Dove            | Chi                      |
-| ---------------------------------- | --------------- | ------------------------ |
-| **Sincronizza vendite da Shopify** | Vendite (lista) | Titolare / Admin         |
-| **Esporta CSV**                    | Vendite (lista) | Titolare, Admin, Manager |
+| Azione                             | Dove            | Permesso richiesto |
+| ---------------------------------- | --------------- | ------------------ |
+| **Sincronizza vendite da Shopify** | Vendite (lista) | **Esportare dati** |
+| **Esporta CSV**                    | Vendite (lista) | **Esportare dati** |
 
 ### Clienti (profilo Shopify)
 
@@ -648,10 +692,10 @@ Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con ori
 - Per modifiche usa **Shopify Admin**.
 - **Non disponibile** nel profilo Solo gestionale.
 
-| Azione                             | Dove            | Chi                      |
-| ---------------------------------- | --------------- | ------------------------ |
-| **Sincronizza clienti da Shopify** | Clienti (lista) | Titolare / Admin         |
-| **Esporta CSV**                    | Clienti (lista) | Titolare, Admin, Manager |
+| Azione                             | Dove            | Permesso richiesto |
+| ---------------------------------- | --------------- | ------------------ |
+| **Sincronizza clienti da Shopify** | Clienti (lista) | **Esportare dati** |
+| **Esporta CSV**                    | Clienti (lista) | **Esportare dati** |
 
 ---
 
@@ -758,6 +802,12 @@ In **Impostazioni → Aspetto** (o dalla **topbar**) scegli **Chiaro**, **Scuro*
 ---
 
 ## 17. Domande frequenti
+
+### Non vedo un pulsante o una voce di menu che mi aspettavo
+
+1. Verifica con il referente VestiFlow quali **permessi granulari** ha il tuo account (non basta il ruolo).
+2. Dopo una modifica permessi: **esci e rientra** o ricarica con **Ctrl+F5** (Mac: **Cmd+Shift+R**).
+3. Esempi: **Sincronizza catalogo** richiede import/export prodotti; **Registra movimento** richiede gestione giacenze; **Collega Shopify** è solo per il **Titolare**.
 
 ### Il prodotto creato in VestiFlow non compare su Shopify
 

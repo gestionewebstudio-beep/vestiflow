@@ -20,6 +20,7 @@ import {
 import { resolveEffectivePermissions } from '@core/permissions/user-permissions.util';
 import { isAppError } from '@core/models/app-error.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { InlineSpinnerComponent } from '@shared/components/inline-spinner/inline-spinner.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 
@@ -38,6 +39,7 @@ import { AdminTenantsService } from '../../services/admin-tenants.service';
   imports: [
     ReactiveFormsModule,
     ButtonComponent,
+    InlineSpinnerComponent,
     ConfirmDialogComponent,
     SelectMenuComponent,
     AdminTenantUserPermissionsEditorComponent,

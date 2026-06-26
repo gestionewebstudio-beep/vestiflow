@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from '@core/auth';
 import { UserRole } from '@core/models/user.model';
 import { TENANT_ROUTE_PERMISSION_KEY } from '@core/permissions/tenant-permissions.util';
+import { TenantPermission } from '@core/models/tenant-permission.model';
 
 import { tenantRoleGuard } from './tenant-role.guard';
 
@@ -78,7 +79,12 @@ describe('tenantRoleGuard', () => {
       tenantName: 'Cliente test',
       assignedLocationId: null,
       assignedLocationName: null,
-      permissions: [],
+      permissions: [
+        TenantPermission.SupplierOrdersReceive,
+        TenantPermission.RetailRegister,
+        TenantPermission.ReportsView,
+        TenantPermission.CustomersView,
+      ],
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     });

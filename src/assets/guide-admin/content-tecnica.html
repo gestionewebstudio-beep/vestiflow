@@ -1,5 +1,5 @@
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 2.0 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 2.1 — Giugno 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -50,7 +50,7 @@
 <tr>
 <td><strong>Ruoli negozio</strong></td>
 <td><code>owner</code>, <code>admin</code>, <code>manager</code>, <code>clerk</code></td>
-<td>Assegnati al create tenant; <strong>non</strong> modificabili self-service oggi</td>
+<td>Provisioning in <strong>Nuovo cliente</strong>; ulteriori utenti e permessi in <strong>Modifica cliente → Utenti del cliente</strong></td>
 </tr>
 </tbody></table>
 <h3 id="cosa-vede-un-platform-admin-in-ui">Cosa vede un platform admin in UI</h3>
@@ -389,6 +389,7 @@ npm run serve:pwa
 <h3 id="modifica-tenant-esistente">Modifica tenant esistente</h3>
 <p>Tabella <strong>Clienti registrati</strong> → click riga → <code>/app/admin/clients/:id</code>.</p>
 <p>Modificabile: anagrafica, <strong>profilo canale</strong> (se nessuna integrazione attiva), <strong>Sedi incluse nel piano</strong> (1–10), nome titolare, negozio. <strong>Email</strong> e <strong>ruolo</strong> del primo utente sono <strong>sola lettura</strong> in UI (campi disabilitati).</p>
+<p><strong>Utenti del cliente:</strong> pannello in fondo a <strong>Modifica cliente</strong> (<code>admin-tenant-users-panel</code>). Permette di elencare, creare, aggiornare (ruolo, sede assegnata, permessi granulari) ed <strong>eliminare</strong> utenti tenant (icona cestino; il <strong>titolare</strong> non è eliminabile). I permessi partono dal preset del ruolo (<code>ROLE_DEFAULT_PERMISSIONS</code>) e possono essere personalizzati con checkbox; chiavi obsolete (es. <code>settings.integrations</code>) vengono filtrate al save (FE + BE). Dopo modifica permessi il cliente deve <strong>re-login</strong> o hard refresh per allineare menu e CTA.</p>
 <p><strong>Sedi attive (read-only):</strong> sotto il selettore piano compare l’elenco delle location attualmente <strong>attive in VestiFlow</strong> (<code>licensedInVf: true</code>), con nome in campi disabilitati (non è più editabile il «nome location» di provisioning). Se il cliente non ha ancora salvato la selezione, l’elenco può essere vuoto.</p>
 <p><strong>Concedi cambio sede:</strong> pulsante visibile quando la selezione è <strong>bloccata</strong> e non c’è già una concessione one-shot in corso. Imposta <code>locationSelectionChangeGranted=true</code> sul tenant: il cliente può modificare <strong>una volta</strong> le sedi attive in Impostazioni; al salvataggio la selezione si <strong>riblocca</strong> e la concessione viene azzerata.</p>
 <p><strong>Riduzione piano sedi:</strong> se abbassi <strong>Sedi incluse nel piano</strong> sotto il numero di sedi già attive, l’API <strong>disattiva</strong> le eccedenze (mantiene le più vecchie per <code>createdAt</code>, le altre passano a <code>licensedInVf: false</code>). Non sblocca la selezione: il cliente non può riattivare sedi diverse finché non gli concedi il cambio sede.</p>
@@ -436,6 +437,26 @@ npm run serve:pwa
 <td>Concede al cliente un round di modifica sedi attive</td>
 </tr>
 <tr>
+<td>GET</td>
+<td><code>/admin/tenants/:id/users</code></td>
+<td>Lista utenti tenant</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/admin/tenants/:id/users</code></td>
+<td>Crea utente tenant</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/admin/tenants/:id/users/:userId</code></td>
+<td>Aggiorna utente (ruolo, permessi, sede)</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/admin/tenants/:id/users/:userId</code></td>
+<td>Elimina utente (non <code>owner</code>)</td>
+</tr>
+<tr>
 <td>POST</td>
 <td><code>/admin/tenants/:id/support-session</code></td>
 <td>Avvia sessione assistenza (2 h)</td>
@@ -467,37 +488,110 @@ npm run serve:pwa
 <li>Frontend: <code>tenant-permissions.util.ts</code> tratta l&#39;operatore in assistenza come <strong>admin tenant</strong>; <code>isPlatformOperator()</code> è <code>false</code> durante la sessione (UI gestionale, non shell admin).</li>
 </ol>
 <p>Persistenza client: <code>sessionStorage</code> (<code>SUPPORT_SESSION_STORAGE_KEY</code>). Restore al bootstrap in <code>app.config.ts</code>; interceptor HTTP allega l&#39;header su ogni chiamata finché la sessione è attiva.</p>
-<h3 id="ruoli-tenant-ui--api">Ruoli tenant (UI + API)</h3>
-<p>Implementati in <code>tenant-permissions.util.ts</code> (frontend) e guard analoghi lato API.</p>
+<h3 id="permessi-granulari-tenant-ui--api">Permessi granulari tenant (UI + API)</h3>
+<p>Il <strong>titolare</strong> (<code>owner</code>) ha sempre accesso completo (<code>hasFullTenantAccess</code>); i permessi persistiti su <code>User.permissions</code> non lo limitano.</p>
+<p>Per <code>admin</code>, <code>manager</code>, <code>clerk</code> valgono chiavi <code>TenantPermission</code> (FE: <code>tenant-permission.model.ts</code>, BE: <code>tenant-permission.constants.ts</code>). Preset per ruolo: <code>ROLE_DEFAULT_PERMISSIONS</code>. Normalizzazione e filtro chiavi legacy: <code>user-permissions.util.ts</code> (FE + BE).</p>
 <table>
 <thead>
 <tr>
-<th>Permesso chiave</th>
-<th>Ruoli</th>
+<th>Chiave</th>
+<th>Gruppo</th>
+<th>Uso principale</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Shopify sync / import catalogo</td>
-<td>owner, admin</td>
+<td><code>inventory.view_all_locations</code></td>
+<td>inventory</td>
+<td>Filtri giacenze/movimenti su tutte le sedi (azioni restano su sede operativa)</td>
 </tr>
 <tr>
-<td>CRUD prodotti, CSV catalogo</td>
-<td>owner, admin, manager</td>
+<td><code>inventory.manage</code></td>
+<td>inventory</td>
+<td>Carichi, scarichi, trasferimenti, rettifiche, inventario fisico</td>
 </tr>
 <tr>
-<td>CSV giacenze, ordini fornitori</td>
-<td>owner, admin, manager</td>
+<td><code>inventory.import_export</code></td>
+<td>inventory</td>
+<td>CSV giacenze + sync giacenze Shopify</td>
 </tr>
 <tr>
-<td>Movimenti magazzino, inventario fisico</td>
-<td>tutti</td>
+<td><code>catalog.manage</code></td>
+<td>catalog</td>
+<td>CRUD prodotti</td>
 </tr>
 <tr>
-<td>MFA settings</td>
-<td>owner, admin, manager</td>
+<td><code>catalog.import_export</code></td>
+<td>catalog</td>
+<td>CSV catalogo + sync/import catalogo Shopify</td>
+</tr>
+<tr>
+<td><code>catalog.delete</code></td>
+<td>catalog</td>
+<td>Delete prodotto</td>
+</tr>
+<tr>
+<td><code>supplier_orders.manage</code></td>
+<td>orders</td>
+<td>CRUD ordini fornitore</td>
+</tr>
+<tr>
+<td><code>supplier_orders.receive</code></td>
+<td>orders</td>
+<td>Ricezione merce</td>
+</tr>
+<tr>
+<td><code>retail.register</code></td>
+<td>orders</td>
+<td><code>POST /inventory/retail-scans</code>, pagina Registra vendita</td>
+</tr>
+<tr>
+<td><code>reports.view</code></td>
+<td>reports</td>
+<td>Dashboard e Report</td>
+</tr>
+<tr>
+<td><code>reports.export</code></td>
+<td>reports</td>
+<td>Export CSV + sync vendite/clienti Shopify</td>
+</tr>
+<tr>
+<td><code>settings.company</code></td>
+<td>settings</td>
+<td><code>GET /tenant/company</code>, pannello Sede fisica</td>
+</tr>
+<tr>
+<td><code>customers.view</code> / <code>customers.manage</code></td>
+<td>customers</td>
+<td>Lista clienti / gestione (se prevista)</td>
 </tr>
 </tbody></table>
-<p>Route Angular sensibili: <code>tenantRoleGuard</code> + <code>data.tenantRoutePermission</code>.</p>
+<p><strong>Rimosso:</strong> <code>settings.integrations</code> — filtrato al save admin e in normalizzazione profilo.</p>
+<p><strong>Solo titolare</strong> (<code>hasFullTenantAccess</code>, <code>@Roles(owner)</code> su controller OAuth): connessione/disconnessione Shopify e TikTok, sync location, salvataggio sedi attive, shop-change wizard.</p>
+<p><strong>Guard frontend:</strong> <code>tenantPermissionGuard</code> + <code>data.tenantPermissions</code> sulle route; sidebar filtrata da <code>tenant-permissions.util.ts</code>. <strong>Guard backend:</strong> <code>TenantPermissionsGuard</code> + decorator <code>@RequirePermissions(...)</code>; <code>RolesGuard</code> per operazioni owner-only.</p>
+<p><strong>Scope sedi:</strong> <code>OperationalLocationsService</code> (FE) distingue <code>locations</code> (lettura/filtri), <code>writeLocations</code> (azioni topbar) e <code>transferTargetLocations</code>. BE: <code>user-location-scope.util.ts</code> → <code>assertUserCanAccessLocation</code> con scope <code>read</code> / <code>write</code> / <code>transferDestination</code>. Topbar: commesso/manager con sede assegnata → etichetta fissa; titolare/admin con più sedi → select.</p>
+<p><strong>Admin utenti:</strong> <code>AdminTenantUsersService</code> (<code>api/src/admin/admin-tenant-users.service.ts</code>); UI <code>admin-tenant-users-panel</code> in Modifica cliente.</p>
+<p><strong>Sync Shopify vs permessi:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Operazione</th>
+<th>Permesso</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Import/sync catalogo</td>
+<td><code>catalog.import_export</code></td>
+</tr>
+<tr>
+<td>Sync giacenze</td>
+<td><code>inventory.import_export</code></td>
+</tr>
+<tr>
+<td>Sync vendite/clienti</td>
+<td><code>reports.export</code></td>
+</tr>
+</tbody></table>
+<p>Route Angular sensibili: <code>tenantPermissionGuard</code> (sostituisce il vecchio guard solo-ruolo dove applicabile).</p>
 <h3 id="foto-profilo-utente">Foto profilo utente</h3>
 <table>
 <thead>
@@ -657,19 +751,19 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <tbody><tr>
 <td><code>/shopify/shop-change/preview</code></td>
 <td>GET</td>
-<td>owner/admin</td>
+<td>owner</td>
 <td>Conteggi dati collegati a Shopify + blockers (es. ordini fornitori aperti su location Shopify)</td>
 </tr>
 <tr>
 <td><code>/shopify/shop-change/purge</code></td>
 <td>POST</td>
-<td>owner/admin</td>
+<td>owner</td>
 <td>Rimuove dati importati/syncati da Shopify (prodotti, varianti, clienti, ordini vendita, location collegate, giacenze/movimenti associati)</td>
 </tr>
 <tr>
 <td><code>/shopify/connection</code></td>
 <td>DELETE</td>
-<td>owner/admin</td>
+<td>owner</td>
 <td>Disconnessione OAuth (token revocato); <strong>non</strong> purge catalogo</td>
 </tr>
 </tbody></table>
@@ -743,7 +837,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <tbody><tr>
 <td><code>/inventory/locations/licensed</code></td>
 <td>PUT</td>
-<td>owner/admin</td>
+<td>owner</td>
 <td>Cliente salva elenco <code>locationIds</code> attive (≤ piano); default <code>lockAfterSave: true</code></td>
 </tr>
 <tr>
@@ -978,7 +1072,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><strong>Permessi UI</strong></td>
-<td>Collegamento: owner/admin (<code>canManageTikTokConnection</code>)</td>
+<td>Collegamento OAuth: solo <code>owner</code> (<code>canManageTikTokConnection</code> / <code>hasFullTenantAccess</code>)</td>
 </tr>
 </tbody></table>
 <p>Callback OAuth: query <code>?tiktok=connected|error|disconnected</code> su ritorno frontend Impostazioni.</p>
@@ -1018,7 +1112,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><code>User</code></td>
-<td>Profilo app, <code>tenantId</code>, ruolo</td>
+<td>Profilo app, <code>tenantId</code>, ruolo, <code>permissions[]</code> (permessi granulari; ignorati per <code>owner</code>)</td>
 </tr>
 <tr>
 <td><code>Store</code> / <code>Location</code></td>
@@ -1057,6 +1151,13 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <hr>
 <h2 id="12-api-e-permessi-tenant">12. API e permessi tenant</h2>
 <p>Base URL: <code>/api/v1</code>. Header <code>Authorization</code> obbligatorio (salvo health).</p>
+<h3 id="enforcement-permessi-nestjs">Enforcement permessi (NestJS)</h3>
+<ul>
+<li><code>TenantPermissionsGuard</code> + <code>@RequirePermissions(...)</code> su endpoint sensibili (catalogo, magazzino, export, ordini fornitori).</li>
+<li><code>RolesGuard</code> + <code>@Roles(&#39;owner&#39;)</code> su OAuth Shopify/TikTok, licensing sedi, shop-change.</li>
+<li>Normalizzazione permessi utente: <code>api/src/auth/user-permissions.util.ts</code> (<code>normalizeStoredPermissions</code>, rimozione chiavi obsolete).</li>
+<li>Scope location su mutazioni inventario: <code>api/src/inventory/user-location-scope.util.ts</code>.</li>
+</ul>
 <h3 id="rate-limiting-api-vestiflow-nestjs">Rate limiting API VestiFlow (NestJS)</h3>
 <p>Separato dai limiti Shopify: protezione anti brute-force / DoS sull’<strong>API propria</strong>.</p>
 <table>
@@ -1115,7 +1216,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><strong>Permessi</strong></td>
-<td>manager+</td>
+<td><code>catalog.import_export</code> (import/sync); <code>catalog.manage</code> (CRUD); <code>catalog.delete</code> (delete); export anche <code>reports.export</code></td>
 </tr>
 </tbody></table>
 <h3 id="giacenze">Giacenze</h3>
@@ -1132,7 +1233,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><strong>Sedi attive</strong></td>
-<td><code>PUT /inventory/locations/licensed</code> — body <code>{ locationIds: string[] }</code>; owner/admin; vedi <a href="#licensing-sedi-e-blocco-selezione">§9 Licensing sedi</a></td>
+<td><code>PUT /inventory/locations/licensed</code> — body <code>{ locationIds: string[] }</code>; <strong>solo owner</strong>; vedi <a href="#licensing-sedi-e-blocco-selezione">§9 Licensing sedi</a></td>
 </tr>
 <tr>
 <td><strong>Export</strong></td>
@@ -1152,11 +1253,11 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><strong>Permessi</strong></td>
-<td>lista: autenticato; export/import: manager+</td>
+<td>lista: autenticato; export/import/sync giacenze: <code>inventory.import_export</code>; export CSV anche <code>reports.export</code>; mutazioni: <code>inventory.manage</code></td>
 </tr>
 </tbody></table>
 <h3 id="vendite-e-clienti">Vendite e clienti</h3>
-<p>Export CSV dalle liste (filtri rispettati). Sync manuale Shopify: owner/admin.</p>
+<p>Export CSV dalle liste (filtri rispettati). Sync manuale Shopify vendite/clienti: <code>reports.export</code>. Connessione OAuth Shopify/TikTok: solo <code>owner</code>.</p>
 <h3 id="ordini-fornitori">Ordini fornitori</h3>
 <table>
 <thead>
@@ -1183,37 +1284,37 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <td>POST</td>
 <td><code>/supplier-orders</code></td>
 <td>Crea ordine (bozza o inviato)</td>
-<td>manager+</td>
+<td><code>supplier_orders.manage</code></td>
 </tr>
 <tr>
 <td>PATCH</td>
 <td><code>/supplier-orders/:id</code></td>
 <td>Aggiorna bozza (righe sostituite integralmente)</td>
-<td>manager+</td>
+<td><code>supplier_orders.manage</code></td>
 </tr>
 <tr>
 <td>POST</td>
 <td><code>/supplier-orders/:id/send</code></td>
 <td>Bozza → inviato</td>
-<td>manager+</td>
+<td><code>supplier_orders.manage</code></td>
 </tr>
 <tr>
 <td>POST</td>
 <td><code>/supplier-orders/:id/cancel</code></td>
 <td>Annulla (solo bozza o inviato, non ancora ricevuto)</td>
-<td>manager+</td>
+<td><code>supplier_orders.manage</code></td>
 </tr>
 <tr>
 <td>DELETE</td>
 <td><code>/supplier-orders/:id</code></td>
 <td>Elimina ordine <strong>annullato</strong> (righe in cascade)</td>
-<td>manager+</td>
+<td><code>supplier_orders.manage</code></td>
 </tr>
 <tr>
 <td>POST</td>
 <td><code>/supplier-orders/:id/receive</code></td>
 <td>Ricezione merce + movimenti <code>load</code> + push inventario</td>
-<td>operativi</td>
+<td><code>supplier_orders.receive</code></td>
 </tr>
 </tbody></table>
 <p>Service: <code>SupplierOrdersService</code> (<code>api/src/supplier-orders/</code>). Ricezione in transazione atomica con <code>StockMovement</code>.</p>
@@ -1233,7 +1334,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <td>POST</td>
 <td><code>/inventory/retail-scans</code></td>
 <td><code>{ code, locationId, action: &#39;sale&#39; | &#39;return&#39; }</code> — qty fissa 1 per scansione</td>
-<td>operativi+</td>
+<td><code>retail.register</code></td>
 </tr>
 </tbody></table>
 <p><strong>Backend:</strong> <code>InventoryService.registerRetailScan()</code> (<code>api/src/inventory/inventory.service.ts</code>).</p>
@@ -1437,6 +1538,42 @@ cd api &amp;&amp; npm run test
 <tr>
 <td>Summary licensing in tenant company</td>
 <td><code>src/app/features/settings/models/tenant-company.model.spec.ts</code>, <code>tenant-company.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>Permessi tenant (FE util + guard)</td>
+<td><code>src/app/core/permissions/tenant-permissions.util.spec.ts</code>, <code>tenant-permission.guard.spec.ts</code></td>
+</tr>
+<tr>
+<td>Permessi utente / legacy keys</td>
+<td><code>src/app/core/permissions/user-permissions.util.spec.ts</code>, <code>api/src/auth/user-permissions.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>Scope sedi utente (FE + BE)</td>
+<td><code>src/app/core/utils/user-location-scope.util.spec.ts</code>, <code>api/src/inventory/user-location-scope.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>Topbar sede fissa vs select</td>
+<td><code>src/app/shared/components/app-topbar/app-topbar.component.spec.ts</code></td>
+</tr>
+<tr>
+<td>Admin save utenti / filtro permessi</td>
+<td><code>api/src/admin/admin-tenant-users.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>E2E permessi commesso (base)</td>
+<td><code>e2e/permissions.spec.ts</code> — variabili <code>E2E_CLERK_*</code> in <code>.env</code></td>
+</tr>
+<tr>
+<td>E2E permessi owner/admin</td>
+<td><code>e2e/permissions-owner.spec.ts</code> — <code>E2E_USER_*</code> + sessione setup</td>
+</tr>
+<tr>
+<td>E2E permessi granulari (catalog vs inventory import)</td>
+<td><code>e2e/permissions-granular.spec.ts</code> — <code>E2E_CLERK_CATALOG_IMPORT_*</code>, <code>E2E_CLERK_INVENTORY_IMPORT_*</code></td>
+</tr>
+<tr>
+<td>Provision utenti E2E granulari</td>
+<td><code>npm run provision:e2e-users</code> → <code>api/scripts/provision-e2e-permission-users.mjs</code> (credenziali solo in <code>.env</code>, non in codice app)</td>
 </tr>
 </tbody></table>
 <h3 id="ci-github-actions">CI GitHub Actions</h3>

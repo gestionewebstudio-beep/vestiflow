@@ -12,6 +12,20 @@ export function hasE2eClerkCredentials(): boolean {
   return Boolean(process.env.E2E_CLERK_EMAIL?.trim() && process.env.E2E_CLERK_PASSWORD?.trim());
 }
 
+export function hasE2eClerkCatalogImportCredentials(): boolean {
+  return Boolean(
+    process.env.E2E_CLERK_CATALOG_IMPORT_EMAIL?.trim() &&
+    process.env.E2E_CLERK_CATALOG_IMPORT_PASSWORD?.trim(),
+  );
+}
+
+export function hasE2eClerkInventoryImportCredentials(): boolean {
+  return Boolean(
+    process.env.E2E_CLERK_INVENTORY_IMPORT_EMAIL?.trim() &&
+    process.env.E2E_CLERK_INVENTORY_IMPORT_PASSWORD?.trim(),
+  );
+}
+
 export function e2eCredentials(): E2eCredentials {
   const email = process.env.E2E_USER_EMAIL?.trim();
   const password = process.env.E2E_USER_PASSWORD?.trim();
@@ -34,6 +48,40 @@ export function e2eClerkCredentials(): E2eCredentials {
   if (!email || !password) {
     throw new Error(
       'E2E_CLERK_EMAIL and E2E_CLERK_PASSWORD are required for clerk permission tests.',
+    );
+  }
+
+  return {
+    email,
+    password,
+    mfaCode: process.env.E2E_CLERK_MFA_CODE?.trim() || process.env.E2E_MFA_CODE?.trim(),
+  };
+}
+
+export function e2eClerkCatalogImportCredentials(): E2eCredentials {
+  const email = process.env.E2E_CLERK_CATALOG_IMPORT_EMAIL?.trim();
+  const password = process.env.E2E_CLERK_CATALOG_IMPORT_PASSWORD?.trim();
+
+  if (!email || !password) {
+    throw new Error(
+      'E2E_CLERK_CATALOG_IMPORT_EMAIL and E2E_CLERK_CATALOG_IMPORT_PASSWORD are required.',
+    );
+  }
+
+  return {
+    email,
+    password,
+    mfaCode: process.env.E2E_CLERK_MFA_CODE?.trim() || process.env.E2E_MFA_CODE?.trim(),
+  };
+}
+
+export function e2eClerkInventoryImportCredentials(): E2eCredentials {
+  const email = process.env.E2E_CLERK_INVENTORY_IMPORT_EMAIL?.trim();
+  const password = process.env.E2E_CLERK_INVENTORY_IMPORT_PASSWORD?.trim();
+
+  if (!email || !password) {
+    throw new Error(
+      'E2E_CLERK_INVENTORY_IMPORT_EMAIL and E2E_CLERK_INVENTORY_IMPORT_PASSWORD are required.',
     );
   }
 

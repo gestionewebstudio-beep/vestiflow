@@ -58,14 +58,14 @@ describe('retail-sales guards', () => {
       expect(result).toBe(true);
     });
 
-    it('redirige profilo sconosciuto alla lista vendite', () => {
+    it('redirige utente assente alla dashboard', () => {
       const auth = TestBed.inject(AuthService);
       vi.mocked(auth.currentUser).mockReturnValue(null);
 
       const result = TestBed.runInInjectionContext(() =>
         retailSalesRegisterGuard({} as never, {} as never),
       );
-      expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/sales']);
+      expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/dashboard']);
       expect(result).not.toBe(true);
     });
   });

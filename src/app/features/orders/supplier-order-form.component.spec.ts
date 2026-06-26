@@ -37,6 +37,18 @@ const VARIANTS = [
   },
 ];
 
+function operationalLocationsMock(locations: typeof LOCATIONS) {
+  return {
+    locations: () => locations,
+    writeLocations: () => locations,
+    actionLocations: () => locations,
+    transferTargetLocations: () => locations,
+    isFixedSingleStore: () => false,
+    fixedSingleStoreLocationId: () => null,
+    fixedSingleStoreLabel: () => null,
+  };
+}
+
 describe('SupplierOrderFormComponent', () => {
   async function setup(options?: { createFails?: boolean }) {
     const createOrder = options?.createFails
@@ -71,9 +83,7 @@ describe('SupplierOrderFormComponent', () => {
         },
         {
           provide: OperationalLocationsService,
-          useValue: {
-            locations: () => LOCATIONS,
-          },
+          useValue: operationalLocationsMock(LOCATIONS),
         },
         {
           provide: SupplierOrderService,

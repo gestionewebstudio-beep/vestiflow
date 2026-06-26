@@ -16,6 +16,7 @@
     "test:coverage": "ng test --watch=false --coverage --exclude \"**/*.component.spec.ts\"",
     "test:components": "ng test --watch=false --include \"**/*.component.spec.ts\" --coverage=false",
     "test:api": "npm run test --prefix api",
+    "provision:e2e-users": "npm run provision:e2e-users --prefix api",
     "test:everything": "npm run test:coverage && npm run test:components && npm run test:api",
     "test:all": "npm run test:everything",
     "test:coverage:all": "npm run test:coverage && npm run test:components && npm run test:coverage --prefix api",

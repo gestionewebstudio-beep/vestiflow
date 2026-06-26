@@ -74,15 +74,26 @@
               </td>
               <td class="admin-users__cell-actions">
                 @if (canDeleteUser(user)) {
-                  <app-button
+                  <button
                     type="button"
-                    variant="ghost"
-                    [loading]="rowDeletingId() === user.id"
-                    [disabled]="rowDeletingId() !== null || rowSavingId() !== null"
+                    class="admin-users__delete-btn"
+                    [attr.aria-label]="'Elimina utente ' + user.displayName"
+                    [attr.title]="'Elimina utente'"
+                    [disabled]="
+                      rowDeletingId() === user.id ||
+                      rowDeletingId() !== null ||
+                      rowSavingId() !== null
+                    "
+                    [attr.aria-busy]="rowDeletingId() === user.id ? true : null"
                     (click)="openDeleteDialog(user)"
                   >
-                    Elimina
-                  </app-button>
+                    @if (rowDeletingId() === user.id) {
+                      <app-inline-spinner />
+                      <span class="sr-only">Eliminazione in corso</span>
+                    } @else {
+                      <i class="pi pi-trash" aria-hidden="true"></i>
+                    }
+                  </button>
                 } @else {
                   <span class="admin-users__all-locations" aria-hidden="true">—</span>
                 }

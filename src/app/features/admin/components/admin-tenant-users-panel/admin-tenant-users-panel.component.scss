@@ -80,8 +80,42 @@
 }
 
 .admin-users__cell-actions {
+  inline-size: var(--btn-min-height);
   text-align: end;
   white-space: nowrap;
+}
+
+.admin-users__delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--field-height);
+  block-size: var(--field-height);
+  padding: 0;
+  color: var(--color-text);
+  cursor: pointer;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+
+  i {
+    font-size: var(--text-sm);
+  }
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-surface-hover);
+    color: var(--color-danger);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
 }
 
 .admin-users__cell-select ::ng-deep .select-menu-host {

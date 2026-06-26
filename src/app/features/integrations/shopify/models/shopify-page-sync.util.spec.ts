@@ -63,7 +63,12 @@ describe('shopify-page-sync.util', () => {
   });
 
   it('canManageShopifySync legacy consente sync catalogo solo con import/export', () => {
-    expect(canManageShopifySync(adminUser)).toBe(false);
+    expect(
+      canManageShopifySync({
+        ...adminUser,
+        permissions: [TenantPermission.CatalogManage],
+      }),
+    ).toBe(false);
     expect(
       canManageShopifySync({
         ...adminUser,

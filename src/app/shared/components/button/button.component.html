@@ -8,7 +8,7 @@
   [class.app-button--loading]="loading()"
   [class.app-button--loading-icon]="loading() && loadingIndicator() === 'icon'"
   [type]="type()"
-  [attr.form]="form() ?? null"
+  [attr.form]="formId() ?? null"
   [disabled]="disabled() || loading()"
   [attr.aria-busy]="loading() ? true : null"
 >
@@ -18,6 +18,5 @@
     }
     <span class="sr-only">Caricamento in corso</span>
   }
-
   <ng-content />
 </button>

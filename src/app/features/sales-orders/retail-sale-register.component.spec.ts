@@ -68,6 +68,18 @@ function authServiceProvider(): {
   };
 }
 
+function operationalLocationsMock(locations: typeof LOCATIONS) {
+  return {
+    locations: () => locations,
+    writeLocations: () => locations,
+    actionLocations: () => locations,
+    transferTargetLocations: () => locations,
+    isFixedSingleStore: () => false,
+    fixedSingleStoreLocationId: () => null,
+    fixedSingleStoreLabel: () => null,
+  };
+}
+
 describe('RetailSaleRegisterComponent', () => {
   const registerRetailScan = vi.fn();
   const setActiveLocation = vi.fn();
@@ -101,9 +113,7 @@ describe('RetailSaleRegisterComponent', () => {
         },
         {
           provide: OperationalLocationsService,
-          useValue: {
-            locations: () => LOCATIONS,
-          },
+          useValue: operationalLocationsMock(LOCATIONS),
         },
         {
           provide: LocationContextService,
@@ -194,9 +204,7 @@ describe('RetailSaleRegisterComponent', () => {
         },
         {
           provide: OperationalLocationsService,
-          useValue: {
-            locations: () => [],
-          },
+          useValue: operationalLocationsMock([]),
         },
         {
           provide: LocationContextService,
