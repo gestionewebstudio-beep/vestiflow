@@ -17,13 +17,24 @@ prod-beta,Beta Product,<p>B</p>,Brand,Abbigliamento,,TRUE,Taglia,M,,,,,SKU-BETA-
 `;
 
 describe('ProductsImportService', () => {
-  function createService(existingSkus: string[] = []) {
+  function createService(
+    existingSkus: string[] = [],
+    existingProducts: { name: string; importHandle?: string | null }[] = [],
+  ) {
     const channelSync = { enqueueProductPush: vi.fn() };
     const prisma = {
       productVariant: {
         findMany: vi.fn().mockResolvedValue(existingSkus.map((sku) => ({ sku }))),
       },
-      product: { create: vi.fn() },
+      product: {
+        create: vi.fn(),
+        findMany: vi.fn().mockResolvedValue(
+          existingProducts.map((product) => ({
+            name: product.name,
+            importHandle: product.importHandle ?? null,
+          })),
+        ),
+      },
     };
     const service = new ProductsImportService(
       prisma as unknown as PrismaService,
@@ -39,6 +50,24 @@ describe('ProductsImportService', () => {
 
     expect(preview.summary.total).toBe(1);
     expect(preview.products[0]?.handle).toBe('maglietta-test');
+  });
+
+  it('previewCsv segnala i prodotti già importati (per handle)', async () => {
+    const { service } = createService([], [{ name: 'Altro', importHandle: 'maglietta-test' }]);
+
+    const preview = await service.previewCsv('tenant-1', SAMPLE_CSV);
+
+    expect(preview.summary.alreadyImported).toBe(1);
+    expect(preview.products[0]?.alreadyImported).toBe(true);
+  });
+
+  it('previewCsv segnala i prodotti già importati (fallback sul nome)', async () => {
+    const { service } = createService([], [{ name: 'Maglietta Test' }]);
+
+    const preview = await service.previewCsv('tenant-1', SAMPLE_CSV);
+
+    expect(preview.summary.alreadyImported).toBe(1);
+    expect(preview.products[0]?.alreadyImported).toBe(true);
   });
 
   it('previewCsv rifiuta CSV non valido', async () => {
@@ -101,6 +130,93 @@ describe('ProductsImportService', () => {
     expect(result.imported).toBe(1);
     expect(result.skipped).toBe(0);
     expect(readyCount).toBeGreaterThanOrEqual(1);
+    expect(prisma.product.create).toHaveBeenCalledOnce();
+  });
+
+  it('importCsv salta prodotti già presenti in catalogo (anti-duplicato per nome)', async () => {
+    const { service, prisma } = createService([], [{ name: 'maglietta test' }]);
+
+    const result = await service.importCsv('tenant-1', SAMPLE_CSV);
+
+    expect(result.imported).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(prisma.product.create).not.toHaveBeenCalled();
+    expect(result.products[0]).toMatchObject({
+      handle: 'maglietta-test',
+      status: 'skipped',
+    });
+    expect(result.products[0]?.message).toContain('già presente');
+  });
+
+  it('importCsv salta per handle anche se il nome è diverso', async () => {
+    const { service, prisma } = createService([], [
+      { name: 'Nome Diverso', importHandle: 'maglietta-test' },
+    ]);
+
+    const result = await service.importCsv('tenant-1', SAMPLE_CSV);
+
+    expect(result.imported).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(prisma.product.create).not.toHaveBeenCalled();
+    expect(result.products[0]?.message).toContain('già presente');
+  });
+
+  it('importCsv azzera i barcode duplicati nello stesso prodotto', async () => {
+    const { service, prisma } = createService();
+    const csv = `${CSV_HEADER}
+barcode-dup,Prodotto Barcode,<p>A</p>,Brand,Abbigliamento,,TRUE,Taglia,S,,,,,SKU-BC-1,,,1,deny,manual,19.90,,TRUE,TRUE,EAN-DUP,,,,,,,,,,,,,,,,,,,,,active
+barcode-dup,Prodotto Barcode,<p>A</p>,Brand,Abbigliamento,,TRUE,Taglia,M,,,,,SKU-BC-2,,,1,deny,manual,24.90,,TRUE,TRUE,EAN-DUP,,,,,,,,,,,,,,,,,,,,,active
+`;
+    prisma.product.create.mockResolvedValue({
+      id: 'prod-bc',
+      name: 'Prodotto Barcode',
+      variants: [],
+    });
+
+    const result = await service.importCsv('tenant-1', csv);
+
+    expect(result.imported).toBe(1);
+    const createArg = prisma.product.create.mock.calls[0]?.[0] as {
+      data: { variants: { create: { sku: string; barcode: string | null }[] } };
+    };
+    const barcodes = createArg.data.variants.create.map((variant) => variant.barcode);
+    expect(barcodes.filter((barcode) => barcode === 'EAN-DUP')).toHaveLength(1);
+    expect(barcodes.filter((barcode) => barcode === null)).toHaveLength(1);
+  });
+
+  it('importCsv persiste import_handle del prodotto importato', async () => {
+    const { service, prisma } = createService();
+    prisma.product.create.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta Test',
+      variants: [{ sku: 'SKU-E2E-IMPORT' }],
+    });
+
+    await service.importCsv('tenant-1', SAMPLE_CSV);
+
+    expect(prisma.product.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ importHandle: 'maglietta-test' }),
+      }),
+    );
+  });
+
+  it('importCsv non crea duplicati per lo stesso nome nello stesso file', async () => {
+    const { service, prisma } = createService();
+    const csv = `${CSV_HEADER}
+dup-a,Prodotto Doppio,<p>A</p>,Brand,Abbigliamento,,TRUE,Taglia,S,,,,,SKU-DUP-A,,,1,deny,manual,19.90,,TRUE,TRUE,,,,,,,,,,,,,,,,,,,,,active
+dup-b,Prodotto Doppio,<p>B</p>,Brand,Abbigliamento,,TRUE,Taglia,M,,,,,SKU-DUP-B,,,1,deny,manual,24.90,,TRUE,TRUE,,,,,,,,,,,,,,,,,,,,,active
+`;
+    prisma.product.create.mockResolvedValue({
+      id: 'prod-dup-a',
+      name: 'Prodotto Doppio',
+      variants: [],
+    });
+
+    const result = await service.importCsv('tenant-1', csv);
+
+    expect(result.imported).toBe(1);
+    expect(result.skipped).toBe(1);
     expect(prisma.product.create).toHaveBeenCalledOnce();
   });
 

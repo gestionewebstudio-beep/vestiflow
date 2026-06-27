@@ -26,6 +26,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -141,6 +142,18 @@ export class SalesOrderListComponent {
   protected readonly canExportData = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
   );
+
+  /** Titolo pagina: specifica il canale quando il profilo è Shopify/TikTok. */
+  protected readonly pageTitle = computed(() => {
+    const profile = this.authService.currentUser()?.tenantChannelProfile;
+    if (profile === TenantChannelProfile.Shopify) {
+      return 'Vendite Shopify';
+    }
+    if (profile === TenantChannelProfile.TikTokShop) {
+      return 'Vendite TikTok';
+    }
+    return 'Vendite';
+  });
 
   private readonly request = computed(() => ({ query: this.query(), tick: this.refreshTick() }));
 

@@ -222,6 +222,13 @@ export function canRegisterRetailSales(user: User | null | undefined): boolean {
   return hasTenantPermission(user, TenantPermission.RetailRegister);
 }
 
+export function canRegisterOnlineSales(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.RetailRegisterOnline);
+}
+
 export function canManageMfa(user: User | null | undefined): boolean {
   if (!user) {
     return false;

@@ -4,16 +4,28 @@
     <p class="reports__subtitle">Sintesi di magazzino (snapshot attuale) e vendite per periodo.</p>
   </header>
 
+  @if (canExportCorrispettivi()) {
+    <app-report-corrispettivi-export
+      [period]="displayPeriod()"
+      [dateFrom]="dateFromDraft()"
+      [dateTo]="dateToDraft()"
+      [channel]="corrispettiviChannel()"
+      [channelOptions]="corrispettiviChannelOptions()"
+      [channelHint]="corrispettiviChannelHint()"
+      [periodLabel]="periodLabel()"
+      [exporting]="exporting()"
+      (periodChange)="onPeriodChange($event)"
+      (dateFromChange)="onDateFromChange($event)"
+      (dateToChange)="onDateToChange($event)"
+      (channelChange)="onCorrispettiviChannelChange($event)"
+      (exportClick)="exportCorrispettivi()"
+    />
+  }
+
   <app-report-filters
-    [period]="displayPeriod()"
-    [dateFrom]="dateFromDraft()"
-    [dateTo]="dateToDraft()"
     [source]="query().source ?? ''"
     [financialStatus]="query().financialStatus ?? ''"
     [hasActiveFilters]="hasActiveFilters()"
-    (periodChange)="onPeriodChange($event)"
-    (dateFromChange)="onDateFromChange($event)"
-    (dateToChange)="onDateToChange($event)"
     (sourceChange)="onSourceChange($event)"
     (financialStatusChange)="onFinancialStatusChange($event)"
     (resetFilters)="resetFilters()"

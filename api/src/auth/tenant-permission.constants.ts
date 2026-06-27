@@ -11,6 +11,7 @@ export const TenantPermission = {
   SupplierOrdersManage: 'supplier_orders.manage',
   SupplierOrdersReceive: 'supplier_orders.receive',
   RetailRegister: 'retail.register',
+  RetailRegisterOnline: 'retail.register_online',
   ReportsView: 'reports.view',
   ReportsExport: 'reports.export',
   SettingsCompany: 'settings.company',
@@ -85,6 +86,12 @@ export const TENANT_PERMISSION_DEFINITIONS: readonly TenantPermissionDefinition[
     group: 'orders',
   },
   {
+    key: TenantPermission.RetailRegisterOnline,
+    label: 'Registrare vendite online',
+    hint: 'Vendite e storni online registrati manualmente.',
+    group: 'orders',
+  },
+  {
     key: TenantPermission.ReportsView,
     label: 'Consultare report',
     hint: 'Accesso alle schermate report e dashboard analitiche.',
@@ -127,6 +134,7 @@ const MANAGER_DEFAULTS: readonly TenantPermissionKey[] = [
   TenantPermission.SupplierOrdersManage,
   TenantPermission.SupplierOrdersReceive,
   TenantPermission.RetailRegister,
+  TenantPermission.RetailRegisterOnline,
   TenantPermission.ReportsView,
   TenantPermission.ReportsExport,
   TenantPermission.CustomersView,
@@ -137,6 +145,7 @@ const CLERK_DEFAULTS: readonly TenantPermissionKey[] = [
   TenantPermission.InventoryManage,
   TenantPermission.SupplierOrdersReceive,
   TenantPermission.RetailRegister,
+  TenantPermission.RetailRegisterOnline,
   TenantPermission.ReportsView,
   TenantPermission.CustomersView,
 ];

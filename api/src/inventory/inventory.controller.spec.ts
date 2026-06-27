@@ -191,6 +191,56 @@ describe('InventoryController', () => {
 
       clerk,
 
+      'in_store',
+
+    );
+
+  });
+
+
+
+  it('registerOnlineScan passa canale online al service', async () => {
+
+    const dto = { code: 'SKU-1', locationId: 'loc-1', action: 'sale' };
+
+    const clerk = testOwnerUser({
+
+      id: 'user-1',
+
+      displayName: 'Commesso Online',
+
+      role: 'clerk' as UserProfileDto['role'],
+
+    });
+
+    inventory.registerRetailScan.mockResolvedValue({
+
+      movement: { id: 'mov-2' },
+
+      remainingAvailable: 5,
+
+    });
+
+
+
+    await controller.registerOnlineScan(tenantId, clerk, dto as never);
+
+
+
+    expect(inventory.registerRetailScan).toHaveBeenCalledWith(
+
+      tenantId,
+
+      dto,
+
+      'Commesso Online',
+
+      'user-1',
+
+      clerk,
+
+      'online',
+
     );
 
   });

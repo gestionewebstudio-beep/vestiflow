@@ -1,11 +1,8 @@
 <section class="retail-register">
   <header class="retail-register__header">
     <div class="retail-register__heading">
-      <h1 class="retail-register__title">Registra vendita</h1>
-      <p class="retail-register__subtitle">
-        Dopo l’incasso in cassa, scansiona qui lo stesso barcode per aggiornare le giacenze. Usa
-        <strong>Storno</strong> per i resi.
-      </p>
+      <h1 class="retail-register__title">{{ copy().title }}</h1>
+      <p class="retail-register__subtitle">{{ copy().subtitle }}</p>
     </div>
     <a class="retail-register__link" routerLink="/app/inventory/movements"> Storico movimenti </a>
   </header>
@@ -35,9 +32,7 @@
       aria-labelledby="retail-sale-title"
     >
       <h2 id="retail-sale-title" class="retail-register__panel-title">Vendita</h2>
-      <p class="retail-register__panel-intro">
-        Scansiona il barcode del prodotto venduto: la giacenza diminuisce di 1.
-      </p>
+      <p class="retail-register__panel-intro">{{ copy().saleIntro }}</p>
 
       <form class="retail-register__form" [formGroup]="saleForm" (ngSubmit)="submitSale()">
         <label class="retail-register__field" for="retail-sale-code">
@@ -82,9 +77,7 @@
       aria-labelledby="retail-return-title"
     >
       <h2 id="retail-return-title" class="retail-register__panel-title">Storno</h2>
-      <p class="retail-register__panel-intro">
-        Scansiona il barcode del prodotto restituito: la giacenza aumenta di 1.
-      </p>
+      <p class="retail-register__panel-intro">{{ copy().returnIntro }}</p>
 
       <form class="retail-register__form" [formGroup]="returnForm" (ngSubmit)="submitReturn()">
         <label class="retail-register__field" for="retail-return-code">

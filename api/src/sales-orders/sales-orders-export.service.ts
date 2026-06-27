@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
-import { serializeCsv } from '../common/csv.util';
+import { serializeItalianExcelCsv } from '../common/csv.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { minorToShopifyDecimal } from '../shopify/shopify-money.util';
 import type { ExportSalesOrdersQueryDto } from './dto/export-sales-orders.query.dto';
 import {
   financialStatusDisplayLabel,
@@ -25,6 +24,22 @@ export const SALES_ORDER_EXPORT_HEADERS = [
   'ID Shopify',
 ] as const;
 
+/** Data e ora in fuso Europe/Rome, formato it-IT (es. 24/06/2026, 18:09). */
+const ROME_DATETIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
+  timeZone: 'Europe/Rome',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** Importo it-IT (es. 1.500,00) leggibile nativamente in Excel italiano. */
+const EUR_AMOUNT_FORMAT = new Intl.NumberFormat('it-IT', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 @Injectable()
 export class SalesOrdersExportService {
   constructor(private readonly prisma: PrismaService) {}
@@ -38,19 +53,24 @@ export class SalesOrdersExportService {
 
     const rows = orders.map((order) => ({
       'Numero ordine': order.orderNumber,
-      Data: order.placedAt.toISOString(),
+      Data: ROME_DATETIME_FORMAT.format(order.placedAt),
       Cliente: order.customerName,
       'Email cliente': order.customer?.email ?? '',
       Canale: sourceDisplayLabel(order.source),
       Pagamento: financialStatusDisplayLabel(order.financialStatus),
       Evasione: fulfillmentStatusDisplayLabel(order.fulfillmentStatus),
       Valuta: order.currency,
-      Subtotale: minorToShopifyDecimal(order.subtotalMinor),
-      Totale: minorToShopifyDecimal(order.totalMinor),
+      Subtotale: this.formatMinor(order.subtotalMinor),
+      Totale: this.formatMinor(order.totalMinor),
       'ID Shopify': order.shopifyOrderId ?? '',
     }));
 
-    return serializeCsv(SALES_ORDER_EXPORT_HEADERS, rows);
+    return serializeItalianExcelCsv(SALES_ORDER_EXPORT_HEADERS, rows);
+  }
+
+  /** Unità minori intere → importo formattato it-IT (es. 1.500,00). */
+  private formatMinor(minor: number): string {
+    return EUR_AMOUNT_FORMAT.format(minor / 100);
   }
 
   private buildWhere(tenantId: string, query: ExportSalesOrdersQueryDto) {

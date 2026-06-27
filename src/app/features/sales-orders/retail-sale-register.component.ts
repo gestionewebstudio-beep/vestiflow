@@ -13,13 +13,14 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
@@ -29,10 +30,46 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 
 import {
   InventoryService,
+  type RetailSaleChannel,
   type RetailScanResult,
 } from '@features/inventory/services/inventory.service';
 
 type ScanAction = 'sale' | 'return';
+
+interface RetailRegisterCopy {
+  readonly title: string;
+  readonly subtitle: string;
+  readonly saleIntro: string;
+  readonly returnIntro: string;
+}
+
+const RETAIL_REGISTER_COPY: Record<RetailSaleChannel, RetailRegisterCopy> = {
+  in_store: {
+    title: 'Registra vendita',
+    subtitle:
+      'Dopo l’incasso in cassa, scansiona qui lo stesso barcode per aggiornare le giacenze. Usa Storno per i resi.',
+    saleIntro: 'Scansiona il barcode del prodotto venduto: la giacenza diminuisce di 1.',
+    returnIntro: 'Scansiona il barcode del prodotto restituito: la giacenza aumenta di 1.',
+  },
+  online: {
+    title: 'Registra vendita online esterna',
+    subtitle:
+      'Registra vendite e resi su canali online esterni al tuo ecommerce integrato (es. Amazon, eBay). Le vendite Shopify/TikTok arrivano dalla sincronizzazione.',
+    saleIntro:
+      'Scansiona o digita SKU/barcode del prodotto venduto online: la giacenza diminuisce di 1.',
+    returnIntro:
+      'Scansiona o digita SKU/barcode del prodotto reso online: la giacenza aumenta di 1.',
+  },
+};
+
+const GESTIONALE_ONLINE_COPY: RetailRegisterCopy = {
+  title: 'Registra vendita online',
+  subtitle:
+    'Registra qui le vendite e i resi online per aggiornare le giacenze. Usa Storno per i resi.',
+  saleIntro:
+    'Scansiona o digita SKU/barcode del prodotto venduto online: la giacenza diminuisce di 1.',
+  returnIntro: 'Scansiona o digita SKU/barcode del prodotto reso online: la giacenza aumenta di 1.',
+};
 
 interface SessionEntry {
   readonly id: string;
@@ -46,7 +83,7 @@ interface SessionEntry {
 let sessionEntryCounter = 0;
 
 /**
- * Vendita e storno al banco per profilo solo gestionale.
+ * Vendita e storno al banco o online (canali esterni).
  * Ottimizzato per pistola barcode USB (input + Invio) e fotocamera (BarcodeDetector).
  */
 @Component({
@@ -71,10 +108,26 @@ export class RetailSaleRegisterComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly document = inject(DOCUMENT);
   private readonly config = inject(APP_CONFIG);
+  private readonly route = inject(ActivatedRoute);
 
   private readonly saleInputRef = viewChild<ElementRef<HTMLInputElement>>('saleInput');
 
   protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+
+  /** Canale di registrazione (negozio o online) letto dai dati di rotta. */
+  protected readonly channel: RetailSaleChannel =
+    this.route.snapshot.data['channel'] === 'online' ? 'online' : 'in_store';
+
+  protected readonly copy = computed((): RetailRegisterCopy => {
+    if (this.channel === 'in_store') {
+      return RETAIL_REGISTER_COPY.in_store;
+    }
+    const profile = this.authService.currentUser()?.tenantChannelProfile;
+    if (profile === TenantChannelProfile.Gestionale) {
+      return GESTIONALE_ONLINE_COPY;
+    }
+    return RETAIL_REGISTER_COPY.online;
+  });
 
   protected readonly saleForm = this.fb.group({
     code: this.fb.control('', { validators: [Validators.required, Validators.maxLength(100)] }),
@@ -201,7 +254,7 @@ export class RetailSaleRegisterComponent {
     feedback.set(null);
 
     this.retailScanSubscription = this.inventoryService
-      .registerRetailScan({ code, locationId, action })
+      .registerRetailScan({ code, locationId, action, channel: this.channel })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {

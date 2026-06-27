@@ -20,9 +20,10 @@ import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.ut
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Location } from '@core/models/location.model';
-import { StockMovementType } from '@core/models/stock-movement.model';
+import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 import { AdjustmentDirection } from '@core/models/stock-movement.model';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -31,6 +32,7 @@ import { PaginationComponent } from '@shared/components/pagination/pagination.co
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { MovementTableComponent } from './components/movement-table/movement-table.component';
@@ -71,6 +73,7 @@ const EMPTY_META: PageMeta = {
     ErrorStateComponent,
     TableSkeletonComponent,
     SelectMenuComponent,
+    DateInputComponent,
     PaginationComponent,
     InventoryTabsComponent,
     MovementTableComponent,
@@ -98,11 +101,39 @@ export class StockMovementsComponent {
     { value: StockMovementType.Return, label: 'Reso' },
   ];
 
+  /**
+   * Canale (origine movimento) per il filtro di consultazione del registro.
+   * Le opzioni del canale ecommerce dipendono dal profilo del tenant:
+   * solo Shopify per i tenant Shopify, solo TikTok per i tenant TikTok.
+   */
+  protected readonly originOptions = computed((): readonly SelectMenuOption[] => {
+    const options: SelectMenuOption[] = [
+      { value: MovementOrigin.VestiflowPos, label: 'Negozio fisico' },
+    ];
+
+    const profile = this.authService.currentUser()?.tenantChannelProfile;
+    if (profile === TenantChannelProfile.Shopify) {
+      options.push({ value: MovementOrigin.Shopify, label: 'Shopify' });
+    } else if (profile === TenantChannelProfile.TikTokShop) {
+      options.push({ value: MovementOrigin.Tiktok, label: 'TikTok Shop' });
+    }
+
+    options.push({
+      value: MovementOrigin.VestiflowOnline,
+      label: 'Vendita online esterna',
+    });
+
+    return options;
+  });
+
   private readonly refreshTick = signal(0);
   protected readonly page = signal(1);
   protected readonly pageSize = signal(DEFAULT_INVENTORY_PAGE_SIZE);
 
   protected readonly typeFilter = signal('');
+  protected readonly originFilter = signal('');
+  protected readonly fromFilter = signal('');
+  protected readonly toFilter = signal('');
   // La location parte dal contesto globale (selettore topbar).
   protected readonly locationFilter = signal(this.locationContext.activeLocationId() ?? '');
 
@@ -125,19 +156,38 @@ export class StockMovementsComponent {
 
   private readonly filters = computed(() => ({
     type: this.typeFilter(),
+    origin: this.originFilter(),
+    from: this.fromFilter(),
+    to: this.toFilter(),
     location: this.locationFilter(),
   }));
 
   private readonly query = computed((): StockMovementsListQuery => {
     const type = this.typeFilter();
+    const origin = this.originFilter();
     const locationId = this.locationFilter();
     return {
       page: this.page(),
       pageSize: this.pageSize(),
       type: type ? (type as StockMovementType) : undefined,
+      origin: origin ? (origin as MovementOrigin) : undefined,
       locationId: locationId || undefined,
+      from: this.isoFrom(),
+      to: this.isoTo(),
     };
   });
+
+  /** Inizio giornata (ora locale) per il filtro 'da'. */
+  private isoFrom(): string | undefined {
+    const value = this.fromFilter();
+    return value ? `${value}T00:00:00` : undefined;
+  }
+
+  /** Fine giornata (ora locale) per includere tutto il giorno 'a'. */
+  private isoTo(): string | undefined {
+    const value = this.toFilter();
+    return value ? `${value}T23:59:59.999` : undefined;
+  }
 
   private readonly request = computed(() => ({
     query: this.query(),
@@ -229,19 +279,40 @@ export class StockMovementsComponent {
   });
 
   protected readonly hasActiveFilters = computed(() =>
-    Boolean(this.typeFilter() || this.locationFilter()),
+    Boolean(
+      this.typeFilter() ||
+      this.originFilter() ||
+      this.fromFilter() ||
+      this.toFilter() ||
+      this.locationFilter(),
+    ),
   );
 
   protected onTypeFilterChange(value: string | null): void {
     this.typeFilter.set(value ?? '');
   }
 
+  protected onOriginFilterChange(value: string | null): void {
+    this.originFilter.set(value ?? '');
+  }
+
   protected onLocationFilterChange(value: string | null): void {
     this.locationFilter.set(value ?? '');
   }
 
+  protected onFromFilterChange(value: string): void {
+    this.fromFilter.set(value);
+  }
+
+  protected onToFilterChange(value: string): void {
+    this.toFilter.set(value);
+  }
+
   protected resetFilters(): void {
     this.typeFilter.set('');
+    this.originFilter.set('');
+    this.fromFilter.set('');
+    this.toFilter.set('');
     this.locationFilter.set('');
   }
 

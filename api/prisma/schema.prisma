@@ -68,6 +68,8 @@ enum MovementOrigin {
   tiktok
   /// Vendita o storno registrati al banco nel profilo solo gestionale.
   vestiflow_pos
+  /// Vendita o storno online registrati manualmente nel gestionale.
+  vestiflow_online
 }
 
 enum ShopifySyncStatus {
@@ -338,6 +340,9 @@ model Product {
   shopifyCatalogLinkKind          ShopifyCatalogLinkKind? @map("shopify_catalog_link_kind")
   /// Assi opzione (max 3, vincolo Shopify): [{ name: 'Taglia', values: ['S','M'] }]
   options                         Json                    @default("[]")
+  /// Handle Shopify del prodotto (slug univoco per store), salvato all'import CSV.
+  /// Chiave di deduplica affidabile per re-import; null sui prodotti pre-migrazione.
+  importHandle                    String?                 @map("import_handle")
   // Collegamento Shopify Product: solo id pubblici.
   shopifyProductId                String?                 @map("shopify_product_id")
   shopifySyncStatus               ShopifySyncStatus       @default(not_connected) @map("shopify_sync_status")
@@ -358,6 +363,7 @@ model Product {
 
   @@index([tenantId, status])
   @@index([tenantId, name])
+  @@index([tenantId, importHandle])
   @@index([tenantId, shopifyProductId])
   @@index([tenantId, tiktokProductId])
   @@map("products")

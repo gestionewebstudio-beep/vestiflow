@@ -1,4 +1,4 @@
-import type { StockMovementType } from '@core/models/stock-movement.model';
+import type { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 
 export const DEFAULT_INVENTORY_PAGE_SIZE = 20;
 export const INVENTORY_PAGE_SIZE_OPTIONS: readonly number[] = [10, 20, 50];
@@ -21,6 +21,7 @@ export interface StockMovementsListQuery {
   readonly locationId?: string;
   readonly search?: string;
   readonly type?: StockMovementType;
+  readonly origin?: MovementOrigin;
   readonly variantId?: string;
   readonly from?: string;
   readonly to?: string;

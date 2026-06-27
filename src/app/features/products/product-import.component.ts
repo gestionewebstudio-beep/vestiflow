@@ -47,10 +47,21 @@ export class ProductImportComponent {
     if (!data) {
       return [] as string[];
     }
-    return data.products.filter((item) => item.status !== 'error').map((item) => item.handle);
+    return data.products
+      .filter((item) => item.status !== 'error' && !item.alreadyImported)
+      .map((item) => item.handle);
   });
 
   protected readonly canImport = computed(() => this.readyHandles().length > 0 && !this.loading());
+
+  /** Tutti i prodotti del file risultano già presenti in catalogo. */
+  protected readonly allAlreadyImported = computed(() => {
+    const data = this.preview();
+    if (!data || data.summary.total === 0) {
+      return false;
+    }
+    return data.summary.alreadyImported === data.summary.total;
+  });
 
   protected backToList(): void {
     void this.router.navigate(['/app/products']);
@@ -126,6 +137,9 @@ export class ProductImportComponent {
   protected statusTone(
     item: ProductImportPreviewItem,
   ): 'success' | 'warning' | 'error' | 'neutral' {
+    if (item.alreadyImported) {
+      return 'neutral';
+    }
     if (item.status === 'ready') {
       return 'success';
     }
@@ -136,6 +150,9 @@ export class ProductImportComponent {
   }
 
   protected statusLabel(item: ProductImportPreviewItem): string {
+    if (item.alreadyImported) {
+      return 'Già importato';
+    }
     if (item.status === 'ready') {
       return 'Pronto';
     }
@@ -143,5 +160,62 @@ export class ProductImportComponent {
       return 'Con avvisi';
     }
     return 'Errore';
+  }
+
+  protected readonly resultTone = computed<'success' | 'warning' | 'error'>(() => {
+    const data = this.result();
+    if (!data) {
+      return 'success';
+    }
+    if (data.imported === 0 && data.failed > 0) {
+      return 'error';
+    }
+    if (data.imported === 0 || data.failed > 0 || data.skipped > 0) {
+      return 'warning';
+    }
+    return 'success';
+  });
+
+  protected readonly resultMessage = computed(() => {
+    const data = this.result();
+    if (!data) {
+      return '';
+    }
+    if (data.imported === 0 && data.failed === 0) {
+      return 'Nessun prodotto importato: erano tutti già presenti in catalogo o saltati.';
+    }
+    if (data.imported === 0) {
+      return 'Import non riuscito: nessun prodotto è stato importato. Controlla i dettagli qui sotto.';
+    }
+    const parts = [`${data.imported} prodotti importati con successo`];
+    if (data.skipped > 0) {
+      parts.push(`${data.skipped} saltati (già presenti o con errori)`);
+    }
+    if (data.failed > 0) {
+      parts.push(`${data.failed} non importati per errori`);
+    }
+    return `${parts.join(' · ')}.`;
+  });
+
+  protected resultStatusLabel(status: 'imported' | 'skipped' | 'failed'): string {
+    if (status === 'imported') {
+      return 'Importato';
+    }
+    if (status === 'skipped') {
+      return 'Saltato';
+    }
+    return 'Fallito';
+  }
+
+  protected resultStatusTone(
+    status: 'imported' | 'skipped' | 'failed',
+  ): 'success' | 'warning' | 'error' {
+    if (status === 'imported') {
+      return 'success';
+    }
+    if (status === 'skipped') {
+      return 'warning';
+    }
+    return 'error';
   }
 }

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   TenantChannelProfile,
+  onlineSalesRegisterLabel,
+  showOnlineSalesRegister,
   showRetailSalesRegister,
   showSalesOrderHistory,
   showShopifyIntegration,
@@ -21,6 +23,22 @@ describe('tenant-channel-profile.model', () => {
     expect(showRetailSalesRegister(TenantChannelProfile.Shopify)).toBe(true);
     expect(showRetailSalesRegister(TenantChannelProfile.TikTokShop)).toBe(true);
     expect(showRetailSalesRegister(undefined)).toBe(false);
+  });
+
+  it('showOnlineSalesRegister per tutti i profili canale', () => {
+    expect(showOnlineSalesRegister(TenantChannelProfile.Gestionale)).toBe(true);
+    expect(showOnlineSalesRegister(TenantChannelProfile.Shopify)).toBe(true);
+    expect(showOnlineSalesRegister(TenantChannelProfile.TikTokShop)).toBe(true);
+    expect(showOnlineSalesRegister(undefined)).toBe(false);
+  });
+
+  it('onlineSalesRegisterLabel distingue gestionale da canali integrati', () => {
+    expect(onlineSalesRegisterLabel(TenantChannelProfile.Gestionale)).toBe(
+      'Registra vendita online',
+    );
+    expect(onlineSalesRegisterLabel(TenantChannelProfile.Shopify)).toBe(
+      'Registra vendita online esterna',
+    );
   });
 
   it('showSalesOrderHistory solo per profilo Shopify', () => {

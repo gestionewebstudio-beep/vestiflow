@@ -13,6 +13,7 @@ interface ImportPreviewApiRow {
     readonly rowNumber?: number;
   }[];
   readonly rowNumbers: readonly number[];
+  readonly alreadyImported?: boolean;
 }
 
 export interface ImportPreviewApiResponse {
@@ -37,6 +38,7 @@ function mapPreviewItem(row: ImportPreviewApiRow): ProductImportPreviewItem {
     status: hasError ? 'error' : hasWarning ? 'warning' : 'ready',
     issues: row.issues,
     rowNumbers: row.rowNumbers,
+    alreadyImported: row.alreadyImported ?? false,
   };
 }
 

@@ -5,7 +5,7 @@ import { mapProductImportPreview } from './product-import.mapper';
 describe('product-import.mapper', () => {
   it('marca ready quando non ci sono issue', () => {
     const preview = mapProductImportPreview({
-      summary: { total: 1, ready: 1, warnings: 0, errors: 0 },
+      summary: { total: 1, ready: 1, warnings: 0, errors: 0, alreadyImported: 0 },
       products: [
         {
           handle: 'maglietta',
@@ -22,7 +22,7 @@ describe('product-import.mapper', () => {
 
   it('marca warning quando ci sono solo avvisi', () => {
     const preview = mapProductImportPreview({
-      summary: { total: 1, ready: 0, warnings: 1, errors: 0 },
+      summary: { total: 1, ready: 0, warnings: 1, errors: 0, alreadyImported: 0 },
       products: [
         {
           handle: 'giacca',
@@ -38,7 +38,7 @@ describe('product-import.mapper', () => {
 
   it('marca error quando c e almeno un errore', () => {
     const preview = mapProductImportPreview({
-      summary: { total: 1, ready: 0, warnings: 1, errors: 1 },
+      summary: { total: 1, ready: 0, warnings: 1, errors: 1, alreadyImported: 0 },
       products: [
         {
           handle: 'invalid',

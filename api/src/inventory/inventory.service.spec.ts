@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -625,6 +626,62 @@ describe('InventoryService', () => {
           origin: 'vestiflow_pos',
           quantity: 1,
           reason: 'Vendita negozio',
+        }),
+      }),
+    );
+  });
+
+  it('registerRetailScan canale online crea movimento con origine vestiflow_online', async () => {
+    const { prisma, tx } = createRetailScanPrismaMock();
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      channelSync as unknown as ChannelSyncFacade,
+    );
+
+    await service.registerRetailScan(
+      tenantId,
+      { code: '8001234567890', locationId: 'loc-1', action: RetailScanAction.Sale },
+      'Commesso',
+      'user-1',
+      ownerUser,
+      'online',
+    );
+
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: StockMovementType.sale,
+          origin: 'vestiflow_online',
+          reason: 'Vendita online esterna',
+        }),
+      }),
+    );
+  });
+
+  it('registerRetailScan canale online accetta tenant Shopify', async () => {
+    const { prisma, tx } = createRetailScanPrismaMock({ channelProfile: 'shopify' });
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      channelSync as unknown as ChannelSyncFacade,
+    );
+
+    await service.registerRetailScan(
+      tenantId,
+      { code: '8001234567890', locationId: 'loc-1', action: RetailScanAction.Sale },
+      'Commesso',
+      'user-1',
+      ownerUser,
+      'online',
+    );
+
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: StockMovementType.sale,
+          origin: 'vestiflow_online',
+          reason: 'Vendita online esterna',
         }),
       }),
     );

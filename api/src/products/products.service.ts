@@ -63,6 +63,7 @@ const PRODUCT_LIST_SELECT = {
   catalogOrigin: true,
   shopifyCatalogLinkKind: true,
   options: true,
+  importHandle: true,
   shopifyProductId: true,
   shopifySyncStatus: true,
   shopifyLastSyncAt: true,

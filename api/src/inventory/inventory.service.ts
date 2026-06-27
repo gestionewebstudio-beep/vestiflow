@@ -10,6 +10,7 @@ import {
   StockMovementType,
   type InventoryLevel,
   type Location,
+  type MovementOrigin,
   type StockMovement,
 } from '@prisma/client';
 
@@ -41,6 +42,9 @@ export type RetailScanResult = {
   readonly productName: string;
   readonly remainingAvailable: number;
 };
+
+/** Canale di registrazione vendita/storno: negozio (POS) oppure online. */
+export type RetailSaleChannel = 'in_store' | 'online';
 
 export type InventoryLevelWithRefs = InventoryLevel & {
   variant: { sku: string; optionValues: Prisma.JsonValue; product: { name: string } };
@@ -278,6 +282,7 @@ export class InventoryService {
       ...locationScopeToMovementFilter(scope),
       ...(query.variantId ? { variantId: query.variantId } : {}),
       ...(query.type ? { type: query.type } : {}),
+      ...(query.origin ? { origin: query.origin } : {}),
       ...(query.from || query.to
         ? {
             createdAt: {
@@ -370,8 +375,9 @@ export class InventoryService {
   }
 
   /**
-   * Registra una vendita o uno storno al banco (doppia scansione).
-   * Ogni scansione produce un movimento `sale` o `return` con origine `vestiflow_pos`.
+   * Registra una vendita o uno storno (doppia scansione), in negozio oppure online.
+   * Ogni scansione produce un movimento `sale` o `return` con origine
+   * `vestiflow_pos` (negozio) o `vestiflow_online` (vendita online esterna/manuale).
    */
   async registerRetailScan(
     tenantId: string,
@@ -379,6 +385,7 @@ export class InventoryService {
     actorDisplayName: string,
     actorUserId: string | undefined,
     user: UserProfileDto,
+    channel: RetailSaleChannel = 'in_store',
   ): Promise<RetailScanResult> {
     assertUserCanAccessLocation(user, dto.locationId);
 
@@ -404,8 +411,9 @@ export class InventoryService {
     const movementType =
       dto.action === RetailScanAction.Sale ? StockMovementType.sale : StockMovementType.return;
     const delta = dto.action === RetailScanAction.Sale ? -1 : 1;
-    const reason =
-      dto.action === RetailScanAction.Sale ? 'Vendita negozio' : 'Storno negozio (reso)';
+    const isOnline = channel === 'online';
+    const origin: MovementOrigin = isOnline ? 'vestiflow_online' : 'vestiflow_pos';
+    const reason = this.retailScanReason(dto.action, isOnline);
 
     const movement = await this.prisma.$transaction(async (tx) => {
       await this.assertLocationExists(tx, tenantId, dto.locationId);
@@ -415,7 +423,7 @@ export class InventoryService {
         data: {
           tenantId,
           type: movementType,
-          origin: 'vestiflow_pos',
+          origin,
           variantId: variant.id,
           sku: variant.sku,
           locationId: dto.locationId,
@@ -449,6 +457,14 @@ export class InventoryService {
       productName: variant.product.name,
       remainingAvailable: level?.available ?? 0,
     };
+  }
+
+  /** Motivo movimento per vendita/storno in base ad azione e canale. */
+  private retailScanReason(action: RetailScanAction, isOnline: boolean): string {
+    if (action === RetailScanAction.Sale) {
+      return isOnline ? 'Vendita online esterna' : 'Vendita negozio';
+    }
+    return isOnline ? 'Storno online esterna (reso)' : 'Storno negozio (reso)';
   }
 
   /** Variazione (con segno) da applicare alla location di origine. */

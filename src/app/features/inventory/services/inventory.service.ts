@@ -38,6 +38,7 @@ import type { Location } from '@core/models/location.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 
 import type {
+  CorrispettiviExportQuery,
   InventoryExportQuery,
   InventoryImportPreview,
   InventoryImportResult,
@@ -60,10 +61,15 @@ import {
 } from '../models/inventory-count.mapper';
 
 /** Input per vendita o storno al banco (profilo solo gestionale). */
+/** Canale di registrazione vendita/storno: negozio (POS) oppure online. */
+export type RetailSaleChannel = 'in_store' | 'online';
+
 export interface RegisterRetailScanInput {
   readonly code: string;
   readonly locationId: EntityId;
   readonly action: 'sale' | 'return';
+  /** Canale: 'in_store' (default) usa /retail-scans, 'online' usa /retail-scans/online. */
+  readonly channel?: RetailSaleChannel;
 }
 
 export interface RetailScanResult {
@@ -101,6 +107,7 @@ export interface RegisterMovementInput {
 
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 120000;
+const IMPORT_HTTP_TIMEOUT_MS = 300000;
 const LEVELS_BY_VARIANT_PAGE_SIZE = 100;
 
 export interface LocationInventoryReportRow {
@@ -238,6 +245,7 @@ export class InventoryService {
     if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.search) params = params.set('search', query.search);
     if (query.type) params = params.set('type', query.type);
+    if (query.origin) params = params.set('origin', query.origin);
     if (query.variantId) params = params.set('variantId', query.variantId);
     if (query.from) params = params.set('from', query.from);
     if (query.to) params = params.set('to', query.to);
@@ -277,9 +285,12 @@ export class InventoryService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapStockMovementApiRow));
   }
 
-  /** Vendita o storno al banco (profilo solo gestionale). */
+  /** Vendita o storno al banco o online (l'endpoint dipende dal canale). */
   registerRetailScan(input: RegisterRetailScanInput): Observable<RetailScanResult> {
-    return this.http.post<RetailScanResultApiRow>(this.url('/inventory/retail-scans'), input).pipe(
+    const { channel, ...body } = input;
+    const path =
+      channel === 'online' ? '/inventory/retail-scans/online' : '/inventory/retail-scans';
+    return this.http.post<RetailScanResultApiRow>(this.url(path), body).pipe(
       timeout(HTTP_TIMEOUT_MS),
       map((row) => ({
         variantId: row.variantId,
@@ -370,7 +381,7 @@ export class InventoryService {
     }
     return this.http
       .post<InventoryImportResult>(this.url('/inventory/levels/import'), formData)
-      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
+      .pipe(timeout(IMPORT_HTTP_TIMEOUT_MS));
   }
 
   exportInventoryCsv(query: InventoryExportQuery): Observable<Blob> {
@@ -387,6 +398,30 @@ export class InventoryService {
 
     return this.http
       .get(this.url('/inventory/levels/export/csv'), { params, responseType: 'blob' })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
+  }
+
+  /** Export CSV corrispettivi: vendite/storni in un periodo, per canale e location. */
+  exportCorrispettiviCsv(query: CorrispettiviExportQuery): Observable<Blob> {
+    let params = new HttpParams();
+    if (query.locationId) {
+      params = params.set('locationId', query.locationId);
+    }
+    if (query.origin) {
+      params = params.set('origin', query.origin);
+    }
+    if (query.from) {
+      params = params.set('from', query.from);
+    }
+    if (query.to) {
+      params = params.set('to', query.to);
+    }
+
+    return this.http
+      .get(this.url('/inventory/movements/export/corrispettivi'), {
+        params,
+        responseType: 'blob',
+      })
       .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 

@@ -40,6 +40,8 @@ import { toCreateProductBody, toUpdateProductBody } from './product-api.mapper';
 
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 120_000;
+/** Import CSV: la creazione di molti prodotti/varianti può richiedere minuti. */
+const IMPORT_HTTP_TIMEOUT_MS = 300_000;
 /** Push Shopify con metaobject categoria: può richiedere decine di secondi. */
 const SHOPIFY_SYNC_HTTP_TIMEOUT_MS = 120_000;
 const FILTER_OPTIONS_CACHE_MS = 5 * 60_000;
@@ -305,13 +307,11 @@ export class ProductService {
     const formData = new FormData();
     formData.append('file', file, file.name);
     if (handles?.length) {
-      for (const handle of handles) {
-        formData.append('handles[]', handle);
-      }
+      formData.append('handles', JSON.stringify([...handles]));
     }
     return this.http
       .post<ProductImportResult>(this.url('/products/import'), formData)
-      .pipe(timeout(HTTP_TIMEOUT_MS));
+      .pipe(timeout(IMPORT_HTTP_TIMEOUT_MS));
   }
 
   exportProductsCsv(query: ProductExportQuery): Observable<Blob> {

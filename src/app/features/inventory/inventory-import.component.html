@@ -64,6 +64,34 @@
       <span>{{ data.summary.errors }} con errori</span>
     </div>
 
+    @if (allUnchanged()) {
+      <div class="inventory-import__notice inventory-import__notice--info" role="status">
+        Tutte le righe di questo file risultano già allineate alle giacenze a sistema: non c'è nulla
+        da aggiornare. Puoi tornare indietro e scegliere un altro file.
+      </div>
+    } @else if (data.summary.unchanged > 0 || data.summary.errors > 0) {
+      <div class="inventory-import__notice" role="status">
+        Verranno aggiornate solo le {{ readyKeys().length }} righe modificate.
+        @if (data.summary.unchanged > 0) {
+          {{ data.summary.unchanged }} sono già allineate e verranno saltate.
+        }
+        @if (data.summary.errors > 0) {
+          {{ data.summary.errors }} hanno errori e verranno ignorate.
+        }
+      </div>
+    }
+
+    <div class="inventory-import__actions inventory-import__actions--top">
+      <app-button type="button" variant="ghost" (click)="phase.set('upload')">Indietro</app-button>
+      <app-button type="button" [disabled]="!canImport()" (click)="runImport()">
+        @if (loading()) {
+          Import in corso…
+        } @else {
+          Importa {{ readyKeys().length }} righe
+        }
+      </app-button>
+    </div>
+
     <div class="inventory-import__table-scroll">
       <table class="inventory-import__table">
         <thead>
@@ -108,27 +136,60 @@
         </tbody>
       </table>
     </div>
-
-    <div class="inventory-import__actions">
-      <app-button type="button" variant="ghost" (click)="phase.set('upload')">Indietro</app-button>
-      <app-button type="button" [disabled]="!canImport()" (click)="runImport()">
-        @if (loading()) {
-          Import in corso…
-        } @else {
-          Importa {{ readyKeys().length }} righe
-        }
-      </app-button>
-    </div>
   }
 
   @if (phase() === 'done' && result(); as importResult) {
-    <div class="inventory-import__done">
-      <p class="inventory-import__done-title">Import completato</p>
+    <div
+      class="inventory-import__done"
+      [class.inventory-import__done--success]="resultTone() === 'success'"
+      [class.inventory-import__done--warning]="resultTone() === 'warning'"
+      [class.inventory-import__done--error]="resultTone() === 'error'"
+      role="status"
+    >
+      <p class="inventory-import__done-title">
+        @if (resultTone() === 'success') {
+          Import completato
+        } @else if (resultTone() === 'warning') {
+          Import completato con avvisi
+        } @else {
+          Import non riuscito
+        }
+      </p>
+      <p class="inventory-import__done-message">{{ resultMessage() }}</p>
       <p class="inventory-import__done-stats tabular-nums">
         {{ importResult.updated }} aggiornate · {{ importResult.unchanged }} invariate ·
         {{ importResult.skipped }} saltate · {{ importResult.failed }} fallite
       </p>
     </div>
+
+    @if (importResult.rows.length > 0) {
+      <div class="inventory-import__table-scroll">
+        <table class="inventory-import__table">
+          <thead>
+            <tr>
+              <th scope="col">SKU</th>
+              <th scope="col">Location</th>
+              <th scope="col">Esito</th>
+              <th scope="col">Dettaglio</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of importResult.rows; track row.key) {
+              <tr>
+                <td data-label="SKU">{{ row.sku }}</td>
+                <td data-label="Location">{{ row.locationName }}</td>
+                <td data-label="Esito">
+                  <app-badge [tone]="resultStatusTone(row.status)">
+                    {{ resultStatusLabel(row.status) }}
+                  </app-badge>
+                </td>
+                <td data-label="Dettaglio">{{ row.message ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
 
     <div class="inventory-import__actions">
       <app-button type="button" (click)="backToList()">Vai alle giacenze</app-button>

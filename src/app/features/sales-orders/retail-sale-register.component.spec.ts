@@ -148,6 +148,7 @@ describe('RetailSaleRegisterComponent', () => {
         code: '8001234567890',
         locationId: 'loc-1',
         action: 'sale',
+        channel: 'in_store',
       });
     });
 
@@ -172,6 +173,7 @@ describe('RetailSaleRegisterComponent', () => {
         code: 'SKU-1',
         locationId: 'loc-1',
         action: 'return',
+        channel: 'in_store',
       });
     });
 

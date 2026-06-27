@@ -13,6 +13,8 @@ export interface ProductImportPreviewItem {
   readonly status: 'ready' | 'warning' | 'error';
   readonly issues: readonly ProductImportIssue[];
   readonly rowNumbers: readonly number[];
+  /** Già presente in catalogo: verrà saltato all'import. */
+  readonly alreadyImported: boolean;
 }
 
 export interface ProductImportPreview {
@@ -22,6 +24,7 @@ export interface ProductImportPreview {
     readonly ready: number;
     readonly warnings: number;
     readonly errors: number;
+    readonly alreadyImported: number;
   };
 }
 

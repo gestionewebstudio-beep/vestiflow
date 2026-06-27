@@ -43,6 +43,15 @@ export class InventoryImportComponent {
 
   protected readonly canImport = computed(() => this.readyKeys().length > 0 && !this.loading());
 
+  /** Tutte le righe valide del file sono già allineate alle giacenze a sistema. */
+  protected readonly allUnchanged = computed(() => {
+    const data = this.preview();
+    if (!data || data.summary.total === 0) {
+      return false;
+    }
+    return data.summary.ready === 0 && data.summary.errors === 0 && data.summary.unchanged > 0;
+  });
+
   protected backToList(): void {
     void this.router.navigate(['/app/inventory']);
   }
@@ -128,5 +137,71 @@ export class InventoryImportComponent {
       return 'Invariata';
     }
     return 'Errore';
+  }
+
+  protected readonly resultTone = computed<'success' | 'warning' | 'error'>(() => {
+    const data = this.result();
+    if (!data) {
+      return 'success';
+    }
+    if (data.updated === 0 && data.failed > 0) {
+      return 'error';
+    }
+    if (data.failed > 0 || data.skipped > 0) {
+      return 'warning';
+    }
+    return 'success';
+  });
+
+  protected readonly resultMessage = computed(() => {
+    const data = this.result();
+    if (!data) {
+      return '';
+    }
+    if (data.updated === 0 && data.failed === 0) {
+      return 'Nessuna giacenza aggiornata: le righe erano già allineate o sono state saltate.';
+    }
+    if (data.updated === 0) {
+      return 'Import non riuscito: nessuna giacenza è stata aggiornata. Controlla i dettagli qui sotto.';
+    }
+    const parts = [`${data.updated} giacenze aggiornate`];
+    if (data.unchanged > 0) {
+      parts.push(`${data.unchanged} già allineate`);
+    }
+    if (data.skipped > 0) {
+      parts.push(`${data.skipped} saltate`);
+    }
+    if (data.failed > 0) {
+      parts.push(`${data.failed} non aggiornate per errori`);
+    }
+    return `${parts.join(' · ')}.`;
+  });
+
+  protected resultStatusLabel(status: 'updated' | 'unchanged' | 'skipped' | 'failed'): string {
+    if (status === 'updated') {
+      return 'Aggiornata';
+    }
+    if (status === 'unchanged') {
+      return 'Invariata';
+    }
+    if (status === 'skipped') {
+      return 'Saltata';
+    }
+    return 'Fallita';
+  }
+
+  protected resultStatusTone(
+    status: 'updated' | 'unchanged' | 'skipped' | 'failed',
+  ): 'success' | 'warning' | 'error' | 'neutral' {
+    if (status === 'updated') {
+      return 'success';
+    }
+    if (status === 'unchanged') {
+      return 'neutral';
+    }
+    if (status === 'skipped') {
+      return 'warning';
+    }
+    return 'error';
   }
 }

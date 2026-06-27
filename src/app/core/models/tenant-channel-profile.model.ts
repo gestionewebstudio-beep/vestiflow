@@ -73,6 +73,27 @@ export function showRetailSalesRegister(profile: TenantChannelProfile | undefine
   );
 }
 
+/**
+ * Vendite online registrate manualmente fuori dal canale ecommerce integrato
+ * (es. Amazon, eBay). Disponibile su tutti i profili: con Shopify/TikTok le
+ * vendite del canale integrato arrivano dalla sync; questa voce copre gli altri.
+ */
+export function showOnlineSalesRegister(profile: TenantChannelProfile | undefined): boolean {
+  return (
+    profile === TenantChannelProfile.Gestionale ||
+    profile === TenantChannelProfile.Shopify ||
+    profile === TenantChannelProfile.TikTokShop
+  );
+}
+
+/** Etichetta sidebar per la registrazione vendite online manuali. */
+export function onlineSalesRegisterLabel(profile: TenantChannelProfile | undefined): string {
+  if (profile === TenantChannelProfile.Gestionale) {
+    return 'Registra vendita online';
+  }
+  return 'Registra vendita online esterna';
+}
+
 /** Lista ordini sincronizzati da canale ecommerce (oggi solo Shopify). */
 export function showSalesOrderHistory(profile: TenantChannelProfile | undefined): boolean {
   return profile === TenantChannelProfile.Shopify;

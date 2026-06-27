@@ -292,10 +292,19 @@ export class ShopifyProductPushService {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Errore push prodotto Shopify';
       this.logger.warn(`Push prodotto Shopify fallito (${tenantId}/${productId}): ${message}`);
+      // Se il prodotto è già collegato a Shopify, un fallimento (es. rate limit durante un
+      // update) non è un errore di creazione: il prodotto esiste su Shopify, serve solo
+      // ri-sincronizzare. Marchiarlo "out_of_sync" evita falsi "Errore sync".
+      const linked = await this.prisma.product.findUnique({
+        where: { id: productId },
+        select: { shopifyProductId: true },
+      });
       await this.prisma.product.update({
         where: { id: productId },
         data: {
-          shopifySyncStatus: ShopifySyncStatus.error,
+          shopifySyncStatus: linked?.shopifyProductId
+            ? ShopifySyncStatus.out_of_sync
+            : ShopifySyncStatus.error,
           shopifyLastError: message.slice(0, 500),
         },
       });

@@ -61,6 +61,32 @@
       <span>{{ data.summary.ready }} pronti</span>
       <span>{{ data.summary.warnings }} con avvisi</span>
       <span>{{ data.summary.errors }} con errori</span>
+      @if (data.summary.alreadyImported > 0) {
+        <span>{{ data.summary.alreadyImported }} già importati</span>
+      }
+    </div>
+
+    @if (allAlreadyImported()) {
+      <div class="product-import__notice product-import__notice--info" role="status">
+        Tutti i prodotti di questo file risultano già presenti in catalogo: non c'è nulla da
+        importare. Puoi tornare indietro e scegliere un altro file.
+      </div>
+    } @else if (data.summary.alreadyImported > 0) {
+      <div class="product-import__notice" role="status">
+        {{ data.summary.alreadyImported }} prodotti sono già presenti in catalogo e verranno
+        saltati. Verranno importati solo i {{ readyHandles().length }} nuovi.
+      </div>
+    }
+
+    <div class="product-import__actions product-import__actions--top">
+      <app-button type="button" variant="ghost" (click)="phase.set('upload')">Indietro</app-button>
+      <app-button type="button" [disabled]="!canImport()" (click)="runImport()">
+        @if (loading()) {
+          Import in corso…
+        } @else {
+          Importa {{ readyHandles().length }} prodotti
+        }
+      </app-button>
     </div>
 
     <div class="product-import__table-scroll">
@@ -90,7 +116,7 @@
                   —
                 } @else {
                   <ul class="product-import__issues">
-                    @for (issue of item.issues; track issue.message) {
+                    @for (issue of item.issues; track $index) {
                       <li>{{ issue.message }}</li>
                     }
                   </ul>
@@ -101,22 +127,26 @@
         </tbody>
       </table>
     </div>
-
-    <div class="product-import__actions">
-      <app-button type="button" variant="ghost" (click)="phase.set('upload')">Indietro</app-button>
-      <app-button type="button" [disabled]="!canImport()" (click)="runImport()">
-        @if (loading()) {
-          Import in corso…
-        } @else {
-          Importa {{ readyHandles().length }} prodotti
-        }
-      </app-button>
-    </div>
   }
 
   @if (phase() === 'done' && result(); as importResult) {
-    <div class="product-import__done">
-      <p class="product-import__done-title">Import completato</p>
+    <div
+      class="product-import__done"
+      [class.product-import__done--success]="resultTone() === 'success'"
+      [class.product-import__done--warning]="resultTone() === 'warning'"
+      [class.product-import__done--error]="resultTone() === 'error'"
+      role="status"
+    >
+      <p class="product-import__done-title">
+        @if (resultTone() === 'success') {
+          Import completato
+        } @else if (resultTone() === 'warning') {
+          Import completato con avvisi
+        } @else {
+          Import non riuscito
+        }
+      </p>
+      <p class="product-import__done-message">{{ resultMessage() }}</p>
       <p class="product-import__done-stats tabular-nums">
         {{ importResult.imported }} importati · {{ importResult.skipped }} saltati ·
         {{ importResult.failed }} falliti
@@ -136,7 +166,11 @@
           @for (row of importResult.products; track row.handle + row.status) {
             <tr>
               <td data-label="Prodotto">{{ row.name }}</td>
-              <td data-label="Esito">{{ row.status }}</td>
+              <td data-label="Esito">
+                <app-badge [tone]="resultStatusTone(row.status)">
+                  {{ resultStatusLabel(row.status) }}
+                </app-badge>
+              </td>
               <td data-label="Dettaglio">{{ row.message ?? '—' }}</td>
             </tr>
           }

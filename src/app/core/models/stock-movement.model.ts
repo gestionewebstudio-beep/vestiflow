@@ -24,6 +24,7 @@ export const MovementOrigin = {
   Shopify: 'shopify',
   Tiktok: 'tiktok',
   VestiflowPos: 'vestiflow_pos',
+  VestiflowOnline: 'vestiflow_online',
 } as const;
 export type MovementOrigin = (typeof MovementOrigin)[keyof typeof MovementOrigin];
 

@@ -4,7 +4,11 @@ import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { REQUIRED_TENANT_PERMISSIONS_KEY } from '@core/permissions/tenant-permissions.util';
 
-import { retailSalesRegisterGuard, salesHistoryGuard } from './guards/retail-sales.guard';
+import {
+  onlineSalesRegisterGuard,
+  retailSalesRegisterGuard,
+  salesHistoryGuard,
+} from './guards/retail-sales.guard';
 
 export const salesOrdersRoutes: Routes = [
   {
@@ -19,6 +23,15 @@ export const salesOrdersRoutes: Routes = [
     path: 'register',
     title: 'VestiFlow · Registra vendita',
     canActivate: [retailSalesRegisterGuard],
+    data: { channel: 'in_store' },
+    loadComponent: () =>
+      import('./retail-sale-register.component').then((m) => m.RetailSaleRegisterComponent),
+  },
+  {
+    path: 'register-online',
+    title: 'VestiFlow · Registra vendita online',
+    canActivate: [onlineSalesRegisterGuard],
+    data: { channel: 'online' },
     loadComponent: () =>
       import('./retail-sale-register.component').then((m) => m.RetailSaleRegisterComponent),
   },

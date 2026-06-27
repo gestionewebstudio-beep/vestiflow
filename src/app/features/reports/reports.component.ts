@@ -2,16 +2,19 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   inject,
   signal,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -25,14 +28,22 @@ import {
 import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
 import type { SalesOrder } from '@core/models/sales-order.model';
 
+import { ReportCorrispettiviExportComponent } from './components/report-corrispettivi-export/report-corrispettivi-export.component';
 import { ReportFiltersComponent } from './components/report-filters/report-filters.component';
 import { ReportLocationTableComponent } from './components/report-location-table/report-location-table.component';
 import { ReportSalesTableComponent } from './components/report-sales-table/report-sales-table.component';
+import {
+  corrispettiviChannelHint,
+  corrispettiviChannelOptions,
+  parseCorrispettiviChannel,
+  resolveCorrispettiviExport,
+} from './models/corrispettivi-channel.model';
 import {
   formatReportPeriodLabel,
   parseReportListQuery,
   ReportPeriodPreset,
   reportHasActiveFilters,
+  resolveReportDateRange,
   toSalesOrderListFilters,
 } from './models/report-list-query.model';
 import {
@@ -53,8 +64,8 @@ type ReportState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
- * Report operativi: magazzino (snapshot) e vendite filtrabili per periodo,
- * canale e stato pagamento. Filtri vendite persistiti in query params.
+ * Report operativi: export corrispettivi in cima, poi sintesi magazzino e vendite.
+ * Periodo e tipologia corrispettivi persistiti in query params.
  */
 @Component({
   selector: 'app-reports',
@@ -62,6 +73,7 @@ type ReportState =
   imports: [
     EmptyStateComponent,
     ErrorStateComponent,
+    ReportCorrispettiviExportComponent,
     ReportFiltersComponent,
     StatCardComponent,
     TableSkeletonComponent,
@@ -74,8 +86,10 @@ type ReportState =
 export class ReportsComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly salesOrderService = inject(SalesOrderService);
+  private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly refreshTick = signal(0);
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
@@ -95,6 +109,28 @@ export class ReportsComponent {
     formatReportPeriodLabel({ ...this.query(), period: this.displayPeriod() }),
   );
   protected readonly hasActiveFilters = computed(() => reportHasActiveFilters(this.query()));
+
+  protected readonly corrispettiviChannel = computed(() =>
+    parseCorrispettiviChannel(this.queryParams()),
+  );
+
+  protected readonly corrispettiviChannelOptions = computed(() =>
+    corrispettiviChannelOptions(this.authService.currentUser()?.tenantChannelProfile),
+  );
+
+  protected readonly corrispettiviChannelHint = computed(() =>
+    corrispettiviChannelHint(this.corrispettiviChannel()),
+  );
+
+  protected readonly exporting = signal(false);
+
+  protected readonly canExportCorrispettivi = computed(() =>
+    canExportOperationalData(this.authService.currentUser()),
+  );
+
+  private readonly exportRange = computed(() =>
+    resolveReportDateRange({ ...this.query(), period: this.displayPeriod() }),
+  );
 
   protected readonly dateFromDraft = computed(() => {
     if (this.displayPeriod() !== ReportPeriodPreset.Custom) {
@@ -226,6 +262,10 @@ export class ReportsComponent {
     this.updateParams({ to: value || null, period: ReportPeriodPreset.Custom });
   }
 
+  protected onCorrispettiviChannelChange(value: string): void {
+    this.updateParams({ corrChannel: value || null });
+  }
+
   protected onSourceChange(value: string): void {
     this.updateParams({ source: value || null });
   }
@@ -236,9 +276,6 @@ export class ReportsComponent {
 
   protected resetFilters(): void {
     this.updateParams({
-      period: null,
-      from: null,
-      to: null,
       source: null,
       financialStatus: null,
     });
@@ -246,6 +283,47 @@ export class ReportsComponent {
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
+  }
+
+  protected exportCorrispettivi(): void {
+    if (this.exporting()) {
+      return;
+    }
+    this.exporting.set(true);
+
+    const config = resolveCorrispettiviExport(this.corrispettiviChannel());
+    const range = this.exportRange();
+    const request =
+      config.kind === 'shopify'
+        ? this.salesOrderService.exportSalesOrdersCsv({
+            placedFrom: range.placedFrom,
+            placedTo: range.placedTo,
+          })
+        : this.inventoryService.exportCorrispettiviCsv({
+            origin: config.origin,
+            from: `${range.placedFrom}T00:00:00`,
+            to: `${range.placedTo}T23:59:59.999`,
+          });
+
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (blob) => {
+        this.exporting.set(false);
+        this.downloadCsvBlob(blob, config.filePrefix);
+      },
+      error: () => {
+        this.exporting.set(false);
+      },
+    });
+  }
+
+  private downloadCsvBlob(blob: Blob, prefix: string): void {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${prefix}-vestiflow-${stamp}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   private updateParams(params: Record<string, string | null>): void {

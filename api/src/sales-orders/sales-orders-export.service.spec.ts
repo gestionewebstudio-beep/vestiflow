@@ -29,7 +29,10 @@ describe('SalesOrdersExportService', () => {
     const csv = await service.exportCsv('tenant-1', {});
 
     expect(csv).toContain('1001');
-    expect(csv).toContain('59.00');
-    expect(csv.split('\n')[0]).toContain('Numero ordine');
+    // Importo in formato it-IT (virgola decimale) per Excel italiano.
+    expect(csv).toContain('59,00');
+    // Intestazione con BOM UTF-8 + delimitatore ';'.
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+    expect(csv.split('\r\n')[0]).toContain('Numero ordine;Data;Cliente');
   });
 });

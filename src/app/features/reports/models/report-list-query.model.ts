@@ -105,13 +105,12 @@ export function resolveReportDateRange(
 }
 
 export function reportHasActiveFilters(query: ReportListQuery): boolean {
-  return (
-    query.period !== DEFAULT_REPORT_PERIOD ||
-    Boolean(query.dateFrom) ||
-    Boolean(query.dateTo) ||
-    Boolean(query.source) ||
-    Boolean(query.financialStatus)
-  );
+  return Boolean(query.source) || Boolean(query.financialStatus);
+}
+
+/** True se il periodo corrispettivi diverge dal default (solo preset/data). */
+export function reportPeriodHasCustomSelection(query: ReportListQuery): boolean {
+  return query.period !== DEFAULT_REPORT_PERIOD || Boolean(query.dateFrom) || Boolean(query.dateTo);
 }
 
 export function formatReportPeriodLabel(

@@ -3,12 +3,14 @@
 
 :host {
   display: block;
+  inline-size: 100%;
 }
 
 .product-import {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  inline-size: 100%;
 }
 
 .product-import__back {
@@ -47,7 +49,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-inline-size: var(--content-narrow);
+  inline-size: 100%;
+  max-inline-size: none;
 }
 
 .product-import__upload {
@@ -108,6 +111,25 @@
   gap: var(--space-3);
 }
 
+.product-import__actions--top {
+  justify-content: space-between;
+}
+
+.product-import__notice {
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border: var(--border-width) solid var(--status-warning-border);
+  border-radius: var(--radius-md);
+}
+
+.product-import__notice--info {
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-sunken);
+  border-color: var(--color-border);
+}
+
 .product-import__table-scroll {
   overflow-x: auto;
 }
@@ -128,13 +150,43 @@
   color: var(--color-text-muted);
 }
 
+.product-import__done {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.product-import__done--success {
+  color: var(--status-success-fg);
+  background-color: var(--status-success-bg);
+  border-color: var(--status-success-border);
+}
+
+.product-import__done--warning {
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+}
+
+.product-import__done--error {
+  color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+  border-color: var(--status-error-border);
+}
+
 .product-import__done-title {
   margin: 0;
   font-size: var(--text-lg);
   font-weight: var(--font-weight-semibold);
 }
 
+.product-import__done-message {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+
 .product-import__done-stats {
   margin: var(--space-1) 0 0;
-  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  opacity: 0.85;
 }

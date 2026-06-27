@@ -48,7 +48,8 @@ export class ProductsImportService {
   async previewCsv(tenantId: string, csvText: string): Promise<ImportPreviewResult> {
     const rows = this.parseCsvOrThrow(csvText);
     const existingSkus = await this.loadTenantSkus(tenantId);
-    return buildImportPreview(rows, existingSkus);
+    const { handles, names } = await this.loadTenantProductDedupKeys(tenantId);
+    return buildImportPreview(rows, existingSkus, { handles, names });
   }
 
   async importCsv(
@@ -62,6 +63,15 @@ export class ProductsImportService {
     const handleFilter = options.handles?.length
       ? new Set(options.handles.map((handle) => handle.trim().toLowerCase()))
       : null;
+
+    // Anti-duplicato: chiave primaria = handle Shopify (univoco per store, persistito su
+    // import_handle). Fallback sul nome per i prodotti pre-migrazione senza handle.
+    const { handles: existingHandles, names: existingNames } =
+      await this.loadTenantProductDedupKeys(tenantId);
+
+    // Il barcode è univoco per tenant: i CSV Shopify spesso ripetono lo stesso EAN su più
+    // varianti/prodotti. Teniamo traccia di quelli già usati per azzerare le collisioni.
+    const existingBarcodes = await this.loadTenantBarcodes(tenantId);
 
     const results: ImportProductsResult['products'][number][] = [];
     let imported = 0;
@@ -84,8 +94,27 @@ export class ProductsImportService {
         continue;
       }
 
+      const handleKey = product.handle.trim().toLowerCase();
+      const nameKey = product.dto.name.trim().toLowerCase();
+      const isDuplicate =
+        (handleKey.length > 0 && existingHandles.has(handleKey)) || existingNames.has(nameKey);
+      if (isDuplicate) {
+        skipped += 1;
+        results.push({
+          handle: product.handle,
+          name: product.dto.name,
+          status: 'skipped',
+          message: 'Prodotto già presente in catalogo: saltato per evitare duplicati.',
+        });
+        continue;
+      }
+
       try {
-        const created = await this.createFromParsedProduct(tenantId, product);
+        const created = await this.createFromParsedProduct(tenantId, product, existingBarcodes);
+        if (handleKey.length > 0) {
+          existingHandles.add(handleKey);
+        }
+        existingNames.add(nameKey);
         imported += 1;
         results.push({
           handle: product.handle,
@@ -127,17 +156,60 @@ export class ProductsImportService {
     return new Set(rows.map((row) => row.sku.toLowerCase()));
   }
 
+  private async loadTenantBarcodes(tenantId: string): Promise<Set<string>> {
+    const rows = await this.prisma.productVariant.findMany({
+      where: { tenantId, barcode: { not: null } },
+      select: { barcode: true },
+    });
+    const barcodes = new Set<string>();
+    for (const row of rows) {
+      const barcode = row.barcode?.trim().toLowerCase();
+      if (barcode) {
+        barcodes.add(barcode);
+      }
+    }
+    return barcodes;
+  }
+
+  private async loadTenantProductDedupKeys(
+    tenantId: string,
+  ): Promise<{ handles: Set<string>; names: Set<string> }> {
+    const rows = await this.prisma.product.findMany({
+      where: { tenantId },
+      select: { name: true, importHandle: true },
+    });
+    const handles = new Set<string>();
+    const names = new Set<string>();
+    for (const row of rows) {
+      names.add(row.name.trim().toLowerCase());
+      const handle = row.importHandle?.trim().toLowerCase();
+      if (handle) {
+        handles.add(handle);
+      }
+    }
+    return { handles, names };
+  }
+
   private async createFromParsedProduct(
     tenantId: string,
     parsed: ParsedImportProduct,
+    existingBarcodes: Set<string> = new Set<string>(),
   ): Promise<ProductWithVariants> {
     this.assertNoDuplicateSkusInPayload(parsed.dto.variants);
 
+    // Copia locale: i barcode si "consumano" solo se la create va a buon fine.
+    const usedBarcodes = new Set(existingBarcodes);
+    const variantInputs = parsed.dto.variants.map((variant) =>
+      this.toVariantCreateInput(tenantId, variant, usedBarcodes),
+    );
+
+    const importHandle = parsed.handle.trim() || null;
     const created = await this.prisma.product.create({
       data: {
         tenantId,
         catalogOrigin: CatalogOrigin.vestiflow,
         shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
+        importHandle,
         name: parsed.dto.name,
         description: normalizeProductDescription(parsed.dto.description),
         brand: parsed.dto.brand,
@@ -149,9 +221,7 @@ export class ProductsImportService {
         status: parsed.dto.status,
         options: parsed.dto.options as unknown as Prisma.InputJsonValue,
         variants: {
-          create: parsed.dto.variants.map((variant) =>
-            this.toVariantCreateInput(tenantId, variant),
-          ),
+          create: variantInputs,
         },
         ...(parsed.images.length > 0
           ? {
@@ -169,6 +239,10 @@ export class ProductsImportService {
       include: { variants: true, images: { orderBy: { sortOrder: 'asc' } } },
     });
 
+    for (const barcode of usedBarcodes) {
+      existingBarcodes.add(barcode);
+    }
+
     try {
       this.channelSync.enqueueProductPush(tenantId, created.id);
     } catch (error: unknown) {
@@ -182,17 +256,38 @@ export class ProductsImportService {
   private toVariantCreateInput(
     tenantId: string,
     variant: CreateVariantDto,
+    usedBarcodes: Set<string>,
   ): Prisma.ProductVariantCreateWithoutProductInput {
     return {
       tenant: { connect: { id: tenantId } },
       sku: variant.sku.trim(),
       optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
-      barcode: variant.barcode,
+      barcode: this.dedupeBarcode(variant.barcode, usedBarcodes),
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
       compareAtPriceMinor: variant.compareAtPrice?.amountMinor,
     };
+  }
+
+  /**
+   * Restituisce il barcode solo se non è già usato (nel tenant o nel payload), altrimenti null.
+   * Il barcode è univoco per tenant ma opzionale: meglio azzerarlo che far fallire l'import.
+   */
+  private dedupeBarcode(
+    barcode: string | null | undefined,
+    usedBarcodes: Set<string>,
+  ): string | null {
+    const trimmed = barcode?.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const key = trimmed.toLowerCase();
+    if (usedBarcodes.has(key)) {
+      return null;
+    }
+    usedBarcodes.add(key);
+    return trimmed;
   }
 
   private assertNoDuplicateSkusInPayload(variants: readonly CreateVariantDto[]): void {

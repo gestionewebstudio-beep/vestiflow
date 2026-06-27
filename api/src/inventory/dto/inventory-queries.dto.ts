@@ -8,7 +8,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
-import { StockMovementType } from '@prisma/client';
+import { MovementOrigin, StockMovementType } from '@prisma/client';
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -45,6 +45,10 @@ export class ListMovementsQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(StockMovementType)
   type?: StockMovementType;
+
+  @IsOptional()
+  @IsEnum(MovementOrigin)
+  origin?: MovementOrigin;
 
   @IsOptional()
   @IsISO8601()

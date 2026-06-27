@@ -1,53 +1,14 @@
 <div class="report-filters">
   <div class="report-filters__head">
-    <h2 class="report-filters__title">Filtri vendite</h2>
+    <h2 class="report-filters__title">Filtri riepilogo vendite</h2>
     <p class="report-filters__hint">
-      Periodo, canale e pagamento aggiornano il riepilogo e la tabella vendite.
+      Canale e pagamento filtrano solo il riepilogo vendite sotto. Il periodo segue quello
+      selezionato nell'export corrispettivi.
     </p>
   </div>
 
   <div class="report-filters__toolbar">
     <div class="report-filters__fields">
-      <div class="report-filters__field report-filters__field--period">
-        <span class="report-filters__label">Periodo</span>
-        <app-select-menu
-          [options]="periodOptions"
-          [value]="period()"
-          ariaLabel="Periodo report vendite"
-          placeholder="Periodo"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="false"
-          (valueChange)="onPeriodChange($event)"
-        />
-      </div>
-
-      @if (showCustomDates()) {
-        <div class="report-filters__field report-filters__field--date">
-          <label class="report-filters__label" for="report-date-from">Dal</label>
-          <app-date-input
-            inputId="report-date-from"
-            [value]="dateFrom()"
-            ariaLabel="Data inizio periodo"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onDateFromChange($event)"
-          />
-        </div>
-
-        <div class="report-filters__field report-filters__field--date">
-          <label class="report-filters__label" for="report-date-to">Al</label>
-          <app-date-input
-            inputId="report-date-to"
-            [value]="dateTo()"
-            ariaLabel="Data fine periodo"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onDateToChange($event)"
-          />
-        </div>
-      }
-
       <div class="report-filters__field report-filters__field--select">
         <span class="report-filters__label">Canale</span>
         <app-select-menu

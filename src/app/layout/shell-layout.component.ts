@@ -23,6 +23,8 @@ import {
 import { SupportSessionService } from '@core/support/support-session.service';
 import {
   TenantChannelProfile,
+  showOnlineSalesRegister,
+  onlineSalesRegisterLabel,
   showRetailSalesRegister,
   showSalesOrderHistory,
 } from '@core/models/tenant-channel-profile.model';
@@ -43,6 +45,7 @@ import { isShopifySyncUiActive } from '@features/integrations/shopify/models/sho
 import {
   canAccessCatalogSection,
   canAccessInventorySection,
+  canRegisterOnlineSales,
   canRegisterRetailSales,
   canViewCustomers,
   canViewReports,
@@ -312,20 +315,29 @@ export class ShellLayoutComponent {
 
     if (showRetailSalesRegister(profile) && canRegisterRetailSales(user)) {
       salesNavItems.push({
-        label: 'Registra vendita',
+        label: 'Registra vendita negozio fisico',
         icon: 'pi-shopping-bag',
         route: '/app/sales/register',
         activeRoutePrefix: '/app/sales/register',
       });
     }
 
+    if (showOnlineSalesRegister(profile) && canRegisterOnlineSales(user)) {
+      salesNavItems.push({
+        label: onlineSalesRegisterLabel(profile),
+        icon: 'pi-globe',
+        route: '/app/sales/register-online',
+        activeRoutePrefix: '/app/sales/register-online',
+      });
+    }
+
     if (showSalesOrderHistory(profile)) {
       salesNavItems.push({
-        label: 'Vendite',
+        label: this.salesHistoryLabel(profile),
         icon: 'pi-shopping-cart',
         route: '/app/sales',
         activeRoutePrefix: '/app/sales',
-        activeRouteExclude: ['/app/sales/register'],
+        activeRouteExclude: ['/app/sales/register', '/app/sales/register-online'],
       });
     }
 
@@ -394,6 +406,17 @@ export class ShellLayoutComponent {
 
     return [...tenantItems, this.guideNavItem];
   });
+
+  /** Etichetta vendite: specifica il canale ecommerce quando il profilo lo prevede. */
+  private salesHistoryLabel(profile: TenantChannelProfile | undefined): string {
+    if (profile === TenantChannelProfile.Shopify) {
+      return 'Vendite Shopify';
+    }
+    if (profile === TenantChannelProfile.TikTokShop) {
+      return 'Vendite TikTok';
+    }
+    return 'Vendite';
+  }
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).
   // takeUntilDestroyed() gestisce l'unsubscribe automatico.

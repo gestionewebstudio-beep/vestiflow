@@ -30,6 +30,8 @@ export interface ParsedImportProduct {
   readonly images: readonly ImportProductImage[];
   readonly issues: readonly ImportIssue[];
   readonly rowNumbers: readonly number[];
+  /** Già presente in catalogo (per handle o nome): verrà saltato all'import. */
+  readonly alreadyImported: boolean;
 }
 
 export interface ImportPreviewResult {
@@ -39,18 +41,32 @@ export interface ImportPreviewResult {
     readonly ready: number;
     readonly warnings: number;
     readonly errors: number;
+    readonly alreadyImported: number;
   };
 }
+
+/** Chiavi di deduplica del catalogo esistente: handle Shopify e nomi normalizzati. */
+export interface ExistingCatalogKeys {
+  readonly handles: ReadonlySet<string>;
+  readonly names: ReadonlySet<string>;
+}
+
+const EMPTY_CATALOG_KEYS: ExistingCatalogKeys = {
+  handles: new Set<string>(),
+  names: new Set<string>(),
+};
 
 export function buildImportPreview(
   rows: readonly ShopifyCsvRow[],
   existingSkus: ReadonlySet<string>,
+  existingCatalog: ExistingCatalogKeys = EMPTY_CATALOG_KEYS,
 ): ImportPreviewResult {
   const groups = groupShopifyCsvRows(rows);
   const products: ParsedImportProduct[] = [];
 
   for (const [handle, groupRows] of groups.entries()) {
-    products.push(mapGroupToImportProduct(handle, groupRows, existingSkus));
+    const product = mapGroupToImportProduct(handle, groupRows, existingSkus);
+    products.push({ ...product, alreadyImported: isAlreadyImported(product, existingCatalog) });
   }
 
   products.sort((a, b) => a.dto.name.localeCompare(b.dto.name, 'it'));
@@ -59,6 +75,7 @@ export function buildImportPreview(
   const warnings = products.filter((product) =>
     product.issues.some((issue) => issue.level === 'warning'),
   ).length;
+  const alreadyImported = products.filter((product) => product.alreadyImported).length;
 
   return {
     products,
@@ -67,15 +84,28 @@ export function buildImportPreview(
       ready,
       warnings,
       errors: products.length - ready,
+      alreadyImported,
     },
   };
+}
+
+function isAlreadyImported(
+  product: Omit<ParsedImportProduct, 'alreadyImported'>,
+  existingCatalog: ExistingCatalogKeys,
+): boolean {
+  const handleKey = product.handle.trim().toLowerCase();
+  if (handleKey.length > 0 && existingCatalog.handles.has(handleKey)) {
+    return true;
+  }
+  const nameKey = product.dto.name.trim().toLowerCase();
+  return existingCatalog.names.has(nameKey);
 }
 
 function mapGroupToImportProduct(
   handle: string,
   rows: readonly ShopifyCsvRow[],
   existingSkus: ReadonlySet<string>,
-): ParsedImportProduct {
+): Omit<ParsedImportProduct, 'alreadyImported'> {
   const issues: ImportIssue[] = [];
   const rowNumbers = rows.map((row) => row.rowNumber);
   const parent = rows.find((row) => row.title.trim()) ?? rows[0];
