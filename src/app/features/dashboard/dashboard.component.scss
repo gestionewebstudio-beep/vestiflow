@@ -37,7 +37,11 @@
 
 @include bp.media-up('lg') {
   .dashboard__kpis {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard__kpis--operational {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

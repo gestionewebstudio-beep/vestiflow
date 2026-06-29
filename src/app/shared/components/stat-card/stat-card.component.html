@@ -6,9 +6,17 @@
   }
   <div class="stat-card__body">
     <p class="stat-card__label">{{ label() }}</p>
-    <p class="stat-card__value tabular-nums">{{ value() }}</p>
+    <p class="stat-card__value tabular-nums">
+      <span class="stat-card__value-main">{{ value() }}</span>
+      @if (valueSuffix(); as suffix) {
+        <span class="stat-card__value-suffix">{{ suffix }}</span>
+      }
+    </p>
     @if (hint(); as hintText) {
       <p class="stat-card__hint">{{ hintText }}</p>
+    }
+    @if (trendLabel(); as trend) {
+      <p class="stat-card__trend stat-card__trend--{{ trendTone() }}">{{ trend }}</p>
     }
   </div>
 </div>

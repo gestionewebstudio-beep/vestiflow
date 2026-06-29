@@ -50,8 +50,8 @@ describe('tenant-channel-profile.model', () => {
   });
 
   it('reportPageSubtitle adatta copy al profilo tenant', () => {
-    expect(reportPageSubtitle(TenantChannelProfile.Gestionale)).toContain('vendite online.');
-    expect(reportPageSubtitle(TenantChannelProfile.Shopify)).toContain('vendite online esterne.');
+    expect(reportPageSubtitle(TenantChannelProfile.Gestionale)).toContain('Analytics commerciali');
+    expect(reportPageSubtitle(TenantChannelProfile.Shopify)).toContain('corrispettivi manuali');
   });
 
   it('onlineSalesCorrispettiviHint omette riferimento Shopify per gestionale', () => {

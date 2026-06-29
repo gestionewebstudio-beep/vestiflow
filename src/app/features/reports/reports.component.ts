@@ -16,11 +16,11 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
 import { reportPageSubtitle } from '@core/models/tenant-channel-profile.model';
-import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import { BusinessAnalyticsPanelComponent } from '@features/analytics/components/business-analytics-panel/business-analytics-panel.component';
 import {
   InventoryService,
   type LocationInventoryReportRow,
@@ -41,7 +41,6 @@ import {
   ReportPeriodPreset,
   resolveReportDateRange,
 } from './models/report-list-query.model';
-import { eurMoney } from './models/report-sales.util';
 import type { LocationReportRow } from './models/report-view.model';
 
 interface ReportData {
@@ -62,8 +61,8 @@ type ReportState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ErrorStateComponent,
+    BusinessAnalyticsPanelComponent,
     ReportCorrispettiviExportComponent,
-    StatCardComponent,
     TableSkeletonComponent,
     ReportLocationTableComponent,
   ],
@@ -193,20 +192,6 @@ export class ReportsComponent {
       }),
     );
   });
-
-  protected readonly stockValueLabel = computed(() =>
-    formatMoney(
-      eurMoney(this.locationRows().reduce((sum, row) => sum + row.stockValue.amountMinor, 0)),
-    ),
-  );
-
-  protected readonly availableUnitsLabel = computed(() =>
-    String(this.locationRows().reduce((sum, row) => sum + row.availableUnits, 0)),
-  );
-
-  protected readonly lowStockLabel = computed(() =>
-    String(this.locationRows().reduce((sum, row) => sum + row.lowStockCount, 0)),
-  );
 
   protected onPeriodChange(period: ReportPeriodPreset): void {
     this.uiPeriod.set(period);

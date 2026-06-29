@@ -116,9 +116,9 @@ export function onlineSalesCorrispettiviHint(profile: TenantChannelProfile | und
 /** Sottotitolo pagina Report. */
 export function reportPageSubtitle(profile: TenantChannelProfile | undefined): string {
   if (profile === TenantChannelProfile.Gestionale) {
-    return 'Snapshot magazzino e export corrispettivi per negozio fisico e vendite online.';
+    return 'Analytics commerciali, export corrispettivi e snapshot magazzino.';
   }
-  return 'Snapshot magazzino e export corrispettivi per negozio fisico e vendite online esterne.';
+  return 'Analytics commerciali, corrispettivi manuali e giacenze per location.';
 }
 
 /** Lista ordini sincronizzati da canale ecommerce (oggi solo Shopify). */

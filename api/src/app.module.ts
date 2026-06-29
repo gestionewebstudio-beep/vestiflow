@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { TenantModule } from './tenant/tenant.module';
 import { SalesOrdersModule } from './sales-orders/sales-orders.module';
@@ -41,6 +42,7 @@ import { SupportSessionModule } from './support/support-session.module';
     SalesOrdersModule,
     ShopifyModule,
     TikTokModule,
+    AnalyticsModule,
     DashboardModule,
     TenantModule,
     AdminModule,

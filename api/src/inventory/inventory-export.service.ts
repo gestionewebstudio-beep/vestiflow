@@ -40,6 +40,7 @@ const CORRISPETTIVI_ORIGIN_LABELS: Record<MovementOrigin, string> = {
   [MovementOrigin.shopify]: 'Shopify',
   [MovementOrigin.tiktok]: 'TikTok',
   [MovementOrigin.vestiflow_pos]: 'Negozio fisico',
+  [MovementOrigin.vestiflow_online]: 'Vendita online esterna',
 };
 
 function corrispettiviOriginLabel(

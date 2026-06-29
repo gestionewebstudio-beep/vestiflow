@@ -1,7 +1,9 @@
 <section class="dashboard">
   <header class="dashboard__header">
     <h1 class="dashboard__title">Dashboard</h1>
-    <p class="dashboard__subtitle">Panoramica operativa di magazzino, vendite e ordini.</p>
+    <p class="dashboard__subtitle">
+      Panoramica commerciale, magazzino e ordini. KPI vendite e margini per periodo selezionabile.
+    </p>
   </header>
 
   @if (loading()) {
@@ -47,42 +49,32 @@
       </section>
     }
 
-    <div class="dashboard__kpis">
+    <app-business-analytics-panel layout="dashboard" />
+
+    <div class="dashboard__kpis dashboard__kpis--operational">
       <app-stat-card
-        label="Prodotti"
+        label="Prodotti a catalogo"
         [value]="productCountLabel()"
         icon="pi-tag"
         tone="neutral"
-        hint="A catalogo"
-      />
-      <app-stat-card
-        label="Pezzi disponibili"
-        [value]="availableUnitsLabel()"
-        icon="pi-box"
-        tone="info"
-        [hint]="activeLocationName() ?? 'Su tutte le location'"
-      />
-      <app-stat-card
-        label="Sotto soglia"
-        [value]="lowStockCountLabel()"
-        icon="pi-exclamation-triangle"
-        tone="warning"
-        hint="Varianti da riordinare"
+        hint="Attivi nel tenant"
       />
       <app-stat-card
         label="Ordini in arrivo"
         [value]="incomingOrdersLabel()"
         icon="pi-truck"
         tone="neutral"
-        hint="Da fornitori"
+        hint="Ordini fornitore inviati o parziali"
       />
-      <app-stat-card
-        label="Vendite da evadere"
-        [value]="toFulfillLabel()"
-        icon="pi-shopping-cart"
-        tone="info"
-        hint="Non ancora evase"
-      />
+      @if (showRecentShopifySales()) {
+        <app-stat-card
+          label="Vendite da evadere"
+          [value]="toFulfillLabel()"
+          icon="pi-shopping-cart"
+          tone="info"
+          hint="Ordini Shopify non evasi"
+        />
+      }
     </div>
 
     <section class="dashboard__panel" aria-labelledby="dashboard-low-stock">
@@ -105,16 +97,29 @@
 
     <section class="dashboard__panel" aria-labelledby="dashboard-recent-sales">
       <div class="dashboard__panel-head">
-        <h2 id="dashboard-recent-sales" class="dashboard__panel-title">Ultime vendite</h2>
-        <a class="dashboard__panel-link" routerLink="/app/sales">
-          Vai alle vendite
-          <i class="pi pi-arrow-right" aria-hidden="true"></i>
-        </a>
+        <h2 id="dashboard-recent-sales" class="dashboard__panel-title">
+          @if (showRecentShopifySales()) {
+            Ultime vendite Shopify
+          } @else {
+            Attività recente
+          }
+        </h2>
+        @if (showRecentShopifySales()) {
+          <a class="dashboard__panel-link" routerLink="/app/sales">
+            Vai alle vendite
+            <i class="pi pi-arrow-right" aria-hidden="true"></i>
+          </a>
+        }
       </div>
-      @if (recentSales().length > 0) {
+      @if (showRecentShopifySales() && recentSales().length > 0) {
         <app-recent-sales-table [rows]="recentSales()" (rowClick)="openSale($event)" />
+      } @else if (showRecentShopifySales()) {
+        <p class="dashboard__muted">Nessuna vendita Shopify registrata.</p>
       } @else {
-        <p class="dashboard__muted">Nessuna vendita registrata.</p>
+        <p class="dashboard__muted">
+          Le vendite manuali (negozio e online) compaiono nei movimenti di magazzino e nei
+          corrispettivi in Report.
+        </p>
       }
     </section>
   }

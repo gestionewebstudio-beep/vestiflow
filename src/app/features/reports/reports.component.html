@@ -22,46 +22,27 @@
     />
   }
 
+  <app-business-analytics-panel
+    layout="reports"
+    [hidePeriodFilter]="true"
+    [period]="displayPeriod()"
+    [dateFrom]="dateFromDraft()"
+    [dateTo]="dateToDraft()"
+  />
+
   @if (loading()) {
     <app-table-skeleton [columns]="4" [rows]="6" />
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else {
     <div class="reports__body">
-      <section class="reports__panel reports__panel--kpis" aria-labelledby="report-inventory-kpis">
+      <section class="reports__panel" aria-labelledby="report-inventory">
         <div class="reports__panel-head">
           <div class="reports__panel-heading">
-            <h2 id="report-inventory-kpis" class="reports__panel-title">Magazzino</h2>
+            <h2 id="report-inventory" class="reports__panel-title">Giacenze per location</h2>
             <p class="reports__panel-hint">Snapshot attuale — non filtrato per periodo</p>
           </div>
         </div>
-        <div class="reports__kpis">
-          <app-stat-card
-            label="Valore magazzino"
-            [value]="stockValueLabel()"
-            icon="pi-euro"
-            tone="info"
-            hint="Disponibile a prezzo di vendita"
-          />
-          <app-stat-card
-            label="Pezzi disponibili"
-            [value]="availableUnitsLabel()"
-            icon="pi-box"
-            tone="neutral"
-            hint="Su tutte le location"
-          />
-          <app-stat-card
-            label="Varianti sotto soglia"
-            [value]="lowStockLabel()"
-            icon="pi-exclamation-triangle"
-            tone="warning"
-            hint="Sotto soglia o esaurite"
-          />
-        </div>
-      </section>
-
-      <section class="reports__panel" aria-labelledby="report-inventory">
-        <h2 id="report-inventory" class="reports__panel-title">Giacenze per location</h2>
         <app-report-location-table [rows]="locationRows()" />
       </section>
     </div>

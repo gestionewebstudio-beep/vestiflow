@@ -17,9 +17,14 @@ export class StatCardComponent {
   readonly label = input.required<string>();
   /** Valore già formattato dal consumer (numero, valuta, percentuale...). */
   readonly value = input.required<string>();
+  /** Suffisso inline più piccolo (es. percentuale accanto all'importo). */
+  readonly valueSuffix = input<string>();
   /** Classe PrimeIcons (es. 'pi-box'). */
   readonly icon = input<string>();
   /** Riga secondaria opzionale (es. 'su 3 location'). */
   readonly hint = input<string>();
+  /** Variazione rispetto al periodo precedente (es. "+12% vs periodo prec."). */
+  readonly trendLabel = input<string>();
+  readonly trendTone = input<StatTone>('neutral');
   readonly tone = input<StatTone>('neutral');
 }

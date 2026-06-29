@@ -11,9 +11,9 @@ test.describe('Report', () => {
   test('carica KPI e pannelli operativi', async ({ page }) => {
     await waitForReportsReady(page);
 
-    await expect(page.getByText('Valore magazzino', { exact: true })).toBeVisible();
+    await expect(page.getByText('Performance commerciale', { exact: true })).toBeVisible();
+    await expect(page.getByText('Periodo grafici', { exact: true })).toBeVisible();
     await expect(page.getByText('Giacenze per location', { exact: true })).toBeVisible();
-    await expect(page.getByText('Export corrispettivi', { exact: true })).toBeVisible();
   });
 
   test('mostra tabelle report o skeleton durante il caricamento', async ({ page }) => {

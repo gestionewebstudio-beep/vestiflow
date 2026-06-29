@@ -1,0 +1,191 @@
+<section class="analytics-panel" [class.analytics-panel--reports]="layout() === 'reports'">
+  <div class="analytics-panel__head">
+    <div class="analytics-panel__heading">
+      <h2 class="analytics-panel__title">Performance commerciale</h2>
+      <p class="analytics-panel__hint">
+        Fatturato, margini e previsioni per il periodo selezionato
+        @if (periodLabel(); as label) {
+          ({{ label }})
+        }
+        . Le vendite manuali usano il prezzo di vendita corrente; Shopify usa importi ordine.
+      </p>
+    </div>
+
+    <div class="analytics-panel__filters">
+      @if (!hidePeriodFilter()) {
+        <div class="analytics-panel__field">
+          <span class="analytics-panel__label">Periodo</span>
+          <app-select-menu
+            [options]="periodOptions"
+            [value]="displayPeriod()"
+            ariaLabel="Periodo analytics"
+            placeholder="Periodo"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onPeriodChange($event)"
+          />
+        </div>
+        @if (showCustomDates()) {
+          <div class="analytics-panel__field">
+            <span class="analytics-panel__label">Dal</span>
+            <app-date-input
+              [value]="effectiveDateFrom()"
+              ariaLabel="Data inizio periodo"
+              [compact]="true"
+              (valueChange)="onDateFromChange($event)"
+            />
+          </div>
+          <div class="analytics-panel__field">
+            <span class="analytics-panel__label">Al</span>
+            <app-date-input
+              [value]="effectiveDateTo()"
+              ariaLabel="Data fine periodo"
+              [compact]="true"
+              (valueChange)="onDateToChange($event)"
+            />
+          </div>
+        }
+      }
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="4" [rows]="4" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (summary(); as data) {
+    <div class="analytics-panel__kpis">
+      <app-stat-card
+        label="Fatturato"
+        [value]="revenueLabel()"
+        icon="pi-euro"
+        tone="success"
+        hint="Shopify + vendite manuali (pagate)"
+        [trendLabel]="revenueTrend() ?? undefined"
+        [trendTone]="revenueTrendTone()"
+      />
+      <app-stat-card
+        label="Margine lordo"
+        [value]="marginLabel()"
+        [valueSuffix]="marginPercentSuffix() ?? undefined"
+        icon="pi-percentage"
+        tone="info"
+        [hint]="marginHintText()"
+      />
+      <app-stat-card
+        label="Pezzi venduti"
+        [value]="unitsSoldLabel()"
+        icon="pi-tags"
+        tone="neutral"
+        [hint]="transactionCountLabel() + ' transazioni · ticket medio ' + avgTicketLabel()"
+      />
+      <app-stat-card
+        label="Previsione mese"
+        [value]="projectedRevenueLabel()"
+        icon="pi-chart-line"
+        tone="warning"
+        [hint]="forecastHintText()"
+      />
+    </div>
+
+    <div class="analytics-panel__kpis analytics-panel__kpis--inventory">
+      <app-stat-card
+        label="Valore magazzino"
+        [value]="stockValueLabel()"
+        icon="pi-box"
+        tone="info"
+        hint="Disponibile a prezzo di vendita (snapshot)"
+      />
+      <app-stat-card
+        label="Margine stock"
+        [value]="stockMarginLabel()"
+        [valueSuffix]="stockMarginPercentSuffix() ?? undefined"
+        icon="pi-wallet"
+        tone="success"
+        hint="Potenziale lordo su giacenze con costo noto"
+      />
+      <app-stat-card
+        label="Pezzi disponibili"
+        [value]="availableUnitsLabel()"
+        icon="pi-database"
+        tone="neutral"
+        hint="Su location in scope"
+      />
+      <app-stat-card
+        label="Sotto soglia"
+        [value]="lowStockCountLabel()"
+        icon="pi-exclamation-triangle"
+        tone="warning"
+        hint="Varianti da riordinare"
+      />
+    </div>
+
+    @if (layout() === 'reports') {
+      <app-business-analytics-charts
+        [initialPeriod]="displayPeriod()"
+        [initialDateFrom]="effectiveDateFrom()"
+        [initialDateTo]="effectiveDateTo()"
+      />
+    }
+
+    @if (layout() === 'reports' && channelRows().length > 0) {
+      <section class="analytics-panel__section" aria-labelledby="analytics-channels">
+        <h3 id="analytics-channels" class="analytics-panel__section-title">Fatturato per canale</h3>
+        <div class="analytics-panel__table-scroll">
+          <table class="analytics-panel__table">
+            <thead>
+              <tr>
+                <th scope="col">Canale</th>
+                <th scope="col" class="analytics-panel__cell--num">Pezzi</th>
+                <th scope="col" class="analytics-panel__cell--num">Fatturato</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of channelRows(); track row.channel) {
+                <tr>
+                  <td>{{ row.label }}</td>
+                  <td class="analytics-panel__cell--num tabular-nums">{{ row.unitsSold }}</td>
+                  <td class="analytics-panel__cell--num tabular-nums">{{ row.revenueLabel }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+
+    @if (topProductRows().length > 0) {
+      <section class="analytics-panel__section" aria-labelledby="analytics-top-products">
+        <h3 id="analytics-top-products" class="analytics-panel__section-title">
+          @if (layout() === 'dashboard') {
+            Top prodotti
+          } @else {
+            Top prodotti per fatturato
+          }
+        </h3>
+        <div class="analytics-panel__table-scroll">
+          <table class="analytics-panel__table">
+            <thead>
+              <tr>
+                <th scope="col">SKU</th>
+                <th scope="col">Prodotto</th>
+                <th scope="col" class="analytics-panel__cell--num">Pezzi</th>
+                <th scope="col" class="analytics-panel__cell--num">Fatturato</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of topProductRows(); track row.sku) {
+                <tr>
+                  <td class="analytics-panel__cell--sku tabular-nums">{{ row.sku }}</td>
+                  <td>{{ row.title }}</td>
+                  <td class="analytics-panel__cell--num tabular-nums">{{ row.unitsSold }}</td>
+                  <td class="analytics-panel__cell--num tabular-nums">{{ row.revenueLabel }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  }
+</section>

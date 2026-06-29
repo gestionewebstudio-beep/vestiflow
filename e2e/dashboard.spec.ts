@@ -12,8 +12,9 @@ test.describe('Dashboard', () => {
 
   test('mostra KPI operativi', async ({ page }) => {
     await expect(page.locator('.dashboard__kpis')).toBeVisible();
-    await expect(page.getByText('Prodotti', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Pezzi disponibili', { exact: true })).toBeVisible();
+    await expect(page.getByText('Performance commerciale', { exact: true })).toBeVisible();
+    await expect(page.getByText('Fatturato', { exact: true })).toBeVisible();
+    await expect(page.getByText('Prodotti a catalogo', { exact: true })).toBeVisible();
   });
 
   test('sidebar principale è navigabile', async ({ page }) => {

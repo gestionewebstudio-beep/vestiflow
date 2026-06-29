@@ -9,7 +9,11 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { SalesOrderFulfillmentStatus } from '@core/models/sales-order.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
-import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
+import { BusinessAnalyticsPanelComponent } from '@features/analytics/components/business-analytics-panel/business-analytics-panel.component';
+import {
+  showSalesOrderHistory,
+  showShopifyIntegration,
+} from '@core/models/tenant-channel-profile.model';
 import { canManageShopifyConnection } from '@core/permissions/tenant-permissions.util';
 import { isLowStock } from '@core/utils/inventory.util';
 import { formatDateTimeShort } from '@core/utils/date.util';
@@ -61,6 +65,7 @@ type DashboardState =
     ErrorStateComponent,
     StatCardComponent,
     TableSkeletonComponent,
+    BusinessAnalyticsPanelComponent,
     LowStockTableComponent,
     RecentSalesTableComponent,
     BadgeComponent,
@@ -84,6 +89,10 @@ export class DashboardComponent {
     const user = this.authService.currentUser();
     return showShopifyIntegration(user?.tenantChannelProfile) && canManageShopifyConnection(user);
   });
+
+  protected readonly showRecentShopifySales = computed(() =>
+    showSalesOrderHistory(this.authService.currentUser()?.tenantChannelProfile),
+  );
 
   private readonly shopifyConnection = toSignal(
     toObservable(this.showShopifyPanel).pipe(
@@ -125,20 +134,22 @@ export class DashboardComponent {
 
   private readonly state = toSignal(
     toObservable(this.fetchRequest).pipe(
-      switchMap(({ locationId }) =>
-        forkJoin({
-          summary: this.dashboardService.getSummary(locationId),
-          salesOrders: this.salesOrderService
-            .getSalesOrders({ page: 1, pageSize: WIDE_PAGE_SIZE })
-            .pipe(map((response) => response.data)),
-        }).pipe(
+      switchMap(({ locationId }) => {
+        const summary$ = this.dashboardService.getSummary(locationId);
+        const sales$ = this.showRecentShopifySales()
+          ? this.salesOrderService
+              .getSalesOrders({ page: 1, pageSize: WIDE_PAGE_SIZE })
+              .pipe(map((response) => response.data))
+          : of([] as readonly SalesOrder[]);
+
+        return forkJoin({ summary: summary$, salesOrders: sales$ }).pipe(
           map((data): DashboardState => ({ status: 'success', data })),
           startWith<DashboardState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<DashboardState>({ status: 'error', error: this.toAppError(err) }),
           ),
-        ),
-      ),
+        );
+      }),
     ),
     { initialValue: { status: 'loading' } satisfies DashboardState },
   );
