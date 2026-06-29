@@ -15,6 +15,7 @@ import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
+import { reportPageSubtitle } from '@core/models/tenant-channel-profile.model';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
@@ -99,10 +100,18 @@ export class ReportsComponent {
     parseCorrispettiviChannel(this.queryParams()),
   );
 
-  protected readonly corrispettiviChannelOptions = computed(() => corrispettiviChannelOptions());
+  private readonly tenantProfile = computed(
+    () => this.authService.currentUser()?.tenantChannelProfile,
+  );
+
+  protected readonly pageSubtitle = computed(() => reportPageSubtitle(this.tenantProfile()));
+
+  protected readonly corrispettiviChannelOptions = computed(() =>
+    corrispettiviChannelOptions(this.tenantProfile()),
+  );
 
   protected readonly corrispettiviChannelHint = computed(() =>
-    corrispettiviChannelHint(this.corrispettiviChannel()),
+    corrispettiviChannelHint(this.corrispettiviChannel(), this.tenantProfile()),
   );
 
   protected readonly exporting = signal(false);

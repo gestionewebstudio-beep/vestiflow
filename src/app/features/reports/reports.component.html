@@ -1,9 +1,7 @@
 <section class="reports">
   <header class="reports__header">
     <h1 class="reports__title">Report</h1>
-    <p class="reports__subtitle">
-      Snapshot magazzino e export corrispettivi per negozio fisico e vendite online esterne.
-    </p>
+    <p class="reports__subtitle">{{ pageSubtitle() }}</p>
   </header>
 
   @if (canExportCorrispettivi()) {

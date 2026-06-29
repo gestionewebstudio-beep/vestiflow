@@ -41,7 +41,7 @@
           <td class="movement-table__cell--location" data-label="Location">
             {{ row.locationLabel }}
           </td>
-          <td data-label="Origine">{{ originLabel(row.origin) }}</td>
+          <td data-label="Origine">{{ row.originLabel ?? '—' }}</td>
           <td data-label="Motivo">{{ row.reason ?? '—' }}</td>
           <td data-label="Eseguito da">{{ actorLabel(row.createdByName) }}</td>
         </tr>

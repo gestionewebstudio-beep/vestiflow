@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   TenantChannelProfile,
+  onlineSalesChannelLabel,
   onlineSalesRegisterLabel,
+  onlineSalesCorrispettiviHint,
+  reportPageSubtitle,
   showOnlineSalesRegister,
   showRetailSalesRegister,
   showSalesOrderHistory,
@@ -39,6 +42,21 @@ describe('tenant-channel-profile.model', () => {
     expect(onlineSalesRegisterLabel(TenantChannelProfile.Shopify)).toBe(
       'Registra vendita online esterna',
     );
+  });
+
+  it('onlineSalesChannelLabel semplifica etichetta per solo gestionale', () => {
+    expect(onlineSalesChannelLabel(TenantChannelProfile.Gestionale)).toBe('Vendita online');
+    expect(onlineSalesChannelLabel(TenantChannelProfile.Shopify)).toBe('Vendita online esterna');
+  });
+
+  it('reportPageSubtitle adatta copy al profilo tenant', () => {
+    expect(reportPageSubtitle(TenantChannelProfile.Gestionale)).toContain('vendite online.');
+    expect(reportPageSubtitle(TenantChannelProfile.Shopify)).toContain('vendite online esterne.');
+  });
+
+  it('onlineSalesCorrispettiviHint omette riferimento Shopify per gestionale', () => {
+    expect(onlineSalesCorrispettiviHint(TenantChannelProfile.Gestionale)).not.toContain('Shopify');
+    expect(onlineSalesCorrispettiviHint(TenantChannelProfile.Shopify)).toContain('Shopify');
   });
 
   it('showSalesOrderHistory solo per profilo Shopify', () => {

@@ -4,7 +4,6 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 
 import {
   movementActorLabel,
-  movementOriginLabel,
   movementTypeLabel,
   movementTypeTone,
 } from '../../models/inventory-labels.util';
@@ -27,5 +26,4 @@ export class MovementTableComponent {
   protected readonly typeLabel = movementTypeLabel;
   protected readonly typeTone = movementTypeTone;
   protected readonly actorLabel = movementActorLabel;
-  protected readonly originLabel = movementOriginLabel;
 }

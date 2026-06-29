@@ -653,7 +653,7 @@ describe('InventoryService', () => {
         data: expect.objectContaining({
           type: StockMovementType.sale,
           origin: 'vestiflow_online',
-          reason: 'Vendita online esterna',
+          reason: 'Vendita online',
         }),
       }),
     );

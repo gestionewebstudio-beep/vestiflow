@@ -94,6 +94,33 @@ export function onlineSalesRegisterLabel(profile: TenantChannelProfile | undefin
   return 'Registra vendita online esterna';
 }
 
+/**
+ * Etichetta breve vendite online manuali (filtri, origini movimento, corrispettivi).
+ * Con profilo solo gestionale non serve distinguere da Shopify.
+ */
+export function onlineSalesChannelLabel(profile: TenantChannelProfile | undefined): string {
+  if (profile === TenantChannelProfile.Gestionale) {
+    return 'Vendita online';
+  }
+  return 'Vendita online esterna';
+}
+
+/** Hint export corrispettivi per vendite online manuali. */
+export function onlineSalesCorrispettiviHint(profile: TenantChannelProfile | undefined): string {
+  if (profile === TenantChannelProfile.Gestionale) {
+    return 'Vendite e storni registrati online nel gestionale. Usa il prezzo di vendita corrente della variante.';
+  }
+  return 'Vendite e storni registrati manualmente su canali online esterni a Shopify. Usa il prezzo di vendita corrente della variante.';
+}
+
+/** Sottotitolo pagina Report. */
+export function reportPageSubtitle(profile: TenantChannelProfile | undefined): string {
+  if (profile === TenantChannelProfile.Gestionale) {
+    return 'Snapshot magazzino e export corrispettivi per negozio fisico e vendite online.';
+  }
+  return 'Snapshot magazzino e export corrispettivi per negozio fisico e vendite online esterne.';
+}
+
 /** Lista ordini sincronizzati da canale ecommerce (oggi solo Shopify). */
 export function showSalesOrderHistory(profile: TenantChannelProfile | undefined): boolean {
   return profile === TenantChannelProfile.Shopify;

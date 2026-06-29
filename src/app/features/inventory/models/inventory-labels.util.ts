@@ -3,6 +3,8 @@
 
 import { StockStatus } from '@core/models/inventory-level.model';
 import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
+import { onlineSalesChannelLabel } from '@core/models/tenant-channel-profile.model';
+import type { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
 const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
@@ -73,9 +75,15 @@ const MOVEMENT_ORIGIN_LABELS: Record<MovementOrigin, string> = {
   [MovementOrigin.VestiflowOnline]: 'Vendita online esterna',
 };
 
-export function movementOriginLabel(origin: MovementOrigin | undefined): string {
+export function movementOriginLabel(
+  origin: MovementOrigin | undefined,
+  profile?: TenantChannelProfile,
+): string {
   if (!origin) {
     return '—';
+  }
+  if (origin === MovementOrigin.VestiflowOnline) {
+    return onlineSalesChannelLabel(profile);
   }
   return MOVEMENT_ORIGIN_LABELS[origin] ?? origin;
 }

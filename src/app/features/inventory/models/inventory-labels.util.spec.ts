@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { StockStatus } from '@core/models/inventory-level.model';
 import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 
 import {
   movementActorLabel,
@@ -46,6 +47,15 @@ describe('inventory-labels.util', () => {
       expect(movementOriginLabel(MovementOrigin.Shopify)).toBe('Shopify');
       expect(movementOriginLabel(MovementOrigin.Tiktok)).toBe('TikTok');
       expect(movementOriginLabel(MovementOrigin.VestiflowPos)).toBe('Vendita negozio');
+    });
+
+    it('adatta etichetta vendita online al profilo tenant', () => {
+      expect(
+        movementOriginLabel(MovementOrigin.VestiflowOnline, TenantChannelProfile.Gestionale),
+      ).toBe('Vendita online');
+      expect(
+        movementOriginLabel(MovementOrigin.VestiflowOnline, TenantChannelProfile.Shopify),
+      ).toBe('Vendita online esterna');
     });
 
     it('restituisce trattino se origine assente', () => {

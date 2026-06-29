@@ -13,6 +13,31 @@ export function tenantChannelProfileLabel(profile: TenantChannelProfile): string
   return PROFILE_LABELS[profile];
 }
 
+/** Etichetta vendite online manuali (origine vestiflow_online). */
+export function onlineSalesChannelLabel(
+  profile: TenantChannelProfile | null | undefined,
+): string {
+  return profile === TenantChannelProfile.gestionale
+    ? 'Vendita online'
+    : 'Vendita online esterna';
+}
+
+/** Motivo movimento vendita online manuale. */
+export function onlineSalesSaleReasonLabel(
+  profile: TenantChannelProfile | null | undefined,
+): string {
+  return onlineSalesChannelLabel(profile);
+}
+
+/** Motivo movimento reso online manuale. */
+export function onlineSalesReturnReasonLabel(
+  profile: TenantChannelProfile | null | undefined,
+): string {
+  return profile === TenantChannelProfile.gestionale
+    ? 'Storno online (reso)'
+    : 'Storno online esterna (reso)';
+}
+
 export async function assertTenantChannelProfile(
   prisma: PrismaService,
   tenantId: string,

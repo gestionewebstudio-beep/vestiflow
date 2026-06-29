@@ -23,7 +23,10 @@ import type { Location } from '@core/models/location.model';
 import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 import { AdjustmentDirection } from '@core/models/stock-movement.model';
-import { showSalesOrderHistory } from '@core/models/tenant-channel-profile.model';
+import {
+  showSalesOrderHistory,
+  onlineSalesChannelLabel,
+} from '@core/models/tenant-channel-profile.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -107,10 +110,13 @@ export class StockMovementsComponent {
    * Solo le registrazioni manuali nel gestionale: le vendite commerciali Shopify/TikTok
    * stanno in «Vendite Shopify» (ordini), non qui.
    */
-  protected readonly originOptions = computed((): readonly SelectMenuOption[] => [
-    { value: MovementOrigin.VestiflowPos, label: 'Negozio fisico' },
-    { value: MovementOrigin.VestiflowOnline, label: 'Vendita online esterna' },
-  ]);
+  protected readonly originOptions = computed((): readonly SelectMenuOption[] => {
+    const profile = this.authService.currentUser()?.tenantChannelProfile;
+    return [
+      { value: MovementOrigin.VestiflowPos, label: 'Negozio fisico' },
+      { value: MovementOrigin.VestiflowOnline, label: onlineSalesChannelLabel(profile) },
+    ];
+  });
 
   protected readonly showSalesHistoryHint = computed(() =>
     showSalesOrderHistory(this.authService.currentUser()?.tenantChannelProfile),
@@ -270,6 +276,8 @@ export class StockMovementsComponent {
     const locationById = new Map(current.data.locations.map((location) => [location.id, location]));
     const nameOf = (id: string): string => locationById.get(id)?.name ?? id;
 
+    const profile = this.authService.currentUser()?.tenantChannelProfile;
+
     return current.data.movements.map(
       (movement): StockMovementRow => ({
         id: movement.id,
@@ -285,7 +293,7 @@ export class StockMovementsComponent {
         createdAtLabel: formatDateTime(movement.createdAt),
         createdByName: movement.createdByName,
         origin: movement.origin,
-        originLabel: movementOriginLabel(movement.origin),
+        originLabel: movementOriginLabel(movement.origin, profile),
       }),
     );
   });

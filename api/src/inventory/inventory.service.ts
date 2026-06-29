@@ -12,11 +12,16 @@ import {
   type Location,
   type MovementOrigin,
   type StockMovement,
+  type TenantChannelProfile,
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import {
+  onlineSalesReturnReasonLabel,
+  onlineSalesSaleReasonLabel,
+} from '../common/tenant-channel-profile.util';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import { applyInventoryDelta } from './inventory-level-delta.util';
 import {
@@ -413,7 +418,15 @@ export class InventoryService {
     const delta = dto.action === RetailScanAction.Sale ? -1 : 1;
     const isOnline = channel === 'online';
     const origin: MovementOrigin = isOnline ? 'vestiflow_online' : 'vestiflow_pos';
-    const reason = this.retailScanReason(dto.action, isOnline);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { channelProfile: true },
+    });
+    const reason = this.retailScanReason(
+      dto.action,
+      isOnline,
+      tenant?.channelProfile,
+    );
 
     const movement = await this.prisma.$transaction(async (tx) => {
       await this.assertLocationExists(tx, tenantId, dto.locationId);
@@ -459,12 +472,18 @@ export class InventoryService {
     };
   }
 
-  /** Motivo movimento per vendita/storno in base ad azione e canale. */
-  private retailScanReason(action: RetailScanAction, isOnline: boolean): string {
+  /** Motivo movimento per vendita/storno in base ad azione, canale e profilo tenant. */
+  private retailScanReason(
+    action: RetailScanAction,
+    isOnline: boolean,
+    channelProfile?: TenantChannelProfile | null,
+  ): string {
     if (action === RetailScanAction.Sale) {
-      return isOnline ? 'Vendita online esterna' : 'Vendita negozio';
+      return isOnline ? onlineSalesSaleReasonLabel(channelProfile) : 'Vendita negozio';
     }
-    return isOnline ? 'Storno online esterna (reso)' : 'Storno negozio (reso)';
+    return isOnline
+      ? onlineSalesReturnReasonLabel(channelProfile)
+      : 'Storno negozio (reso)';
   }
 
   /** Variazione (con segno) da applicare alla location di origine. */

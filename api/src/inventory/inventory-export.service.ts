@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { MovementOrigin, Prisma, StockMovementType } from '@prisma/client';
+import { MovementOrigin, Prisma, StockMovementType, TenantChannelProfile } from '@prisma/client';
 
 import { serializeItalianExcelCsv } from '../common/csv.util';
+import { onlineSalesChannelLabel } from '../common/tenant-channel-profile.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ExportCorrispettiviQueryDto } from './dto/export-corrispettivi.query.dto';
 import type { ExportInventoryLevelsQueryDto } from './dto/export-inventory-levels.query.dto';
@@ -39,8 +40,17 @@ const CORRISPETTIVI_ORIGIN_LABELS: Record<MovementOrigin, string> = {
   [MovementOrigin.shopify]: 'Shopify',
   [MovementOrigin.tiktok]: 'TikTok',
   [MovementOrigin.vestiflow_pos]: 'Negozio fisico',
-  [MovementOrigin.vestiflow_online]: 'Vendita online esterna',
 };
+
+function corrispettiviOriginLabel(
+  origin: MovementOrigin,
+  channelProfile: TenantChannelProfile | null | undefined,
+): string {
+  if (origin === MovementOrigin.vestiflow_online) {
+    return onlineSalesChannelLabel(channelProfile);
+  }
+  return CORRISPETTIVI_ORIGIN_LABELS[origin] ?? origin;
+}
 
 const ROME_DATETIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
   timeZone: 'Europe/Rome',
@@ -82,6 +92,11 @@ export class InventoryExportService {
       return serializeItalianExcelCsv(CORRISPETTIVI_EXPORT_HEADERS, []);
     }
 
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { channelProfile: true },
+    });
+
     const movements = await this.prisma.stockMovement.findMany({
       where: {
         tenantId,
@@ -111,7 +126,7 @@ export class InventoryExportService {
       return {
         'Data e ora': ROME_DATETIME_FORMAT.format(movement.createdAt),
         Tipo: isReturn ? 'Reso' : 'Vendita',
-        Canale: CORRISPETTIVI_ORIGIN_LABELS[movement.origin] ?? movement.origin,
+        Canale: corrispettiviOriginLabel(movement.origin, tenant?.channelProfile),
         SKU: movement.sku,
         Prodotto: movement.variant.product.name,
         Location: movement.location.name,

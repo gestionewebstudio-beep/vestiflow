@@ -7,6 +7,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   assertTenantChannelProfile,
   assertTenantChannelProfileChangeAllowed,
+  onlineSalesChannelLabel,
+  onlineSalesReturnReasonLabel,
+  onlineSalesSaleReasonLabel,
   tenantChannelProfileLabel,
 } from './tenant-channel-profile.util';
 
@@ -16,6 +19,22 @@ describe('tenant-channel-profile.util', () => {
       expect(tenantChannelProfileLabel(TenantChannelProfile.gestionale)).toBe('solo gestionale');
       expect(tenantChannelProfileLabel(TenantChannelProfile.shopify)).toBe('Shopify');
       expect(tenantChannelProfileLabel(TenantChannelProfile.tiktok_shop)).toBe('TikTok Shop');
+    });
+  });
+
+  describe('onlineSalesChannelLabel', () => {
+    it('semplifica etichetta per solo gestionale', () => {
+      expect(onlineSalesChannelLabel(TenantChannelProfile.gestionale)).toBe('Vendita online');
+      expect(onlineSalesChannelLabel(TenantChannelProfile.shopify)).toBe('Vendita online esterna');
+    });
+  });
+
+  describe('onlineSalesSaleReasonLabel', () => {
+    it('allinea motivo vendita online al profilo tenant', () => {
+      expect(onlineSalesSaleReasonLabel(TenantChannelProfile.gestionale)).toBe('Vendita online');
+      expect(onlineSalesReturnReasonLabel(TenantChannelProfile.gestionale)).toBe(
+        'Storno online (reso)',
+      );
     });
   });
 

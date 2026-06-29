@@ -1,6 +1,11 @@
 import type { ParamMap } from '@angular/router';
 
 import { MovementOrigin } from '@core/models/stock-movement.model';
+import {
+  onlineSalesChannelLabel,
+  onlineSalesCorrispettiviHint,
+} from '@core/models/tenant-channel-profile.model';
+import type { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 /**
@@ -40,12 +45,14 @@ export function parseCorrispettiviChannel(params: ParamMap): CorrispettiviChanne
 }
 
 /** Opzioni tipologia per la select in Report (registrazioni manuali nel gestionale). */
-export function corrispettiviChannelOptions(): readonly SelectMenuOption[] {
+export function corrispettiviChannelOptions(
+  profile?: TenantChannelProfile,
+): readonly SelectMenuOption[] {
   return [
     { value: CorrispettiviChannel.Pos, label: 'Negozio fisico' },
     {
       value: CorrispettiviChannel.ExternalOnline,
-      label: 'Vendita online esterna',
+      label: onlineSalesChannelLabel(profile),
     },
   ];
 }
@@ -85,12 +92,15 @@ export function resolveCorrispettiviExport(
   }
 }
 
-export function corrispettiviChannelHint(channel: CorrispettiviChannel): string {
+export function corrispettiviChannelHint(
+  channel: CorrispettiviChannel,
+  profile?: TenantChannelProfile,
+): string {
   switch (channel) {
     case CorrispettiviChannel.Shopify:
       return 'Ordini reali sincronizzati da Shopify, con importi corretti.';
     case CorrispettiviChannel.ExternalOnline:
-      return 'Vendite e storni registrati manualmente su canali online esterni a Shopify. Usa il prezzo di vendita corrente della variante.';
+      return onlineSalesCorrispettiviHint(profile);
     case CorrispettiviChannel.Tiktok:
       return 'Movimenti di vendita/reso con origine TikTok Shop.';
     case CorrispettiviChannel.Pos:
