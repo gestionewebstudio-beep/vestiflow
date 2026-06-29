@@ -1,7 +1,9 @@
 <section class="reports">
   <header class="reports__header">
     <h1 class="reports__title">Report</h1>
-    <p class="reports__subtitle">Sintesi di magazzino (snapshot attuale) e vendite per periodo.</p>
+    <p class="reports__subtitle">
+      Snapshot magazzino e export corrispettivi per negozio fisico e vendite online esterne.
+    </p>
   </header>
 
   @if (canExportCorrispettivi()) {
@@ -21,15 +23,6 @@
       (exportClick)="exportCorrispettivi()"
     />
   }
-
-  <app-report-filters
-    [source]="query().source ?? ''"
-    [financialStatus]="query().financialStatus ?? ''"
-    [hasActiveFilters]="hasActiveFilters()"
-    (sourceChange)="onSourceChange($event)"
-    (financialStatusChange)="onFinancialStatusChange($event)"
-    (resetFilters)="resetFilters()"
-  />
 
   @if (loading()) {
     <app-table-skeleton [columns]="4" [rows]="6" />
@@ -69,54 +62,9 @@
         </div>
       </section>
 
-      <section class="reports__panel reports__panel--kpis" aria-labelledby="report-sales-kpis">
-        <div class="reports__panel-head">
-          <div class="reports__panel-heading">
-            <h2 id="report-sales-kpis" class="reports__panel-title">Vendite</h2>
-            <p class="reports__panel-hint">Periodo: {{ periodLabel() }}</p>
-          </div>
-        </div>
-        <div class="reports__kpis reports__kpis--sales">
-          <app-stat-card
-            label="Fatturato"
-            [value]="revenueLabel()"
-            icon="pi-euro"
-            tone="success"
-            hint="Ordini pagati o con rimborso parziale"
-          />
-          <app-stat-card
-            label="Ordini"
-            [value]="orderCountLabel()"
-            icon="pi-shopping-cart"
-            tone="info"
-            hint="Nel periodo selezionato"
-          />
-          <app-stat-card
-            label="Pezzi venduti"
-            [value]="unitsSoldLabel()"
-            icon="pi-tags"
-            tone="neutral"
-            hint="Su ordini pagati o parzialmente rimborsati"
-          />
-        </div>
-      </section>
-
       <section class="reports__panel" aria-labelledby="report-inventory">
         <h2 id="report-inventory" class="reports__panel-title">Giacenze per location</h2>
         <app-report-location-table [rows]="locationRows()" />
-      </section>
-
-      <section class="reports__panel" aria-labelledby="report-sales">
-        <h2 id="report-sales" class="reports__panel-title">Vendite per stato pagamento</h2>
-        @if (salesEmpty()) {
-          <app-empty-state
-            title="Nessuna vendita nel periodo"
-            description="Prova ad ampliare l'intervallo o azzera i filtri canale e pagamento."
-            icon="pi-chart-bar"
-          />
-        } @else {
-          <app-report-sales-table [rows]="salesRows()" />
-        }
       </section>
     </div>
   }

@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -46,6 +47,13 @@ import {
 } from '@features/integrations/shopify/models/shopify-sync-feedback.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
+import { ReportCorrispettiviExportComponent } from '@features/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
+import {
+  formatReportPeriodLabel,
+  parseSalesCorrispettiviPeriodQuery,
+  ReportPeriodPreset,
+  resolveReportDateRange,
+} from '@features/reports/models/report-list-query.model';
 import { SalesOrderTableComponent } from './components/sales-order-table/sales-order-table.component';
 import {
   DEFAULT_SALES_PAGE_SIZE,
@@ -84,6 +92,7 @@ type SalesListState =
     PaginationComponent,
     SelectMenuComponent,
     TableSkeletonComponent,
+    ReportCorrispettiviExportComponent,
     SalesOrderTableComponent,
     ShopifySyncFeedbackComponent,
   ],
@@ -112,19 +121,45 @@ export class SalesOrderListComponent {
     { value: 'voided', label: 'Annullato' },
   ];
 
-  protected readonly sourceOptions: readonly SelectMenuOption[] = [
-    { value: 'online', label: 'Online' },
-    { value: 'pos', label: 'Negozio' },
-  ];
-
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseSalesOrderListQuery(this.queryParams()));
+
+  /** Periodo corrispettivi Shopify (query param dedicati, indipendenti dalla lista). */
+  private readonly corrispettiviPeriodQuery = computed(() =>
+    parseSalesCorrispettiviPeriodQuery(this.queryParams()),
+  );
+  private readonly uiCorrispettiviPeriod = signal<ReportPeriodPreset | null>(null);
+
+  protected readonly corrispettiviDisplayPeriod = computed(
+    () => this.uiCorrispettiviPeriod() ?? this.corrispettiviPeriodQuery().period,
+  );
+
+  protected readonly corrispettiviPeriodLabel = computed(() =>
+    formatReportPeriodLabel({
+      ...this.corrispettiviPeriodQuery(),
+      period: this.corrispettiviDisplayPeriod(),
+    }),
+  );
+
+  protected readonly corrispettiviDateFromDraft = computed(() => {
+    if (this.corrispettiviDisplayPeriod() !== ReportPeriodPreset.Custom) {
+      return '';
+    }
+    return this.corrispettiviPeriodQuery().dateFrom ?? todayIsoDate();
+  });
+
+  protected readonly corrispettiviDateToDraft = computed(() => {
+    if (this.corrispettiviDisplayPeriod() !== ReportPeriodPreset.Custom) {
+      return '';
+    }
+    return this.corrispettiviPeriodQuery().dateTo ?? todayIsoDate();
+  });
 
   private readonly refreshTick = signal(0);
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
   protected readonly shopifyOrdersLoading = signal(false);
-  protected readonly exporting = signal(false);
+  protected readonly exportingCorrispettivi = signal(false);
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
 
@@ -202,13 +237,18 @@ export class SalesOrderListComponent {
 
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
-    return Boolean(q.search ?? q.financialStatus ?? q.source);
+    return Boolean(q.search ?? q.financialStatus);
   });
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    effect(() => {
+      this.corrispettiviPeriodQuery();
+      this.uiCorrispettiviPeriod.set(null);
+    });
+
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
         debounceTime(SEARCH_DEBOUNCE_MS),
@@ -231,13 +271,33 @@ export class SalesOrderListComponent {
     this.updateParams({ financialStatus: value, page: null }, true);
   }
 
-  protected onSourceFilterChange(value: string | null): void {
-    this.updateParams({ source: value, page: null }, true);
+  protected onCorrispettiviPeriodChange(period: ReportPeriodPreset): void {
+    this.uiCorrispettiviPeriod.set(period);
+    if (period === ReportPeriodPreset.Custom) {
+      const today = todayIsoDate();
+      this.updateParams({ corrPeriod: period, corrFrom: today, corrTo: today });
+      return;
+    }
+    this.updateParams({ corrPeriod: period, corrFrom: null, corrTo: null });
+  }
+
+  protected onCorrispettiviDateFromChange(value: string): void {
+    this.updateParams({
+      corrFrom: value || null,
+      corrPeriod: ReportPeriodPreset.Custom,
+    });
+  }
+
+  protected onCorrispettiviDateToChange(value: string): void {
+    this.updateParams({
+      corrTo: value || null,
+      corrPeriod: ReportPeriodPreset.Custom,
+    });
   }
 
   protected resetFilters(): void {
     this.searchDraft.set('');
-    this.updateParams({ search: null, financialStatus: null, source: null, page: null }, true);
+    this.updateParams({ search: null, financialStatus: null, page: null }, true);
   }
 
   protected goToPage(page: number): void {
@@ -277,24 +337,30 @@ export class SalesOrderListComponent {
       });
   }
 
-  protected exportSalesOrders(): void {
-    if (this.exporting()) {
+  protected exportCorrispettiviShopify(): void {
+    if (this.exportingCorrispettivi()) {
       return;
     }
 
-    const { page: _page, pageSize: _pageSize, ...filters } = this.query();
+    const range = resolveReportDateRange({
+      ...this.corrispettiviPeriodQuery(),
+      period: this.corrispettiviDisplayPeriod(),
+    });
 
-    this.exporting.set(true);
+    this.exportingCorrispettivi.set(true);
     this.service
-      .exportSalesOrdersCsv(filters)
+      .exportSalesOrdersCsv({
+        placedFrom: range.placedFrom,
+        placedTo: range.placedTo,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (blob) => {
-          this.exporting.set(false);
-          this.downloadCsvBlob(blob, 'vendite');
+          this.exportingCorrispettivi.set(false);
+          this.downloadCsvBlob(blob, 'corrispettivi-shopify');
         },
         error: () => {
-          this.exporting.set(false);
+          this.exportingCorrispettivi.set(false);
         },
       });
   }
@@ -365,4 +431,8 @@ export class SalesOrderListComponent {
     anchor.click();
     URL.revokeObjectURL(url);
   }
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }

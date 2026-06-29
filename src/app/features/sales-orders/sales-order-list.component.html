@@ -6,8 +6,8 @@
         Ordini di vendita in sola lettura: la fonte autoritativa è Shopify/POS.
       </p>
     </div>
-    <div class="sales-list__actions">
-      @if (showShopifyOrdersSync()) {
+    @if (showShopifyOrdersSync()) {
+      <div class="sales-list__actions">
         <app-button
           variant="secondary"
           loadingIndicator="icon"
@@ -18,18 +18,8 @@
           <i class="pi pi-sync" aria-hidden="true"></i>
           Sincronizza vendite da Shopify
         </app-button>
-      }
-      @if (canExportData()) {
-        <app-button variant="secondary" [disabled]="exporting()" (click)="exportSalesOrders()">
-          <i class="pi pi-download" aria-hidden="true"></i>
-          @if (exporting()) {
-            Export in corso…
-          } @else {
-            Esporta CSV
-          }
-        </app-button>
-      }
-    </div>
+      </div>
+    }
   </header>
 
   @if (shopifySyncError(); as message) {
@@ -41,6 +31,25 @@
       [message]="feedback.message"
       [tone]="feedback.tone"
       (dismissed)="dismissShopifyFeedback()"
+    />
+  }
+
+  @if (canExportData()) {
+    <app-report-corrispettivi-export
+      title="Corrispettivi Shopify"
+      subtitle="Esporta l'elenco ordini Shopify del periodo selezionato, con importi reali, per il commercialista."
+      exportButtonLabel="Esporta corrispettivi Shopify"
+      [showChannelFilter]="false"
+      [period]="corrispettiviDisplayPeriod()"
+      [dateFrom]="corrispettiviDateFromDraft()"
+      [dateTo]="corrispettiviDateToDraft()"
+      [periodLabel]="corrispettiviPeriodLabel()"
+      channelHint="Ordini sincronizzati da Shopify con importi e date corretti. Online e POS Shopify sono inclusi."
+      [exporting]="exportingCorrispettivi()"
+      (periodChange)="onCorrispettiviPeriodChange($event)"
+      (dateFromChange)="onCorrispettiviDateFromChange($event)"
+      (dateToChange)="onCorrispettiviDateToChange($event)"
+      (exportClick)="exportCorrispettiviShopify()"
     />
   }
 
@@ -69,19 +78,6 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onFinancialFilterChange($event)"
-        />
-      </div>
-
-      <div class="sales-list__field">
-        <span class="sales-list__label">Canale</span>
-        <app-select-menu
-          [options]="sourceOptions"
-          [value]="query().source ?? ''"
-          ariaLabel="Filtra per canale vendita"
-          placeholder="Tutti"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onSourceFilterChange($event)"
         />
       </div>
 

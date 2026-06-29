@@ -9,14 +9,13 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -26,12 +25,9 @@ import {
   type LocationInventoryReportRow,
 } from '@features/inventory/services/inventory.service';
 import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
-import type { SalesOrder } from '@core/models/sales-order.model';
 
 import { ReportCorrispettiviExportComponent } from './components/report-corrispettivi-export/report-corrispettivi-export.component';
-import { ReportFiltersComponent } from './components/report-filters/report-filters.component';
 import { ReportLocationTableComponent } from './components/report-location-table/report-location-table.component';
-import { ReportSalesTableComponent } from './components/report-sales-table/report-sales-table.component';
 import {
   corrispettiviChannelHint,
   corrispettiviChannelOptions,
@@ -42,20 +38,13 @@ import {
   formatReportPeriodLabel,
   parseReportListQuery,
   ReportPeriodPreset,
-  reportHasActiveFilters,
   resolveReportDateRange,
-  toSalesOrderListFilters,
 } from './models/report-list-query.model';
-import {
-  aggregateSalesReportRows,
-  computeSalesReportSummary,
-  eurMoney,
-} from './models/report-sales.util';
+import { eurMoney } from './models/report-sales.util';
 import type { LocationReportRow } from './models/report-view.model';
 
 interface ReportData {
   readonly locationReport: readonly LocationInventoryReportRow[];
-  readonly orders: readonly SalesOrder[];
 }
 
 type ReportState =
@@ -64,21 +53,18 @@ type ReportState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
- * Report operativi: export corrispettivi in cima, poi sintesi magazzino e vendite.
- * Periodo e tipologia corrispettivi persistiti in query params.
+ * Report operativi: export corrispettivi manuali e snapshot magazzino.
+ * Le vendite Shopify vivono in Vendite Shopify; i corrispettivi Shopify lì.
  */
 @Component({
   selector: 'app-reports',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    EmptyStateComponent,
     ErrorStateComponent,
     ReportCorrispettiviExportComponent,
-    ReportFiltersComponent,
     StatCardComponent,
     TableSkeletonComponent,
     ReportLocationTableComponent,
-    ReportSalesTableComponent,
   ],
   templateUrl: './reports.component.html',
   styleUrl: './reports.component.scss',
@@ -108,15 +94,12 @@ export class ReportsComponent {
   protected readonly periodLabel = computed(() =>
     formatReportPeriodLabel({ ...this.query(), period: this.displayPeriod() }),
   );
-  protected readonly hasActiveFilters = computed(() => reportHasActiveFilters(this.query()));
 
   protected readonly corrispettiviChannel = computed(() =>
     parseCorrispettiviChannel(this.queryParams()),
   );
 
-  protected readonly corrispettiviChannelOptions = computed(() =>
-    corrispettiviChannelOptions(this.authService.currentUser()?.tenantChannelProfile),
-  );
+  protected readonly corrispettiviChannelOptions = computed(() => corrispettiviChannelOptions());
 
   protected readonly corrispettiviChannelHint = computed(() =>
     corrispettiviChannelHint(this.corrispettiviChannel()),
@@ -147,25 +130,25 @@ export class ReportsComponent {
   });
 
   private readonly request = computed(() => ({
-    query: { ...this.query(), period: this.displayPeriod() },
     tick: this.refreshTick(),
   }));
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(
-      switchMap(({ query }) => {
-        const salesFilters = toSalesOrderListFilters(query);
-        return forkJoin({
-          locationReport: this.inventoryService.getLocationInventoryReport(),
-          orders: this.salesOrderService.getAllSalesOrders(salesFilters),
-        }).pipe(
-          map((data): ReportState => ({ status: 'success', data })),
+      switchMap(() =>
+        this.inventoryService.getLocationInventoryReport().pipe(
+          map(
+            (locationReport): ReportState => ({
+              status: 'success',
+              data: { locationReport },
+            }),
+          ),
           startWith<ReportState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<ReportState>({ status: 'error', error: this.toAppError(err) }),
           ),
-        );
-      }),
+        ),
+      ),
     ),
     { initialValue: { status: 'loading' } satisfies ReportState },
   );
@@ -202,26 +185,6 @@ export class ReportsComponent {
     );
   });
 
-  private readonly salesSummary = computed(() => {
-    const data = this.data();
-    if (!data) {
-      return { revenueMinor: 0, orderCount: 0, unitsSold: 0 };
-    }
-    return computeSalesReportSummary(data.orders);
-  });
-
-  protected readonly salesRows = computed(() => {
-    const data = this.data();
-    if (!data) {
-      return [];
-    }
-    return aggregateSalesReportRows(data.orders);
-  });
-
-  protected readonly salesEmpty = computed(
-    () => !this.loading() && !this.error() && this.salesRows().length === 0,
-  );
-
   protected readonly stockValueLabel = computed(() =>
     formatMoney(
       eurMoney(this.locationRows().reduce((sum, row) => sum + row.stockValue.amountMinor, 0)),
@@ -235,14 +198,6 @@ export class ReportsComponent {
   protected readonly lowStockLabel = computed(() =>
     String(this.locationRows().reduce((sum, row) => sum + row.lowStockCount, 0)),
   );
-
-  protected readonly revenueLabel = computed(() =>
-    formatMoney(eurMoney(this.salesSummary().revenueMinor)),
-  );
-
-  protected readonly orderCountLabel = computed(() => String(this.salesSummary().orderCount));
-
-  protected readonly unitsSoldLabel = computed(() => String(this.salesSummary().unitsSold));
 
   protected onPeriodChange(period: ReportPeriodPreset): void {
     this.uiPeriod.set(period);
@@ -264,21 +219,6 @@ export class ReportsComponent {
 
   protected onCorrispettiviChannelChange(value: string): void {
     this.updateParams({ corrChannel: value || null });
-  }
-
-  protected onSourceChange(value: string): void {
-    this.updateParams({ source: value || null });
-  }
-
-  protected onFinancialStatusChange(value: string): void {
-    this.updateParams({ financialStatus: value || null });
-  }
-
-  protected resetFilters(): void {
-    this.updateParams({
-      source: null,
-      financialStatus: null,
-    });
   }
 
   protected reload(): void {

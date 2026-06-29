@@ -7,7 +7,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 
 import { ReportPeriodPreset } from '../../models/report-list-query.model';
 
-/** Card export corrispettivi con filtri periodo e tipologia (dumb). */
+/** Card export corrispettivi con filtri periodo e tipologia opzionale (dumb). */
 @Component({
   selector: 'app-report-corrispettivi-export',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -16,12 +16,19 @@ import { ReportPeriodPreset } from '../../models/report-list-query.model';
   styleUrl: './report-corrispettivi-export.component.scss',
 })
 export class ReportCorrispettiviExportComponent {
+  readonly title = input('Export corrispettivi');
+  readonly subtitle = input(
+    'Elenco vendite e storni per il commercialista, filtrato per periodo e canale di vendita.',
+  );
+  readonly exportButtonLabel = input('Esporta corrispettivi');
+  readonly showChannelFilter = input(true);
+
   readonly period = input.required<ReportPeriodPreset>();
   readonly dateFrom = input<string>('');
   readonly dateTo = input<string>('');
-  readonly channel = input.required<string>();
-  readonly channelOptions = input.required<readonly SelectMenuOption[]>();
-  readonly channelHint = input.required<string>();
+  readonly channel = input<string>('');
+  readonly channelOptions = input<readonly SelectMenuOption[]>([]);
+  readonly channelHint = input<string>('');
   readonly periodLabel = input.required<string>();
   readonly exporting = input<boolean>(false);
 

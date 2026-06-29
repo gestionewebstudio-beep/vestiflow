@@ -12,9 +12,8 @@ test.describe('Report', () => {
     await waitForReportsReady(page);
 
     await expect(page.getByText('Valore magazzino', { exact: true })).toBeVisible();
-    await expect(page.getByText('Fatturato', { exact: true })).toBeVisible();
     await expect(page.getByText('Giacenze per location', { exact: true })).toBeVisible();
-    await expect(page.getByText('Vendite per stato pagamento', { exact: true })).toBeVisible();
+    await expect(page.getByText('Export corrispettivi', { exact: true })).toBeVisible();
   });
 
   test('mostra tabelle report o skeleton durante il caricamento', async ({ page }) => {

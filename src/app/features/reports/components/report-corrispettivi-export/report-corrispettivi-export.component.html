@@ -1,9 +1,7 @@
-<section class="corrispettivi-export" aria-labelledby="report-corrispettivi">
+<section class="corrispettivi-export" aria-labelledby="corrispettivi-export-title">
   <div class="corrispettivi-export__head">
-    <h2 id="report-corrispettivi" class="corrispettivi-export__title">Export corrispettivi</h2>
-    <p class="corrispettivi-export__subtitle">
-      Elenco vendite e storni per il commercialista, filtrato per periodo e canale di vendita.
-    </p>
+    <h2 id="corrispettivi-export-title" class="corrispettivi-export__title">{{ title() }}</h2>
+    <p class="corrispettivi-export__subtitle">{{ subtitle() }}</p>
   </div>
 
   <div class="corrispettivi-export__toolbar">
@@ -52,25 +50,27 @@
         </div>
       }
 
-      <div class="corrispettivi-export__field corrispettivi-export__field--channel">
-        <span class="corrispettivi-export__label">Tipologia</span>
-        <app-select-menu
-          [options]="channelOptions()"
-          [value]="channel()"
-          ariaLabel="Tipologia vendita per export corrispettivi"
-          placeholder="Seleziona tipologia"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="false"
-          (valueChange)="onChannelChange($event)"
-        />
-      </div>
+      @if (showChannelFilter()) {
+        <div class="corrispettivi-export__field corrispettivi-export__field--channel">
+          <span class="corrispettivi-export__label">Tipologia</span>
+          <app-select-menu
+            [options]="channelOptions()"
+            [value]="channel()"
+            ariaLabel="Tipologia vendita per export corrispettivi"
+            placeholder="Seleziona tipologia"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onChannelChange($event)"
+          />
+        </div>
+      }
     </div>
 
     <div class="corrispettivi-export__action">
       <app-button [loading]="exporting()" [disabled]="exporting()" (click)="exportClick.emit()">
         <i class="pi pi-download" aria-hidden="true"></i>
-        Esporta corrispettivi
+        {{ exportButtonLabel() }}
       </app-button>
     </div>
   </div>
@@ -79,5 +79,7 @@
     Periodo selezionato: <strong>{{ periodLabel() }}</strong>
   </p>
 
-  <p class="corrispettivi-export__hint">{{ channelHint() }}</p>
+  @if (channelHint()) {
+    <p class="corrispettivi-export__hint">{{ channelHint() }}</p>
+  }
 </section>

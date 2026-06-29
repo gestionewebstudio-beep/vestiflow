@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, map, of, skip, startWith, switchMap } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
@@ -23,7 +23,7 @@ import type { Location } from '@core/models/location.model';
 import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 import { AdjustmentDirection } from '@core/models/stock-movement.model';
-import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import { showSalesOrderHistory } from '@core/models/tenant-channel-profile.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -71,6 +71,7 @@ const EMPTY_META: PageMeta = {
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
+    RouterLink,
     TableSkeletonComponent,
     SelectMenuComponent,
     DateInputComponent,
@@ -102,28 +103,44 @@ export class StockMovementsComponent {
   ];
 
   /**
-   * Canale (origine movimento) per il filtro di consultazione del registro.
-   * Le opzioni del canale ecommerce dipendono dal profilo del tenant:
-   * solo Shopify per i tenant Shopify, solo TikTok per i tenant TikTok.
+   * Origine del movimento nel registro di magazzino.
+   * Solo le registrazioni manuali nel gestionale: le vendite commerciali Shopify/TikTok
+   * stanno in «Vendite Shopify» (ordini), non qui.
    */
-  protected readonly originOptions = computed((): readonly SelectMenuOption[] => {
-    const options: SelectMenuOption[] = [
-      { value: MovementOrigin.VestiflowPos, label: 'Negozio fisico' },
-    ];
+  protected readonly originOptions = computed((): readonly SelectMenuOption[] => [
+    { value: MovementOrigin.VestiflowPos, label: 'Negozio fisico' },
+    { value: MovementOrigin.VestiflowOnline, label: 'Vendita online esterna' },
+  ]);
 
-    const profile = this.authService.currentUser()?.tenantChannelProfile;
-    if (profile === TenantChannelProfile.Shopify) {
-      options.push({ value: MovementOrigin.Shopify, label: 'Shopify' });
-    } else if (profile === TenantChannelProfile.TikTokShop) {
-      options.push({ value: MovementOrigin.Tiktok, label: 'TikTok Shop' });
+  protected readonly showSalesHistoryHint = computed(() =>
+    showSalesOrderHistory(this.authService.currentUser()?.tenantChannelProfile),
+  );
+
+  protected readonly salesHistoryRoute = '/app/sales';
+
+  protected readonly emptyStateTitle = computed(() => {
+    if (this.isSaleTypeFilter() && this.showSalesHistoryHint()) {
+      return 'Nessun movimento di magazzino';
     }
+    return 'Nessun movimento';
+  });
 
-    options.push({
-      value: MovementOrigin.VestiflowOnline,
-      label: 'Vendita online esterna',
-    });
+  protected readonly emptyStateDescription = computed(() => {
+    if (this.isSaleTypeFilter() && this.showSalesHistoryHint()) {
+      return (
+        'Le vendite commerciali Shopify (ordini, clienti, importi) sono nella sezione ' +
+        '«Vendite Shopify». Qui compaiono solo scarichi e carichi di magazzino: vendite al ' +
+        'banco, online esterne e eventuali rettifiche da sync inventario.'
+      );
+    }
+    return 'Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento.';
+  });
 
-    return options;
+  protected readonly emptyStateCtaLabel = computed(() => {
+    if (this.isSaleTypeFilter() && this.showSalesHistoryHint()) {
+      return 'Vai a Vendite Shopify';
+    }
+    return this.canManageInventory() ? 'Registra movimento' : undefined;
   });
 
   private readonly refreshTick = signal(0);
@@ -331,6 +348,20 @@ export class StockMovementsComponent {
 
   protected newMovement(): void {
     void this.router.navigateByUrl('/app/inventory/movements/new');
+  }
+
+  protected onEmptyStateAction(): void {
+    if (this.isSaleTypeFilter() && this.showSalesHistoryHint()) {
+      void this.router.navigateByUrl(this.salesHistoryRoute);
+      return;
+    }
+    this.newMovement();
+  }
+
+  private isSaleTypeFilter(): boolean {
+    return (
+      this.typeFilter() === StockMovementType.Sale || this.typeFilter() === StockMovementType.Return
+    );
   }
 
   /** '+' per ingressi, '−' per uscite, nuda per i trasferimenti (neutri). */

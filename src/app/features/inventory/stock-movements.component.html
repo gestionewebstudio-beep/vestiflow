@@ -28,11 +28,11 @@
     </div>
 
     <div class="stock-movements__field stock-movements__field--select">
-      <span class="stock-movements__label">Canale</span>
+      <span class="stock-movements__label">Origine</span>
       <app-select-menu
         [options]="originOptions()"
         [value]="originFilter()"
-        ariaLabel="Filtra per canale"
+        ariaLabel="Filtra per origine movimento"
         placeholder="Tutti"
         [compact]="true"
         [fullWidth]="true"
@@ -89,17 +89,25 @@
     </div>
   </div>
 
+  @if (showSalesHistoryHint()) {
+    <p class="stock-movements__hint">
+      Le vendite commerciali Shopify (ordini, importi, clienti) sono in
+      <a class="stock-movements__hint-link" routerLink="/app/sales">Vendite Shopify</a>. Qui vedi
+      solo i movimenti di magazzino (scarichi, carichi, rettifiche).
+    </p>
+  }
+
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (isEmpty()) {
     <app-empty-state
-      title="Nessun movimento"
-      description="Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento."
+      [title]="emptyStateTitle()"
+      [description]="emptyStateDescription()"
       icon="pi-arrow-right-arrow-left"
-      [ctaLabel]="canManageInventory() ? 'Registra movimento' : undefined"
-      (ctaClick)="newMovement()"
+      [ctaLabel]="emptyStateCtaLabel()"
+      (ctaClick)="onEmptyStateAction()"
     />
   } @else {
     <app-movement-table [rows]="rows()" />

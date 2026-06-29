@@ -1,7 +1,6 @@
 import type { ParamMap } from '@angular/router';
 
 import { MovementOrigin } from '@core/models/stock-movement.model';
-import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 /**
@@ -40,26 +39,15 @@ export function parseCorrispettiviChannel(params: ParamMap): CorrispettiviChanne
     : DEFAULT_CORRISPETTIVI_CHANNEL;
 }
 
-/** Opzioni tipologia per la select, adattate al profilo tenant. */
-export function corrispettiviChannelOptions(
-  profile: TenantChannelProfile | undefined,
-): readonly SelectMenuOption[] {
-  const options: SelectMenuOption[] = [
+/** Opzioni tipologia per la select in Report (registrazioni manuali nel gestionale). */
+export function corrispettiviChannelOptions(): readonly SelectMenuOption[] {
+  return [
     { value: CorrispettiviChannel.Pos, label: 'Negozio fisico' },
+    {
+      value: CorrispettiviChannel.ExternalOnline,
+      label: 'Vendita online esterna',
+    },
   ];
-
-  if (profile === TenantChannelProfile.Shopify) {
-    options.push({ value: CorrispettiviChannel.Shopify, label: 'Shopify' });
-  } else if (profile === TenantChannelProfile.TikTokShop) {
-    options.push({ value: CorrispettiviChannel.Tiktok, label: 'TikTok Shop' });
-  }
-
-  options.push({
-    value: CorrispettiviChannel.ExternalOnline,
-    label: 'Vendita online esterna',
-  });
-
-  return options;
 }
 
 export function resolveCorrispettiviExport(

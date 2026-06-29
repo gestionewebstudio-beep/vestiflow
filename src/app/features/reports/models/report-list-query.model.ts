@@ -156,3 +156,20 @@ export function toSalesOrderListFilters(
     financialStatus: query.financialStatus,
   };
 }
+
+/** Periodo corrispettivi su route vendite (`corrPeriod`, `corrFrom`, `corrTo`). */
+export function parseSalesCorrispettiviPeriodQuery(params: ParamMap): ReportListQuery {
+  const periodParam = params.get('corrPeriod') ?? DEFAULT_REPORT_PERIOD;
+  const period = PERIOD_VALUES.has(periodParam)
+    ? (periodParam as ReportPeriodPreset)
+    : DEFAULT_REPORT_PERIOD;
+
+  const dateFrom = params.get('corrFrom')?.trim();
+  const dateTo = params.get('corrTo')?.trim();
+
+  return {
+    period,
+    dateFrom: dateFrom && ISO_DATE.test(dateFrom) ? dateFrom : undefined,
+    dateTo: dateTo && ISO_DATE.test(dateTo) ? dateTo : undefined,
+  };
+}
