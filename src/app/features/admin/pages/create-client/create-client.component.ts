@@ -228,6 +228,9 @@ export class CreateClientComponent {
   protected onSubmit(): void {
     this.form.markAllAsTouched();
     if (this.form.invalid || this.submitLoading()) {
+      if (this.form.invalid) {
+        this.submitError.set('Controlla i campi evidenziati in rosso.');
+      }
       return;
     }
 
