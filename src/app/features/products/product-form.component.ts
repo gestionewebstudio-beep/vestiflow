@@ -42,10 +42,12 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { ProductGeneralStepComponent } from './components/product-general-step/product-general-step.component';
 import { ProductImagesFieldComponent } from './components/product-images-field/product-images-field.component';
 import { ProductOptionsStepComponent } from './components/product-options-step/product-options-step.component';
+import { ProductQuickVariantFieldsComponent } from './components/product-quick-variant-fields/product-quick-variant-fields.component';
 import { ProductReviewStepComponent } from './components/product-review-step/product-review-step.component';
 import { ProductVariantsStepComponent } from './components/product-variants-step/product-variants-step.component';
 import {
   emptyProductFormDraft,
+  ensureQuickModeDraft,
   generateVariantDrafts,
   productToFormDraft,
   toCreateProductDto,
@@ -93,6 +95,10 @@ const WIZARD_STEPS: readonly WizardStep[] = [
   { id: 'review', label: 'Riepilogo' },
 ];
 
+const QUICK_WIZARD_STEPS: readonly WizardStep[] = [{ id: 'general', label: 'Dati essenziali' }];
+
+type ProductCreationMode = 'quick' | 'full';
+
 type FormLoadState =
   | { readonly status: 'loading' }
   | { readonly status: 'ready' }
@@ -116,6 +122,7 @@ type FormLoadState =
     ProductGeneralStepComponent,
     ProductImagesFieldComponent,
     ProductOptionsStepComponent,
+    ProductQuickVariantFieldsComponent,
     ProductVariantsStepComponent,
     ProductReviewStepComponent,
     ConfirmDialogComponent,
@@ -132,7 +139,18 @@ export class ProductFormComponent implements CanComponentDeactivate {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly listPath = PRODUCTS_LIST_PATH;
-  protected readonly steps = WIZARD_STEPS;
+
+  /** In creazione: rapido (1 SKU) o wizard completo con opzioni. */
+  protected readonly creationMode = signal<ProductCreationMode>('quick');
+  private readonly skuManuallyEdited = signal(false);
+  private readonly quickVariantStepValid = signal(false);
+
+  protected readonly steps = computed(() => {
+    if (this.mode() === 'create' && this.creationMode() === 'quick') {
+      return QUICK_WIZARD_STEPS;
+    }
+    return WIZARD_STEPS;
+  });
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   private readonly productId = computed(() => this.paramMap().get('id'));
@@ -181,7 +199,9 @@ export class ProductFormComponent implements CanComponentDeactivate {
       switchMap(({ id }) => {
         if (!id) {
           this.catalogOrigin.set(CatalogOrigin.VestiFlow);
-          this.resetDraft(emptyProductFormDraft());
+          this.creationMode.set('quick');
+          this.skuManuallyEdited.set(false);
+          this.resetDraft(ensureQuickModeDraft(emptyProductFormDraft()));
           return of<FormLoadState>({ status: 'ready' });
         }
         return forkJoin({
@@ -294,27 +314,29 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   private readonly _currentStep = signal(0);
   protected readonly currentStep = this._currentStep.asReadonly();
-  protected readonly currentStepId = computed(() => this.steps[this._currentStep()]?.id);
+  protected readonly currentStepId = computed(() => this.steps()[this._currentStep()]?.id);
   protected readonly isFirstStep = computed(() => this._currentStep() === 0);
-  protected readonly isLastStep = computed(() => this._currentStep() === this.steps.length - 1);
+  protected readonly isLastStep = computed(() => this._currentStep() === this.steps().length - 1);
+  protected readonly quickVariant = computed(() => this.draft().variants[0] ?? null);
 
-  // Validità "Dati generali": tutti i campi obbligatori valorizzati (trim).
-  // Gli step 8.5-8.7 aggiungeranno le proprie regole nella catena di gating.
+  // Validità "Dati generali": solo il nome è obbligatorio (brand/categoria completabili dopo).
   private readonly generalValid = computed(() => {
     if (this.shopifyCatalogLocked()) {
       return true;
     }
-    const { name, brand, category, shopifyTaxonomyCategoryId } = this.draft().general;
-    const base = name.trim() !== '' && brand.trim() !== '';
-    if (this.shopifyConnected()) {
-      return base && shopifyTaxonomyCategoryId.trim() !== '';
-    }
-    return base && category.trim() !== '';
+    return this.draft().general.name.trim() !== '';
   });
+
+  protected readonly isQuickCreate = computed(
+    () => this.mode() === 'create' && this.creationMode() === 'quick',
+  );
 
   // Step "Opzioni" valido se: c'è almeno una combinazione generata e i nomi degli
   // assi sono validi (non vuoti) e univoci (es. il 3° asse non duplica Taglia/Colore).
   private readonly optionsValid = computed(() => {
+    if (this.isQuickCreate()) {
+      return true;
+    }
     if (this.shopifyCatalogLocked()) {
       return true;
     }
@@ -325,7 +347,14 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (names.some((name) => !isValidAxisName(name))) {
       return false;
     }
-    return findDuplicateAxisNames(names).length === 0;
+    if (findDuplicateAxisNames(names).length > 0) {
+      return false;
+    }
+    const hasOptionValues = this.draft().options.axes.some((axis) => axis.values.length > 0);
+    if (!hasOptionValues) {
+      return this.draft().variants.length === 1;
+    }
+    return true;
   });
 
   // Step "Varianti" valido: regole pure su ogni variante + nessun duplicato
@@ -370,6 +399,9 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   /** Lo step corrente è valido e consente l'avanzamento. */
   protected readonly canAdvance = computed(() => {
+    if (this.isQuickCreate()) {
+      return false;
+    }
     switch (this.currentStepId()) {
       case 'general':
         return this.generalValid();
@@ -383,7 +415,42 @@ export class ProductFormComponent implements CanComponentDeactivate {
   });
 
   protected onGeneralChange(value: ProductGeneralDraft): void {
-    this.draft.update((draft) => ({ ...draft, general: value }));
+    this.draft.update((draft) => {
+      const nextGeneral = value;
+      let next = { ...draft, general: nextGeneral };
+      if (this.isQuickCreate() && !this.skuManuallyEdited()) {
+        next = ensureQuickModeDraft(next, false);
+      }
+      return next;
+    });
+  }
+
+  protected onQuickVariantChange(variant: VariantDraft): void {
+    this.draft.update((draft) => ({ ...draft, variants: [variant] }));
+  }
+
+  protected onQuickSkuEdited(): void {
+    this.skuManuallyEdited.set(true);
+  }
+
+  protected onQuickVariantValidChange(valid: boolean): void {
+    this.quickVariantStepValid.set(valid);
+  }
+
+  protected setCreationMode(mode: ProductCreationMode): void {
+    if (this.mode() !== 'create' || this.creationMode() === mode) {
+      return;
+    }
+    this.creationMode.set(mode);
+    this._currentStep.set(0);
+    if (mode === 'quick') {
+      this.skuManuallyEdited.set(false);
+      this.draft.update((draft) => ensureQuickModeDraft(draft, false));
+    }
+  }
+
+  protected switchToFullWizard(): void {
+    this.setCreationMode('full');
   }
 
   protected onPendingImagesChange(files: readonly File[]): void {
@@ -433,9 +500,22 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   // L'intero draft è valido: ogni step gating soddisfatto. Indipendente dallo
   // step corrente, così il bottone Salva non dipende da dove ci si trova.
-  protected readonly canSubmit = computed(
-    () => !this.submitting() && this.generalValid() && this.optionsValid() && this.variantsValid(),
-  );
+  protected readonly canSubmit = computed(() => {
+    if (this.submitting()) {
+      return false;
+    }
+    if (this.isQuickCreate()) {
+      return this.generalValid() && this.quickVariantStepValid();
+    }
+    return this.generalValid() && this.optionsValid() && this.variantsValid();
+  });
+
+  protected readonly showSubmitOnCurrentStep = computed(() => {
+    if (this.isLastStep()) {
+      return true;
+    }
+    return this.isQuickCreate() && this.isFirstStep();
+  });
 
   protected onSubmit(): void {
     if (!this.canSubmit()) {

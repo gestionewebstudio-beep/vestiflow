@@ -1,0 +1,80 @@
+<form class="quick-variant" [formGroup]="form" novalidate>
+  <p class="quick-variant__intro">
+    Prodotto con una sola variante. Lo SKU si aggiorna dal nome finché non lo modifichi manualmente.
+  </p>
+
+  <div class="quick-variant__grid">
+    <div class="quick-variant__field">
+      <label class="quick-variant__label" for="quick-variant-sku">SKU</label>
+      <input
+        id="quick-variant-sku"
+        class="quick-variant__control"
+        type="text"
+        formControlName="sku"
+        autocomplete="off"
+        [attr.aria-invalid]="showSkuError() || isSkuTaken(form.controls.sku.value) ? true : null"
+        (input)="onSkuInput()"
+      />
+      @if (showSkuError()) {
+        <p class="quick-variant__error" role="alert">
+          @if (form.controls.sku.hasError('required')) {
+            Inserisci uno SKU.
+          } @else {
+            Formato non valido (lettere, numeri e trattini).
+          }
+        </p>
+      } @else if (isSkuTaken(form.controls.sku.value)) {
+        <p class="quick-variant__error" role="alert">SKU già in uso da un altro prodotto.</p>
+      }
+    </div>
+
+    <div class="quick-variant__field">
+      <label class="quick-variant__label" for="quick-variant-ean">
+        EAN <span class="quick-variant__optional">(opzionale)</span>
+      </label>
+      <div class="quick-variant__barcode">
+        <input
+          id="quick-variant-ean"
+          class="quick-variant__control quick-variant__control--barcode"
+          type="text"
+          formControlName="barcode"
+          autocomplete="off"
+          inputmode="numeric"
+          [attr.aria-invalid]="
+            showBarcodeSameAsSku() || isBarcodeTaken(form.controls.barcode.value) ? true : null
+          "
+        />
+        <app-button
+          type="button"
+          variant="secondary"
+          [attr.aria-label]="'Genera codice EAN-13'"
+          (click)="generateBarcode()"
+        >
+          Genera
+        </app-button>
+      </div>
+      @if (showBarcodeSameAsSku()) {
+        <p class="quick-variant__error" role="alert">L'EAN deve essere diverso dallo SKU.</p>
+      } @else if (isBarcodeTaken(form.controls.barcode.value)) {
+        <p class="quick-variant__error" role="alert">EAN già in uso da un'altra variante.</p>
+      }
+    </div>
+
+    <div class="quick-variant__field">
+      <label class="quick-variant__label" for="quick-variant-price">Prezzo vendita</label>
+      <input
+        id="quick-variant-price"
+        class="quick-variant__control quick-variant__control--numeric"
+        type="number"
+        inputmode="decimal"
+        min="0"
+        step="0.01"
+        formControlName="sellingPrice"
+        [attr.aria-invalid]="showPriceError() ? true : null"
+      />
+      @if (showPriceError()) {
+        <p class="quick-variant__error" role="alert">Inserisci un prezzo valido (≥ 0).</p>
+      }
+    </div>
+  </div>
+</form>

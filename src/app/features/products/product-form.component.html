@@ -25,8 +25,39 @@
       </p>
     }
 
+    @if (mode() === 'create') {
+      <div class="product-form__mode" role="radiogroup" aria-label="Modalità inserimento prodotto">
+        <button
+          type="button"
+          class="product-form__mode-btn"
+          [class.product-form__mode-btn--active]="creationMode() === 'quick'"
+          [attr.aria-checked]="creationMode() === 'quick'"
+          role="radio"
+          (click)="setCreationMode('quick')"
+        >
+          Inserimento rapido
+        </button>
+        <button
+          type="button"
+          class="product-form__mode-btn"
+          [class.product-form__mode-btn--active]="creationMode() === 'full'"
+          [attr.aria-checked]="creationMode() === 'full'"
+          role="radio"
+          (click)="setCreationMode('full')"
+        >
+          Con varianti
+        </button>
+      </div>
+      @if (creationMode() === 'quick') {
+        <p class="product-form__mode-hint">
+          Nome, SKU e prezzo vendita bastano per creare il prodotto. Brand, categoria e altri
+          dettagli restano disponibili e li puoi completare in seguito.
+        </p>
+      }
+    }
+
     <ol class="product-form__steps">
-      @for (step of steps; track step.id; let i = $index) {
+      @for (step of steps(); track step.id; let i = $index) {
         <li class="product-form__step">
           <button
             type="button"
@@ -51,8 +82,20 @@
             [categories]="categories()"
             [shopifyConnected]="shopifyConnected()"
             [catalogReadOnly]="shopifyCatalogLocked()"
+            [compactLayout]="mode() === 'create'"
             (valueChange)="onGeneralChange($event)"
           />
+          @if (isQuickCreate() && quickVariant(); as variant) {
+            <app-product-quick-variant-fields
+              [variant]="variant"
+              [takenSkus]="takenSkus()"
+              [takenBarcodes]="takenBarcodes()"
+              [disabled]="submitting()"
+              (variantChange)="onQuickVariantChange($event)"
+              (skuEdited)="onQuickSkuEdited()"
+              (validChange)="onQuickVariantValidChange($event)"
+            />
+          }
           @if (!shopifyCatalogLocked()) {
             <app-product-images-field
               [existingImages]="existingImages()"
@@ -103,11 +146,13 @@
     <footer class="product-form__footer">
       <app-button variant="secondary" (click)="cancel()">Annulla</app-button>
       <div class="product-form__nav">
-        <app-button variant="secondary" [disabled]="isFirstStep()" (click)="prev()">
-          <i class="pi pi-chevron-left" aria-hidden="true"></i>
-          Indietro
-        </app-button>
-        @if (isLastStep()) {
+        @if (!isQuickCreate()) {
+          <app-button variant="secondary" [disabled]="isFirstStep()" (click)="prev()">
+            <i class="pi pi-chevron-left" aria-hidden="true"></i>
+            Indietro
+          </app-button>
+        }
+        @if (showSubmitOnCurrentStep()) {
           <app-button [disabled]="!canSubmit()" (click)="onSubmit()">
             {{
               submitting()
@@ -121,6 +166,11 @@
           <app-button [disabled]="!canAdvance()" (click)="next()">
             Avanti
             <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          </app-button>
+        }
+        @if (isQuickCreate() && isFirstStep()) {
+          <app-button variant="secondary" type="button" (click)="switchToFullWizard()">
+            Configura taglia/colore…
           </app-button>
         }
       </div>

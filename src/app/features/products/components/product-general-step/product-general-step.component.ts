@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -38,7 +39,7 @@ import { ShopifyCategoryAttributesComponent } from '../shopify-category-attribut
 import type { ShopifyTaxonomySelection } from '../shopify-taxonomy-picker/shopify-taxonomy-picker.component';
 import { ShopifyTaxonomyPickerComponent } from '../shopify-taxonomy-picker/shopify-taxonomy-picker.component';
 
-type RequiredField = 'name' | 'brand' | 'category';
+type RequiredField = 'name';
 
 interface StatusOption {
   readonly value: ProductStatus;
@@ -58,6 +59,7 @@ const CUSTOM_OPTION_VALUE = '__custom__';
   selector: 'app-product-general-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    NgTemplateOutlet,
     ReactiveFormsModule,
     SelectMenuComponent,
     ShopifyTaxonomyPickerComponent,
@@ -76,6 +78,8 @@ export class ProductGeneralStepComponent implements OnInit {
   readonly categories = input<readonly string[]>([]);
   readonly shopifyConnected = input(false);
   readonly catalogReadOnly = input(false);
+  /** In creazione: campi secondari in sezione collassabile. */
+  readonly compactLayout = input(false);
 
   protected readonly statusSelectOptions: readonly SelectMenuOption[] = STATUS_OPTIONS.map(
     (option) => ({
@@ -136,7 +140,7 @@ export class ProductGeneralStepComponent implements OnInit {
 
   protected readonly form = this.fb.group({
     name: this.fb.control('', [Validators.required]),
-    brand: this.fb.control('', [Validators.required]),
+    brand: this.fb.control(''),
     category: this.fb.control(''),
     shopifyTaxonomyCategoryId: this.fb.control(''),
     shopifyTaxonomyCategoryFullName: this.fb.control(''),
@@ -161,16 +165,6 @@ export class ProductGeneralStepComponent implements OnInit {
       } else {
         this.form.enable({ emitEvent: false });
       }
-    });
-
-    effect(() => {
-      const control = this.form.controls.category;
-      if (this.shopifyConnected()) {
-        control.clearValidators();
-      } else {
-        control.setValidators([Validators.required]);
-      }
-      control.updateValueAndValidity({ emitEvent: false });
     });
   }
 

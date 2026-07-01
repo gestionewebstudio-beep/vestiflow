@@ -1072,13 +1072,64 @@ ol {
 <h3 id="creare-un-prodotto">Creare un prodotto</h3>
 <ol>
 <li><strong>Prodotti → Aggiungi prodotto</strong></li>
-<li><strong>Dati generali</strong> — nome, brand, categoria, immagini…</li>
-<li><strong>Opzioni</strong> — due assi predefiniti (nomi «Taglia» e «Colore», comuni su Shopify) più un terzo opzionale personalizzabile; i <strong>valori</strong> si adattano al tuo settore. VestiFlow genera le combinazioni</li>
-<li><strong>Varianti</strong> — SKU, prezzi, barcode per ogni combinazione</li>
+</ol>
+<p>All’apertura compare la modalità <strong>Inserimento rapido</strong> (consigliata per aggiungere velocemente un articolo). Puoi passare a <strong>Con varianti</strong> in qualsiasi momento, o tornare al rapido con il toggle in alto.</p>
+<h4 id="inserimento-rapido-predefinito">Inserimento rapido (predefinito)</h4>
+<p>Su <strong>un’unica schermata</strong> compili:</p>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Obbligatorio</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Nome prodotto</strong></td>
+<td>Sì</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>SKU</strong></td>
+<td>Sì</td>
+<td>Suggerito automaticamente dal nome (modificabile)</td>
+</tr>
+<tr>
+<td><strong>EAN</strong></td>
+<td>No</td>
+<td>Opzionale; pulsante <strong>Genera</strong> per codice EAN-13</td>
+</tr>
+<tr>
+<td><strong>Prezzo vendita</strong></td>
+<td>Sì</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Brand</strong></td>
+<td>No</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Categoria</strong></td>
+<td>No</td>
+<td>Completabile anche dopo</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>Altri dati catalogo</strong> (sezione espandibile): stagione, stato, IVA, unità di misura, tag, descrizione, immagini…</li>
+<li>Pulsante <strong>Crea prodotto</strong> in fondo — <strong>non</strong> serve completare brand, categoria o opzioni taglia/colore.</li>
+</ul>
+<p>Per un prodotto con <strong>taglia, colore o altre opzioni</strong>, clic <strong>Configura taglia/colore…</strong> (o il toggle <strong>Con varianti</strong>).</p>
+<h4 id="con-varianti-wizard-completo">Con varianti (wizard completo)</h4>
+<ol>
+<li><strong>Dati essenziali</strong> — nome, brand e categoria (opzionali), immagini; sezione <strong>Altri dati catalogo</strong> per il resto</li>
+<li><strong>Opzioni</strong> — assi predefiniti «Taglia» e «Colore» più un terzo opzionale; i valori generano le combinazioni. Se il prodotto ha <strong>un solo SKU</strong>, puoi <strong>saltare</strong> questo passo e andare avanti</li>
+<li><strong>Varianti</strong> — SKU, prezzi, EAN/barcode per ogni combinazione (pulsante <strong>Genera</strong> sul barcode)</li>
 <li><strong>Riepilogo</strong> → <strong>Crea prodotto</strong></li>
 </ol>
+<p><strong>Modifica prodotto:</strong> il wizard completo resta disponibile; i campi obbligatori restano essenziali (nome + dati varianti).</p>
 <h4 id="categoria-shopify-e-attributi-categoria-profilo-shopify">Categoria Shopify e attributi categoria (profilo Shopify)</h4>
-<p>Se il negozio ha <strong>Shopify connesso</strong>, nello step <strong>Dati generali</strong> compare il picker <strong>Categoria prodotto Shopify</strong> (tassonomia ufficiale Shopify, come in Shopify Admin).</p>
+<p>Se il negozio ha <strong>Shopify connesso</strong>, compare il picker <strong>Categoria prodotto Shopify</strong> (tassonomia ufficiale Shopify, come in Shopify Admin). In <strong>inserimento rapido</strong> è <strong>consigliata</strong> per la sync ma <strong>non obbligatoria</strong> — puoi completarla anche dopo la creazione.</p>
 <p>Dopo aver scelto la categoria, compare la sezione <strong>Attributi categoria</strong>: metafield collegati a quella categoria Shopify (es. materiale, fascia d&#39;età, ingredienti — dipendono dalla categoria scelta). Servono per Shopify e Google; <strong>non</strong> creano varianti SKU — opzioni e combinazioni SKU restano nello step <strong>Opzioni</strong>.</p>
 <table>
 <thead>
@@ -1814,7 +1865,7 @@ ol {
 <li>Prova a cercare manualmente lo <strong>SKU</strong> in <strong>Cerca giacenza</strong>.</li>
 </ul>
 <h3 id="upload-immagine-prodotto-fallito">Upload immagine prodotto fallito</h3>
-<p>Usa JPEG, PNG o WebP, max 5 MB. Riprova dopo qualche minuto se il servizio era in manutenzione.</p>
+<p>Carica JPEG, PNG o WebP (max 5 MB). VestiFlow <strong>ottimizza automaticamente</strong> le immagini in WebP sul server. Riprova dopo qualche minuto se il servizio era in manutenzione.</p>
 <h3 id="ho-più-sedi-le-vedo-tutte">Ho più sedi: le vedo tutte?</h3>
 <p>Dipende dal <strong>piano</strong> e dalla <strong>selezione attiva</strong>:</p>
 <ol>

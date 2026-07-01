@@ -467,14 +467,39 @@ I prodotti **Fonte: Shopify** si allineano automaticamente da Shopify Admin: non
 ### Creare un prodotto
 
 1. **Prodotti → Aggiungi prodotto**
-2. **Dati generali** — nome, brand, categoria, immagini…
-3. **Opzioni** — due assi predefiniti (nomi «Taglia» e «Colore», comuni su Shopify) più un terzo opzionale personalizzabile; i **valori** si adattano al tuo settore. VestiFlow genera le combinazioni
-4. **Varianti** — SKU, prezzi, barcode per ogni combinazione
-5. **Riepilogo** → **Crea prodotto**
+
+All’apertura compare la modalità **Inserimento rapido** (consigliata per aggiungere velocemente un articolo). Puoi passare a **Con varianti** in qualsiasi momento, o tornare al rapido con il toggle in alto.
+
+#### Inserimento rapido (predefinito)
+
+Su **un’unica schermata** compili:
+
+| Campo              | Obbligatorio | Note                                              |
+| ------------------ | ------------ | ------------------------------------------------- |
+| **Nome prodotto**  | Sì           |                                                   |
+| **SKU**            | Sì           | Suggerito automaticamente dal nome (modificabile) |
+| **EAN**            | No           | Opzionale; pulsante **Genera** per codice EAN-13  |
+| **Prezzo vendita** | Sì           |                                                   |
+| **Brand**          | No           |                                                   |
+| **Categoria**      | No           | Completabile anche dopo                           |
+
+- **Altri dati catalogo** (sezione espandibile): stagione, stato, IVA, unità di misura, tag, descrizione, immagini…
+- Pulsante **Crea prodotto** in fondo — **non** serve completare brand, categoria o opzioni taglia/colore.
+
+Per un prodotto con **taglia, colore o altre opzioni**, clic **Configura taglia/colore…** (o il toggle **Con varianti**).
+
+#### Con varianti (wizard completo)
+
+1. **Dati essenziali** — nome, brand e categoria (opzionali), immagini; sezione **Altri dati catalogo** per il resto
+2. **Opzioni** — assi predefiniti «Taglia» e «Colore» più un terzo opzionale; i valori generano le combinazioni. Se il prodotto ha **un solo SKU**, puoi **saltare** questo passo e andare avanti
+3. **Varianti** — SKU, prezzi, EAN/barcode per ogni combinazione (pulsante **Genera** sul barcode)
+4. **Riepilogo** → **Crea prodotto**
+
+**Modifica prodotto:** il wizard completo resta disponibile; i campi obbligatori restano essenziali (nome + dati varianti).
 
 #### Categoria Shopify e attributi categoria (profilo Shopify)
 
-Se il negozio ha **Shopify connesso**, nello step **Dati generali** compare il picker **Categoria prodotto Shopify** (tassonomia ufficiale Shopify, come in Shopify Admin).
+Se il negozio ha **Shopify connesso**, compare il picker **Categoria prodotto Shopify** (tassonomia ufficiale Shopify, come in Shopify Admin). In **inserimento rapido** è **consigliata** per la sync ma **non obbligatoria** — puoi completarla anche dopo la creazione.
 
 Dopo aver scelto la categoria, compare la sezione **Attributi categoria**: metafield collegati a quella categoria Shopify (es. materiale, fascia d'età, ingredienti — dipendono dalla categoria scelta). Servono per Shopify e Google; **non** creano varianti SKU — opzioni e combinazioni SKU restano nello step **Opzioni**.
 
@@ -1006,7 +1031,7 @@ Usa **Registra storno** con lo stesso barcode per reingressare 1 pezzo, oppure c
 
 ### Upload immagine prodotto fallito
 
-Usa JPEG, PNG o WebP, max 5 MB. Riprova dopo qualche minuto se il servizio era in manutenzione.
+Carica JPEG, PNG o WebP (max 5 MB). VestiFlow **ottimizza automaticamente** le immagini in WebP sul server. Riprova dopo qualche minuto se il servizio era in manutenzione.
 
 ### Ho più sedi: le vedo tutte?
 

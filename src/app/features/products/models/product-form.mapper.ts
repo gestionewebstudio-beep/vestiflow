@@ -84,6 +84,41 @@ export function generateVariantDrafts(
   });
 }
 
+/** Bozza variante unica per inserimento rapido (senza opzioni taglia/colore). */
+export function createSingleVariantDraft(
+  productName: string,
+  existing?: VariantDraft,
+  preserveSku = false,
+): VariantDraft {
+  const suggestedSku = suggestVariantSku(productName, []);
+  const sku =
+    preserveSku && existing?.sku.trim() ? existing.sku.trim() : suggestedSku || existing?.sku || '';
+
+  return {
+    key: existing?.key ?? '',
+    id: existing?.id,
+    optionValues: [],
+    sku,
+    sellingPrice: existing?.sellingPrice ?? 0,
+    purchasePrice: existing?.purchasePrice ?? null,
+    compareAtPrice: existing?.compareAtPrice ?? null,
+    barcode: existing?.barcode ?? '',
+    included: true,
+  };
+}
+
+/** Allinea il draft alla modalità rapida: una sola variante, assi opzione vuoti. */
+export function ensureQuickModeDraft(
+  draft: ProductFormDraft,
+  preserveSku = false,
+): ProductFormDraft {
+  return {
+    ...draft,
+    options: { axes: defaultOptionAxes() },
+    variants: [createSingleVariantDraft(draft.general.name, draft.variants[0], preserveSku)],
+  };
+}
+
 /** Draft iniziale vuoto per la creazione. */
 export function emptyProductFormDraft(): ProductFormDraft {
   return {

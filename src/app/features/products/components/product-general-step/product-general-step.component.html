@@ -1,34 +1,80 @@
 <form class="general-step" [formGroup]="form" novalidate>
   <div class="general-step__grid">
-    <div class="general-step__field">
-      <label class="general-step__label" for="product-name">Nome prodotto</label>
-      <input
-        id="product-name"
-        class="general-step__control"
-        type="text"
-        formControlName="name"
-        autocomplete="off"
-        [attr.aria-invalid]="showError('name')"
-        [attr.aria-describedby]="showError('name') ? 'product-name-error' : null"
-      />
-      @if (showError('name')) {
-        <p id="product-name-error" class="general-step__error">Inserisci il nome del prodotto.</p>
-      }
-    </div>
+    <div class="general-step__essentials general-step__field--full">
+      <div class="general-step__field">
+        <label class="general-step__label" for="product-name">Nome prodotto</label>
+        <input
+          id="product-name"
+          class="general-step__control"
+          type="text"
+          formControlName="name"
+          autocomplete="off"
+          [attr.aria-invalid]="showError('name')"
+          [attr.aria-describedby]="showError('name') ? 'product-name-error' : null"
+        />
+        @if (showError('name')) {
+          <p id="product-name-error" class="general-step__error">Inserisci il nome del prodotto.</p>
+        }
+      </div>
 
-    <div class="general-step__field">
-      <label class="general-step__label" for="product-brand">Brand</label>
-      <input
-        id="product-brand"
-        class="general-step__control"
-        type="text"
-        formControlName="brand"
-        autocomplete="off"
-        [attr.aria-invalid]="showError('brand')"
-        [attr.aria-describedby]="showError('brand') ? 'product-brand-error' : null"
-      />
-      @if (showError('brand')) {
-        <p id="product-brand-error" class="general-step__error">Indica il brand del prodotto.</p>
+      <div class="general-step__field">
+        <label class="general-step__label" for="product-brand">
+          Brand <span class="general-step__optional">(opzionale)</span>
+        </label>
+        <input
+          id="product-brand"
+          class="general-step__control"
+          type="text"
+          formControlName="brand"
+          autocomplete="off"
+        />
+      </div>
+
+      @if (shopifyConnected()) {
+        <div class="general-step__field">
+          <label class="general-step__label" for="product-type">
+            Tipo prodotto
+            <span class="general-step__optional">(opzionale)</span>
+          </label>
+          <input
+            id="product-type"
+            class="general-step__control"
+            type="text"
+            formControlName="category"
+            autocomplete="off"
+            placeholder="Es. Maglieria, Accessori…"
+          />
+        </div>
+      } @else {
+        <div class="general-step__field">
+          @if (useCategorySelect()) {
+            <span class="general-step__label" id="product-category-label">
+              Categoria <span class="general-step__optional">(opzionale)</span>
+            </span>
+            <app-select-menu
+              [options]="categorySelectOptions()"
+              [value]="categorySelectValue()"
+              ariaLabel="Categoria prodotto"
+              placeholder="Seleziona categoria"
+              [compact]="true"
+              [fullWidth]="true"
+              [includeEmptyOption]="true"
+              (valueChange)="onCategorySelect($event)"
+            />
+          } @else {
+            <label class="general-step__label" for="product-category">
+              Categoria <span class="general-step__optional">(opzionale)</span>
+            </label>
+            <input
+              id="product-category"
+              class="general-step__control"
+              type="text"
+              formControlName="category"
+              autocomplete="off"
+              placeholder="Es. Catalogo, Fornitura, Linea…"
+            />
+          }
+        </div>
       }
     </div>
 
@@ -36,24 +82,37 @@
       <div class="general-step__field general-step__field--full">
         <span class="general-step__label" id="product-shopify-category-label">
           Categoria Shopify
+          <span class="general-step__optional">(consigliata per sync)</span>
         </span>
         <p class="general-step__hint">
-          Stessa tassonomia usata in Shopify Admin per Google Ads e category metafields.
+          Stessa tassonomia usata in Shopify Admin. Puoi completarla anche dopo la creazione.
         </p>
         <app-shopify-taxonomy-picker
           [categoryId]="form.controls.shopifyTaxonomyCategoryId.value"
           [categoryFullName]="form.controls.shopifyTaxonomyCategoryFullName.value"
-          [invalid]="taxonomyInvalid()"
-          describedBy="product-shopify-category-error"
+          [invalid]="false"
           (selectionChange)="onTaxonomyChange($event)"
         />
-        @if (taxonomyInvalid()) {
-          <p id="product-shopify-category-error" class="general-step__error">
-            Seleziona la categoria prodotto Shopify.
-          </p>
-        }
       </div>
+    }
 
+    @if (compactLayout()) {
+      <details class="general-step__details general-step__field--full">
+        <summary class="general-step__details-summary">
+          <span class="general-step__details-label">Altri dati catalogo</span>
+          <i class="pi pi-chevron-right general-step__details-icon" aria-hidden="true"></i>
+        </summary>
+        <div class="general-step__details-body">
+          <ng-container *ngTemplateOutlet="advancedFields" />
+        </div>
+      </details>
+    } @else {
+      <ng-container *ngTemplateOutlet="advancedFields" />
+    }
+  </div>
+
+  <ng-template #advancedFields>
+    @if (shopifyConnected()) {
       @if (form.controls.shopifyTaxonomyCategoryId.value.trim()) {
         <div class="general-step__field general-step__field--full">
           <app-shopify-category-attributes
@@ -63,56 +122,6 @@
           />
         </div>
       }
-
-      <div class="general-step__field">
-        <label class="general-step__label" for="product-type">
-          Tipo prodotto
-          <span class="general-step__optional">(opzionale)</span>
-        </label>
-        <input
-          id="product-type"
-          class="general-step__control"
-          type="text"
-          formControlName="category"
-          autocomplete="off"
-          placeholder="Es. Maglieria, Accessori…"
-        />
-      </div>
-    } @else {
-      <div class="general-step__field">
-        @if (useCategorySelect()) {
-          <span class="general-step__label" id="product-category-label">Categoria</span>
-          <app-select-menu
-            [options]="categorySelectOptions()"
-            [value]="categorySelectValue()"
-            ariaLabel="Categoria prodotto"
-            placeholder="Seleziona categoria"
-            [compact]="true"
-            [fullWidth]="true"
-            [includeEmptyOption]="false"
-            [invalid]="showError('category')"
-            [describedBy]="showError('category') ? 'product-category-error' : undefined"
-            (valueChange)="onCategorySelect($event)"
-          />
-        } @else {
-          <label class="general-step__label" for="product-category">Categoria</label>
-          <input
-            id="product-category"
-            class="general-step__control"
-            type="text"
-            formControlName="category"
-            autocomplete="off"
-            placeholder="Es. Catalogo, Fornitura, Linea…"
-            [attr.aria-invalid]="showError('category')"
-            [attr.aria-describedby]="showError('category') ? 'product-category-error' : null"
-          />
-        }
-        @if (showError('category')) {
-          <p id="product-category-error" class="general-step__error">
-            Indica la categoria del prodotto.
-          </p>
-        }
-      </div>
     }
 
     <div class="general-step__field">
@@ -235,5 +244,5 @@
         rows="4"
       ></textarea>
     </div>
-  </div>
+  </ng-template>
 </form>

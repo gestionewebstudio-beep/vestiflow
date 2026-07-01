@@ -422,6 +422,16 @@ cd api && npm run backfill:catalog-origin:apply  # scrive su DB
 
 **UI tenant:** colonna **Fonte** in lista prodotti; badge `Fonte: VestiFlow` / `Fonte: Shopify` in dettaglio; form in modalità **Modifica dati operativi** se `catalogOrigin=shopify` (`catalog-origin.util.ts` FE + `product-form` / `product-detail`).
 
+### Form creazione prodotto (`product-form`)
+
+| Modalità                                      | Quando                                | Comportamento                                                                                                                                            |
+| --------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Inserimento rapido** (`creationMode=quick`) | Default su `/app/products/new`        | Una schermata: nome (obbl.), SKU + prezzo vendita, EAN opzionale; brand/categoria opzionali; `product-quick-variant-fields`; submit senza wizard opzioni |
+| **Con varianti** (`creationMode=full`)        | Toggle o **Configura taglia/colore…** | Wizard 4 step; step Opzioni saltabile se esiste già **una variante** senza valori assi                                                                   |
+| **Modifica**                                  | `/app/products/:id/edit`              | Wizard completo; validazione FE allineata all’API (brand/categoria non obbligatori)                                                                      |
+
+Mapper: `ensureQuickModeDraft`, `createSingleVariantDraft` in `product-form.mapper.ts`. Creazione inline anche in **arrivo merce** (`goods-receipt-form`) con payload minimo API.
+
 ### Taxonomy Shopify e metafield di categoria
 
 Picker e attributi categoria nel form prodotto (step **Dati generali**).
@@ -558,28 +568,34 @@ Il header `X-Shopify-Shop-Api-Call-Limit` (es. `32/40`) indica quanto del bucket
 
 Implementazione in `api/src/shopify/`:
 
-| Componente                     | Ruolo                                                                      |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| `ShopifyRateLimiterService`    | Throttle **per shop** prima di ogni richiesta outbound                     |
-| `ShopifyAdminClient.request()` | Applica throttle, legge header bucket, **retry su 429**                    |
-| `ShopifyProductPullService`    | **Mutex** import catalogo (un import per tenant alla volta, process-local) |
+| Componente                     | Ruolo                                                                        |
+| ------------------------------ | ---------------------------------------------------------------------------- |
+| `ShopifyRateLimiterService`    | Throttle **per shop**: REST adattivo (burst bucket) + GraphQL su costo query |
+| `ShopifyAdminClient.request()` | `beforeRestRequest`, legge header bucket, **retry su 429**                   |
+| `ShopifyGraphqlClient`         | `beforeGraphqlRequest`, legge `extensions.cost.throttleStatus`               |
+| `ShopifyProductPullService`    | **Mutex** import catalogo (un import per tenant alla volta, process-local)   |
 
-**Comportamento:**
+**Comportamento REST:**
 
-1. **Intervallo minimo** tra richieste (default 550 ms ≈ 1,8 req/s, sotto il limite Basic 2/s).
-2. Se `X-Shopify-Shop-Api-Call-Limit` ≥ soglia (**85%** del bucket), pausa **1 s** prima delle richieste successive.
-3. Su **HTTP 429**: legge `Retry-After`, backoff esponenziale, fino a **5** retry; poi errore 429 con messaggio utente: _«Shopify ha limitato temporaneamente le richieste API…»_.
-4. **Import catalogo**: enrichment leggero (`skipRemoteMetadata: true`, niente costi varianti extra) per ridurre chiamate; **non avviare due import** sullo stesso tenant in parallelo.
-5. **Webhook** prodotti/ordini/giacenze: **0 chiamate outbound** — Shopify invia i dati a VestiFlow.
+1. Sotto **25%** del bucket (`X-Shopify-Shop-Api-Call-Limit`): nessun ritardo artificiale (burst fino a ~40 slot).
+2. Tra 25% e **85%**: ritardo crescente fino a `SHOPIFY_API_MIN_INTERVAL_MS` (default **500 ms**).
+3. Oltre 85%: pausa **1 s** prima delle richieste successive.
+4. Su **HTTP 429**: `Retry-After`, backoff esponenziale, fino a **5** retry.
 
-**Variabili env (REST outbound):**
+**Comportamento GraphQL** (taxonomy/metafield): attesa su punti costo disponibili + intervallo minimo leggero (default 50 ms).
 
-| Variabile                           | Default | Effetto                    |
-| ----------------------------------- | ------- | -------------------------- |
-| `SHOPIFY_API_MIN_INTERVAL_MS`       | 550     | Pausa minima tra richieste |
-| `SHOPIFY_API_MAX_RETRIES`           | 5       | Retry su HTTP 429          |
-| `SHOPIFY_API_BUCKET_HIGH_WATERMARK` | 0.85    | Pausa se secchio pieno     |
-| `SHOPIFY_API_BUCKET_PAUSE_MS`       | 1000    | Durata pausa secchio       |
+**Variabili env (outbound Shopify):**
+
+| Variabile                            | Default | Effetto                                 |
+| ------------------------------------ | ------- | --------------------------------------- |
+| `SHOPIFY_API_MIN_INTERVAL_MS`        | 500     | Ritardo max REST vicino al pieno bucket |
+| `SHOPIFY_API_BUCKET_BURST_RATIO`     | 0.25    | Sotto questa quota, burst senza ritardo |
+| `SHOPIFY_API_COLD_START_INTERVAL_MS` | 150     | Prima richiesta senza header bucket     |
+| `SHOPIFY_GRAPHQL_MIN_INTERVAL_MS`    | 50      | Floor tra query GraphQL                 |
+| `SHOPIFY_GRAPHQL_COST_RESERVE`       | 100     | Punti costo da tenere liberi            |
+| `SHOPIFY_API_MAX_RETRIES`            | 5       | Retry su HTTP 429                       |
+| `SHOPIFY_API_BUCKET_HIGH_WATERMARK`  | 0.85    | Soglia pausa bucket REST                |
+| `SHOPIFY_API_BUCKET_PAUSE_MS`        | 1000    | Durata pausa secchio                    |
 
 **Nota deploy:** il rate limiter Shopify è **process-local**. Con più repliche Railway ogni istanza ha il proprio contatore (comportamento conservativo, non centralizzato).
 
@@ -599,8 +615,14 @@ Implementazione in `api/src/shopify/`:
 
 1. Non ripremere import/sync in loop — attendere 1–2 minuti e **un solo** retry.
 2. Evitare import catalogo + sync massivo contemporanei sullo stesso negozio.
-3. In Railway, verificare env rate limit (non abbassare `SHOPIFY_API_MIN_INTERVAL_MS` sotto 500 ms su piani Basic).
-4. Cataloghi molto grandi: l’import può richiedere diversi minuti; il backend riprova da solo fino al limite retry.
+3. In Railway, verificare env rate limit; **non** impostare `SHOPIFY_API_MIN_INTERVAL_MS` sotto 400 ms su piani Basic senza motivo.
+4. Cataloghi molto grandi: l’import può richiedere diversi minuti; il backend riprova da solo fino al limite retry. Il throttling adattivo sfrutta il burst iniziale del bucket (import più veloce rispetto al vecchio intervallo fisso 550 ms).
+
+**Altre note:**
+
+- **Import catalogo**: enrichment leggero (`skipRemoteMetadata: true`); **non avviare due import** sullo stesso tenant in parallelo.
+- **Webhook** prodotti/ordini/giacenze: **0 chiamate outbound** — Shopify invia i dati a VestiFlow.
+- I limiti Shopify **non** sono billing per chiamata: sono protezione tecnica (429 / bucket).
 
 **Non ancora implementato (roadmap):** coda lavori persistente in background per bulk multi-tenant; oggi le operazioni massicce sono serializzate per shop/tenant ma restano sincrone nella request HTTP.
 
@@ -658,7 +680,7 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 
 - Bucket **`product-media`** public per immagini prodotto
 - Bucket **`user-avatars`** public per foto profilo utente
-- Upload via API (service role); avatar: `UserAvatarService`, prodotti: pipeline esistente
+- Upload via API (service role); pipeline **sharp**: resize (prodotti max 2000 px, avatar 512 px), conversione **WebP**, strip EXIF — `image-optimize.util.ts`, `ProductMediaService`, `UserAvatarService`
 
 ### Auth
 

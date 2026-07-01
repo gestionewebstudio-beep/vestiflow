@@ -859,6 +859,32 @@ npm run serve:pwa
 cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </code></pre>
 <p><strong>UI tenant:</strong> colonna <strong>Fonte</strong> in lista prodotti; badge <code>Fonte: VestiFlow</code> / <code>Fonte: Shopify</code> in dettaglio; form in modalità <strong>Modifica dati operativi</strong> se <code>catalogOrigin=shopify</code> (<code>catalog-origin.util.ts</code> FE + <code>product-form</code> / <code>product-detail</code>).</p>
+<h3 id="form-creazione-prodotto-product-form">Form creazione prodotto (<code>product-form</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Modalità</th>
+<th>Quando</th>
+<th>Comportamento</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Inserimento rapido</strong> (<code>creationMode=quick</code>)</td>
+<td>Default su <code>/app/products/new</code></td>
+<td>Una schermata: nome (obbl.), SKU + prezzo vendita, EAN opzionale; brand/categoria opzionali; <code>product-quick-variant-fields</code>; submit senza wizard opzioni</td>
+</tr>
+<tr>
+<td><strong>Con varianti</strong> (<code>creationMode=full</code>)</td>
+<td>Toggle o <strong>Configura taglia/colore…</strong></td>
+<td>Wizard 4 step; step Opzioni saltabile se esiste già <strong>una variante</strong> senza valori assi</td>
+</tr>
+<tr>
+<td><strong>Modifica</strong></td>
+<td><code>/app/products/:id/edit</code></td>
+<td>Wizard completo; validazione FE allineata all’API (brand/categoria non obbligatori)</td>
+</tr>
+</tbody></table>
+<p>Mapper: <code>ensureQuickModeDraft</code>, <code>createSingleVariantDraft</code> in <code>product-form.mapper.ts</code>. Creazione inline anche in <strong>arrivo merce</strong> (<code>goods-receipt-form</code>) con payload minimo API.</p>
 <h3 id="taxonomy-shopify-e-metafield-di-categoria">Taxonomy Shopify e metafield di categoria</h3>
 <p>Picker e attributi categoria nel form prodotto (step <strong>Dati generali</strong>).</p>
 <table>
@@ -1077,26 +1103,30 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </thead>
 <tbody><tr>
 <td><code>ShopifyRateLimiterService</code></td>
-<td>Throttle <strong>per shop</strong> prima di ogni richiesta outbound</td>
+<td>Throttle <strong>per shop</strong>: REST adattivo (burst bucket) + GraphQL su costo query</td>
 </tr>
 <tr>
 <td><code>ShopifyAdminClient.request()</code></td>
-<td>Applica throttle, legge header bucket, <strong>retry su 429</strong></td>
+<td><code>beforeRestRequest</code>, legge header bucket, <strong>retry su 429</strong></td>
+</tr>
+<tr>
+<td><code>ShopifyGraphqlClient</code></td>
+<td><code>beforeGraphqlRequest</code>, legge <code>extensions.cost.throttleStatus</code></td>
 </tr>
 <tr>
 <td><code>ShopifyProductPullService</code></td>
 <td><strong>Mutex</strong> import catalogo (un import per tenant alla volta, process-local)</td>
 </tr>
 </tbody></table>
-<p><strong>Comportamento:</strong></p>
+<p><strong>Comportamento REST:</strong></p>
 <ol>
-<li><strong>Intervallo minimo</strong> tra richieste (default 550 ms ≈ 1,8 req/s, sotto il limite Basic 2/s).</li>
-<li>Se <code>X-Shopify-Shop-Api-Call-Limit</code> ≥ soglia (<strong>85%</strong> del bucket), pausa <strong>1 s</strong> prima delle richieste successive.</li>
-<li>Su <strong>HTTP 429</strong>: legge <code>Retry-After</code>, backoff esponenziale, fino a <strong>5</strong> retry; poi errore 429 con messaggio utente: <em>«Shopify ha limitato temporaneamente le richieste API…»</em>.</li>
-<li><strong>Import catalogo</strong>: enrichment leggero (<code>skipRemoteMetadata: true</code>, niente costi varianti extra) per ridurre chiamate; <strong>non avviare due import</strong> sullo stesso tenant in parallelo.</li>
-<li><strong>Webhook</strong> prodotti/ordini/giacenze: <strong>0 chiamate outbound</strong> — Shopify invia i dati a VestiFlow.</li>
+<li>Sotto <strong>25%</strong> del bucket (<code>X-Shopify-Shop-Api-Call-Limit</code>): nessun ritardo artificiale (burst fino a ~40 slot).</li>
+<li>Tra 25% e <strong>85%</strong>: ritardo crescente fino a <code>SHOPIFY_API_MIN_INTERVAL_MS</code> (default <strong>500 ms</strong>).</li>
+<li>Oltre 85%: pausa <strong>1 s</strong> prima delle richieste successive.</li>
+<li>Su <strong>HTTP 429</strong>: <code>Retry-After</code>, backoff esponenziale, fino a <strong>5</strong> retry.</li>
 </ol>
-<p><strong>Variabili env (REST outbound):</strong></p>
+<p><strong>Comportamento GraphQL</strong> (taxonomy/metafield): attesa su punti costo disponibili + intervallo minimo leggero (default 50 ms).</p>
+<p><strong>Variabili env (outbound Shopify):</strong></p>
 <table>
 <thead>
 <tr>
@@ -1107,8 +1137,28 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </thead>
 <tbody><tr>
 <td><code>SHOPIFY_API_MIN_INTERVAL_MS</code></td>
-<td>550</td>
-<td>Pausa minima tra richieste</td>
+<td>500</td>
+<td>Ritardo max REST vicino al pieno bucket</td>
+</tr>
+<tr>
+<td><code>SHOPIFY_API_BUCKET_BURST_RATIO</code></td>
+<td>0.25</td>
+<td>Sotto questa quota, burst senza ritardo</td>
+</tr>
+<tr>
+<td><code>SHOPIFY_API_COLD_START_INTERVAL_MS</code></td>
+<td>150</td>
+<td>Prima richiesta senza header bucket</td>
+</tr>
+<tr>
+<td><code>SHOPIFY_GRAPHQL_MIN_INTERVAL_MS</code></td>
+<td>50</td>
+<td>Floor tra query GraphQL</td>
+</tr>
+<tr>
+<td><code>SHOPIFY_GRAPHQL_COST_RESERVE</code></td>
+<td>100</td>
+<td>Punti costo da tenere liberi</td>
 </tr>
 <tr>
 <td><code>SHOPIFY_API_MAX_RETRIES</code></td>
@@ -1118,7 +1168,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <tr>
 <td><code>SHOPIFY_API_BUCKET_HIGH_WATERMARK</code></td>
 <td>0.85</td>
-<td>Pausa se secchio pieno</td>
+<td>Soglia pausa bucket REST</td>
 </tr>
 <tr>
 <td><code>SHOPIFY_API_BUCKET_PAUSE_MS</code></td>
@@ -1176,9 +1226,15 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <ol>
 <li>Non ripremere import/sync in loop — attendere 1–2 minuti e <strong>un solo</strong> retry.</li>
 <li>Evitare import catalogo + sync massivo contemporanei sullo stesso negozio.</li>
-<li>In Railway, verificare env rate limit (non abbassare <code>SHOPIFY_API_MIN_INTERVAL_MS</code> sotto 500 ms su piani Basic).</li>
-<li>Cataloghi molto grandi: l’import può richiedere diversi minuti; il backend riprova da solo fino al limite retry.</li>
+<li>In Railway, verificare env rate limit; <strong>non</strong> impostare <code>SHOPIFY_API_MIN_INTERVAL_MS</code> sotto 400 ms su piani Basic senza motivo.</li>
+<li>Cataloghi molto grandi: l’import può richiedere diversi minuti; il backend riprova da solo fino al limite retry. Il throttling adattivo sfrutta il burst iniziale del bucket (import più veloce rispetto al vecchio intervallo fisso 550 ms).</li>
 </ol>
+<p><strong>Altre note:</strong></p>
+<ul>
+<li><strong>Import catalogo</strong>: enrichment leggero (<code>skipRemoteMetadata: true</code>); <strong>non avviare due import</strong> sullo stesso tenant in parallelo.</li>
+<li><strong>Webhook</strong> prodotti/ordini/giacenze: <strong>0 chiamate outbound</strong> — Shopify invia i dati a VestiFlow.</li>
+<li>I limiti Shopify <strong>non</strong> sono billing per chiamata: sono protezione tecnica (429 / bucket).</li>
+</ul>
 <p><strong>Non ancora implementato (roadmap):</strong> coda lavori persistente in background per bulk multi-tenant; oggi le operazioni massicce sono serializzate per shop/tenant ma restano sincrone nella request HTTP.</p>
 <h3 id="rate-limiting-rest-admin-api--riferimento-rapido-env">Rate limiting (REST Admin API) — riferimento rapido env</h3>
 <p>Vedi tabella variabili sopra. Valori in <code>api/.env.example</code>.</p>
@@ -1245,7 +1301,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <ul>
 <li>Bucket <strong><code>product-media</code></strong> public per immagini prodotto</li>
 <li>Bucket <strong><code>user-avatars</code></strong> public per foto profilo utente</li>
-<li>Upload via API (service role); avatar: <code>UserAvatarService</code>, prodotti: pipeline esistente</li>
+<li>Upload via API (service role); pipeline <strong>sharp</strong>: resize (prodotti max 2000 px, avatar 512 px), conversione <strong>WebP</strong>, strip EXIF — <code>image-optimize.util.ts</code>, <code>ProductMediaService</code>, <code>UserAvatarService</code></li>
 </ul>
 <h3 id="auth">Auth</h3>
 <ul>

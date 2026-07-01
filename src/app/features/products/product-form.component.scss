@@ -30,6 +30,35 @@
   font-size: var(--text-xl);
 }
 
+.product-form__mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.product-form__mode-btn {
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.product-form__mode-btn--active {
+  color: var(--color-text);
+  border-color: var(--color-interactive);
+  background-color: var(--color-interactive-subtle);
+}
+
+.product-form__mode-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 .product-form__catalog-banner {
   margin: 0;
   padding: var(--space-3) var(--space-4);

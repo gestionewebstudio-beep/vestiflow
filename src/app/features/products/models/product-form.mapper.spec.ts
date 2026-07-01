@@ -7,6 +7,7 @@ import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from './product-form.model';
 import {
   emptyProductFormDraft,
+  ensureQuickModeDraft,
   generateVariantDrafts,
   productToFormDraft,
   toCreateProductDto,
@@ -54,6 +55,19 @@ describe('product-form.mapper', () => {
       expect(preserved?.sellingPrice).toBe(49.99);
       expect(preserved?.sellingPrice).toBe(49.99);
       expect(drafts.length).toBe(2);
+    });
+  });
+
+  describe('ensureQuickModeDraft', () => {
+    it('crea una variante unica con SKU suggerito dal nome', () => {
+      const draft = ensureQuickModeDraft({
+        ...emptyProductFormDraft(),
+        general: { ...emptyProductFormDraft().general, name: 'Maglietta Basic' },
+      });
+
+      expect(draft.variants).toHaveLength(1);
+      expect(draft.variants[0]?.optionValues).toEqual([]);
+      expect(draft.variants[0]?.sku).toBe('MB');
     });
   });
 
