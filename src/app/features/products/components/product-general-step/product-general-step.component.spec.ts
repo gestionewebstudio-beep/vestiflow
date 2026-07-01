@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { ReactiveFormsModule } from '@angular/forms';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -28,13 +29,13 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
 };
 
 describe('ProductGeneralStepComponent', () => {
-  it('mostra errori di validazione sui campi obbligatori', async () => {
+  it('mostra errore se il nome prodotto è vuoto', async () => {
     const user = userEvent.setup();
 
     await render(ProductGeneralStepComponent, {
       configureTestBed: (testBed) => {
         testBed.overrideComponent(ProductGeneralStepComponent, {
-          set: { imports: [ReactiveFormsModule, SelectMenuComponent] },
+          set: { imports: [NgTemplateOutlet, ReactiveFormsModule, SelectMenuComponent] },
         });
       },
       componentInputs: {
@@ -45,7 +46,7 @@ describe('ProductGeneralStepComponent', () => {
     });
 
     await user.click(screen.getByLabelText('Nome prodotto'));
-    await user.click(screen.getByLabelText('Brand'));
+    await user.tab();
 
     expect(await screen.findByText('Inserisci il nome del prodotto.')).toBeVisible();
   });
@@ -57,7 +58,7 @@ describe('ProductGeneralStepComponent', () => {
     const { fixture } = await render(ProductGeneralStepComponent, {
       configureTestBed: (testBed) => {
         testBed.overrideComponent(ProductGeneralStepComponent, {
-          set: { imports: [ReactiveFormsModule, SelectMenuComponent] },
+          set: { imports: [NgTemplateOutlet, ReactiveFormsModule, SelectMenuComponent] },
         });
       },
       componentInputs: {
@@ -70,8 +71,8 @@ describe('ProductGeneralStepComponent', () => {
     fixture.componentInstance.valueChange.subscribe(onChange);
 
     await user.type(screen.getByLabelText('Nome prodotto'), 'Maglietta');
-    await user.type(screen.getByLabelText('Brand'), 'Brand X');
-    await user.type(screen.getByLabelText('Categoria'), 'Top');
+    await user.type(screen.getByLabelText(/Brand/i), 'Brand X');
+    await user.type(screen.getByLabelText(/Categoria/i), 'Top');
 
     expect(onChange).toHaveBeenCalled();
     const lastCall = onChange.mock.calls.at(-1)?.[0];
