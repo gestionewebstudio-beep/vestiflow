@@ -10,6 +10,12 @@ import { randomUUID } from 'node:crypto';
 import type { ProductImage } from '@prisma/client';
 
 import { SupabaseService } from '../auth/supabase.service';
+import {
+  assertUploadImageMimeAndMagicBytes,
+  optimizeUploadedImageToWebp,
+  PRODUCT_IMAGE_MAX_EDGE_PX,
+  PRODUCT_IMAGE_WEBP_QUALITY,
+} from '../common/upload/image-optimize.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { assertShopifyCatalogMediaMutationAllowed } from './catalog-origin.util';
@@ -45,13 +51,17 @@ export class ProductMediaService {
       );
     }
 
-    const ext = this.extensionForMime(file.mimetype);
-    const storagePath = `${tenantId}/${productId}/${randomUUID()}.${ext}`;
+    const optimized = await optimizeUploadedImageToWebp(file.buffer, {
+      maxEdgePx: PRODUCT_IMAGE_MAX_EDGE_PX,
+      quality: PRODUCT_IMAGE_WEBP_QUALITY,
+    });
+
+    const storagePath = `${tenantId}/${productId}/${randomUUID()}.${optimized.extension}`;
 
     const { error: uploadError } = await client.storage
       .from(this.bucket)
-      .upload(storagePath, file.buffer, {
-        contentType: file.mimetype,
+      .upload(storagePath, optimized.buffer, {
+        contentType: optimized.contentType,
         upsert: false,
       });
 
@@ -117,41 +127,7 @@ export class ProductMediaService {
     if (file.size > MAX_IMAGE_BYTES) {
       throw new BadRequestException('Immagine troppo grande (max 5 MB)');
     }
-    if (!ALLOWED_MIME.has(file.mimetype)) {
-      throw new BadRequestException('Formato non supportato. Usa JPEG, PNG o WebP.');
-    }
-    if (!this.matchesMagicBytes(file.buffer, file.mimetype)) {
-      throw new BadRequestException("Il file non è un'immagine valida");
-    }
-  }
-
-  private matchesMagicBytes(buffer: Buffer, mime: string): boolean {
-    if (mime === 'image/jpeg') {
-      return buffer[0] === 0xff && buffer[1] === 0xd8;
-    }
-    if (mime === 'image/png') {
-      return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
-    }
-    if (mime === 'image/webp') {
-      return (
-        buffer.slice(0, 4).toString('ascii') === 'RIFF' &&
-        buffer.slice(8, 12).toString('ascii') === 'WEBP'
-      );
-    }
-    return false;
-  }
-
-  private extensionForMime(mime: string): string {
-    switch (mime) {
-      case 'image/jpeg':
-        return 'jpg';
-      case 'image/png':
-        return 'png';
-      case 'image/webp':
-        return 'webp';
-      default:
-        return 'bin';
-    }
+    assertUploadImageMimeAndMagicBytes(file.buffer, file.mimetype, ALLOWED_MIME);
   }
 
   private publicObjectUrl(storagePath: string): string {

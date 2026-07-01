@@ -8,6 +8,12 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  assertUploadImageMimeAndMagicBytes,
+  AVATAR_IMAGE_MAX_EDGE_PX,
+  AVATAR_IMAGE_WEBP_QUALITY,
+  optimizeUploadedImageToWebp,
+} from '../common/upload/image-optimize.util';
 import { AuthProfileCacheService } from './auth-profile-cache.service';
 import { toUserProfileDto, type UserProfileDto } from './dto/user-profile.dto';
 import { PlatformAdminService } from '../common/platform-admin/platform-admin.service';
@@ -44,6 +50,11 @@ export class UserAvatarService {
       );
     }
 
+    const optimized = await optimizeUploadedImageToWebp(file.buffer, {
+      maxEdgePx: AVATAR_IMAGE_MAX_EDGE_PX,
+      quality: AVATAR_IMAGE_WEBP_QUALITY,
+    });
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { stores: true, tenant: { select: { name: true, channelProfile: true } } },
@@ -52,13 +63,12 @@ export class UserAvatarService {
       throw new BadRequestException('Utente non trovato');
     }
 
-    const ext = this.extensionForMime(file.mimetype);
-    const storagePath = `${user.tenantId}/${user.id}/${randomUUID()}.${ext}`;
+    const storagePath = `${user.tenantId}/${user.id}/${randomUUID()}.${optimized.extension}`;
 
     const { error: uploadError } = await client.storage
       .from(this.bucket)
-      .upload(storagePath, file.buffer, {
-        contentType: file.mimetype,
+      .upload(storagePath, optimized.buffer, {
+        contentType: optimized.contentType,
         upsert: false,
       });
 
@@ -123,41 +133,7 @@ export class UserAvatarService {
     if (file.size > MAX_AVATAR_BYTES) {
       throw new BadRequestException('Immagine troppo grande (max 2 MB)');
     }
-    if (!ALLOWED_MIME.has(file.mimetype)) {
-      throw new BadRequestException('Formato non supportato. Usa JPEG, PNG o WebP.');
-    }
-    if (!this.matchesMagicBytes(file.buffer, file.mimetype)) {
-      throw new BadRequestException("Il file non è un'immagine valida");
-    }
-  }
-
-  private matchesMagicBytes(buffer: Buffer, mime: string): boolean {
-    if (mime === 'image/jpeg') {
-      return buffer[0] === 0xff && buffer[1] === 0xd8;
-    }
-    if (mime === 'image/png') {
-      return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
-    }
-    if (mime === 'image/webp') {
-      return (
-        buffer.slice(0, 4).toString('ascii') === 'RIFF' &&
-        buffer.slice(8, 12).toString('ascii') === 'WEBP'
-      );
-    }
-    return false;
-  }
-
-  private extensionForMime(mime: string): string {
-    switch (mime) {
-      case 'image/jpeg':
-        return 'jpg';
-      case 'image/png':
-        return 'png';
-      case 'image/webp':
-        return 'webp';
-      default:
-        return 'bin';
-    }
+    assertUploadImageMimeAndMagicBytes(file.buffer, file.mimetype, ALLOWED_MIME);
   }
 
   private publicObjectUrl(storagePath: string): string {

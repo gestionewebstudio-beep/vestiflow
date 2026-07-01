@@ -44,7 +44,11 @@ describe('ShopifyConfigService', () => {
   it('espone parametri rate limit con default', () => {
     const service = createService({});
 
-    expect(service.apiMinIntervalMs).toBe(550);
+    expect(service.apiMinIntervalMs).toBe(500);
+    expect(service.apiBucketBurstRatio).toBe(0.25);
+    expect(service.apiColdStartIntervalMs).toBe(150);
+    expect(service.graphqlMinIntervalMs).toBe(50);
+    expect(service.graphqlCostReservePoints).toBe(100);
     expect(service.apiMaxRetries).toBe(5);
     expect(service.apiBucketHighWatermark).toBe(0.85);
     expect(service.apiBucketPauseMs).toBe(1000);

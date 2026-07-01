@@ -96,11 +96,42 @@ export class ShopifyConfigService {
     return this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:4200';
   }
 
-  /** Intervallo minimo tra richieste REST Admin API (~1,8 req/s, sotto il limite Basic 2/s). */
+  /**
+   * Ritardo massimo REST quando il bucket è vicino al pieno (~2 req/s sostenibili su Basic).
+   * Con bucket headroom il limiter non applica questo intervallo fisso (burst fino a 40 slot).
+   */
   get apiMinIntervalMs(): number {
     const raw = this.config.get<string>('SHOPIFY_API_MIN_INTERVAL_MS');
     const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 550;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 500;
+  }
+
+  /** Sotto questa quota used/max le richieste REST partono senza ritardo artificiale. */
+  get apiBucketBurstRatio(): number {
+    const raw = this.config.get<string>('SHOPIFY_API_BUCKET_BURST_RATIO');
+    const parsed = raw != null ? Number.parseFloat(raw) : Number.NaN;
+    return Number.isFinite(parsed) && parsed >= 0 && parsed < 1 ? parsed : 0.25;
+  }
+
+  /** Ritardo REST finché non arriva il primo header bucket (poi throttling adattivo). */
+  get apiColdStartIntervalMs(): number {
+    const raw = this.config.get<string>('SHOPIFY_API_COLD_START_INTERVAL_MS');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 150;
+  }
+
+  /** Intervallo minimo tra query GraphQL (leggero; il costo reale è in throttleStatus). */
+  get graphqlMinIntervalMs(): number {
+    const raw = this.config.get<string>('SHOPIFY_GRAPHQL_MIN_INTERVAL_MS');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 50;
+  }
+
+  /** Punti costo GraphQL da tenere liberi prima della prossima query. */
+  get graphqlCostReservePoints(): number {
+    const raw = this.config.get<string>('SHOPIFY_GRAPHQL_COST_RESERVE');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
   }
 
   /** Retry massimi su HTTP 429 prima di fallire. */

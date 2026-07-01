@@ -563,7 +563,7 @@ export class ShopifyAdminClient {
     const maxRetries = this.shopifyConfig.apiMaxRetries;
 
     for (let attempt = 0; ; attempt += 1) {
-      await this.rateLimiter.beforeRequest(shopDomain);
+      await this.rateLimiter.beforeRestRequest(shopDomain);
 
       const response = await fetch(url, {
         ...init,

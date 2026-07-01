@@ -12,7 +12,10 @@ import {
   matchCategoryAttributeToMetafieldTemplate,
 } from './shopify-category-metafields.util';
 import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
-import { parseShopifyRetryAfterHeader } from './shopify-rate-limiter.util';
+import {
+  parseGraphQlCostExtensions,
+  parseShopifyRetryAfterHeader,
+} from './shopify-rate-limiter.util';
 
 export interface ShopifyTaxonomyCategory {
   readonly id: string;
@@ -60,6 +63,7 @@ export interface MetafieldsSetInput {
 interface GraphQlResponse<T> {
   readonly data?: T;
   readonly errors?: readonly { message: string }[];
+  readonly extensions?: unknown;
 }
 
 @Injectable()
@@ -690,7 +694,7 @@ export class ShopifyGraphqlClient {
     const maxRetries = this.shopifyConfig.apiMaxRetries;
 
     for (let attempt = 0; ; attempt += 1) {
-      await this.rateLimiter.beforeRequest(shopDomain);
+      await this.rateLimiter.beforeGraphqlRequest(shopDomain);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -700,11 +704,6 @@ export class ShopifyGraphqlClient {
         },
         body: JSON.stringify({ query, variables }),
       });
-
-      this.rateLimiter.onCallLimitHeader(
-        shopDomain,
-        response.headers.get('x-shopify-shop-api-call-limit'),
-      );
 
       if (response.status === 429) {
         if (attempt >= maxRetries) {
@@ -727,6 +726,7 @@ export class ShopifyGraphqlClient {
       }
 
       const json = (await response.json()) as GraphQlResponse<T>;
+      this.rateLimiter.onGraphQlCost(shopDomain, parseGraphQlCostExtensions(json.extensions));
       if (json.errors?.length) {
         throw new InternalServerErrorException(
           `Shopify GraphQL: ${json.errors.map((entry) => entry.message).join('; ')}`,
