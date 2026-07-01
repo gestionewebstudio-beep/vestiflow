@@ -48,6 +48,7 @@ import { ProductsImportService } from './products-import.service';
 import { ProductsService, type ProductWithVariants } from './products.service';
 import { ExportProductsQueryDto } from './dto/export-products.query.dto';
 import { ImportProductsBodyDto } from './dto/import-products-body.dto';
+import { SuppliersService } from '../supplier-orders/suppliers.service';
 
 class SkuAvailabilityQueryDto {
   @IsString()
@@ -86,6 +87,7 @@ export class ProductsController {
     private readonly productMedia: ProductMediaService,
     private readonly productsImport: ProductsImportService,
     private readonly productsExport: ProductsExportService,
+    private readonly suppliers: SuppliersService,
   ) {}
 
   @Get()
@@ -185,6 +187,15 @@ export class ProductsController {
       type: 'text/csv; charset=utf-8',
       disposition: `attachment; filename="prodotti-vestiflow-${stamp}.csv"`,
     });
+  }
+
+  @Get(':id/supplier-links')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  listSupplierLinks(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.suppliers.listVariantLinksByProduct(tenantId, id);
   }
 
   @Get(':id')

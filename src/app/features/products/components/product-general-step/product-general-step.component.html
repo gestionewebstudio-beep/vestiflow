@@ -161,6 +161,55 @@
       />
     </div>
 
+    <div class="general-step__field">
+      <span class="general-step__label" id="product-uom-label">Unità di misura</span>
+      <app-select-menu
+        [options]="uomSelectOptions"
+        [value]="form.controls.unitOfMeasure.value"
+        ariaLabel="Unità di misura"
+        placeholder="pz"
+        [compact]="true"
+        [fullWidth]="true"
+        [includeEmptyOption]="false"
+        (valueChange)="onUomSelect($event)"
+      />
+    </div>
+
+    <div class="general-step__field">
+      <span class="general-step__label" id="product-vat-label">IVA predefinita</span>
+      <app-select-menu
+        [options]="vatSelectOptions"
+        [value]="vatSelectValue()"
+        ariaLabel="Aliquota IVA predefinita"
+        placeholder="22%"
+        [compact]="true"
+        [fullWidth]="true"
+        [includeEmptyOption]="true"
+        (valueChange)="onVatSelect($event)"
+      />
+    </div>
+
+    <div class="general-step__field">
+      <span class="general-step__label" id="product-tracking-label">Tracciamento inventario</span>
+      <app-select-menu
+        [options]="trackingSelectOptions"
+        [value]="form.controls.inventoryTracking.value"
+        ariaLabel="Tracciamento inventario"
+        placeholder="Standard"
+        [compact]="true"
+        [fullWidth]="true"
+        [includeEmptyOption]="false"
+        (valueChange)="onTrackingSelect($event)"
+      />
+    </div>
+
+    <div class="general-step__field general-step__field--checkbox">
+      <label class="general-step__checkbox">
+        <input type="checkbox" formControlName="managesStock" />
+        Gestisce giacenze di magazzino
+      </label>
+    </div>
+
     <div class="general-step__field general-step__field--full">
       <label class="general-step__label" for="product-tags">
         Tag <span class="general-step__optional">(opzionale, separati da virgola)</span>

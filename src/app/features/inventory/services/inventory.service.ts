@@ -395,6 +395,9 @@ export class InventoryService {
     if (query.stockStatus) {
       params = params.set('stockStatus', query.stockStatus);
     }
+    if (query.columns) {
+      params = params.set('columns', query.columns);
+    }
 
     return this.http
       .get(this.url('/inventory/levels/export/csv'), { params, responseType: 'blob' })

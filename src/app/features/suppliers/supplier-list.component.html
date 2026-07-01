@@ -1,0 +1,63 @@
+<section class="supplier-list">
+  <header class="supplier-list__header">
+    <div class="supplier-list__heading">
+      <h1 class="supplier-list__title">Fornitori</h1>
+      <p class="supplier-list__subtitle">
+        Anagrafica fornitori, codici articolo e condizioni di acquisto.
+      </p>
+    </div>
+    @if (canManage()) {
+      <app-button variant="primary" [routerLink]="['/app/suppliers/new']">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+        Nuovo fornitore
+      </app-button>
+    }
+  </header>
+
+  <div class="supplier-list__toolbar">
+    <div class="supplier-list__search">
+      <i class="pi pi-search supplier-list__search-icon" aria-hidden="true"></i>
+      <input
+        id="supplier-search"
+        class="supplier-list__input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Cerca per nome, codice o P. IVA…"
+        aria-label="Cerca fornitori"
+        (input)="onSearchInput($event)"
+      />
+    </div>
+    <app-table-column-picker [viewId]="tableViewId" />
+    <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+      <i class="pi pi-filter-slash" aria-hidden="true"></i>
+      Azzera filtri
+    </app-button>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessun fornitore"
+      description="Non ci sono fornitori che corrispondono ai criteri di ricerca."
+      icon="pi-truck"
+      [ctaLabel]="canManage() ? 'Nuovo fornitore' : undefined"
+      (ctaClick)="goToNew()"
+    />
+  } @else {
+    <app-supplier-table
+      [suppliers]="suppliers()"
+      [columns]="tableColumns()"
+      (rowClick)="openSupplier($event)"
+    />
+    <app-pagination
+      label="Paginazione fornitori"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+</section>

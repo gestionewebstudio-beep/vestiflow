@@ -1,0 +1,66 @@
+<div class="supplier-table-wrap">
+  <table class="supplier-table">
+    <thead>
+      <tr>
+        @for (col of columns(); track col.id) {
+          <th scope="col" [class.supplier-table__cell--pinned]="col.pinned">
+            {{ col.label }}
+          </th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (supplier of suppliers(); track supplier.id) {
+        <tr
+          class="supplier-table__row"
+          tabindex="0"
+          role="link"
+          [attr.aria-label]="rowLabel(supplier)"
+          (click)="rowClick.emit(supplier)"
+          (keydown.enter)="rowClick.emit(supplier)"
+          (keydown.space)="$event.preventDefault(); rowClick.emit(supplier)"
+        >
+          @for (col of columns(); track col.id) {
+            @switch (col.id) {
+              @case ('code') {
+                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ displayCode(supplier) }}
+                </td>
+              }
+              @case ('name') {
+                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ supplier.name }}
+                </td>
+              }
+              @case ('vatNumber') {
+                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ displayVat(supplier) }}
+                </td>
+              }
+              @case ('email') {
+                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ supplier.email ?? '—' }}
+                </td>
+              }
+              @case ('city') {
+                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ displayCity(supplier) }}
+                </td>
+              }
+              @case ('phone') {
+                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ supplier.phone?.trim() || '—' }}
+                </td>
+              }
+              @case ('paymentTerms') {
+                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ supplier.paymentTerms?.trim() || '—' }}
+                </td>
+              }
+            }
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

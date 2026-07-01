@@ -1,0 +1,64 @@
+<div class="table-column-picker">
+  <app-button variant="secondary" type="button" (click)="togglePanel()">
+    <i class="pi pi-table" aria-hidden="true"></i>
+    Colonne
+  </app-button>
+
+  @if (open()) {
+    <div class="table-column-picker__panel" role="dialog" aria-label="Personalizza colonne">
+      <div class="table-column-picker__preset">
+        <span class="table-column-picker__label">Vista salvata</span>
+        <app-select-menu
+          [options]="presetOptions()"
+          [value]="viewState().presetId === 'custom' ? '' : viewState().presetId"
+          ariaLabel="Vista colonne salvata"
+          placeholder="Personalizzata"
+          [compact]="true"
+          [fullWidth]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onPresetChange($event)"
+        />
+      </div>
+
+      <ul class="table-column-picker__list">
+        @for (row of columnRows(); track row.id) {
+          <li class="table-column-picker__item">
+            <label class="table-column-picker__check">
+              <input type="checkbox" [checked]="row.visible" (change)="toggleColumn(row.id)" />
+              <span>{{ row.label }}</span>
+            </label>
+            <div class="table-column-picker__actions">
+              @if (row.pinnable) {
+                <button
+                  type="button"
+                  class="table-column-picker__icon-btn"
+                  [class.table-column-picker__icon-btn--active]="row.pinned"
+                  [attr.aria-label]="row.pinned ? 'Sblocca colonna' : 'Blocca colonna a sinistra'"
+                  (click)="togglePin(row.id)"
+                >
+                  <i class="pi pi-thumbtack" aria-hidden="true"></i>
+                </button>
+              }
+              <button
+                type="button"
+                class="table-column-picker__icon-btn"
+                aria-label="Sposta su"
+                (click)="moveUp(row.id)"
+              >
+                <i class="pi pi-chevron-up" aria-hidden="true"></i>
+              </button>
+              <button
+                type="button"
+                class="table-column-picker__icon-btn"
+                aria-label="Sposta giù"
+                (click)="moveDown(row.id)"
+              >
+                <i class="pi pi-chevron-down" aria-hidden="true"></i>
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+</div>

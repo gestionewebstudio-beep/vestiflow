@@ -1,6 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import { ButtonComponent } from '@shared/components/button/button.component';
+import {
+  TenantChannelProfile,
+  productOptionsStandardLabel,
+} from '@core/models/tenant-channel-profile.model';
 
 import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '../../models/product-form.model';
 import type {
@@ -37,8 +41,17 @@ export class ProductOptionsStepComponent {
   /** Anteprima (read-only) delle varianti generate dal wizard. */
   readonly variants = input<readonly VariantDraft[]>([]);
   readonly shopifyConnected = input(false);
+  readonly showShopifyIntegration = input(false);
   readonly catalogReadOnly = input(false);
   readonly optionsChange = output<ProductOptionsDraft>();
+
+  protected readonly optionsStandardLabel = computed(() =>
+    productOptionsStandardLabel(
+      this.showShopifyIntegration()
+        ? TenantChannelProfile.Shopify
+        : TenantChannelProfile.Gestionale,
+    ),
+  );
 
   protected readonly sizeName = OPTION_NAME_SIZE;
   protected readonly colorName = OPTION_NAME_COLOR;

@@ -1,0 +1,154 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+.doc-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.doc-settings__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.doc-settings__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.doc-settings__back:hover {
+  color: var(--color-text);
+}
+
+.doc-settings__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.doc-settings__subtitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.doc-settings__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+@include bp.media-up('md') {
+  .doc-settings__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@include bp.media-up('xl') {
+  .doc-settings__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.doc-settings__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.doc-settings__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.doc-settings__card-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.doc-settings__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.doc-settings__row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.doc-settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.doc-settings__field--sm {
+  flex: 1 1 0;
+}
+
+.doc-settings__label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.doc-settings__input {
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.doc-settings__textarea {
+  block-size: auto;
+  padding-block: var(--space-2);
+  resize: vertical;
+}
+
+.doc-settings__input:focus-visible {
+  border-color: var(--color-interactive);
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+}
+
+.doc-settings__switch,
+.doc-settings__check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.doc-settings__card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: auto;
+  padding-block-start: var(--space-2);
+}

@@ -1,0 +1,100 @@
+<section class="doc-settings">
+  <header class="doc-settings__header">
+    <div class="doc-settings__heading">
+      <button type="button" class="doc-settings__back" (click)="goToList()">
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        Registro documenti
+      </button>
+      <h1 class="doc-settings__title">Impostazioni documenti</h1>
+      <p class="doc-settings__subtitle">
+        Abilita i tipi di documento, definisci titolo di stampa, serie e numerazione automatica.
+      </p>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="load()" />
+  } @else {
+    <div class="doc-settings__grid">
+      @for (row of rows(); track row.type) {
+        <form class="doc-settings__card" [formGroup]="row.form" (ngSubmit)="save(row)">
+          <div class="doc-settings__card-head">
+            <h2 class="doc-settings__card-title">{{ row.label }}</h2>
+            <label class="doc-settings__switch">
+              <input type="checkbox" formControlName="enabled" />
+              <span>Abilitato</span>
+            </label>
+          </div>
+
+          <div class="doc-settings__fields">
+            <label class="doc-settings__field">
+              <span class="doc-settings__label">Titolo di stampa</span>
+              <input
+                class="doc-settings__input"
+                type="text"
+                formControlName="printTitle"
+                autocomplete="off"
+              />
+            </label>
+
+            <div class="doc-settings__row">
+              <label class="doc-settings__field doc-settings__field--sm">
+                <span class="doc-settings__label">Serie</span>
+                <input
+                  class="doc-settings__input"
+                  type="text"
+                  formControlName="defaultSeries"
+                  maxlength="8"
+                  autocomplete="off"
+                />
+              </label>
+              <label class="doc-settings__field doc-settings__field--sm">
+                <span class="doc-settings__label">Prefisso numero</span>
+                <input
+                  class="doc-settings__input"
+                  type="text"
+                  formControlName="numberPrefix"
+                  maxlength="8"
+                  autocomplete="off"
+                />
+              </label>
+            </div>
+
+            <label class="doc-settings__field">
+              <span class="doc-settings__label">Note predefinite</span>
+              <textarea
+                class="doc-settings__input doc-settings__textarea"
+                formControlName="defaultNotes"
+                rows="2"
+              ></textarea>
+            </label>
+
+            <label class="doc-settings__check">
+              <input type="checkbox" formControlName="autoNumbering" />
+              <span>Numerazione automatica</span>
+            </label>
+            <label class="doc-settings__check">
+              <input type="checkbox" formControlName="blockAfterConfirm" />
+              <span>Blocca modifica dopo conferma</span>
+            </label>
+            <label class="doc-settings__check">
+              <input type="checkbox" formControlName="pricesIncludeVat" />
+              <span>Prezzi IVA inclusa</span>
+            </label>
+          </div>
+
+          <div class="doc-settings__card-actions">
+            <app-button
+              type="submit"
+              [disabled]="row.form.pristine || row.form.invalid || isSaving(row.type)"
+            >
+              {{ isSaving(row.type) ? 'Salvataggio…' : 'Salva' }}
+            </app-button>
+          </div>
+        </form>
+      }
+    </div>
+  }
+</section>

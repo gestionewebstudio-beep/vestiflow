@@ -116,29 +116,31 @@
           <dt class="product-detail__term">Brand</dt>
           <dd class="product-detail__value">{{ p.brand ?? '—' }}</dd>
         </div>
-        <div class="product-detail__fact">
-          <dt class="product-detail__term">Categoria Shopify</dt>
-          <dd class="product-detail__value">{{ p.shopifyTaxonomyCategoryFullName ?? '—' }}</dd>
-        </div>
+        @if (showShopifyIntegration()) {
+          <div class="product-detail__fact">
+            <dt class="product-detail__term">Categoria Shopify</dt>
+            <dd class="product-detail__value">{{ p.shopifyTaxonomyCategoryFullName ?? '—' }}</dd>
+          </div>
+          @if (p.shopifyCategoryMetafields && p.shopifyCategoryMetafields.length > 0) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Attributi categoria</dt>
+              <dd class="product-detail__value">
+                <ul class="product-detail__attr-list">
+                  @for (field of p.shopifyCategoryMetafields; track field.attributeId) {
+                    <li>
+                      <span class="product-detail__attr-name">{{ field.attributeName }}:</span>
+                      {{ field.values.map((value) => value.name).join(', ') || '—' }}
+                    </li>
+                  }
+                </ul>
+              </dd>
+            </div>
+          }
+        }
         <div class="product-detail__fact">
           <dt class="product-detail__term">Tipo prodotto</dt>
           <dd class="product-detail__value">{{ p.category ?? '—' }}</dd>
         </div>
-        @if (p.shopifyCategoryMetafields && p.shopifyCategoryMetafields.length > 0) {
-          <div class="product-detail__fact product-detail__fact--wide">
-            <dt class="product-detail__term">Attributi categoria</dt>
-            <dd class="product-detail__value">
-              <ul class="product-detail__attr-list">
-                @for (field of p.shopifyCategoryMetafields; track field.attributeId) {
-                  <li>
-                    <span class="product-detail__attr-name">{{ field.attributeName }}:</span>
-                    {{ field.values.map((value) => value.name).join(', ') || '—' }}
-                  </li>
-                }
-              </ul>
-            </dd>
-          </div>
-        }
         <div class="product-detail__fact">
           <dt class="product-detail__term">Stagione</dt>
           <dd class="product-detail__value">{{ p.season ?? '—' }}</dd>
@@ -146,6 +148,28 @@
         <div class="product-detail__fact">
           <dt class="product-detail__term">Stato</dt>
           <dd class="product-detail__value">{{ statusLabel(p.status) }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">U.M.</dt>
+          <dd class="product-detail__value">{{ p.unitOfMeasure ?? 'pz' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">IVA predefinita</dt>
+          <dd class="product-detail__value tabular-nums">
+            {{
+              p.defaultVatRatePercent !== null && p.defaultVatRatePercent !== undefined
+                ? p.defaultVatRatePercent + '%'
+                : '—'
+            }}
+          </dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Tracciamento</dt>
+          <dd class="product-detail__value">{{ trackingLabel(p.inventoryTracking) }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Giacenze</dt>
+          <dd class="product-detail__value">{{ p.managesStock === false ? 'No' : 'Sì' }}</dd>
         </div>
         <div class="product-detail__fact product-detail__fact--wide">
           <dt class="product-detail__term">Descrizione</dt>
@@ -259,6 +283,11 @@
         </ul>
       </section>
     }
+
+    <section class="product-detail__panel" aria-labelledby="detail-suppliers">
+      <h2 id="detail-suppliers" class="product-detail__panel-title">Fornitori articolo</h2>
+      <app-product-supplier-links [productId]="p.id" />
+    </section>
 
     <section class="product-detail__panel" aria-labelledby="detail-variants">
       <div class="product-detail__panel-head">

@@ -29,6 +29,21 @@
   color: var(--color-text-muted);
 }
 
+.reports__corrispettivi-link {
+  margin: 0;
+}
+
+.reports__corrispettivi-anchor {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.reports__corrispettivi-anchor:hover {
+  text-decoration: underline;
+}
+
 .reports__body {
   display: flex;
   flex-direction: column;

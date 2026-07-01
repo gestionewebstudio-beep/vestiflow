@@ -1,0 +1,453 @@
+<section class="gr-form">
+  <a class="gr-form__back" href="/app/documents" (click)="$event.preventDefault(); cancel()">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Documenti
+  </a>
+
+  <h1 class="gr-form__title">
+    {{ pageTitle() }}
+  </h1>
+
+  @if (linkedSupplierOrder(); as po) {
+    <p class="gr-form__po-link">
+      Collegato all'ordine fornitore
+      <a [routerLink]="['/app/orders', po.id]">{{ po.reference }}</a>
+    </p>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="6" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare il documento."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (notEditable()) {
+    <app-empty-state
+      icon="pi-lock"
+      title="Documento non modificabile"
+      description="Solo le bozze o i documenti confermati (non bloccati) di arrivo merce possono essere modificati."
+      ctaLabel="Torna al registro"
+      (ctaClick)="cancel()"
+    />
+  } @else {
+    <form
+      class="gr-form__form"
+      [formGroup]="form"
+      (ngSubmit)="isConfirmedEdit() ? saveConfirmedChanges() : requestConfirm()"
+    >
+      <div class="gr-form__grid">
+        <div class="gr-form__field">
+          <span class="gr-form__label">Tipo documento</span>
+          @if (isConfirmedEdit()) {
+            <p class="gr-form__readonly">{{ documentTypeLabel(form.controls.type.value) }}</p>
+          } @else {
+            <app-select-menu
+              [options]="typeOptions"
+              [value]="form.controls.type.value"
+              ariaLabel="Tipo documento"
+              placeholder="Tipo documento"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onTypeSelect($event)"
+            />
+          }
+        </div>
+
+        <div class="gr-form__field">
+          <span class="gr-form__label" id="gr-supplier-label">Fornitore</span>
+          <app-select-menu
+            [options]="supplierOptions()"
+            [value]="form.controls.supplierId.value"
+            ariaLabel="Fornitore"
+            placeholder="Seleziona fornitore…"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca fornitore…"
+            searchAriaLabel="Cerca fornitore"
+            [invalid]="fieldInvalid('supplierId')"
+            describedBy="gr-supplier-error"
+            (valueChange)="onSupplierSelect($event)"
+          />
+          @if (fieldInvalid('supplierId')) {
+            <p id="gr-supplier-error" class="gr-form__error">Seleziona un fornitore.</p>
+          }
+          <button type="button" class="gr-form__inline-toggle" (click)="toggleSupplierForm()">
+            <i
+              class="pi"
+              [class.pi-plus]="!showSupplierForm()"
+              [class.pi-minus]="showSupplierForm()"
+              aria-hidden="true"
+            ></i>
+            {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+          </button>
+        </div>
+
+        <div class="gr-form__field">
+          <span class="gr-form__label">Location destinazione</span>
+          <app-select-menu
+            [options]="locationOptions()"
+            [value]="form.controls.locationId.value"
+            ariaLabel="Location di destinazione"
+            placeholder="Seleziona location…"
+            [compact]="true"
+            [fullWidth]="true"
+            [invalid]="fieldInvalid('locationId')"
+            describedBy="gr-location-error"
+            (valueChange)="onLocationSelect($event)"
+          />
+          @if (fieldInvalid('locationId')) {
+            <p id="gr-location-error" class="gr-form__error">Seleziona la location.</p>
+          }
+        </div>
+
+        <div class="gr-form__field">
+          <label class="gr-form__label" for="gr-date">Data documento</label>
+          <app-date-input
+            inputId="gr-date"
+            formControlName="documentDate"
+            ariaLabel="Data documento"
+            [compact]="true"
+            [fullWidth]="true"
+          />
+        </div>
+
+        <div class="gr-form__field">
+          <label class="gr-form__label" for="gr-ext-num">N. documento fornitore</label>
+          <input
+            id="gr-ext-num"
+            class="gr-form__input"
+            type="text"
+            formControlName="externalDocNumber"
+            placeholder="Es. DDT 242/2026"
+          />
+        </div>
+
+        <div class="gr-form__field">
+          <label class="gr-form__label" for="gr-ext-date">Data doc. fornitore</label>
+          <app-date-input
+            inputId="gr-ext-date"
+            formControlName="externalDocDate"
+            ariaLabel="Data documento fornitore"
+            placeholder="Opzionale"
+            [compact]="true"
+            [fullWidth]="true"
+          />
+        </div>
+      </div>
+
+      @if (showSupplierForm()) {
+        <div class="gr-form__supplier-box" [formGroup]="supplierForm">
+          <h2 class="gr-form__subtitle">Nuovo fornitore</h2>
+          <div class="gr-form__grid">
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="gr-new-supplier-name">Nome</label>
+              <input
+                id="gr-new-supplier-name"
+                class="gr-form__input"
+                type="text"
+                formControlName="name"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="gr-new-supplier-email">Email</label>
+              <input
+                id="gr-new-supplier-email"
+                class="gr-form__input"
+                type="email"
+                formControlName="email"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="gr-new-supplier-phone">Telefono</label>
+              <input
+                id="gr-new-supplier-phone"
+                class="gr-form__input"
+                type="tel"
+                formControlName="phone"
+              />
+            </div>
+          </div>
+          <div class="gr-form__supplier-actions">
+            <app-button
+              type="button"
+              [loading]="savingSupplier()"
+              [disabled]="savingSupplier()"
+              (click)="saveSupplier()"
+            >
+              Salva fornitore
+            </app-button>
+          </div>
+        </div>
+      }
+
+      <section class="gr-form__lines" aria-labelledby="gr-lines-title">
+        <div class="gr-form__lines-head">
+          <h2 id="gr-lines-title" class="gr-form__subtitle">Righe documento</h2>
+          <app-button type="button" variant="ghost" (click)="addLine()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Aggiungi riga
+          </app-button>
+        </div>
+
+        <div class="gr-form__line-list" formArrayName="lines">
+          @for (line of lines.controls; track line; let i = $index) {
+            <div class="gr-form__line-block">
+              <div class="gr-form__line" [formGroupName]="i">
+                <div class="gr-form__line-field gr-form__line-field--variant">
+                  <span class="gr-form__label">Articolo / SKU</span>
+                  <app-select-menu
+                    [options]="variantOptions()"
+                    [value]="line.controls.variantId.value"
+                    ariaLabel="Variante"
+                    placeholder="Cerca prodotto o SKU…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    [filterOptionsLocally]="false"
+                    searchPlaceholder="Cerca per prodotto o SKU…"
+                    searchAriaLabel="Cerca variante"
+                    [invalid]="lineFieldInvalid(i, 'variantId')"
+                    (valueChange)="onVariantSelect(i, $event)"
+                    (searchChange)="onVariantSearch($event)"
+                  />
+                  @if (lineFieldInvalid(i, 'variantId')) {
+                    <p class="gr-form__error">Seleziona un articolo per le righe a magazzino.</p>
+                  }
+                  <button type="button" class="gr-form__inline-toggle" (click)="openQuickCreate(i)">
+                    <i class="pi pi-plus" aria-hidden="true"></i>
+                    Crea articolo rapido
+                  </button>
+                </div>
+
+                <div class="gr-form__line-field gr-form__line-field--desc">
+                  <label class="gr-form__label" [attr.for]="'gr-desc-' + i">Descrizione</label>
+                  <input
+                    [id]="'gr-desc-' + i"
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="description"
+                    [attr.aria-invalid]="lineFieldInvalid(i, 'description')"
+                  />
+                </div>
+
+                <div class="gr-form__line-field gr-form__line-field--qty">
+                  <label class="gr-form__label" [attr.for]="'gr-qty-' + i">Q.tà</label>
+                  <input
+                    [id]="'gr-qty-' + i"
+                    class="gr-form__input gr-form__input--num"
+                    type="number"
+                    min="0"
+                    step="1"
+                    formControlName="quantity"
+                  />
+                </div>
+
+                <div class="gr-form__line-field gr-form__line-field--cost">
+                  <label class="gr-form__label" [attr.for]="'gr-cost-' + i">Costo unit.</label>
+                  <input
+                    [id]="'gr-cost-' + i"
+                    class="gr-form__input gr-form__input--num"
+                    type="text"
+                    inputmode="decimal"
+                    formControlName="unitCost"
+                    placeholder="0,00"
+                  />
+                </div>
+
+                <div class="gr-form__line-field gr-form__line-field--vat">
+                  <label class="gr-form__label" [attr.for]="'gr-vat-' + i">IVA %</label>
+                  <input
+                    [id]="'gr-vat-' + i"
+                    class="gr-form__input gr-form__input--num"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    formControlName="vatRatePercent"
+                    placeholder="22"
+                  />
+                </div>
+
+                <div class="gr-form__line-field gr-form__line-field--lot">
+                  <label class="gr-form__label" [attr.for]="'gr-lot-' + i">Lotto</label>
+                  <input
+                    [id]="'gr-lot-' + i"
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="lotCode"
+                    autocomplete="off"
+                  />
+                </div>
+
+                <div class="gr-form__line-field gr-form__line-field--lot-date">
+                  <label class="gr-form__label" [attr.for]="'gr-lot-date-' + i"
+                    >Scadenza lotto</label
+                  >
+                  <app-date-input
+                    [inputId]="'gr-lot-date-' + i"
+                    formControlName="lotExpiryDate"
+                    ariaLabel="Scadenza lotto"
+                  />
+                </div>
+
+                <div class="gr-form__line-field gr-form__line-field--serials">
+                  <label class="gr-form__label" [attr.for]="'gr-serials-' + i">Seriali</label>
+                  <input
+                    [id]="'gr-serials-' + i"
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="serialNumbersText"
+                    placeholder="SN001, SN002"
+                    autocomplete="off"
+                  />
+                </div>
+
+                <label class="gr-form__check">
+                  <input
+                    type="checkbox"
+                    formControlName="loadsStock"
+                    (change)="onLoadsStockChange(i)"
+                  />
+                  <span>Carica magazzino</span>
+                </label>
+
+                <div class="gr-form__line-field gr-form__line-field--total">
+                  <span class="gr-form__label">Totale riga</span>
+                  <span class="gr-form__line-total tabular-nums">{{
+                    formatMoney(lineMoney(i))
+                  }}</span>
+                </div>
+
+                <button
+                  type="button"
+                  class="gr-form__line-remove"
+                  [disabled]="lines.length <= 1"
+                  aria-label="Rimuovi riga"
+                  (click)="removeLine(i)"
+                >
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                </button>
+              </div>
+
+              @if (quickCreateLineIndex() === i) {
+                <div class="gr-form__quick-create" [formGroup]="quickCreateForm">
+                  <h3 class="gr-form__quick-title">Crea articolo rapido</h3>
+                  <div class="gr-form__grid">
+                    <div class="gr-form__field">
+                      <label class="gr-form__label" [attr.for]="'gr-qp-name-' + i">Nome</label>
+                      <input
+                        [id]="'gr-qp-name-' + i"
+                        class="gr-form__input"
+                        type="text"
+                        formControlName="name"
+                      />
+                    </div>
+                    <div class="gr-form__field">
+                      <label class="gr-form__label" [attr.for]="'gr-qp-sku-' + i">SKU</label>
+                      <input
+                        [id]="'gr-qp-sku-' + i"
+                        class="gr-form__input"
+                        type="text"
+                        formControlName="sku"
+                      />
+                    </div>
+                    <div class="gr-form__field">
+                      <label class="gr-form__label" [attr.for]="'gr-qp-barcode-' + i"
+                        >Barcode</label
+                      >
+                      <input
+                        [id]="'gr-qp-barcode-' + i"
+                        class="gr-form__input"
+                        type="text"
+                        formControlName="barcode"
+                      />
+                    </div>
+                    <div class="gr-form__field">
+                      <label class="gr-form__label" [attr.for]="'gr-qp-cost-' + i">Costo</label>
+                      <input
+                        [id]="'gr-qp-cost-' + i"
+                        class="gr-form__input"
+                        type="text"
+                        formControlName="purchasePrice"
+                      />
+                    </div>
+                  </div>
+                  <div class="gr-form__quick-actions">
+                    <app-button type="button" variant="ghost" (click)="closeQuickCreate()">
+                      Annulla
+                    </app-button>
+                    <app-button
+                      type="button"
+                      [loading]="savingQuickProduct()"
+                      [disabled]="savingQuickProduct()"
+                      (click)="saveQuickProduct()"
+                    >
+                      Salva e usa nel documento
+                    </app-button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <p class="gr-form__total tabular-nums">
+          Totale documento: <strong>{{ formatMoney(documentTotal()) }}</strong>
+        </p>
+      </section>
+
+      <div class="gr-form__field">
+        <label class="gr-form__label" for="gr-notes">Note documento</label>
+        <textarea
+          id="gr-notes"
+          class="gr-form__textarea"
+          rows="2"
+          formControlName="notes"
+        ></textarea>
+      </div>
+
+      @if (submitError(); as appError) {
+        <p class="gr-form__submit-error" role="alert">{{ appError.message }}</p>
+      }
+
+      <div class="gr-form__actions">
+        <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
+          Annulla
+        </app-button>
+        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="printLabels()">
+          Stampa etichette
+        </app-button>
+        @if (isConfirmedEdit()) {
+          <app-button type="submit" [disabled]="saving()" [loading]="saving()">
+            Salva modifiche
+          </app-button>
+        } @else {
+          <app-button
+            type="button"
+            variant="secondary"
+            [disabled]="saving()"
+            [loading]="saving()"
+            (click)="saveDraft()"
+          >
+            Salva bozza
+          </app-button>
+          <app-button type="submit" [disabled]="saving()" [loading]="saving()">
+            Conferma e carica magazzino
+          </app-button>
+        }
+      </div>
+    </form>
+  }
+</section>
+
+<app-confirm-dialog
+  [(open)]="confirmDialogOpen"
+  title="Conferma arrivo merce"
+  message="Confermando il documento verranno generati i movimenti di carico e aggiornate le giacenze. Procedere?"
+  confirmLabel="Conferma e carica"
+  [busy]="saving()"
+  (confirmed)="confirmAndSave()"
+/>

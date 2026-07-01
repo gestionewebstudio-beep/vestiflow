@@ -31,6 +31,12 @@ export const SUPPLIER_ORDERS_VIEW_PERMISSIONS = [
   TenantPermission.SupplierOrdersReceive,
 ] as const satisfies readonly TenantPermissionKey[];
 
+/** Permessi sufficienti per aprire il registro documenti (nav + liste). */
+export const DOCUMENTS_SECTION_PERMISSIONS = [
+  TenantPermission.DocumentsView,
+  TenantPermission.DocumentsManage,
+] as const satisfies readonly TenantPermissionKey[];
+
 export const CUSTOMERS_VIEW_PERMISSIONS = [
   TenantPermission.CustomersView,
   TenantPermission.CustomersManage,
@@ -157,6 +163,20 @@ export function canViewSupplierOrders(user: User | null | undefined): boolean {
     return true;
   }
   return hasAnyTenantPermission(user, SUPPLIER_ORDERS_VIEW_PERMISSIONS);
+}
+
+export function canViewDocuments(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasAnyTenantPermission(user, DOCUMENTS_SECTION_PERMISSIONS);
+}
+
+export function canManageDocuments(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.DocumentsManage);
 }
 
 export function canViewReports(user: User | null | undefined): boolean {

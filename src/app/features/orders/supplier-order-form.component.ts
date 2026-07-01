@@ -49,7 +49,7 @@ import { toVariantSelectMenuOptions } from '@features/products/utils/variant-sel
 import { InventoryService } from '@features/inventory/services/inventory.service';
 
 import { SupplierOrderService } from './services/supplier-order.service';
-import { SupplierService } from './services/supplier.service';
+import { SupplierService } from '@features/suppliers/services/supplier.service';
 
 type SubmitState =
   | { readonly status: 'idle' }

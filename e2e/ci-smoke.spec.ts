@@ -1,10 +1,25 @@
 import { expect, test } from '@playwright/test';
 
+import {
+  buildPendingInvoiceDocumentsPath,
+  expectPendingInvoiceDocumentsView,
+  waitForAccountantRegisterReady,
+  waitForDocumentsListReady,
+} from './helpers/accountant-register';
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 test.describe('CI smoke (mock auth)', () => {
-  test('shell applicativa e sidebar dopo login mock', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await page.goto('/app/dashboard');
+    await expect(page.locator('h1.dashboard__title')).toHaveText('Dashboard', { timeout: 45_000 });
+  });
+
+  test('shell applicativa e sidebar dopo login mock', async ({ page }) => {
     await expect(page.locator('h1.dashboard__title')).toHaveText('Dashboard');
-    await expect(page.locator('app-app-sidebar')).toBeVisible();
+    await expect(page.locator('app-sidebar')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Prodotti' })).toBeVisible();
   });
 
@@ -38,5 +53,26 @@ test.describe('CI smoke (mock auth)', () => {
     const error = page.locator('app-error-state');
 
     await expect(skeleton.or(table).or(empty).or(error)).toBeVisible({ timeout: 30_000 });
+  });
+
+  test('lista documenti DDT da fatturare — filtri URL, banner e checkbox', async ({ page }) => {
+    const today = todayIsoDate();
+    await page.goto(buildPendingInvoiceDocumentsPath(today, today));
+    await waitForDocumentsListReady(page);
+    await expectPendingInvoiceDocumentsView(page);
+  });
+
+  test('registro commercialista → DDT da fatturare apre filtri corretti', async ({ page }) => {
+    await waitForAccountantRegisterReady(page);
+
+    const error = page.locator('app-error-state');
+    if (await error.isVisible()) {
+      test.skip(true, 'API registro commercialista non disponibile con auth mock');
+    }
+
+    await expect(page.getByRole('link', { name: 'DDT da fatturare →' })).toBeVisible();
+    await page.getByRole('link', { name: 'DDT da fatturare →' }).click();
+    await waitForDocumentsListReady(page);
+    await expectPendingInvoiceDocumentsView(page);
   });
 });

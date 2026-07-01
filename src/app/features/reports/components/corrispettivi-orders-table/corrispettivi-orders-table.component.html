@@ -1,0 +1,46 @@
+<div class="corrispettivi-table-wrap">
+  <table class="corrispettivi-table">
+    <thead class="corrispettivi-table__head">
+      <tr>
+        <th scope="col">Data</th>
+        <th scope="col">Ordine</th>
+        <th scope="col">Cliente</th>
+        <th scope="col">Canale</th>
+        <th scope="col">Pagamento</th>
+        <th scope="col">Stato fiscale</th>
+        <th scope="col" class="corrispettivi-table__cell--num">Imponibile</th>
+        <th scope="col" class="corrispettivi-table__cell--num">IVA</th>
+        <th scope="col" class="corrispettivi-table__cell--num">Totale</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (order of orders(); track order.id) {
+        <tr class="corrispettivi-table__row">
+          <td class="tabular-nums" data-label="Data">{{ formatDate(order.placedAt) }}</td>
+          <td class="tabular-nums" data-label="Ordine">{{ order.orderNumber }}</td>
+          <td data-label="Cliente">{{ order.customerName }}</td>
+          <td data-label="Canale">{{ sourceLabel(order.source) }}</td>
+          <td data-label="Pagamento">
+            <app-badge [tone]="financialTone(order.financialStatus)">
+              {{ financialLabel(order.financialStatus) }}
+            </app-badge>
+          </td>
+          <td data-label="Stato fiscale">
+            <app-badge [tone]="fiscalTone[order.fiscalStatus]">
+              {{ fiscalLabel[order.fiscalStatus] }}
+            </app-badge>
+          </td>
+          <td class="corrispettivi-table__cell--num tabular-nums" data-label="Imponibile">
+            {{ formatMoney(order.taxable) }}
+          </td>
+          <td class="corrispettivi-table__cell--num tabular-nums" data-label="IVA">
+            {{ formatMoney(order.tax) }}
+          </td>
+          <td class="corrispettivi-table__cell--num tabular-nums" data-label="Totale">
+            {{ formatMoney(order.total) }}
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

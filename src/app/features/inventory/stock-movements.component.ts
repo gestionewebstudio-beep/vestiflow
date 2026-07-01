@@ -37,10 +37,18 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { MovementTableComponent } from './components/movement-table/movement-table.component';
 import { movementOriginLabel } from './models/inventory-labels.util';
 import type { StockMovementRow } from './models/inventory-view.model';
+import {
+  STOCK_MOVEMENT_COLUMN_DEFS,
+  STOCK_MOVEMENT_COLUMN_PRESETS,
+} from './models/stock-movements-table-columns.config';
 import {
   DEFAULT_INVENTORY_PAGE_SIZE,
   INVENTORY_PAGE_SIZE_OPTIONS,
@@ -81,6 +89,7 @@ const EMPTY_META: PageMeta = {
     PaginationComponent,
     InventoryTabsComponent,
     MovementTableComponent,
+    TableColumnPickerComponent,
   ],
   templateUrl: './stock-movements.component.html',
   styleUrl: './stock-movements.component.scss',
@@ -92,6 +101,10 @@ export class StockMovementsComponent {
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+
+  protected readonly tableViewId = TableViewId.StockMovements;
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   protected readonly skeletonColumns = 8;
   protected readonly pageSizeOptions = INVENTORY_PAGE_SIZE_OPTIONS;
@@ -165,6 +178,13 @@ export class StockMovementsComponent {
   );
 
   constructor() {
+    this.columnPreferences.registerView(
+      TableViewId.StockMovements,
+      STOCK_MOVEMENT_COLUMN_DEFS,
+      STOCK_MOVEMENT_COLUMN_PRESETS,
+    );
+    this.tableColumns = this.columnPreferences.visibleColumns(TableViewId.StockMovements);
+
     effect(() => {
       if (!canSwitchOperationalLocation(this.authService.currentUser())) {
         return;
@@ -294,6 +314,8 @@ export class StockMovementsComponent {
         createdByName: movement.createdByName,
         origin: movement.origin,
         originLabel: movementOriginLabel(movement.origin, profile),
+        productTitle: movement.productTitle,
+        documentReference: movement.documentReference,
       }),
     );
   });

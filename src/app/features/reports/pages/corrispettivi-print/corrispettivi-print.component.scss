@@ -1,0 +1,68 @@
+:host {
+  display: block;
+}
+
+.corrispettivi-print {
+  max-width: var(--content-wide);
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+
+.corrispettivi-print__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.corrispettivi-print__back {
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.corrispettivi-print__btn {
+  min-height: var(--btn-min-height);
+  padding-inline: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.corrispettivi-print__sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.corrispettivi-print__header {
+  margin-bottom: var(--space-2);
+}
+
+.corrispettivi-print__title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.corrispettivi-print__period {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
+
+.corrispettivi-print__section-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .corrispettivi-print {
+    padding: 0;
+    max-width: none;
+  }
+}

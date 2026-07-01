@@ -1,54 +1,108 @@
 <table class="level-table">
-  <colgroup>
-    <col class="level-table__col level-table__col--variant" />
-    <col class="level-table__col level-table__col--sku" />
-    <col class="level-table__col level-table__col--location" />
-    <col class="level-table__col level-table__col--available" />
-    <col class="level-table__col level-table__col--on-hand" />
-    <col class="level-table__col level-table__col--committed" />
-    <col class="level-table__col level-table__col--incoming" />
-    <col class="level-table__col level-table__col--status" />
-  </colgroup>
   <thead class="level-table__head">
     <tr>
-      <th scope="col">Variante</th>
-      <th scope="col">SKU</th>
-      <th scope="col">Location</th>
-      <th scope="col" class="level-table__cell--numeric">Disponibile</th>
-      <th scope="col" class="level-table__cell--numeric">Fisico</th>
-      <th scope="col" class="level-table__cell--numeric">Impegnato</th>
-      <th scope="col" class="level-table__cell--numeric">In arrivo</th>
-      <th scope="col" class="level-table__cell--status">Stato</th>
+      @for (col of columns(); track col.id) {
+        <th
+          scope="col"
+          [class.level-table__cell--pinned]="col.pinned"
+          [class.level-table__cell--numeric]="col.numeric"
+          [class.level-table__cell--status]="col.id === 'status'"
+        >
+          {{ col.label }}
+        </th>
+      }
     </tr>
   </thead>
 
   <tbody>
     @for (row of rows(); track row.id) {
       <tr class="level-table__row">
-        <td class="level-table__title" data-label="Variante">{{ row.title }}</td>
-        <td class="level-table__sku tabular-nums" data-label="SKU">{{ row.sku }}</td>
-        <td data-label="Location">{{ row.locationName }}</td>
-        <td
-          class="level-table__cell--numeric tabular-nums"
-          [class.level-table__cell--negative]="row.available < 0"
-          data-label="Disponibile"
-        >
-          {{ row.available }}
-        </td>
-        <td class="level-table__cell--numeric tabular-nums" data-label="Fisico">
-          {{ row.onHand }}
-        </td>
-        <td class="level-table__cell--numeric tabular-nums" data-label="Impegnato">
-          {{ row.committed }}
-        </td>
-        <td class="level-table__cell--numeric tabular-nums" data-label="In arrivo">
-          {{ row.incoming }}
-        </td>
-        <td class="level-table__cell--status" data-label="Stato">
-          <span class="level-table__status-value">
-            <app-badge [tone]="statusTone(row.status)">{{ statusLabel(row.status) }}</app-badge>
-          </span>
-        </td>
+        @for (col of columns(); track col.id) {
+          @switch (col.id) {
+            @case ('title') {
+              <td
+                class="level-table__title"
+                [class.level-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.title }}
+              </td>
+            }
+            @case ('sku') {
+              <td
+                class="level-table__sku tabular-nums"
+                [class.level-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.sku }}
+              </td>
+            }
+            @case ('locationName') {
+              <td [class.level-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ row.locationName }}
+              </td>
+            }
+            @case ('available') {
+              <td
+                class="level-table__cell--numeric tabular-nums"
+                [class.level-table__cell--negative]="row.available < 0"
+                [class.level-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.available }}
+              </td>
+            }
+            @case ('onHand') {
+              <td
+                class="level-table__cell--numeric tabular-nums"
+                [class.level-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.onHand }}
+              </td>
+            }
+            @case ('committed') {
+              <td
+                class="level-table__cell--numeric tabular-nums"
+                [class.level-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.committed }}
+              </td>
+            }
+            @case ('incoming') {
+              <td
+                class="level-table__cell--numeric tabular-nums"
+                [class.level-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.incoming }}
+              </td>
+            }
+            @case ('minThreshold') {
+              <td
+                class="level-table__cell--numeric tabular-nums"
+                [class.level-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.minThreshold }}
+              </td>
+            }
+            @case ('status') {
+              <td
+                class="level-table__cell--status"
+                [class.level-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                <span class="level-table__status-value">
+                  <app-badge [tone]="statusTone(row.status)">{{
+                    statusLabel(row.status)
+                  }}</app-badge>
+                </span>
+              </td>
+            }
+          }
+        }
       </tr>
     }
   </tbody>

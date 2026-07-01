@@ -1,0 +1,90 @@
+<table class="doc-table">
+  <thead class="doc-table__head">
+    <tr>
+      @for (col of columns(); track col.id) {
+        <th
+          scope="col"
+          [class.doc-table__cell--pinned]="col.pinned"
+          [class.doc-table__cell--numeric]="col.numeric"
+          [class.doc-table__cell--lines]="col.id === 'lineCount'"
+          [class.doc-table__cell--total]="col.id === 'total'"
+        >
+          {{ col.label }}
+        </th>
+      }
+    </tr>
+  </thead>
+
+  <tbody>
+    @for (doc of documents(); track doc.id) {
+      <tr
+        class="doc-table__row"
+        tabindex="0"
+        [attr.aria-label]="rowLabel(doc)"
+        (click)="rowClick.emit(doc)"
+        (keydown.enter)="rowClick.emit(doc)"
+        (keydown.space)="$event.preventDefault(); rowClick.emit(doc)"
+      >
+        @for (col of columns(); track col.id) {
+          @switch (col.id) {
+            @case ('documentDate') {
+              <td
+                class="tabular-nums"
+                [class.doc-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ dateLabel(doc) }}
+              </td>
+            }
+            @case ('type') {
+              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ typeLabel(doc.type) }}
+              </td>
+            }
+            @case ('reference') {
+              <td
+                class="doc-table__reference tabular-nums"
+                [class.doc-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ referenceLabel(doc) }}
+              </td>
+            }
+            @case ('counterparty') {
+              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ counterparty(doc) }}
+              </td>
+            }
+            @case ('status') {
+              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                <span class="doc-table__cell-value">
+                  <app-badge [tone]="statusTone(doc.status)">{{
+                    statusLabel(doc.status)
+                  }}</app-badge>
+                </span>
+              </td>
+            }
+            @case ('lineCount') {
+              <td
+                class="doc-table__cell--lines tabular-nums"
+                [class.doc-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ lineCount(doc) }}
+              </td>
+            }
+            @case ('total') {
+              <td
+                class="doc-table__cell--total tabular-nums"
+                [class.doc-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ formatMoney(doc.total) }}
+              </td>
+            }
+          }
+        }
+      </tr>
+    }
+  </tbody>
+</table>

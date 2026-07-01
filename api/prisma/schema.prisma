@@ -131,12 +131,64 @@ enum SalesOrderSource {
   manual
 }
 
+/// Stato fiscale corrispettivi per il commercialista (§8 piano funzionale).
+enum SalesOrderFiscalStatus {
+  pending_registration
+  delivered_to_accountant
+  externally_registered
+  excluded_pos_register
+  invoiced
+}
+
 /// Stato di una sessione di inventario fisico (conteggio annuale/spot).
 enum InventoryCountStatus {
   in_progress
   review
   completed
   cancelled
+}
+
+/// Tipo di documento gestionale (§2.1 piano funzionale). Copre acquisti, vendite,
+/// movimentazioni interne e documenti non fiscali. Ordine fornitore e inventario
+/// hanno anche modelli dedicati storici (SupplierOrder, InventoryCountSession):
+/// il dominio documentale li affianca e potrà assorbirli in step successivi.
+enum DocumentType {
+  supplier_order // Ordine fornitore
+  goods_receipt // Arrivo merce / carico fornitore
+  supplier_ddt // DDT fornitore
+  supplier_invoice_accompanying // Fattura accompagnatoria fornitore
+  supplier_invoice // Fattura fornitore collegata a DDT
+  sales_ddt // DDT vendita/consegna
+  transfer // Trasferimento interno tra sedi
+  manual_unload // Scarico manuale
+  adjustment // Rettifica
+  inventory // Inventario fisico
+  proforma // Proforma (non fiscale)
+  invoice_draft // Bozza fattura / dati per fatturazione
+}
+
+/// Ciclo di vita del documento (§2, §4 piano funzionale). Le transizioni
+/// governano se il documento genera movimenti e se è modificabile.
+enum DocumentStatus {
+  draft // Bozza: modifica libera, nessun movimento
+  confirmed // Confermato: numero assegnato, movimenti generati
+  printed // Stampato
+  sent // Inviato
+  externally_registered // Registrato esternamente (fattura/commercialista)
+  cancelled // Annullato
+}
+
+/// Modalità tracciamento inventario articolo (§5 piano funzionale).
+enum InventoryTrackingMode {
+  none // Nessun tracciamento giacenze
+  standard // Giacenza per variante × location
+  lot // Tracciamento a lotti (preparazione)
+  serial // Tracciamento seriali (preparazione)
+}
+
+enum InventorySerialStatus {
+  in_stock
+  consumed
 }
 
 // ── Tenant & utenti ──────────────────────────────────────────────────────────
@@ -176,9 +228,20 @@ model Tenant {
   stockMovements          StockMovement[]
   inventoryCounts         InventoryCountSession[]
   suppliers               Supplier[]
+  supplierVariantLinks    SupplierVariantLink[]
   supplierOrders          SupplierOrder[]
   customers               Customer[]
   salesOrders             SalesOrder[]
+  corrispettiviDeliveries CorrispettiviDelivery[]
+  documents               Document[]
+  documentRevisions       DocumentRevision[]
+  documentAttachments     DocumentAttachment[]
+  supplierAttachments     SupplierAttachment[]
+  inventoryLots           InventoryLot[]
+  inventorySerials        InventorySerial[]
+  userTableViewPreferences UserTableViewPreference[]
+  documentSequences       DocumentSequence[]
+  documentTypeSettings    DocumentTypeSetting[]
   shopifyConnection       ShopifyConnection?
   shopifyCredential       ShopifyCredential?
   shopifyOAuthStates      ShopifyOAuthState[]
@@ -214,6 +277,7 @@ model User {
   assignedLocation          Location?        @relation("UserAssignedLocation", fields: [assignedLocationId], references: [id], onDelete: SetNull)
   stores                    UserStore[]
   supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
+  tableViewPreferences      UserTableViewPreference[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -301,6 +365,10 @@ model Location {
   supplierOrders    SupplierOrder[]
   inventoryCounts   InventoryCountSession[]
   usersAssigned     User[]                  @relation("UserAssignedLocation")
+  documents         Document[]              @relation("DocumentLocation")
+  incomingDocuments Document[]              @relation("DocumentTargetLocation")
+  inventoryLots     InventoryLot[]
+  inventorySerials  InventorySerial[]
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -354,6 +422,14 @@ model Product {
   tiktokSyncStatus                TikTokSyncStatus        @default(not_connected) @map("tiktok_sync_status")
   tiktokLastSyncAt                DateTime?               @map("tiktok_last_sync_at")
   tiktokLastError                 String?                 @map("tiktok_last_error")
+  /// Unità di misura (es. pz, kg, conf). Default pezzi.
+  unitOfMeasure                   String                  @default("pz") @map("unit_of_measure")
+  /// Aliquota IVA di default (% intero, es. 22). Null = erede impostazioni tenant.
+  defaultVatRatePercent           Int?                    @map("default_vat_rate_percent")
+  /// Tracciamento inventario: standard, lotti, seriali o nessuno.
+  inventoryTracking               InventoryTrackingMode   @default(standard) @map("inventory_tracking")
+  /// Se false, il prodotto non genera movimenti di magazzino.
+  managesStock                    Boolean                 @default(true) @map("manages_stock")
   createdAt                       DateTime                @default(now()) @map("created_at")
   updatedAt                       DateTime                @updatedAt @map("updated_at")
 
@@ -420,6 +496,10 @@ model ProductVariant {
   inventoryLevels InventoryLevel[]
   movements       StockMovement[]
   countLines      InventoryCountLine[]
+  documentLines   DocumentLine[]
+  supplierLinks   SupplierVariantLink[]
+  inventoryLots   InventoryLot[]
+  inventorySerials InventorySerial[]
 
   @@unique([tenantId, sku])
   @@unique([tenantId, barcode])
@@ -472,9 +552,12 @@ model InventoryCountSession {
   updatedAt     DateTime             @updatedAt @map("updated_at")
   completedAt   DateTime?            @map("completed_at")
   createdByName String               @map("created_by_name")
+  /// Documento inventario fisico generato alla chiusura (§C6).
+  documentId    String?              @map("document_id") @db.Uuid
 
   tenant   Tenant               @relation(fields: [tenantId], references: [id])
   location Location             @relation(fields: [locationId], references: [id])
+  document Document?            @relation(fields: [documentId], references: [id], onDelete: SetNull)
   lines    InventoryCountLine[]
 
   @@index([tenantId, status])
@@ -541,20 +624,64 @@ model StockMovement {
 // ── Fornitori e ordini fornitore ─────────────────────────────────────────────
 
 model Supplier {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @map("tenant_id") @db.Uuid
-  name      String
-  email     String?
-  phone     String?
-  notes     String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  /// Codice interno fornitore (opzionale, univoco per tenant se valorizzato).
+  code         String?
+  name         String
+  vatNumber    String?  @map("vat_number")
+  taxCode      String?  @map("tax_code")
+  email        String?
+  pec          String?
+  phone        String?
+  contactName  String?  @map("contact_name")
+  website      String?
+  addressLine1 String?  @map("address_line1")
+  addressLine2 String?  @map("address_line2")
+  city         String?
+  province     String?
+  postalCode   String?  @map("postal_code")
+  countryCode  String?  @map("country_code")
+  paymentTerms String?  @map("payment_terms")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant          @relation(fields: [tenantId], references: [id])
-  orders SupplierOrder[]
+  tenant       Tenant                @relation(fields: [tenantId], references: [id])
+  orders       SupplierOrder[]
+  documents    Document[]
+  attachments  SupplierAttachment[]
+  variantLinks SupplierVariantLink[]
 
+  @@unique([tenantId, code])
   @@index([tenantId])
+  @@index([tenantId, name])
   @@map("suppliers")
+}
+
+/// Collegamento articolo (variante) ↔ fornitore: codice fornitore, preferenziale, ultimo prezzo.
+model SupplierVariantLink {
+  id                     String   @id @default(uuid()) @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
+  supplierId             String   @map("supplier_id") @db.Uuid
+  variantId              String   @map("variant_id") @db.Uuid
+  /// Codice articolo presso il fornitore (distinto dallo SKU interno).
+  supplierSku            String?  @map("supplier_sku")
+  isPreferred            Boolean  @default(false) @map("is_preferred")
+  lastPurchasePriceMinor Int?     @map("last_purchase_price_minor")
+  minOrderQuantity       Int?     @map("min_order_quantity")
+  currency               String   @default("EUR")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+  supplier Supplier       @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, supplierId, variantId])
+  @@index([tenantId, variantId])
+  @@index([tenantId, supplierId])
+  @@map("supplier_variant_links")
 }
 
 model SupplierOrder {
@@ -579,6 +706,7 @@ model SupplierOrder {
   supplier            Supplier            @relation(fields: [supplierId], references: [id])
   destinationLocation Location            @relation(fields: [destinationLocationId], references: [id])
   lines               SupplierOrderLine[]
+  documents           Document[]
 
   @@unique([tenantId, reference])
   @@index([tenantId, status])
@@ -596,6 +724,7 @@ model SupplierOrderLine {
   unitCostMinor    Int    @map("unit_cost_minor")
 
   order SupplierOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  documentLines DocumentLine[]
 
   @@index([orderId])
   @@map("supplier_order_lines")
@@ -621,8 +750,9 @@ model Customer {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant       @relation(fields: [tenantId], references: [id])
-  orders SalesOrder[]
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+  orders    SalesOrder[]
+  documents Document[]
 
   @@unique([tenantId, shopifyCustomerId])
   @@index([tenantId, lastName])
@@ -644,18 +774,52 @@ model SalesOrder {
   currency          String                      @default("EUR")
   subtotalMinor     Int                         @default(0) @map("subtotal_minor")
   totalMinor        Int                         @default(0) @map("total_minor")
+  taxMinor          Int                         @default(0) @map("tax_minor")
+  shippingMinor     Int                         @default(0) @map("shipping_minor")
+  discountMinor     Int                         @default(0) @map("discount_minor")
+  fiscalStatus      SalesOrderFiscalStatus      @default(pending_registration) @map("fiscal_status")
+  fiscalDeliveredAt DateTime?                   @map("fiscal_delivered_at")
+  fiscalNote        String?                     @map("fiscal_note")
   placedAt          DateTime                    @map("placed_at")
   shopifyOrderId    String?                     @map("shopify_order_id")
+  /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8).
+  documentId        String?                     @unique @map("document_id") @db.Uuid
   createdAt         DateTime                    @default(now()) @map("created_at")
   updatedAt         DateTime                    @updatedAt @map("updated_at")
 
   tenant   Tenant           @relation(fields: [tenantId], references: [id])
   customer Customer?        @relation(fields: [customerId], references: [id])
+  document Document?        @relation(fields: [documentId], references: [id], onDelete: SetNull)
   lines    SalesOrderLine[]
 
   @@unique([tenantId, shopifyOrderId])
   @@index([tenantId, placedAt(sort: Desc)])
+  @@index([tenantId, fiscalStatus, placedAt(sort: Desc)])
   @@map("sales_orders")
+}
+
+/// Storico consegne corrispettivi al commercialista (batch per periodo).
+model CorrispettiviDelivery {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  periodFrom    DateTime @map("period_from")
+  periodTo      DateTime @map("period_to")
+  channelFilter String   @map("channel_filter")
+  orderCount    Int      @map("order_count")
+  subtotalMinor Int      @map("subtotal_minor")
+  taxMinor      Int      @map("tax_minor")
+  shippingMinor Int      @map("shipping_minor")
+  totalMinor    Int      @map("total_minor")
+  refundsCount  Int      @default(0) @map("refunds_count")
+  note          String?
+  createdById   String?  @map("created_by_id") @db.Uuid
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("corrispettivi_deliveries")
 }
 
 model SalesOrderLine {
@@ -786,4 +950,292 @@ model TikTokOAuthState {
 
   @@index([expiresAt])
   @@map("tiktok_oauth_states")
+}
+
+// ── Dominio documentale (§2 piano funzionale: documento → righe → movimenti) ─
+
+/// Configurazione per tipo documento a livello tenant (§2.2): quali documenti
+/// sono abilitati, titolo di stampa, numerazione, serie di default, blocchi.
+model DocumentTypeSetting {
+  id                String       @id @default(uuid()) @db.Uuid
+  tenantId          String       @map("tenant_id") @db.Uuid
+  type              DocumentType
+  enabled           Boolean      @default(true)
+  /// Titolo personalizzato del PDF/stampa ("Documento di trasporto", "Arrivo merce", ...).
+  printTitle        String?      @map("print_title")
+  autoNumbering     Boolean      @default(true) @map("auto_numbering")
+  /// Prefisso numerazione (es. 'DDT', 'CAR', 'TR', 'OF', 'INV').
+  numberPrefix      String?      @map("number_prefix")
+  /// Serie predefinita per distinguere sedi/sezioni (es. 'A', 'MI').
+  defaultSeries     String       @default("A") @map("default_series")
+  /// Se true, blocca la modifica dopo conferma/stampa. Default: avvisa, non bloccare.
+  blockAfterConfirm Boolean      @default(false) @map("block_after_confirm")
+  /// Gestione prezzi ivati vs imponibili.
+  pricesIncludeVat  Boolean      @default(false) @map("prices_include_vat")
+  /// Testo automatico in fondo al documento.
+  defaultNotes      String?      @map("default_notes")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, type])
+  @@index([tenantId])
+  @@map("document_type_settings")
+}
+
+/// Numeratore progressivo per (tenant, tipo, serie, anno) — §2.3. Il numero
+/// definitivo è assegnato alla conferma per evitare buchi da bozze eliminate.
+model DocumentSequence {
+  id         String       @id @default(uuid()) @db.Uuid
+  tenantId   String       @map("tenant_id") @db.Uuid
+  type       DocumentType
+  series     String       @default("A")
+  year       Int
+  lastNumber Int          @default(0) @map("last_number")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, type, series, year])
+  @@index([tenantId])
+  @@map("document_sequences")
+}
+
+/// Documento gestionale (§2). Testata con controparti, totali e stato; le righe
+/// generano i movimenti quando il documento è confermato (negli step successivi).
+model Document {
+  id                String         @id @default(uuid()) @db.Uuid
+  tenantId          String         @map("tenant_id") @db.Uuid
+  type              DocumentType
+  status            DocumentStatus @default(draft)
+  series            String         @default("A")
+  /// Numero progressivo nella serie/anno; null finché in bozza (assegnato alla conferma).
+  number            Int?
+  year              Int
+  /// Riferimento leggibile completo (es. 'DDT-2026-0001'); assegnato alla conferma.
+  reference         String?
+  documentDate      DateTime       @map("document_date")
+  registrationDate  DateTime?      @map("registration_date")
+  printTitle        String?        @map("print_title")
+  notes             String?
+  internalComment   String?        @map("internal_comment")
+  // ── Controparti (snapshot nome per display stabile) ──
+  supplierId        String?        @map("supplier_id") @db.Uuid
+  supplierName      String?        @map("supplier_name")
+  customerId        String?        @map("customer_id") @db.Uuid
+  customerName      String?        @map("customer_name")
+  // ── Location origine e destinazione (trasferimenti) ──
+  locationId        String?        @map("location_id") @db.Uuid
+  targetLocationId  String?        @map("target_location_id") @db.Uuid
+  /// Direzione rettifica (solo DocumentType.adjustment): increase = carico, decrease = scarico.
+  adjustmentDirection AdjustmentDirection? @map("adjustment_direction")
+  // ── Registrazione esterna (fattura fornitore / commercialista) ──
+  externalDocNumber String?        @map("external_doc_number")
+  externalDocDate   DateTime?      @map("external_doc_date")
+  externalRef       String?        @map("external_ref")
+  /// Documento origine (es. proforma convertita in bozza fattura / DDT).
+  sourceDocumentId  String?        @map("source_document_id") @db.Uuid
+  /// Ordine fornitore collegato (§10.1 arrivo merce da PO).
+  supplierOrderId   String?        @map("supplier_order_id") @db.Uuid
+  /// Causale fatturazione (bozza fattura, §9.2).
+  billingCause      String?        @map("billing_cause")
+  // ── Totali (denaro in unità minori intere, mai float) ──
+  currency          String         @default("EUR")
+  subtotalMinor     Int            @default(0) @map("subtotal_minor")
+  taxMinor          Int            @default(0) @map("tax_minor")
+  totalMinor        Int            @default(0) @map("total_minor")
+  pricesIncludeVat  Boolean        @default(false) @map("prices_include_vat")
+  createdById       String?        @map("created_by_id") @db.Uuid
+  /// Snapshot nome operatore (audit stabile anche se l'utente cambia nome).
+  createdByName     String         @map("created_by_name")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  confirmedAt       DateTime?      @map("confirmed_at")
+  cancelledAt       DateTime?      @map("cancelled_at")
+  /// Data emissione fattura esterna (bozza fattura, step intermedio §9.2).
+  externallyIssuedAt DateTime?     @map("externally_issued_at")
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+  customer       Customer?      @relation(fields: [customerId], references: [id])
+  location       Location?      @relation("DocumentLocation", fields: [locationId], references: [id])
+  targetLocation Location?      @relation("DocumentTargetLocation", fields: [targetLocationId], references: [id])
+  lines          DocumentLine[]
+  revisions      DocumentRevision[]
+  attachments    DocumentAttachment[]
+  sourceDocument Document?      @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  derivedDocuments Document[]     @relation("DocumentConversion")
+  supplierOrder  SupplierOrder? @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
+  salesOrder       SalesOrder?
+  inventoryCountSessions InventoryCountSession[]
+
+  // Numero univoco per serie/anno/tipo (NULL distinti in Postgres: le bozze non collidono).
+  @@unique([tenantId, type, series, year, number])
+  @@index([tenantId, type, status])
+  @@index([tenantId, status])
+  @@index([tenantId, documentDate(sort: Desc)])
+  @@index([tenantId, sourceDocumentId])
+  @@index([sourceDocumentId, type, status])
+  @@index([tenantId, supplierOrderId])
+  @@map("documents")
+}
+
+/// Riga documento (§2, §3.2). Il flag loadsStock distingue righe che movimentano
+/// magazzino da spese/servizi/descrizioni.
+model DocumentLine {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  documentId      String   @map("document_id") @db.Uuid
+  lineNumber      Int      @map("line_number")
+  /// Nullable: riga non a magazzino (spesa/servizio) o articolo non ancora identificato.
+  variantId       String?  @map("variant_id") @db.Uuid
+  sku             String?
+  description     String
+  quantity        Int      @default(0)
+  unitPriceMinor  Int      @default(0) @map("unit_price_minor")
+  discountPercent Int      @default(0) @map("discount_percent")
+  /// Aliquota IVA in percentuale intera (es. 22). Null = non specificata (avviso, non blocco).
+  vatRatePercent  Int?     @map("vat_rate_percent")
+  lineTotalMinor  Int      @default(0) @map("line_total_minor")
+  /// Flag "carica magazzino" (§3.2): righe spese/servizi non movimentano stock.
+  loadsStock      Boolean  @default(true) @map("loads_stock")
+  /// Riga ordine fornitore collegata (§10.1).
+  supplierOrderLineId String? @map("supplier_order_line_id") @db.Uuid
+  /// Lotto (tracciamento lot, opzionale).
+  lotCode         String?  @map("lot_code")
+  lotExpiryDate   DateTime? @map("lot_expiry_date") @db.Date
+  /// Numeri seriali (tracciamento serial, opzionale).
+  serialNumbers   Json     @default("[]") @map("serial_numbers")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  variant  ProductVariant? @relation(fields: [variantId], references: [id])
+  supplierOrderLine SupplierOrderLine? @relation(fields: [supplierOrderLineId], references: [id], onDelete: SetNull)
+  inventorySerials InventorySerial[]
+
+  @@index([documentId])
+  @@index([tenantId])
+  @@map("document_lines")
+}
+
+/// Storico leggero modifiche documento confermato (§4 piano funzionale).
+model DocumentRevision {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  documentId     String   @map("document_id") @db.Uuid
+  revisionNumber Int      @map("revision_number")
+  summary        String
+  changedById    String?  @map("changed_by_id") @db.Uuid
+  changedByName  String   @map("changed_by_name")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, revisionNumber])
+  @@index([tenantId, documentId, createdAt(sort: Desc)])
+  @@map("document_revisions")
+}
+
+/// Allegato documento (PDF fattura, DDT scan — §9.2, B4).
+model DocumentAttachment {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  documentId    String   @map("document_id") @db.Uuid
+  fileName      String   @map("file_name")
+  mimeType      String   @map("mime_type")
+  storagePath   String   @map("storage_path")
+  sizeBytes     Int      @map("size_bytes")
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([tenantId])
+  @@map("document_attachments")
+}
+
+/// Allegato anagrafica fornitore (C5).
+model SupplierAttachment {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  supplierId    String   @map("supplier_id") @db.Uuid
+  fileName      String   @map("file_name")
+  mimeType      String   @map("mime_type")
+  storagePath   String   @map("storage_path")
+  sizeBytes     Int      @map("size_bytes")
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([tenantId])
+  @@map("supplier_attachments")
+}
+
+/// Lotto inventario (tracciamento lot/expiry — C1).
+model InventoryLot {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  variantId   String    @map("variant_id") @db.Uuid
+  locationId  String    @map("location_id") @db.Uuid
+  lotCode     String    @map("lot_code")
+  expiryDate  DateTime? @map("expiry_date") @db.Date
+  quantity    Int       @default(0)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+  variant  ProductVariant @relation(fields: [variantId], references: [id])
+  location Location       @relation(fields: [locationId], references: [id])
+
+  @@unique([tenantId, variantId, locationId, lotCode])
+  @@index([tenantId, variantId])
+  @@map("inventory_lots")
+}
+
+/// Seriale inventario (tracciamento serial — C6).
+model InventorySerial {
+  id             String                @id @default(uuid()) @db.Uuid
+  tenantId       String                @map("tenant_id") @db.Uuid
+  variantId      String                @map("variant_id") @db.Uuid
+  locationId     String                @map("location_id") @db.Uuid
+  serialNumber   String                @map("serial_number")
+  status         InventorySerialStatus @default(in_stock)
+  documentLineId String?               @map("document_line_id") @db.Uuid
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  variant      ProductVariant @relation(fields: [variantId], references: [id])
+  location     Location       @relation(fields: [locationId], references: [id])
+  documentLine DocumentLine?  @relation(fields: [documentLineId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, serialNumber])
+  @@index([tenantId, variantId, locationId])
+  @@index([documentLineId])
+  @@map("inventory_serials")
+}
+
+/// Preferenze colonne tabella per utente (C3).
+model UserTableViewPreference {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  viewId    String   @map("view_id")
+  stateJson String   @map("state_json")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, viewId])
+  @@index([tenantId, userId])
+  @@map("user_table_view_preferences")
 }

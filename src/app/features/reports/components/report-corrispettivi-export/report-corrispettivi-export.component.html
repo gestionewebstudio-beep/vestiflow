@@ -67,12 +67,14 @@
       }
     </div>
 
-    <div class="corrispettivi-export__action">
-      <app-button [loading]="exporting()" [disabled]="exporting()" (click)="exportClick.emit()">
-        <i class="pi pi-download" aria-hidden="true"></i>
-        {{ exportButtonLabel() }}
-      </app-button>
-    </div>
+    @if (showExportButton()) {
+      <div class="corrispettivi-export__action">
+        <app-button [loading]="exporting()" [disabled]="exporting()" (click)="exportClick.emit()">
+          <i class="pi pi-download" aria-hidden="true"></i>
+          {{ exportButtonLabel() }}
+        </app-button>
+      </div>
+    }
   </div>
 
   <p class="corrispettivi-export__period" aria-live="polite">

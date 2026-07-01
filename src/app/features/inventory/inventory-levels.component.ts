@@ -58,10 +58,18 @@ import {
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
 
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+
 import { InventoryLevelTableComponent } from './components/inventory-level-table/inventory-level-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import type { InventoryLevelListItem } from './models/inventory-list.mapper';
 import type { InventoryLevelRow } from './models/inventory-view.model';
+import {
+  INVENTORY_LEVEL_COLUMN_DEFS,
+  INVENTORY_LEVEL_COLUMN_PRESETS,
+} from './models/inventory-levels-table-columns.config';
 import {
   DEFAULT_INVENTORY_PAGE_SIZE,
   INVENTORY_PAGE_SIZE_OPTIONS,
@@ -108,6 +116,7 @@ const EMPTY_META: PageMeta = {
     InventoryTabsComponent,
     InventoryLevelTableComponent,
     ShopifySyncFeedbackComponent,
+    TableColumnPickerComponent,
   ],
   templateUrl: './inventory-levels.component.html',
   styleUrl: './inventory-levels.component.scss',
@@ -122,7 +131,11 @@ export class InventoryLevelsComponent {
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
   private readonly config = inject(APP_CONFIG);
+
+  protected readonly tableViewId = TableViewId.InventoryLevels;
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -225,6 +238,13 @@ export class InventoryLevelsComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    this.columnPreferences.registerView(
+      TableViewId.InventoryLevels,
+      INVENTORY_LEVEL_COLUMN_DEFS,
+      INVENTORY_LEVEL_COLUMN_PRESETS,
+    );
+    this.tableColumns = this.columnPreferences.visibleColumns(TableViewId.InventoryLevels);
+
     effect(() => {
       if (!canSwitchOperationalLocation(this.authService.currentUser())) {
         return;
@@ -403,6 +423,7 @@ export class InventoryLevelsComponent {
         locationId: this.locationFilter() || undefined,
         search: this.search().trim() || undefined,
         stockStatus: this.statusFilter() || undefined,
+        columns: this.columnPreferences.visibleColumnIds(TableViewId.InventoryLevels).join(','),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

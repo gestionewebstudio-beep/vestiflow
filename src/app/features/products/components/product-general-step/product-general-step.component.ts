@@ -20,6 +20,13 @@ import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-categor
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
+import {
+  COMMON_UNIT_OF_MEASURE,
+  COMMON_VAT_RATES,
+  INVENTORY_TRACKING_LABELS,
+  InventoryTrackingMode,
+} from '@core/models/product-catalog.model';
+
 import type { ProductGeneralDraft } from '../../models/product-form.model';
 import {
   buildProductSeasonSelectOptions,
@@ -77,6 +84,21 @@ export class ProductGeneralStepComponent implements OnInit {
     }),
   );
 
+  protected readonly uomSelectOptions: readonly SelectMenuOption[] = COMMON_UNIT_OF_MEASURE.map(
+    (value) => ({ value, label: value }),
+  );
+
+  protected readonly vatSelectOptions: readonly SelectMenuOption[] = COMMON_VAT_RATES.map(
+    (value) => ({ value: String(value), label: `${value}%` }),
+  );
+
+  protected readonly trackingSelectOptions: readonly SelectMenuOption[] = (
+    Object.values(InventoryTrackingMode) as InventoryTrackingMode[]
+  ).map((value) => ({
+    value,
+    label: INVENTORY_TRACKING_LABELS[value],
+  }));
+
   protected readonly customCategory = signal(false);
   protected readonly customSeason = signal(false);
   protected readonly taxonomyTouched = signal(false);
@@ -122,6 +144,10 @@ export class ProductGeneralStepComponent implements OnInit {
     season: this.fb.control(''),
     tags: this.fb.control(''),
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
+    unitOfMeasure: this.fb.control('pz'),
+    defaultVatRatePercent: this.fb.control<number | null>(22),
+    inventoryTracking: this.fb.control<InventoryTrackingMode>(InventoryTrackingMode.Standard),
+    managesStock: this.fb.control(true),
     description: this.fb.control(''),
   });
 
@@ -178,6 +204,27 @@ export class ProductGeneralStepComponent implements OnInit {
     if (value) {
       this.form.controls.status.setValue(value as ProductStatus);
     }
+  }
+
+  protected onUomSelect(value: string | null): void {
+    if (value) {
+      this.form.controls.unitOfMeasure.setValue(value);
+    }
+  }
+
+  protected onVatSelect(value: string | null): void {
+    this.form.controls.defaultVatRatePercent.setValue(value ? Number(value) : null);
+  }
+
+  protected onTrackingSelect(value: string | null): void {
+    if (value) {
+      this.form.controls.inventoryTracking.setValue(value as InventoryTrackingMode);
+    }
+  }
+
+  protected vatSelectValue(): string {
+    const value = this.form.controls.defaultVatRatePercent.value;
+    return value == null ? '' : String(value);
   }
 
   protected onCategorySelect(value: string | null): void {

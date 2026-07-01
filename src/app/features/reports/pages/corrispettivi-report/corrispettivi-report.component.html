@@ -1,0 +1,137 @@
+<section class="corrispettivi">
+  <header class="corrispettivi__header">
+    <div class="corrispettivi__heading">
+      <p class="corrispettivi__back">
+        <a routerLink="/app/reports" class="corrispettivi__back-link">← Report</a>
+      </p>
+      <h1 class="corrispettivi__title">Corrispettivi commercialista</h1>
+      <p class="corrispettivi__subtitle">{{ pageSubtitle() }}</p>
+    </div>
+    @if (canExport()) {
+      <div class="corrispettivi__header-actions">
+        <app-button variant="ghost" (click)="printReport()">
+          <i class="pi pi-print" aria-hidden="true"></i>
+          Anteprima stampa
+        </app-button>
+        <app-button
+          variant="secondary"
+          [loading]="exportingPdf()"
+          [disabled]="exportingPdf()"
+          (click)="exportPdf()"
+        >
+          <i class="pi pi-file-pdf" aria-hidden="true"></i>
+          Scarica PDF
+        </app-button>
+        <app-button
+          variant="secondary"
+          [loading]="exportingSpreadsheet()"
+          [disabled]="exportingSpreadsheet()"
+          (click)="exportSpreadsheet()"
+        >
+          <i class="pi pi-file-excel" aria-hidden="true"></i>
+          Export Excel
+        </app-button>
+        <app-button
+          variant="secondary"
+          [loading]="exporting()"
+          [disabled]="exporting()"
+          (click)="exportAccountantCsv()"
+        >
+          <i class="pi pi-download" aria-hidden="true"></i>
+          Export per commercialista
+        </app-button>
+        <app-button
+          variant="primary"
+          [disabled]="!summary() || summary()!.pendingDeliveryCount === 0"
+          (click)="openMarkDelivered()"
+        >
+          Segna consegnato
+        </app-button>
+      </div>
+    }
+  </header>
+
+  <app-report-corrispettivi-export
+    title="Periodo corrispettivi"
+    [subtitle]="filterSubtitle()"
+    exportButtonLabel="Esporta CSV periodo"
+    [showChannelFilter]="false"
+    [period]="displayPeriod()"
+    [dateFrom]="dateFromDraft()"
+    [dateTo]="dateToDraft()"
+    [periodLabel]="periodLabel()"
+    [exporting]="exporting()"
+    (periodChange)="onPeriodChange($event)"
+    (dateFromChange)="onDateFromChange($event)"
+    (dateToChange)="onDateToChange($event)"
+    (exportClick)="exportAccountantCsv()"
+  />
+
+  <div class="corrispettivi__filters">
+    <app-select-menu
+      [options]="fiscalStatusOptions"
+      [value]="fiscalStatusFilter() ?? ''"
+      ariaLabel="Filtra per stato fiscale"
+      placeholder="Stato fiscale"
+      [compact]="true"
+      (valueChange)="onFiscalStatusChange($event)"
+    />
+    <app-button
+      variant="ghost"
+      [class.corrispettivi__filter--active]="onlineOnly()"
+      (click)="toggleOnlineOnly()"
+    >
+      Solo online
+    </app-button>
+    <app-button
+      variant="ghost"
+      [class.corrispettivi__filter--active]="pendingOnly()"
+      (click)="togglePendingOnly()"
+    >
+      Solo da consegnare
+    </app-button>
+    <app-button
+      variant="ghost"
+      [class.corrispettivi__filter--active]="refundsOnly()"
+      (click)="toggleRefundsOnly()"
+    >
+      Solo rimborsi
+    </app-button>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="6" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (summary(); as pageSummary) {
+    <app-corrispettivi-summary [summary]="pageSummary" [periodLabel]="periodLabel()" />
+
+    <section class="corrispettivi__panel" aria-labelledby="corrispettivi-orders-title">
+      <div class="corrispettivi__panel-head">
+        <h2 id="corrispettivi-orders-title" class="corrispettivi__panel-title">Elenco vendite</h2>
+        <p class="corrispettivi__panel-hint tabular-nums">{{ totalOrders() }} ordini nel periodo</p>
+      </div>
+
+      @if (orders().length === 0) {
+        <app-empty-state
+          title="Nessuna vendita nel periodo"
+          [description]="emptyHint()"
+          icon="pi-shopping-cart"
+        />
+      } @else {
+        <app-corrispettivi-orders-table [orders]="orders()" />
+      }
+    </section>
+
+    <app-corrispettivi-deliveries [deliveries]="deliveries()" />
+  }
+
+  <app-confirm-dialog
+    title="Consegna al commercialista"
+    [message]="markDeliveredMessage()"
+    confirmLabel="Conferma consegna"
+    [(open)]="markDeliveredOpen"
+    [busy]="markDeliveredBusy()"
+    (confirmed)="confirmMarkDelivered()"
+  />
+</section>

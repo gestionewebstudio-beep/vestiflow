@@ -1,0 +1,71 @@
+<section class="supplier-detail">
+  <a class="supplier-detail__back" [routerLink]="listPath">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Fornitori
+  </a>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-search"
+      title="Fornitore non trovato"
+      description="Il fornitore richiesto non esiste o è stato rimosso."
+      ctaLabel="Torna ai fornitori"
+      (ctaClick)="goToList()"
+    />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (supplier(); as s) {
+    <header class="supplier-detail__header">
+      <h1 class="supplier-detail__title">{{ s.name }}</h1>
+      @if (canManage()) {
+        <app-button variant="secondary" (click)="editSupplier()">
+          <i class="pi pi-pencil" aria-hidden="true"></i>
+          Modifica
+        </app-button>
+      }
+    </header>
+
+    <section class="supplier-detail__panel" aria-labelledby="supplier-general">
+      <h2 id="supplier-general" class="supplier-detail__panel-title">Anagrafica</h2>
+      <app-detail-facts [facts]="facts()" />
+    </section>
+
+    <app-supplier-attachments-panel [supplierId]="s.id" [canManage]="canManage()" />
+
+    <section class="supplier-detail__panel" aria-labelledby="supplier-articles">
+      <h2 id="supplier-articles" class="supplier-detail__panel-title">Articoli collegati</h2>
+      @if (links().length === 0) {
+        <p class="supplier-detail__empty-links">
+          Nessun articolo collegato. Associa codici fornitore dal dettaglio prodotto.
+        </p>
+      } @else {
+        <div class="supplier-detail__table-wrap">
+          <table class="supplier-detail__table">
+            <thead>
+              <tr>
+                <th scope="col">Prodotto</th>
+                <th scope="col">SKU</th>
+                <th scope="col">Codice fornitore</th>
+                <th scope="col">Preferenziale</th>
+                <th scope="col">Ultimo prezzo</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (link of links(); track link.id) {
+                <tr>
+                  <td>{{ link.variant.product.name }}</td>
+                  <td>{{ link.variant.sku }}</td>
+                  <td>{{ link.supplierSku ?? '—' }}</td>
+                  <td>{{ link.isPreferred ? 'Sì' : 'No' }}</td>
+                  <td class="supplier-detail__num">{{ formatPrice(link) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</section>

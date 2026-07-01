@@ -12,5 +12,5 @@ export async function loginWithMockAuth(page: Page): Promise<void> {
   await page.locator('#login-password').fill(MOCK_OWNER_CREDENTIALS.password);
   await page.getByRole('button', { name: 'Accedi' }).click();
   await expect(page).toHaveURL(/\/app\/dashboard/, { timeout: 30_000 });
-  await expect(page.locator('h1.dashboard__title')).toHaveText('Dashboard');
+  await expect(page.locator('h1.dashboard__title')).toHaveText('Dashboard', { timeout: 30_000 });
 }

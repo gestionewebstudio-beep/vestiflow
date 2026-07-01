@@ -1,0 +1,278 @@
+<section class="gr-form">
+  <a class="gr-form__back" href="/app/documents" (click)="$event.preventDefault(); cancel()">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Documenti
+  </a>
+
+  <h1 class="gr-form__title">{{ pageTitle() }}</h1>
+
+  @if (isProforma()) {
+    <p class="gr-form__disclaimer" role="note">{{ proformaDisclaimer }}</p>
+  }
+  @if (isSalesDdt()) {
+    <p class="gr-form__disclaimer" role="note">
+      DDT vendita manuale: alla conferma le righe con variante scaricano la giacenza dalla location
+      selezionata.
+    </p>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="6" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare il documento."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (notEditable()) {
+    <app-empty-state
+      icon="pi-lock"
+      title="Documento non modificabile"
+      description="Solo bozze o documenti confermati (non bloccati) di proforma, bozza fattura o DDT vendita manuale sono editabili."
+      ctaLabel="Torna al registro"
+      (ctaClick)="cancel()"
+    />
+  } @else {
+    <form
+      class="gr-form__form"
+      [formGroup]="form"
+      (ngSubmit)="isConfirmedEdit() ? saveDraft() : requestConfirm()"
+    >
+      <div class="gr-form__grid">
+        <div class="gr-form__field">
+          <span class="gr-form__label" id="sd-customer-label">Cliente</span>
+          <app-select-menu
+            [options]="customerOptions()"
+            [value]="form.controls.customerId.value"
+            ariaLabel="Cliente"
+            placeholder="Seleziona cliente…"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca cliente…"
+            searchAriaLabel="Cerca cliente"
+            [invalid]="fieldInvalid('customerId')"
+            describedBy="sd-customer-error"
+            (valueChange)="onCustomerSelect($event)"
+          />
+          @if (fieldInvalid('customerId')) {
+            <p id="sd-customer-error" class="gr-form__error">Seleziona un cliente.</p>
+          }
+        </div>
+
+        @if (isSalesDdt()) {
+          <div class="gr-form__field">
+            <span class="gr-form__label">Location origine scarico</span>
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Location di origine"
+              placeholder="Seleziona location…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('locationId')"
+              describedBy="sd-location-error"
+              (valueChange)="onLocationSelect($event)"
+            />
+            @if (fieldInvalid('locationId')) {
+              <p id="sd-location-error" class="gr-form__error">Seleziona la location di origine.</p>
+            }
+          </div>
+        }
+
+        <div class="gr-form__field">
+          <label class="gr-form__label" for="sd-date">Data documento</label>
+          <app-date-input
+            inputId="sd-date"
+            formControlName="documentDate"
+            ariaLabel="Data documento"
+            [compact]="true"
+            [fullWidth]="true"
+          />
+        </div>
+
+        @if (isInvoiceDraft()) {
+          <div class="gr-form__field">
+            <label class="gr-form__label" for="sd-cause">Causale</label>
+            <input
+              id="sd-cause"
+              class="gr-form__input"
+              type="text"
+              formControlName="billingCause"
+            />
+          </div>
+          <div class="gr-form__field">
+            <label class="gr-form__label" for="sd-ddt">Riferimento DDT</label>
+            <input
+              id="sd-ddt"
+              class="gr-form__input"
+              type="text"
+              formControlName="relatedDdtRef"
+              placeholder="Es. DDT-2026-0012"
+            />
+          </div>
+        }
+      </div>
+
+      <section class="gr-form__lines" aria-labelledby="sd-lines-title">
+        <div class="gr-form__lines-head">
+          <h2 id="sd-lines-title" class="gr-form__subtitle">Righe</h2>
+          <app-button type="button" variant="ghost" (click)="addLine()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Aggiungi riga
+          </app-button>
+        </div>
+
+        <div class="gr-form__line-list" formArrayName="lines">
+          @for (line of lines.controls; track line; let i = $index) {
+            <div class="gr-form__line-block">
+              <div class="gr-form__line" [formGroupName]="i">
+                <div class="gr-form__line-field gr-form__line-field--variant">
+                  <span class="gr-form__label">Articolo / SKU</span>
+                  <app-select-menu
+                    [options]="variantOptions()"
+                    [value]="line.controls.variantId.value"
+                    ariaLabel="Variante"
+                    placeholder="Cerca prodotto…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    [filterOptionsLocally]="false"
+                    searchPlaceholder="SKU o nome…"
+                    searchAriaLabel="Cerca variante"
+                    (searchChange)="onVariantSearch($event)"
+                    (valueChange)="onVariantSelect(i, $event)"
+                  />
+                </div>
+                <div class="gr-form__line-field">
+                  <label class="gr-form__label" [for]="'sd-desc-' + i">Descrizione</label>
+                  <input
+                    [id]="'sd-desc-' + i"
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="description"
+                  />
+                </div>
+                <div class="gr-form__line-field gr-form__line-field--qty">
+                  <label class="gr-form__label" [for]="'sd-qty-' + i">Qtà</label>
+                  <input
+                    [id]="'sd-qty-' + i"
+                    class="gr-form__input"
+                    type="number"
+                    min="1"
+                    formControlName="quantity"
+                  />
+                </div>
+                <div class="gr-form__line-field">
+                  <label class="gr-form__label" [for]="'sd-price-' + i">Prezzo</label>
+                  <input
+                    [id]="'sd-price-' + i"
+                    class="gr-form__input"
+                    type="text"
+                    inputmode="decimal"
+                    formControlName="unitPrice"
+                    placeholder="0,00"
+                  />
+                </div>
+                <div class="gr-form__line-field gr-form__line-field--vat">
+                  <label class="gr-form__label" [for]="'sd-vat-' + i">IVA %</label>
+                  <input
+                    [id]="'sd-vat-' + i"
+                    class="gr-form__input"
+                    type="number"
+                    min="0"
+                    max="100"
+                    formControlName="vatRatePercent"
+                  />
+                </div>
+                @if (isSalesDdt()) {
+                  <div class="gr-form__line-field gr-form__line-field--serials">
+                    <label class="gr-form__label" [for]="'sd-serials-' + i">Seriali</label>
+                    <input
+                      [id]="'sd-serials-' + i"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="serialNumbersText"
+                      placeholder="SN001, SN002"
+                      autocomplete="off"
+                    />
+                  </div>
+                }
+              </div>
+              @if (lines.length > 1) {
+                <button type="button" class="gr-form__line-remove" (click)="removeLine(i)">
+                  Rimuovi riga
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <dl class="gr-form__totals">
+          <div class="gr-form__total-row">
+            <dt>Imponibile stimato</dt>
+            <dd class="tabular-nums">{{ formatMoney(lineTotals().subtotal) }}</dd>
+          </div>
+          <div class="gr-form__total-row">
+            <dt>IVA stimata</dt>
+            <dd class="tabular-nums">{{ formatMoney(lineTotals().tax) }}</dd>
+          </div>
+          <div class="gr-form__total-row gr-form__total-row--grand">
+            <dt>Totale stimato</dt>
+            <dd class="tabular-nums">{{ formatMoney(lineTotals().total) }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <div class="gr-form__field">
+        <label class="gr-form__label" for="sd-notes">Note (visibili in stampa)</label>
+        <textarea
+          id="sd-notes"
+          class="gr-form__textarea"
+          rows="3"
+          formControlName="notes"
+        ></textarea>
+      </div>
+
+      <div class="gr-form__field">
+        <label class="gr-form__label" for="sd-internal">Commento interno</label>
+        <textarea
+          id="sd-internal"
+          class="gr-form__textarea"
+          rows="2"
+          formControlName="internalComment"
+        ></textarea>
+      </div>
+
+      @if (submitError(); as err) {
+        <app-error-state [description]="err.message" />
+      }
+
+      <div class="gr-form__actions">
+        <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
+        @if (isConfirmedEdit()) {
+          <app-button type="submit" [loading]="saving()" [disabled]="saving()">
+            Salva modifiche
+          </app-button>
+        } @else {
+          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="saveDraft()">
+            Salva bozza
+          </app-button>
+          <app-button type="submit" [loading]="saving()" [disabled]="saving()">
+            {{ submitConfirmLabel() }}
+          </app-button>
+        }
+      </div>
+    </form>
+  }
+
+  <app-confirm-dialog
+    [(open)]="confirmDialogOpen"
+    [title]="confirmDialogTitle()"
+    [message]="confirmDialogMessage()"
+    [confirmLabel]="confirmButtonLabel()"
+    cancelLabel="Indietro"
+    [busy]="saving()"
+    (confirmed)="confirmAndSave()"
+  />
+</section>

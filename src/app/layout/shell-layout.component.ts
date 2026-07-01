@@ -48,6 +48,7 @@ import {
   canRegisterOnlineSales,
   canRegisterRetailSales,
   canViewCustomers,
+  canViewDocuments,
   canViewReports,
   canViewSupplierOrders,
   canManageShopifyConnection,
@@ -370,10 +371,25 @@ export class ShellLayoutComponent {
 
     if (canViewSupplierOrders(user)) {
       tenantItems.push({
+        label: 'Fornitori',
+        icon: 'pi-building',
+        route: '/app/suppliers',
+        activeRoutePrefix: '/app/suppliers',
+      });
+      tenantItems.push({
         label: 'Ordini Fornitori',
         icon: 'pi-truck',
         route: '/app/orders',
         activeRoutePrefix: '/app/orders',
+      });
+    }
+
+    if (canViewDocuments(user)) {
+      tenantItems.push({
+        label: 'Documenti',
+        icon: 'pi-file',
+        route: '/app/documents',
+        activeRoutePrefix: '/app/documents',
       });
     }
 
@@ -394,6 +410,13 @@ export class ShellLayoutComponent {
         icon: 'pi-chart-line',
         route: '/app/reports',
         activeRoutePrefix: '/app/reports',
+        activeRouteExclude: ['/app/reports/accountant-register'],
+      });
+      tenantItems.push({
+        label: 'Registro commercialista',
+        icon: 'pi-briefcase',
+        route: '/app/reports/accountant-register',
+        activeRoutePrefix: '/app/reports/accountant-register',
       });
     }
 

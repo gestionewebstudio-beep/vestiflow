@@ -1,0 +1,47 @@
+@use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
+
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('doc-lines');
+@include rt.data-table-mobile-cards('doc-lines');
+
+.doc-lines__head th {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.doc-lines__row td {
+  padding: var(--space-2) var(--space-3);
+}
+
+.doc-lines__desc {
+  display: block;
+  font-weight: var(--font-weight-medium);
+}
+
+.doc-lines__sku {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+@include bp.media-up('lg') {
+  .doc-lines tbody td.doc-lines__cell--qty,
+  .doc-lines__head th.doc-lines__cell--qty,
+  .doc-lines tbody td.doc-lines__cell--price,
+  .doc-lines__head th.doc-lines__cell--price,
+  .doc-lines tbody td.doc-lines__cell--discount,
+  .doc-lines__head th.doc-lines__cell--discount,
+  .doc-lines tbody td.doc-lines__cell--vat,
+  .doc-lines__head th.doc-lines__cell--vat,
+  .doc-lines tbody td.doc-lines__cell--total,
+  .doc-lines__head th.doc-lines__cell--total {
+    text-align: end;
+  }
+
+  .doc-lines tbody td.doc-lines__cell--num,
+  .doc-lines__head th.doc-lines__cell--num {
+    text-align: center;
+  }
+}

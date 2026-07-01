@@ -7,7 +7,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { Subscription } from 'rxjs';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
@@ -16,12 +15,13 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { AuthService } from '@core/auth';
 import {
+  canManageDocuments,
   canManageSupplierOrders,
   canReceiveSupplierOrders,
 } from '@core/permissions/tenant-permissions.util';
 import type { Location } from '@core/models/location.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
-import type { SupplierOrder, SupplierOrderLine } from '@core/models/supplier-order.model';
+import type { SupplierOrder } from '@core/models/supplier-order.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -34,6 +34,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { InventoryService } from '@features/inventory/services/inventory.service';
+import { DocumentService } from '@features/documents/services/document.service';
 
 import { SupplierOrderLinesTableComponent } from './components/supplier-order-lines-table/supplier-order-lines-table.component';
 import {
@@ -64,7 +65,6 @@ type DetailState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
-    ReactiveFormsModule,
     BadgeComponent,
     ButtonComponent,
     DetailFactsComponent,
@@ -79,11 +79,11 @@ type DetailState =
 })
 export class SupplierOrderDetailComponent {
   private readonly service = inject(SupplierOrderService);
+  private readonly documentService = inject(DocumentService);
   private readonly inventoryService = inject(InventoryService);
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly listPath = '/app/orders';
@@ -175,17 +175,18 @@ export class SupplierOrderDetailComponent {
       this.order()?.status === SupplierOrderStatus.Cancelled &&
       canManageSupplierOrders(this.authService.currentUser()),
   );
-  protected readonly canReceive = computed(() => {
+  protected readonly canRegisterGoodsReceipt = computed(() => {
     const status = this.order()?.status;
     if (!canReceiveSupplierOrders(this.authService.currentUser())) {
+      return false;
+    }
+    if (!canManageDocuments(this.authService.currentUser())) {
       return false;
     }
     return status === SupplierOrderStatus.Sent || status === SupplierOrderStatus.PartiallyReceived;
   });
 
-  // Fase: visualizzazione vs ricezione merce (azione sensibile, conferma esplicita).
-  private readonly _mode = signal<'view' | 'receive'>('view');
-  protected readonly mode = this._mode.asReadonly();
+  protected readonly goodsReceiptDialogOpen = signal(false);
 
   private readonly _actionState = signal<ActionState>({ status: 'idle' });
   protected readonly actionSaving = computed(() => this._actionState().status === 'saving');
@@ -195,19 +196,10 @@ export class SupplierOrderDetailComponent {
   });
 
   protected readonly sendDialogOpen = signal(false);
-  protected readonly receiveConfirmDialogOpen = signal(false);
   protected readonly cancelDialogOpen = signal(false);
   protected readonly deleteDialogOpen = signal(false);
 
-  readonly receiveForm = this.fb.group({
-    rows: this.fb.array<ReturnType<SupplierOrderDetailComponent['createReceiveRow']>>([]),
-  });
-
-  protected get receiveRows(): FormArray<
-    ReturnType<SupplierOrderDetailComponent['createReceiveRow']>
-  > {
-    return this.receiveForm.controls.rows;
-  }
+  private actionSubscription: Subscription | null = null;
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
@@ -217,25 +209,29 @@ export class SupplierOrderDetailComponent {
     void this.router.navigateByUrl(this.listPath);
   }
 
-  protected remaining(line: SupplierOrderLine): number {
-    return Math.max(0, line.orderedQuantity - line.receivedQuantity);
+  protected requestRegisterGoodsReceipt(): void {
+    this.goodsReceiptDialogOpen.set(true);
   }
 
-  protected startReceive(): void {
+  protected registerGoodsReceipt(): void {
+    this.goodsReceiptDialogOpen.set(false);
     const order = this.order();
-    if (!order) {
+    if (!order || this.actionSaving()) {
       return;
     }
-    this._actionState.set({ status: 'idle' });
-    this.receiveRows.clear();
-    for (const line of order.lines) {
-      this.receiveRows.push(this.createReceiveRow(line));
-    }
-    this._mode.set('receive');
-  }
-
-  protected cancelReceive(): void {
-    this._mode.set('view');
+    this._actionState.set({ status: 'saving' });
+    this.actionSubscription = this.documentService
+      .createGoodsReceiptFromSupplierOrder(order.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => {
+          this._actionState.set({ status: 'idle' });
+          void this.router.navigateByUrl(`/app/documents/${doc.id}/edit`);
+        },
+        error: (err: unknown) => {
+          this._actionState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
   }
 
   protected goToEdit(): void {
@@ -258,16 +254,6 @@ export class SupplierOrderDetailComponent {
     this.deleteDialogOpen.set(true);
   }
 
-  protected requestReceiveConfirm(): void {
-    if (this.receiveForm.invalid) {
-      this.receiveForm.markAllAsTouched();
-      return;
-    }
-    this.receiveConfirmDialogOpen.set(true);
-  }
-
-  private actionSubscription: Subscription | null = null;
-
   protected sendOrder(): void {
     this.sendDialogOpen.set(false);
     const order = this.order();
@@ -281,47 +267,6 @@ export class SupplierOrderDetailComponent {
       .subscribe({
         next: () => {
           this._actionState.set({ status: 'idle' });
-          this.reload();
-        },
-        error: (err: unknown) => {
-          this._actionState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
-  }
-
-  protected confirmReceive(): void {
-    this.receiveConfirmDialogOpen.set(false);
-    const order = this.order();
-    if (!order || this.actionSaving()) {
-      return;
-    }
-    const lines = this.receiveRows.controls
-      .map((row) => ({
-        lineId: row.controls.lineId.value,
-        quantity: Number(row.controls.quantity.value),
-      }))
-      .filter((line) => Number.isFinite(line.quantity) && line.quantity > 0);
-
-    if (lines.length === 0) {
-      this._actionState.set({
-        status: 'error',
-        error: {
-          kind: AppErrorKind.Validation,
-          message: 'Inserisci almeno una quantità da ricevere.',
-        },
-      });
-      return;
-    }
-
-    this._actionState.set({ status: 'saving' });
-    this.actionSubscription = this.service
-      .receiveOrder(order.id, lines)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this._actionState.set({ status: 'idle' });
-          this._mode.set('view');
-          this.inventoryService.invalidateLocationsCache();
           this.reload();
         },
         error: (err: unknown) => {
@@ -370,18 +315,6 @@ export class SupplierOrderDetailComponent {
           this._actionState.set({ status: 'error', error: this.toAppError(err) });
         },
       });
-  }
-
-  private createReceiveRow(line: SupplierOrderLine) {
-    const remaining = this.remaining(line);
-    return this.fb.group({
-      lineId: this.fb.control(line.id),
-      sku: this.fb.control(line.sku),
-      remaining: this.fb.control(remaining),
-      quantity: this.fb.control(remaining, {
-        validators: [Validators.min(0), Validators.max(remaining), Validators.pattern(/^\d+$/)],
-      }),
-    });
   }
 
   private errorToState(err: unknown): DetailState {

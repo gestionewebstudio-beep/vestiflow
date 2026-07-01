@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { ShopifyConnectionService } from './shopify-connection.service';
 import type { ShopifyProductPullService } from './shopify-product-pull.service';
+import type { ShopifyOrderDocumentService } from './shopify-order-document.service';
 import { ShopifySyncService } from './shopify-sync.service';
 
 describe('ShopifySyncService', () => {
@@ -41,13 +42,18 @@ describe('ShopifySyncService', () => {
       importProductFromWebhook: vi.fn().mockResolvedValue(undefined),
     };
 
+    const shopifyOrderDocument = {
+      syncFromShopifyOrder: vi.fn().mockResolvedValue(null),
+    };
+
     const service = new ShopifySyncService(
       prisma as unknown as PrismaService,
       shopifyConnection as unknown as ShopifyConnectionService,
       shopifyProductPull as unknown as ShopifyProductPullService,
+      shopifyOrderDocument as unknown as ShopifyOrderDocumentService,
     );
 
-    return { service, prisma, shopifyConnection, shopifyProductPull };
+    return { service, prisma, shopifyConnection, shopifyProductPull, shopifyOrderDocument };
   }
 
   it('handleWebhook ignora topic sconosciuto', async () => {

@@ -28,8 +28,15 @@
   white-space: nowrap;
 }
 
-.movement-table__sku {
-  color: var(--color-text-muted);
+.movement-table__cell--pinned {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: calc(var(--z-raised) + 1);
+  background-color: var(--color-surface);
+}
+
+.movement-table__head .movement-table__cell--pinned {
+  z-index: calc(var(--z-raised) + 2);
 }
 
 @include bp.media-up('lg') {

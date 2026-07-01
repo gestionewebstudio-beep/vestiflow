@@ -12,6 +12,11 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { AuthService } from '@core/auth';
+import {
+  businessAnalyticsPricingHint,
+  businessAnalyticsRevenueHint,
+} from '@core/models/tenant-channel-profile.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { formatMoney } from '@core/utils/money.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -67,6 +72,17 @@ type PanelState =
 export class BusinessAnalyticsPanelComponent {
   private readonly analyticsService = inject(BusinessAnalyticsService);
   private readonly locationContext = inject(LocationContextService);
+  private readonly authService = inject(AuthService);
+
+  private readonly tenantProfile = computed(
+    () => this.authService.currentUser()?.tenantChannelProfile,
+  );
+  protected readonly pricingHint = computed(() =>
+    businessAnalyticsPricingHint(this.tenantProfile()),
+  );
+  protected readonly revenueHint = computed(() =>
+    businessAnalyticsRevenueHint(this.tenantProfile()),
+  );
 
   /** `dashboard` mostra tabelle compatte; `reports` espande dettagli. */
   readonly layout = input<'dashboard' | 'reports'>('dashboard');

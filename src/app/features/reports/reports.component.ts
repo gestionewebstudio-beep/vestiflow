@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthService } from '@core/auth';
@@ -60,6 +60,7 @@ type ReportState =
   selector: 'app-reports',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     ErrorStateComponent,
     BusinessAnalyticsPanelComponent,
     ReportCorrispettiviExportComponent,

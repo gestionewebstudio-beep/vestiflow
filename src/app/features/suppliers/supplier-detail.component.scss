@@ -1,0 +1,78 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+.supplier-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.supplier-detail__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.supplier-detail__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@include bp.media-up('md') {
+  .supplier-detail__header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.supplier-detail__title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.supplier-detail__panel {
+  padding: var(--card-pad-md);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.supplier-detail__panel-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-lg);
+}
+
+.supplier-detail__empty-links {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.supplier-detail__table-wrap {
+  overflow-x: auto;
+}
+
+.supplier-detail__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.supplier-detail__table th,
+.supplier-detail__table td {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: var(--border-width) solid var(--color-border);
+  text-align: start;
+}
+
+.supplier-detail__num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}

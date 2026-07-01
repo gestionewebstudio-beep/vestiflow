@@ -32,6 +32,7 @@ import {
   canManageCatalog,
   canSyncProductToShopify,
 } from '@core/permissions/tenant-permissions.util';
+import { showShopifyIntegration as isShopifyTenantProfile } from '@core/models/tenant-channel-profile.model';
 import type { IsoDateString } from '@core/models/common.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import type { Product, ProductStatus } from '@core/models/product.model';
@@ -46,7 +47,10 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { ProductVariantTableComponent } from './components/product-variant-table/product-variant-table.component';
+import { ProductSupplierLinksComponent } from './components/product-supplier-links/product-supplier-links.component';
 import { productStatusLabel, productStatusTone } from './models/product-status.util';
+import { INVENTORY_TRACKING_LABELS } from '@core/models/product-catalog.model';
+import type { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import {
   catalogOriginLabel,
   catalogOriginTone,
@@ -131,6 +135,7 @@ function shopifyCustomMetafieldLabel(namespace: string, key: string): string {
     ErrorStateComponent,
     TableSkeletonComponent,
     ProductVariantTableComponent,
+    ProductSupplierLinksComponent,
   ],
   templateUrl: './product-detail.component.html',
   styleUrl: './product-detail.component.scss',
@@ -156,7 +161,13 @@ export class ProductDetailComponent {
     }
     return canDeleteProducts(this.authService.currentUser());
   });
+  protected readonly showShopifyIntegration = computed(() =>
+    isShopifyTenantProfile(this.authService.currentUser()?.tenantChannelProfile),
+  );
   protected readonly canSyncProductToShopify = computed(() => {
+    if (!this.showShopifyIntegration()) {
+      return false;
+    }
     const product = this.product();
     if (product && isShopifyCatalogProduct(product)) {
       return false;
@@ -225,6 +236,13 @@ export class ProductDetailComponent {
 
   protected statusTone(status: ProductStatus): BadgeTone {
     return productStatusTone(status);
+  }
+
+  protected trackingLabel(mode: InventoryTrackingMode | undefined): string {
+    if (!mode) {
+      return 'Standard';
+    }
+    return INVENTORY_TRACKING_LABELS[mode];
   }
 
   protected shopifyLabel(status: ShopifySyncStatus): string {

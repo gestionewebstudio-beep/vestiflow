@@ -9,6 +9,7 @@ import type { ExportInventoryLevelsQueryDto } from './dto/export-inventory-level
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import {
   buildVariantTitle,
+  INVENTORY_EXPORT_HEADERS,
   serializeInventoryLevelsCsv,
   type InventoryExportHeader,
 } from './import/inventory-csv.util';
@@ -51,6 +52,28 @@ function corrispettiviOriginLabel(
     return onlineSalesChannelLabel(channelProfile);
   }
   return CORRISPETTIVI_ORIGIN_LABELS[origin] ?? origin;
+}
+
+const INVENTORY_LEVEL_COLUMN_EXPORT: Record<string, InventoryExportHeader> = {
+  title: 'Variante',
+  sku: 'SKU',
+  locationName: 'Location',
+  available: 'Disponibile',
+  onHand: 'Fisico',
+  committed: 'Impegnato',
+  incoming: 'In arrivo',
+  minThreshold: 'Soglia minima',
+};
+
+function resolveExportHeaders(columns?: string): readonly InventoryExportHeader[] {
+  if (!columns?.trim()) {
+    return INVENTORY_EXPORT_HEADERS;
+  }
+  const resolved = columns
+    .split(',')
+    .map((id) => INVENTORY_LEVEL_COLUMN_EXPORT[id.trim()])
+    .filter((header): header is InventoryExportHeader => Boolean(header));
+  return resolved.length > 0 ? resolved : INVENTORY_EXPORT_HEADERS;
 }
 
 const ROME_DATETIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
@@ -160,7 +183,7 @@ export class InventoryExportService {
       INVENTORY_ACTION_SCOPE_MODE,
     );
     if (!scope) {
-      return serializeInventoryLevelsCsv([]);
+      return serializeInventoryLevelsCsv([], resolveExportHeaders(query.columns));
     }
 
     const levels = await this.prisma.inventoryLevel.findMany({
@@ -193,7 +216,8 @@ export class InventoryExportService {
       'Soglia minima': String(level.minThreshold),
     }));
 
-    return serializeInventoryLevelsCsv(rows);
+    const headers = resolveExportHeaders(query.columns);
+    return serializeInventoryLevelsCsv(rows, headers);
   }
 
   private buildWhere(

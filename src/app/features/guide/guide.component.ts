@@ -17,6 +17,8 @@ import { ActivatedRoute } from '@angular/router';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { catchError, of } from 'rxjs';
 
+import { AuthService } from '@core/auth';
+import { userGuidePageIntro } from '@core/models/tenant-channel-profile.model';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
@@ -36,6 +38,7 @@ export class GuideComponent {
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
+  private readonly authService = inject(AuthService);
 
   private readonly contentHost = viewChild<ElementRef<HTMLElement>>('contentHost');
 
@@ -48,11 +51,12 @@ export class GuideComponent {
     this.isAdminGuide ? 'Guida tecnica VestiFlow' : 'Guida VestiFlow',
   );
 
-  protected readonly pageIntro = computed(() =>
-    this.isAdminGuide
-      ? 'Documentazione operatore, architettura, deploy e sviluppo (solo operatori piattaforma).'
-      : 'Manuale del gestionale: menu, Shopify, prodotti, magazzino, ordini, vendite e clienti.',
-  );
+  protected readonly pageIntro = computed(() => {
+    if (this.isAdminGuide) {
+      return 'Documentazione operatore, architettura, deploy e sviluppo (solo operatori piattaforma).';
+    }
+    return userGuidePageIntro(this.authService.currentUser()?.tenantChannelProfile);
+  });
 
   protected readonly pdfUrl = computed(() =>
     this.isAdminGuide

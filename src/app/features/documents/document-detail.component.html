@@ -1,0 +1,259 @@
+<section class="doc-detail">
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (notFound()) {
+    <app-empty-state
+      title="Documento non trovato"
+      description="Il documento richiesto non esiste o è stato eliminato."
+      icon="pi-file"
+    />
+    <app-button variant="ghost" (click)="goToList()">Torna al registro</app-button>
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (document(); as doc) {
+    <header class="doc-detail__header">
+      <div class="doc-detail__heading">
+        <button type="button" class="doc-detail__back" (click)="goToList()">
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+          Registro documenti
+        </button>
+        <h1 class="doc-detail__title">
+          {{ title() }}
+          <app-badge [tone]="statusTone(doc.status)">{{
+            statusLabel(doc.type, doc.status, doc)
+          }}</app-badge>
+        </h1>
+      </div>
+
+      <div class="doc-detail__actions">
+        @if (canOpenPrintPreview()) {
+          <app-button variant="secondary" (click)="openPrintPreview()">Anteprima stampa</app-button>
+          <app-button
+            variant="secondary"
+            [loading]="downloadingPdf()"
+            [disabled]="downloadingPdf()"
+            (click)="downloadDocumentPdf()"
+          >
+            Scarica PDF
+          </app-button>
+        }
+        @if (canPrintLabels()) {
+          <app-button variant="secondary" (click)="printLabels()">Stampa etichette</app-button>
+        }
+        @if (canEdit()) {
+          <app-button variant="secondary" (click)="editDocument()">{{
+            editButtonLabel()
+          }}</app-button>
+        }
+        @if (canConvert()) {
+          <app-button
+            variant="secondary"
+            [disabled]="actionSaving()"
+            (click)="convertToInvoiceDraft()"
+          >
+            Converti in bozza fattura
+          </app-button>
+          <app-button variant="secondary" [disabled]="actionSaving()" (click)="convertToSalesDdt()">
+            Converti in DDT vendita
+          </app-button>
+        }
+        @if (canConfirm()) {
+          <app-button [disabled]="actionSaving()" (click)="requestConfirm()">Conferma</app-button>
+        }
+        @if (canPrint()) {
+          <app-button variant="secondary" [disabled]="actionSaving()" (click)="printDocument()">
+            Segna stampato
+          </app-button>
+        }
+        @if (canSend()) {
+          <app-button variant="secondary" [disabled]="actionSaving()" (click)="sendDocument()">
+            {{ sendButtonLabel() }}
+          </app-button>
+        }
+        @if (canMarkExternallyIssued()) {
+          <app-button
+            variant="secondary"
+            [disabled]="actionSaving()"
+            (click)="requestMarkExternallyIssued()"
+          >
+            Segna emessa esternamente
+          </app-button>
+        }
+        @if (canRegisterExternal()) {
+          <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestRegister()">
+            Registra esternamente
+          </app-button>
+        }
+        @if (canCancel()) {
+          <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestCancel()">
+            Annulla
+          </app-button>
+        }
+        @if (canDelete()) {
+          <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestDelete()">
+            Elimina
+          </app-button>
+        }
+      </div>
+    </header>
+
+    @if (actionError(); as err) {
+      <app-error-state [description]="err.message" />
+    }
+
+    <app-detail-facts [facts]="facts()" />
+
+    <div class="doc-detail__lines">
+      <h2 class="doc-detail__section-title">Righe</h2>
+      @if (lines().length === 0) {
+        <app-empty-state
+          title="Nessuna riga"
+          description="Questo documento non ha ancora righe."
+          icon="pi-list"
+        />
+      } @else {
+        <app-document-lines-table [lines]="lines()" />
+        <dl class="doc-detail__totals">
+          <div class="doc-detail__total-row">
+            <dt>Imponibile</dt>
+            <dd class="tabular-nums">{{ formatMoney(doc.subtotal) }}</dd>
+          </div>
+          <div class="doc-detail__total-row">
+            <dt>IVA</dt>
+            <dd class="tabular-nums">{{ formatMoney(doc.tax) }}</dd>
+          </div>
+          <div class="doc-detail__total-row doc-detail__total-row--grand">
+            <dt>Totale</dt>
+            <dd class="tabular-nums">{{ formatMoney(doc.total) }}</dd>
+          </div>
+        </dl>
+      }
+    </div>
+
+    <app-document-attachments-panel [documentId]="doc.id" [canManage]="canManage()" />
+
+    @if (hasRevisions()) {
+      <section class="doc-detail__revisions">
+        <h2 class="doc-detail__section-title">Storico modifiche</h2>
+        <ol class="doc-detail__revision-list">
+          @for (revision of revisions(); track revision.id) {
+            <li class="doc-detail__revision-item">
+              <div class="doc-detail__revision-meta">
+                <span class="doc-detail__revision-number">Rev. {{ revision.revisionNumber }}</span>
+                <span class="doc-detail__revision-who">{{ revision.changedByName }}</span>
+                <time
+                  class="doc-detail__revision-date tabular-nums"
+                  [attr.datetime]="revision.createdAt"
+                >
+                  {{ formatDate(revision.createdAt) }}
+                </time>
+              </div>
+              <p class="doc-detail__revision-summary">{{ revision.summary }}</p>
+            </li>
+          }
+        </ol>
+      </section>
+    }
+  }
+</section>
+
+<app-confirm-dialog
+  [(open)]="confirmDialogOpen"
+  title="Conferma documento"
+  message="Confermando il documento verrà assegnato il numero progressivo. Potrai ancora modificarlo dopo la conferma, salvo blocco dalle impostazioni. Procedere?"
+  confirmLabel="Conferma documento"
+  [busy]="actionSaving()"
+  (confirmed)="confirmDocument()"
+/>
+
+<app-confirm-dialog
+  [(open)]="markExternallyIssuedDialogOpen"
+  title="Emessa esternamente"
+  [message]="markExternallyIssuedMessage"
+  confirmLabel="Conferma emissione"
+  [busy]="actionSaving()"
+  (confirmed)="markExternallyIssued()"
+>
+  <form class="doc-detail__register-form" [formGroup]="markExternallyIssuedForm">
+    <label class="doc-detail__register-field" for="mark-external-number">
+      Numero fattura (opzionale)
+      <input
+        id="mark-external-number"
+        class="doc-detail__register-input"
+        type="text"
+        formControlName="externalDocNumber"
+        autocomplete="off"
+      />
+    </label>
+    <label class="doc-detail__register-field" for="mark-external-date">
+      Data fattura (opzionale)
+      <app-date-input
+        inputId="mark-external-date"
+        formControlName="externalDocDate"
+        ariaLabel="Data fattura esterna"
+      />
+    </label>
+  </form>
+</app-confirm-dialog>
+
+<app-confirm-dialog
+  [(open)]="registerDialogOpen"
+  title="Registra esternamente"
+  [message]="registerDialogMessage()"
+  confirmLabel="Registra"
+  [busy]="actionSaving()"
+  (confirmed)="registerExternal()"
+>
+  @if (isInvoiceDraftRegister()) {
+    <form class="doc-detail__register-form" [formGroup]="registerExternalForm">
+      <label class="doc-detail__register-field" for="register-external-number">
+        Numero fattura esterna
+        <input
+          id="register-external-number"
+          class="doc-detail__register-input"
+          type="text"
+          formControlName="externalDocNumber"
+          autocomplete="off"
+        />
+      </label>
+      <label class="doc-detail__register-field" for="register-external-date">
+        Data fattura esterna
+        <app-date-input
+          inputId="register-external-date"
+          formControlName="externalDocDate"
+          ariaLabel="Data fattura esterna"
+        />
+      </label>
+      <label class="doc-detail__register-field" for="register-external-note">
+        Note (opzionale)
+        <input
+          id="register-external-note"
+          class="doc-detail__register-input"
+          type="text"
+          formControlName="note"
+          autocomplete="off"
+        />
+      </label>
+    </form>
+  }
+</app-confirm-dialog>
+
+<app-confirm-dialog
+  [(open)]="cancelDialogOpen"
+  title="Annulla documento"
+  message="Il documento annullato non sarà più operativo. I carichi magazzino associati verranno stornati. Procedere?"
+  confirmLabel="Annulla documento"
+  [danger]="true"
+  [busy]="actionSaving()"
+  (confirmed)="cancelDocument()"
+/>
+
+<app-confirm-dialog
+  [(open)]="deleteDialogOpen"
+  title="Elimina documento"
+  message="Il documento verrà eliminato definitivamente. Procedere?"
+  confirmLabel="Elimina"
+  [danger]="true"
+  [busy]="actionSaving()"
+  (confirmed)="deleteDocument()"
+/>

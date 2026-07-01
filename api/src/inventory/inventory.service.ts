@@ -298,15 +298,38 @@ export class InventoryService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [rawItems, total] = await this.prisma.$transaction([
       this.prisma.stockMovement.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
+        include: {
+          variant: { select: { product: { select: { name: true } } } },
+        },
       }),
       this.prisma.stockMovement.count({ where }),
     ]);
+
+    const externalRefs = [
+      ...new Set(rawItems.map((item) => item.externalRef).filter((ref): ref is string => Boolean(ref))),
+    ];
+    const documents =
+      externalRefs.length > 0
+        ? await this.prisma.document.findMany({
+            where: { tenantId, id: { in: externalRefs } },
+            select: { id: true, reference: true },
+          })
+        : [];
+    const documentRefById = new Map(documents.map((doc) => [doc.id, doc.reference]));
+
+    const items = rawItems.map(({ variant, ...movement }) => ({
+      ...movement,
+      productTitle: variant?.product?.name ?? null,
+      documentReference: movement.externalRef
+        ? (documentRefById.get(movement.externalRef) ?? movement.externalRef)
+        : null,
+    }));
 
     return { items, total, page: query.page, pageSize: query.pageSize };
   }

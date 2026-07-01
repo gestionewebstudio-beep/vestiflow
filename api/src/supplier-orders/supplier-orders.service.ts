@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
@@ -23,6 +24,11 @@ import type { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
 import type { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.query.dto';
 import type { ReceiveSupplierOrderDto } from './dto/receive-supplier-order.dto';
 import type { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
+import {
+  applyIncomingForSupplierOrder,
+  reverseIncomingForSupplierOrder,
+} from './supplier-order-incoming.util';
+import { SuppliersService } from './suppliers.service';
 
 export type SupplierOrderListRow = SupplierOrder & { lineCount: number; lines: [] };
 
@@ -35,25 +41,15 @@ export class SupplierOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly suppliers: SuppliersService,
   ) {}
 
   listSuppliers(tenantId: string): Promise<Supplier[]> {
-    return this.prisma.supplier.findMany({
-      where: { tenantId },
-      orderBy: { name: 'asc' },
-    });
+    return this.suppliers.listAll(tenantId);
   }
 
   createSupplier(tenantId: string, dto: CreateSupplierDto): Promise<Supplier> {
-    return this.prisma.supplier.create({
-      data: {
-        tenantId,
-        name: dto.name.trim(),
-        email: dto.email,
-        phone: dto.phone,
-        notes: dto.notes,
-      },
-    });
+    return this.suppliers.create(tenantId, dto);
   }
 
   /**
@@ -95,27 +91,40 @@ export class SupplierOrdersService {
     const status = this.resolveInitialStatus(dto.status);
     const reference = await this.nextReference(tenantId);
 
-    return this.prisma.supplierOrder.create({
-      data: {
-        tenantId,
-        reference,
-        supplierId: supplier.id,
-        supplierName: supplier.name,
-        destinationLocationId: dto.destinationLocationId,
-        status,
-        currency: dto.currency ?? 'EUR',
-        totalMinor,
-        expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
-        lines: {
-          create: dto.lines.map((line) => ({
-            variantId: line.variantId,
-            sku: skuById.get(line.variantId)!,
-            orderedQuantity: line.orderedQuantity,
-            unitCostMinor: line.unitCostMinor,
-          })),
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.supplierOrder.create({
+        data: {
+          tenantId,
+          reference,
+          supplierId: supplier.id,
+          supplierName: supplier.name,
+          destinationLocationId: dto.destinationLocationId,
+          status,
+          currency: dto.currency ?? 'EUR',
+          totalMinor,
+          expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
+          lines: {
+            create: dto.lines.map((line) => ({
+              variantId: line.variantId,
+              sku: skuById.get(line.variantId)!,
+              orderedQuantity: line.orderedQuantity,
+              unitCostMinor: line.unitCostMinor,
+            })),
+          },
         },
-      },
-      include: { lines: true },
+        include: { lines: true },
+      });
+
+      if (status === SupplierOrderStatus.sent) {
+        await applyIncomingForSupplierOrder(
+          tx,
+          tenantId,
+          order.destinationLocationId,
+          order.lines,
+        );
+      }
+
+      return order;
     });
   }
 
@@ -204,10 +213,20 @@ export class SupplierOrdersService {
         'Solo ordini in bozza o inviati (non ancora ricevuti) possono essere annullati.',
       );
     }
-    return this.prisma.supplierOrder.update({
-      where: { id },
-      data: { status: SupplierOrderStatus.cancelled },
-      include: { lines: true },
+    return this.prisma.$transaction(async (tx) => {
+      if (order.status === SupplierOrderStatus.sent) {
+        await reverseIncomingForSupplierOrder(
+          tx,
+          tenantId,
+          order.destinationLocationId,
+          order.lines,
+        );
+      }
+      return tx.supplierOrder.update({
+        where: { id },
+        data: { status: SupplierOrderStatus.cancelled },
+        include: { lines: true },
+      });
     });
   }
 
@@ -226,10 +245,19 @@ export class SupplierOrdersService {
     if (order.status !== SupplierOrderStatus.draft) {
       throw new ConflictException('Solo gli ordini in bozza possono essere inviati.');
     }
-    return this.prisma.supplierOrder.update({
-      where: { id },
-      data: { status: SupplierOrderStatus.sent },
-      include: { lines: true },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.supplierOrder.update({
+        where: { id },
+        data: { status: SupplierOrderStatus.sent },
+        include: { lines: true },
+      });
+      await applyIncomingForSupplierOrder(
+        tx,
+        tenantId,
+        updated.destinationLocationId,
+        updated.lines,
+      );
+      return updated;
     });
   }
 
@@ -301,107 +329,16 @@ export class SupplierOrdersService {
   }
 
   /**
-   * Ricezione merce: aggiorna righe, stato ordine e genera movimenti di carico
-   * sulla location di destinazione (transazione atomica).
+   * @deprecated Usa il flusso documento arrivo merce (goods receipt).
    */
   async receive(
-    tenantId: string,
-    id: string,
-    dto: ReceiveSupplierOrderDto,
+    _tenantId: string,
+    _id: string,
+    _dto: ReceiveSupplierOrderDto,
   ): Promise<SupplierOrderWithLines> {
-    const receivedVariants: { variantId: string; locationId: string }[] = [];
-
-    const order = await this.prisma.$transaction(async (tx) => {
-      const order = await tx.supplierOrder.findFirst({
-        where: { id, tenantId },
-        include: { lines: true },
-      });
-      if (!order) {
-        throw new NotFoundException('Ordine fornitore non trovato');
-      }
-
-      if (
-        order.status !== SupplierOrderStatus.sent &&
-        order.status !== SupplierOrderStatus.partially_received
-      ) {
-        throw new ConflictException(
-          'Solo ordini inviati o parzialmente ricevuti possono essere ricevuti.',
-        );
-      }
-
-      const lineById = new Map(order.lines.map((line) => [line.id, line]));
-      const receiveByLine = new Map<string, number>();
-
-      for (const entry of dto.lines) {
-        const line = lineById.get(entry.lineId);
-        if (!line) {
-          throw new UnprocessableEntityException(`Riga ordine non trovata: ${entry.lineId}`);
-        }
-        const remaining = line.orderedQuantity - line.receivedQuantity;
-        if (entry.quantity > remaining) {
-          throw new UnprocessableEntityException(
-            `Quantità eccessiva per SKU ${line.sku}: rimangono ${remaining} da ricevere.`,
-          );
-        }
-        receiveByLine.set(entry.lineId, entry.quantity);
-      }
-
-      for (const [lineId, quantity] of receiveByLine) {
-        const line = lineById.get(lineId)!;
-        const nextReceived = line.receivedQuantity + quantity;
-
-        await tx.supplierOrderLine.update({
-          where: { id: lineId },
-          data: { receivedQuantity: nextReceived },
-        });
-
-        await this.applyLoad(
-          tx,
-          tenantId,
-          order.destinationLocationId,
-          line.variantId,
-          line.sku,
-          quantity,
-          `Ricezione ordine ${order.reference}`,
-          order.id,
-        );
-
-        if (quantity > 0) {
-          receivedVariants.push({
-            variantId: line.variantId,
-            locationId: order.destinationLocationId,
-          });
-        }
-      }
-
-      const updatedLines = await tx.supplierOrderLine.findMany({ where: { orderId: id } });
-      const allReceived = updatedLines.every(
-        (line) => line.receivedQuantity >= line.orderedQuantity,
-      );
-      const anyReceived = updatedLines.some((line) => line.receivedQuantity > 0);
-      const nextStatus = allReceived
-        ? SupplierOrderStatus.received
-        : anyReceived
-          ? SupplierOrderStatus.partially_received
-          : order.status;
-
-      return tx.supplierOrder.update({
-        where: { id },
-        data: { status: nextStatus },
-        include: { lines: true },
-      });
-    });
-
-    for (const entry of receivedVariants) {
-      try {
-        await this.channelSync.pushInventoryLevels(tenantId, entry.variantId, [entry.locationId]);
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Push inventario Shopify fallito';
-        this.logger.warn(`Push inventario Shopify non riuscito (${tenantId}): ${message}`);
-      }
-    }
-
-    return order;
+    throw new GoneException(
+      'La ricezione merce diretta non è più disponibile. Crea un documento di arrivo merce (goods receipt) collegato all\'ordine fornitore.',
+    );
   }
 
   private async applyLoad(

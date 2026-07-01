@@ -34,7 +34,7 @@ describe('SupplierService (HTTP)', () => {
   it('getSuppliers restituisce lista fornitori', async () => {
     const promise = firstValueFrom(service.getSuppliers());
 
-    const req = httpMock.expectOne(`${API_BASE}/suppliers`);
+    const req = httpMock.expectOne(`${API_BASE}/suppliers/all`);
     expect(req.request.method).toBe('GET');
     req.flush([
       {

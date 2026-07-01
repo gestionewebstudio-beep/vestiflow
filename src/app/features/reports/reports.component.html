@@ -5,6 +5,15 @@
   </header>
 
   @if (canExportCorrispettivi()) {
+    <div class="reports__corrispettivi-link">
+      <a routerLink="corrispettivi" class="reports__corrispettivi-anchor">
+        Apri registro corrispettivi commercialista →
+      </a>
+      <a routerLink="accountant-register" class="reports__corrispettivi-anchor">
+        Registro commercialista unificato →
+      </a>
+    </div>
+
     <app-report-corrispettivi-export
       [period]="displayPeriod()"
       [dateFrom]="dateFromDraft()"

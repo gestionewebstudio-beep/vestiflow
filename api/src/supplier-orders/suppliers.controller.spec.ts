@@ -1,31 +1,40 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SupplierOrdersService } from './supplier-orders.service';
 import { SuppliersController } from './suppliers.controller';
+import { SuppliersService } from './suppliers.service';
 
 describe('SuppliersController', () => {
   const tenantId = 'tenant-1';
-  const supplierOrders = {
-    listSuppliers: vi.fn(),
-    createSupplier: vi.fn(),
+
+  const suppliers = {
+    listAll: vi.fn(),
+    list: vi.fn(),
+    getById: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    listVariantLinksBySupplier: vi.fn(),
+    upsertVariantLink: vi.fn(),
+    deleteVariantLink: vi.fn(),
   };
 
-  const controller = new SuppliersController(supplierOrders as unknown as SupplierOrdersService);
+  let controller: SuppliersController;
 
-  it('list delega listSuppliers', async () => {
-    supplierOrders.listSuppliers.mockResolvedValue([{ id: 'sup-1', name: 'Fornitore' }]);
-
-    await expect(controller.list(tenantId)).resolves.toEqual([
-      { id: 'sup-1', name: 'Fornitore' },
-    ]);
+  beforeEach(() => {
+    vi.clearAllMocks();
+    controller = new SuppliersController(suppliers as unknown as SuppliersService);
   });
 
-  it('create delega createSupplier', async () => {
-    const dto = { name: 'Nuovo fornitore' };
-    supplierOrders.createSupplier.mockResolvedValue({ id: 'sup-2', ...dto });
+  it('listAll delega listAll', async () => {
+    suppliers.listAll.mockResolvedValue([{ id: 'sup-1', name: 'Fornitore' }]);
+    await expect(controller.listAll(tenantId)).resolves.toHaveLength(1);
+    expect(suppliers.listAll).toHaveBeenCalledWith(tenantId);
+  });
 
+  it('create delega create', async () => {
+    const dto = { name: 'Nuovo' };
+    suppliers.create.mockResolvedValue({ id: 'sup-2', ...dto });
     await controller.create(tenantId, dto);
-
-    expect(supplierOrders.createSupplier).toHaveBeenCalledWith(tenantId, dto);
+    expect(suppliers.create).toHaveBeenCalledWith(tenantId, dto);
   });
 });

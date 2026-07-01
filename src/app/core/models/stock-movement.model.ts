@@ -58,4 +58,7 @@ export interface StockMovement extends TenantScoped {
   readonly createdByName: string;
   /** Origine sync/manuale (es. vendita Shopify). */
   readonly origin?: MovementOrigin;
+  readonly externalRef?: string;
+  readonly productTitle?: string;
+  readonly documentReference?: string;
 }

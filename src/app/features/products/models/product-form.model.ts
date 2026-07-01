@@ -1,4 +1,5 @@
 import type { EntityId } from '@core/models/common.model';
+import type { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { ProductStatus, SelectedOption } from '@core/models/product.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 
@@ -22,6 +23,10 @@ export interface ProductGeneralDraft {
   readonly season: string;
   readonly tags: string;
   readonly status: ProductStatus;
+  readonly unitOfMeasure: string;
+  readonly defaultVatRatePercent: number | null;
+  readonly inventoryTracking: InventoryTrackingMode;
+  readonly managesStock: boolean;
 }
 
 /**

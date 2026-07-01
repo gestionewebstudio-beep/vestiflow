@@ -1,0 +1,34 @@
+@if (loading()) {
+  <app-table-skeleton [columns]="4" [rows]="3" />
+} @else if (links().length === 0) {
+  <app-empty-state
+    icon="pi-building"
+    title="Nessun fornitore collegato"
+    description="Associa codici fornitore e fornitore preferenziale dalle anagrafiche fornitori o dagli ordini."
+  />
+} @else {
+  <div class="product-supplier-links__wrap">
+    <table class="product-supplier-links__table">
+      <thead>
+        <tr>
+          <th scope="col">Fornitore</th>
+          <th scope="col">SKU</th>
+          <th scope="col">Codice fornitore</th>
+          <th scope="col">Preferenziale</th>
+          <th scope="col">Ultimo prezzo</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (link of links(); track link.id) {
+          <tr>
+            <td>{{ link.supplier.name }}</td>
+            <td>{{ link.variant.sku }}</td>
+            <td>{{ link.supplierSku ?? '—' }}</td>
+            <td>{{ link.isPreferred ? 'Sì' : 'No' }}</td>
+            <td class="product-supplier-links__num">{{ formatPrice(link) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

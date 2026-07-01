@@ -1,5 +1,6 @@
 import type { EntityId, TenantScoped, Timestamped } from './common.model';
 import type { CatalogOrigin } from './catalog-origin.model';
+import type { InventoryTrackingMode } from './product-catalog.model';
 import type { ProductImage } from './product-image.model';
 import type { ShopifyLink } from './shopify.model';
 import type { ShopifyCollectionRef, ShopifyMetafieldRef } from './shopify-product-metadata.model';
@@ -52,6 +53,10 @@ export interface Product extends TenantScoped, Timestamped {
   readonly status: ProductStatus;
   /** Provenienza catalogo: determina quali campi sono editabili in gestionale. */
   readonly catalogOrigin: CatalogOrigin;
+  readonly unitOfMeasure?: string;
+  readonly defaultVatRatePercent?: number | null;
+  readonly inventoryTracking?: InventoryTrackingMode;
+  readonly managesStock?: boolean;
   readonly options: readonly ProductOption[];
   readonly images?: readonly ProductImage[];
   readonly shopify?: ShopifyLink;

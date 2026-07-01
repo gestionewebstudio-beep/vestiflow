@@ -41,4 +41,6 @@ export interface StockMovementRow {
   readonly createdByName: string;
   readonly origin?: MovementOrigin;
   readonly originLabel?: string;
+  readonly productTitle?: string;
+  readonly documentReference?: string;
 }

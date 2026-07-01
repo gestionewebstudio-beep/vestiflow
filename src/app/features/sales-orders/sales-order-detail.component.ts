@@ -109,7 +109,7 @@ export class SalesOrderDetailComponent {
     if (!order) {
       return [];
     }
-    return [
+    const facts: DetailFact[] = [
       { label: 'Data ordine', value: formatDateTime(order.placedAt), numeric: true },
       { label: 'Canale', value: sourceLabel(order.source) },
       { label: 'Cliente', value: order.customerName },
@@ -117,6 +117,15 @@ export class SalesOrderDetailComponent {
       { label: 'Valuta', value: order.currency },
       salesOrderShopifyDetailFact(order.shopify, this.shopifyConnection()?.shopDomain),
     ];
+    if (order.linkedDocument) {
+      facts.push({
+        label: 'Documento collegato',
+        value: order.linkedDocument.reference ?? 'DDT vendita',
+        href: `/app/documents/${order.linkedDocument.id}`,
+        linkLabel: 'Apri documento',
+      });
+    }
+    return facts;
   });
 
   protected reload(): void {

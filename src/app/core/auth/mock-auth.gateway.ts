@@ -14,7 +14,7 @@ import type { LoginCredentials } from './models/login-credentials.model';
 
 const TENANT_ID: EntityId = 'tenant-demo';
 const SEED_DATE: IsoDateString = '2026-01-01T00:00:00.000Z';
-/** Chiave sessionStorage per ripristinare la sessione mock tra navigazioni (E2E/LHCI). */
+/** Chiave storage per ripristinare la sessione mock (sessionStorage + localStorage per E2E Playwright). */
 const MOCK_SESSION_STORAGE_KEY = 'vestiflow-mock-user-id';
 
 const LOGIN_LATENCY_MS = 700;
@@ -39,7 +39,7 @@ const MOCK_USERS: readonly MockCredential[] = [
       role: UserRole.Owner,
       storeIds: ['store-milano', 'store-napoli'],
       isActive: true,
-      isPlatformAdmin: true,
+      isPlatformAdmin: false,
       tenantChannelProfile: TenantChannelProfile.Shopify,
       tenantName: 'Negozio Demo',
       assignedLocationId: null,
@@ -178,14 +178,16 @@ export class MockAuthGateway implements AuthGateway {
   private persistSession(userId: EntityId): void {
     try {
       sessionStorage.setItem(MOCK_SESSION_STORAGE_KEY, userId);
+      localStorage.setItem(MOCK_SESSION_STORAGE_KEY, userId);
     } catch {
-      // sessionStorage non disponibile (SSR/tests): sessione solo in memoria.
+      // Storage non disponibile (SSR/tests): sessione solo in memoria.
     }
   }
 
   private clearPersistedSession(): void {
     try {
       sessionStorage.removeItem(MOCK_SESSION_STORAGE_KEY);
+      localStorage.removeItem(MOCK_SESSION_STORAGE_KEY);
     } catch {
       // Ignora: nessuna persistenza disponibile.
     }
@@ -196,7 +198,9 @@ export class MockAuthGateway implements AuthGateway {
       return;
     }
     try {
-      const userId = sessionStorage.getItem(MOCK_SESSION_STORAGE_KEY);
+      const userId =
+        sessionStorage.getItem(MOCK_SESSION_STORAGE_KEY) ??
+        localStorage.getItem(MOCK_SESSION_STORAGE_KEY);
       if (!userId) {
         return;
       }
@@ -206,7 +210,7 @@ export class MockAuthGateway implements AuthGateway {
         this.clearPersistedSession();
       }
     } catch {
-      // sessionStorage non disponibile.
+      // Storage non disponibile.
     }
   }
 }

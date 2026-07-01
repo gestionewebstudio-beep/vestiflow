@@ -26,6 +26,13 @@
         @if (s.notes) {
           <p class="count-detail__notes">{{ s.notes }}</p>
         }
+        @if (s.documentId) {
+          <p class="count-detail__document-link">
+            <a [routerLink]="['/app/documents', s.documentId]"
+              >Apri documento inventario generato →</a
+            >
+          </p>
+        }
       </div>
 
       <div class="count-detail__header-actions">
@@ -55,7 +62,7 @@
       <div class="count-detail__review-banner" role="status">
         <strong>Revisione.</strong>
         Verifica le differenze rilevate. Confermando verranno create rettifiche di magazzino
-        tracciate e, se collegato, le giacenze verranno sincronizzate con Shopify.
+        {{ closeHint() }}
         <span class="count-detail__review-stats tabular-nums">
           {{ s.linesWithDelta }} differenze su {{ s.linesCounted }} righe contate
         </span>

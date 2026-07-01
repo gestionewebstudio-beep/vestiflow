@@ -7,7 +7,7 @@
         @if (periodLabel(); as label) {
           ({{ label }})
         }
-        . Le vendite manuali usano il prezzo di vendita corrente; Shopify usa importi ordine.
+        . {{ pricingHint() }}
       </p>
     </div>
 
@@ -60,7 +60,7 @@
         [value]="revenueLabel()"
         icon="pi-euro"
         tone="success"
-        hint="Shopify + vendite manuali (pagate)"
+        [hint]="revenueHint()"
         [trendLabel]="revenueTrend() ?? undefined"
         [trendTone]="revenueTrendTone()"
       />
@@ -86,9 +86,6 @@
         tone="warning"
         [hint]="forecastHintText()"
       />
-    </div>
-
-    <div class="analytics-panel__kpis analytics-panel__kpis--inventory">
       <app-stat-card
         label="Valore magazzino"
         [value]="stockValueLabel()"

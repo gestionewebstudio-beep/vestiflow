@@ -11,6 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   SUPPLIER_ORDERS_RECEIVE_PERMISSIONS,
@@ -28,12 +30,17 @@ import { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
 import { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.query.dto';
 import { ReceiveSupplierOrderDto } from './dto/receive-supplier-order.dto';
 import { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
+import { CreateGoodsReceiptFromSupplierOrderDto } from '../documents/dto/create-goods-receipt-from-supplier-order.dto';
+import { DocumentsService, type DocumentWithLines } from '../documents/documents.service';
 import { SupplierOrdersService, type SupplierOrderWithLines } from './supplier-orders.service';
 
 @Controller('supplier-orders')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class SupplierOrdersController {
-  constructor(private readonly supplierOrders: SupplierOrdersService) {}
+  constructor(
+    private readonly supplierOrders: SupplierOrdersService,
+    private readonly documents: DocumentsService,
+  ) {}
 
   @Get()
   @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
@@ -97,6 +104,20 @@ export class SupplierOrdersController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.supplierOrders.delete(tenantId, id);
+  }
+
+  @Post(':id/goods-receipt')
+  @RequireAnyPermissions([
+    ...SUPPLIER_ORDERS_RECEIVE_PERMISSIONS,
+    TenantPermission.DocumentsManage,
+  ])
+  createGoodsReceipt(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateGoodsReceiptFromSupplierOrderDto,
+  ): Promise<DocumentWithLines> {
+    return this.documents.createGoodsReceiptFromSupplierOrder(tenantId, id, dto, user);
   }
 
   @Post(':id/receive')

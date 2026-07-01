@@ -203,12 +203,11 @@ export function parseInventoryImportCsv(content: string): InventoryCsvImportRow[
 
 export function serializeInventoryLevelsCsv(
   rows: readonly Record<InventoryExportHeader, string>[],
+  headers: readonly InventoryExportHeader[] = INVENTORY_EXPORT_HEADERS,
 ): string {
   const lines = [
-    INVENTORY_EXPORT_HEADERS.join(','),
-    ...rows.map((row) =>
-      INVENTORY_EXPORT_HEADERS.map((header) => escapeCsvField(row[header])).join(','),
-    ),
+    headers.join(','),
+    ...rows.map((row) => headers.map((header) => escapeCsvField(row[header])).join(',')),
   ];
   return `${lines.join('\n')}\n`;
 }

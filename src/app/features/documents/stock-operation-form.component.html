@@ -1,0 +1,233 @@
+<section class="gr-form">
+  <a class="gr-form__back" href="/app/documents" (click)="$event.preventDefault(); cancel()">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Documenti
+  </a>
+
+  <h1 class="gr-form__title">{{ pageTitle() }}</h1>
+  <p class="gr-form__disclaimer" role="note">
+    @if (isAdjustment()) {
+      Rettifica inventario documentale: alla conferma vengono generati movimenti di tipo adjustment
+      con motivo obbligatorio.
+    } @else {
+      Scarico manuale di magazzino: alla conferma vengono generate uscite di stock con motivo
+      obbligatorio.
+    }
+  </p>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="6" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare il documento."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (notEditable()) {
+    <app-empty-state
+      icon="pi-lock"
+      title="Documento non modificabile"
+      description="Solo bozze o documenti confermati (non bloccati) possono essere modificati."
+      ctaLabel="Torna al registro"
+      (ctaClick)="cancel()"
+    />
+  } @else {
+    <form
+      class="gr-form__form"
+      [formGroup]="form"
+      (ngSubmit)="isConfirmedEdit() ? saveDraft() : requestConfirm()"
+    >
+      <div class="gr-form__grid">
+        <div class="gr-form__field">
+          <span class="gr-form__label">Location</span>
+          <app-select-menu
+            [options]="locationOptions()"
+            [value]="form.controls.locationId.value"
+            ariaLabel="Location"
+            placeholder="Seleziona location…"
+            [compact]="true"
+            [fullWidth]="true"
+            [invalid]="fieldInvalid('locationId')"
+            describedBy="so-location-error"
+            (valueChange)="onLocationSelect($event)"
+          />
+          @if (fieldInvalid('locationId')) {
+            <p id="so-location-error" class="gr-form__error">Seleziona la location.</p>
+          }
+        </div>
+
+        @if (isAdjustment()) {
+          <div class="gr-form__field">
+            <span class="gr-form__label">Direzione rettifica</span>
+            <app-select-menu
+              [options]="directionOptions"
+              [value]="form.controls.adjustmentDirection.value"
+              ariaLabel="Direzione rettifica"
+              placeholder="Seleziona direzione…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('adjustmentDirection')"
+              describedBy="so-direction-error"
+              (valueChange)="onDirectionSelect($event)"
+            />
+            @if (fieldInvalid('adjustmentDirection')) {
+              <p id="so-direction-error" class="gr-form__error">Seleziona la direzione.</p>
+            }
+          </div>
+        }
+
+        <div class="gr-form__field">
+          <label class="gr-form__label" for="so-date">Data documento</label>
+          <app-date-input
+            inputId="so-date"
+            formControlName="documentDate"
+            ariaLabel="Data documento"
+            [compact]="true"
+            [fullWidth]="true"
+          />
+        </div>
+      </div>
+
+      <section class="gr-form__lines" aria-labelledby="so-lines-title">
+        <div class="gr-form__lines-head">
+          <h2 id="so-lines-title" class="gr-form__subtitle">
+            @if (isAdjustment()) {
+              Articoli da rettificare
+            } @else {
+              Articoli da scaricare
+            }
+          </h2>
+          <app-button type="button" variant="ghost" (click)="addLine()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Aggiungi riga
+          </app-button>
+        </div>
+
+        <div class="gr-form__line-list" formArrayName="lines">
+          @for (line of lines.controls; track line; let i = $index) {
+            <div class="gr-form__line-block">
+              <div class="gr-form__line" [formGroupName]="i">
+                <div class="gr-form__line-field gr-form__line-field--variant">
+                  <span class="gr-form__label">Variante / SKU</span>
+                  <app-select-menu
+                    [options]="variantOptions()"
+                    [value]="line.controls.variantId.value"
+                    ariaLabel="Variante"
+                    placeholder="Cerca SKU o articolo…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Min. 2 caratteri…"
+                    searchAriaLabel="Cerca variante"
+                    [invalid]="lineFieldInvalid(i, 'variantId')"
+                    (searchChange)="variantSearchDraft.set($event)"
+                    (valueChange)="onVariantSelect(i, $event)"
+                  />
+                  @if (lineFieldInvalid(i, 'variantId')) {
+                    <p class="gr-form__error">Seleziona una variante.</p>
+                  }
+                </div>
+
+                <div class="gr-form__line-field">
+                  <label class="gr-form__label" [for]="'so-desc-' + i">Descrizione</label>
+                  <input
+                    [id]="'so-desc-' + i"
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="description"
+                  />
+                </div>
+
+                <div class="gr-form__line-field gr-form__line-field--qty">
+                  <label class="gr-form__label" [for]="'so-qty-' + i">Quantità</label>
+                  <input
+                    [id]="'so-qty-' + i"
+                    class="gr-form__input gr-form__input--qty"
+                    type="number"
+                    min="1"
+                    step="1"
+                    formControlName="quantity"
+                  />
+                </div>
+
+                <div class="gr-form__line-field gr-form__line-field--serials">
+                  <label class="gr-form__label" [for]="'so-serials-' + i">Seriali</label>
+                  <input
+                    [id]="'so-serials-' + i"
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="serialNumbersText"
+                    placeholder="SN001, SN002"
+                    autocomplete="off"
+                  />
+                </div>
+
+                @if (lines.length > 1) {
+                  <app-button type="button" variant="ghost" (click)="removeLine(i)">
+                    Rimuovi
+                  </app-button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+
+      <div class="gr-form__grid">
+        <div class="gr-form__field gr-form__field--wide">
+          <label class="gr-form__label" for="so-notes">Note</label>
+          <textarea
+            id="so-notes"
+            class="gr-form__textarea"
+            rows="2"
+            formControlName="notes"
+          ></textarea>
+        </div>
+        <div class="gr-form__field gr-form__field--wide">
+          <label class="gr-form__label" for="so-internal">
+            Motivo (commento interno)
+            <span class="gr-form__required" aria-hidden="true">*</span>
+          </label>
+          <textarea
+            id="so-internal"
+            class="gr-form__textarea"
+            rows="2"
+            formControlName="internalComment"
+            [attr.aria-invalid]="fieldInvalid('internalComment')"
+            aria-describedby="so-internal-error"
+          ></textarea>
+          @if (fieldInvalid('internalComment')) {
+            <p id="so-internal-error" class="gr-form__error">
+              Il motivo è obbligatorio per tracciabilità operativa.
+            </p>
+          }
+        </div>
+      </div>
+
+      @if (submitError(); as err) {
+        <app-error-state [description]="err.message" />
+      }
+
+      <div class="gr-form__actions">
+        <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
+        @if (isConfirmedEdit()) {
+          <app-button type="submit" [disabled]="saving()">Salva modifiche</app-button>
+        } @else {
+          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="saveDraft()">
+            Salva bozza
+          </app-button>
+          <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
+        }
+      </div>
+    </form>
+  }
+
+  <app-confirm-dialog
+    [(open)]="confirmDialogOpen"
+    [title]="confirmDialogTitle()"
+    [message]="confirmDialogMessage()"
+    [confirmLabel]="confirmButtonLabel()"
+    cancelLabel="Indietro"
+    (confirmed)="confirmAndSave()"
+  />
+</section>

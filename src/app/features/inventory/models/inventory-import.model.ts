@@ -41,6 +41,7 @@ export interface InventoryExportQuery {
   readonly locationId?: string;
   readonly search?: string;
   readonly stockStatus?: string;
+  readonly columns?: string;
 }
 
 /** Filtri export corrispettivi (vendite/storni in un periodo). */

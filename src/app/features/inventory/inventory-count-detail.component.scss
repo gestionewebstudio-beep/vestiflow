@@ -52,10 +52,20 @@
 }
 
 .count-detail__meta,
-.count-detail__notes {
+.count-detail__notes,
+.count-detail__document-link {
   margin: var(--space-1) 0 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+.count-detail__document-link a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.count-detail__document-link a:hover {
+  text-decoration: underline;
 }
 
 .count-detail__header-actions {

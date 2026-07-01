@@ -10,10 +10,7 @@
         Prodotti
       </a>
       <h1 class="product-import__title">Importa prodotti da CSV</h1>
-      <p class="product-import__intro">
-        Carica un file CSV in formato Shopify. VestiFlow valida righe e SKU, crea prodotti e
-        varianti nel gestionale e tenta la sincronizzazione con Shopify se collegato.
-      </p>
+      <p class="product-import__intro">{{ pageIntro() }}</p>
     </div>
   </header>
 
@@ -26,7 +23,7 @@
       <label class="product-import__upload" for="product-csv-file">
         <i class="pi pi-upload product-import__upload-icon" aria-hidden="true"></i>
         <span class="product-import__upload-title">Seleziona file CSV</span>
-        <span class="product-import__upload-hint">Formato Shopify · max 15 MB · UTF-8</span>
+        <span class="product-import__upload-hint">{{ formatHint() }}</span>
         <input
           id="product-csv-file"
           class="product-import__file-input"

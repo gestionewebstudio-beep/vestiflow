@@ -1,0 +1,170 @@
+<section class="accountant-register">
+  <header class="accountant-register__header">
+    <div class="accountant-register__heading">
+      <p class="accountant-register__back">
+        <a routerLink="/app/reports" class="accountant-register__back-link">← Report</a>
+      </p>
+      <h1 class="accountant-register__title">Registro commercialista</h1>
+      <p class="accountant-register__subtitle">
+        Riepilogo unificato documenti fiscali e corrispettivi vendite online per il periodo
+        selezionato.
+      </p>
+    </div>
+  </header>
+
+  <app-report-corrispettivi-export
+    title="Periodo registro"
+    subtitle="Filtra documenti e corrispettivi per data documento / vendita."
+    exportButtonLabel=""
+    [showExportButton]="false"
+    [showChannelFilter]="false"
+    [period]="displayPeriod()"
+    [dateFrom]="dateFromDraft()"
+    [dateTo]="dateToDraft()"
+    [periodLabel]="periodLabel()"
+    [exporting]="false"
+    (periodChange)="onPeriodChange($event)"
+    (dateFromChange)="onDateFromChange($event)"
+    (dateToChange)="onDateToChange($event)"
+  />
+
+  <div class="accountant-register__tabs" role="tablist" aria-label="Sezioni registro">
+    <button
+      type="button"
+      class="accountant-register__tab"
+      role="tab"
+      [class.accountant-register__tab--active]="activeTab() === 'documents'"
+      [attr.aria-selected]="activeTab() === 'documents'"
+      (click)="setTab('documents')"
+    >
+      Documenti
+    </button>
+    <button
+      type="button"
+      class="accountant-register__tab"
+      role="tab"
+      [class.accountant-register__tab--active]="activeTab() === 'corrispettivi'"
+      [attr.aria-selected]="activeTab() === 'corrispettivi'"
+      (click)="setTab('corrispettivi')"
+    >
+      Corrispettivi
+    </button>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="4" [rows]="6" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (summary(); as pageSummary) {
+    @if (activeTab() === 'documents') {
+      <section class="accountant-register__panel" aria-labelledby="accountant-docs-title">
+        <div class="accountant-register__panel-head">
+          <h2 id="accountant-docs-title" class="accountant-register__panel-title">
+            Documenti fiscali
+          </h2>
+          <p class="accountant-register__panel-hint">{{ periodLabel() }}</p>
+        </div>
+
+        @if (documentsSummary(); as docs) {
+          <div class="accountant-register__summary">
+            <section
+              class="accountant-register__summary-group"
+              aria-labelledby="accountant-docs-overview"
+            >
+              <h3 id="accountant-docs-overview" class="accountant-register__summary-group-title">
+                Panoramica e da lavorare
+              </h3>
+              <dl class="accountant-register__grid accountant-register__grid--overview">
+                <div class="accountant-register__item">
+                  <dt>Totale documenti</dt>
+                  <dd class="tabular-nums">{{ docs.total }}</dd>
+                </div>
+                <div
+                  class="accountant-register__item"
+                  [class.accountant-register__item--highlight]="docs.salesDdtPendingInvoice > 0"
+                >
+                  <dt>DDT vendita da fatturare</dt>
+                  <dd class="tabular-nums">{{ docs.salesDdtPendingInvoice }}</dd>
+                </div>
+                <div
+                  class="accountant-register__item"
+                  [class.accountant-register__item--highlight]="docs.supplierDocsPending > 0"
+                >
+                  <dt>Documenti fornitore da registrare</dt>
+                  <dd class="tabular-nums">{{ docs.supplierDocsPending }}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section
+              class="accountant-register__summary-group"
+              aria-labelledby="accountant-docs-invoices"
+            >
+              <h3 id="accountant-docs-invoices" class="accountant-register__summary-group-title">
+                Bozze fattura
+              </h3>
+              <dl class="accountant-register__grid accountant-register__grid--invoices">
+                <div class="accountant-register__item">
+                  <dt>Da emettere</dt>
+                  <dd class="tabular-nums">{{ docs.invoiceDraftToIssue }}</dd>
+                </div>
+                <div class="accountant-register__item">
+                  <dt>Inviate al commercialista</dt>
+                  <dd class="tabular-nums">{{ docs.invoiceDraftSent }}</dd>
+                </div>
+                <div class="accountant-register__item">
+                  <dt>Emesse esternamente</dt>
+                  <dd class="tabular-nums">{{ docs.invoiceDraftExternallyIssued }}</dd>
+                </div>
+                <div class="accountant-register__item">
+                  <dt>Registrate esternamente</dt>
+                  <dd class="tabular-nums">{{ docs.invoiceDraftRegistered }}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        }
+
+        <div class="accountant-register__actions">
+          <a
+            routerLink="/app/documents"
+            [queryParams]="documentsListQuery()"
+            class="accountant-register__link"
+          >
+            Apri registro documenti filtrato →
+          </a>
+          <a
+            routerLink="/app/documents"
+            [queryParams]="pendingInvoiceListQuery()"
+            class="accountant-register__link"
+          >
+            DDT da fatturare →
+          </a>
+        </div>
+      </section>
+    } @else {
+      @if (corrispettiviSummary(); as corrSummary) {
+        <app-corrispettivi-summary [summary]="corrSummary" [periodLabel]="periodLabel()" />
+        <div class="accountant-register__actions">
+          <a
+            routerLink="/app/reports/corrispettivi"
+            [queryParams]="{
+              period: displayPeriod(),
+              from: query().dateFrom ?? null,
+              to: query().dateTo ?? null,
+            }"
+            class="accountant-register__link"
+          >
+            Apri corrispettivi dettagliati →
+          </a>
+        </div>
+      } @else {
+        <app-empty-state
+          title="Nessun dato corrispettivi"
+          description="Modifica il periodo o sincronizza le vendite online."
+          icon="pi-chart-line"
+        />
+      }
+    }
+  }
+</section>

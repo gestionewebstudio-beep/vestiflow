@@ -1,6 +1,6 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 3.1 — Giugno 2026
+**Versione documento:** 3.2 — Luglio 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
@@ -21,13 +21,15 @@
 9. [Prodotti e catalogo](#9-prodotti-e-catalogo)
 10. [Magazzino e giacenze](#10-magazzino-e-giacenze)
 11. [Ordini fornitori](#11-ordini-fornitori)
-12. [Vendite e clienti](#12-vendite-e-clienti)
-13. [Report e dashboard](#13-report-e-dashboard)
-14. [Usare VestiFlow da smartphone](#14-usare-vestiflow-da-smartphone)
-15. [Negozio fisico: vendite al banco](#15-negozio-fisico-vendite-al-banco)
-16. [Profilo, foto e sicurezza account](#16-profilo-foto-e-sicurezza-account)
-17. [Domande frequenti](#17-domande-frequenti)
-18. [Guida nel menu](#18-guida-nel-menu)
+12. [Anagrafica fornitori](#12-anagrafica-fornitori)
+13. [Documenti fiscali e operativi](#13-documenti-fiscali-e-operativi)
+14. [Vendite e clienti](#14-vendite-e-clienti)
+15. [Report, dashboard e registro commercialista](#15-report-dashboard-e-registro-commercialista)
+16. [Usare VestiFlow da smartphone](#16-usare-vestiflow-da-smartphone)
+17. [Negozio fisico: vendite al banco](#17-negozio-fisico-vendite-al-banco)
+18. [Profilo, foto e sicurezza account](#18-profilo-foto-e-sicurezza-account)
+19. [Domande frequenti](#19-domande-frequenti)
+20. [Guida nel menu](#20-guida-nel-menu)
 
 ---
 
@@ -41,6 +43,8 @@ Con un account puoi:
 - vedere e aggiornare **giacenze per sede** (negozio, magazzino, altri punti vendita);
 - registrare **carichi, scarichi, trasferimenti e rettifiche** con storico;
 - creare e ricevere **ordini fornitori**;
+- gestire **documenti** (arrivi merce, DDT, trasferimenti, rettifiche, proforma e bozze fattura);
+- consultare il **registro commercialista** con i documenti da fatturare o registrare;
 - **registrare vendite e resi al banco** con scansione barcode (profilo **Solo gestionale**);
 - consultare **vendite e clienti** importati da Shopify (profilo Shopify);
 - tenere **catalogo e stock allineati** al canale e-commerce collegato, se presente.
@@ -84,18 +88,21 @@ In alto a destra clicca l'icona **Esci** (freccia verso l'uscita). Compare una *
 
 Su desktop resta sempre visibile; su smartphone si apre con l'icona **menu** in alto.
 
-| Voce                 | A cosa serve                                                                             |
-| -------------------- | ---------------------------------------------------------------------------------------- |
-| **Dashboard**        | Riepilogo attività                                                                       |
-| **Prodotti**         | Catalogo, creazione, modifica, import/export CSV                                         |
-| **Magazzino**        | Apre **Cerca giacenza** (ricerca rapida, ideale su mobile)                               |
-| **Ordini Fornitori** | Acquisti dai fornitori                                                                   |
-| **Registra vendita** | Vendite e storni al banco con barcode (tutti i profili canale)                           |
-| **Vendite**          | Ordini da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                  |
-| **Clienti**          | Anagrafica da Shopify (sola lettura), export CSV (**solo profilo Shopify**)              |
-| **Report**           | Indicatori e riepiloghi                                                                  |
-| **Impostazioni**     | Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza |
-| **Guida**            | Manuale utente integrato nell'app                                                        |
+| Voce                        | A cosa serve                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
+| **Dashboard**               | Riepilogo attività                                                                         |
+| **Prodotti**                | Catalogo, creazione, modifica, import/export CSV                                           |
+| **Magazzino**               | Apre **Cerca giacenza** (ricerca rapida, ideale su mobile)                                 |
+| **Fornitori**               | Anagrafica fornitori (nome, contatti, P.IVA)                                               |
+| **Ordini Fornitori**        | Acquisti dai fornitori                                                                     |
+| **Documenti**               | Registro documenti: arrivi merce, DDT, trasferimenti, rettifiche, impostazioni numerazione |
+| **Registra vendita**        | Vendite e storni al banco con barcode (tutti i profili canale)                             |
+| **Vendite**                 | Ordini da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                    |
+| **Clienti**                 | Anagrafica da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                |
+| **Report**                  | Indicatori e riepiloghi                                                                    |
+| **Registro commercialista** | Riepilogo documenti fiscali e corrispettivi per periodo (collegato a **Documenti**)        |
+| **Impostazioni**            | Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza   |
+| **Guida**                   | Manuale utente integrato nell'app                                                          |
 
 Su mobile, **Esci** è in fondo al menu ☰ (sotto tutte le voci); su desktop resta anche in topbar.
 
@@ -176,7 +183,9 @@ Per **Amministratore**, **Manager** e **Commesso** il referente VestiFlow assegn
 | **Import/export e sync prodotti**    | Export/import CSV catalogo, **Importa da Shopify** e **Sincronizza catalogo** dalla lista prodotti.        |
 | **Eliminare prodotti**               | Rimozione prodotti dal catalogo (nei limiti previsti da Fonte/sync).                                       |
 | **Gestire ordini fornitore**         | Crea, modifica, invia e annulla ordini fornitore.                                                          |
-| **Ricevere ordini fornitore**        | Registra merce in arrivo da ordine fornitore.                                                              |
+| **Ricevere ordini fornitore**        | Registra merce in arrivo da ordine fornitore (flusso rapido da **Ordini Fornitori**).                      |
+| **Consultare documenti**             | Lista e dettaglio **Documenti**; filtri registro commercialista e DDT da fatturare.                        |
+| **Gestire documenti**                | Crea e modifica documenti (arrivo merce, DDT, trasferimenti, rettifiche, impostazioni numerazione).        |
 | **Registrare vendite al banco**      | Schermata **Registra vendita** (vendite e storni).                                                         |
 | **Consultare report**                | Dashboard e sezione **Report**.                                                                            |
 | **Esportare dati**                   | Export CSV vendite, clienti, giacenze, catalogo; sync manuale **vendite** e **clienti** da Shopify.        |
@@ -210,6 +219,8 @@ I valori sotto sono i default **prima** di eventuali personalizzazioni del refer
 | Vede tutte le sedi (filtri)                     | Sì       | Sì             | Sì               | No                        |
 | Ordini fornitore (gestione)                     | Sì       | Sì             | Sì               | No                        |
 | Ricezione merce                                 | Sì       | Sì             | Sì               | Sì                        |
+| Documenti (consultazione / gestione)            | Sì       | Sì             | Sì               | Consultazione             |
+| Registro commercialista                         | Sì       | Sì             | Sì               | No                        |
 | Registra vendita al banco                       | Sì       | Sì             | Sì               | Sì                        |
 | Report + export CSV / sync vendite-clienti      | Sì       | Sì             | Sì               | Solo consultazione report |
 | Sede fisica (anagrafica)                        | Sì       | Sì             | No               | No                        |
@@ -541,7 +552,11 @@ Per trovare un prodotto **mai movimentato** o con **giacenza zero** su una sede:
 - digita **SKU**, **barcode** o **nome prodotto** nella ricerca della tab Giacenze, oppure
 - usa la tab **Cerca** (ottimizzata per mobile).
 
-In entrambi i casi vedi la variante con disponibile **0** e stato **Esaurito** se non c'è stock. Il primo **carico**, **rettifica** o **import CSV** crea la riga inventario definitiva.
+In entrambi i casi vedi la variante con disponibile **0** e stato **Esaurito** se non c'è stock. Il primo **carico**, **rettifica**, **arrivo merce** (documento) o **import CSV** crea la riga inventario definitiva.
+
+### Colonna «In arrivo»
+
+Nella tabella **Giacenze** la colonna **In arrivo** mostra quantità **attese** da ordini fornitore già **inviati** ma non ancora ricevuti. Quando registri l'arrivo merce (da **Ordini Fornitori → Ricevi merce** o da **Documenti → Arrivo merce** collegato all'ordine), la quantità passa da _in arrivo_ a _disponibile_ sulla sede di destinazione.
 
 ### Azioni principali (Giacenze)
 
@@ -617,8 +632,10 @@ Gestiti **solo in VestiFlow** (non su Shopify).
 ### Flusso tipico
 
 1. **Ordini Fornitori → Nuovo ordine** — fornitore, destinazione merce, righe (variante, quantità, costo unitario)
-2. **Invia ordine** — tracciamento interno (salva bozza o invia subito)
-3. All'arrivo merce: **Ricevi merce** — incrementa giacenze e crea movimenti di carico
+2. **Invia ordine** — tracciamento interno; le quantità compaiono in **In arrivo** in Giacenze
+3. All'arrivo merce: **Ricevi merce** dall'ordine **oppure** **Documenti → Arrivo merce** collegato all'ordine — incrementa giacenze, azzera _in arrivo_ e crea movimenti di carico tracciati
+
+Per documentazione completa (numeri progressivi, allegati, lotti/seriali) usa il flusso **Documenti → Arrivo merce**; la ricezione rapida da ordine resta disponibile per operatività veloce in magazzino.
 
 ### Compilare un ordine
 
@@ -643,13 +660,111 @@ L'**Annulla ordine** segna l'ordine come annullato ma lo lascia in lista. **Elim
 
 ---
 
-## 12. Vendite e clienti
+## 12. Anagrafica fornitori
+
+Menu **Fornitori**: elenco anagrafiche usate negli **ordini fornitore** e negli **arrivi merce**.
+
+| Azione              | Dove                         | Permesso richiesto           |
+| ------------------- | ---------------------------- | ---------------------------- |
+| Consultare elenco   | **Fornitori**                | Autenticato (area ordini)    |
+| Creare / modificare | **Fornitori → Nuovo** / riga | **Gestire ordini fornitore** |
+
+Campi tipici: ragione sociale, P.IVA, indirizzo, email, telefono, note. Puoi anche creare un fornitore **inline** dal form ordine o arrivo merce (**Nuovo fornitore**).
+
+---
+
+## 13. Documenti fiscali e operativi
+
+VestiFlow centralizza i documenti che impattano magazzino e contabilità. **Non sostituisce** il software di fatturazione elettronica o il commercialista: traccia numeri, stati, collegamenti e movimenti di stock.
+
+### Dove trovarli
+
+- **Documenti** — registro completo con filtri, colonne personalizzabili e azioni di creazione
+- **Registro commercialista** — riepilogo KPI per periodo con link ai filtri preimpostati (vedi [§15](#15-report-dashboard-e-registro-commercialista))
+
+### Tipi di documento
+
+| Tipo                        | Uso operativo                                                         |
+| --------------------------- | --------------------------------------------------------------------- |
+| **Arrivo merce**            | Carico da fornitore con righe, costi, opzionale collegamento a ordine |
+| **DDT vendita**             | Consegna merce al cliente; base per successiva fatturazione           |
+| **Bozza fattura**           | Dati per emissione fattura (anche da conversione DDT)                 |
+| **Proforma**                | Preventivo non fiscale                                                |
+| **Trasferimento**           | Spostamento stock tra sedi (origine → destinazione)                   |
+| **Scarico manuale**         | Uscita merce (campionario, deteriorata, …)                            |
+| **Rettifica**               | Correzione quantità con motivo obbligatorio                           |
+| **DDT / fatture fornitore** | Registrazione documenti in ingresso (collegamento a carichi)          |
+
+Alcuni tipi (es. inventario fisico) possono essere generati automaticamente da altre sezioni (**Magazzino → Inventario fisico**).
+
+### Stati del documento
+
+| Stato                       | Significato                                                      |
+| --------------------------- | ---------------------------------------------------------------- |
+| **Bozza**                   | Modificabile; **nessun** movimento di magazzino                  |
+| **Confermato**              | Numero assegnato; movimenti applicati                            |
+| **Stampato** / **Inviato**  | Tracciamento operativo / invio al commercialista (bozze fattura) |
+| **Registrato esternamente** | Fattura o documento registrato fuori da VestiFlow                |
+| **Annullato**               | Documento invalidato (con regole di reversibilità stock)         |
+
+Le azioni disponibili nel **dettaglio documento** dipendono da tipo e stato (conferma, stampa, invio, registrazione esterna, conversione DDT → bozza fattura, annullamento).
+
+### Registro documenti — filtri utili
+
+| Filtro / vista           | A cosa serve                                                          |
+| ------------------------ | --------------------------------------------------------------------- |
+| **Tipo** e **Stato**     | Restringe l'elenco (es. solo DDT vendita confermati)                  |
+| **Periodo** (da / a)     | Intervallo date documento                                             |
+| **Cliente**              | Documenti vendita per anagrafica                                      |
+| **Vista commercialista** | Solo tipi rilevanti per contabilità (da link Registro commercialista) |
+| **DDT da fatturare**     | DDT vendita attivi **senza** bozza fattura collegata                  |
+| **Ricerca**              | Numero, riferimento, note                                             |
+
+I filtri restano nell'**URL** della pagina: puoi salvare o condividere il link con il commercialista.
+
+### Creare documenti
+
+Da **Documenti**, pulsante **Nuovo documento** (se hai **Gestire documenti**):
+
+| Documento                      | Percorso tipico                                 |
+| ------------------------------ | ----------------------------------------------- |
+| Arrivo merce                   | **Documenti → Arrivo merce**                    |
+| Trasferimento                  | **Documenti → Trasferimento**                   |
+| Scarico / Rettifica            | **Documenti → Scarico manuale** / **Rettifica** |
+| DDT / Proforma / Bozza fattura | **Documenti → Nuovo** (tipo vendita)            |
+
+**Arrivo merce — campi principali:** fornitore, sede destinazione, data, righe (variante, quantità, costo). Opzionali per riga: **lotto**, **scadenza lotto**, **numeri seriali** (testo separato da virgola). Puoi collegare un **ordine fornitore** per precompilare le righe attese.
+
+Alla **conferma** dell'arrivo merce VestiFlow registra i **carichi** in magazzino e aggiorna le giacenze (e Shopify/TikTok se collegati).
+
+### Allegati
+
+Nel **dettaglio documento**, pannello **Allegati**: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.
+
+### Colonne personalizzabili
+
+Sopra la tabella **Documenti** (e in altre liste del gestionale) usa **Colonne** per mostrare/nascondere campi e scegliere un **preset** (Completo, Compatto, Fornitore, …). Le preferenze si **sincronizzano** con il tuo account: stesse colonne su desktop e smartphone dopo il login.
+
+### Impostazioni numerazione
+
+**Documenti → Impostazioni documenti** (solo **Gestire documenti**): prefissi e serie per tipo (es. prefisso DDT vendita, arrivo merce). I numeri progressivi vengono assegnati alla **conferma**.
+
+### Permessi
+
+| Permesso                 | Cosa abilita                                      |
+| ------------------------ | ------------------------------------------------- |
+| **Consultare documenti** | Lista, dettaglio, stampa anteprima, filtri        |
+| **Gestire documenti**    | Creazione, modifica bozze, conferma, impostazioni |
+
+---
+
+## 14. Vendite e clienti
 
 Il menu dipende dal **profilo canale** del negozio:
 
 | Profilo canale      | Voci in sidebar                    | Contenuto                                                                             |
 | ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------- |
-| **Solo gestionale** | **Registra vendita**               | Scansione vendite e storni al banco — vedi [§15](#15-negozio-fisico-vendite-al-banco) |
+| **Solo gestionale** | **Registra vendita**               | Scansione vendite e storni al banco — vedi [§17](#17-negozio-fisico-vendite-al-banco) |
 | **Shopify**         | **Registra vendita** + **Vendite** | Doppia scansione al banco **oppure** ordini sync da Shopify (online/POS)              |
 | **TikTok Shop**     | **Registra vendita**               | Scansione al banco; giacenze pushate a TikTok dopo la scansione                       |
 
@@ -699,19 +814,35 @@ Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con ori
 
 ---
 
-## 13. Report e dashboard
+## 15. Report, dashboard e registro commercialista
 
 ### Dashboard
 
-Pagina iniziale dopo il login: vendite recenti e indicatori sintetici del negozio.
+Pagina iniziale dopo il login: vendite recenti, ordini fornitore in attesa e indicatori sintetici del negozio.
 
 ### Report
 
-Tabelle e KPI su prodotti, giacenze e ordini. I filtri **periodo** (da / a) usano un **selettore data con calendario**, coerente con la data attesa negli ordini fornitori.
+Tabelle e KPI su prodotti, giacenze e ordini. I filtri **periodo** (da / a) usano un **selettore data con calendario**, coerente con la data attesa negli ordini fornitori e con il **Registro commercialista**.
+
+### Registro commercialista
+
+Voce dedicata in sidebar (**Registro commercialista**, sotto **Report**): riepilogo per **periodo** di documenti fiscali e corrispettivi vendite online.
+
+| Tab               | Contenuto                                                                                                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Documenti**     | KPI: totale documenti, bozze fattura da emettere, inviate al commercialista, emesse/registrate esternamente, **DDT vendita in attesa fattura**, documenti fornitore da registrare |
+| **Corrispettivi** | Riepilogo vendite ecommerce nel periodo (profilo Shopify) con link al dettaglio                                                                                                   |
+
+**Collegamenti rapidi** (tab Documenti):
+
+- **Apri registro documenti filtrato** — apre **Documenti** con vista commercialista e date del periodo
+- **DDT da fatturare** — elenco DDT vendita confermati senza bozza fattura collegata
+
+Usa questi link per preparare il pacchetto mensile per il commercialista senza ricostruire i filtri a mano.
 
 ---
 
-## 14. Usare VestiFlow da smartphone
+## 16. Usare VestiFlow da smartphone
 
 VestiFlow è una **app web installabile (PWA)**:
 
@@ -732,7 +863,7 @@ VestiFlow è una **app web installabile (PWA)**:
 
 ---
 
-## 15. Negozio fisico: vendite al banco
+## 17. Negozio fisico: vendite al banco
 
 ### Profilo Solo gestionale (senza Shopify/TikTok)
 
@@ -773,7 +904,7 @@ VestiFlow **non** emette scontrini fiscali in nessun profilo: usa il sistema col
 
 ---
 
-## 16. Profilo, foto e sicurezza account
+## 18. Profilo, foto e sicurezza account
 
 ### Foto profilo
 
@@ -801,13 +932,25 @@ In **Impostazioni → Aspetto** (o dalla **topbar**) scegli **Chiaro**, **Scuro*
 
 ---
 
-## 17. Domande frequenti
+## 19. Domande frequenti
 
 ### Non vedo un pulsante o una voce di menu che mi aspettavo
 
 1. Verifica con il referente VestiFlow quali **permessi granulari** ha il tuo account (non basta il ruolo).
 2. Dopo una modifica permessi: **esci e rientra** o ricarica con **Ctrl+F5** (Mac: **Cmd+Shift+R**).
-3. Esempi: **Sincronizza catalogo** richiede import/export prodotti; **Registra movimento** richiede gestione giacenze; **Collega Shopify** è solo per il **Titolare**.
+3. Esempi: **Sincronizza catalogo** richiede import/export prodotti; **Registra movimento** richiede gestione giacenze; **Documenti** richiede consultare/gestire documenti; **Collega Shopify** è solo per il **Titolare**.
+
+### Non vedo Documenti o Registro commercialista
+
+Verifica i permessi **Consultare documenti** e **Consultare report**. Il **Registro commercialista** richiede accesso ai report. Dopo una modifica permessi: esci e rientra.
+
+### Cosa significa «DDT da fatturare»?
+
+Sono **DDT vendita** già confermati (consegnati al cliente) per i quali non esiste ancora una **bozza fattura** collegata in VestiFlow. Apri l'elenco filtrato da **Registro commercialista** o dal filtro omonimo in **Documenti** per emettere o registrare le fatture esternamente.
+
+### Differenza tra Ricevi merce e Arrivo merce (Documenti)
+
+Entrambi incrementano lo stock. **Ricevi merce** dall'ordine fornitore è il flusso rapido in **Ordini Fornitori**. **Arrivo merce** in **Documenti** aggiunge numerazione, allegati, lotti/seriali e tracciamento completo per contabilità — consigliato quando serve documentazione per il commercialista.
 
 ### Il prodotto creato in VestiFlow non compare su Shopify
 
@@ -919,7 +1062,7 @@ Sì, **solo per supporto tecnico** e **solo quando necessario**. L'operatore Ves
 
 ---
 
-## 18. Guida nel menu
+## 20. Guida nel menu
 
 La voce **Guida** compare in sidebar subito sotto **Impostazioni** e apre questo manuale dentro l'app (`/app/guide`).
 

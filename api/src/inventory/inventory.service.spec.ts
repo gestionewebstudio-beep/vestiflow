@@ -277,7 +277,13 @@ describe('InventoryService', () => {
     } as never);
 
     expect(result.page).toBe(2);
-    expect(result.items).toEqual(items);
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        id: 'mov-1',
+        productTitle: null,
+        documentReference: null,
+      }),
+    ]);
   });
 
   it('listMovements senza locationId filtra solo sedi licenziate attive', async () => {

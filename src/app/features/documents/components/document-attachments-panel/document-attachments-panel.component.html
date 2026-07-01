@@ -1,0 +1,64 @@
+<section class="doc-attachments" aria-labelledby="doc-attachments-title">
+  <div class="doc-attachments__head">
+    <h2 id="doc-attachments-title" class="doc-attachments__title">Allegati</h2>
+    @if (canManage()) {
+      <label class="doc-attachments__upload">
+        <input
+          type="file"
+          class="doc-attachments__file-input"
+          accept=".pdf,.xml,application/pdf,application/xml,text/xml"
+          [disabled]="uploading()"
+          (change)="onFileSelected($event)"
+        />
+        <app-button variant="secondary" [loading]="uploading()" [disabled]="uploading()">
+          <i class="pi pi-upload" aria-hidden="true"></i>
+          Carica allegato
+        </app-button>
+      </label>
+    }
+  </div>
+
+  @if (uploadError(); as err) {
+    <p class="doc-attachments__error" role="alert">{{ err }}</p>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="3" [rows]="2" />
+  } @else if (error()) {
+    <app-error-state
+      description="Impossibile caricare gli allegati."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (attachments().length === 0) {
+    <app-empty-state
+      title="Nessun allegato"
+      description="Carica PDF o XML (fattura, DDT) collegati al documento."
+      icon="pi-paperclip"
+    />
+  } @else {
+    <ul class="doc-attachments__list">
+      @for (item of attachments(); track item.id) {
+        <li class="doc-attachments__item">
+          <div class="doc-attachments__meta">
+            <span class="doc-attachments__name">{{ item.fileName }}</span>
+            <span class="doc-attachments__details tabular-nums">
+              {{ formatSize(item.sizeBytes) }} · {{ formatDate(item.createdAt) }} ·
+              {{ item.createdByName }}
+            </span>
+          </div>
+          @if (canManage()) {
+            <app-button
+              variant="ghost"
+              [disabled]="deletingId() === item.id"
+              [loading]="deletingId() === item.id"
+              (click)="deleteAttachment(item.id)"
+            >
+              Elimina
+            </app-button>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>

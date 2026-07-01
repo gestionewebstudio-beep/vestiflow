@@ -9,8 +9,13 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 
+import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import {
+  productImportFormatHint,
+  productImportIntro,
+} from '@core/models/tenant-channel-profile.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 
@@ -34,6 +39,13 @@ export class ProductImportComponent {
   private readonly productService = inject(ProductService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly authService = inject(AuthService);
+
+  private readonly tenantProfile = computed(
+    () => this.authService.currentUser()?.tenantChannelProfile,
+  );
+  protected readonly pageIntro = computed(() => productImportIntro(this.tenantProfile()));
+  protected readonly formatHint = computed(() => productImportFormatHint(this.tenantProfile()));
 
   protected readonly phase = signal<ImportPhase>('upload');
   protected readonly selectedFile = signal<File | null>(null);

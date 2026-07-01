@@ -73,9 +73,13 @@ const PRODUCT_LIST_SELECT = {
   tiktokSyncStatus: true,
   tiktokLastSyncAt: true,
   tiktokLastError: true,
+  unitOfMeasure: true,
+  defaultVatRatePercent: true,
+  inventoryTracking: true,
+  managesStock: true,
   createdAt: true,
   updatedAt: true,
-} satisfies Prisma.ProductSelect;
+} as const;
 
 type ProductListRow = Prisma.ProductGetPayload<{ select: typeof PRODUCT_LIST_SELECT }>;
 
@@ -272,6 +276,10 @@ export class ProductsService {
         season: dto.season,
         tags: this.normalizeTags(dto.tags),
         status: dto.status,
+        unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
+        defaultVatRatePercent: dto.defaultVatRatePercent ?? null,
+        inventoryTracking: dto.inventoryTracking ?? undefined,
+        managesStock: dto.managesStock ?? true,
         options: dto.options as unknown as Prisma.InputJsonValue,
         variants: {
           create: dto.variants.map((variant) => this.toVariantCreateInput(tenantId, variant)),
@@ -323,6 +331,16 @@ export class ProductsService {
           season: dto.season,
           tags: dto.tags !== undefined ? this.normalizeTags(dto.tags) : undefined,
           status: dto.status,
+          ...(dto.unitOfMeasure !== undefined
+            ? { unitOfMeasure: dto.unitOfMeasure.trim() || 'pz' }
+            : {}),
+          ...(dto.defaultVatRatePercent !== undefined
+            ? { defaultVatRatePercent: dto.defaultVatRatePercent }
+            : {}),
+          ...(dto.inventoryTracking !== undefined
+            ? { inventoryTracking: dto.inventoryTracking }
+            : {}),
+          ...(dto.managesStock !== undefined ? { managesStock: dto.managesStock } : {}),
           ...(dto.options ? { options: dto.options as unknown as Prisma.InputJsonValue } : {}),
         },
         include: PRODUCT_INCLUDE,

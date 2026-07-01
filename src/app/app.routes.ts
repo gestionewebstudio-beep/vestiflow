@@ -61,6 +61,20 @@ export const routes: Routes = [
         loadChildren: () => import('@features/orders/orders.routes').then((m) => m.ordersRoutes),
       },
       {
+        path: 'suppliers',
+        canActivate: [tenantWorkspaceGuard],
+        data: { reuse: true },
+        loadChildren: () =>
+          import('@features/suppliers/suppliers.routes').then((m) => m.suppliersRoutes),
+      },
+      {
+        path: 'documents',
+        canActivate: [tenantWorkspaceGuard],
+        data: { reuse: true },
+        loadChildren: () =>
+          import('@features/documents/documents.routes').then((m) => m.documentsRoutes),
+      },
+      {
         path: 'sales',
         canActivate: [tenantWorkspaceGuard],
         loadChildren: () =>

@@ -1,0 +1,186 @@
+<section class="doc-list">
+  <header class="doc-list__header">
+    <div class="doc-list__heading">
+      <h1 class="doc-list__title">Documenti</h1>
+      <p class="doc-list__subtitle">
+        Registro DDT, arrivi merce, trasferimenti, proforma e bozze fattura.
+      </p>
+    </div>
+    @if (canManageDocuments()) {
+      <div class="doc-list__actions">
+        <app-button (click)="openNewGoodsReceipt()">
+          <i class="pi pi-plus" aria-hidden="true"></i>
+          Nuovo arrivo merce
+        </app-button>
+        <app-select-menu
+          class="doc-list__create-menu"
+          [options]="secondaryCreateOptions"
+          value=""
+          ariaLabel="Crea altro tipo di documento"
+          placeholder="Altro documento"
+          triggerIcon="pi-file"
+          [compact]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onCreateDocumentType($event)"
+        />
+        <app-button variant="ghost" (click)="openSettings()">
+          <i class="pi pi-cog" aria-hidden="true"></i>
+          <span class="sr-only">Documenti e numeratori</span>
+          <span class="doc-list__settings-label" aria-hidden="true">Numeratori</span>
+        </app-button>
+      </div>
+    }
+  </header>
+
+  @if (isAccountantView()) {
+    <p class="doc-list__banner" role="status">
+      Vista registro commercialista: tipi documento rilevanti per contabilità e fatturazione.
+    </p>
+  }
+  @if (isPendingInvoiceView()) {
+    <p class="doc-list__banner doc-list__banner--highlight" role="status">
+      DDT vendita confermati senza bozza fattura collegata.
+    </p>
+  }
+
+  <div class="doc-list__filters">
+    <div class="doc-list__search">
+      <i class="pi pi-search doc-list__search-icon" aria-hidden="true"></i>
+      <input
+        id="doc-search"
+        class="doc-list__input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Cerca per numero, controparte o documento esterno…"
+        aria-label="Cerca documenti"
+        (input)="onSearchInput($event)"
+      />
+    </div>
+
+    <div class="doc-list__filters-body">
+      <div class="doc-list__filter-group">
+        <p class="doc-list__filter-group-title">Documento</p>
+        <div class="doc-list__filter-group-fields doc-list__filter-group-fields--triple">
+          <div class="doc-list__field">
+            <span class="doc-list__label">Tipo</span>
+            <app-select-menu
+              [options]="typeOptions"
+              [value]="query().type ?? ''"
+              ariaLabel="Filtra per tipo documento"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onTypeFilterChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <span class="doc-list__label">Stato</span>
+            <app-select-menu
+              [options]="statusOptions"
+              [value]="query().status ?? ''"
+              ariaLabel="Filtra per stato documento"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onStatusFilterChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <span class="doc-list__label">Cliente</span>
+            <app-select-menu
+              [options]="customerOptions()"
+              [value]="query().customerId ?? ''"
+              ariaLabel="Filtra per cliente"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onCustomerFilterChange($event)"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-list__filter-group">
+        <p class="doc-list__filter-group-title">Periodo e azioni</p>
+        <div class="doc-list__filter-group-fields doc-list__filter-group-fields--period">
+          <div class="doc-list__field doc-list__field--date">
+            <label class="doc-list__label" for="doc-date-from">Dal</label>
+            <app-date-input
+              inputId="doc-date-from"
+              [value]="query().dateFrom ?? ''"
+              ariaLabel="Data inizio periodo"
+              placeholder="gg/mm/aaaa"
+              [compact]="true"
+              [fullWidth]="true"
+              [max]="query().dateTo || undefined"
+              (valueChange)="onDateFromChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field doc-list__field--date">
+            <label class="doc-list__label" for="doc-date-to">Al</label>
+            <app-date-input
+              inputId="doc-date-to"
+              [value]="query().dateTo ?? ''"
+              ariaLabel="Data fine periodo"
+              placeholder="gg/mm/aaaa"
+              [compact]="true"
+              [fullWidth]="true"
+              [min]="query().dateFrom || undefined"
+              (valueChange)="onDateToChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field doc-list__field--toggle">
+            <span class="doc-list__label">Fatturazione</span>
+            <label class="doc-list__check">
+              <input
+                type="checkbox"
+                [checked]="isPendingInvoiceView()"
+                (change)="onPendingInvoiceFilterChange($any($event.target).checked)"
+              />
+              <span>DDT da fatturare</span>
+            </label>
+          </div>
+
+          <div class="doc-list__filter-tools">
+            <app-table-column-picker [viewId]="tableViewId" />
+            <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+              <i class="pi pi-filter-slash" aria-hidden="true"></i>
+              Azzera filtri
+            </app-button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessun documento"
+      description="Non ci sono documenti che corrispondono ai filtri. Crea un arrivo merce per registrare carichi fornitore e aggiornare le giacenze."
+      icon="pi-file"
+      [ctaLabel]="canManageDocuments() ? 'Nuovo arrivo merce' : undefined"
+      (ctaClick)="openNewGoodsReceipt()"
+    />
+  } @else {
+    <app-document-table
+      [documents]="documents()"
+      [columns]="tableColumns()"
+      (rowClick)="openDocument($event)"
+    />
+    <app-pagination
+      label="Paginazione documenti"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+</section>

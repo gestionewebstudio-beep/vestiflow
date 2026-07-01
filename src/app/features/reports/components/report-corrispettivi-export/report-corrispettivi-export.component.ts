@@ -21,6 +21,7 @@ export class ReportCorrispettiviExportComponent {
     'Elenco vendite e storni per il commercialista, filtrato per periodo e canale di vendita.',
   );
   readonly exportButtonLabel = input('Esporta corrispettivi');
+  readonly showExportButton = input(true);
   readonly showChannelFilter = input(true);
 
   readonly period = input.required<ReportPeriodPreset>();

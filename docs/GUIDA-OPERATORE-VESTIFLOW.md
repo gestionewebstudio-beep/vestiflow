@@ -1,6 +1,6 @@
 # VestiFlow — Guida operatore, proprietario e sviluppatore
 
-**Versione documento:** 2.1 — Giugno 2026
+**Versione documento:** 2.2 — Luglio 2026
 
 **Destinatari:** operatori piattaforma VestiFlow (`isPlatformAdmin`), proprietario del prodotto, sviluppatori che mantengono il gestionale.
 
@@ -340,6 +340,8 @@ Per `admin`, `manager`, `clerk` valgono chiavi `TenantPermission` (FE: `tenant-p
 | `catalog.delete`                      | catalog   | Delete prodotto                                                               |
 | `supplier_orders.manage`              | orders    | CRUD ordini fornitore                                                         |
 | `supplier_orders.receive`             | orders    | Ricezione merce                                                               |
+| `documents.view`                      | documents | Lista/dettaglio/stampa documenti                                              |
+| `documents.manage`                    | documents | CRUD documenti, transizioni stato, impostazioni numerazione                   |
 | `retail.register`                     | orders    | `POST /inventory/retail-scans`, pagina Registra vendita                       |
 | `reports.view`                        | reports   | Dashboard e Report                                                            |
 | `reports.export`                      | reports   | Export CSV + sync vendite/clienti Shopify                                     |
@@ -667,18 +669,23 @@ Ogni tabella business deve avere RLS attiva. CI esegue `scripts/check-rls.mjs` (
 
 ## 11. Dominio dati principale
 
-| Entità                       | Note                                                                                                                                                                                                                                                                                                        |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Tenant`                     | Azienda cliente; `licensedLocationCount`, `locationSelectionLocked`, `locationSelectionChangeGranted`                                                                                                                                                                                                       |
-| `User`                       | Profilo app, `tenantId`, ruolo, `permissions[]` (permessi granulari; ignorati per `owner`)                                                                                                                                                                                                                  |
-| `Store` / `Location`         | Store commerciale; location per stock; `licensedInVf` = sede operativa nel piano VF                                                                                                                                                                                                                         |
-| `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind`, `shopifyCategoryMetafields`, taxonomy categoria                                                                                                                                                                                  |
-| `InventoryLevel`             | `variantId` × `locationId`, stati quantità. Riga creata al primo movimento/sync/rettifica/import; senza riga il prodotto non compare nel browse Giacenze. Con `GET /inventory/levels?search=…` l'API include anche varianti match senza riga (quantità 0, id sintetico `virtual:{variantId}:{locationId}`). |
-| `StockMovement`              | Audit trail obbligatorio; origine `vestiflow_pos` per vendite/storni al banco (tutti i profili canale)                                                                                                                                                                                                      |
-| `SupplierOrder`              | Solo VF                                                                                                                                                                                                                                                                                                     |
-| `SalesOrder` / `Customer`    | Import Shopify, read-only UI; assenti in UI profilo Solo gestionale                                                                                                                                                                                                                                         |
-| `ShopifyConnection`          | Token, scope, stato sync per tenant                                                                                                                                                                                                                                                                         |
-| `SupportSession`             | Audit sessioni assistenza: `operatorUserId`, `targetTenantId`, `expiresAt`, `endedAt`                                                                                                                                                                                                                       |
+| Entità                       | Note                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Tenant`                     | Azienda cliente; `licensedLocationCount`, `locationSelectionLocked`, `locationSelectionChangeGranted`                                                                                                                                                                                                                                                                    |
+| `User`                       | Profilo app, `tenantId`, ruolo, `permissions[]` (permessi granulari; ignorati per `owner`)                                                                                                                                                                                                                                                                               |
+| `Store` / `Location`         | Store commerciale; location per stock; `licensedInVf` = sede operativa nel piano VF                                                                                                                                                                                                                                                                                      |
+| `Product` / `ProductVariant` | Opzioni generiche; SKU univoco; `catalogOrigin`, `shopifyCatalogLinkKind`, `shopifyCategoryMetafields`, taxonomy categoria                                                                                                                                                                                                                                               |
+| `InventoryLevel`             | `variantId` × `locationId`, stati quantità (`onHand`, `available`, `committed`, `incoming`, `reserved`). Riga creata al primo movimento/sync/rettifica/import; senza riga il prodotto non compare nel browse Giacenze. Con `GET /inventory/levels?search=…` l'API include anche varianti match senza riga (quantità 0, id sintetico `virtual:{variantId}:{locationId}`). |
+| `StockMovement`              | Audit trail obbligatorio; origine `vestiflow_pos` per vendite/storni al banco (tutti i profili canale)                                                                                                                                                                                                                                                                   |
+| `SupplierOrder`              | Solo VF; **send** incrementa `incoming` sulle righe attese; **cancel** / ricezione / documento arrivo merce lo azzera                                                                                                                                                                                                                                                    |
+| `Document` / `DocumentLine`  | Registro documentale multi-tipo (`DocumentType`, `DocumentStatus`); righe con optional `lotCode`, `lotExpiryDate`, `serialNumbers[]`; collegamenti `sourceDocumentId` (es. DDT → bozza fattura)                                                                                                                                                                          |
+| `DocumentAttachment`         | Allegati PDF/immagine su documento (Storage via API)                                                                                                                                                                                                                                                                                                                     |
+| `InventoryLot`               | Tracciamento lotti per variante × location (carico da arrivo merce)                                                                                                                                                                                                                                                                                                      |
+| `InventorySerial`            | Tracciamento seriali (`in_stock` / `sold` / …) registrati in conferma arrivo merce                                                                                                                                                                                                                                                                                       |
+| `UserTableViewPreference`    | Preferenze colonne tabella per utente × tenant × `viewId` (`stateJson` validato server-side)                                                                                                                                                                                                                                                                             |
+| `SalesOrder` / `Customer`    | Import Shopify, read-only UI; assenti in UI profilo Solo gestionale                                                                                                                                                                                                                                                                                                      |
+| `ShopifyConnection`          | Token, scope, stato sync per tenant                                                                                                                                                                                                                                                                                                                                      |
+| `SupportSession`             | Audit sessioni assistenza: `operatorUserId`, `targetTenantId`, `expiresAt`, `endedAt`                                                                                                                                                                                                                                                                                    |
 
 Denaro: **interi minor units** (`Money.amountMinor`), mai float.
 
@@ -759,7 +766,57 @@ Export CSV dalle liste (filtri rispettati). Sync manuale Shopify vendite/clienti
 
 Service: `SupplierOrdersService` (`api/src/supplier-orders/`). Ricezione in transazione atomica con `StockMovement`.
 
+**Incoming su ordine inviato:** `applyIncomingForSupplierOrder` / `reverseIncomingForSupplierOrder` aggiornano `InventoryLevel.incoming` alla **send** / **cancel**; la ricezione (`receive`) o un **Arrivo merce** collegato (`document-supplier-order.util.ts`) trasferisce quantità da _incoming_ a _onHand_/_available_.
+
 **UI tenant:** form ordine con `select-menu` searchable (fornitore, variante), `date-input` per data attesa, subtotale riga calcolato; dettaglio con **Elimina ordine** se `status=cancelled`. Lista prodotti: stampa etichette multi-select (`ProductLabelPrintService.triggerDirectPrintMany`).
+
+### Documenti (`/documents`)
+
+Modulo `api/src/documents/` + feature Angular `src/app/features/documents/`.
+
+| Metodo          | Path                                    | Azione                                         | Permessi           |
+| --------------- | --------------------------------------- | ---------------------------------------------- | ------------------ |
+| GET             | `/documents`                            | Lista paginata (filtri sotto)                  | `documents.view`   |
+| GET             | `/documents/:id`                        | Dettaglio + righe                              | `documents.view`   |
+| POST            | `/documents`                            | Crea bozza                                     | `documents.manage` |
+| PATCH           | `/documents/:id`                        | Aggiorna bozza                                 | `documents.manage` |
+| POST            | `/documents/:id/confirm`                | Conferma → numero + movimenti stock            | `documents.manage` |
+| POST            | `/documents/:id/convert`                | Conversione (es. DDT vendita → bozza fattura)  | `documents.manage` |
+| POST            | `/documents/:id/print`                  | Marca stampato                                 | `documents.manage` |
+| POST            | `/documents/:id/send`                   | Marca inviato (bozze fattura)                  | `documents.manage` |
+| POST            | `/documents/:id/register-external`      | Registrato esternamente                        | `documents.manage` |
+| POST            | `/documents/:id/mark-externally-issued` | Emessa esternamente (bozza fattura)            | `documents.manage` |
+| POST            | `/documents/:id/cancel`                 | Annullamento con reversal stock se applicabile | `documents.manage` |
+| DELETE          | `/documents/:id`                        | Elimina bozza                                  | `documents.manage` |
+| GET/POST/DELETE | `/documents/:id/attachments`            | Allegati documento                             | view / manage      |
+| GET/PATCH       | `/document-settings/:type`              | Prefissi numerazione per tipo                  | manage             |
+
+**Query lista** (`ListDocumentsQueryDto`): `search`, `type`, `status`, `dateFrom`, `dateTo`, `supplierOrderId`, `customerId`, `accountant` (solo tipi registro commercialista), `pendingInvoice` (DDT vendita attivi senza bozza fattura figlia).
+
+**Tipi** (`DocumentType` in Prisma): `goods_receipt`, `sales_ddt`, `invoice_draft`, `transfer`, `manual_unload`, `adjustment`, `supplier_ddt`, `supplier_invoice`, … — vedi enum in `schema.prisma`.
+
+**Seriali/lotti:** in conferma `goods_receipt`, `inventory-serial.util.ts` e righe `DocumentLine` con `lotCode` / `serialNumbers`.
+
+**Frontend route:** `/app/documents` (+ form dedicati `goods-receipt`, `transfer`, `sales-ddt`, …). Tabella con `TableColumnPickerComponent` + sync preferenze.
+
+### Registro commercialista (`/accountant-register`)
+
+| Metodo | Path                           | Azione                        | Permessi       |
+| ------ | ------------------------------ | ----------------------------- | -------------- |
+| GET    | `/accountant-register/summary` | KPI documenti + corrispettivi | `reports.view` |
+
+Service: `AccountantRegisterService` — conteggi aggregati (query raw unificata in `accountant-register-document-counts.util.ts`). FE: `/app/reports/accountant-register` con link a `/app/documents?accountant=1&…` e `pendingInvoice=1`.
+
+### Preferenze colonne tabella
+
+| Metodo | Path                            | Azione                  |
+| ------ | ------------------------------- | ----------------------- |
+| GET    | `/users/me/table-views/:viewId` | Legge preferenza utente |
+| PUT    | `/users/me/table-views/:viewId` | Upsert `stateJson`      |
+
+Modulo `api/src/user-preferences/` — validazione `stateJson` (`table-view-state.util.ts`, whitelist `viewId` / preset). FE: `TableColumnPreferenceService` + `table-view-preference-api.service.ts` (sync server, fallback localStorage).
+
+**Viste registrate:** `documents-list`, `inventory-levels`, … (allineamento FE `TableViewId` ↔ BE `TABLE_VIEW_IDS`).
 
 ### Vendita al banco (tutti i profili canale)
 
@@ -791,6 +848,8 @@ I tipi `sale` e `return` **non** sono selezionabili nel form manuale **Registra 
 
 - `showRetailSalesRegister(profile)` — Registra vendita per gestionale, Shopify, TikTok
 - `showSalesOrderHistory(profile)` — **Vendite** solo Shopify
+- `canViewDocuments` / `canManageDocuments` — voci **Documenti** e azioni create
+- **Registro commercialista** — route dedicata con `activeRouteExclude` su Report
 - Profilo Shopify: entrambe le voci in sidebar; `activeRouteExclude` evita doppia evidenziazione su `/app/sales/register`
 
 - Service HTTP: `InventoryService.registerRetailScan()` (`src/app/features/inventory/services/inventory.service.ts`)
@@ -896,6 +955,12 @@ cd api && npm run test
 | E2E permessi owner/admin                             | `e2e/permissions-owner.spec.ts` — `E2E_USER_*` + sessione setup                                                                  |
 | E2E permessi granulari (catalog vs inventory import) | `e2e/permissions-granular.spec.ts` — `E2E_CLERK_CATALOG_IMPORT_*`, `E2E_CLERK_INVENTORY_IMPORT_*`                                |
 | Provision utenti E2E granulari                       | `npm run provision:e2e-users` → `api/scripts/provision-e2e-permission-users.mjs` (credenziali solo in `.env`, non in codice app) |
+| Documenti — filtri lista / incoming PO / seriali     | `api/src/documents/documents.service.spec.ts`, `document-supplier-order.util.spec.ts`, `inventory-serial.util.spec.ts`           |
+| Registro commercialista — conteggi KPI               | `api/src/accountant-register/accountant-register.service.spec.ts`, `accountant-register-document-counts.util.spec.ts`            |
+| Preferenze colonne — validazione stateJson           | `api/src/user-preferences/table-view-state.util.spec.ts`, `user-table-views.service.spec.ts`                                     |
+| FE documenti — query URL / seriali input             | `document-list-query.model.spec.ts`, `serial-numbers-input.util.spec.ts`                                                         |
+| FE registro commercialista                           | `accountant-register.model.spec.ts`                                                                                              |
+| E2E registro commercialista → DDT da fatturare       | `e2e/accountant-register.spec.ts`, `e2e/helpers/accountant-register.ts`, smoke in `e2e/ci-smoke.spec.ts`                         |
 
 ### CI GitHub Actions
 
@@ -924,6 +989,8 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 ### Post-deploy smoke test
 
 - [ ] Login tenant test
+- [ ] **Documenti** — lista, filtro DDT da fatturare, conferma arrivo merce test
+- [ ] **Registro commercialista** — KPI periodo + link a documenti filtrati
 - [ ] Platform admin → Clienti → Nuovo cliente (staging)
 - [ ] Platform admin → **Apri gestionale (assistenza)** su tenant test → banner + operazione magazzino → **Esci dall'assistenza**
 - [ ] Profilo canale Shopify e TikTok su tenant test
@@ -982,21 +1049,26 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 
 ## 20. Limitazioni note e roadmap
 
-| Area                                         | Stato                                                                                                |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Multi-store commerciali in un tenant         | Non supportato — un shop = un tenant                                                                 |
-| Invito utenti / cambio ruolo self-service    | Non in UI — solo provisioning iniziale + richiesta operatore                                         |
-| Sessione assistenza platform admin → tenant  | Implementata — 2 h, read/write, audit `support_sessions`, banner UI                                  |
-| Sync vendite/clienti TikTok Shop             | Non implementata — integrazione TikTok ancora parziale                                               |
-| Integrazione TikTok Shop (parità Shopify)    | In sviluppo — oggi solo OAuth + push catalogo/giacenze                                               |
-| Bozze ordine Shopify (draft orders)          | Non in scope — solo ordini confermati in **Vendite**                                                 |
-| Rotazione sedi attive oltre limite piano     | Bloccata lato API — solo **Concedi cambio sede** + salvataggio cliente entro `licensedLocationCount` |
-| Location manuale senza Shopify               | Parziale (location onboarding); sync Shopify consigliato; licensing via `licensedInVf`               |
-| Cassa / corrispettivi IT nativi              | Non previsti — integrazione esterna; VF registra stock (retail-scans tutti i profili)                |
-| Vendita al banco                             | Implementata — `POST /inventory/retail-scans`, UI `/app/sales/register`, tutti i profili             |
-| Report server-side avanzati                  | In evoluzione                                                                                        |
-| Coda bulk Shopify persistente (multi-tenant) | Non implementata — operazioni massicce sincrone HTTP                                                 |
-| Notifiche email custom reset password        | Config Supabase                                                                                      |
+| Area                                          | Stato                                                                                                |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Multi-store commerciali in un tenant          | Non supportato — un shop = un tenant                                                                 |
+| Invito utenti / cambio ruolo self-service     | Non in UI — solo provisioning iniziale + richiesta operatore                                         |
+| Sessione assistenza platform admin → tenant   | Implementata — 2 h, read/write, audit `support_sessions`, banner UI                                  |
+| Modulo documenti (DDT, arrivi, trasferimenti) | Implementato — registro, allegati, numerazione, filtri commercialista / pending invoice              |
+| Registro commercialista unificato             | Implementato — KPI documenti + corrispettivi, link filtrati a `/app/documents`                       |
+| Incoming su ordini fornitore inviati          | Implementato — stato `incoming` in `InventoryLevel`, sync con ricezione / arrivo merce               |
+| Tracciamento lotti / seriali                  | Parziale — lotti e seriali in **Arrivo merce**; consultazione seriali in UI limitata                 |
+| Preferenze colonne tabella (sync server)      | Implementato — `UserTableViewPreference`, API `/users/me/table-views/:viewId`                        |
+| Sync vendite/clienti TikTok Shop              | Non implementata — integrazione TikTok ancora parziale                                               |
+| Integrazione TikTok Shop (parità Shopify)     | In sviluppo — oggi solo OAuth + push catalogo/giacenze                                               |
+| Bozze ordine Shopify (draft orders)           | Non in scope — solo ordini confermati in **Vendite**                                                 |
+| Rotazione sedi attive oltre limite piano      | Bloccata lato API — solo **Concedi cambio sede** + salvataggio cliente entro `licensedLocationCount` |
+| Location manuale senza Shopify                | Parziale (location onboarding); sync Shopify consigliato; licensing via `licensedInVf`               |
+| Cassa / corrispettivi IT nativi               | Non previsti — integrazione esterna; VF registra stock (retail-scans tutti i profili)                |
+| Vendita al banco                              | Implementata — `POST /inventory/retail-scans`, UI `/app/sales/register`, tutti i profili             |
+| Report server-side avanzati                   | In evoluzione                                                                                        |
+| Coda bulk Shopify persistente (multi-tenant)  | Non implementata — operazioni massicce sincrone HTTP                                                 |
+| Notifiche email custom reset password         | Config Supabase                                                                                      |
 
 ---
 

@@ -12,7 +12,7 @@ import { InventoryService } from '@features/inventory/services/inventory.service
 
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
 import { SupplierOrderService } from './services/supplier-order.service';
-import { SupplierService } from './services/supplier.service';
+import { SupplierService } from '@features/suppliers/services/supplier.service';
 
 const SUPPLIERS = [
   { id: 'sup-1', tenantId: 't1', name: 'Tessuti Italia', email: null, phone: null },

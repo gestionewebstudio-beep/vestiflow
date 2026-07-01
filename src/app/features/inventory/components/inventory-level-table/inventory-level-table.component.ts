@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import { BadgeComponent } from '@shared/components/badge/badge.component';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 import { stockStatusLabel, stockStatusTone } from '../../models/inventory-labels.util';
 import type { InventoryLevelRow } from '../../models/inventory-view.model';
@@ -18,6 +19,7 @@ import type { InventoryLevelRow } from '../../models/inventory-view.model';
 })
 export class InventoryLevelTableComponent {
   readonly rows = input.required<readonly InventoryLevelRow[]>();
+  readonly columns = input.required<readonly ResolvedTableColumn[]>();
 
   protected readonly statusLabel = stockStatusLabel;
   protected readonly statusTone = stockStatusTone;

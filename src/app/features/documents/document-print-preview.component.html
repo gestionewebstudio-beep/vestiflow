@@ -1,0 +1,91 @@
+@if (loading()) {
+  <app-table-skeleton [columns]="4" [rows]="8" />
+} @else if (error()) {
+  <app-error-state description="Impossibile caricare il documento per la stampa." />
+} @else if (document(); as doc) {
+  <div class="doc-print">
+    <div class="doc-print__toolbar no-print">
+      <a routerLink="/app/documents/{{ doc.id }}" class="doc-print__back">← Torna al documento</a>
+      <button
+        type="button"
+        class="doc-print__btn"
+        (click)="downloadPdf()"
+        [disabled]="downloadingPdf()"
+      >
+        {{ downloadingPdf() ? 'Generazione PDF…' : 'Scarica PDF' }}
+      </button>
+      <button type="button" class="doc-print__btn" (click)="print()">Stampa</button>
+    </div>
+
+    <article class="doc-print__sheet">
+      @if (showProformaDisclaimer()) {
+        <p class="doc-print__disclaimer" role="note">{{ proformaDisclaimer }}</p>
+      }
+
+      <header class="doc-print__header">
+        <h1 class="doc-print__title">{{ title() }}</h1>
+        <p class="doc-print__ref tabular-nums">{{ reference() }}</p>
+        <p class="doc-print__meta">
+          Data: <span class="tabular-nums">{{ formatDate(doc.documentDate) }}</span>
+        </p>
+
+        @switch (printKind()) {
+          @case ('transfer') {
+            @if (locationLabel(doc.locationId); as originName) {
+              <p class="doc-print__meta">Origine: {{ originName }}</p>
+            }
+            @if (locationLabel(doc.targetLocationId); as targetName) {
+              <p class="doc-print__meta">Destinazione: {{ targetName }}</p>
+            }
+          }
+          @case ('goods_receipt') {
+            @if (doc.supplierName) {
+              <p class="doc-print__meta">Fornitore: {{ doc.supplierName }}</p>
+            }
+            @if (locationLabel(doc.locationId); as locationName) {
+              <p class="doc-print__meta">Location: {{ locationName }}</p>
+            }
+          }
+          @case ('sales') {
+            @if (doc.customerName) {
+              <p class="doc-print__meta">Cliente: {{ doc.customerName }}</p>
+            }
+            @if (doc.billingCause) {
+              <p class="doc-print__meta">Causale: {{ doc.billingCause }}</p>
+            }
+          }
+          @default {
+            @if (doc.customerName) {
+              <p class="doc-print__meta">Cliente: {{ doc.customerName }}</p>
+            }
+          }
+        }
+      </header>
+
+      @if (doc.lines?.length) {
+        <app-document-lines-table [lines]="doc.lines!" />
+        <dl class="doc-print__totals">
+          <div class="doc-print__total-row">
+            <dt>Imponibile</dt>
+            <dd class="tabular-nums">{{ formatMoney(doc.subtotal) }}</dd>
+          </div>
+          <div class="doc-print__total-row">
+            <dt>IVA</dt>
+            <dd class="tabular-nums">{{ formatMoney(doc.tax) }}</dd>
+          </div>
+          <div class="doc-print__total-row doc-print__total-row--grand">
+            <dt>Totale</dt>
+            <dd class="tabular-nums">{{ formatMoney(doc.total) }}</dd>
+          </div>
+        </dl>
+      }
+
+      @if (doc.notes) {
+        <footer class="doc-print__notes">
+          <h2 class="doc-print__notes-title">Note</h2>
+          <p>{{ doc.notes }}</p>
+        </footer>
+      }
+    </article>
+  </div>
+}

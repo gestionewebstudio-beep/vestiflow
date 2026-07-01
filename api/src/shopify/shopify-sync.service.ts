@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   MovementOrigin,
   SalesOrderFinancialStatus,
+  SalesOrderFiscalStatus,
   SalesOrderFulfillmentStatus,
   SalesOrderSource,
   StockMovementType,
@@ -11,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { setInventoryAvailableAbsolute } from '../inventory/inventory-level-delta.util';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
+import { ShopifyOrderDocumentService } from './shopify-order-document.service';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 
 @Injectable()
@@ -21,6 +23,7 @@ export class ShopifySyncService {
     private readonly prisma: PrismaService,
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyProductPull: ShopifyProductPullService,
+    private readonly shopifyOrderDocument: ShopifyOrderDocumentService,
   ) {}
 
   async handleWebhook(tenantId: string, topic: string, payload: unknown): Promise<void> {
@@ -140,7 +143,11 @@ export class ShopifySyncService {
       String(order.subtotal_price ?? order.total_price ?? '0'),
     );
     const totalMinor = shopifyDecimalToMinor(String(order.total_price ?? '0'));
+    const taxMinor = shopifyDecimalToMinor(String(order.total_tax ?? '0'));
+    const shippingMinor = this.extractShippingMinor(order);
+    const discountMinor = shopifyDecimalToMinor(String(order.total_discounts ?? '0'));
     const placedAt = new Date(String(order.created_at ?? new Date().toISOString()));
+    const source = this.mapOrderSource(order);
 
     const customerName = customer
       ? `${customer.first_name ?? ''} ${customer.last_name ?? ''}`.trim() || 'Cliente Shopify'
@@ -148,10 +155,12 @@ export class ShopifySyncService {
 
     const lines = (order.line_items as Record<string, unknown>[] | undefined) ?? [];
 
+    let savedOrderId: string | null = null;
+
     await this.prisma.$transaction(async (tx) => {
       const orderData = {
         orderNumber: String(order.name ?? order.order_number ?? shopifyOrderId),
-        source: this.mapOrderSource(order),
+        source,
         financialStatus: this.mapFinancialStatus(String(order.financial_status ?? 'pending')),
         fulfillmentStatus: this.mapFulfillmentStatus(
           String(order.fulfillment_status ?? 'unfulfilled'),
@@ -161,6 +170,9 @@ export class ShopifySyncService {
         currency,
         subtotalMinor,
         totalMinor,
+        taxMinor,
+        shippingMinor,
+        discountMinor,
         placedAt,
       };
 
@@ -170,7 +182,15 @@ export class ShopifySyncService {
             data: orderData,
           })
         : await tx.salesOrder.create({
-            data: { tenantId, shopifyOrderId, ...orderData },
+            data: {
+              tenantId,
+              shopifyOrderId,
+              ...orderData,
+              fiscalStatus:
+                source === SalesOrderSource.shopify_pos
+                  ? SalesOrderFiscalStatus.excluded_pos_register
+                  : SalesOrderFiscalStatus.pending_registration,
+            },
           });
 
       await tx.salesOrderLine.deleteMany({ where: { orderId: saved.id } });
@@ -199,7 +219,25 @@ export class ShopifySyncService {
           ),
         });
       }
+
+      savedOrderId = saved.id;
     });
+
+    if (savedOrderId) {
+      try {
+        await this.shopifyOrderDocument.syncFromShopifyOrder({
+          tenantId,
+          salesOrderId: savedOrderId,
+          shopifyOrderId,
+          orderPayload: order,
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Sync documento ordine fallito';
+        this.logger.warn(
+          `Documento DDT non creato per ordine Shopify ${shopifyOrderId}: ${message}`,
+        );
+      }
+    }
 
     return existingBefore ? 'updated' : 'created';
   }
@@ -331,6 +369,16 @@ export class ShopifySyncService {
   private mapOrderSource(order: Record<string, unknown>): SalesOrderSource {
     const source = String(order.source_name ?? '').toLowerCase();
     return source === 'pos' ? SalesOrderSource.shopify_pos : SalesOrderSource.shopify_online;
+  }
+
+  private extractShippingMinor(order: Record<string, unknown>): number {
+    const shippingSet = order.total_shipping_price_set as
+      | { shop_money?: { amount?: string } }
+      | undefined;
+    if (shippingSet?.shop_money?.amount != null) {
+      return shopifyDecimalToMinor(String(shippingSet.shop_money.amount));
+    }
+    return shopifyDecimalToMinor(String(order.total_shipping ?? '0'));
   }
 
   private mapFinancialStatus(status: string): SalesOrderFinancialStatus {

@@ -1,7 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, forkJoin, from, of, switchMap, take } from 'rxjs';
+import { catchError, forkJoin, from, map, of, switchMap, take } from 'rxjs';
 import type { Observable } from 'rxjs';
 
 import { buildLabelPrintDocument } from '../models/product-label-print-document.util';
@@ -9,6 +9,11 @@ import type { ProductLabelViewModel } from '../models/product-label.model';
 import { toProductLabelViewModels } from '../models/product-label.mapper';
 
 import { ProductService } from './product.service';
+
+export interface DocumentLabelLineInput {
+  readonly variantId?: string;
+  readonly quantity: number;
+}
 
 /**
  * Stampa etichette dalla lista prodotti. Apre subito una finestra di stampa
@@ -73,6 +78,80 @@ export class ProductLabelPrintService {
             ),
           ),
         ),
+      ),
+      catchError(() => {
+        this.closePrintWindow();
+        return of(undefined);
+      }),
+    );
+  }
+
+  /** Stampa etichette dalle righe documento arrivo merce (C4). */
+  printFromDocumentLines(lines: readonly DocumentLabelLineInput[]): Observable<void> {
+    const stockLines = lines.filter(
+      (line) => line.variantId && Number.isFinite(line.quantity) && line.quantity > 0,
+    );
+    if (stockLines.length === 0) {
+      return of(undefined);
+    }
+
+    this.closePrintWindow();
+
+    const printWindow = globalThis.open('', '_blank');
+    if (!printWindow) {
+      return of(undefined);
+    }
+
+    this.activePrintWindow = printWindow;
+    printWindow.document.open();
+    printWindow.document.write(
+      '<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Stampa etichette</title></head><body><p>Preparazione stampa…</p></body></html>',
+    );
+    printWindow.document.close();
+
+    const uniqueVariantIds = [...new Set(stockLines.map((line) => line.variantId!))];
+
+    return forkJoin(
+      uniqueVariantIds.map((variantId) =>
+        this.productService.searchVariantSummaries({ variantId }).pipe(
+          switchMap((summaries) => {
+            const summary = summaries[0];
+            if (!summary) {
+              return of([] as readonly ProductLabelViewModel[]);
+            }
+            return forkJoin({
+              product: this.productService.getProductById(summary.productId),
+              variants: this.productService.getProductVariants(summary.productId),
+            }).pipe(
+              map((result) => toProductLabelViewModels(result.product, result.variants, variantId)),
+            );
+          }),
+          catchError(() => of([] as readonly ProductLabelViewModel[])),
+        ),
+      ),
+    ).pipe(
+      map((labelGroups) => {
+        const byVariantId = new Map<string, ProductLabelViewModel>();
+        for (const group of labelGroups) {
+          for (const label of group) {
+            byVariantId.set(label.variantId, label);
+          }
+        }
+        const expanded: ProductLabelViewModel[] = [];
+        for (const line of stockLines) {
+          const label = byVariantId.get(line.variantId!);
+          if (!label) {
+            continue;
+          }
+          const copies = Math.min(Math.max(Math.floor(line.quantity), 1), 500);
+          for (let i = 0; i < copies; i += 1) {
+            expanded.push(label);
+          }
+        }
+        return expanded;
+      }),
+      switchMap((labels) =>
+        from(this.printLabelsInWindow(printWindow, labels)).pipe(map(() => undefined)),
       ),
       catchError(() => {
         this.closePrintWindow();

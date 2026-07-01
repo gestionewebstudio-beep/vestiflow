@@ -75,15 +75,11 @@ export function showRetailSalesRegister(profile: TenantChannelProfile | undefine
 
 /**
  * Vendite online registrate manualmente fuori dal canale ecommerce integrato
- * (es. Amazon, eBay). Disponibile su tutti i profili: con Shopify/TikTok le
- * vendite del canale integrato arrivano dalla sync; questa voce copre gli altri.
+ * (es. Amazon, eBay). Con Shopify le vendite online/POS arrivano dalla sync;
+ * con TikTok Shop resta per marketplace esterni oltre al canale integrato.
  */
 export function showOnlineSalesRegister(profile: TenantChannelProfile | undefined): boolean {
-  return (
-    profile === TenantChannelProfile.Gestionale ||
-    profile === TenantChannelProfile.Shopify ||
-    profile === TenantChannelProfile.TikTokShop
-  );
+  return profile === TenantChannelProfile.Gestionale || profile === TenantChannelProfile.TikTokShop;
 }
 
 /** Etichetta sidebar per la registrazione vendite online manuali. */
@@ -119,6 +115,82 @@ export function reportPageSubtitle(profile: TenantChannelProfile | undefined): s
     return 'Analytics commerciali, export corrispettivi e snapshot magazzino.';
   }
   return 'Analytics commerciali, corrispettivi manuali e giacenze per location.';
+}
+
+/** Hint pannello Sede fisica in Impostazioni. */
+export function tenantCompanyPanelHint(profile: TenantChannelProfile | undefined): string {
+  if (showShopifyIntegration(profile)) {
+    return 'Anagrafica registrata in VestiFlow dall’operatore. Identifica l’azienda del cliente ed è indipendente dalle sedi operative collegate a Shopify.';
+  }
+  return 'Anagrafica registrata in VestiFlow dall’operatore. Identifica l’azienda del cliente ed è indipendente dalle sedi operative del magazzino.';
+}
+
+export function productImportIntro(profile: TenantChannelProfile | undefined): string {
+  if (showShopifyIntegration(profile)) {
+    return 'Carica un file CSV in formato Shopify. VestiFlow valida righe e SKU, crea prodotti e varianti nel gestionale e tenta la sincronizzazione con Shopify se collegato.';
+  }
+  return 'Carica un file CSV prodotti. VestiFlow valida righe e SKU e crea prodotti e varianti nel gestionale.';
+}
+
+export function productImportFormatHint(profile: TenantChannelProfile | undefined): string {
+  return showShopifyIntegration(profile)
+    ? 'Formato Shopify · max 15 MB · UTF-8'
+    : 'CSV prodotti · max 15 MB · UTF-8';
+}
+
+/** Frammento intro step opzioni prodotto (asse Taglia/Colore). */
+export function productOptionsStandardLabel(profile: TenantChannelProfile | undefined): string {
+  return showShopifyIntegration(profile) ? 'standard Shopify' : 'Taglia e Colore';
+}
+
+export function businessAnalyticsPricingHint(profile: TenantChannelProfile | undefined): string {
+  if (showShopifyIntegration(profile)) {
+    return 'Le vendite manuali usano il prezzo di vendita corrente; Shopify usa importi ordine.';
+  }
+  return 'Le vendite manuali usano il prezzo di vendita corrente al momento della registrazione.';
+}
+
+export function businessAnalyticsRevenueHint(profile: TenantChannelProfile | undefined): string {
+  return showShopifyIntegration(profile)
+    ? 'Shopify + vendite manuali (pagate)'
+    : 'Vendite negozio e online (pagate)';
+}
+
+export function inventoryCountCloseHint(profile: TenantChannelProfile | undefined): string {
+  return showShopifyIntegration(profile)
+    ? 'tracciate e, se collegato, le giacenze verranno sincronizzate con Shopify.'
+    : 'tracciate e le giacenze verranno aggiornate nel gestionale.';
+}
+
+export function corrispettiviReportSubtitle(profile: TenantChannelProfile | undefined): string {
+  if (showShopifyIntegration(profile)) {
+    return 'Riepilogo vendite online Shopify con stati fiscali, export e storico consegne. Le vendite POS sono escluse (gestite da cassa).';
+  }
+  return 'Riepilogo vendite online registrate nel gestionale, con stati fiscali, export e storico consegne. Le vendite POS sono escluse (gestite da cassa).';
+}
+
+export function corrispettiviReportFilterSubtitle(
+  profile: TenantChannelProfile | undefined,
+): string {
+  return showShopifyIntegration(profile)
+    ? 'Filtra vendite Shopify per periodo. Di default mostra solo vendite online.'
+    : 'Filtra vendite online per periodo. Di default mostra solo vendite online.';
+}
+
+export function corrispettiviReportEmptyHint(profile: TenantChannelProfile | undefined): string {
+  return showShopifyIntegration(profile)
+    ? 'Modifica i filtri o sincronizza le vendite da Shopify.'
+    : 'Modifica i filtri o registra vendite online nel gestionale.';
+}
+
+export function userGuidePageIntro(profile: TenantChannelProfile | undefined): string {
+  if (showShopifyIntegration(profile)) {
+    return 'Manuale del gestionale: menu, Shopify, prodotti, magazzino, ordini, vendite e clienti.';
+  }
+  if (showTikTokIntegration(profile)) {
+    return 'Manuale del gestionale: menu, TikTok Shop, prodotti, magazzino, ordini e vendite.';
+  }
+  return 'Manuale del gestionale: prodotti, magazzino, documenti, ordini fornitore e vendite al banco.';
 }
 
 /** Lista ordini sincronizzati da canale ecommerce (oggi solo Shopify). */

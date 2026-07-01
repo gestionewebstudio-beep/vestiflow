@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   TenantChannelProfile,
+  businessAnalyticsPricingHint,
   onlineSalesChannelLabel,
   onlineSalesRegisterLabel,
   onlineSalesCorrispettiviHint,
+  productImportIntro,
   reportPageSubtitle,
   showOnlineSalesRegister,
   showRetailSalesRegister,
@@ -12,6 +14,8 @@ import {
   showShopifyIntegration,
   showTikTokIntegration,
   tenantChannelProfileLabel,
+  tenantCompanyPanelHint,
+  userGuidePageIntro,
 } from './tenant-channel-profile.model';
 
 describe('tenant-channel-profile.model', () => {
@@ -28,9 +32,9 @@ describe('tenant-channel-profile.model', () => {
     expect(showRetailSalesRegister(undefined)).toBe(false);
   });
 
-  it('showOnlineSalesRegister per tutti i profili canale', () => {
+  it('showOnlineSalesRegister solo per gestionale e TikTok Shop', () => {
     expect(showOnlineSalesRegister(TenantChannelProfile.Gestionale)).toBe(true);
-    expect(showOnlineSalesRegister(TenantChannelProfile.Shopify)).toBe(true);
+    expect(showOnlineSalesRegister(TenantChannelProfile.Shopify)).toBe(false);
     expect(showOnlineSalesRegister(TenantChannelProfile.TikTokShop)).toBe(true);
     expect(showOnlineSalesRegister(undefined)).toBe(false);
   });
@@ -57,6 +61,14 @@ describe('tenant-channel-profile.model', () => {
   it('onlineSalesCorrispettiviHint omette riferimento Shopify per gestionale', () => {
     expect(onlineSalesCorrispettiviHint(TenantChannelProfile.Gestionale)).not.toContain('Shopify');
     expect(onlineSalesCorrispettiviHint(TenantChannelProfile.Shopify)).toContain('Shopify');
+  });
+
+  it('copy profilo gestionale omette Shopify dove previsto', () => {
+    expect(tenantCompanyPanelHint(TenantChannelProfile.Gestionale)).not.toContain('Shopify');
+    expect(productImportIntro(TenantChannelProfile.Gestionale)).not.toContain('Shopify');
+    expect(businessAnalyticsPricingHint(TenantChannelProfile.Gestionale)).not.toContain('Shopify');
+    expect(userGuidePageIntro(TenantChannelProfile.Gestionale)).not.toContain('Shopify');
+    expect(userGuidePageIntro(TenantChannelProfile.Shopify)).toContain('Shopify');
   });
 
   it('showSalesOrderHistory solo per profilo Shopify', () => {

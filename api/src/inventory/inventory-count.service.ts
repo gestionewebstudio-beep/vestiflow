@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   AdjustmentDirection,
+  DocumentType,
   InventoryCountStatus,
   Prisma,
   StockMovementType,
@@ -18,6 +19,7 @@ import type { Paginated } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { DocumentsService } from '../documents/documents.service';
 import type { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
 import type { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
 import {
@@ -47,6 +49,7 @@ export class InventoryCountService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly documents: DocumentsService,
   ) {}
 
   async list(
@@ -310,6 +313,36 @@ export class InventoryCountService {
         const message = error instanceof Error ? error.message : 'Push Shopify fallito';
         this.logger.warn(`Push inventario post-conteggio (${tenantId}): ${message}`);
       }
+    }
+
+    if (linesToApply.length > 0) {
+      const draft = await this.documents.create(
+        tenantId,
+        {
+          type: DocumentType.inventory,
+          documentDate: new Date().toISOString(),
+          locationId: session.locationId,
+          notes: reason,
+          internalComment: `Sessione inventario ${session.id}`,
+          lines: linesToApply.map((line) => {
+            const delta = line.countedQuantity! - line.systemQuantity;
+            const sign = delta > 0 ? '+' : '-';
+            return {
+              variantId: line.variantId,
+              sku: line.sku,
+              description: `${line.productName} (${sign}${Math.abs(delta)})`,
+              quantity: Math.abs(delta),
+              loadsStock: false,
+            };
+          }),
+        },
+        user,
+      );
+      const confirmed = await this.documents.confirm(tenantId, draft.id, user);
+      await this.prisma.inventoryCountSession.update({
+        where: { id: sessionId },
+        data: { documentId: confirmed.id },
+      });
     }
 
     return this.getById(tenantId, sessionId);

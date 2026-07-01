@@ -35,6 +35,7 @@ export class ProductReviewStepComponent {
   readonly general = input.required<ProductGeneralDraft>();
   readonly options = input.required<ProductOptionsDraft>();
   readonly variants = input.required<readonly VariantDraft[]>();
+  readonly showShopifyIntegration = input(false);
 
   protected readonly variantCount = computed(() => this.variants().length);
 

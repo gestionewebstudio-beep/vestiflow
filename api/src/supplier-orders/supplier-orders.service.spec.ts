@@ -1,16 +1,32 @@
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, GoneException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
 import { SupplierOrdersService } from './supplier-orders.service';
+import type { SuppliersService } from './suppliers.service';
 
 describe('SupplierOrdersService', () => {
   const tenantId = 'tenant-1';
 
-  function createPrismaMock() {
+  function createSuppliersMock(): SuppliersService {
     return {
+      listAll: vi.fn(),
+      create: vi.fn(),
+    } as unknown as SuppliersService;
+  }
+
+  function createService(prisma: ReturnType<typeof createPrismaMock>, suppliers = createSuppliersMock()) {
+    return new SupplierOrdersService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+      suppliers,
+    );
+  }
+
+  function createPrismaMock() {
+    const prisma = {
       supplier: {
         findMany: vi.fn(),
         create: vi.fn(),
@@ -34,50 +50,60 @@ describe('SupplierOrdersService', () => {
       inventoryLevel: {
         upsert: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUnique: vi.fn(),
       },
       stockMovement: { create: vi.fn() },
-      $transaction: vi.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
+      $transaction: vi.fn(),
     };
+    prisma.$transaction.mockImplementation((arg: unknown) => {
+      if (typeof arg === 'function') {
+        return (arg as (tx: typeof prisma) => Promise<unknown>)(prisma);
+      }
+      return Promise.all(arg as Promise<unknown>[]);
+    });
+    return prisma;
   }
 
-  it('listSuppliers ordina per nome', async () => {
+  it('listSuppliers delega SuppliersService', async () => {
     const prisma = createPrismaMock();
-    prisma.supplier.findMany.mockResolvedValue([{ id: 'sup-1', name: 'Alpha' }]);
+    const suppliers = {
+      listAll: vi.fn().mockResolvedValue([{ id: 'sup-1', name: 'Alpha' }]),
+      create: vi.fn(),
+    } as unknown as SuppliersService;
     const service = new SupplierOrdersService(
       prisma as unknown as PrismaService,
       {} as ChannelSyncFacade,
+      suppliers,
     );
 
     await expect(service.listSuppliers(tenantId)).resolves.toEqual([
       { id: 'sup-1', name: 'Alpha' },
     ]);
+    expect(suppliers.listAll).toHaveBeenCalledWith(tenantId);
   });
 
-  it('createSupplier persiste dati normalizzati', async () => {
+  it('createSupplier delega SuppliersService', async () => {
     const prisma = createPrismaMock();
-    prisma.supplier.create.mockResolvedValue({ id: 'sup-new', name: 'Fornitore' });
+    const suppliers = {
+      listAll: vi.fn(),
+      create: vi.fn().mockResolvedValue({ id: 'sup-new', name: 'Fornitore' }),
+    } as unknown as SuppliersService;
     const service = new SupplierOrdersService(
       prisma as unknown as PrismaService,
       {} as ChannelSyncFacade,
+      suppliers,
     );
 
     await service.createSupplier(tenantId, { name: '  Fornitore  ' });
-
-    expect(prisma.supplier.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ name: 'Fornitore' }),
-      }),
-    );
+    expect(suppliers.create).toHaveBeenCalledWith(tenantId, { name: '  Fornitore  ' });
   });
 
   it('list pagina ordini fornitore', async () => {
     const prisma = createPrismaMock();
     prisma.supplierOrder.findMany.mockResolvedValue([{ id: 'po-1', _count: { lines: 2 } }]);
     prisma.supplierOrder.count.mockResolvedValue(1);
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     const result = await service.list(tenantId, { page: 1, pageSize: 10, search: 'PO' });
 
@@ -87,10 +113,7 @@ describe('SupplierOrdersService', () => {
   it('create rifiuta fornitore inesistente', async () => {
     const prisma = createPrismaMock();
     prisma.supplier.findFirst.mockResolvedValue(null);
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(
       service.create(tenantId, {
@@ -112,10 +135,7 @@ describe('SupplierOrdersService', () => {
       reference: 'PO-2026-0001',
       lines: [{ id: 'line-1', sku: 'SKU-1' }],
     });
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(
       service.create(tenantId, {
@@ -133,10 +153,7 @@ describe('SupplierOrdersService', () => {
       status: SupplierOrderStatus.draft,
       lines: [],
     });
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(service.getById(tenantId, 'po-1')).resolves.toMatchObject({ id: 'po-1' });
   });
@@ -144,12 +161,34 @@ describe('SupplierOrdersService', () => {
   it('getById lancia NotFoundException se assente', async () => {
     const prisma = createPrismaMock();
     prisma.supplierOrder.findFirst.mockResolvedValue(null);
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(service.getById(tenantId, 'missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('send incrementa incoming sulle righe ordine', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.draft,
+      destinationLocationId: 'loc-1',
+      lines: [{ variantId: 'var-1', orderedQuantity: 10, receivedQuantity: 0 }],
+    });
+    prisma.supplierOrder.update.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.sent,
+      destinationLocationId: 'loc-1',
+      lines: [{ variantId: 'var-1', orderedQuantity: 10, receivedQuantity: 0 }],
+    });
+    const service = createService(prisma);
+
+    await service.send(tenantId, 'po-1');
+
+    expect(prisma.inventoryLevel.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { incoming: { increment: 10 } },
+      }),
+    );
   });
 
   it('send passa ordine da bozza a inviato', async () => {
@@ -164,10 +203,7 @@ describe('SupplierOrdersService', () => {
       status: SupplierOrderStatus.sent,
       lines: [],
     });
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(service.send(tenantId, 'po-1')).resolves.toMatchObject({
       status: SupplierOrderStatus.sent,
@@ -181,53 +217,20 @@ describe('SupplierOrdersService', () => {
       status: SupplierOrderStatus.sent,
       lines: [],
     });
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(service.send(tenantId, 'po-1')).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('receive rifiuta quantità superiore al residuo', async () => {
-    const order = {
-      id: 'po-1',
-      reference: 'PO-2026-0001',
-      status: SupplierOrderStatus.sent,
-      destinationLocationId: 'loc-1',
-      lines: [
-        {
-          id: 'line-1',
-          sku: 'SKU-1',
-          variantId: 'var-1',
-          orderedQuantity: 10,
-          receivedQuantity: 8,
-        },
-      ],
-    };
-    const tx = {
-      supplierOrder: {
-        findFirst: vi.fn().mockResolvedValue(order),
-        update: vi.fn(),
-      },
-      supplierOrderLine: { update: vi.fn(), findMany: vi.fn() },
-      inventoryLevel: { upsert: vi.fn(), update: vi.fn() },
-      stockMovement: { create: vi.fn() },
-    };
-    const prisma = {
-      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
-    };
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+  it('receive è deprecato: indirizza al flusso documentale', async () => {
+    const service = createService(createPrismaMock());
 
     await expect(
       service.receive(tenantId, 'po-1', { lines: [{ lineId: 'line-1', quantity: 5 }] }),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    ).rejects.toBeInstanceOf(GoneException);
   });
 
-  it('receive registra carico e aggiorna stato ordine', async () => {
+  it.skip('receive registra carico e aggiorna stato ordine (deprecato — usare goods receipt)', async () => {
     const order = {
       id: 'po-1',
       reference: 'PO-2026-0001',
@@ -285,10 +288,7 @@ describe('SupplierOrdersService', () => {
     prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore' });
     prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
     prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(
       service.create(tenantId, {
@@ -327,10 +327,7 @@ describe('SupplierOrdersService', () => {
       };
       return fn(tx);
     });
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(
       service.update(tenantId, 'po-1', {
@@ -344,21 +341,25 @@ describe('SupplierOrdersService', () => {
     prisma.supplierOrder.findFirst.mockResolvedValue({
       id: 'po-1',
       status: SupplierOrderStatus.sent,
-      lines: [],
+      destinationLocationId: 'loc-1',
+      lines: [{ variantId: 'var-1', orderedQuantity: 8, receivedQuantity: 2 }],
     });
     prisma.supplierOrder.update.mockResolvedValue({
       id: 'po-1',
       status: SupplierOrderStatus.cancelled,
       lines: [],
     });
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(service.cancel(tenantId, 'po-1')).resolves.toMatchObject({
       status: SupplierOrderStatus.cancelled,
     });
+
+    expect(prisma.inventoryLevel.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { incoming: { increment: -6 } },
+      }),
+    );
   });
 
   it('delete rimuove solo ordini annullati', async () => {
@@ -369,10 +370,7 @@ describe('SupplierOrdersService', () => {
       lines: [],
     });
     prisma.supplierOrder.delete.mockResolvedValue({ id: 'po-1' });
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(service.delete(tenantId, 'po-1')).resolves.toBeUndefined();
     expect(prisma.supplierOrder.delete).toHaveBeenCalledWith({ where: { id: 'po-1' } });
@@ -385,10 +383,7 @@ describe('SupplierOrdersService', () => {
       status: SupplierOrderStatus.sent,
       lines: [],
     });
-    const service = new SupplierOrdersService(
-      prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
-    );
+    const service = createService(prisma);
 
     await expect(service.delete(tenantId, 'po-1')).rejects.toBeInstanceOf(ConflictException);
   });

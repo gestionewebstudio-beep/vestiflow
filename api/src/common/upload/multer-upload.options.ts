@@ -26,3 +26,10 @@ export const avatarUploadMulterOptions: MulterOptions = {
     fileSize: 2 * 1024 * 1024,
   },
 };
+
+export const documentAttachmentUploadMulterOptions: MulterOptions = {
+  limits: {
+    ...BASE_LIMITS,
+    fileSize: 10 * 1024 * 1024,
+  },
+};

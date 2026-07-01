@@ -28,6 +28,10 @@ export interface ProductApiRow {
   readonly shopifyCategoryMetafields?: unknown;
   readonly status: Product['status'];
   readonly catalogOrigin: CatalogOrigin;
+  readonly unitOfMeasure?: string;
+  readonly defaultVatRatePercent?: number | null;
+  readonly inventoryTracking?: string;
+  readonly managesStock?: boolean;
   readonly options: readonly ProductOption[];
   readonly shopifyProductId?: string | null;
   readonly shopifySyncStatus: string;
@@ -120,6 +124,12 @@ export interface StockMovementApiRow {
   readonly createdById?: string | null;
   readonly createdByName: string;
   readonly origin?: string | null;
+  readonly externalRef?: string | null;
+  readonly productTitle?: string | null;
+  readonly documentReference?: string | null;
+  readonly variant?: {
+    readonly product?: { readonly name: string };
+  };
 }
 
 function toIsoDate(value: string | null | undefined): IsoDateString | undefined {
@@ -221,6 +231,10 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     ),
     status: row.status,
     catalogOrigin: row.catalogOrigin ?? CatalogOrigin.VestiFlow,
+    unitOfMeasure: row.unitOfMeasure ?? 'pz',
+    defaultVatRatePercent: row.defaultVatRatePercent ?? undefined,
+    inventoryTracking: (row.inventoryTracking as Product['inventoryTracking']) ?? undefined,
+    managesStock: row.managesStock ?? true,
     options: row.options ?? [],
     images: (row.images ?? []).map((image) => ({
       id: image.id,
@@ -321,5 +335,8 @@ export function mapStockMovementApiRow(row: StockMovementApiRow): StockMovement 
     createdBy: row.createdById ?? 'system',
     createdByName: row.createdByName,
     origin: row.origin ? (row.origin as StockMovement['origin']) : undefined,
+    externalRef: row.externalRef ?? undefined,
+    productTitle: row.productTitle ?? row.variant?.product?.name ?? undefined,
+    documentReference: row.documentReference ?? undefined,
   };
 }

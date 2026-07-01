@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ProductStatus } from '@core/models/product.model';
+import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 
 import { ProductGeneralStepComponent } from './product-general-step.component';
@@ -20,6 +21,10 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   season: '',
   tags: '',
   status: ProductStatus.Draft,
+  unitOfMeasure: 'pz',
+  defaultVatRatePercent: 22,
+  inventoryTracking: InventoryTrackingMode.Standard,
+  managesStock: true,
 };
 
 describe('ProductGeneralStepComponent', () => {

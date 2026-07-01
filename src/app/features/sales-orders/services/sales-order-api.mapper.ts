@@ -35,6 +35,12 @@ export interface SalesOrderApiRow {
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
   readonly customer?: { readonly email?: string | null } | null;
+  readonly document?: {
+    readonly id: EntityId;
+    readonly reference?: string | null;
+    readonly type: string;
+    readonly status: string;
+  } | null;
   readonly lines?: readonly SalesOrderLineApiRow[];
 }
 
@@ -102,6 +108,14 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     placedAt: row.placedAt,
     shopify: row.shopifyOrderId
       ? { status: ShopifySyncStatus.Synced, shopifyId: row.shopifyOrderId }
+      : undefined,
+    linkedDocument: row.document
+      ? {
+          id: row.document.id,
+          reference: row.document.reference ?? undefined,
+          type: row.document.type,
+          status: row.document.status,
+        }
       : undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

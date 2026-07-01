@@ -28,7 +28,10 @@ import { CatalogOrigin } from '@core/models/catalog-origin.model';
 import type { CatalogOrigin as CatalogOriginType } from '@core/models/catalog-origin.model';
 import { AuthService } from '@core/auth';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
-import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import {
+  TenantChannelProfile,
+  showShopifyIntegration as isShopifyTenantProfile,
+} from '@core/models/tenant-channel-profile.model';
 import type { ProductImage } from '@core/models/product-image.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -218,6 +221,9 @@ export class ProductFormComponent implements CanComponentDeactivate {
     }
     return this.shopifyConnection()?.status === ShopifyConnectionStatus.Connected;
   });
+  protected readonly showShopifyIntegration = computed(() =>
+    isShopifyTenantProfile(this.authService.currentUser()?.tenantChannelProfile),
+  );
 
   protected readonly categories = computed(() => this.filterOptions()?.categories ?? []);
 

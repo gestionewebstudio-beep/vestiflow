@@ -1,5 +1,5 @@
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 2.1 — Giugno 2026</p>
+<p><strong>Versione documento:</strong> 2.2 — Luglio 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -538,6 +538,16 @@ npm run serve:pwa
 <td><code>supplier_orders.receive</code></td>
 <td>orders</td>
 <td>Ricezione merce</td>
+</tr>
+<tr>
+<td><code>documents.view</code></td>
+<td>documents</td>
+<td>Lista/dettaglio/stampa documenti</td>
+</tr>
+<tr>
+<td><code>documents.manage</code></td>
+<td>documents</td>
+<td>CRUD documenti, transizioni stato, impostazioni numerazione</td>
 </tr>
 <tr>
 <td><code>retail.register</code></td>
@@ -1124,7 +1134,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><code>InventoryLevel</code></td>
-<td><code>variantId</code> × <code>locationId</code>, stati quantità. Riga creata al primo movimento/sync/rettifica/import; senza riga il prodotto non compare nel browse Giacenze. Con <code>GET /inventory/levels?search=…</code> l&#39;API include anche varianti match senza riga (quantità 0, id sintetico <code>virtual:{variantId}:{locationId}</code>).</td>
+<td><code>variantId</code> × <code>locationId</code>, stati quantità (<code>onHand</code>, <code>available</code>, <code>committed</code>, <code>incoming</code>, <code>reserved</code>). Riga creata al primo movimento/sync/rettifica/import; senza riga il prodotto non compare nel browse Giacenze. Con <code>GET /inventory/levels?search=…</code> l&#39;API include anche varianti match senza riga (quantità 0, id sintetico <code>virtual:{variantId}:{locationId}</code>).</td>
 </tr>
 <tr>
 <td><code>StockMovement</code></td>
@@ -1132,7 +1142,27 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td><code>SupplierOrder</code></td>
-<td>Solo VF</td>
+<td>Solo VF; <strong>send</strong> incrementa <code>incoming</code> sulle righe attese; <strong>cancel</strong> / ricezione / documento arrivo merce lo azzera</td>
+</tr>
+<tr>
+<td><code>Document</code> / <code>DocumentLine</code></td>
+<td>Registro documentale multi-tipo (<code>DocumentType</code>, <code>DocumentStatus</code>); righe con optional <code>lotCode</code>, <code>lotExpiryDate</code>, <code>serialNumbers[]</code>; collegamenti <code>sourceDocumentId</code> (es. DDT → bozza fattura)</td>
+</tr>
+<tr>
+<td><code>DocumentAttachment</code></td>
+<td>Allegati PDF/immagine su documento (Storage via API)</td>
+</tr>
+<tr>
+<td><code>InventoryLot</code></td>
+<td>Tracciamento lotti per variante × location (carico da arrivo merce)</td>
+</tr>
+<tr>
+<td><code>InventorySerial</code></td>
+<td>Tracciamento seriali (<code>in_stock</code> / <code>sold</code> / …) registrati in conferma arrivo merce</td>
+</tr>
+<tr>
+<td><code>UserTableViewPreference</code></td>
+<td>Preferenze colonne tabella per utente × tenant × <code>viewId</code> (<code>stateJson</code> validato server-side)</td>
 </tr>
 <tr>
 <td><code>SalesOrder</code> / <code>Customer</code></td>
@@ -1318,7 +1348,148 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 </tbody></table>
 <p>Service: <code>SupplierOrdersService</code> (<code>api/src/supplier-orders/</code>). Ricezione in transazione atomica con <code>StockMovement</code>.</p>
+<p><strong>Incoming su ordine inviato:</strong> <code>applyIncomingForSupplierOrder</code> / <code>reverseIncomingForSupplierOrder</code> aggiornano <code>InventoryLevel.incoming</code> alla <strong>send</strong> / <strong>cancel</strong>; la ricezione (<code>receive</code>) o un <strong>Arrivo merce</strong> collegato (<code>document-supplier-order.util.ts</code>) trasferisce quantità da <em>incoming</em> a <em>onHand</em>/<em>available</em>.</p>
 <p><strong>UI tenant:</strong> form ordine con <code>select-menu</code> searchable (fornitore, variante), <code>date-input</code> per data attesa, subtotale riga calcolato; dettaglio con <strong>Elimina ordine</strong> se <code>status=cancelled</code>. Lista prodotti: stampa etichette multi-select (<code>ProductLabelPrintService.triggerDirectPrintMany</code>).</p>
+<h3 id="documenti-documents">Documenti (<code>/documents</code>)</h3>
+<p>Modulo <code>api/src/documents/</code> + feature Angular <code>src/app/features/documents/</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Azione</th>
+<th>Permessi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/documents</code></td>
+<td>Lista paginata (filtri sotto)</td>
+<td><code>documents.view</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/documents/:id</code></td>
+<td>Dettaglio + righe</td>
+<td><code>documents.view</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/documents</code></td>
+<td>Crea bozza</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/documents/:id</code></td>
+<td>Aggiorna bozza</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/documents/:id/confirm</code></td>
+<td>Conferma → numero + movimenti stock</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/documents/:id/convert</code></td>
+<td>Conversione (es. DDT vendita → bozza fattura)</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/documents/:id/print</code></td>
+<td>Marca stampato</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/documents/:id/send</code></td>
+<td>Marca inviato (bozze fattura)</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/documents/:id/register-external</code></td>
+<td>Registrato esternamente</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/documents/:id/mark-externally-issued</code></td>
+<td>Emessa esternamente (bozza fattura)</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/documents/:id/cancel</code></td>
+<td>Annullamento con reversal stock se applicabile</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/documents/:id</code></td>
+<td>Elimina bozza</td>
+<td><code>documents.manage</code></td>
+</tr>
+<tr>
+<td>GET/POST/DELETE</td>
+<td><code>/documents/:id/attachments</code></td>
+<td>Allegati documento</td>
+<td>view / manage</td>
+</tr>
+<tr>
+<td>GET/PATCH</td>
+<td><code>/document-settings/:type</code></td>
+<td>Prefissi numerazione per tipo</td>
+<td>manage</td>
+</tr>
+</tbody></table>
+<p><strong>Query lista</strong> (<code>ListDocumentsQueryDto</code>): <code>search</code>, <code>type</code>, <code>status</code>, <code>dateFrom</code>, <code>dateTo</code>, <code>supplierOrderId</code>, <code>customerId</code>, <code>accountant</code> (solo tipi registro commercialista), <code>pendingInvoice</code> (DDT vendita attivi senza bozza fattura figlia).</p>
+<p><strong>Tipi</strong> (<code>DocumentType</code> in Prisma): <code>goods_receipt</code>, <code>sales_ddt</code>, <code>invoice_draft</code>, <code>transfer</code>, <code>manual_unload</code>, <code>adjustment</code>, <code>supplier_ddt</code>, <code>supplier_invoice</code>, … — vedi enum in <code>schema.prisma</code>.</p>
+<p><strong>Seriali/lotti:</strong> in conferma <code>goods_receipt</code>, <code>inventory-serial.util.ts</code> e righe <code>DocumentLine</code> con <code>lotCode</code> / <code>serialNumbers</code>.</p>
+<p><strong>Frontend route:</strong> <code>/app/documents</code> (+ form dedicati <code>goods-receipt</code>, <code>transfer</code>, <code>sales-ddt</code>, …). Tabella con <code>TableColumnPickerComponent</code> + sync preferenze.</p>
+<h3 id="registro-commercialista-accountant-register">Registro commercialista (<code>/accountant-register</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Azione</th>
+<th>Permessi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/accountant-register/summary</code></td>
+<td>KPI documenti + corrispettivi</td>
+<td><code>reports.view</code></td>
+</tr>
+</tbody></table>
+<p>Service: <code>AccountantRegisterService</code> — conteggi aggregati (query raw unificata in <code>accountant-register-document-counts.util.ts</code>). FE: <code>/app/reports/accountant-register</code> con link a <code>/app/documents?accountant=1&amp;…</code> e <code>pendingInvoice=1</code>.</p>
+<h3 id="preferenze-colonne-tabella">Preferenze colonne tabella</h3>
+<table>
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Azione</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/users/me/table-views/:viewId</code></td>
+<td>Legge preferenza utente</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/users/me/table-views/:viewId</code></td>
+<td>Upsert <code>stateJson</code></td>
+</tr>
+</tbody></table>
+<p>Modulo <code>api/src/user-preferences/</code> — validazione <code>stateJson</code> (<code>table-view-state.util.ts</code>, whitelist <code>viewId</code> / preset). FE: <code>TableColumnPreferenceService</code> + <code>table-view-preference-api.service.ts</code> (sync server, fallback localStorage).</p>
+<p><strong>Viste registrate:</strong> <code>documents-list</code>, <code>inventory-levels</code>, … (allineamento FE <code>TableViewId</code> ↔ BE <code>TABLE_VIEW_IDS</code>).</p>
 <h3 id="vendita-al-banco-tutti-i-profili-canale">Vendita al banco (tutti i profili canale)</h3>
 <p>Endpoint dedicato per <strong>doppia scansione</strong> al banco: decremento/incremento stock senza creare <code>SalesOrder</code>. Disponibile per <code>gestionale</code>, <code>shopify</code> e <code>tiktok_shop</code>.</p>
 <table>
@@ -1372,6 +1543,10 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <li><p><code>showRetailSalesRegister(profile)</code> — Registra vendita per gestionale, Shopify, TikTok</p>
 </li>
 <li><p><code>showSalesOrderHistory(profile)</code> — <strong>Vendite</strong> solo Shopify</p>
+</li>
+<li><p><code>canViewDocuments</code> / <code>canManageDocuments</code> — voci <strong>Documenti</strong> e azioni create</p>
+</li>
+<li><p><strong>Registro commercialista</strong> — route dedicata con <code>activeRouteExclude</code> su Report</p>
 </li>
 <li><p>Profilo Shopify: entrambe le voci in sidebar; <code>activeRouteExclude</code> evita doppia evidenziazione su <code>/app/sales/register</code></p>
 </li>
@@ -1575,6 +1750,30 @@ cd api &amp;&amp; npm run test
 <td>Provision utenti E2E granulari</td>
 <td><code>npm run provision:e2e-users</code> → <code>api/scripts/provision-e2e-permission-users.mjs</code> (credenziali solo in <code>.env</code>, non in codice app)</td>
 </tr>
+<tr>
+<td>Documenti — filtri lista / incoming PO / seriali</td>
+<td><code>api/src/documents/documents.service.spec.ts</code>, <code>document-supplier-order.util.spec.ts</code>, <code>inventory-serial.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>Registro commercialista — conteggi KPI</td>
+<td><code>api/src/accountant-register/accountant-register.service.spec.ts</code>, <code>accountant-register-document-counts.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>Preferenze colonne — validazione stateJson</td>
+<td><code>api/src/user-preferences/table-view-state.util.spec.ts</code>, <code>user-table-views.service.spec.ts</code></td>
+</tr>
+<tr>
+<td>FE documenti — query URL / seriali input</td>
+<td><code>document-list-query.model.spec.ts</code>, <code>serial-numbers-input.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>FE registro commercialista</td>
+<td><code>accountant-register.model.spec.ts</code></td>
+</tr>
+<tr>
+<td>E2E registro commercialista → DDT da fatturare</td>
+<td><code>e2e/accountant-register.spec.ts</code>, <code>e2e/helpers/accountant-register.ts</code>, smoke in <code>e2e/ci-smoke.spec.ts</code></td>
+</tr>
 </tbody></table>
 <h3 id="ci-github-actions">CI GitHub Actions</h3>
 <ul>
@@ -1600,6 +1799,8 @@ cd api &amp;&amp; npm run test
 <h3 id="post-deploy-smoke-test">Post-deploy smoke test</h3>
 <ul>
 <li><input disabled="" type="checkbox"> Login tenant test</li>
+<li><input disabled="" type="checkbox"> <strong>Documenti</strong> — lista, filtro DDT da fatturare, conferma arrivo merce test</li>
+<li><input disabled="" type="checkbox"> <strong>Registro commercialista</strong> — KPI periodo + link a documenti filtrati</li>
 <li><input disabled="" type="checkbox"> Platform admin → Clienti → Nuovo cliente (staging)</li>
 <li><input disabled="" type="checkbox"> Platform admin → <strong>Apri gestionale (assistenza)</strong> su tenant test → banner + operazione magazzino → <strong>Esci dall&#39;assistenza</strong></li>
 <li><input disabled="" type="checkbox"> Profilo canale Shopify e TikTok su tenant test</li>
@@ -1724,6 +1925,26 @@ cd api &amp;&amp; npm run test
 <tr>
 <td>Sessione assistenza platform admin → tenant</td>
 <td>Implementata — 2 h, read/write, audit <code>support_sessions</code>, banner UI</td>
+</tr>
+<tr>
+<td>Modulo documenti (DDT, arrivi, trasferimenti)</td>
+<td>Implementato — registro, allegati, numerazione, filtri commercialista / pending invoice</td>
+</tr>
+<tr>
+<td>Registro commercialista unificato</td>
+<td>Implementato — KPI documenti + corrispettivi, link filtrati a <code>/app/documents</code></td>
+</tr>
+<tr>
+<td>Incoming su ordini fornitore inviati</td>
+<td>Implementato — stato <code>incoming</code> in <code>InventoryLevel</code>, sync con ricezione / arrivo merce</td>
+</tr>
+<tr>
+<td>Tracciamento lotti / seriali</td>
+<td>Parziale — lotti e seriali in <strong>Arrivo merce</strong>; consultazione seriali in UI limitata</td>
+</tr>
+<tr>
+<td>Preferenze colonne tabella (sync server)</td>
+<td>Implementato — <code>UserTableViewPreference</code>, API <code>/users/me/table-views/:viewId</code></td>
 </tr>
 <tr>
 <td>Sync vendite/clienti TikTok Shop</td>

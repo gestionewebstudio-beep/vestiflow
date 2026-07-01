@@ -26,6 +26,7 @@
 .dashboard__kpis {
   display: grid;
   grid-template-columns: 1fr;
+  align-items: stretch;
   gap: var(--space-3);
 }
 

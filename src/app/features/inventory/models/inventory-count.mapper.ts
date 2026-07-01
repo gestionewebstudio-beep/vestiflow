@@ -29,6 +29,7 @@ export interface InventoryCountSessionApiRow {
   readonly linesCounted?: number;
   readonly linesWithDelta?: number;
   readonly lines?: readonly InventoryCountLineApiRow[];
+  readonly documentId?: EntityId | null;
 }
 
 export function mapInventoryCountLineApiRow(row: InventoryCountLineApiRow): InventoryCountLine {
@@ -60,6 +61,7 @@ export function mapInventoryCountSessionApiRow(
     linesCounted: row.linesCounted ?? countLinesWithCount(row.lines),
     linesWithDelta: row.linesWithDelta ?? countLinesWithDelta(row.lines),
     lines: row.lines?.map(mapInventoryCountLineApiRow),
+    documentId: row.documentId ?? undefined,
   };
 }
 

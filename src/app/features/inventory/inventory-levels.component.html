@@ -100,6 +100,7 @@
         />
       </div>
 
+      <app-table-column-picker [viewId]="tableViewId" />
       <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
         <i class="pi pi-filter-slash" aria-hidden="true"></i>
         Azzera filtri
@@ -118,7 +119,7 @@
       icon="pi-box"
     />
   } @else {
-    <app-inventory-level-table [rows]="rows()" />
+    <app-inventory-level-table [rows]="rows()" [columns]="tableColumns()" />
     <app-pagination
       label="Paginazione giacenze"
       [meta]="meta()"

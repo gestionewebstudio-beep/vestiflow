@@ -32,10 +32,7 @@
     <!-- ── Sede fisica ─────────────────────────────────────────────────────── -->
     <section class="settings__panel" aria-labelledby="settings-tenant-company">
       <h2 id="settings-tenant-company" class="settings__panel-title">Sede fisica</h2>
-      <p class="settings__panel-hint">
-        Anagrafica registrata in VestiFlow dall’operatore. Identifica l’azienda del cliente ed è
-        indipendente dalle sedi operative collegate a Shopify.
-      </p>
+      <p class="settings__panel-hint">{{ tenantCompanyHint() }}</p>
       @if (tenantCompanyLoading()) {
         <div
           class="settings__company-card-skeleton"

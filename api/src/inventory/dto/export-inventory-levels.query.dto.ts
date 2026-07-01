@@ -17,4 +17,10 @@ export class ExportInventoryLevelsQueryDto {
   @IsOptional()
   @IsEnum(INVENTORY_STOCK_STATUS)
   stockStatus?: InventoryStockStatusFilter;
+
+  /** Colonne export CSV (id separati da virgola); se assente, tutte le colonne. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  columns?: string;
 }

@@ -33,6 +33,8 @@ export interface InventoryCountSession {
   readonly linesCounted: number;
   readonly linesWithDelta: number;
   readonly lines?: readonly InventoryCountLine[];
+  /** Documento inventario generato alla chiusura (C6). */
+  readonly documentId?: EntityId;
 }
 
 export interface CreateInventoryCountInput {

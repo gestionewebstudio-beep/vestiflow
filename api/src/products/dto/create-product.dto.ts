@@ -3,14 +3,18 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { ProductStatus } from '@prisma/client';
+import { InventoryTrackingMode, ProductStatus } from '@prisma/client';
 
 import { MoneyDto } from './money.dto';
 import { ShopifyCategoryMetafieldDto } from './shopify-category-metafield.dto';
@@ -132,6 +136,27 @@ export class CreateProductDto {
 
   @IsEnum(ProductStatus)
   status: ProductStatus = ProductStatus.draft;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(20)
+  unitOfMeasure?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  defaultVatRatePercent?: number;
+
+  @IsOptional()
+  @IsEnum(InventoryTrackingMode)
+  inventoryTracking?: InventoryTrackingMode;
+
+  @IsOptional()
+  @IsBoolean()
+  managesStock?: boolean;
 
   @IsArray()
   @ArrayMaxSize(3)

@@ -74,6 +74,7 @@ import { InventoryService } from '@features/inventory/services/inventory.service
 import {
   showShopifyIntegration,
   showTikTokIntegration,
+  tenantCompanyPanelHint,
 } from '@core/models/tenant-channel-profile.model';
 
 import { LocationTableComponent } from './components/location-table/location-table.component';
@@ -163,6 +164,9 @@ export class SettingsComponent {
 
   protected readonly tenantChannelProfile = computed(
     () => this.currentUser()?.tenantChannelProfile,
+  );
+  protected readonly tenantCompanyHint = computed(() =>
+    tenantCompanyPanelHint(this.tenantChannelProfile()),
   );
   protected readonly showShopifyPanel = computed(
     () => showShopifyIntegration(this.tenantChannelProfile()) && this.canManageShopify(),

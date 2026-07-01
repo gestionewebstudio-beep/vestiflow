@@ -9,11 +9,13 @@ import { buildSalesOrderWhere } from './sales-order-query.util';
 export type SalesOrderListRow = SalesOrder & {
   customer: { email: string | null } | null;
   lines: readonly Pick<SalesOrderLine, 'id' | 'title' | 'quantity'>[];
+  document: { id: string; reference: string | null; type: string; status: string } | null;
 };
 
 export type SalesOrderDetailRow = SalesOrder & {
   lines: SalesOrderLine[];
   customer: { email: string | null } | null;
+  document: { id: string; reference: string | null; type: string; status: string } | null;
 };
 
 /**
@@ -35,6 +37,7 @@ export class SalesOrdersService {
         where,
         include: {
           customer: { select: { email: true } },
+          document: { select: { id: true, reference: true, type: true, status: true } },
           lines: {
             select: { id: true, title: true, quantity: true },
             orderBy: { id: 'asc' },
@@ -56,6 +59,7 @@ export class SalesOrdersService {
       include: {
         lines: { orderBy: { id: 'asc' } },
         customer: { select: { email: true } },
+        document: { select: { id: true, reference: true, type: true, status: true } },
       },
     });
     if (!order) {

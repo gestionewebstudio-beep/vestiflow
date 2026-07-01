@@ -10,6 +10,8 @@ export const TenantPermission = {
   CatalogDelete: 'catalog.delete',
   SupplierOrdersManage: 'supplier_orders.manage',
   SupplierOrdersReceive: 'supplier_orders.receive',
+  DocumentsView: 'documents.view',
+  DocumentsManage: 'documents.manage',
   RetailRegister: 'retail.register',
   RetailRegisterOnline: 'retail.register_online',
   ReportsView: 'reports.view',
@@ -29,7 +31,14 @@ export interface TenantPermissionDefinition {
   readonly key: TenantPermissionKey;
   readonly label: string;
   readonly hint: string;
-  readonly group: 'inventory' | 'catalog' | 'orders' | 'reports' | 'settings' | 'customers';
+  readonly group:
+    | 'inventory'
+    | 'catalog'
+    | 'orders'
+    | 'documents'
+    | 'reports'
+    | 'settings'
+    | 'customers';
 }
 
 export const TENANT_PERMISSION_DEFINITIONS: readonly TenantPermissionDefinition[] = [
@@ -80,6 +89,18 @@ export const TENANT_PERMISSION_DEFINITIONS: readonly TenantPermissionDefinition[
     label: 'Ricevere ordini fornitore',
     hint: 'Registra la merce in arrivo da ordini fornitore.',
     group: 'orders',
+  },
+  {
+    key: TenantPermission.DocumentsView,
+    label: 'Consultare documenti',
+    hint: 'Registro documenti (DDT, carichi, trasferimenti, inventari, proforma) in sola lettura.',
+    group: 'documents',
+  },
+  {
+    key: TenantPermission.DocumentsManage,
+    label: 'Gestire documenti',
+    hint: 'Crea, modifica, conferma, stampa e annulla documenti; configura serie e numeratori.',
+    group: 'documents',
   },
   {
     key: TenantPermission.RetailRegister,
@@ -135,6 +156,8 @@ const MANAGER_DEFAULTS: readonly TenantPermissionKey[] = [
   TenantPermission.CatalogImportExport,
   TenantPermission.SupplierOrdersManage,
   TenantPermission.SupplierOrdersReceive,
+  TenantPermission.DocumentsView,
+  TenantPermission.DocumentsManage,
   TenantPermission.RetailRegister,
   TenantPermission.RetailRegisterOnline,
   TenantPermission.ReportsView,
@@ -146,6 +169,7 @@ const MANAGER_DEFAULTS: readonly TenantPermissionKey[] = [
 const CLERK_DEFAULTS: readonly TenantPermissionKey[] = [
   TenantPermission.InventoryManage,
   TenantPermission.SupplierOrdersReceive,
+  TenantPermission.DocumentsView,
   TenantPermission.RetailRegister,
   TenantPermission.RetailRegisterOnline,
   TenantPermission.ReportsView,
@@ -164,6 +188,7 @@ export const TENANT_PERMISSION_GROUP_LABELS: Record<TenantPermissionDefinition['
   inventory: 'Magazzino',
   catalog: 'Catalogo',
   orders: 'Ordini e vendite',
+  documents: 'Documenti',
   reports: 'Report',
   settings: 'Impostazioni',
   customers: 'Clienti',

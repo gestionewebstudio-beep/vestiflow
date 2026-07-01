@@ -7,7 +7,11 @@ import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model'
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 
-import { retailSalesRegisterGuard, salesHistoryGuard } from './retail-sales.guard';
+import {
+  onlineSalesRegisterGuard,
+  retailSalesRegisterGuard,
+  salesHistoryGuard,
+} from './retail-sales.guard';
 
 function userWithProfile(profile: User['tenantChannelProfile']): User {
   return {
@@ -64,6 +68,32 @@ describe('retail-sales guards', () => {
 
       const result = TestBed.runInInjectionContext(() =>
         retailSalesRegisterGuard({} as never, {} as never),
+      );
+      expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/dashboard']);
+      expect(result).not.toBe(true);
+    });
+  });
+
+  describe('onlineSalesRegisterGuard', () => {
+    it.each([TenantChannelProfile.Gestionale, TenantChannelProfile.TikTokShop])(
+      'consente accesso al profilo %s',
+      (profile) => {
+        const auth = TestBed.inject(AuthService);
+        vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(profile));
+
+        const result = TestBed.runInInjectionContext(() =>
+          onlineSalesRegisterGuard({} as never, {} as never),
+        );
+        expect(result).toBe(true);
+      },
+    );
+
+    it('redirige profilo Shopify alla dashboard', () => {
+      const auth = TestBed.inject(AuthService);
+      vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(TenantChannelProfile.Shopify));
+
+      const result = TestBed.runInInjectionContext(() =>
+        onlineSalesRegisterGuard({} as never, {} as never),
       );
       expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/dashboard']);
       expect(result).not.toBe(true);

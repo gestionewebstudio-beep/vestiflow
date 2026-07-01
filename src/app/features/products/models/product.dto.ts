@@ -1,5 +1,6 @@
 import type { EntityId, Money } from '@core/models/common.model';
 import type { ProductStatus } from '@core/models/product.model';
+import type { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 
 // DTO di scrittura prodotto. Pensati per un backend NestJS (class-validator) +
@@ -48,6 +49,10 @@ export interface CreateProductDto {
   readonly season?: string;
   readonly tags?: readonly string[];
   readonly status: ProductStatus;
+  readonly unitOfMeasure?: string;
+  readonly defaultVatRatePercent?: number | null;
+  readonly inventoryTracking?: InventoryTrackingMode;
+  readonly managesStock?: boolean;
   readonly options: readonly ProductOptionDto[];
   readonly variants: readonly CreateProductVariantDto[];
 }
@@ -69,6 +74,10 @@ export interface UpdateProductDto {
   readonly season?: string;
   readonly tags?: readonly string[];
   readonly status?: ProductStatus;
+  readonly unitOfMeasure?: string;
+  readonly defaultVatRatePercent?: number | null;
+  readonly inventoryTracking?: InventoryTrackingMode;
+  readonly managesStock?: boolean;
   readonly options?: readonly ProductOptionDto[];
   readonly variants?: readonly UpdateProductVariantDto[];
 }

@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/angular';
 import { describe, expect, it } from 'vitest';
 
 import { ProductStatus } from '@core/models/product.model';
+import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 
 import { ProductReviewStepComponent } from './product-review-step.component';
 import type { ProductGeneralDraft, ProductOptionsDraft } from '../../models/product-form.model';
@@ -19,6 +20,10 @@ const GENERAL: ProductGeneralDraft = {
   season: 'FW26',
   tags: 'premium',
   status: ProductStatus.Draft,
+  unitOfMeasure: 'pz',
+  defaultVatRatePercent: 22,
+  inventoryTracking: InventoryTrackingMode.Standard,
+  managesStock: true,
 };
 
 const OPTIONS: ProductOptionsDraft = {

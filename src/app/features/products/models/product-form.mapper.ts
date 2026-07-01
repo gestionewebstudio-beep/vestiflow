@@ -1,4 +1,5 @@
 import { ProductStatus } from '@core/models/product.model';
+import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { Product } from '@core/models/product.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import { DEFAULT_CURRENCY, moneyFromMajor, moneyToMajor } from '@core/utils/money.util';
@@ -97,6 +98,10 @@ export function emptyProductFormDraft(): ProductFormDraft {
       season: '',
       tags: '',
       status: ProductStatus.Draft,
+      unitOfMeasure: 'pz',
+      defaultVatRatePercent: 22,
+      inventoryTracking: InventoryTrackingMode.Standard,
+      managesStock: true,
     },
     options: { axes: defaultOptionAxes() },
     variants: [],
@@ -172,6 +177,10 @@ function generalToDto(
     season: trimmedOrUndefined(general.season),
     tags: parseTagsInput(general.tags),
     status: general.status,
+    unitOfMeasure: general.unitOfMeasure.trim() || 'pz',
+    defaultVatRatePercent: general.defaultVatRatePercent,
+    inventoryTracking: general.inventoryTracking,
+    managesStock: general.managesStock,
   };
 }
 
@@ -240,6 +249,10 @@ export function productToFormDraft(
     season: product.season ?? '',
     tags: formatTagsInput(product.tags),
     status: product.status,
+    unitOfMeasure: product.unitOfMeasure ?? 'pz',
+    defaultVatRatePercent: product.defaultVatRatePercent ?? 22,
+    inventoryTracking: product.inventoryTracking ?? InventoryTrackingMode.Standard,
+    managesStock: product.managesStock ?? true,
   };
   const variantDrafts: VariantDraft[] = variants.map((variant) => ({
     key: variant.id,

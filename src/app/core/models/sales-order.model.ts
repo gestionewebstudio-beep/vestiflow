@@ -80,4 +80,11 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   /** Data dell'ordine (Shopify processedAt). */
   readonly placedAt: IsoDateString;
   readonly shopify?: ShopifyLink;
+  /** DDT vendita collegato (sync Shopify). */
+  readonly linkedDocument?: {
+    readonly id: EntityId;
+    readonly reference?: string;
+    readonly type: string;
+    readonly status: string;
+  };
 }

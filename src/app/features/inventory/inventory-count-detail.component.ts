@@ -9,10 +9,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { AuthService } from '@core/auth';
+import { inventoryCountCloseHint } from '@core/models/tenant-channel-profile.model';
 import { InventoryCountStatus } from '@core/models/inventory-count.model';
 import type { InventoryCountLine, InventoryCountSession } from '@core/models/inventory-count.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -57,6 +59,7 @@ interface ScanFeedback {
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    RouterLink,
   ],
   templateUrl: './inventory-count-detail.component.html',
   styleUrl: './inventory-count-detail.component.scss',
@@ -69,6 +72,11 @@ export class InventoryCountDetailComponent {
   private readonly config = inject(APP_CONFIG);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly authService = inject(AuthService);
+
+  protected readonly closeHint = computed(() =>
+    inventoryCountCloseHint(this.authService.currentUser()?.tenantChannelProfile),
+  );
 
   private highlightTimeout: ReturnType<typeof setTimeout> | null = null;
 

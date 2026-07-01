@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import { BadgeComponent } from '@shared/components/badge/badge.component';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 import {
   movementActorLabel,
@@ -22,6 +23,7 @@ import type { StockMovementRow } from '../../models/inventory-view.model';
 })
 export class MovementTableComponent {
   readonly rows = input.required<readonly StockMovementRow[]>();
+  readonly columns = input.required<readonly ResolvedTableColumn[]>();
 
   protected readonly typeLabel = movementTypeLabel;
   protected readonly typeTone = movementTypeTone;
