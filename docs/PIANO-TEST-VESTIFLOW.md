@@ -1,16 +1,26 @@
 # VestiFlow — Piano di test completo
 
-**Versione documento:** 1.1 — Giugno 2026
+**Versione documento:** 2.0 — Luglio 2026
 
-**Scopo:** elenco ordinato di tutti i test manuali da eseguire sul gestionale, dal primo all'ultimo, con passaggi operativi e risultati attesi. Pensato per test in parallelo da più persone.
+**Scopo:** elenco ordinato di tutti i test manuali da eseguire sul gestionale VestiFlow, dal primo all'ultimo, con passaggi operativi e risultati attesi. Pensato per essere letto e compilato in parallelo da due tester (tu e un collega).
+
+**Due percorsi di test distinti**
+
+| Percorso                  | Account                                    | Cosa testa                                                                                         |
+| ------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| **A — Cliente (tenant)**  | Titolare, Admin negozio, Manager, Commesso | Tutto il gestionale operativo del negozio: catalogo, magazzino, ordini, documenti, vendite, report |
+| **B — Admin piattaforma** | Operatore VestiFlow (platform admin)       | Creazione clienti, utenti, licensing sedi, sessione assistenza, guida tecnica                      |
+
+I test tenant partono da **T-001**. I test admin sono nella **sezione 18** (T-160 in poi): eseguili con account operatore piattaforma, oppure segnala **N/A** se non disponibile.
 
 **Come usare questo documento**
 
 1. Leggi la sezione **0 — Preparazione** prima di iniziare qualsiasi test.
-2. Esegui i test **nell'ordine numerico** (T-001 → T-194). Alcuni test dipendono da dati creati in test precedenti.
+2. Esegui i test **nell'ordine numerico** (T-001 → T-210). Alcuni test dipendono da dati creati in test precedenti.
 3. Compila per ogni test: **Esito** (OK / KO / N/A), **Tester**, **Data**, **Note**.
 4. In caso di KO, descrivi cosa è successo e allega screenshot se utile.
 5. Non saltare i test contrassegnati **Obbligatorio** prima del go-live.
+6. Per i test **Profilo canale**, verifica l'etichetta in tabella: **Shopify**, **Solo gestionale** o **TikTok Shop** — molte voci menu cambiano in base al profilo.
 
 ---
 
@@ -27,15 +37,17 @@
 8. [Magazzino — Movimenti](#8-magazzino--movimenti)
 9. [Magazzino — Import CSV giacenze](#9-magazzino--import-csv-giacenze)
 10. [Inventario fisico](#10-inventario-fisico)
-11. [Ordini fornitori](#11-ordini-fornitori)
-12. [Vendite](#12-vendite)
-13. [Clienti](#13-clienti)
-14. [Report](#14-report)
-15. [Guida integrata](#15-guida-integrata)
-16. [Amministrazione piattaforma](#16-amministrazione-piattaforma)
-17. [Mobile e PWA](#17-mobile-e-pwa)
-18. [Permessi per ruolo](#18-permessi-per-ruolo)
-19. [Flussi end-to-end integrati](#19-flussi-end-to-end-integrati)
+11. [Fornitori](#11-fornitori)
+12. [Ordini fornitori](#12-ordini-fornitori)
+13. [Documenti fiscali e operativi](#13-documenti-fiscali-e-operativi)
+14. [Vendite al banco e ordini online](#14-vendite-al-banco-e-ordini-online)
+15. [Clienti](#15-clienti)
+16. [Report e registro commercialista](#16-report-e-registro-commercialista)
+17. [Guida integrata](#17-guida-integrata)
+18. [Amministrazione piattaforma](#18-amministrazione-piattaforma)
+19. [Mobile e PWA](#19-mobile-e-pwa)
+20. [Permessi per ruolo](#20-permessi-per-ruolo)
+21. [Flussi end-to-end integrati](#21-flussi-end-to-end-integrati)
 
 ---
 
@@ -60,15 +72,17 @@
 
 Prima di T-001, verifica:
 
-| #   | Verifica                                                                      | OK  |
-| --- | ----------------------------------------------------------------------------- | --- |
-| 1   | Backend API avviato e raggiungibile                                           | ☐   |
-| 2   | Frontend VestiFlow aperto su URL di test/staging                              | ☐   |
-| 3   | Almeno un negozio Shopify di test collegabile (se test sync)                  | ☐   |
-| 4   | Quattro account di test con ruoli diversi: Titolare, Admin, Manager, Commesso | ☐   |
-| 5   | Almeno 2 location configurate (es. Negozio + Magazzino)                       | ☐   |
-| 6   | Browser: Chrome o Edge aggiornato (desktop) + smartphone per test mobile      | ☐   |
-| 7   | Foglio condiviso o canale per segnalare bug (es. chat, issue tracker)         | ☐   |
+| #   | Verifica                                                                 | OK  |
+| --- | ------------------------------------------------------------------------ | --- |
+| 1   | Backend API avviato e raggiungibile                                      | ☐   |
+| 2   | Frontend VestiFlow aperto su URL di test/staging                         | ☐   |
+| 3   | Almeno un negozio Shopify di test collegabile (se test sync)             | ☐   |
+| 4   | Quattro account tenant: Titolare, Admin negozio, Manager, Commesso       | ☐   |
+| 5   | Un account **operatore piattaforma** (admin VestiFlow) per sezione 18    | ☐   |
+| 6   | Almeno 2 location configurate (es. Negozio + Magazzino)                  | ☐   |
+| 7   | Browser: Chrome o Edge aggiornato (desktop) + smartphone per test mobile | ☐   |
+| 8   | Foglio condiviso o canale per segnalare bug (es. chat, issue tracker)    | ☐   |
+| 9   | Stampante o PDF reader per test stampa documenti / etichette             | ☐   |
 
 ### 0.2 Dati di test consigliati
 
@@ -81,14 +95,28 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ### 0.3 Divisione suggerita per 2 tester in parallelo
 
-| Tester | Sezioni                         | ID test                                                    | Note                                                     |
-| ------ | ------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------- |
-| **A**  | 0 → 5 + 15 + 19 (parte A)       | T-001 → T-070, T-154 → T-156, T-176 → T-180                | Auth, setup Shopify, prodotti, guida, flussi catalogo    |
-| **B**  | 6 → 14 + 17 → 18 + 19 (parte B) | T-071 → T-153, T-161 → T-164, T-170 → T-175, T-181 → T-185 | Magazzino, ordini, vendite, mobile, permessi, assistenza |
+| Tester | Sezioni principali                                 | ID test (indicativi)                                       | Focus                                                                                           |
+| ------ | -------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **A**  | 0 → 5, 13 (documenti vendita), 17, 21 (parte A)    | T-001 → T-063, T-135 → T-145, T-154 → T-156, T-190 → T-196 | Login, Shopify, prodotti (incluso **Inserimento rapido**), documenti fiscali, guida, onboarding |
+| **B**  | 6 → 12, 13 (magazzino), 14 → 16, 18 → 21 (parte B) | T-070 → T-134, T-146 → T-153, T-160 → T-172, T-180 → T-210 | Magazzino, fornitori, ordini, arrivi merce, vendite banco, report, admin, mobile, permessi      |
 
-**Regola conflitto:** non modificare lo stesso prodotto/ordine/inventario contemporaneamente. Usate SKU o riferimenti diversi (es. prefisso `TEST-A-` / `TEST-B-`).
+**Regola conflitto:** non modificare lo stesso prodotto, ordine o inventario contemporaneamente. Usate prefissi SKU diversi (`TEST-A-` / `TEST-B-`).
 
-**Sync point:** dopo T-045 (Shopify) e T-070 (prodotti), fate un breve allineamento prima che il Tester B inizi i movimenti di magazzino.
+**Sync point consigliati:**
+
+1. Dopo **T-031–T-034** (Shopify connesso e catalogo importato) — prima che B lavori su giacenze.
+2. Dopo **T-047** (primo prodotto rapido creato da A) — B può usarlo per movimenti e vendite.
+3. Dopo **T-162** (sessione assistenza) — solo un tester alla volta in assistenza sullo stesso tenant.
+
+### 0.4 Profili canale da testare (se possibile)
+
+Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (senza e-commerce). TikTok Shop: smoke test opzionale.
+
+| Profilo             | Voci menu extra / assenti                                | Test prioritari                                 |
+| ------------------- | -------------------------------------------------------- | ----------------------------------------------- |
+| **Shopify**         | Vendite, Clienti, sync Shopify                           | T-031–T-037, T-130–T-132, T-192                 |
+| **Solo gestionale** | No lista Vendite/Clienti; **Registra vendita online** sì | T-125–T-128, T-153                              |
+| **TikTok Shop**     | Integrazione TikTok in Impostazioni                      | T-044 (se disponibile), push giacenze post-scan |
 
 ---
 
@@ -285,10 +313,11 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 **Passaggi:**
 
-1. Dopo login verifica che la sidebar contenga: Dashboard, Prodotti, Magazzino, Ordini Fornitori, Vendite, Clienti, Report, Impostazioni.
-2. Clicca ogni voce una alla volta.
+1. Dopo login verifica che la sidebar contenga almeno: **Dashboard**, **Prodotti**, **Magazzino**, **Fornitori**, **Ordini Fornitori**, **Documenti**, **Registra vendita**, **Report**, **Impostazioni**, **Guida**.
+2. Se profilo **Shopify**: verifica anche **Vendite** e **Clienti** (e opz. **Registro commercialista**).
+3. Clicca ogni voce visibile una alla volta.
 
-**Risultato atteso:** ogni voce apre la pagina corretta. Titolo pagina e URL coerenti (`/app/dashboard`, `/app/products`, ecc.).
+**Risultato atteso:** ogni voce apre la pagina corretta. Titolo pagina e URL coerenti (`/app/dashboard`, `/app/products`, `/app/suppliers`, `/app/documents`, `/app/sales/register`, ecc.). Voci assenti per profilo/permesso non devono comparire.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -794,6 +823,54 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
+### T-042 — Sedi attive in VestiFlow
+
+|              |                       |
+| ------------ | --------------------- |
+| **Priorità** | P1 · **Obbligatorio** |
+| **Ruolo**    | Titolare              |
+| **Device**   | Desktop               |
+
+**Prerequisiti:** location sincronizzate (T-032). Piano con limite sedi (es. 2).
+
+**Passaggi:**
+
+1. **Impostazioni → Sedi attive in VestiFlow**.
+2. Seleziona le sedi da attivare entro il limite del piano.
+3. Clicca **Salva sedi attive**.
+4. Verifica che le sedi non selezionate non compaiano nei filtri operativi.
+
+**Risultato atteso:** salvataggio confermato. Solo sedi attive usabili in magazzino, movimenti e vendite. Modifica bloccata o limitata dopo salvataggio (se previsto dal piano).
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-044 — Integrazione TikTok Shop (smoke test)
+
+|              |             |
+| ------------ | ----------- |
+| **Priorità** | P3          |
+| **Ruolo**    | Titolare    |
+| **Device**   | Desktop     |
+| **Profilo**  | TikTok Shop |
+
+**Passaggi:**
+
+1. **Impostazioni → Integrazione TikTok Shop**.
+2. Avvia connessione OAuth (se ambiente configurato).
+3. Verifica badge stato connessione.
+
+**Risultato atteso:** flusso OAuth completabile o messaggio chiaro se ambiente non configurato. Segnare N/A se tenant non TikTok.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
 ### T-040 — Attivazione MFA
 
 |              |                  |
@@ -862,6 +939,58 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
+### T-047 — Inserimento rapido prodotto (modalità predefinita)
+
+|              |                       |
+| ------------ | --------------------- |
+| **Priorità** | P1 · **Obbligatorio** |
+| **Ruolo**    | Manager+              |
+| **Device**   | Desktop               |
+
+**Prerequisiti:** permesso **Gestire catalogo**.
+
+**Passaggi:**
+
+1. **Prodotti → Aggiungi prodotto** (`/app/products/new`).
+2. Verifica che il toggle mostri **Inserimento rapido** attivo (predefinito).
+3. Compila solo **Nome** (es. `TEST-A-Maglietta`) e **Prezzo vendita** (es. 29,90 €).
+4. Verifica che lo **SKU** si generi automaticamente dal nome.
+5. Opzionale: clicca **Genera** accanto a **EAN** e verifica che compaia un codice.
+6. Clicca **Crea prodotto**.
+
+**Risultato atteso:** prodotto creato con **una sola variante**. Redirect a dettaglio o lista. Nessun errore. Brand e categoria possono restare vuoti.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-048 — Inserimento rapido: Altri dati catalogo e passaggio a varianti
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P1       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. Apri **Nuovo prodotto** in modalità **Inserimento rapido**.
+2. Espandi il pannello **Altri dati catalogo** (chevron/details).
+3. Compila **Brand** e **Categoria** (opzionali).
+4. Clicca **Configura taglia/colore…** (o toggle **Con varianti**).
+5. Completa wizard: opzioni S/M/L e Nero/Bianco, SKU per variante, prezzi.
+6. Salva prodotto.
+
+**Risultato atteso:** passaggio fluido da rapido a wizard. Pannello collassabile leggibile. 6 varianti generate. Layout a 3 colonne su desktop per nome/brand/categoria nel rapido.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
 ### T-051 — Creazione prodotto completa (wizard 4 step)
 
 |              |                       |
@@ -873,10 +1002,11 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 **Passaggi:**
 
 1. **Prodotti → Aggiungi prodotto**.
-2. **Step 1 — Dati generali:** nome `TEST-A-Giacca`, brand, categoria (select), stagione (select), descrizione. Aggiungi almeno 1 immagine (JPEG/PNG ≤ 5 MB).
-3. **Step 2 — Opzioni:** aggiungi valori alla prima opzione (es. S, M, L) e alla seconda (es. Nero, Bianco). Verifica generazione combinazioni.
-4. **Step 3 — Varianti:** compila SKU univoci per ogni variante, prezzo vendita, barcode opzionale su almeno una variante.
-5. **Step 4 — Riepilogo:** controlla dati e clicca **Crea prodotto**.
+2. Attiva **Con varianti** (se non già attivo).
+3. **Step 1 — Dati generali:** nome `TEST-A-Giacca`, brand, categoria (select), stagione (select), descrizione. Aggiungi almeno 1 immagine (JPEG/PNG/WebP ≤ 5 MB).
+4. **Step 2 — Opzioni:** aggiungi valori alla prima opzione (es. S, M, L) e alla seconda (es. Nero, Bianco). Verifica generazione combinazioni.
+5. **Step 3 — Varianti:** compila SKU univoci per ogni variante, prezzo vendita, barcode opzionale su almeno una variante.
+6. **Step 4 — Riepilogo:** controlla dati e clicca **Crea prodotto**.
 
 **Risultato atteso:** prodotto creato. Redirect a dettaglio o lista. 6 varianti generate (3×2). Nessun errore SKU duplicato.
 
@@ -1122,6 +1252,29 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 2. Vai in Prodotti. Prova `/app/products/new` manualmente.
 
 **Risultato atteso:** pulsante Aggiungi prodotto assente o disabilitato. Route new bloccata (redirect o accesso negato).
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-063 — Stampa etichetta prodotto (singola e bulk)
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. Dal **dettaglio prodotto**, apri **Stampa etichetta** (o route `/app/products/:id/print-label`).
+2. Verifica anteprima con SKU, barcode, prezzo.
+3. Stampa o salva PDF.
+4. Dalla **lista prodotti**, seleziona 2+ righe e usa **Stampa etichette** bulk se disponibile.
+
+**Risultato atteso:** layout etichetta leggibile. Barcode scansionabile. Bulk genera una pagina per ogni variante selezionata.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -1637,7 +1790,98 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-## 11. Ordini fornitori
+## 11. Fornitori
+
+### T-115 — Lista fornitori
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. Vai in **Fornitori** (`/app/suppliers`).
+2. Usa ricerca per nome o codice.
+3. Clicca una riga per aprire il dettaglio.
+
+**Risultato atteso:** tabella con loading/empty state. Dettaglio mostra anagrafica e ordini collegati se presenti.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-116 — Nuovo fornitore
+
+|              |                       |
+| ------------ | --------------------- |
+| **Priorità** | P1 · **Obbligatorio** |
+| **Ruolo**    | Manager+              |
+| **Device**   | Desktop               |
+
+**Passaggi:**
+
+1. **Fornitori → Nuovo fornitore**.
+2. Compila ragione sociale, email, telefono, indirizzo (campi obbligatori del form).
+3. Salva.
+
+**Risultato atteso:** fornitore creato. Compare in lista e nei select degli ordini fornitore / arrivi merce.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-117 — Modifica fornitore
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. Apri dettaglio fornitore → **Modifica**.
+2. Cambia telefono o note.
+3. Salva e ricarica pagina.
+
+**Risultato atteso:** modifiche persistite.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-118 — Creazione fornitore inline da ordine
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. **Ordini Fornitori → Nuovo ordine**.
+2. Nel campo fornitore, usa **Nuovo fornitore** (creazione inline).
+3. Compila dati minimi e conferma.
+4. Completa ordine con il fornitore appena creato.
+
+**Risultato atteso:** fornitore creato senza uscire dal form ordine. Selezionabile subito.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+## 12. Ordini fornitori
 
 ### T-120 — Lista ordini fornitori
 
@@ -1746,7 +1990,382 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-## 12. Vendite
+## 13. Documenti fiscali e operativi
+
+> Sezione critica per magazzino + contabilità. Richiede permesso **Consultare documenti** (view) e **Gestire documenti** (manage) per le azioni di scrittura.
+
+### T-135 — Registro documenti: filtri e colonne
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P1       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. Vai in **Documenti** (`/app/documents`).
+2. Applica filtri: tipo documento, stato, periodo.
+3. Apri menu **Colonne**, cambia preset (Completo / Compatto) e mostra/nascondi colonne.
+4. Ricarica pagina e verifica persistenza preferenze colonne.
+
+**Risultato atteso:** tabella filtrata correttamente. Preferenze colonne salvate per utente.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-136 — Arrivo merce: creazione e conferma
+
+|              |                       |
+| ------------ | --------------------- |
+| **Priorità** | P1 · **Obbligatorio** |
+| **Ruolo**    | Manager+              |
+| **Device**   | Desktop               |
+
+**Prerequisiti:** fornitore esistente (T-116). Variante con SKU noto.
+
+**Passaggi:**
+
+1. **Documenti → Nuovo documento → Arrivo merce**.
+2. Seleziona fornitore, sede destinazione, data.
+3. Aggiungi riga: cerca variante per SKU, quantità 5, costo unitario.
+4. Opzionale: lotto, scadenza, seriali su una riga.
+5. Salva bozza, poi **Conferma** documento.
+
+**Risultato atteso:** stato passa a **Confermato**. Giacenza +5 sulla sede. Movimento **Carico** in storico. Numero progressivo assegnato alla conferma.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-137 — Arrivo merce collegato a ordine fornitore
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P1       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Prerequisiti:** ordine fornitore **Inviato** (T-122).
+
+**Passaggi:**
+
+1. **Documenti → Arrivo merce**.
+2. Collega l'**ordine fornitore** creato in T-122.
+3. Verifica precompilazione righe attese.
+4. Conferma arrivo con quantità ricevute.
+
+**Risultato atteso:** colonna **In arrivo** in Giacenze azzerata per quelle righe. Ordine aggiornato a ricevuto/parziale.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-138 — Crea articolo rapido da riga arrivo merce
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. In form **Arrivo merce**, su una riga usa **Crea articolo rapido**.
+2. Compila nome, SKU, prezzo in modal/dialog inline.
+3. Conferma e completa documento.
+
+**Risultato atteso:** nuovo prodotto + variante creati e associati alla riga. Disponibile subito in catalogo.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-139 — Trasferimento tra sedi
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P1       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Prerequisiti:** giacenza > 0 su sede A; sede B diversa.
+
+**Passaggi:**
+
+1. **Documenti → Trasferimento**.
+2. Sede origine A, destinazione B, 2 pezzi variante test.
+3. Conferma con dialog di riepilogo.
+
+**Risultato atteso:** giacenza −2 su A, +2 su B. Movimenti tracciati.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-140 — Scarico manuale e rettifica con motivo
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P1       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. **Documenti → Scarico manuale**: scarica 1 pezzo con conferma.
+2. **Documenti → Rettifica inventario**: imposta quantità diversa da sistema; **motivo obbligatorio** (es. «Conteggio errato»).
+3. Conferma entrambi.
+
+**Risultato atteso:** rettifica bloccata senza motivo. Dopo conferma, giacenze e movimenti coerenti.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-141 — Proforma e bozza fattura
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. **Documenti → Nuova proforma**: aggiungi righe, cliente, salva bozza.
+2. Verifica disclaimer fiscale in anteprima/stampa.
+3. **Documenti → Nuova bozza fattura**: compila e salva.
+
+**Risultato atteso:** documenti in stato **Bozza**. Nessun impatto giacenze.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-142 — DDT vendita e conversione in bozza fattura
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. **Documenti → DDT vendita**: cliente, righe, conferma.
+2. Dal dettaglio DDT, usa azione **Converti in bozza fattura** (se disponibile).
+3. Verifica filtro **DDT da fatturare** nel registro.
+
+**Risultato atteso:** bozza fattura collegata al DDT. Filtro registro mostra DDT pendenti.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-143 — Stampa e download PDF documento
+
+|              |                       |
+| ------------ | --------------------- |
+| **Priorità** | P1 · **Obbligatorio** |
+| **Ruolo**    | Manager+              |
+| **Device**   | Desktop               |
+
+**Prerequisiti:** almeno un documento confermato.
+
+**Passaggi:**
+
+1. Apri **dettaglio documento**.
+2. Clicca **Stampa** → anteprima `/app/documents/:id/print`.
+3. Clicca **Scarica PDF** (export API).
+
+**Risultato atteso:** anteprima browser leggibile. PDF scaricato con intestazione tenant, righe, totali. Nessun errore 500.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-144 — Allegati su documento
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. Su documento in bozza, carica allegato PDF o immagine (≤ limite size).
+2. Salva e ricarica dettaglio.
+3. Scarica/visualizza allegato.
+
+**Risultato atteso:** allegato persistito. Tipi MIME non ammessi rifiutati con messaggio chiaro.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-145 — Impostazioni documenti (numeratori)
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. **Documenti → Impostazioni documenti**.
+2. Modifica prefisso serie per un tipo (es. DDT vendita).
+3. Salva.
+4. Crea e conferma un nuovo documento di quel tipo.
+
+**Risultato atteso:** numero progressivo usa il prefisso aggiornato.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-146 — Commesso: solo consultazione documenti
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Commesso |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. Login commesso (preset: consultazione documenti, no gestione).
+2. Apri **Documenti** e un dettaglio.
+3. Verifica assenza pulsanti **Nuovo**, **Conferma**, **Modifica**.
+
+**Risultato atteso:** read-only. Route `/app/documents/goods-receipt/new` non accessibile (redirect dashboard).
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+## 14. Vendite al banco e ordini online
+
+### T-125 — Registra vendita al banco (scan)
+
+|              |                       |
+| ------------ | --------------------- |
+| **Priorità** | P1 · **Obbligatorio** |
+| **Ruolo**    | Commesso+             |
+| **Device**   | Entrambi              |
+
+**Prerequisiti:** variante con barcode/SKU e giacenza ≥ 1 sulla sede operativa.
+
+**Passaggi:**
+
+1. Apri **Registra vendita** (`/app/sales/register`).
+2. Verifica sede operativa in topbar (deve essere quella corretta).
+3. Scansiona barcode o inserisci SKU manualmente.
+4. Conferma **Registra vendita** (qty 1 per scan).
+5. Vai in **Magazzino → Movimenti** e cerca l'ultimo movimento.
+
+**Risultato atteso:** giacenza −1. Movimento tipo **Vendita**, origine **Vendita negozio**. Feedback visivo/sonoro positivo dopo scan.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-126 — Registra storno (reso al banco)
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P1       |
+| **Ruolo**    | Commesso |
+| **Device**   | Mobile   |
+
+**Passaggi:**
+
+1. In **Registra vendita**, attiva modalità **Storno** / **Reso**.
+2. Scansiona stesso barcode della T-125.
+3. Conferma.
+
+**Risultato atteso:** giacenza +1. Movimento tipo **Reso**. Non crea ordine di vendita in VestiFlow.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-127 — Registra vendita online manuale
+
+|              |                          |
+| ------------ | ------------------------ |
+| **Priorità** | P2                       |
+| **Ruolo**    | Manager+                 |
+| **Device**   | Desktop                  |
+| **Profilo**  | Solo gestionale o TikTok |
+
+**Passaggi:**
+
+1. Apri **Registra vendita online** (o **Registra vendita online esterna** su TikTok).
+2. Registra vendita con SKU e importo se richiesto.
+3. Verifica aggiornamento giacenze.
+
+**Risultato atteso:** flusso completabile. Voce menu assente su profilo **Shopify** puro (vendite online via sync).
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-128 — Profilo Solo gestionale: no lista Vendite
+
+|              |                 |
+| ------------ | --------------- |
+| **Priorità** | P2              |
+| **Ruolo**    | Qualsiasi       |
+| **Device**   | Desktop         |
+| **Profilo**  | Solo gestionale |
+
+**Passaggi:**
+
+1. Login tenant solo gestionale.
+2. Verifica sidebar: **Registra vendita** sì, voce **Vendite** (lista ordini) no.
+3. Naviga manualmente a `/app/sales`.
+
+**Risultato atteso:** redirect a **Registra vendita**. Nessuna lista ordini Shopify.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
 
 ### T-130 — Lista vendite Shopify
 
@@ -1833,9 +2452,9 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-## 13. Clienti
+## 15. Clienti
 
-### T-140 — Lista clienti
+### T-147 — Lista clienti
 
 |              |           |
 | ------------ | --------- |
@@ -1855,7 +2474,7 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-### T-141 — Dettaglio cliente
+### T-148 — Dettaglio cliente
 
 |              |           |
 | ------------ | --------- |
@@ -1875,7 +2494,7 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-### T-142 — Sincronizza clienti da Shopify
+### T-149 — Sincronizza clienti da Shopify
 
 |              |                |
 | ------------ | -------------- |
@@ -1895,7 +2514,7 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-## 14. Report
+## 16. Report e registro commercialista
 
 ### T-150 — KPI report
 
@@ -1957,9 +2576,79 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-## 15. Guida integrata
+### T-153 — Corrispettivi: riepilogo e stampa PDF
 
-### T-154 — Guida utente in-app
+|              |                                                       |
+| ------------ | ----------------------------------------------------- |
+| **Priorità** | P2                                                    |
+| **Ruolo**    | Manager+                                              |
+| **Device**   | Desktop                                               |
+| **Profilo**  | Solo gestionale (o tenant con vendite online manuali) |
+
+**Passaggi:**
+
+1. **Report → Corrispettivi** (`/app/reports/corrispettivi`).
+2. Seleziona periodo (mese corrente).
+3. Verifica totali coerenti con vendite online manuali registrate.
+4. Apri **Stampa corrispettivi** e scarica PDF.
+
+**Risultato atteso:** tabella riepilogativa. PDF generato senza errori. Layout adatto alla stampa.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-154 — Registro commercialista
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. **Registro commercialista** (`/app/reports/accountant-register`).
+2. Tab **Documenti**: filtra periodo, verifica link a documenti filtrati.
+3. Tab **Corrispettivi**: verifica riepilogo.
+4. Usa filtro **DDT da fatturare** se presente.
+
+**Risultato atteso:** link aprono registro Documenti con query params corretti. Dati allineati al periodo selezionato.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-155 — Export report CSV
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P3       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Prerequisiti:** permesso **Esportare dati**.
+
+**Passaggi:**
+
+1. Da Report o lista Clienti/Vendite, usa **Esporta CSV**.
+2. Apri file in Excel/LibreOffice.
+
+**Risultato atteso:** CSV con header e dati UTF-8 corretti. Commesso senza permesso export non vede il pulsante.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+## 17. Guida integrata
+
+### T-156 — Guida utente in-app
 
 |              |           |
 | ------------ | --------- |
@@ -1981,7 +2670,7 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-### T-155 — Guida tecnica (solo platform admin)
+### T-157 — Guida tecnica (solo platform admin)
 
 |              |                |
 | ------------ | -------------- |
@@ -2002,11 +2691,11 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-## 16. Amministrazione piattaforma
+## 18. Amministrazione piattaforma
 
-> Solo se avete accesso **platform admin**. Altrimenti segnate N/A.
+> Solo con account **operatore piattaforma**. Altrimenti segnare tutta la sezione **N/A**.
 
-### T-160 — Crea nuovo cliente (tenant)
+### T-160 — Login operatore piattaforma e shell admin
 
 |              |                |
 | ------------ | -------------- |
@@ -2016,11 +2705,11 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 **Passaggi:**
 
-1. Apri `/app/admin/clients/new`.
-2. Compila dati tenant e primo utente.
-3. Salva.
+1. Login con account operatore piattaforma.
+2. Verifica redirect a `/app/admin/clients` (non dashboard tenant).
+3. Sidebar admin: **Clienti**, **Impostazioni operatore**, **Guida Tecnica** — niente voci tenant (Prodotti, Magazzino…).
 
-**Risultato atteso:** tenant creato. Login con nuovo account funzionante.
+**Risultato atteso:** shell admin dedicata. Tentativo di aprire `/app/dashboard` reindirizza ad admin clients (senza sessione assistenza).
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2028,7 +2717,7 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-### T-161 — Modifica cliente esistente
+### T-161 — Crea nuovo cliente (tenant)
 
 |              |                |
 | ------------ | -------------- |
@@ -2038,10 +2727,11 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 **Passaggi:**
 
-1. `/app/admin/clients/{tenantId}`.
-2. Modifica dati e salva.
+1. Apri `/app/admin/clients/new`.
+2. Compila: ragione sociale, **profilo canale** (Shopify / Solo gestionale / TikTok), piano sedi, dati **titolare** (email, password).
+3. Salva.
 
-**Risultato atteso:** modifiche persistite.
+**Risultato atteso:** tenant creato. Login con account titolare funzionante. Profilo canale corretto in Impostazioni tenant.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2049,7 +2739,53 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-### T-162 — Avvia sessione assistenza da elenco clienti
+### T-162 — Modifica cliente e licensing sedi
+
+|              |                |
+| ------------ | -------------- |
+| **Priorità** | P2             |
+| **Ruolo**    | Platform admin |
+| **Device**   | Desktop        |
+
+**Passaggi:**
+
+1. `/app/admin/clients/{tenantId}`.
+2. Modifica ragione sociale o limite **sedi attive** del piano.
+3. Salva e verifica lato tenant in **Impostazioni → Sedi attive**.
+
+**Risultato atteso:** modifiche persistite. Tenant rispetta nuovo limite sedi.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-163 — Gestione utenti del cliente
+
+|              |                |
+| ------------ | -------------- |
+| **Priorità** | P1             |
+| **Ruolo**    | Platform admin |
+| **Device**   | Desktop        |
+
+**Passaggi:**
+
+1. In **Modifica cliente**, sezione **Utenti del cliente**.
+2. **Aggiungi utente**: email, ruolo **Manager**, sede operativa assegnata.
+3. Salva. Login con nuovo utente e verifica menu ridotto (no OAuth Shopify).
+4. Modifica permessi granulari (es. revoca **Gestire catalogo**).
+5. Logout/login nuovo utente — verifica assenza **Aggiungi prodotto**.
+
+**Risultato atteso:** utente creato. Permessi applicati dopo re-login.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-164 — Avvia sessione assistenza
 
 |              |                |
 | ------------ | -------------- |
@@ -2060,10 +2796,10 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 **Passaggi:**
 
 1. Login come platform admin.
-2. Apri `/app/admin/clients` (tabella **Clienti registrati**).
-3. Su un tenant cliente (non operatore), click **Apri gestionale (assistenza)** nella colonna **Assistenza**.
+2. Apri `/app/admin/clients`.
+3. Su un tenant cliente, click **Apri gestionale (assistenza)**.
 
-**Risultato atteso:** redirect al gestionale del tenant (es. dashboard). Nessun errore 500. Record sessione creato lato backend.
+**Risultato atteso:** redirect al gestionale del tenant (dashboard). Nessun errore 500. Sessione assistenza creata (max 2 ore).
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2071,14 +2807,14 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-### T-163 — Sessione assistenza: banner e operatività
+### T-165 — Sessione assistenza: banner e operatività
 
 |                  |                                    |
 | ---------------- | ---------------------------------- |
 | **Priorità**     | P2                                 |
 | **Ruolo**        | Platform admin                     |
 | **Device**       | Desktop                            |
-| **Prerequisiti** | Sessione assistenza attiva (T-162) |
+| **Prerequisiti** | Sessione assistenza attiva (T-164) |
 
 **Passaggi:**
 
@@ -2094,14 +2830,14 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-### T-164 — Termina sessione assistenza
+### T-166 — Termina sessione assistenza
 
 |                  |                                    |
 | ---------------- | ---------------------------------- |
 | **Priorità**     | P2                                 |
 | **Ruolo**        | Platform admin                     |
 | **Device**       | Desktop                            |
-| **Prerequisiti** | Sessione assistenza attiva (T-162) |
+| **Prerequisiti** | Sessione assistenza attiva (T-164) |
 
 **Passaggi:**
 
@@ -2116,7 +2852,7 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-## 17. Mobile e PWA
+## 19. Mobile e PWA
 
 ### T-170 — Installazione PWA (Android)
 
@@ -2183,7 +2919,7 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-## 18. Permessi per ruolo
+## 20. Permessi per ruolo
 
 ### T-180 — Matrice permessi Titolare
 
@@ -2245,7 +2981,28 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
-## 19. Flussi end-to-end integrati
+### T-183 — Matrice permessi Amministratore negozio
+
+|              |                        |
+| ------------ | ---------------------- |
+| **Priorità** | P2                     |
+| **Ruolo**    | Amministratore negozio |
+| **Device**   | Desktop                |
+
+**Passaggi:**
+
+1. Verifica: crea prodotti OK, gestisce utenti **no** (solo platform admin), OAuth Shopify **no** (solo titolare).
+2. Verifica: sync manuali, documenti, ordini fornitori, export OK.
+
+**Risultato atteso:** quasi tutti i permessi tranne OAuth canali e impostazioni riservate al titolare.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+## 21. Flussi end-to-end integrati
 
 > Eseguire **dopo** i test di sezione. Richiedono Shopify connesso.
 
@@ -2283,7 +3040,7 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 **Passaggi:**
 
-1. Crea prodotto nuovo in VestiFlow con 2 varianti.
+1. Crea prodotto con **Inserimento rapido** (T-047) oppure wizard con 2 varianti.
 2. Attendi sync o sync manuale.
 3. Verifica prodotto su Shopify Admin.
 
@@ -2363,13 +3120,129 @@ Crea (o verifica l'esistenza di) questi dati durante i primi test; serviranno ai
 
 ---
 
+### T-195 — Flusso giornata negozio (Solo gestionale)
+
+|              |                       |
+| ------------ | --------------------- |
+| **Priorità** | P1 · **Obbligatorio** |
+| **Ruolo**    | Commesso + Manager    |
+| **Device**   | Entrambi              |
+| **Profilo**  | Solo gestionale       |
+
+**Passaggi:**
+
+1. Manager: **Inserimento rapido** prodotto + carico 10 pz (movimento o arrivo merce).
+2. Commesso: **Cerca giacenza** da smartphone, verifica stock.
+3. Commesso: **Registra vendita** 2 pezzi via scan.
+4. Manager: verifica **Report** e **Movimenti**.
+
+**Risultato atteso:** flusso completo senza Shopify. Giacenza finale = 8.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-196 — Arrivo merce documento → ordine → giacenze
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P1       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. Crea ordine fornitore e **Invia**.
+2. Verifica colonna **In arrivo** in Giacenze.
+3. Registra **Arrivo merce** documento collegato all'ordine.
+4. Conferma documento.
+
+**Risultato atteso:** in arrivo azzerato, disponibile incrementato, ordine ricevuto.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-197 — Vendita banco → sync canale (Shopify/TikTok)
+
+|              |                  |
+| ------------ | ---------------- |
+| **Priorità** | P2               |
+| **Ruolo**    | Commesso         |
+| **Device**   | Mobile           |
+| **Profilo**  | Shopify o TikTok |
+
+**Passaggi:**
+
+1. Annota giacenza su canale esterno (Shopify Admin o TikTok).
+2. **Registra vendita** 1 pezzo in VestiFlow.
+3. Attendi push/sync (1–3 min).
+4. Verifica giacenza sul canale.
+
+**Risultato atteso:** giacenze allineate dopo sync. Movimento **Vendita negozio** in storico.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-198 — Sessione assistenza end-to-end
+
+|              |                |
+| ------------ | -------------- |
+| **Priorità** | P2             |
+| **Ruolo**    | Platform admin |
+| **Device**   | Desktop        |
+
+**Passaggi:**
+
+1. Admin: **Apri gestionale (assistenza)** su tenant cliente.
+2. Crea prodotto rapido o rettifica di test.
+3. **Esci dall'assistenza**.
+4. Titolare tenant: verifica che la modifica sia visibile.
+
+**Risultato atteso:** assistenza funziona senza errori permessi. Audit tracciabile lato backend.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-199 — DDT → bozza fattura → registro commercialista
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. Crea e conferma **DDT vendita**.
+2. Converti in **bozza fattura**.
+3. In **Registro commercialista**, verifica documento nel periodo e filtro DDT da fatturare aggiornato.
+
+**Risultato atteso:** catena documentale coerente. PDF stampabili per entrambi.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
 ## Riepilogo finale
 
 Al termine di tutti i test, compilare:
 
 | Metrica                 | Valore |
 | ----------------------- | ------ |
-| Test totali             | ~75    |
+| Test totali             | ~110   |
 | OK                      |        |
 | KO                      |        |
 | N/A                     |        |
@@ -2377,13 +3250,38 @@ Al termine di tutti i test, compilare:
 | Data fine               |        |
 | Ambiente testato (URL)  |        |
 | Versione build / commit |        |
+| Tester A (nome)         |        |
+| Tester B (nome)         |        |
+
+### Test P1 obbligatori (checklist rapida go-live)
+
+| ID          | Area      | Titolo breve                                |
+| ----------- | --------- | ------------------------------------------- |
+| T-001       | Auth      | Login valido                                |
+| T-010       | Nav       | Sidebar completa                            |
+| T-020       | Dashboard | KPI visibili                                |
+| T-031–T-034 | Shopify   | Connessione + location + webhook + catalogo |
+| T-042       | Settings  | Sedi attive                                 |
+| T-047       | Prodotti  | Inserimento rapido                          |
+| T-051       | Prodotti  | Wizard varianti                             |
+| T-091       | Magazzino | Carico                                      |
+| T-116       | Fornitori | Nuovo fornitore                             |
+| T-121–T-123 | Ordini    | Crea → invia → ricevi                       |
+| T-125–T-126 | Vendite   | Vendita + storno banco                      |
+| T-136–T-137 | Documenti | Arrivo merce                                |
+| T-143       | Documenti | PDF documento                               |
+| T-160–T-163 | Admin     | Shell + tenant + utenti                     |
+| T-190       | E2E       | Onboarding Shopify                          |
+| T-191       | E2E       | Prodotto → Shopify                          |
+| T-192       | E2E       | Vendita Shopify → giacenza                  |
+| T-195       | E2E       | Giornata negozio gestionale                 |
 
 ### Criteri go / no-go
 
-| Esito     | Condizione                                                                                               |
-| --------- | -------------------------------------------------------------------------------------------------------- |
-| **GO**    | Tutti i test **P1 Obbligatori** = OK. KO P2/P3 documentati con workaround accettato.                     |
-| **NO-GO** | Qualsiasi test P1 Obbligatorio = KO su funzione core (login, prodotti, movimenti, ordini, sync critica). |
+| Esito     | Condizione                                                                                                                         |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **GO**    | Tutti i test **P1 Obbligatori** = OK. KO P2/P3 documentati con workaround accettato.                                               |
+| **NO-GO** | Qualsiasi test P1 Obbligatorio = KO su funzione core (login, prodotti, movimenti, documenti, ordini, vendite banco, sync critica). |
 
 ### Bug da segnalare (template)
 
