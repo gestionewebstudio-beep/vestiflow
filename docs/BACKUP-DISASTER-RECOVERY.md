@@ -89,6 +89,42 @@ Documenta **nome**, **dove si trova**, **quando ruotato**, **impatto se comprome
 
 **Frequenza minima:** 1 volta a settimana prima del primo cliente; **giornaliera** dal primo cliente attivo.
 
+#### Opzione A — Backup completo consigliato (database + storage)
+
+Script nel repository (`npm run backup:full`):
+
+1. In `api/.env` imposta:
+   - `DIRECT_URL` (porta **5432**, non pooler)
+   - `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+   - `BACKUP_ENCRYPTION_PASSPHRASE` (≥ 16 caratteri, conservala offline)
+2. Installa **PostgreSQL client tools** (`pg_dump` / `pg_restore` nel PATH).
+3. Esegui:
+
+```bash
+npm run backup:full
+# oppure solo DB:  npm run backup:db
+# opzione cartella: npm run backup:full -- --output-dir D:\Backups\vestiflow
+```
+
+Output in `./backups/vestiflow-YYYYMMDD-HHmmss/`:
+
+| File/cartella       | Contenuto                                    |
+| ------------------- | -------------------------------------------- |
+| `database.dump.enc` | Dump Postgres completo, gzip + AES-256-GCM   |
+| `storage/`          | File da bucket Supabase (immagini, allegati) |
+| `manifest.json`     | Metadati backup (data, conteggi)             |
+
+4. Copia l’intera cartella su **disco/USB cifrato** o cloud esterno.
+5. **Non** committare `backups/` (già in `.gitignore`).
+
+**Restore DB (solo su staging / progetto test):**
+
+```bash
+npm run backup:restore -- --backup-dir backups/vestiflow-YYYYMMDD-HHmmss --confirm --direct-url "$STAGING_DIRECT_URL"
+```
+
+#### Opzione B — Solo `pg_dump` manuale (legacy)
+
 1. Supabase → **Project Settings → Database → Connection string** → **URI diretta** (porta **5432**, non pooler).
 2. Da macchina locale (con `pg_dump` installato):
 
@@ -158,32 +194,32 @@ Dashboard: **Supabase → Project Settings → Billing**
 | Pro             | Giornalieri (retention limitata) | Primo cliente         |
 | Team/Enterprise | PITR, SLA migliori               | Crescita multi-tenant |
 
-### 4.2 Automatizza `pg_dump` (GitHub Actions — da implementare nel repo)
+### 4.2 Automatizza backup (GitHub Actions — implementato)
 
-Workflow target: `.github/workflows/db-backup.yml` (non ancora presente — voce futura).
+Workflow: `.github/workflows/db-backup.yml` (settimanale + manuale).
 
-**Design previsto:**
+**Comportamento:**
 
-1. Trigger: `cron` giornaliero (es. 03:00 UTC) + `workflow_dispatch` manuale
-2. Job: `pg_dump` via `DIRECT_URL` da GitHub Secret
-3. Cifratura con chiave in GitHub Secret (`BACKUP_AGE_PASSPHRASE` o chiave privata)
-4. Upload su **Cloudflare R2** o **Backblaze B2** (account separato)
-5. Retention lato bucket: lifecycle rule (es. 30 giorni daily, 90 giorni weekly)
+1. Trigger: `cron` domenica 03:15 UTC + `workflow_dispatch`
+2. Job: `npm run backup:full` (DB cifrato + storage)
+3. Cifratura con `BACKUP_ENCRYPTION_PASSPHRASE` (GitHub Secret)
+4. Artifact GitHub Actions (retention 30 giorni) — scarica periodicamente in locale
+5. (Futuro) Upload su **Cloudflare R2** o **Backblaze B2** (account separato)
 6. Notifica fallimento: email GitHub / Slack (opzionale)
 
-**Secrets GitHub da aggiungere (quando implementi):**
+**Secrets GitHub da configurare:**
 
-| Secret                        | Descrizione                                 |
-| ----------------------------- | ------------------------------------------- |
-| `DIRECT_URL`                  | Connection string Postgres diretta Supabase |
-| `BACKUP_R2_*` o `BACKUP_S3_*` | Credenziali storage esterno                 |
-| `BACKUP_ENCRYPTION_*`         | Chiave cifratura dump                       |
+| Secret                         | Descrizione                                 |
+| ------------------------------ | ------------------------------------------- |
+| `DIRECT_URL`                   | Connection string Postgres diretta Supabase |
+| `BACKUP_R2_*` o `BACKUP_S3_*`  | Credenziali storage esterno                 |
+| `BACKUP_ENCRYPTION_PASSPHRASE` | Passphrase cifratura dump                   |
 
 - [ ] Scegli provider storage (R2 consigliato: costo basso, no egress fee)
 - [ ] Crea bucket dedicato solo backup (account Google/Cloudflare **≠** Supabase)
 - [ ] Abilita **versioning** o **Object Lock** sul bucket (anti-ransomware)
 - [ ] Implementa workflow nel repo
-- [ ] Verifica primo run automatico verde
+- [ ] Configura secrets GitHub e verifica primo run automatico verde
 
 ### 4.3 Retention policy (decisione da documentare)
 
@@ -439,14 +475,24 @@ Crescita (Fase 2) — 6–12 mesi
 
 ---
 
-## 12. Implementazioni future nel repository
+## 12. Implementazioni nel repository
 
-Queste voci richiedono sviluppo CI (chiedi quando pronto):
-
-- [ ] `.github/workflows/db-backup.yml` — backup automatico cifrato
-- [ ] Script `scripts/restore-db.sh` — restore guidato per staging
+- [x] `scripts/backup/run-backup.mjs` — backup completo locale (DB cifrato + storage)
+- [x] `scripts/backup/run-restore.mjs` — restore database da backup cifrato
+- [x] `.github/workflows/db-backup.yml` — backup settimanale + artifact GitHub (30 gg)
+- [ ] Upload automatico su R2/B2 (opzionale, secrets da configurare)
+- [ ] Script restore storage → bucket Supabase
 - [ ] `scripts/export-env-checklist.mjs` — verifica env Railway vs `.env.example` (senza stampare secret)
-- [ ] Notifica CI se backup fallisce 2 giorni consecutivi
+- [ ] Notifica CI se backup fallisce 2 settimane consecutive
+
+**Secrets GitHub per `db-backup.yml`:**
+
+| Secret / Variable              | Descrizione                                 |
+| ------------------------------ | ------------------------------------------- |
+| `DIRECT_URL`                   | Connection string Postgres diretta Supabase |
+| `SUPABASE_URL`                 | URL progetto                                |
+| `SUPABASE_SERVICE_ROLE_KEY`    | Service role (solo CI backup)               |
+| `BACKUP_ENCRYPTION_PASSPHRASE` | Passphrase cifratura dump                   |
 
 ---
 

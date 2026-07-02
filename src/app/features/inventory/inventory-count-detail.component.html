@@ -40,14 +40,14 @@
           <app-button variant="secondary" [disabled]="actionPending()" (click)="submitForReview()">
             Invia a revisione
           </app-button>
-          <app-button variant="ghost" [disabled]="actionPending()" (click)="cancelSession()">
+          <app-button variant="secondary" [disabled]="actionPending()" (click)="cancelSession()">
             Annulla sessione
           </app-button>
         } @else if (canReview()) {
           <app-button [disabled]="actionPending()" (click)="finalize()">
             Applica rettifiche
           </app-button>
-          <app-button variant="ghost" [disabled]="actionPending()" (click)="cancelSession()">
+          <app-button variant="secondary" [disabled]="actionPending()" (click)="cancelSession()">
             Annulla sessione
           </app-button>
         }

@@ -7,6 +7,9 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
+import { INVENTORY_LEVELS_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
+import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import {
@@ -130,6 +133,7 @@ export class InventoryLevelsComponent {
   private readonly locationContext = inject(LocationContextService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
+  private readonly blobExport = inject(BackgroundBlobExportService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
   private readonly config = inject(APP_CONFIG);
@@ -162,7 +166,9 @@ export class InventoryLevelsComponent {
   protected readonly searchDraft = signal('');
   private readonly search = signal('');
   protected readonly shopifyInventoryLoading = signal(false);
-  protected readonly exporting = signal(false);
+  protected readonly exporting = computed(() =>
+    this.blobExport.isActive(INVENTORY_LEVELS_CSV_EXPORT_ID),
+  );
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
 
@@ -417,34 +423,19 @@ export class InventoryLevelsComponent {
       return;
     }
 
-    this.exporting.set(true);
-    this.inventoryService
-      .exportInventoryCsv({
+    this.blobExport.start({
+      exportId: INVENTORY_LEVELS_CSV_EXPORT_ID,
+      request: this.inventoryService.exportInventoryCsv({
         locationId: this.locationFilter() || undefined,
         search: this.search().trim() || undefined,
         stockStatus: this.statusFilter() || undefined,
         columns: this.columnPreferences.visibleColumnIds(TableViewId.InventoryLevels).join(','),
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (blob) => {
-          this.exporting.set(false);
-          this.downloadCsvBlob(blob);
-        },
-        error: () => {
-          this.exporting.set(false);
-        },
-      });
-  }
-
-  private downloadCsvBlob(blob: Blob): void {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `giacenze-vestiflow-${stamp}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+      }),
+      filename: vestiflowExportFilename('giacenze', 'csv'),
+      inProgressMessage: 'Export giacenze in corso. Puoi continuare a navigare.',
+      successMessage: 'Export giacenze completato: download avviato.',
+      errorMessage: 'Export giacenze non riuscito. Riprova tra qualche istante.',
+    });
   }
 
   protected syncInventoryFromShopify(): void {

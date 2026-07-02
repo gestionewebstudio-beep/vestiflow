@@ -1,8 +1,10 @@
-<section class="inventory-import">
+<section class="inventory-import" [attr.aria-busy]="loading() ? 'true' : null">
   <header class="inventory-import__header">
     <div>
       <a
         class="inventory-import__back"
+        [class.inventory-import__back--disabled]="loading()"
+        [attr.aria-disabled]="loading() ? 'true' : null"
         href="/app/inventory"
         (click)="$event.preventDefault(); backToList()"
       >
@@ -20,6 +22,13 @@
 
   @if (error(); as appError) {
     <div class="inventory-import__alert" role="alert">{{ appError.message }}</div>
+  }
+
+  @if (loading()) {
+    <div class="inventory-import__notice inventory-import__notice--blocking" role="status">
+      Operazione in corso: non lasciare questa pagina finché non vedi l’esito. Se esci, l’import
+      verrà annullato.
+    </div>
   }
 
   @if (phase() === 'upload') {
@@ -44,7 +53,9 @@
       }
 
       <div class="inventory-import__actions">
-        <app-button type="button" variant="ghost" (click)="backToList()">Annulla</app-button>
+        <app-button type="button" variant="ghost" [disabled]="loading()" (click)="backToList()">
+          Annulla
+        </app-button>
         <app-button type="button" [disabled]="!selectedFile() || loading()" (click)="analyzeFile()">
           @if (loading()) {
             Analisi in corso…
@@ -82,7 +93,14 @@
     }
 
     <div class="inventory-import__actions inventory-import__actions--top">
-      <app-button type="button" variant="ghost" (click)="phase.set('upload')">Indietro</app-button>
+      <app-button
+        type="button"
+        variant="ghost"
+        [disabled]="loading()"
+        (click)="phase.set('upload')"
+      >
+        Indietro
+      </app-button>
       <app-button type="button" [disabled]="!canImport()" (click)="runImport()">
         @if (loading()) {
           Import in corso…

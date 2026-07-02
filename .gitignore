@@ -59,6 +59,7 @@ serviceAccountKey.json
 /playwright-report
 /test-results
 /e2e/.auth
+/backups
 
 # System files
 .DS_Store

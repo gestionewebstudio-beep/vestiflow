@@ -1,0 +1,68 @@
+<div class="tenant-backup-panel">
+  <div class="tenant-backup-panel__details">
+    <p class="tenant-backup-panel__intro">
+      Scarica una copia completa del negozio (catalogo, magazzino, ordini fornitore, documenti,
+      impostazioni e allegati). Conserva il file in un luogo sicuro. In caso di problemi puoi
+      ripristinarlo qui: i dati attuali del negozio verranno sostituiti.
+    </p>
+
+    <ul class="tenant-backup-panel__notes">
+      <li>Solo il titolare può esportare o importare.</li>
+      <li>Dopo il restore verifica la connessione Shopify/TikTok se usata.</li>
+      <li>
+        Gli utenti di login Supabase non vengono ricreati: il tuo accesso resta quello attuale.
+      </li>
+    </ul>
+  </div>
+
+  <div class="tenant-backup-panel__actions">
+    <app-button
+      variant="secondary"
+      [disabled]="exporting() || importing()"
+      [loading]="exporting()"
+      (click)="exportBackup()"
+    >
+      Esporta backup negozio
+    </app-button>
+    <app-button
+      variant="secondary"
+      [disabled]="exporting() || importing()"
+      [loading]="importing()"
+      (click)="openImportPicker()"
+    >
+      Ripristina da backup
+    </app-button>
+    <input
+      #importInput
+      type="file"
+      accept=".zip,application/zip"
+      class="tenant-backup-panel__file-input"
+      (change)="onImportFileSelected($event)"
+    />
+  </div>
+
+  @if (importError(); as message) {
+    <app-error-state
+      title="Import non riuscito"
+      [description]="message"
+      retryLabel="Scegli altro file"
+      (retry)="openImportPicker()"
+    />
+  }
+
+  @if (importSuccess(); as message) {
+    <p class="tenant-backup-panel__success" role="status">{{ message }}</p>
+  }
+</div>
+
+<app-confirm-dialog
+  [(open)]="importDialogOpen"
+  title="Ripristinare il backup?"
+  message="Questa operazione sostituisce tutti i dati operativi del negozio con quelli contenuti nel file ZIP. L'azione non è reversibile automaticamente."
+  confirmLabel="Ripristina backup"
+  cancelLabel="Annulla"
+  [danger]="true"
+  [busy]="importing()"
+  (confirmed)="confirmImport()"
+  (dismissed)="cancelImport()"
+/>

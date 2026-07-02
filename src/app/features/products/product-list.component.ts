@@ -24,7 +24,10 @@ import type { Subscription } from 'rxjs';
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { PRODUCTS_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
+import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
 import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
+import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
 import {
   canImportExportCatalog,
   canManageCatalog,
@@ -122,6 +125,7 @@ export class ProductListComponent {
   private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly blobExport = inject(BackgroundBlobExportService);
   private readonly config = inject(APP_CONFIG);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
 
@@ -150,7 +154,7 @@ export class ProductListComponent {
 
   // Testo ricerca "draft": locale, debounced. Inizializzato una volta dall'URL.
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
-  protected readonly exporting = signal(false);
+  protected readonly exporting = computed(() => this.blobExport.isActive(PRODUCTS_CSV_EXPORT_ID));
   protected readonly shopifyCatalogLoading = signal(false);
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
@@ -459,26 +463,14 @@ export class ProductListComponent {
       ...filters
     } = this.query();
 
-    this.exporting.set(true);
-    this.service.exportProductsCsv(filters).subscribe({
-      next: (blob) => {
-        this.exporting.set(false);
-        this.downloadCsvBlob(blob);
-      },
-      error: () => {
-        this.exporting.set(false);
-      },
+    this.blobExport.start({
+      exportId: PRODUCTS_CSV_EXPORT_ID,
+      request: this.service.exportProductsCsv(filters),
+      filename: vestiflowExportFilename('prodotti', 'csv'),
+      inProgressMessage: 'Export prodotti in corso. Puoi continuare a navigare.',
+      successMessage: 'Export prodotti completato: download avviato.',
+      errorMessage: 'Export prodotti non riuscito. Riprova tra qualche istante.',
     });
-  }
-
-  private downloadCsvBlob(blob: Blob): void {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `prodotti-vestiflow-${stamp}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
   }
 
   /** Naviga solo modificando i param indicati (merge); null rimuove la chiave. */

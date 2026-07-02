@@ -33,3 +33,11 @@ export const documentAttachmentUploadMulterOptions: MulterOptions = {
     fileSize: 10 * 1024 * 1024,
   },
 };
+
+/** Backup tenant ZIP (export/import titolare). */
+export const tenantBackupUploadMulterOptions: MulterOptions = {
+  limits: {
+    fields: 5,
+    fileSize: 250 * 1024 * 1024,
+  },
+};

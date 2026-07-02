@@ -22,6 +22,12 @@
   text-decoration: none;
 }
 
+.inventory-import__back--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
 .inventory-import__title {
   margin: 0;
   font-size: var(--text-xl);
@@ -126,6 +132,12 @@
   color: var(--color-text-muted);
   background-color: var(--color-surface-sunken);
   border-color: var(--color-border);
+}
+
+.inventory-import__notice--blocking {
+  color: var(--color-text);
+  background-color: var(--color-surface-sunken);
+  border-color: var(--color-border-strong);
 }
 
 .inventory-import__table-scroll {

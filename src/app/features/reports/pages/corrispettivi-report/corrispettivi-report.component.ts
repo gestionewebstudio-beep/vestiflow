@@ -17,6 +17,13 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
 import {
+  CORRISPETTIVI_ACCOUNTANT_CSV_EXPORT_ID,
+  CORRISPETTIVI_ACCOUNTANT_PDF_EXPORT_ID,
+  CORRISPETTIVI_ACCOUNTANT_XLS_EXPORT_ID,
+} from '@core/export/background-blob-export.constants';
+import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
+import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
+import {
   corrispettiviReportEmptyHint,
   corrispettiviReportFilterSubtitle,
   corrispettiviReportSubtitle,
@@ -84,6 +91,7 @@ export class CorrispettiviReportComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly blobExport = inject(BackgroundBlobExportService);
 
   private readonly refreshTick = signal(0);
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
@@ -91,9 +99,15 @@ export class CorrispettiviReportComponent {
 
   protected readonly markDeliveredOpen = model(false);
   protected readonly markDeliveredBusy = signal(false);
-  protected readonly exporting = signal(false);
-  protected readonly exportingSpreadsheet = signal(false);
-  protected readonly exportingPdf = signal(false);
+  protected readonly exporting = computed(() =>
+    this.blobExport.isActive(CORRISPETTIVI_ACCOUNTANT_CSV_EXPORT_ID),
+  );
+  protected readonly exportingSpreadsheet = computed(() =>
+    this.blobExport.isActive(CORRISPETTIVI_ACCOUNTANT_XLS_EXPORT_ID),
+  );
+  protected readonly exportingPdf = computed(() =>
+    this.blobExport.isActive(CORRISPETTIVI_ACCOUNTANT_PDF_EXPORT_ID),
+  );
   protected readonly deliveryNote = signal('');
 
   constructor() {
@@ -275,60 +289,45 @@ export class CorrispettiviReportComponent {
     if (this.exporting() || !this.canExport()) {
       return;
     }
-    this.exporting.set(true);
 
-    this.corrispettiviService
-      .exportAccountantCsv(this.exportQuery())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (blob) => {
-          this.exporting.set(false);
-          this.downloadBlob(blob, 'csv');
-        },
-        error: () => {
-          this.exporting.set(false);
-        },
-      });
+    this.blobExport.start({
+      exportId: CORRISPETTIVI_ACCOUNTANT_CSV_EXPORT_ID,
+      request: this.corrispettiviService.exportAccountantCsv(this.exportQuery()),
+      filename: vestiflowExportFilename('corrispettivi-commercialista', 'csv'),
+      inProgressMessage: 'Export CSV commercialista in corso. Puoi continuare a navigare.',
+      successMessage: 'Export CSV commercialista completato: download avviato.',
+      errorMessage: 'Export CSV non riuscito. Riprova tra qualche istante.',
+    });
   }
 
   protected exportSpreadsheet(): void {
     if (this.exportingSpreadsheet() || !this.canExport()) {
       return;
     }
-    this.exportingSpreadsheet.set(true);
 
-    this.corrispettiviService
-      .exportSpreadsheet(this.exportQuery())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (blob) => {
-          this.exportingSpreadsheet.set(false);
-          this.downloadBlob(blob, 'xls');
-        },
-        error: () => {
-          this.exportingSpreadsheet.set(false);
-        },
-      });
+    this.blobExport.start({
+      exportId: CORRISPETTIVI_ACCOUNTANT_XLS_EXPORT_ID,
+      request: this.corrispettiviService.exportSpreadsheet(this.exportQuery()),
+      filename: vestiflowExportFilename('corrispettivi-commercialista', 'xls'),
+      inProgressMessage: 'Export foglio commercialista in corso. Puoi continuare a navigare.',
+      successMessage: 'Export foglio completato: download avviato.',
+      errorMessage: 'Export foglio non riuscito. Riprova tra qualche istante.',
+    });
   }
 
   protected exportPdf(): void {
     if (this.exportingPdf() || !this.canExport()) {
       return;
     }
-    this.exportingPdf.set(true);
 
-    this.corrispettiviService
-      .exportPdf(this.exportQuery())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (blob) => {
-          this.exportingPdf.set(false);
-          this.downloadBlob(blob, 'pdf');
-        },
-        error: () => {
-          this.exportingPdf.set(false);
-        },
-      });
+    this.blobExport.start({
+      exportId: CORRISPETTIVI_ACCOUNTANT_PDF_EXPORT_ID,
+      request: this.corrispettiviService.exportPdf(this.exportQuery()),
+      filename: vestiflowExportFilename('corrispettivi-commercialista', 'pdf'),
+      inProgressMessage: 'Export PDF commercialista in corso. Puoi continuare a navigare.',
+      successMessage: 'Export PDF completato: download avviato.',
+      errorMessage: 'Export PDF non riuscito. Riprova tra qualche istante.',
+    });
   }
 
   protected printReport(): void {
@@ -383,16 +382,6 @@ export class CorrispettiviReportComponent {
       refundsOnly: this.refundsOnly() || undefined,
       onlineOnly: this.onlineOnly() || undefined,
     };
-  }
-
-  private downloadBlob(blob: Blob, extension: 'csv' | 'xls' | 'pdf'): void {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `corrispettivi-commercialista-${stamp}.${extension}`;
-    anchor.click();
-    URL.revokeObjectURL(url);
   }
 
   private updateParams(params: Record<string, string | null>): void {

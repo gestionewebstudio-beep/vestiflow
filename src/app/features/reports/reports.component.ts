@@ -2,12 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
   effect,
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
@@ -15,6 +14,9 @@ import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
+import { REPORTS_CORRISPETTIVI_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
+import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
+import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
 import { reportPageSubtitle } from '@core/models/tenant-channel-profile.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -76,7 +78,7 @@ export class ReportsComponent {
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly blobExport = inject(BackgroundBlobExportService);
 
   private readonly refreshTick = signal(0);
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
@@ -114,7 +116,9 @@ export class ReportsComponent {
     corrispettiviChannelHint(this.corrispettiviChannel(), this.tenantProfile()),
   );
 
-  protected readonly exporting = signal(false);
+  protected readonly exporting = computed(() =>
+    this.blobExport.isActive(REPORTS_CORRISPETTIVI_CSV_EXPORT_ID),
+  );
 
   protected readonly canExportCorrispettivi = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
@@ -224,7 +228,6 @@ export class ReportsComponent {
     if (this.exporting()) {
       return;
     }
-    this.exporting.set(true);
 
     const config = resolveCorrispettiviExport(this.corrispettiviChannel());
     const range = this.exportRange();
@@ -240,25 +243,14 @@ export class ReportsComponent {
             to: `${range.placedTo}T23:59:59.999`,
           });
 
-    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (blob) => {
-        this.exporting.set(false);
-        this.downloadCsvBlob(blob, config.filePrefix);
-      },
-      error: () => {
-        this.exporting.set(false);
-      },
+    this.blobExport.start({
+      exportId: REPORTS_CORRISPETTIVI_CSV_EXPORT_ID,
+      request,
+      filename: vestiflowExportFilename(config.filePrefix, 'csv'),
+      inProgressMessage: 'Export corrispettivi in corso. Puoi continuare a navigare.',
+      successMessage: 'Export corrispettivi completato: download avviato.',
+      errorMessage: 'Export corrispettivi non riuscito. Riprova tra qualche istante.',
     });
-  }
-
-  private downloadCsvBlob(blob: Blob, prefix: string): void {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${prefix}-vestiflow-${stamp}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
   }
 
   private updateParams(params: Record<string, string | null>): void {

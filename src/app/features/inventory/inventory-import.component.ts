@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -25,6 +33,7 @@ type ImportPhase = 'upload' | 'preview' | 'done';
 export class InventoryImportComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly phase = signal<ImportPhase>('upload');
   protected readonly selectedFile = signal<File | null>(null);
@@ -53,6 +62,9 @@ export class InventoryImportComponent {
   });
 
   protected backToList(): void {
+    if (this.loading()) {
+      return;
+    }
     void this.router.navigate(['/app/inventory']);
   }
 
@@ -74,21 +86,24 @@ export class InventoryImportComponent {
 
     this.loading.set(true);
     this.error.set(null);
-    this.inventoryService.previewInventoryImport(file).subscribe({
-      next: (data) => {
-        this.preview.set(data);
-        this.phase.set('preview');
-        this.loading.set(false);
-      },
-      error: (err: unknown) => {
-        this.loading.set(false);
-        this.error.set(
-          isAppError(err)
-            ? err
-            : { kind: AppErrorKind.Unknown, message: 'Anteprima import non riuscita.' },
-        );
-      },
-    });
+    this.inventoryService
+      .previewInventoryImport(file)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          this.preview.set(data);
+          this.phase.set('preview');
+          this.loading.set(false);
+        },
+        error: (err: unknown) => {
+          this.loading.set(false);
+          this.error.set(
+            isAppError(err)
+              ? err
+              : { kind: AppErrorKind.Unknown, message: 'Anteprima import non riuscita.' },
+          );
+        },
+      });
   }
 
   protected runImport(): void {
@@ -100,21 +115,24 @@ export class InventoryImportComponent {
 
     this.loading.set(true);
     this.error.set(null);
-    this.inventoryService.importInventoryCsv(file, keys).subscribe({
-      next: (data) => {
-        this.result.set(data);
-        this.phase.set('done');
-        this.loading.set(false);
-      },
-      error: (err: unknown) => {
-        this.loading.set(false);
-        this.error.set(
-          isAppError(err)
-            ? err
-            : { kind: AppErrorKind.Unknown, message: 'Import giacenze non riuscito.' },
-        );
-      },
-    });
+    this.inventoryService
+      .importInventoryCsv(file, keys)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          this.result.set(data);
+          this.phase.set('done');
+          this.loading.set(false);
+        },
+        error: (err: unknown) => {
+          this.loading.set(false);
+          this.error.set(
+            isAppError(err)
+              ? err
+              : { kind: AppErrorKind.Unknown, message: 'Import giacenze non riuscito.' },
+          );
+        },
+      });
   }
 
   protected statusTone(

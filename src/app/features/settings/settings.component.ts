@@ -85,6 +85,7 @@ import { TenantCompanyService } from './services/tenant-company.service';
 import type { TenantCompany } from './models/tenant-company.model';
 import { TikTokIntegrationPanelComponent } from './components/tiktok-integration-panel/tiktok-integration-panel.component';
 import { TenantOperationalSettingsPanelComponent } from './components/tenant-operational-settings-panel/tenant-operational-settings-panel.component';
+import { TenantBackupPanelComponent } from './components/tenant-backup-panel/tenant-backup-panel.component';
 
 type ConnectionState =
   | { readonly status: 'loading' }
@@ -142,6 +143,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     ProfileAvatarUploadComponent,
     ShopifyShopChangeWizardComponent,
     TenantOperationalSettingsPanelComponent,
+    TenantBackupPanelComponent,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',

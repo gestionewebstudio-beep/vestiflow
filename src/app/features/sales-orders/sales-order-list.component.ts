@@ -23,6 +23,9 @@ import type { Subscription } from 'rxjs';
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
 import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
+import { SALES_ORDERS_CORRISPETTIVI_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
+import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
+import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
@@ -104,6 +107,7 @@ export class SalesOrderListComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly blobExport = inject(BackgroundBlobExportService);
   private readonly authService = inject(AuthService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
@@ -159,7 +163,9 @@ export class SalesOrderListComponent {
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
   protected readonly shopifyOrdersLoading = signal(false);
-  protected readonly exportingCorrispettivi = signal(false);
+  protected readonly exportingCorrispettivi = computed(() =>
+    this.blobExport.isActive(SALES_ORDERS_CORRISPETTIVI_CSV_EXPORT_ID),
+  );
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
 
@@ -347,22 +353,17 @@ export class SalesOrderListComponent {
       period: this.corrispettiviDisplayPeriod(),
     });
 
-    this.exportingCorrispettivi.set(true);
-    this.service
-      .exportSalesOrdersCsv({
+    this.blobExport.start({
+      exportId: SALES_ORDERS_CORRISPETTIVI_CSV_EXPORT_ID,
+      request: this.service.exportSalesOrdersCsv({
         placedFrom: range.placedFrom,
         placedTo: range.placedTo,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (blob) => {
-          this.exportingCorrispettivi.set(false);
-          this.downloadCsvBlob(blob, 'corrispettivi-shopify');
-        },
-        error: () => {
-          this.exportingCorrispettivi.set(false);
-        },
-      });
+      }),
+      filename: vestiflowExportFilename('corrispettivi-shopify', 'csv'),
+      inProgressMessage: 'Export corrispettivi Shopify in corso. Puoi continuare a navigare.',
+      successMessage: 'Export corrispettivi Shopify completato: download avviato.',
+      errorMessage: 'Export corrispettivi non riuscito. Riprova tra qualche istante.',
+    });
   }
 
   protected dismissShopifyFeedback(): void {
@@ -420,16 +421,6 @@ export class SalesOrderListComponent {
       return err.message;
     }
     return 'Operazione non riuscita. Riprova.';
-  }
-
-  private downloadCsvBlob(blob: Blob, prefix: string): void {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${prefix}-vestiflow-${stamp}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
   }
 }
 

@@ -62,6 +62,14 @@
       </p>
       <app-tenant-operational-settings-panel />
     </section>
+
+    <section class="settings__panel" aria-labelledby="settings-tenant-backup">
+      <h2 id="settings-tenant-backup" class="settings__panel-title">Backup negozio</h2>
+      <p class="settings__panel-hint">
+        Esporta o ripristina una copia completa dei dati del negozio (solo titolare).
+      </p>
+      <app-tenant-backup-panel />
+    </section>
   }
 
   @if (showLocationsSection()) {

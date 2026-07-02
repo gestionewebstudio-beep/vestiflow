@@ -83,7 +83,7 @@
 
     <div class="stock-movements__filters-action">
       <app-table-column-picker [viewId]="tableViewId" />
-      <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
         <i class="pi pi-filter-slash" aria-hidden="true"></i>
         Azzera filtri
       </app-button>

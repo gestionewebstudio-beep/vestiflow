@@ -65,7 +65,7 @@
                 class="product-detail__action-cell"
                 [class.product-detail__action-cell--solo]="!canManageCatalog()"
               >
-                <app-button variant="ghost" [disabled]="deleting()" (click)="askDelete()">
+                <app-button variant="secondary" [disabled]="deleting()" (click)="askDelete()">
                   <i class="pi pi-trash" aria-hidden="true"></i>
                   Elimina
                 </app-button>
