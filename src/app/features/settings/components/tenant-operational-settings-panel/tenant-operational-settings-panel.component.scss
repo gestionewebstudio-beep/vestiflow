@@ -1,0 +1,74 @@
+.tenant-ops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tenant-ops__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.tenant-ops__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.tenant-ops__legend {
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.tenant-ops__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.tenant-ops__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.tenant-ops__field input,
+.tenant-ops__field select {
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.tenant-ops__success {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-success-fg);
+}
+
+.tenant-ops__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.tenant-ops__actions {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -14,6 +14,8 @@ export const DocumentType = {
   SupplierDdt: 'supplier_ddt',
   SupplierInvoiceAccompanying: 'supplier_invoice_accompanying',
   SupplierInvoice: 'supplier_invoice',
+  ManualLoad: 'manual_load',
+  InitialLoad: 'initial_load',
   SalesDdt: 'sales_ddt',
   Transfer: 'transfer',
   ManualUnload: 'manual_unload',
@@ -129,8 +131,19 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
     readonly id: EntityId;
     readonly reference: string;
   };
+  /** Righe ordine fornitore per quantità ordinata/ricevuta/residua in arrivo merce. */
+  readonly linkedSupplierOrderLines?: readonly LinkedSupplierOrderLineContext[];
   /** Allegati caricati sul documento (dettaglio). */
   readonly attachments?: readonly DocumentAttachment[];
+}
+
+/** Contesto riga ordine fornitore collegato (arrivo merce). */
+export interface LinkedSupplierOrderLineContext {
+  readonly id: EntityId;
+  readonly variantId: EntityId;
+  readonly sku: string;
+  readonly orderedQuantity: number;
+  readonly receivedQuantity: number;
 }
 
 /** Stati in cui il documento può essere modificato (§4), salvo blockAfterConfirm. */

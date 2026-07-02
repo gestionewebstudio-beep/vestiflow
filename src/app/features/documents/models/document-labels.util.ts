@@ -9,6 +9,8 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.SupplierDdt]: 'DDT fornitore',
   [DocumentType.SupplierInvoiceAccompanying]: 'Fattura accompagnatoria',
   [DocumentType.SupplierInvoice]: 'Fattura fornitore',
+  [DocumentType.ManualLoad]: 'Carico manuale',
+  [DocumentType.InitialLoad]: 'Carico iniziale',
   [DocumentType.SalesDdt]: 'DDT vendita',
   [DocumentType.Transfer]: 'Trasferimento',
   [DocumentType.ManualUnload]: 'Scarico manuale',

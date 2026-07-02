@@ -41,6 +41,16 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
+
+import {
+  SUPPLIER_ORDER_LINE_COLUMNS,
+  SUPPLIER_ORDER_LINE_PRESETS,
+  SUPPLIER_ORDER_LINES_VIEW,
+} from './models/supplier-order-line-columns.config';
 
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
@@ -75,6 +85,8 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    TableColumnPickerComponent,
+    TableColumnResizeDirective,
   ],
   templateUrl: './supplier-order-form.component.html',
   styleUrl: './supplier-order-form.component.scss',
@@ -89,6 +101,9 @@ export class SupplierOrderFormComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+
+  protected readonly lineColumnsView = TableViewId.SupplierOrderLines;
 
   protected readonly listPath = '/app/orders';
   protected readonly currency = DEFAULT_CURRENCY;
@@ -245,6 +260,28 @@ export class SupplierOrderFormComponent {
     const state = this._submitState();
     return state.status === 'error' ? state.error : null;
   });
+
+  constructor() {
+    this.columnPreferences.registerView(
+      SUPPLIER_ORDER_LINES_VIEW,
+      SUPPLIER_ORDER_LINE_COLUMNS,
+      SUPPLIER_ORDER_LINE_PRESETS,
+    );
+  }
+
+  protected isLineColumnVisible(columnId: string): boolean {
+    return this.columnPreferences.isColumnVisible(SUPPLIER_ORDER_LINES_VIEW, columnId);
+  }
+
+  protected lineColumnWidth(columnId: string): string {
+    const def = SUPPLIER_ORDER_LINE_COLUMNS.find((col) => col.id === columnId);
+    const fallback = def?.defaultWidthPx ?? 96;
+    return `${this.columnPreferences.columnWidth(SUPPLIER_ORDER_LINES_VIEW, columnId, fallback)}px`;
+  }
+
+  protected onLineColumnResize(columnId: string, widthPx: number): void {
+    this.columnPreferences.setColumnWidth(SUPPLIER_ORDER_LINES_VIEW, columnId, widthPx);
+  }
 
   protected lineMoney(index: number): Money {
     this.formValue();

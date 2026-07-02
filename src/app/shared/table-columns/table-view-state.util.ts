@@ -58,12 +58,28 @@ export function parseTableViewState(raw: unknown): TableViewState | null {
     return null;
   }
 
+  const columnWidths = parseColumnWidths(record['columnWidths']);
+
   return {
     presetId: presetId as TableViewPresetId | 'custom',
     columnOrder,
     hiddenColumnIds,
     pinnedColumnIds,
+    columnWidths,
   };
+}
+
+function parseColumnWidths(value: unknown): Readonly<Record<string, number>> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  const result: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 48 && raw <= 640) {
+      result[key] = Math.round(raw);
+    }
+  }
+  return result;
 }
 
 export function parseTableViewStateJson(json: string): TableViewState | null {

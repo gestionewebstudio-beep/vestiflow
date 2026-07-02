@@ -65,6 +65,30 @@ describe('UserTableViewsService', () => {
     ).resolves.toEqual(saved);
   });
 
+  it('upsertTableView accetta viewId goods_receipt_lines', async () => {
+    const saved = {
+      id: 'pref-gr',
+      stateJson:
+        '{"presetId":"default","columnOrder":[],"hiddenColumnIds":[],"pinnedColumnIds":[],"columnWidths":{}}',
+    };
+    const prisma = {
+      userTableViewPreference: {
+        findUnique: vi.fn(),
+        upsert: vi.fn().mockResolvedValue(saved),
+      },
+    };
+    const service = new UserTableViewsService(prisma as unknown as PrismaService);
+
+    await expect(
+      service.upsertTableView(
+        tenantId,
+        userId,
+        'goods_receipt_lines',
+        '{"presetId":"default","columnOrder":[],"hiddenColumnIds":[],"pinnedColumnIds":[],"columnWidths":{}}',
+      ),
+    ).resolves.toEqual(saved);
+  });
+
   it('upsertTableView rifiuta viewId non valido', async () => {
     const prisma = {
       userTableViewPreference: {

@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-operatore-proprietario-e-sviluppatore">VestiFlow — Guida operatore, proprietario e sviluppatore</h1>
-<p><strong>Versione documento:</strong> 2.2 — Luglio 2026</p>
+<p><strong>Versione documento:</strong> 2.4 — Luglio 2026</p>
 <p><strong>Destinatari:</strong> operatori piattaforma VestiFlow (<code>isPlatformAdmin</code>), proprietario del prodotto, sviluppatori che mantengono il gestionale.</p>
 <p><strong>Visibilità:</strong> accessibile solo come <strong>Guida tecnica</strong> (<code>/app/admin/guide</code>) con account il cui email è in <code>PLATFORM_ADMIN_EMAILS</code>. I clienti negozio usano la voce <strong>Guida</strong> (<code>/app/guide</code>) con il manuale operativo del negozio.</p>
 <hr>
@@ -885,6 +885,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 </tbody></table>
 <p>Mapper: <code>ensureQuickModeDraft</code>, <code>createSingleVariantDraft</code> in <code>product-form.mapper.ts</code>. Creazione inline anche in <strong>arrivo merce</strong> (<code>goods-receipt-form</code>) con payload minimo API.</p>
+<p><strong>Arrivo merce (<code>goods-receipt-form.component</code>):</strong> griglia tabellare righe con <strong>column picker</strong> (<code>goods_receipt_lines</code>), resize colonne, card mobile; tipi <code>goods_receipt</code>, <code>supplier_ddt</code>, <code>supplier_invoice_accompanying</code>, <code>manual_load</code>, <code>initial_load</code>; testata con anteprima numero (<code>GET /documents/preview-number</code>); colonne <strong>Ord./Ric./Res.</strong> se ordine collegato; <strong>Sblocca modifica</strong> su confermati; dialog prezzo fornitore (<code>GET /documents/:id/supplier-price-diffs</code>, policy da <code>TenantFeatureSettings</code>); <strong>SlidePanel</strong> + <code>ProductFormComponent.embeddedPanel</code> per anagrafica completa; azioni lifecycle (print/send/register-external) nel form; lotti/seriali condizionati a flag tenant.</p>
 <h3 id="taxonomy-shopify-e-metafield-di-categoria">Taxonomy Shopify e metafield di categoria</h3>
 <p>Picker e attributi categoria nel form prodotto (step <strong>Dati generali</strong>).</p>
 <table>
@@ -1570,8 +1571,14 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td>GET</td>
+<td><code>/documents/preview-number</code></td>
+<td>Anteprima prossimo numero (<code>type</code>, <code>series?</code>, <code>year?</code>) — non incrementa</td>
+<td><code>documents.view</code></td>
+</tr>
+<tr>
+<td>GET</td>
 <td><code>/documents/:id</code></td>
-<td>Dettaglio + righe</td>
+<td>Dettaglio + righe + <code>linkedSupplierOrder</code> / <code>linkedSupplierOrderLines</code></td>
 <td><code>documents.view</code></td>
 </tr>
 <tr>
@@ -1648,9 +1655,33 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 </tbody></table>
 <p><strong>Query lista</strong> (<code>ListDocumentsQueryDto</code>): <code>search</code>, <code>type</code>, <code>status</code>, <code>dateFrom</code>, <code>dateTo</code>, <code>supplierOrderId</code>, <code>customerId</code>, <code>accountant</code> (solo tipi registro commercialista), <code>pendingInvoice</code> (DDT vendita attivi senza bozza fattura figlia).</p>
-<p><strong>Tipi</strong> (<code>DocumentType</code> in Prisma): <code>goods_receipt</code>, <code>sales_ddt</code>, <code>invoice_draft</code>, <code>transfer</code>, <code>manual_unload</code>, <code>adjustment</code>, <code>supplier_ddt</code>, <code>supplier_invoice</code>, … — vedi enum in <code>schema.prisma</code>.</p>
+<p><strong>Tipi</strong> (<code>DocumentType</code> in Prisma): <code>goods_receipt</code>, <code>manual_load</code>, <code>initial_load</code>, <code>sales_ddt</code>, <code>invoice_draft</code>, <code>transfer</code>, <code>manual_unload</code>, <code>adjustment</code>, <code>supplier_ddt</code>, <code>supplier_invoice</code>, … — vedi enum in <code>schema.prisma</code>.</p>
 <p><strong>Seriali/lotti:</strong> in conferma <code>goods_receipt</code>, <code>inventory-serial.util.ts</code> e righe <code>DocumentLine</code> con <code>lotCode</code> / <code>serialNumbers</code>.</p>
-<p><strong>Frontend route:</strong> <code>/app/documents</code> (+ form dedicati <code>goods-receipt</code>, <code>transfer</code>, <code>sales-ddt</code>, …). Tabella con <code>TableColumnPickerComponent</code> + sync preferenze.</p>
+<p><strong>Frontend route:</strong> <code>/app/documents</code> (+ form dedicati <code>goods-receipt</code>, <code>transfer</code>, <code>sales-ddt</code>, …). Liste e form con <code>TableColumnPickerComponent</code> + sync preferenze: documenti, giacenze, movimenti, fornitori, prodotti, clienti, righe ordine fornitore (<code>supplier-order-form</code>), righe arrivo merce.</p>
+<h3 id="impostazioni-operative-tenant">Impostazioni operative tenant</h3>
+<table>
+<thead>
+<tr>
+<th>Metodo</th>
+<th>Path</th>
+<th>Azione</th>
+<th>Permessi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/tenant/feature-settings</code></td>
+<td>Legge flag lotti/seriali/policy</td>
+<td>accesso tenant owner+</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/tenant/feature-settings</code></td>
+<td>Aggiorna impostazioni</td>
+<td>accesso tenant owner+</td>
+</tr>
+</tbody></table>
+<p>Tabella <code>tenant_feature_settings</code> (RLS + REVOKE anon/authenticated). FE: <code>TenantOperationalSettingsPanelComponent</code> in Impostazioni. Service: <code>TenantFeatureSettingsService</code> (API + FE).</p>
 <h3 id="registro-commercialista-accountant-register">Registro commercialista (<code>/accountant-register</code>)</h3>
 <table>
 <thead>
@@ -1689,8 +1720,8 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <td>Upsert <code>stateJson</code></td>
 </tr>
 </tbody></table>
-<p>Modulo <code>api/src/user-preferences/</code> — validazione <code>stateJson</code> (<code>table-view-state.util.ts</code>, whitelist <code>viewId</code> / preset). FE: <code>TableColumnPreferenceService</code> + <code>table-view-preference-api.service.ts</code> (sync server, fallback localStorage).</p>
-<p><strong>Viste registrate:</strong> <code>documents-list</code>, <code>inventory-levels</code>, … (allineamento FE <code>TableViewId</code> ↔ BE <code>TABLE_VIEW_IDS</code>).</p>
+<p>Modulo <code>api/src/user-preferences/</code> — validazione <code>stateJson</code> (<code>table-view-state.util.ts</code>, whitelist <code>viewId</code> / preset). FE: <code>TableColumnPreferenceService</code> + <code>table-view-preference-api.service.ts</code> (sync server, fallback localStorage). Pulsante <strong>Ripristina colonne</strong> nel picker.</p>
+<p><strong>Viste registrate (FE <code>TableViewId</code> ↔ BE <code>TABLE_VIEW_IDS</code>):</strong> <code>stock_movements</code>, <code>inventory_levels</code>, <code>documents_list</code>, <code>suppliers_list</code>, <code>goods_receipt_lines</code>, <code>supplier_order_lines</code>, <code>products_list</code>, <code>customers_list</code>.</p>
 <h3 id="vendita-al-banco-tutti-i-profili-canale">Vendita al banco (tutti i profili canale)</h3>
 <p>Endpoint dedicato per <strong>doppia scansione</strong> al banco: decremento/incremento stock senza creare <code>SalesOrder</code>. Disponibile per <code>gestionale</code>, <code>shopify</code> e <code>tiktok_shop</code>.</p>
 <table>
@@ -1952,16 +1983,16 @@ cd api &amp;&amp; npm run test
 <td><code>npm run provision:e2e-users</code> → <code>api/scripts/provision-e2e-permission-users.mjs</code> (credenziali solo in <code>.env</code>, non in codice app)</td>
 </tr>
 <tr>
-<td>Documenti — filtri lista / incoming PO / seriali</td>
-<td><code>api/src/documents/documents.service.spec.ts</code>, <code>document-supplier-order.util.spec.ts</code>, <code>inventory-serial.util.spec.ts</code></td>
+<td>Documenti — filtri lista / incoming PO / seriali / prezzo fornitore</td>
+<td><code>api/src/documents/documents.service.spec.ts</code>, <code>document-supplier-order.util.spec.ts</code>, <code>document-supplier-price.util.spec.ts</code>, <code>inventory-serial.util.spec.ts</code></td>
 </tr>
 <tr>
-<td>Registro commercialista — conteggi KPI</td>
-<td><code>api/src/accountant-register/accountant-register.service.spec.ts</code>, <code>accountant-register-document-counts.util.spec.ts</code></td>
+<td>Impostazioni operative tenant</td>
+<td><code>api/src/tenant/tenant-feature-settings.service.spec.ts</code></td>
 </tr>
 <tr>
-<td>Preferenze colonne — validazione stateJson</td>
-<td><code>api/src/user-preferences/table-view-state.util.spec.ts</code>, <code>user-table-views.service.spec.ts</code></td>
+<td>Preferenze colonne — validazione stateJson / reset FE</td>
+<td><code>api/src/user-preferences/table-view-state.util.spec.ts</code>, <code>user-table-views.service.spec.ts</code>, <code>src/app/shared/table-columns/table-column-preference.service.spec.ts</code></td>
 </tr>
 <tr>
 <td>FE documenti — query URL / seriali input</td>
@@ -2141,11 +2172,15 @@ cd api &amp;&amp; npm run test
 </tr>
 <tr>
 <td>Tracciamento lotti / seriali</td>
-<td>Parziale — lotti e seriali in <strong>Arrivo merce</strong>; consultazione seriali in UI limitata</td>
+<td>Implementato — flag tenant + colonne in arrivo merce; consultazione seriali in UI limitata</td>
+</tr>
+<tr>
+<td>Impostazioni operative tenant (lotti/policy)</td>
+<td>Implementato — <code>tenant_feature_settings</code>, pannello Impostazioni</td>
 </tr>
 <tr>
 <td>Preferenze colonne tabella (sync server)</td>
-<td>Implementato — <code>UserTableViewPreference</code>, API <code>/users/me/table-views/:viewId</code></td>
+<td>Implementato — 8 viewId, column picker su liste + righe ordine/arrivo, Ripristina colonne</td>
 </tr>
 <tr>
 <td>Sync vendite/clienti TikTok Shop</td>

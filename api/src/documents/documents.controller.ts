@@ -40,6 +40,8 @@ import { ConvertDocumentDto } from './dto/convert-document.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import { MarkExternallyIssuedDto } from './dto/mark-externally-issued.dto';
 import { RegisterExternalDto } from './dto/register-external.dto';
+import { PreviewDocumentNumberQueryDto } from './dto/preview-document-number.query.dto';
+import { ConfirmDocumentDto } from './dto/confirm-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import {
   DocumentsService,
@@ -64,6 +66,20 @@ export class DocumentsController {
     @Query() query: ListDocumentsQueryDto,
   ): Promise<Paginated<DocumentListRow>> {
     return this.documents.list(tenantId, query);
+  }
+
+  @Get('preview-number')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  previewNumber(
+    @CurrentTenant() tenantId: string,
+    @Query() query: PreviewDocumentNumberQueryDto,
+  ) {
+    return this.documents.previewNextReference(
+      tenantId,
+      query.type,
+      query.series,
+      query.year,
+    );
   }
 
   @Get(':id/revisions')
@@ -122,6 +138,15 @@ export class DocumentsController {
     });
   }
 
+  @Get(':id/supplier-price-diffs')
+  @RequirePermissions(TenantPermission.DocumentsView)
+  listSupplierPriceDiffs(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.documents.listSupplierPriceDiffs(tenantId, id);
+  }
+
   @Get(':id')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   getById(
@@ -158,8 +183,11 @@ export class DocumentsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ConfirmDocumentDto,
   ): Promise<DocumentWithLines> {
-    return this.documents.confirm(tenantId, id, user);
+    return this.documents.confirm(tenantId, id, user, {
+      applySupplierPriceUpdates: dto.applySupplierPriceUpdates,
+    });
   }
 
   @Post(':id/convert')

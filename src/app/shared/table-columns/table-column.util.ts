@@ -27,6 +27,7 @@ export function createDefaultViewState(
     columnOrder: defaultColumnOrder(defs),
     hiddenColumnIds: defaultHiddenColumnIds(defs),
     pinnedColumnIds: [],
+    columnWidths: {},
   };
 }
 
@@ -43,6 +44,7 @@ export function applyPresetToState(
     columnOrder: [...visibleIds, ...allIds.filter((id) => !visibleIds.includes(id))],
     hiddenColumnIds: hidden,
     pinnedColumnIds: [],
+    columnWidths: {},
   };
 }
 

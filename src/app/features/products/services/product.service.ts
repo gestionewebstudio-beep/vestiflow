@@ -59,12 +59,21 @@ interface VariantSummaryApiRow {
   readonly sku: string;
   readonly productName: string;
   readonly title: string;
+  readonly barcode?: string | null;
   readonly sellingPrice: { readonly amountMinor: number; readonly currencyCode: string };
+  readonly purchasePrice?: {
+    readonly amountMinor: number;
+    readonly currencyCode: string;
+  } | null;
+  readonly supplierSku?: string | null;
+  readonly stockOnHand?: number | null;
 }
 
 export interface VariantSummarySearchQuery {
   readonly search?: string;
   readonly variantId?: EntityId;
+  readonly supplierId?: EntityId;
+  readonly locationId?: EntityId;
   readonly page?: number;
   readonly pageSize?: number;
 }
@@ -147,6 +156,12 @@ export class ProductService {
     }
     if (query.variantId) {
       params = params.set('variantId', query.variantId);
+    }
+    if (query.supplierId) {
+      params = params.set('supplierId', query.supplierId);
+    }
+    if (query.locationId) {
+      params = params.set('locationId', query.locationId);
     }
 
     return this.http
@@ -346,10 +361,19 @@ export class ProductService {
       sku: row.sku,
       productName: row.productName,
       title: row.title,
+      barcode: row.barcode ?? undefined,
       sellingPrice: {
         amountMinor: row.sellingPrice.amountMinor,
         currencyCode: row.sellingPrice.currencyCode,
       },
+      purchasePrice: row.purchasePrice
+        ? {
+            amountMinor: row.purchasePrice.amountMinor,
+            currencyCode: row.purchasePrice.currencyCode,
+          }
+        : undefined,
+      supplierSku: row.supplierSku ?? undefined,
+      stockOnHand: row.stockOnHand ?? undefined,
     };
   }
 

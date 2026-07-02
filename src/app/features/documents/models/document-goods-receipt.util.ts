@@ -5,6 +5,8 @@ export const GOODS_RECEIPT_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.GoodsReceipt,
   DocumentType.SupplierDdt,
   DocumentType.SupplierInvoiceAccompanying,
+  DocumentType.ManualLoad,
+  DocumentType.InitialLoad,
 ] as const;
 
 export function isGoodsReceiptDocumentType(type: DocumentType): boolean {

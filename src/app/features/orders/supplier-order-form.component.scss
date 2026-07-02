@@ -1,4 +1,5 @@
 @use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
 :host {
   display: block;
@@ -171,6 +172,80 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+.po-form__lines-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.po-form__table-wrap {
+  overflow-x: auto;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.po-form__table {
+  inline-size: 100%;
+  min-inline-size: calc(var(--space-16) * 6);
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.po-form__table th,
+.po-form__table td {
+  padding: var(--space-2) var(--space-3);
+  border-inline-end: var(--border-width) solid var(--color-border);
+  vertical-align: top;
+}
+
+.po-form__table th:last-child,
+.po-form__table td:last-child {
+  border-inline-end: none;
+}
+
+.po-form__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  text-align: start;
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-sunken);
+  border-block-end: var(--border-width) solid var(--color-border);
+  white-space: nowrap;
+}
+
+.po-form__table tbody tr {
+  border-block-end: var(--border-width) solid var(--color-border);
+}
+
+.po-form__table tbody tr:last-child {
+  border-block-end: none;
+}
+
+.po-form__num {
+  text-align: end;
+}
+
+.po-form__cell--variant {
+  min-inline-size: calc(var(--space-16) * 2);
+}
+
+.po-form__cell--actions {
+  inline-size: calc(var(--field-height) + var(--space-2));
+}
+
+.po-form__input--table {
+  min-inline-size: calc(var(--space-16) * 1.5);
+  block-size: var(--field-height);
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+@include rt.stack-table('po-form__table');
 
 .po-form__line-list {
   display: flex;

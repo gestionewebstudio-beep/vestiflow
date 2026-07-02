@@ -12,6 +12,8 @@ import {
 describe('document-stock.constants', () => {
   it('identifica i tipi con carico alla conferma', () => {
     expect(documentTypeLoadsStockOnConfirm(DocumentType.goods_receipt)).toBe(true);
+    expect(documentTypeLoadsStockOnConfirm(DocumentType.manual_load)).toBe(true);
+    expect(documentTypeLoadsStockOnConfirm(DocumentType.initial_load)).toBe(true);
     expect(documentTypeLoadsStockOnConfirm(DocumentType.sales_ddt)).toBe(false);
   });
 

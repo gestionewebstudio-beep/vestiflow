@@ -158,6 +158,8 @@ enum DocumentType {
   supplier_ddt // DDT fornitore
   supplier_invoice_accompanying // Fattura accompagnatoria fornitore
   supplier_invoice // Fattura fornitore collegata a DDT
+  manual_load // Carico manuale magazzino
+  initial_load // Carico iniziale magazzino
   sales_ddt // DDT vendita/consegna
   transfer // Trasferimento interno tra sedi
   manual_unload // Scarico manuale
@@ -165,6 +167,13 @@ enum DocumentType {
   inventory // Inventario fisico
   proforma // Proforma (non fiscale)
   invoice_draft // Bozza fattura / dati per fatturazione
+}
+
+/// Politica aggiornamento prezzo fornitore da arrivo merce (§13).
+enum SupplierPriceUpdatePolicy {
+  always
+  ask
+  never
 }
 
 /// Ciclo di vita del documento (§2, §4 piano funzionale). Le transizioni
@@ -242,6 +251,7 @@ model Tenant {
   userTableViewPreferences UserTableViewPreference[]
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
+  featureSettings         TenantFeatureSettings?
   shopifyConnection       ShopifyConnection?
   shopifyCredential       ShopifyCredential?
   shopifyOAuthStates      ShopifyOAuthState[]
@@ -982,6 +992,31 @@ model DocumentTypeSetting {
   @@unique([tenantId, type])
   @@index([tenantId])
   @@map("document_type_settings")
+}
+
+/// Impostazioni operative tenant (§16): moduli magazzino, lotti, seriali, prezzi fornitore.
+model TenantFeatureSettings {
+  id                          String                    @id @default(uuid()) @db.Uuid
+  tenantId                    String                    @unique @map("tenant_id") @db.Uuid
+  lotsEnabled                 Boolean                   @default(false) @map("lots_enabled")
+  serialsEnabled              Boolean                   @default(false) @map("serials_enabled")
+  variantsEnabled             Boolean                   @default(true) @map("variants_enabled")
+  barcodeScannerEnabled       Boolean                   @default(true) @map("barcode_scanner_enabled")
+  supplierOrdersEnabled       Boolean                   @default(true) @map("supplier_orders_enabled")
+  goodsReceiptEnabled         Boolean                   @default(true) @map("goods_receipt_enabled")
+  warehouseValuationEnabled   Boolean                   @default(true) @map("warehouse_valuation_enabled")
+  updateSupplierPriceOnLoad   SupplierPriceUpdatePolicy @default(ask) @map("update_supplier_price_on_load")
+  allowNegativeInventory      Boolean                   @default(false) @map("allow_negative_inventory")
+  warnNegativeInventory       Boolean                   @default(true) @map("warn_negative_inventory")
+  blockNegativeInventory      Boolean                   @default(false) @map("block_negative_inventory")
+  defaultUnitOfMeasure          String                    @default("pz") @map("default_unit_of_measure")
+  defaultVatRatePercent         Int                       @default(22) @map("default_vat_rate_percent")
+  createdAt                   DateTime                  @default(now()) @map("created_at")
+  updatedAt                   DateTime                  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_feature_settings")
 }
 
 /// Numeratore progressivo per (tenant, tipo, serie, anno) — §2.3. Il numero

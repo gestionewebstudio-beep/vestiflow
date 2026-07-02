@@ -1,8 +1,14 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('Ordine fornitore — invio e ricezione', () => {
-  test('invia bozza seed e riceve merce parziale', async ({ page }) => {
-    test.setTimeout(120_000);
+import { confirmGoodsReceiptOnForm } from './helpers/goods-receipt-form';
+import {
+  registerGoodsReceiptFromOrderDetail,
+  sendSupplierOrderFromDetail,
+} from './helpers/supplier-order-form';
+
+test.describe('Ordine fornitore — invio e registrazione arrivo merce', () => {
+  test('invia bozza seed e registra arrivo merce parziale via documento', async ({ page }) => {
+    test.setTimeout(180_000);
 
     await page.goto('/app/orders');
     await expect(page.locator('h1.po-list__title')).toHaveText('Ordini Fornitori', {
@@ -24,16 +30,12 @@ test.describe('Ordine fornitore — invio e ricezione', () => {
       return;
     }
 
-    await sendButton.click();
-    await page.getByRole('button', { name: 'Invia ordine', exact: true }).last().click();
-    await expect(page.getByText('Inviato', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await sendSupplierOrderFromDetail(page);
+    await registerGoodsReceiptFromOrderDetail(page);
+    await confirmGoodsReceiptOnForm(page, { partialQty: 3 });
 
-    await page.getByRole('button', { name: 'Ricevi merce' }).click();
-    const qtyInput = page.locator('input[type="number"]').first();
-    await qtyInput.fill('3');
-    await page.getByRole('button', { name: 'Conferma ricezione' }).click();
-    await page.getByRole('button', { name: 'Conferma ricezione', exact: true }).last().click();
-
+    await page.goto('/app/orders');
+    await page.getByText('PO-2026-0003', { exact: true }).click();
     await expect(page.getByText('Ricevuto parziale', { exact: true })).toBeVisible({
       timeout: 15_000,
     });

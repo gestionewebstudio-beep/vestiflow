@@ -38,6 +38,8 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { ProductTableComponent } from './components/product-table/product-table.component';
 import { ProductToolbarComponent } from './components/product-toolbar/product-toolbar.component';
@@ -62,6 +64,11 @@ import {
 } from './models/product-list-query.model';
 import type { ProductSortField } from './models/product-list-query.model';
 import { ProductService } from './services/product.service';
+import {
+  PRODUCT_LIST_COLUMN_DEFS,
+  PRODUCT_LIST_COLUMN_PRESETS,
+  PRODUCT_LIST_VIEW,
+} from './models/product-table-columns.config';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
@@ -100,6 +107,7 @@ type ProductListState =
     PaginationComponent,
     ProductToolbarComponent,
     ProductTableComponent,
+    TableColumnPickerComponent,
     ShopifySyncFeedbackComponent,
   ],
   templateUrl: './product-list.component.html',
@@ -115,6 +123,10 @@ export class ProductListComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+
+  protected readonly productListView = PRODUCT_LIST_VIEW;
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -250,6 +262,13 @@ export class ProductListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    this.columnPreferences.registerView(
+      PRODUCT_LIST_VIEW,
+      PRODUCT_LIST_COLUMN_DEFS,
+      PRODUCT_LIST_COLUMN_PRESETS,
+    );
+    this.tableColumns = this.columnPreferences.visibleColumns(PRODUCT_LIST_VIEW);
+
     effect(() => {
       this.query();
       this.selectedProductIds.set(new Set<string>());

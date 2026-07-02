@@ -64,6 +64,24 @@ export class DocumentService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
+  previewDocumentNumber(
+    type: DocumentType,
+    options: { series?: string; year?: number } = {},
+  ): Observable<{ reference: string; previewNumber: number; series: string; year: number }> {
+    let params = new HttpParams().set('type', type);
+    if (options.series) params = params.set('series', options.series);
+    if (options.year != null) params = params.set('year', String(options.year));
+
+    return this.http
+      .get<{
+        reference: string;
+        previewNumber: number;
+        series: string;
+        year: number;
+      }>(this.url('/documents/preview-number'), { params })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   getRevisions(id: EntityId): Observable<readonly DocumentRevision[]> {
     return this.http
       .get<readonly DocumentRevision[]>(this.url(`/documents/${id}/revisions`))
@@ -92,8 +110,29 @@ export class DocumentService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
-  confirmDocument(id: EntityId): Observable<DocumentRecord> {
-    return this.action(id, 'confirm');
+  confirmDocument(
+    id: EntityId,
+    body: { applySupplierPriceUpdates?: boolean } = {},
+  ): Observable<DocumentRecord> {
+    return this.http
+      .post<DocumentApiRow>(this.url(`/documents/${id}/confirm`), body)
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
+  }
+
+  listSupplierPriceDiffs(id: EntityId): Observable<{
+    readonly items: readonly {
+      variantId: string;
+      previousMinor: number | null;
+      nextMinor: number;
+    }[];
+    readonly policy: 'always' | 'ask' | 'never';
+  }> {
+    return this.http
+      .get<{
+        items: readonly { variantId: string; previousMinor: number | null; nextMinor: number }[];
+        policy: 'always' | 'ask' | 'never';
+      }>(this.url(`/documents/${id}/supplier-price-diffs`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   markPrinted(id: EntityId): Observable<DocumentRecord> {

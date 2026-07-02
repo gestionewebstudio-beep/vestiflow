@@ -12,4 +12,14 @@ export class ListVariantSummariesQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID()
   variantId?: string;
+
+  /** Filtra per fornitore collegato (codice/prezzo fornitore). */
+  @IsOptional()
+  @IsUUID()
+  supplierId?: string;
+
+  /** Giacenza nella location per anteprima autocomplete. */
+  @IsOptional()
+  @IsUUID()
+  locationId?: string;
 }

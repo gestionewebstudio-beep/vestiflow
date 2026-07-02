@@ -77,8 +77,9 @@
   cursor: pointer;
 }
 
-.table-column-picker__icon-btn:hover,
-.table-column-picker__icon-btn--active {
-  color: var(--color-text);
-  background-color: var(--color-surface-muted);
+.table-column-picker__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-block-start: var(--space-2);
+  border-block-start: var(--border-width) solid var(--color-border);
 }

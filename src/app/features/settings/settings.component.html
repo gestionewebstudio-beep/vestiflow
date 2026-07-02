@@ -54,6 +54,16 @@
     </section>
   }
 
+  @if (showOperationalSettingsPanel()) {
+    <section class="settings__panel" aria-labelledby="settings-operational">
+      <h2 id="settings-operational" class="settings__panel-title">Magazzino e documenti</h2>
+      <p class="settings__panel-hint">
+        Lotti, seriali, IVA predefinita e aggiornamento prezzo fornitore in arrivo merce.
+      </p>
+      <app-tenant-operational-settings-panel />
+    </section>
+  }
+
   @if (showLocationsSection()) {
     <section class="settings__panel" aria-labelledby="settings-locations-panel">
       <h2 id="settings-locations-panel" class="settings__panel-title">Location</h2>

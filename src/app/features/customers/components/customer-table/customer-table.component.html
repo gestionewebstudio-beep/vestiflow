@@ -1,10 +1,18 @@
 <table class="customer-table">
   <thead class="customer-table__head">
     <tr>
-      <th scope="col">Cliente</th>
-      <th scope="col">Email</th>
-      <th scope="col">Telefono</th>
-      <th scope="col">Città</th>
+      @if (showColumn('name')) {
+        <th scope="col">{{ columnLabel('name') }}</th>
+      }
+      @if (showColumn('email')) {
+        <th scope="col">{{ columnLabel('email') }}</th>
+      }
+      @if (showColumn('phone')) {
+        <th scope="col">{{ columnLabel('phone') }}</th>
+      }
+      @if (showColumn('city')) {
+        <th scope="col">{{ columnLabel('city') }}</th>
+      }
     </tr>
   </thead>
 
@@ -18,10 +26,22 @@
         (keydown.enter)="rowClick.emit(customer)"
         (keydown.space)="$event.preventDefault(); rowClick.emit(customer)"
       >
-        <td class="customer-table__name" data-label="Cliente">{{ fullName(customer) }}</td>
-        <td data-label="Email">{{ customer.email ?? '—' }}</td>
-        <td class="tabular-nums" data-label="Telefono">{{ customer.phone ?? '—' }}</td>
-        <td data-label="Città">{{ cityOf(customer) }}</td>
+        @if (showColumn('name')) {
+          <td class="customer-table__name" [attr.data-label]="columnLabel('name')">
+            {{ fullName(customer) }}
+          </td>
+        }
+        @if (showColumn('email')) {
+          <td [attr.data-label]="columnLabel('email')">{{ customer.email ?? '—' }}</td>
+        }
+        @if (showColumn('phone')) {
+          <td class="tabular-nums" [attr.data-label]="columnLabel('phone')">
+            {{ customer.phone ?? '—' }}
+          </td>
+        }
+        @if (showColumn('city')) {
+          <td [attr.data-label]="columnLabel('city')">{{ cityOf(customer) }}</td>
+        }
       </tr>
     }
   </tbody>

@@ -84,6 +84,7 @@ import { MfaSettingsComponent } from './components/mfa-settings/mfa-settings.com
 import { TenantCompanyService } from './services/tenant-company.service';
 import type { TenantCompany } from './models/tenant-company.model';
 import { TikTokIntegrationPanelComponent } from './components/tiktok-integration-panel/tiktok-integration-panel.component';
+import { TenantOperationalSettingsPanelComponent } from './components/tenant-operational-settings-panel/tenant-operational-settings-panel.component';
 
 type ConnectionState =
   | { readonly status: 'loading' }
@@ -140,6 +141,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     TikTokIntegrationPanelComponent,
     ProfileAvatarUploadComponent,
     ShopifyShopChangeWizardComponent,
+    TenantOperationalSettingsPanelComponent,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
@@ -355,6 +357,10 @@ export class SettingsComponent {
   });
 
   protected readonly canManageLicensedLocationsAsOwner = computed(() =>
+    hasFullTenantAccess(this.currentUser()),
+  );
+
+  protected readonly showOperationalSettingsPanel = computed(() =>
     hasFullTenantAccess(this.currentUser()),
   );
 

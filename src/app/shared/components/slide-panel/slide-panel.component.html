@@ -1,0 +1,29 @@
+@if (open()) {
+  <div
+    class="slide-panel"
+    role="dialog"
+    [attr.aria-modal]="true"
+    [attr.aria-label]="ariaLabel() ?? title()"
+    (keydown)="onPanelKeydown($event)"
+  >
+    <button
+      type="button"
+      class="slide-panel__backdrop"
+      aria-label="Chiudi pannello"
+      (click)="onBackdropClick()"
+    ></button>
+
+    <div class="slide-panel__sheet">
+      <header class="slide-panel__header">
+        <h2 class="slide-panel__title">{{ title() }}</h2>
+        <app-button type="button" variant="ghost" ariaLabel="Chiudi" (click)="onCloseClick()">
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </app-button>
+      </header>
+
+      <div class="slide-panel__body">
+        <ng-content />
+      </div>
+    </div>
+  </div>
+}

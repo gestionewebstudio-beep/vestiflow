@@ -31,6 +31,8 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
 import {
@@ -50,6 +52,11 @@ import {
   parseCustomerListQuery,
 } from './models/customer-list-query.model';
 import { CustomerService } from './services/customer.service';
+import {
+  CUSTOMER_LIST_COLUMN_DEFS,
+  CUSTOMER_LIST_COLUMN_PRESETS,
+  CUSTOMER_LIST_VIEW,
+} from './models/customer-table-columns.config';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
@@ -81,6 +88,7 @@ type CustomerListState =
     PaginationComponent,
     TableSkeletonComponent,
     CustomerTableComponent,
+    TableColumnPickerComponent,
     ShopifySyncFeedbackComponent,
   ],
   templateUrl: './customer-list.component.html',
@@ -94,6 +102,10 @@ export class CustomerListComponent {
   private readonly authService = inject(AuthService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+
+  protected readonly customerListView = CUSTOMER_LIST_VIEW;
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -177,6 +189,13 @@ export class CustomerListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    this.columnPreferences.registerView(
+      CUSTOMER_LIST_VIEW,
+      CUSTOMER_LIST_COLUMN_DEFS,
+      CUSTOMER_LIST_COLUMN_PRESETS,
+    );
+    this.tableColumns = this.columnPreferences.visibleColumns(CUSTOMER_LIST_VIEW);
+
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
         debounceTime(SEARCH_DEBOUNCE_MS),

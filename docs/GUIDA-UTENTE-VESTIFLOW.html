@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--guida-per-lutente">VestiFlow — Guida per l&#39;utente</h1>
-<p><strong>Versione documento:</strong> 3.2 — Luglio 2026</p>
+<p><strong>Versione documento:</strong> 3.4 — Luglio 2026</p>
 <p><strong>Per chi è questa guida:</strong> titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.</p>
 <p><strong>Prodotto:</strong> VestiFlow — gestionale web multi-sede per <strong>retail e negozi con inventario fisico</strong>, con integrazione opzionale a <strong>Shopify</strong> o <strong>TikTok Shop</strong> (in base al profilo scelto per il tuo negozio). Adatto ad abbigliamento, accessori, cosmetica, food con varianti, e-commerce Shopify e altri settori con SKU e magazzino. L&#39;integrazione <strong>TikTok Shop è ancora parziale</strong> — vedi <a href="#7-collegare-tiktok-shop">§7</a>.</p>
 <hr>
@@ -341,7 +341,7 @@ ol {
 </ul>
 <p>Su smartphone il menu hamburger apre la sidebar; tema, location e sync restano in topbar quando lo spazio lo consente.</p>
 <h3 id="impostazioni-cosa-compare">Impostazioni: cosa compare</h3>
-<p>Il contenuto di <strong>Impostazioni</strong> dipende dal <strong>profilo canale</strong> del tuo negozio (scelto in fase di attivazione). L’ordine dei pannelli è sempre: <strong>Profilo</strong> → <strong>Sede fisica</strong> (se presente) → integrazione canale → <strong>Sicurezza account</strong> → <strong>Aspetto</strong>.</p>
+<p>Il contenuto di <strong>Impostazioni</strong> dipende dal <strong>profilo canale</strong> del tuo negozio (scelto in fase di attivazione). L’ordine dei pannelli è sempre: <strong>Profilo</strong> → <strong>Sede fisica</strong> (se presente) → <strong>Magazzino e documenti</strong> (Titolare/Admin) → integrazione canale → <strong>Sicurezza account</strong> → <strong>Aspetto</strong>.</p>
 <table>
 <thead>
 <tr>
@@ -351,17 +351,27 @@ ol {
 </thead>
 <tbody><tr>
 <td><strong>Solo gestionale</strong></td>
-<td>Profilo, <strong>Sede fisica</strong>, Sicurezza, Aspetto — nessuna integrazione e-commerce</td>
+<td>Profilo, <strong>Sede fisica</strong>, <strong>Magazzino e documenti</strong>, Sicurezza, Aspetto — nessuna integrazione e-commerce</td>
 </tr>
 <tr>
 <td><strong>Shopify</strong></td>
-<td>Profilo, <strong>Sede fisica</strong>, <strong>Integrazione Shopify</strong> (Location + <strong>Sedi attive in VestiFlow</strong>), Sicurezza, Aspetto</td>
+<td>Profilo, <strong>Sede fisica</strong>, <strong>Magazzino e documenti</strong>, <strong>Integrazione Shopify</strong> (Location + <strong>Sedi attive in VestiFlow</strong>), Sicurezza, Aspetto</td>
 </tr>
 <tr>
 <td><strong>TikTok Shop</strong></td>
-<td>Profilo, <strong>Sede fisica</strong>, Integrazione TikTok Shop, Sicurezza, Aspetto</td>
+<td>Profilo, <strong>Sede fisica</strong>, <strong>Magazzino e documenti</strong>, Integrazione TikTok Shop, Sicurezza, Aspetto</td>
 </tr>
 </tbody></table>
+<h4 id="magazzino-e-documenti-impostazioni-operative">Magazzino e documenti (impostazioni operative)</h4>
+<p>Pannello visibile a <strong>Titolare</strong> e <strong>Amministratore</strong> (accesso completo al tenant). Consente di attivare:</p>
+<ul>
+<li><strong>Gestione lotti e scadenze</strong> — colonne lotto/scadenza in arrivo merce</li>
+<li><strong>Gestione numeri seriali</strong> — colonna seriali in arrivo merce</li>
+<li><strong>Policy aggiornamento prezzo fornitore</strong> in carico: sempre / chiedi conferma / mai</li>
+<li><strong>Unità di misura</strong> e <strong>IVA predefinita</strong> per nuovi articoli</li>
+<li>Avvisi e blocco su <strong>giacenze negative</strong></li>
+</ul>
+<p>Le modifiche si applicano a tutti gli utenti del negozio.</p>
 <h4 id="sede-fisica-anagrafica-cliente">Sede fisica (anagrafica cliente)</h4>
 <p>Pannello <strong>Sede fisica</strong> in Impostazioni: mostra i dati commerciali registrati da VestiFlow all’attivazione (ragione sociale, negozio, P.IVA, indirizzo, contatti). È <strong>indipendente</strong> dalle sedi operative Shopify elencate sotto <strong>Integrazione Shopify → Location</strong>. I dettagli fiscali e di contatti opzionali sono in un riquadro espandibile <strong>Dati fiscali e contatti</strong>. Il pannello è visibile se il tuo account ha il permesso <strong>Impostazioni azienda</strong> (tipico per Titolare e Amministratore).</p>
 <h3 id="messaggi-comuni">Messaggi comuni</h3>
@@ -1281,7 +1291,7 @@ ol {
 </ul>
 <p>In entrambi i casi vedi la variante con disponibile <strong>0</strong> e stato <strong>Esaurito</strong> se non c&#39;è stock. Il primo <strong>carico</strong>, <strong>rettifica</strong>, <strong>arrivo merce</strong> (documento) o <strong>import CSV</strong> crea la riga inventario definitiva.</p>
 <h3 id="colonna-in-arrivo">Colonna «In arrivo»</h3>
-<p>Nella tabella <strong>Giacenze</strong> la colonna <strong>In arrivo</strong> mostra quantità <strong>attese</strong> da ordini fornitore già <strong>inviati</strong> ma non ancora ricevuti. Quando registri l&#39;arrivo merce (da <strong>Ordini Fornitori → Ricevi merce</strong> o da <strong>Documenti → Arrivo merce</strong> collegato all&#39;ordine), la quantità passa da <em>in arrivo</em> a <em>disponibile</em> sulla sede di destinazione.</p>
+<p>Nella tabella <strong>Giacenze</strong> la colonna <strong>In arrivo</strong> mostra quantità <strong>attese</strong> da ordini fornitore già <strong>inviati</strong> ma non ancora ricevuti. Quando confermi un <strong>Arrivo merce</strong> (documento collegato all&#39;ordine o creato da <strong>Registra arrivo merce</strong>), la quantità passa da <em>in arrivo</em> a <em>disponibile</em> sulla sede di destinazione.</p>
 <h3 id="azioni-principali-giacenze">Azioni principali (Giacenze)</h3>
 <table>
 <thead>
@@ -1384,13 +1394,14 @@ ol {
 <ol>
 <li><strong>Ordini Fornitori → Nuovo ordine</strong> — fornitore, destinazione merce, righe (variante, quantità, costo unitario)</li>
 <li><strong>Invia ordine</strong> — tracciamento interno; le quantità compaiono in <strong>In arrivo</strong> in Giacenze</li>
-<li>All&#39;arrivo merce: <strong>Ricevi merce</strong> dall&#39;ordine <strong>oppure</strong> <strong>Documenti → Arrivo merce</strong> collegato all&#39;ordine — incrementa giacenze, azzera <em>in arrivo</em> e crea movimenti di carico tracciati</li>
+<li>All&#39;arrivo merce: dal dettaglio ordine <strong>Registra arrivo merce</strong> (crea bozza in Documenti collegata all&#39;ordine) <strong>oppure</strong> <strong>Documenti → Arrivo merce</strong> manuale — incrementa giacenze, azzera <em>in arrivo</em> e crea movimenti di carico tracciati</li>
 </ol>
-<p>Per documentazione completa (numeri progressivi, allegati, lotti/seriali) usa il flusso <strong>Documenti → Arrivo merce</strong>; la ricezione rapida da ordine resta disponibile per operatività veloce in magazzino.</p>
+<p>Il pulsante <strong>Registra arrivo merce</strong> sull&#39;ordine apre il form <strong>Documenti → Arrivo merce</strong> con righe e quantità residue già precompilate; non esiste più una ricezione «silenziosa» senza documento.</p>
 <h3 id="compilare-un-ordine">Compilare un ordine</h3>
 <ul>
 <li><strong>Fornitore</strong> e <strong>Variante</strong> (per ogni riga): nel menu a tendina usa la <strong>ricerca</strong> per filtrare per nome prodotto o SKU.</li>
-<li><strong>Quantità</strong> e <strong>Costo unitario</strong>; il <strong>Subtotale</strong> riga si calcola automaticamente (campo in sola lettura).</li>
+<li><strong>Righe in griglia tabellare</strong> con menu <strong>Colonne</strong> (preset, mostra/nascondi, <strong>Ripristina colonne</strong>); su smartphone le righe diventano <strong>card</strong> impilate.</li>
+<li><strong>Quantità</strong> e <strong>Costo unitario</strong>; il <strong>Subtotale</strong> riga si calcola automaticamente.</li>
 <li><strong>Data attesa</strong> (opzionale): selettore con <strong>calendario</strong> (stesso stile dei filtri data nei report).</li>
 <li>Puoi creare un <strong>nuovo fornitore</strong> inline dal form (<strong>Nuovo fornitore</strong>).</li>
 </ul>
@@ -1408,7 +1419,7 @@ ol {
 </tr>
 <tr>
 <td><strong>Inviato</strong></td>
-<td>Annulla ordine, Ricevi merce (tutti i ruoli operativi)</td>
+<td>Annulla ordine, <strong>Registra arrivo merce</strong> (tutti i ruoli operativi)</td>
 </tr>
 <tr>
 <td><strong>Annullato</strong></td>
@@ -1466,6 +1477,14 @@ ol {
 <tbody><tr>
 <td><strong>Arrivo merce</strong></td>
 <td>Carico da fornitore con righe, costi, opzionale collegamento a ordine</td>
+</tr>
+<tr>
+<td><strong>Carico manuale</strong></td>
+<td>Carico magazzino senza DDT fornitore (fornitore opzionale)</td>
+</tr>
+<tr>
+<td><strong>Carico iniziale</strong></td>
+<td>Stock di partenza / primo inventario (fornitore opzionale)</td>
 </tr>
 <tr>
 <td><strong>DDT vendita</strong></td>
@@ -1587,12 +1606,23 @@ ol {
 <td><strong>Documenti → Nuovo</strong> (tipo vendita)</td>
 </tr>
 </tbody></table>
-<p><strong>Arrivo merce — campi principali:</strong> fornitore, sede destinazione, data, righe (variante, quantità, costo). Opzionali per riga: <strong>lotto</strong>, <strong>scadenza lotto</strong>, <strong>numeri seriali</strong> (testo separato da virgola). Puoi collegare un <strong>ordine fornitore</strong> per precompilare le righe attese.</p>
-<p>Alla <strong>conferma</strong> dell&#39;arrivo merce VestiFlow registra i <strong>carichi</strong> in magazzino e aggiorna le giacenze (e Shopify/TikTok se collegati).</p>
+<p><strong>Arrivo merce — schermata e campi principali</strong></p>
+<ul>
+<li><strong>Testata:</strong> tipo documento (<strong>Arrivo merce</strong>, DDT fornitore, Fattura accompagnatoria, <strong>Carico manuale</strong>, <strong>Carico iniziale</strong>), fornitore (obbligatorio per arrivo/DDT/fattura accomp.; opzionale per carichi manuali), sede destinazione, data documento VestiFlow, numero/data <strong>documento fornitore</strong> (es. DDT 242/2026), <strong>causale di carico</strong>, flag <strong>Seguirà fattura</strong>, riferimento fattura fornitore, note.</li>
+<li><strong>Numero interno VestiFlow:</strong> in bozza vedi l&#39;<strong>anteprima</strong> (es. <code>CAR-2026-0045</code>); il numero definitivo viene assegnato alla <strong>conferma</strong> (distinto dal documento del fornitore).</li>
+<li><strong>Righe in griglia:</strong> menu <strong>Colonne</strong> (preset, resize intestazioni, <strong>Ripristina colonne</strong>); cerca articolo per <strong>nome, SKU o barcode/EAN</strong>; <strong>Crea articolo rapido</strong> o <strong>Crea anagrafica completa</strong> (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag <strong>Carica magazzino</strong>, totale riga.</li>
+<li><strong>Ordine fornitore collegato:</strong> se apri l&#39;arrivo da <strong>Registra arrivo merce</strong> sull&#39;ordine, compaiono anche colonne <strong>Ordinato / Già ricevuto / Residuo</strong> per ogni riga.</li>
+<li><strong>Conferma:</strong> se il costo differisce dall&#39;ultimo prezzo fornitore e la policy lo prevede, compare un dialog per <strong>aggiornare i prezzi fornitore</strong>.</li>
+<li><strong>Documento già confermato:</strong> avvisi se stampato/inviato/registrato esternamente; azioni <strong>Segna stampato</strong>, <strong>Segna inviato</strong>, <strong>Registra esternamente</strong> disponibili nel form.</li>
+<li>Opzionali per riga: <strong>lotto</strong>, <strong>scadenza lotto</strong>, <strong>numeri seriali</strong> (testo separato da virgola).</li>
+</ul>
+<p>Alla <strong>conferma</strong> dell&#39;arrivo merce (o carico manuale/iniziale) VestiFlow registra i <strong>carichi</strong> in magazzino, aggiorna le giacenze e, se collegato, l&#39;ordine fornitore e l&#39;<strong>in arrivo</strong> (e Shopify/TikTok se collegati).</p>
+<p><strong>Modifica di un documento già confermato:</strong> apri il documento in modifica, clicca <strong>Sblocca modifica</strong> e conferma l&#39;avviso — VestiFlow aggiorna movimenti e giacenze e salva lo storico revisioni.</p>
 <h3 id="allegati">Allegati</h3>
-<p>Nel <strong>dettaglio documento</strong>, pannello <strong>Allegati</strong>: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.</p>
+<p>Nel <strong>form arrivo merce</strong> (dopo il primo salvataggio bozza) e nel <strong>dettaglio documento</strong>, pannello <strong>Allegati</strong>: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.</p>
 <h3 id="colonne-personalizzabili">Colonne personalizzabili</h3>
-<p>Sopra la tabella <strong>Documenti</strong> (e in altre liste del gestionale) usa <strong>Colonne</strong> per mostrare/nascondere campi e scegliere un <strong>preset</strong> (Completo, Compatto, Fornitore, …). Le preferenze si <strong>sincronizzano</strong> con il tuo account: stesse colonne su desktop e smartphone dopo il login.</p>
+<p>Usa <strong>Colonne</strong> sopra le tabelle principali per mostrare/nascondere campi, scegliere un <strong>preset</strong> (Completo, Magazzino, Fornitore, …) e <strong>Ripristina colonne</strong>. Le preferenze si <strong>sincronizzano</strong> con il tuo account.</p>
+<p>Viste con column picker: <strong>Documenti</strong>, <strong>Giacenze</strong>, <strong>Movimenti</strong>, <strong>Fornitori</strong>, <strong>Prodotti</strong>, <strong>Clienti</strong>, righe <strong>Ordine fornitore</strong> e righe <strong>Arrivo merce</strong>. Su mobile molte liste passano a <strong>card</strong> con etichette campo.</p>
 <h3 id="impostazioni-numerazione">Impostazioni numerazione</h3>
 <p><strong>Documenti → Impostazioni documenti</strong> (solo <strong>Gestire documenti</strong>): prefissi e serie per tipo (es. prefisso DDT vendita, arrivo merce). I numeri progressivi vengono assegnati alla <strong>conferma</strong>.</p>
 <h3 id="permessi">Permessi</h3>
@@ -1823,8 +1853,8 @@ ol {
 <p>Verifica i permessi <strong>Consultare documenti</strong> e <strong>Consultare report</strong>. Il <strong>Registro commercialista</strong> richiede accesso ai report. Dopo una modifica permessi: esci e rientra.</p>
 <h3 id="cosa-significa-ddt-da-fatturare">Cosa significa «DDT da fatturare»?</h3>
 <p>Sono <strong>DDT vendita</strong> già confermati (consegnati al cliente) per i quali non esiste ancora una <strong>bozza fattura</strong> collegata in VestiFlow. Apri l&#39;elenco filtrato da <strong>Registro commercialista</strong> o dal filtro omonimo in <strong>Documenti</strong> per emettere o registrare le fatture esternamente.</p>
-<h3 id="differenza-tra-ricevi-merce-e-arrivo-merce-documenti">Differenza tra Ricevi merce e Arrivo merce (Documenti)</h3>
-<p>Entrambi incrementano lo stock. <strong>Ricevi merce</strong> dall&#39;ordine fornitore è il flusso rapido in <strong>Ordini Fornitori</strong>. <strong>Arrivo merce</strong> in <strong>Documenti</strong> aggiunge numerazione, allegati, lotti/seriali e tracciamento completo per contabilità — consigliato quando serve documentazione per il commercialista.</p>
+<h3 id="differenza-tra-registra-arrivo-merce-ordine-e-arrivo-merce-manuale">Differenza tra Registra arrivo merce (ordine) e Arrivo merce manuale</h3>
+<p>Entrambi usano lo <strong>stesso form Documenti → Arrivo merce</strong>. Da un ordine <strong>Inviato</strong>, <strong>Registra arrivo merce</strong> crea una <strong>bozza collegata</strong> con righe e quantità residue precompilate (colonne Ord./Ric./Res.). Da <strong>Documenti → Nuovo arrivo merce</strong> crei un carico anche <strong>senza ordine</strong> precedente. In entrambi i casi serve <strong>Conferma e carica magazzino</strong> per movimentare lo stock; in bozza il magazzino non cambia.</p>
 <h3 id="il-prodotto-creato-in-vestiflow-non-compare-su-shopify">Il prodotto creato in VestiFlow non compare su Shopify</h3>
 <ol>
 <li>Impostazioni → Shopify è <strong>Connesso</strong>?</li>

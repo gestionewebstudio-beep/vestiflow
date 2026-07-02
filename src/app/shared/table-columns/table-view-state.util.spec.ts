@@ -18,6 +18,7 @@ describe('table-view-state.util', () => {
       columnOrder: ['sku'],
       hiddenColumnIds: [],
       pinnedColumnIds: ['sku'],
+      columnWidths: {},
     });
   });
 

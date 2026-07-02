@@ -84,6 +84,10 @@ export class TableColumnPickerComponent {
     this.preferences.togglePin(this.viewId(), columnId);
   }
 
+  protected resetColumns(): void {
+    this.preferences.resetToDefault(this.viewId());
+  }
+
   protected onDocumentClick(event: MouseEvent): void {
     if (!this.open()) {
       return;

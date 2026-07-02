@@ -1,6 +1,6 @@
 # VestiFlow — Piano di test completo
 
-**Versione documento:** 2.0 — Luglio 2026
+**Versione documento:** 2.1 — Luglio 2026
 
 **Scopo:** elenco ordinato di tutti i test manuali da eseguire sul gestionale VestiFlow, dal primo all'ultimo, con passaggi operativi e risultati attesi. Pensato per essere letto e compilato in parallelo da due tester (tu e un collega).
 
@@ -16,7 +16,7 @@ I test tenant partono da **T-001**. I test admin sono nella **sezione 18** (T-16
 **Come usare questo documento**
 
 1. Leggi la sezione **0 — Preparazione** prima di iniziare qualsiasi test.
-2. Esegui i test **nell'ordine numerico** (T-001 → T-210). Alcuni test dipendono da dati creati in test precedenti.
+2. Esegui i test **nell'ordine numerico** (T-001 → T-206). Alcuni test dipendono da dati creati in test precedenti.
 3. Compila per ogni test: **Esito** (OK / KO / N/A), **Tester**, **Data**, **Note**.
 4. In caso di KO, descrivi cosa è successo e allega screenshot se utile.
 5. Non saltare i test contrassegnati **Obbligatorio** prima del go-live.
@@ -564,6 +564,30 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 2. Verifica nome, email e ruolo mostrati.
 
 **Risultato atteso:** dati coerenti con account usato per il login.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-045 — Impostazioni Magazzino e documenti
+
+|              |                  |
+| ------------ | ---------------- |
+| **Priorità** | P2               |
+| **Ruolo**    | Titolare o Admin |
+| **Device**   | Desktop          |
+
+**Passaggi:**
+
+1. **Impostazioni → Magazzino e documenti**.
+2. Attiva **Gestione lotti** e **Gestione seriali**; salva.
+3. Imposta **Policy aggiornamento prezzo fornitore** (es. «Chiedi sempre»); salva.
+4. Modifica **IVA predefinita** e **Unità di misura predefinita**; salva.
+5. Ricarica pagina e verifica persistenza.
+
+**Risultato atteso:** flag e valori salvati. In **Arrivo merce**, colonne lotto/scadenza/seriali visibili solo se attivate. Alla conferma arrivo con costo diverso dal listino fornitore, comportamento coerente con la policy scelta.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -1947,7 +1971,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 ---
 
-### T-123 — Ricevi merce (ordine fornitore)
+### T-123 — Registra arrivo merce da ordine fornitore
 
 |              |                            |
 | ------------ | -------------------------- |
@@ -1955,14 +1979,16 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 | **Ruolo**    | Qualsiasi (anche Commesso) |
 | **Device**   | Desktop                    |
 
+**Prerequisiti:** ordine fornitore **Inviato** (T-122).
+
 **Passaggi:**
 
-1. Apri ordine inviato/in arrivo.
-2. Clicca **Ricevi merce**.
-3. Inserisci quantità ricevute per ogni riga (parziale o totale).
-4. Conferma ricezione.
+1. Apri dettaglio ordine inviato/in arrivo.
+2. Clicca **Registra arrivo merce**.
+3. Verifica apertura form **Arrivo merce** con ordine collegato, righe precompilate e colonne **Ordinato / Già ricevuto / Residuo**.
+4. Inserisci quantità ricevute (parziale o totale) e **Conferma e carica magazzino**.
 
-**Risultato atteso:** giacenze incrementate sulla location destinazione. Movimenti carico in storico. Stato ordine aggiornato (parzialmente ricevuto / completato).
+**Risultato atteso:** documento **Confermato** con numero progressivo. Giacenze incrementate sulla sede destinazione. Movimenti **Carico** in storico. Colonna **In arrivo** aggiornata. Stato ordine **Parzialmente ricevuto** o **Completato**. Nessuna ricezione «silenziosa» senza documento.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -1982,7 +2008,30 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 1. Accedi come Commesso. Verifica assenza pulsante **Nuovo ordine**. Prova `/app/orders/new`.
 
-**Risultato atteso:** creazione bloccata. Ricezione merce ancora possibile (T-123).
+**Risultato atteso:** creazione bloccata. **Registra arrivo merce** su ordine inviato ancora possibile (T-123).
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-124b — Griglia ordine fornitore: colonne e mobile
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Entrambi |
+
+**Passaggi:**
+
+1. Crea o modifica un **Ordine fornitore** con almeno 2 righe.
+2. Apri menu **Colonne**: cambia preset, nascondi una colonna, ridimensiona un'intestazione.
+3. Clic **Ripristina colonne** e verifica reset.
+4. Su smartphone: verifica righe in **card** impilate con etichette campo.
+
+**Risultato atteso:** griglia tabellare su desktop; preferenze colonne persistite dopo reload. Layout mobile leggibile senza scroll orizzontale incontrollato.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2017,7 +2066,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 ---
 
-### T-136 — Arrivo merce: creazione e conferma
+### T-136 — Arrivo merce: creazione, griglia e conferma
 
 |              |                       |
 | ------------ | --------------------- |
@@ -2031,11 +2080,12 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 1. **Documenti → Nuovo documento → Arrivo merce**.
 2. Seleziona fornitore, sede destinazione, data.
-3. Aggiungi riga: cerca variante per SKU, quantità 5, costo unitario.
-4. Opzionale: lotto, scadenza, seriali su una riga.
-5. Salva bozza, poi **Conferma** documento.
+3. Aggiungi riga: cerca variante per **nome, SKU o barcode**, quantità 5, costo unitario.
+4. Apri menu **Colonne** sulle righe: cambia preset, ridimensiona colonna, poi **Ripristina colonne**.
+5. Se attivi in T-045: compila lotto/scadenza/seriali su una riga.
+6. Salva bozza (giacenza **non** cambia), poi **Conferma e carica magazzino**.
 
-**Risultato atteso:** stato passa a **Confermato**. Giacenza +5 sulla sede. Movimento **Carico** in storico. Numero progressivo assegnato alla conferma.
+**Risultato atteso:** stato **Confermato**. Giacenza +5 sulla sede. Movimento **Carico** in storico. Numero progressivo assegnato alla conferma. Documento protetto da modifiche distruttive dopo conferma.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2055,12 +2105,11 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. **Documenti → Arrivo merce**.
-2. Collega l'**ordine fornitore** creato in T-122.
-3. Verifica precompilazione righe attese.
-4. Conferma arrivo con quantità ricevute.
+1. Dal dettaglio ordine clicca **Registra arrivo merce** (oppure **Documenti → Arrivo merce** e seleziona l'ordine).
+2. Verifica precompilazione righe con colonne **Ordinato / Già ricevuto / Residuo**.
+3. Conferma arrivo con quantità ricevute.
 
-**Risultato atteso:** colonna **In arrivo** in Giacenze azzerata per quelle righe. Ordine aggiornato a ricevuto/parziale.
+**Risultato atteso:** colonna **In arrivo** in Giacenze azzerata per quelle righe. Ordine aggiornato a ricevuto/parziale. Stesso effetto stock/movimenti della conferma manuale (T-136).
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2068,7 +2117,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 ---
 
-### T-138 — Crea articolo rapido da riga arrivo merce
+### T-138 — Crea articolo da riga arrivo merce (rapido e pannello)
 
 |              |          |
 | ------------ | -------- |
@@ -2078,11 +2127,57 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. In form **Arrivo merce**, su una riga usa **Crea articolo rapido**.
-2. Compila nome, SKU, prezzo in modal/dialog inline.
-3. Conferma e completa documento.
+1. In form **Arrivo merce**, su una riga usa **Crea articolo rapido**: compila nome, SKU, prezzo; conferma e associa alla riga.
+2. Su un'altra riga usa **Crea anagrafica completa**: compila il pannello laterale prodotto (wizard embedded), salva **e collega alla riga** (o salva senza collegare e verifica comportamento).
+3. Completa e conferma documento.
 
-**Risultato atteso:** nuovo prodotto + variante creati e associati alla riga. Disponibile subito in catalogo.
+**Risultato atteso:** nuovi prodotti/varianti creati senza uscire dal documento. Variante collegata disponibile in catalogo. SKU duplicato bloccato in validazione.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-138b — Dialog aggiornamento prezzo fornitore
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Prerequisiti:** fornitore con listino/prezzo noto su variante. Policy prezzo ≠ «Mai» (T-045).
+
+**Passaggi:**
+
+1. Crea **Arrivo merce** con costo unitario **diverso** dal prezzo fornitore salvato.
+2. **Conferma e carica magazzino**.
+3. Se compare dialog prezzi: verifica elenco differenze; prova **Applica** e ripeti con **Ignora** (secondo documento).
+
+**Risultato atteso:** dialog mostra SKU e prezzo vecchio/nuovo. Con «Applica», prezzo fornitore aggiornato in anagrafica. Con «Ignora», conferma documento senza aggiornare listino.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-138c — Carico manuale e carico iniziale
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. **Documenti → Nuovo → Carico manuale**: aggiungi righe, conferma.
+2. **Documenti → Nuovo → Carico iniziale**: stesso flusso con almeno una variante.
+3. Verifica movimenti e giacenze.
+
+**Risultato atteso:** entrambi i tipi incrementano stock alla conferma con movimenti tracciati distinti per tipo documento. Numerazione e PDF coerenti con impostazioni documenti.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -3086,10 +3181,10 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 **Passaggi:**
 
 1. Manager crea e invia ordine fornitore (10 pz variante Z).
-2. Commesso riceve merce (10 pz).
+2. Commesso: **Registra arrivo merce** dall'ordine, conferma documento (10 pz).
 3. Verifica giacenza +10 e movimento carico.
 
-**Risultato atteso:** stock e storico coerenti. Ordine completato.
+**Risultato atteso:** stock e storico coerenti. Ordine completato. Documento arrivo merce confermato collegato all'ordine.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -3236,13 +3331,81 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 ---
 
+### T-200 — Arrivo merce post-conferma: stampa, invio, registro esterno
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Prerequisiti:** arrivo merce **Confermato** (T-136 o T-137).
+
+**Passaggi:**
+
+1. Dal dettaglio documento confermato: **Stampa** / scarica PDF.
+2. Se disponibile: **Invia** (email o canale configurato) e verifica stato «inviato».
+3. **Registra esternamente** (es. commercialista/ERP) se previsto; verifica badge o avviso in lista/dettaglio.
+4. Tenta modifica righe su documento già stampato/inviato/registrato.
+
+**Risultato atteso:** azioni lifecycle disponibili dopo conferma. Avvisi visibili se documento già stampato/inviato/registrato. Modifiche distruttive bloccate o con conferma esplicita.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-201 — Column picker: Prodotti e Clienti
+
+|              |          |
+| ------------ | -------- |
+| **Priorità** | P2       |
+| **Ruolo**    | Manager+ |
+| **Device**   | Desktop  |
+
+**Passaggi:**
+
+1. **Prodotti**: menu **Colonne**, nascondi/mostra campi, **Ripristina colonne**, reload pagina.
+2. **Clienti**: stesso flusso con preset diverso.
+
+**Risultato atteso:** preferenze salvate per utente (sync server). Ripristino torna al default vista.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-202 — Arrivo merce su mobile (card righe)
+
+|              |                            |
+| ------------ | -------------------------- |
+| **Priorità** | P2                         |
+| **Ruolo**    | Qualsiasi (anche Commesso) |
+| **Device**   | Mobile                     |
+
+**Passaggi:**
+
+1. Da smartphone apri bozza **Arrivo merce** con almeno 2 righe.
+2. Verifica layout **card** per riga (etichette campo + valori).
+3. Modifica quantità su una riga e salva bozza.
+
+**Risultato atteso:** nessun overflow orizzontale. Touch target sufficienti. Salvataggio bozza OK.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
 ## Riepilogo finale
 
 Al termine di tutti i test, compilare:
 
 | Metrica                 | Valore |
 | ----------------------- | ------ |
-| Test totali             | ~110   |
+| Test totali             | ~118   |
 | OK                      |        |
 | KO                      |        |
 | N/A                     |        |
@@ -3266,9 +3429,9 @@ Al termine di tutti i test, compilare:
 | T-051       | Prodotti  | Wizard varianti                             |
 | T-091       | Magazzino | Carico                                      |
 | T-116       | Fornitori | Nuovo fornitore                             |
-| T-121–T-123 | Ordini    | Crea → invia → ricevi                       |
+| T-121–T-123 | Ordini    | Crea → invia → registra arrivo merce        |
 | T-125–T-126 | Vendite   | Vendita + storno banco                      |
-| T-136–T-137 | Documenti | Arrivo merce                                |
+| T-136–T-137 | Documenti | Arrivo merce (manuale e da ordine)          |
 | T-143       | Documenti | PDF documento                               |
 | T-160–T-163 | Admin     | Shell + tenant + utenti                     |
 | T-190       | E2E       | Onboarding Shopify                          |

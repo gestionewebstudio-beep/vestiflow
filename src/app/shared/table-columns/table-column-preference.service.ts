@@ -108,6 +108,19 @@ export class TableColumnPreferenceService {
     this.applyPreset(viewId, PresetId.Default);
   }
 
+  setColumnWidth(viewId: TableViewId, columnId: string, widthPx: number): void {
+    const current = this.readState(viewId);
+    this.commit(viewId, {
+      ...current,
+      presetId: 'custom',
+      columnWidths: { ...current.columnWidths, [columnId]: widthPx },
+    });
+  }
+
+  columnWidth(viewId: TableViewId, columnId: string, fallbackPx: number): number {
+    return this.readState(viewId).columnWidths[columnId] ?? fallbackPx;
+  }
+
   isColumnVisible(viewId: TableViewId, columnId: string): boolean {
     const state = this.readState(viewId);
     return !state.hiddenColumnIds.includes(columnId);
@@ -149,6 +162,7 @@ export class TableColumnPreferenceService {
       columnOrder: remote.columnOrder?.length ? remote.columnOrder : fallback.columnOrder,
       hiddenColumnIds: remote.hiddenColumnIds ?? [],
       pinnedColumnIds: remote.pinnedColumnIds ?? [],
+      columnWidths: remote.columnWidths ?? fallback.columnWidths,
     };
     this.states.get(viewId)!.set(merged);
     this.persistLocal(viewId, merged);
@@ -193,6 +207,7 @@ export class TableColumnPreferenceService {
         columnOrder: parsed.columnOrder.length ? parsed.columnOrder : fallback.columnOrder,
         hiddenColumnIds: parsed.hiddenColumnIds,
         pinnedColumnIds: parsed.pinnedColumnIds,
+        columnWidths: parsed.columnWidths,
       };
     } catch {
       return fallback;

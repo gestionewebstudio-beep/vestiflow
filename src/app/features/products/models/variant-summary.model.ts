@@ -12,5 +12,9 @@ export interface VariantSummary {
   readonly productName: string;
   /** Display completo (es. 'T-shirt Basic — M / Bianco'). */
   readonly title: string;
+  readonly barcode?: string;
   readonly sellingPrice: Money;
+  readonly purchasePrice?: Money;
+  readonly supplierSku?: string;
+  readonly stockOnHand?: number | null;
 }

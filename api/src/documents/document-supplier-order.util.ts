@@ -75,6 +75,29 @@ async function recalculateSupplierOrderStatus(
   });
 }
 
+/** Collega righe documento alle righe ordine fornitore per variante se manca supplierOrderLineId. */
+export async function enrichReceiptLinesWithSupplierOrderLineIds(
+  tx: Prisma.TransactionClient,
+  supplierOrderId: string,
+  lines: readonly DocumentLine[],
+): Promise<DocumentLine[]> {
+  const orderLines = await tx.supplierOrderLine.findMany({
+    where: { orderId: supplierOrderId },
+    select: { id: true, variantId: true },
+  });
+  const byVariant = new Map(orderLines.map((line) => [line.variantId, line.id]));
+  return lines.map((line) => {
+    if (line.supplierOrderLineId || !line.variantId) {
+      return line;
+    }
+    const orderLineId = byVariant.get(line.variantId);
+    if (!orderLineId) {
+      return line;
+    }
+    return { ...line, supplierOrderLineId: orderLineId };
+  });
+}
+
 /** Verifica che le quantità documento non superino il residuo ordine fornitore. */
 export async function assertSupplierOrderReceiptQuantities(
   tx: Prisma.TransactionClient,

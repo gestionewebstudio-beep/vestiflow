@@ -63,6 +63,8 @@
       <i class="pi pi-filter-slash" aria-hidden="true"></i>
       Azzera filtri
     </app-button>
+
+    <app-table-column-picker [viewId]="customerListView" />
   </div>
 
   @if (loading()) {
@@ -76,7 +78,11 @@
       icon="pi-users"
     />
   } @else {
-    <app-customer-table [customers]="customers()" (rowClick)="openCustomer($event)" />
+    <app-customer-table
+      [customers]="customers()"
+      [columns]="tableColumns()"
+      (rowClick)="openCustomer($event)"
+    />
     <app-pagination
       label="Paginazione clienti"
       [meta]="meta()"

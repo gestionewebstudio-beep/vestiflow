@@ -11,6 +11,7 @@ import { applyIncomingDelta } from '../inventory/inventory-incoming.util';
 import {
   applySupplierOrderReceipt,
   assertSupplierOrderReceiptQuantities,
+  enrichReceiptLinesWithSupplierOrderLineIds,
   reconcileSupplierOrderReceipt,
   reverseSupplierOrderReceipt,
 } from './document-supplier-order.util';
@@ -31,6 +32,9 @@ function createTxMock() {
   ]);
 
   return {
+    supplierOrder: {
+      update: vi.fn(),
+    },
     supplierOrderLine: {
       findMany: vi.fn(async ({ where }: { where: { orderId: string; id?: { in: string[] } } }) => {
         const lines = [...orderLines.values()].filter((line) => line.orderId === where.orderId);
@@ -53,9 +57,6 @@ function createTxMock() {
         orderLines.set(where.id, line);
         return line;
       }),
-    },
-    supplierOrder: {
-      update: vi.fn(),
     },
     _lines: orderLines,
   };
@@ -200,5 +201,29 @@ describe('document-supplier-order.util', () => {
       'loc-1',
       -3,
     );
+  });
+
+  it('enrichReceiptLinesWithSupplierOrderLineIds collega righe per variantId', async () => {
+    const lines = [
+      {
+        id: 'doc-line-1',
+        supplierOrderLineId: null,
+        variantId: 'variant-1',
+      },
+      {
+        id: 'doc-line-2',
+        supplierOrderLineId: 'line-1',
+        variantId: 'variant-1',
+      },
+    ] as never[];
+
+    const enriched = await enrichReceiptLinesWithSupplierOrderLineIds(
+      tx as never,
+      'order-1',
+      lines,
+    );
+
+    expect(enriched[0]?.supplierOrderLineId).toBe('line-1');
+    expect(enriched[1]?.supplierOrderLineId).toBe('line-1');
   });
 });

@@ -4,6 +4,10 @@ export const TableViewId = {
   InventoryLevels: 'inventory_levels',
   DocumentsList: 'documents_list',
   SuppliersList: 'suppliers_list',
+  GoodsReceiptLines: 'goods_receipt_lines',
+  SupplierOrderLines: 'supplier_order_lines',
+  ProductsList: 'products_list',
+  CustomersList: 'customers_list',
 } as const;
 export type TableViewId = (typeof TableViewId)[keyof typeof TableViewId];
 
@@ -34,6 +38,9 @@ export interface TableColumnDef {
   /** Colonna visibile di default se nessuna preferenza salvata. */
   readonly defaultVisible?: boolean;
   readonly pinnable?: boolean;
+  /** Larghezza iniziale in px (griglia editabile). */
+  readonly defaultWidthPx?: number;
+  readonly minWidthPx?: number;
 }
 
 export interface TableViewState {
@@ -41,6 +48,7 @@ export interface TableViewState {
   readonly columnOrder: readonly string[];
   readonly hiddenColumnIds: readonly string[];
   readonly pinnedColumnIds: readonly string[];
+  readonly columnWidths: Readonly<Record<string, number>>;
 }
 
 export type TableViewPresetMap = Record<TableViewPresetId, readonly string[]>;

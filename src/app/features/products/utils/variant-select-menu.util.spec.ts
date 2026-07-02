@@ -21,4 +21,23 @@ describe('toVariantSelectMenuOptions', () => {
       detail: 'MAG-M-ROSSO',
     });
   });
+
+  it('include barcode e costo acquisto nel dettaglio', () => {
+    const options = toVariantSelectMenuOptions([
+      {
+        variantId: 'var-2',
+        productId: 'prod-2',
+        sku: 'SKU-2',
+        productName: 'Polo',
+        title: 'Polo — L',
+        barcode: '8001234567890',
+        sellingPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+        purchasePrice: { amountMinor: 1200, currencyCode: 'EUR' },
+      },
+    ]);
+
+    expect(options[0]?.detail).toContain('SKU-2');
+    expect(options[0]?.detail).toContain('8001234567890');
+    expect(options[0]?.detail).toContain('Costo');
+  });
 });

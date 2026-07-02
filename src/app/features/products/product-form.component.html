@@ -146,23 +146,32 @@
     <footer class="product-form__footer">
       <app-button variant="secondary" (click)="cancel()">Annulla</app-button>
       <div class="product-form__nav">
-        @if (!isQuickCreate()) {
+        @if (!isQuickCreate() && !embeddedPanel()) {
           <app-button variant="secondary" [disabled]="isFirstStep()" (click)="prev()">
             <i class="pi pi-chevron-left" aria-hidden="true"></i>
             Indietro
           </app-button>
         }
         @if (showSubmitOnCurrentStep()) {
-          <app-button [disabled]="!canSubmit()" (click)="onSubmit()">
-            {{
-              submitting()
-                ? 'Salvataggio…'
-                : mode() === 'edit'
-                  ? 'Salva modifiche'
-                  : 'Crea prodotto'
-            }}
-          </app-button>
-        } @else {
+          @if (embeddedPanel()) {
+            <app-button variant="secondary" [disabled]="!canSubmit()" (click)="onSubmit(false)">
+              Salva senza aggiungere
+            </app-button>
+            <app-button [disabled]="!canSubmit()" (click)="onSubmit(true)">
+              Salva e aggiungi al documento
+            </app-button>
+          } @else {
+            <app-button [disabled]="!canSubmit()" (click)="onSubmit()">
+              {{
+                submitting()
+                  ? 'Salvataggio…'
+                  : mode() === 'edit'
+                    ? 'Salva modifiche'
+                    : 'Crea prodotto'
+              }}
+            </app-button>
+          }
+        } @else if (!embeddedPanel()) {
           <app-button [disabled]="!canAdvance()" (click)="next()">
             Avanti
             <i class="pi pi-chevron-right" aria-hidden="true"></i>

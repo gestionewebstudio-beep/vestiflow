@@ -18,6 +18,7 @@ import {
   of,
   startWith,
   switchMap,
+  EMPTY,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 import { take } from 'rxjs';
@@ -25,6 +26,7 @@ import { take } from 'rxjs';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
+import type { LinkedSupplierOrderLineContext } from '@core/models/document.model';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
@@ -45,6 +47,7 @@ import { mergeVariantSummaries } from '@features/products/utils/variant-summary-
 import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
 import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -53,8 +56,27 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 
-import { documentTypeLabel } from './models/document-labels.util';
+import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
+import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
+import { ProductFormComponent } from '@features/products/product-form.component';
+
+import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
+import {
+  GOODS_RECEIPT_LINE_COLUMNS,
+  GOODS_RECEIPT_LINE_PRESETS,
+  GOODS_RECEIPT_LINES_VIEW,
+} from './models/goods-receipt-line-columns.config';
+import {
+  documentTypeLabel,
+  documentStatusLabel,
+  documentStatusTone,
+} from './models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { DocumentService } from './services/document.service';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
@@ -65,7 +87,7 @@ type SubmitState =
   | { readonly status: 'error'; readonly error: AppError };
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-const VARIANT_SEARCH_MIN_CHARS = 2;
+const VARIANT_SEARCH_MIN_CHARS = 1;
 
 /**
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
@@ -77,6 +99,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
@@ -84,6 +107,11 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    TableColumnPickerComponent,
+    TableColumnResizeDirective,
+    DocumentAttachmentsPanelComponent,
+    SlidePanelComponent,
+    ProductFormComponent,
   ],
   templateUrl: './goods-receipt-form.component.html',
   styleUrl: './goods-receipt-form.component.scss',
@@ -105,10 +133,18 @@ export class GoodsReceiptFormComponent {
   protected readonly formatMoney = formatMoney;
   protected readonly documentTypeLabel = documentTypeLabel;
 
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+  private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
+
+  protected readonly lineColumnsView = TableViewId.GoodsReceiptLines;
+  protected readonly lineColumnDefs = GOODS_RECEIPT_LINE_COLUMNS;
+
   protected readonly typeOptions: readonly SelectMenuOption[] = [
     DocumentType.GoodsReceipt,
     DocumentType.SupplierDdt,
     DocumentType.SupplierInvoiceAccompanying,
+    DocumentType.ManualLoad,
+    DocumentType.InitialLoad,
   ].map((type) => ({ value: type, label: documentTypeLabel(type) }));
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
@@ -126,6 +162,91 @@ export class GoodsReceiptFormComponent {
       return 'Nuovo arrivo merce';
     }
     return this.isConfirmedEdit() ? 'Modifica documento confermato' : 'Modifica arrivo merce';
+  });
+
+  protected readonly documentStatusLabel = documentStatusLabel;
+  protected readonly documentStatusTone = documentStatusTone;
+
+  private readonly supplierOrderLineMap = signal<Map<string, LinkedSupplierOrderLineContext>>(
+    new Map(),
+  );
+  protected readonly hasLinkedSupplierOrder = computed(
+    () => this.supplierOrderLineMap().size > 0 || this.linkedSupplierOrder() != null,
+  );
+
+  protected readonly previewReference = signal<string | null>(null);
+  protected readonly editUnlocked = signal(false);
+  protected readonly unlockDialogOpen = signal(false);
+  protected readonly productPanelOpen = signal(false);
+  protected readonly productPanelLineIndex = signal<number | null>(null);
+  protected readonly attachTargetLineIndex = signal<number | null>(null);
+  protected readonly registerDialogOpen = signal(false);
+  protected readonly lifecycleActionSaving = signal(false);
+  protected readonly attachWithoutAddDialogOpen = signal(false);
+  protected readonly pendingAttachVariantId = signal<string | null>(null);
+
+  private readonly tenantSettings = toSignal(
+    this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
+    { initialValue: null as TenantFeatureSettings | null },
+  );
+
+  protected readonly operationalStatusWarning = computed(() => {
+    const status = this.documentStatus();
+    if (status === DocumentStatus.Printed) {
+      return 'Documento segnato come stampato: verifica coerenza con il documento cartaceo prima di modificarlo.';
+    }
+    if (status === DocumentStatus.Sent) {
+      return 'Documento segnato come inviato al fornitore o al commercialista.';
+    }
+    if (status === DocumentStatus.ExternallyRegistered) {
+      return 'Documento registrato esternamente: le modifiche non aggiornano il gestionale contabile esterno.';
+    }
+    return null;
+  });
+
+  protected readonly canPrintDocument = computed(() => {
+    const doc = this.loadedDocument();
+    if (!doc) {
+      return false;
+    }
+    return (
+      doc.status === DocumentStatus.Confirmed ||
+      doc.status === DocumentStatus.Sent ||
+      doc.status === DocumentStatus.ExternallyRegistered
+    );
+  });
+
+  protected readonly canSendDocument = computed(() => {
+    const doc = this.loadedDocument();
+    if (!doc) {
+      return false;
+    }
+    return doc.status === DocumentStatus.Confirmed || doc.status === DocumentStatus.Printed;
+  });
+
+  protected readonly canRegisterExternalDocument = computed(() => {
+    const doc = this.loadedDocument();
+    if (!doc) {
+      return false;
+    }
+    return (
+      doc.status === DocumentStatus.Confirmed ||
+      doc.status === DocumentStatus.Printed ||
+      doc.status === DocumentStatus.Sent
+    );
+  });
+
+  protected readonly formReadOnly = computed(() => this.isConfirmedEdit() && !this.editUnlocked());
+
+  protected readonly documentStatus = computed(
+    () => this.loadedDocument()?.status ?? DocumentStatus.Draft,
+  );
+  protected readonly internalReferenceLabel = computed(() => {
+    const doc = this.loadedDocument();
+    if (doc?.reference) {
+      return doc.reference;
+    }
+    return this.previewReference();
   });
 
   protected readonly linkedSupplierOrder = computed(
@@ -159,6 +280,7 @@ export class GoodsReceiptFormComponent {
             }
             this.loadedDocument.set(doc);
             this.patchFormFromDocument(doc);
+            this.refreshNumberPreview();
             if (confirmedEditable) {
               this.form.controls.type.disable({ emitEvent: false });
             } else {
@@ -190,15 +312,29 @@ export class GoodsReceiptFormComponent {
   protected readonly variantSearchDraft = signal('');
 
   private readonly searchedVariants = toSignal(
-    toObservable(this.variantSearchDraft).pipe(
+    toObservable(
+      computed(() => ({
+        search: this.variantSearchDraft(),
+        supplierId: this.form.controls.supplierId.value,
+        locationId: this.form.controls.locationId.value,
+      })),
+    ).pipe(
       debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
-      distinctUntilChanged(),
-      switchMap((search) => {
+      distinctUntilChanged(
+        (a, b) =>
+          a.search === b.search && a.supplierId === b.supplierId && a.locationId === b.locationId,
+      ),
+      switchMap(({ search, supplierId, locationId }) => {
         const term = search.trim();
         if (term.length < VARIANT_SEARCH_MIN_CHARS) {
           return of([] as readonly VariantSummary[]);
         }
-        return this.productService.searchVariantSummaries({ search: term, pageSize: 30 });
+        return this.productService.searchVariantSummaries({
+          search: term,
+          pageSize: 30,
+          supplierId: supplierId || undefined,
+          locationId: locationId || undefined,
+        });
       }),
     ),
     { initialValue: [] as readonly VariantSummary[] },
@@ -224,8 +360,30 @@ export class GoodsReceiptFormComponent {
     externalDocDate: this.fb.control(''),
     notes: this.fb.control(''),
     internalComment: this.fb.control(''),
+    billingCause: this.fb.control(''),
+    externalRef: this.fb.control(''),
+    invoicePending: this.fb.control(false),
     lines: this.fb.array([this.createLine()]),
   });
+
+  constructor() {
+    this.columnPreferences.registerView(
+      GOODS_RECEIPT_LINES_VIEW,
+      GOODS_RECEIPT_LINE_COLUMNS,
+      GOODS_RECEIPT_LINE_PRESETS,
+    );
+    this.syncSupplierRequirement(this.form.controls.type.value);
+    this.form.controls.type.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((type) => {
+        this.syncSupplierRequirement(type);
+        this.refreshNumberPreview();
+      });
+    this.form.controls.documentDate.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberPreview());
+    this.refreshNumberPreview();
+  }
 
   protected get lines(): FormArray<ReturnType<GoodsReceiptFormComponent['createLine']>> {
     return this.form.controls.lines;
@@ -299,6 +457,9 @@ export class GoodsReceiptFormComponent {
   protected readonly savingQuickProduct = this._savingQuickProduct.asReadonly();
 
   protected readonly confirmDialogOpen = signal(false);
+  protected readonly supplierPriceDialogOpen = signal(false);
+  private applySupplierPriceUpdates = false;
+  private readonly pendingConfirmDocId = signal<string | null>(null);
 
   private supplierSubscription: Subscription | null = null;
   private quickProductSubscription: Subscription | null = null;
@@ -348,9 +509,52 @@ export class GoodsReceiptFormComponent {
       const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
         (v) => v.variantId === value,
       );
-      if (summary && !line.controls.description.value.trim()) {
-        line.controls.description.setValue(`${summary.productName} · ${summary.title}`.trim());
+      if (summary) {
+        if (!line.controls.description.value.trim()) {
+          line.controls.description.setValue(`${summary.productName} · ${summary.title}`.trim());
+        }
+        if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
+          line.controls.unitCost.setValue(
+            moneyToDecimalString(summary.purchasePrice).replace('.', ','),
+          );
+        }
       }
+    }
+  }
+
+  protected poLineContext(index: number): {
+    ordered: number;
+    received: number;
+    remaining: number;
+  } | null {
+    const poLineId = this.lines.at(index).controls.supplierOrderLineId.value;
+    if (!poLineId) {
+      return null;
+    }
+    const ctx = this.supplierOrderLineMap().get(poLineId);
+    if (!ctx) {
+      return null;
+    }
+    return {
+      ordered: ctx.orderedQuantity,
+      received: ctx.receivedQuantity,
+      remaining: Math.max(0, ctx.orderedQuantity - ctx.receivedQuantity),
+    };
+  }
+
+  protected requestUnlockEdit(): void {
+    this.unlockDialogOpen.set(true);
+  }
+
+  protected confirmUnlockEdit(): void {
+    this.unlockDialogOpen.set(false);
+    this.editUnlocked.set(true);
+  }
+
+  protected openSupplierDetail(): void {
+    const supplierId = this.form.controls.supplierId.value;
+    if (supplierId) {
+      void this.router.navigate(['/app/suppliers', supplierId]);
     }
   }
 
@@ -514,12 +718,161 @@ export class GoodsReceiptFormComponent {
     if (!this.validateForm()) {
       return;
     }
+    this.applySupplierPriceUpdates = false;
     this.confirmDialogOpen.set(true);
   }
 
   protected confirmAndSave(): void {
     this.confirmDialogOpen.set(false);
-    void this.persist(true);
+    void this.persist(true, this.applySupplierPriceUpdates);
+  }
+
+  protected confirmSupplierPriceUpdate(apply: boolean): void {
+    const docId = this.pendingConfirmDocId();
+    this.supplierPriceDialogOpen.set(false);
+    if (!docId) {
+      return;
+    }
+    this._submitState.set({ status: 'saving' });
+    this.documentService
+      .confirmDocument(docId, { applySupplierPriceUpdates: apply })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => {
+          this.pendingConfirmDocId.set(null);
+          this._submitState.set({ status: 'idle' });
+          void this.router.navigate([this.listPath, doc.id]);
+        },
+        error: (err: unknown) => {
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  protected isLineColumnVisible(columnId: string): boolean {
+    const settings = this.tenantSettings();
+    if (columnId === 'lot' || columnId === 'expiry') {
+      if (settings && !settings.lotsEnabled) {
+        return false;
+      }
+    }
+    if (columnId === 'serials' && settings && !settings.serialsEnabled) {
+      return false;
+    }
+    if (
+      (columnId === 'poOrdered' || columnId === 'poReceived' || columnId === 'poRemaining') &&
+      !this.hasLinkedSupplierOrder()
+    ) {
+      return false;
+    }
+    return this.columnPreferences.isColumnVisible(GOODS_RECEIPT_LINES_VIEW, columnId);
+  }
+
+  protected lineColumnWidth(columnId: string): string {
+    const def = GOODS_RECEIPT_LINE_COLUMNS.find((col) => col.id === columnId);
+    const fallback = def?.defaultWidthPx ?? 96;
+    return `${this.columnPreferences.columnWidth(GOODS_RECEIPT_LINES_VIEW, columnId, fallback)}px`;
+  }
+
+  protected onLineColumnResize(columnId: string, widthPx: number): void {
+    this.columnPreferences.setColumnWidth(GOODS_RECEIPT_LINES_VIEW, columnId, widthPx);
+  }
+
+  protected openFullProductCreate(lineIndex: number): void {
+    this.attachTargetLineIndex.set(lineIndex);
+    this.productPanelLineIndex.set(lineIndex);
+    this.productPanelOpen.set(true);
+  }
+
+  protected closeProductPanel(): void {
+    this.productPanelOpen.set(false);
+    this.productPanelLineIndex.set(null);
+  }
+
+  protected onProductCreatedFromPanel(event: { readonly variantId: string }): void {
+    const lineIndex = this.productPanelLineIndex();
+    if (lineIndex != null) {
+      this.onVariantSelect(lineIndex, event.variantId);
+    }
+    this.closeProductPanel();
+  }
+
+  protected onProductSavedWithoutAttach(event: { readonly variantId: string }): void {
+    this.pendingAttachVariantId.set(event.variantId);
+    this.attachWithoutAddDialogOpen.set(true);
+    this.closeProductPanel();
+  }
+
+  protected attachPendingVariantToLine(): void {
+    const variantId = this.pendingAttachVariantId();
+    const lineIndex = this.attachTargetLineIndex();
+    if (variantId != null && lineIndex != null) {
+      this.onVariantSelect(lineIndex, variantId);
+    }
+    this.pendingAttachVariantId.set(null);
+    this.attachWithoutAddDialogOpen.set(false);
+    this.attachTargetLineIndex.set(null);
+  }
+
+  protected dismissAttachPendingVariant(): void {
+    this.pendingAttachVariantId.set(null);
+    this.attachWithoutAddDialogOpen.set(false);
+    this.attachTargetLineIndex.set(null);
+  }
+
+  protected printDocumentLifecycle(): void {
+    const id = this.editDocumentId();
+    if (!id || this.lifecycleActionSaving()) {
+      return;
+    }
+    this.lifecycleActionSaving.set(true);
+    this.documentService
+      .markPrinted(id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.lifecycleActionSaving.set(false);
+          this.reload();
+        },
+        error: () => this.lifecycleActionSaving.set(false),
+      });
+  }
+
+  protected sendDocumentLifecycle(): void {
+    const id = this.editDocumentId();
+    if (!id || this.lifecycleActionSaving()) {
+      return;
+    }
+    this.lifecycleActionSaving.set(true);
+    this.documentService
+      .markSent(id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.lifecycleActionSaving.set(false);
+          this.reload();
+        },
+        error: () => this.lifecycleActionSaving.set(false),
+      });
+  }
+
+  protected registerDocumentExternal(): void {
+    const id = this.editDocumentId();
+    if (!id || this.lifecycleActionSaving()) {
+      return;
+    }
+    this.lifecycleActionSaving.set(true);
+    this.documentService
+      .registerExternal(id, {})
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.lifecycleActionSaving.set(false);
+          this.registerDialogOpen.set(false);
+          this.reload();
+        },
+        error: () => this.lifecycleActionSaving.set(false),
+      });
   }
 
   protected cancel(): void {
@@ -567,7 +920,7 @@ export class GoodsReceiptFormComponent {
     );
   }
 
-  private persist(confirmAfterSave: boolean): void {
+  private persist(confirmAfterSave: boolean, applySupplierPriceUpdates = false): void {
     if (this.saving() || !this.validateForm()) {
       return;
     }
@@ -580,6 +933,8 @@ export class GoodsReceiptFormComponent {
       currency: this.currency,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
+      billingCause: raw.invoicePending ? 'In attesa fattura' : raw.billingCause.trim() || undefined,
+      externalRef: raw.externalRef.trim() || undefined,
       externalDocNumber: raw.externalDocNumber.trim() || undefined,
       externalDocDate: raw.externalDocDate
         ? new Date(raw.externalDocDate).toISOString()
@@ -615,7 +970,28 @@ export class GoodsReceiptFormComponent {
 
     const request$ =
       confirmAfterSave && !confirmedEdit
-        ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
+        ? save$.pipe(
+            switchMap((doc) => {
+              if (applySupplierPriceUpdates) {
+                return this.documentService.confirmDocument(doc.id, {
+                  applySupplierPriceUpdates: true,
+                });
+              }
+              return this.documentService.listSupplierPriceDiffs(doc.id).pipe(
+                switchMap(({ items, policy }) => {
+                  if (policy === 'ask' && items.length > 0) {
+                    this.pendingConfirmDocId.set(doc.id);
+                    this._submitState.set({ status: 'idle' });
+                    this.supplierPriceDialogOpen.set(true);
+                    return EMPTY;
+                  }
+                  return this.documentService.confirmDocument(doc.id, {
+                    applySupplierPriceUpdates: policy === 'always' && items.length > 0,
+                  });
+                }),
+              );
+            }),
+          )
         : save$;
 
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -630,6 +1006,13 @@ export class GoodsReceiptFormComponent {
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
+    this.editUnlocked.set(false);
+    const poMap = new Map<string, LinkedSupplierOrderLineContext>();
+    for (const line of doc.linkedSupplierOrderLines ?? []) {
+      poMap.set(line.id, line);
+    }
+    this.supplierOrderLineMap.set(poMap);
+
     this.form.patchValue({
       type: doc.type,
       supplierId: doc.supplierId ?? '',
@@ -639,6 +1022,9 @@ export class GoodsReceiptFormComponent {
       externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
       notes: doc.notes ?? '',
       internalComment: doc.internalComment ?? '',
+      billingCause: doc.billingCause === 'In attesa fattura' ? '' : (doc.billingCause ?? ''),
+      externalRef: doc.externalRef ?? '',
+      invoicePending: doc.billingCause === 'In attesa fattura',
     });
     this.lines.clear();
     for (const line of doc.lines ?? []) {
@@ -692,6 +1078,33 @@ export class GoodsReceiptFormComponent {
       const parsed = parseMoneyInput(value, this.currency);
       return parsed === null || parsed.amountMinor < 0;
     });
+  }
+
+  private syncSupplierRequirement(type: DocumentType): void {
+    const required = type !== DocumentType.ManualLoad && type !== DocumentType.InitialLoad;
+    const control = this.form.controls.supplierId;
+    if (required) {
+      control.setValidators([Validators.required]);
+    } else {
+      control.clearValidators();
+    }
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private refreshNumberPreview(): void {
+    if (this.loadedDocument()?.reference) {
+      this.previewReference.set(null);
+      return;
+    }
+    const type = this.form.controls.type.value;
+    const year = new Date(this.form.controls.documentDate.value).getFullYear();
+    this.documentService
+      .previewDocumentNumber(type, { year })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (preview) => this.previewReference.set(preview.reference),
+        error: () => this.previewReference.set(null),
+      });
   }
 
   private toAppError(err: unknown): AppError {

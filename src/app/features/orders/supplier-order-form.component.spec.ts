@@ -13,6 +13,8 @@ import { InventoryService } from '@features/inventory/services/inventory.service
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
 import { SupplierOrderService } from './services/supplier-order.service';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { signal } from '@angular/core';
 
 const SUPPLIERS = [
   { id: 'sup-1', tenantId: 't1', name: 'Tessuti Italia', email: null, phone: null },
@@ -46,6 +48,35 @@ function operationalLocationsMock(locations: typeof LOCATIONS) {
     isFixedSingleStore: () => false,
     fixedSingleStoreLocationId: () => null,
     fixedSingleStoreLabel: () => null,
+  };
+}
+
+function tableColumnPreferenceMock() {
+  const defaultState = {
+    presetId: 'default' as const,
+    columnOrder: ['variant', 'quantity', 'unitCost', 'lineTotal', 'actions'],
+    hiddenColumnIds: [] as string[],
+    pinnedColumnIds: [] as string[],
+    columnWidths: {} as Record<string, number>,
+  };
+  const stateSignal = signal(defaultState);
+  return {
+    registerView: vi.fn(),
+    isColumnVisible: vi.fn(
+      (_view: unknown, columnId: string) => !defaultState.hiddenColumnIds.includes(columnId),
+    ),
+    columnWidth: vi.fn((_view: unknown, _id: string, fallback: number) => fallback),
+    setColumnWidth: vi.fn(),
+    state: vi.fn(() => stateSignal.asReadonly()),
+    columnDefs: vi.fn(() => []),
+    presetMap: vi.fn(() => ({})),
+    visibleColumns: vi.fn(() => () => []),
+    visibleColumnIds: vi.fn(() => defaultState.columnOrder),
+    applyPreset: vi.fn(),
+    toggleColumn: vi.fn(),
+    moveColumn: vi.fn(),
+    togglePin: vi.fn(),
+    resetToDefault: vi.fn(),
   };
 }
 
@@ -89,6 +120,10 @@ describe('SupplierOrderFormComponent', () => {
           provide: SupplierOrderService,
           useValue: { createOrder },
         },
+        {
+          provide: TableColumnPreferenceService,
+          useValue: tableColumnPreferenceMock(),
+        },
       ],
     });
 
@@ -131,10 +166,12 @@ describe('SupplierOrderFormComponent', () => {
       await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
     );
 
-    await user.clear(screen.getByLabelText('Quantità'));
-    await user.type(screen.getByLabelText('Quantità'), '2');
-    await user.clear(screen.getByLabelText('Costo unitario'));
-    await user.type(screen.getByLabelText('Costo unitario'), '12,50');
+    const qtyInput = screen.getByRole('spinbutton');
+    await user.clear(qtyInput);
+    await user.type(qtyInput, '2');
+    const costInput = screen.getByPlaceholderText('0,00');
+    await user.clear(costInput);
+    await user.type(costInput, '12,50');
 
     await user.click(screen.getByRole('button', { name: 'Salva bozza' }));
 

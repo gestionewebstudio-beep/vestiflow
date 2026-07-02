@@ -140,101 +140,138 @@
       <section class="po-form__lines" aria-labelledby="po-lines-title">
         <div class="po-form__lines-head">
           <h2 id="po-lines-title" class="po-form__subtitle">Righe ordine</h2>
-          <app-button type="button" variant="ghost" (click)="addLine()">
-            <i class="pi pi-plus" aria-hidden="true"></i>
-            Aggiungi riga
-          </app-button>
+          <div class="po-form__lines-tools">
+            <app-table-column-picker [viewId]="lineColumnsView" />
+            <app-button type="button" variant="ghost" (click)="addLine()">
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              Aggiungi riga
+            </app-button>
+          </div>
         </div>
 
-        <div class="po-form__line-list" formArrayName="lines">
-          @for (line of lines.controls; track line; let i = $index) {
-            <div class="po-form__line" [formGroupName]="i">
-              <div class="po-form__line-field po-form__line-field--variant">
-                <span class="po-form__label">Variante</span>
-                <app-select-menu
-                  [options]="variantOptions()"
-                  [value]="line.controls.variantId.value"
-                  ariaLabel="Variante"
-                  placeholder="Seleziona una variante…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  [filterOptionsLocally]="false"
-                  searchPlaceholder="Cerca per prodotto o SKU…"
-                  searchAriaLabel="Cerca variante per prodotto o SKU"
-                  [invalid]="lineFieldInvalid(i, 'variantId')"
-                  (valueChange)="onVariantSelect(i, $event)"
-                  (searchChange)="onVariantSearch($event)"
-                />
-                @if (lineFieldInvalid(i, 'variantId')) {
-                  <p class="po-form__error">Seleziona la variante.</p>
-                } @else {
-                  <span class="po-form__error-placeholder" aria-hidden="true"></span>
+        <div class="po-form__table-wrap">
+          <table class="po-form__table">
+            <thead>
+              <tr>
+                @if (isLineColumnVisible('variant')) {
+                  <th scope="col" [style.width]="lineColumnWidth('variant')">
+                    Articolo / SKU
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('variant', $event)"
+                    ></span>
+                  </th>
                 }
-              </div>
-
-              <div class="po-form__line-field po-form__line-field--qty">
-                <label class="po-form__label" [attr.for]="'po-qty-' + i">Quantità</label>
-                <input
-                  [id]="'po-qty-' + i"
-                  class="po-form__input po-form__input--num"
-                  type="number"
-                  inputmode="numeric"
-                  min="1"
-                  step="1"
-                  formControlName="orderedQuantity"
-                  [attr.aria-invalid]="lineFieldInvalid(i, 'orderedQuantity')"
-                />
-                @if (lineFieldInvalid(i, 'orderedQuantity')) {
-                  <p class="po-form__error">Intero ≥ 1.</p>
-                } @else {
-                  <span class="po-form__error-placeholder" aria-hidden="true"></span>
+                @if (isLineColumnVisible('quantity')) {
+                  <th scope="col" class="po-form__num" [style.width]="lineColumnWidth('quantity')">
+                    Q.tà
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('quantity', $event)"
+                    ></span>
+                  </th>
                 }
-              </div>
-
-              <div class="po-form__line-field po-form__line-field--cost">
-                <label class="po-form__label" [attr.for]="'po-cost-' + i">Costo unitario</label>
-                <input
-                  [id]="'po-cost-' + i"
-                  class="po-form__input po-form__input--num"
-                  type="text"
-                  inputmode="decimal"
-                  formControlName="unitCost"
-                  placeholder="0,00"
-                  [attr.aria-invalid]="unitCostInvalid(i)"
-                />
-                @if (unitCostInvalid(i)) {
-                  <p class="po-form__error">Importo non valido.</p>
-                } @else {
-                  <span class="po-form__error-placeholder" aria-hidden="true"></span>
+                @if (isLineColumnVisible('unitCost')) {
+                  <th scope="col" class="po-form__num" [style.width]="lineColumnWidth('unitCost')">
+                    Costo
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('unitCost', $event)"
+                    ></span>
+                  </th>
                 }
-              </div>
-
-              <div class="po-form__line-field po-form__line-field--total">
-                <label class="po-form__label" [attr.for]="'po-subtotal-' + i">Subtotale</label>
-                <input
-                  [id]="'po-subtotal-' + i"
-                  class="po-form__input po-form__input--num po-form__input--readonly"
-                  type="text"
-                  readonly
-                  tabindex="-1"
-                  aria-readonly="true"
-                  [value]="formatMoney(lineMoney(i))"
-                />
-                <span class="po-form__error-placeholder" aria-hidden="true"></span>
-              </div>
-
-              <button
-                type="button"
-                class="po-form__line-remove"
-                [disabled]="lines.length <= 1"
-                aria-label="Rimuovi riga"
-                (click)="removeLine(i)"
-              >
-                <i class="pi pi-trash" aria-hidden="true"></i>
-              </button>
-            </div>
-          }
+                @if (isLineColumnVisible('lineTotal')) {
+                  <th scope="col" class="po-form__num" [style.width]="lineColumnWidth('lineTotal')">
+                    Subtotale
+                  </th>
+                }
+                @if (isLineColumnVisible('actions')) {
+                  <th scope="col" [style.width]="lineColumnWidth('actions')">
+                    <span class="sr-only">Azioni</span>
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody formArrayName="lines">
+              @for (line of lines.controls; track line; let i = $index) {
+                <tr class="po-form__table-row" [formGroupName]="i">
+                  @if (isLineColumnVisible('variant')) {
+                    <td class="po-form__cell po-form__cell--variant" data-label="Articolo / SKU">
+                      <app-select-menu
+                        [options]="variantOptions()"
+                        [value]="line.controls.variantId.value"
+                        ariaLabel="Variante"
+                        placeholder="Seleziona una variante…"
+                        [compact]="true"
+                        [fullWidth]="true"
+                        [searchable]="true"
+                        [filterOptionsLocally]="false"
+                        searchPlaceholder="Cerca per prodotto o SKU…"
+                        searchAriaLabel="Cerca variante per prodotto o SKU"
+                        [invalid]="lineFieldInvalid(i, 'variantId')"
+                        (valueChange)="onVariantSelect(i, $event)"
+                        (searchChange)="onVariantSearch($event)"
+                      />
+                      @if (lineFieldInvalid(i, 'variantId')) {
+                        <p class="po-form__error">Seleziona la variante.</p>
+                      }
+                    </td>
+                  }
+                  @if (isLineColumnVisible('quantity')) {
+                    <td class="po-form__cell po-form__num" data-label="Quantità">
+                      <input
+                        [id]="'po-qty-' + i"
+                        class="po-form__input po-form__input--table po-form__input--num"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        step="1"
+                        formControlName="orderedQuantity"
+                        [attr.aria-invalid]="lineFieldInvalid(i, 'orderedQuantity')"
+                      />
+                      @if (lineFieldInvalid(i, 'orderedQuantity')) {
+                        <p class="po-form__error">Intero ≥ 1.</p>
+                      }
+                    </td>
+                  }
+                  @if (isLineColumnVisible('unitCost')) {
+                    <td class="po-form__cell po-form__num" data-label="Costo unitario">
+                      <input
+                        [id]="'po-cost-' + i"
+                        class="po-form__input po-form__input--table po-form__input--num"
+                        type="text"
+                        inputmode="decimal"
+                        formControlName="unitCost"
+                        placeholder="0,00"
+                        [attr.aria-invalid]="unitCostInvalid(i)"
+                      />
+                      @if (unitCostInvalid(i)) {
+                        <p class="po-form__error">Importo non valido.</p>
+                      }
+                    </td>
+                  }
+                  @if (isLineColumnVisible('lineTotal')) {
+                    <td class="po-form__cell po-form__num tabular-nums" data-label="Subtotale">
+                      {{ formatMoney(lineMoney(i)) }}
+                    </td>
+                  }
+                  @if (isLineColumnVisible('actions')) {
+                    <td class="po-form__cell po-form__cell--actions" data-label="Azioni">
+                      <button
+                        type="button"
+                        class="po-form__line-remove"
+                        [disabled]="lines.length <= 1"
+                        aria-label="Rimuovi riga"
+                        (click)="removeLine(i)"
+                      >
+                        <i class="pi pi-trash" aria-hidden="true"></i>
+                      </button>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
         </div>
 
         <p class="po-form__total tabular-nums">

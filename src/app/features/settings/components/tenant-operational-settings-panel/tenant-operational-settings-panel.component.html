@@ -1,0 +1,88 @@
+@if (loading()) {
+  <app-table-skeleton [columns]="2" [rows]="5" />
+} @else if (loadError()) {
+  <app-error-state
+    description="Impossibile caricare le impostazioni operative."
+    retryLabel="Riprova"
+    (retry)="reload()"
+  />
+} @else {
+  <form class="tenant-ops" [formGroup]="form" (ngSubmit)="save()">
+    <p class="tenant-ops__hint">
+      Lotti, seriali e policy di aggiornamento prezzo fornitore si applicano a magazzino e arrivo
+      merce.
+    </p>
+
+    <fieldset class="tenant-ops__group">
+      <legend class="tenant-ops__legend">Tracciabilità</legend>
+      <label class="tenant-ops__check">
+        <input type="checkbox" formControlName="lotsEnabled" />
+        Gestione lotti e scadenze
+      </label>
+      <label class="tenant-ops__check">
+        <input type="checkbox" formControlName="serialsEnabled" />
+        Gestione numeri seriali
+      </label>
+    </fieldset>
+
+    <fieldset class="tenant-ops__group">
+      <legend class="tenant-ops__legend">Prezzo fornitore in carico</legend>
+      <label class="tenant-ops__field" for="tenant-ops-price-policy">
+        Policy aggiornamento
+        <select id="tenant-ops-price-policy" formControlName="updateSupplierPriceOnLoad">
+          @for (opt of pricePolicyOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset class="tenant-ops__group">
+      <legend class="tenant-ops__legend">Default articoli</legend>
+      <label class="tenant-ops__field" for="tenant-ops-uom">
+        Unità di misura predefinita
+        <input
+          id="tenant-ops-uom"
+          type="text"
+          formControlName="defaultUnitOfMeasure"
+          maxlength="16"
+        />
+      </label>
+      <label class="tenant-ops__field" for="tenant-ops-vat">
+        IVA predefinita (%)
+        <input
+          id="tenant-ops-vat"
+          type="number"
+          min="0"
+          max="100"
+          formControlName="defaultVatRatePercent"
+        />
+      </label>
+    </fieldset>
+
+    <fieldset class="tenant-ops__group">
+      <legend class="tenant-ops__legend">Giacenze negative</legend>
+      <label class="tenant-ops__check">
+        <input type="checkbox" formControlName="warnNegativeInventory" />
+        Avvisa su giacenza negativa
+      </label>
+      <label class="tenant-ops__check">
+        <input type="checkbox" formControlName="blockNegativeInventory" />
+        Blocca scarichi oltre disponibile
+      </label>
+    </fieldset>
+
+    @if (saveMessage(); as msg) {
+      <p class="tenant-ops__success" role="status">{{ msg }}</p>
+    }
+    @if (saveError(); as err) {
+      <p class="tenant-ops__error" role="alert">{{ err }}</p>
+    }
+
+    <div class="tenant-ops__actions">
+      <app-button type="submit" [loading]="saving()" [disabled]="saving()">
+        Salva impostazioni
+      </app-button>
+    </div>
+  </form>
+}

@@ -5,6 +5,8 @@ import {
   DestroyRef,
   HostListener,
   inject,
+  input,
+  output,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
@@ -19,6 +21,7 @@ import {
   startWith,
   switchMap,
   tap,
+  take,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
@@ -131,6 +134,13 @@ type FormLoadState =
   styleUrl: './product-form.component.scss',
 })
 export class ProductFormComponent implements CanComponentDeactivate {
+  /** Quando true, il form vive in un pannello laterale (es. arrivo merce). */
+  readonly embeddedPanel = input(false);
+
+  readonly productCreatedWithAttach = output<{ readonly variantId: string }>();
+  readonly productSavedWithoutAttach = output<{ readonly variantId: string }>();
+  readonly panelDismissed = output<void>();
+
   private readonly service = inject(ProductService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly authService = inject(AuthService);
@@ -190,6 +200,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // Stato submit (dichiarati prima del pipe di load, che usa resetDraft in init).
   private readonly _submitState = signal<'idle' | 'submitting' | 'error'>('idle');
   protected readonly submitError = signal<AppError | null>(null);
+  private readonly embeddedAttachAfterSave = signal(true);
 
   private readonly loadTick = signal(0);
   private readonly loadRequest = computed(() => ({ id: this.productId(), tick: this.loadTick() }));
@@ -517,7 +528,14 @@ export class ProductFormComponent implements CanComponentDeactivate {
     return this.isQuickCreate() && this.isFirstStep();
   });
 
-  protected onSubmit(): void {
+  protected onSubmit(attachToDocument = true): void {
+    if (this.embeddedPanel()) {
+      this.embeddedAttachAfterSave.set(attachToDocument);
+    }
+    this.submitProduct();
+  }
+
+  private submitProduct(): void {
     if (!this.canSubmit()) {
       return;
     }
@@ -547,8 +565,28 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
     this.submitSub = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (product) => {
-        // Bypassa il guard "modifiche non salvate": il salvataggio è riuscito.
         this.saved.set(true);
+        if (this.embeddedPanel()) {
+          this.service
+            .getProductVariants(product.id)
+            .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: (variants) => {
+                const variantId = variants[0]?.id;
+                if (!variantId) {
+                  this.panelDismissed.emit();
+                  return;
+                }
+                if (this.embeddedAttachAfterSave()) {
+                  this.productCreatedWithAttach.emit({ variantId });
+                } else {
+                  this.productSavedWithoutAttach.emit({ variantId });
+                }
+              },
+              error: () => this.panelDismissed.emit(),
+            });
+          return;
+        }
         void this.router.navigateByUrl(`${PRODUCTS_LIST_PATH}/${product.id}`);
       },
       error: (err: unknown) => {
@@ -586,6 +624,10 @@ export class ProductFormComponent implements CanComponentDeactivate {
   }
 
   protected cancel(): void {
+    if (this.embeddedPanel()) {
+      this.panelDismissed.emit();
+      return;
+    }
     const id = this.productId();
     void this.router.navigateByUrl(id ? `${PRODUCTS_LIST_PATH}/${id}` : PRODUCTS_LIST_PATH);
   }

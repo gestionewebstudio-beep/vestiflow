@@ -1,103 +1,107 @@
 <div class="product-table-scroll">
   <table class="product-table">
-    <colgroup>
-      <col class="product-table__col product-table__col--select" />
-      <col class="product-table__col product-table__col--name" />
-      <col class="product-table__col product-table__col--brand" />
-      <col class="product-table__col product-table__col--category" />
-      <col class="product-table__col product-table__col--season" />
-      <col class="product-table__col product-table__col--numeric" />
-      <col class="product-table__col product-table__col--status" />
-      <col class="product-table__col product-table__col--source" />
-      @if (showShopifyColumn()) {
-        <col class="product-table__col product-table__col--shopify" />
-      }
-      <col class="product-table__col product-table__col--actions" />
-    </colgroup>
     <thead class="product-table__head">
       <tr>
-        <th scope="col" class="product-table__cell--select">
-          <label class="product-table__select-all">
-            <input
-              #selectAllCheckbox
-              type="checkbox"
-              class="product-table__checkbox"
-              [checked]="allOnPageSelected()"
-              [attr.aria-label]="
-                allOnPageSelected()
-                  ? 'Deseleziona tutti i prodotti in pagina'
-                  : 'Seleziona tutti i prodotti in pagina'
-              "
-              (click)="$event.stopPropagation()"
-              (change)="onSelectAllClick($event)"
-            />
-            <span class="sr-only">Seleziona tutti</span>
-          </label>
-        </th>
-        <th scope="col" [attr.aria-sort]="ariaSort('name')">
-          <button
-            type="button"
-            class="product-table__sort"
-            aria-label="Ordina per nome"
-            (click)="sortChange.emit('name')"
-          >
-            Nome
-            <i class="pi {{ sortIcon('name') }}" aria-hidden="true"></i>
-          </button>
-        </th>
-        <th scope="col" [attr.aria-sort]="ariaSort('brand')">
-          <button
-            type="button"
-            class="product-table__sort"
-            aria-label="Ordina per brand"
-            (click)="sortChange.emit('brand')"
-          >
-            Brand
-            <i class="pi {{ sortIcon('brand') }}" aria-hidden="true"></i>
-          </button>
-        </th>
-        <th scope="col" [attr.aria-sort]="ariaSort('category')">
-          <button
-            type="button"
-            class="product-table__sort"
-            aria-label="Ordina per categoria"
-            (click)="sortChange.emit('category')"
-          >
-            Categoria
-            <i class="pi {{ sortIcon('category') }}" aria-hidden="true"></i>
-          </button>
-        </th>
-        <th scope="col" [attr.aria-sort]="ariaSort('season')">
-          <button
-            type="button"
-            class="product-table__sort"
-            aria-label="Ordina per stagione"
-            (click)="sortChange.emit('season')"
-          >
-            Stagione
-            <i class="pi {{ sortIcon('season') }}" aria-hidden="true"></i>
-          </button>
-        </th>
-        <th scope="col" class="product-table__cell--numeric">Varianti</th>
-        <th scope="col" class="product-table__cell--status" [attr.aria-sort]="ariaSort('status')">
-          <button
-            type="button"
-            class="product-table__sort"
-            aria-label="Ordina per stato"
-            (click)="sortChange.emit('status')"
-          >
-            Stato
-            <i class="pi {{ sortIcon('status') }}" aria-hidden="true"></i>
-          </button>
-        </th>
-        <th scope="col" class="product-table__cell--source">Fonte</th>
-        @if (showShopifyColumn()) {
-          <th scope="col" class="product-table__cell--shopify">Shopify</th>
+        @if (showColumn('select')) {
+          <th scope="col" class="product-table__cell--select">
+            <label class="product-table__select-all">
+              <input
+                #selectAllCheckbox
+                type="checkbox"
+                class="product-table__checkbox"
+                [checked]="allOnPageSelected()"
+                [attr.aria-label]="
+                  allOnPageSelected()
+                    ? 'Deseleziona tutti i prodotti in pagina'
+                    : 'Seleziona tutti i prodotti in pagina'
+                "
+                (click)="$event.stopPropagation()"
+                (change)="onSelectAllClick($event)"
+              />
+              <span class="sr-only">Seleziona tutti</span>
+            </label>
+          </th>
         }
-        <th scope="col" class="product-table__cell--actions">
-          <span class="sr-only">Etichetta</span>
-          <i class="pi pi-print" aria-hidden="true"></i>
-        </th>
+        @if (showColumn('name')) {
+          <th scope="col" [attr.aria-sort]="ariaSort('name')">
+            <button
+              type="button"
+              class="product-table__sort"
+              aria-label="Ordina per nome"
+              (click)="sortChange.emit('name')"
+            >
+              {{ columnLabel('name') }}
+              <i class="pi {{ sortIcon('name') }}" aria-hidden="true"></i>
+            </button>
+          </th>
+        }
+        @if (showColumn('brand')) {
+          <th scope="col" [attr.aria-sort]="ariaSort('brand')">
+            <button
+              type="button"
+              class="product-table__sort"
+              aria-label="Ordina per brand"
+              (click)="sortChange.emit('brand')"
+            >
+              {{ columnLabel('brand') }}
+              <i class="pi {{ sortIcon('brand') }}" aria-hidden="true"></i>
+            </button>
+          </th>
+        }
+        @if (showColumn('category')) {
+          <th scope="col" [attr.aria-sort]="ariaSort('category')">
+            <button
+              type="button"
+              class="product-table__sort"
+              aria-label="Ordina per categoria"
+              (click)="sortChange.emit('category')"
+            >
+              {{ columnLabel('category') }}
+              <i class="pi {{ sortIcon('category') }}" aria-hidden="true"></i>
+            </button>
+          </th>
+        }
+        @if (showColumn('season')) {
+          <th scope="col" [attr.aria-sort]="ariaSort('season')">
+            <button
+              type="button"
+              class="product-table__sort"
+              aria-label="Ordina per stagione"
+              (click)="sortChange.emit('season')"
+            >
+              {{ columnLabel('season') }}
+              <i class="pi {{ sortIcon('season') }}" aria-hidden="true"></i>
+            </button>
+          </th>
+        }
+        @if (showColumn('variants')) {
+          <th scope="col" class="product-table__cell--numeric">{{ columnLabel('variants') }}</th>
+        }
+        @if (showColumn('status')) {
+          <th scope="col" class="product-table__cell--status" [attr.aria-sort]="ariaSort('status')">
+            <button
+              type="button"
+              class="product-table__sort"
+              aria-label="Ordina per stato"
+              (click)="sortChange.emit('status')"
+            >
+              {{ columnLabel('status') }}
+              <i class="pi {{ sortIcon('status') }}" aria-hidden="true"></i>
+            </button>
+          </th>
+        }
+        @if (showColumn('source')) {
+          <th scope="col" class="product-table__cell--source">{{ columnLabel('source') }}</th>
+        }
+        @if (showColumn('shopify') && showShopifyColumn()) {
+          <th scope="col" class="product-table__cell--shopify">{{ columnLabel('shopify') }}</th>
+        }
+        @if (showColumn('actions')) {
+          <th scope="col" class="product-table__cell--actions">
+            <span class="sr-only">Etichetta</span>
+            <i class="pi pi-print" aria-hidden="true"></i>
+          </th>
+        }
       </tr>
     </thead>
 
@@ -111,62 +115,89 @@
           (keydown.enter)="rowClick.emit(product)"
           (keydown.space)="$event.preventDefault(); rowClick.emit(product)"
         >
-          <td class="product-table__cell--select" data-label="Seleziona">
-            <label
-              class="product-table__select-row"
-              [attr.aria-label]="'Seleziona ' + product.name"
+          @if (showColumn('select')) {
+            <td class="product-table__cell--select" [attr.data-label]="columnLabel('select')">
+              <label
+                class="product-table__select-row"
+                [attr.aria-label]="'Seleziona ' + product.name"
+              >
+                <input
+                  type="checkbox"
+                  class="product-table__checkbox"
+                  [checked]="isSelected(product)"
+                  (click)="$event.stopPropagation()"
+                  (change)="onSelectionClick($event, product)"
+                />
+                <span class="sr-only">{{ product.name }}</span>
+              </label>
+            </td>
+          }
+          @if (showColumn('name')) {
+            <td class="product-table__name" [attr.data-label]="columnLabel('name')">
+              {{ product.name }}
+            </td>
+          }
+          @if (showColumn('brand')) {
+            <td class="product-table__brand" [attr.data-label]="columnLabel('brand')">
+              {{ product.brand ?? '—' }}
+            </td>
+          }
+          @if (showColumn('category')) {
+            <td class="product-table__category" [attr.data-label]="columnLabel('category')">
+              {{ categoryLabel(product) }}
+            </td>
+          }
+          @if (showColumn('season')) {
+            <td class="product-table__season" [attr.data-label]="columnLabel('season')">
+              {{ product.season ?? '—' }}
+            </td>
+          }
+          @if (showColumn('variants')) {
+            <td
+              class="product-table__cell--numeric tabular-nums"
+              [attr.data-label]="columnLabel('variants')"
             >
-              <input
-                type="checkbox"
-                class="product-table__checkbox"
-                [checked]="isSelected(product)"
-                (click)="$event.stopPropagation()"
-                (change)="onSelectionClick($event, product)"
-              />
-              <span class="sr-only">{{ product.name }}</span>
-            </label>
-          </td>
-          <td class="product-table__name" data-label="Nome">{{ product.name }}</td>
-          <td class="product-table__brand" data-label="Brand">{{ product.brand ?? '—' }}</td>
-          <td class="product-table__category" data-label="Categoria">
-            {{ categoryLabel(product) }}
-          </td>
-          <td class="product-table__season" data-label="Stagione">{{ product.season ?? '—' }}</td>
-          <td class="product-table__cell--numeric tabular-nums" data-label="Varianti">
-            {{ variantCount(product) }}
-          </td>
-          <td class="product-table__cell--status" data-label="Stato">
-            <span class="product-table__status-value">
-              <app-badge [tone]="statusTone(product.status)">{{
-                statusLabel(product.status)
-              }}</app-badge>
-            </span>
-          </td>
-          <td class="product-table__cell--source" data-label="Fonte">
-            <span class="product-table__source-value">
-              <app-badge [tone]="sourceTone(product)">{{ sourceLabel(product) }}</app-badge>
-            </span>
-          </td>
-          @if (showShopifyColumn()) {
-            <td class="product-table__cell--shopify" data-label="Shopify">
+              {{ variantCount(product) }}
+            </td>
+          }
+          @if (showColumn('status')) {
+            <td class="product-table__cell--status" [attr.data-label]="columnLabel('status')">
+              <span class="product-table__status-value">
+                <app-badge [tone]="statusTone(product.status)">{{
+                  statusLabel(product.status)
+                }}</app-badge>
+              </span>
+            </td>
+          }
+          @if (showColumn('source')) {
+            <td class="product-table__cell--source" [attr.data-label]="columnLabel('source')">
+              <span class="product-table__source-value">
+                <app-badge [tone]="sourceTone(product)">{{ sourceLabel(product) }}</app-badge>
+              </span>
+            </td>
+          }
+          @if (showColumn('shopify') && showShopifyColumn()) {
+            <td class="product-table__cell--shopify" [attr.data-label]="columnLabel('shopify')">
               <span class="product-table__shopify-value">
                 <app-badge [tone]="shopifyTone(product)">{{ shopifyLabel(product) }}</app-badge>
               </span>
             </td>
           }
-          <td class="product-table__cell--actions" data-label="Etichetta">
-            <span class="product-table__cell-value">
-              <button
-                type="button"
-                class="product-table__print-link"
-                [attr.aria-label]="'Stampa etichette per ' + product.name"
-                [attr.title]="'Stampa etichette'"
-                (click)="onPrintClick($event, product)"
-              >
-                <i class="pi pi-print" aria-hidden="true"></i>
-              </button>
-            </span>
-          </td>
+          @if (showColumn('actions')) {
+            <td class="product-table__cell--actions" [attr.data-label]="columnLabel('actions')">
+              <span class="product-table__cell-value">
+                <button
+                  type="button"
+                  class="product-table__print-link"
+                  [attr.aria-label]="'Stampa etichette per ' + product.name"
+                  [attr.title]="'Stampa etichette'"
+                  (click)="onPrintClick($event, product)"
+                >
+                  <i class="pi pi-print" aria-hidden="true"></i>
+                </button>
+              </span>
+            </td>
+          }
         </tr>
       }
     </tbody>

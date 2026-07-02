@@ -64,6 +64,10 @@
     (barcodeScanned)="onBarcodeScanned($event)"
   />
 
+  <div class="product-list__columns">
+    <app-table-column-picker [viewId]="productListView" />
+  </div>
+
   @if (scanFeedback(); as message) {
     <p class="product-list__scan-feedback" role="status">{{ message }}</p>
   }
@@ -101,6 +105,7 @@
     }
     <app-product-table
       [products]="products()"
+      [columns]="tableColumns()"
       [sortField]="query().sort"
       [sortOrder]="query().order"
       [showShopifyColumn]="showShopifyColumn()"

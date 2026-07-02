@@ -1,6 +1,6 @@
 # VestiFlow — Guida per l'utente
 
-**Versione documento:** 3.2 — Luglio 2026
+**Versione documento:** 3.4 — Luglio 2026
 
 **Per chi è questa guida:** titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.
 
@@ -135,13 +135,25 @@ Su smartphone il menu hamburger apre la sidebar; tema, location e sync restano i
 
 ### Impostazioni: cosa compare
 
-Il contenuto di **Impostazioni** dipende dal **profilo canale** del tuo negozio (scelto in fase di attivazione). L’ordine dei pannelli è sempre: **Profilo** → **Sede fisica** (se presente) → integrazione canale → **Sicurezza account** → **Aspetto**.
+Il contenuto di **Impostazioni** dipende dal **profilo canale** del tuo negozio (scelto in fase di attivazione). L’ordine dei pannelli è sempre: **Profilo** → **Sede fisica** (se presente) → **Magazzino e documenti** (Titolare/Admin) → integrazione canale → **Sicurezza account** → **Aspetto**.
 
-| Profilo canale      | Pannelli visibili in Impostazioni                                                                                |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Solo gestionale** | Profilo, **Sede fisica**, Sicurezza, Aspetto — nessuna integrazione e-commerce                                   |
-| **Shopify**         | Profilo, **Sede fisica**, **Integrazione Shopify** (Location + **Sedi attive in VestiFlow**), Sicurezza, Aspetto |
-| **TikTok Shop**     | Profilo, **Sede fisica**, Integrazione TikTok Shop, Sicurezza, Aspetto                                           |
+| Profilo canale      | Pannelli visibili in Impostazioni                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Solo gestionale** | Profilo, **Sede fisica**, **Magazzino e documenti**, Sicurezza, Aspetto — nessuna integrazione e-commerce                                   |
+| **Shopify**         | Profilo, **Sede fisica**, **Magazzino e documenti**, **Integrazione Shopify** (Location + **Sedi attive in VestiFlow**), Sicurezza, Aspetto |
+| **TikTok Shop**     | Profilo, **Sede fisica**, **Magazzino e documenti**, Integrazione TikTok Shop, Sicurezza, Aspetto                                           |
+
+#### Magazzino e documenti (impostazioni operative)
+
+Pannello visibile a **Titolare** e **Amministratore** (accesso completo al tenant). Consente di attivare:
+
+- **Gestione lotti e scadenze** — colonne lotto/scadenza in arrivo merce
+- **Gestione numeri seriali** — colonna seriali in arrivo merce
+- **Policy aggiornamento prezzo fornitore** in carico: sempre / chiedi conferma / mai
+- **Unità di misura** e **IVA predefinita** per nuovi articoli
+- Avvisi e blocco su **giacenze negative**
+
+Le modifiche si applicano a tutti gli utenti del negozio.
 
 #### Sede fisica (anagrafica cliente)
 
@@ -581,7 +593,7 @@ In entrambi i casi vedi la variante con disponibile **0** e stato **Esaurito** s
 
 ### Colonna «In arrivo»
 
-Nella tabella **Giacenze** la colonna **In arrivo** mostra quantità **attese** da ordini fornitore già **inviati** ma non ancora ricevuti. Quando registri l'arrivo merce (da **Ordini Fornitori → Ricevi merce** o da **Documenti → Arrivo merce** collegato all'ordine), la quantità passa da _in arrivo_ a _disponibile_ sulla sede di destinazione.
+Nella tabella **Giacenze** la colonna **In arrivo** mostra quantità **attese** da ordini fornitore già **inviati** ma non ancora ricevuti. Quando confermi un **Arrivo merce** (documento collegato all'ordine o creato da **Registra arrivo merce**), la quantità passa da _in arrivo_ a _disponibile_ sulla sede di destinazione.
 
 ### Azioni principali (Giacenze)
 
@@ -658,25 +670,26 @@ Gestiti **solo in VestiFlow** (non su Shopify).
 
 1. **Ordini Fornitori → Nuovo ordine** — fornitore, destinazione merce, righe (variante, quantità, costo unitario)
 2. **Invia ordine** — tracciamento interno; le quantità compaiono in **In arrivo** in Giacenze
-3. All'arrivo merce: **Ricevi merce** dall'ordine **oppure** **Documenti → Arrivo merce** collegato all'ordine — incrementa giacenze, azzera _in arrivo_ e crea movimenti di carico tracciati
+3. All'arrivo merce: dal dettaglio ordine **Registra arrivo merce** (crea bozza in Documenti collegata all'ordine) **oppure** **Documenti → Arrivo merce** manuale — incrementa giacenze, azzera _in arrivo_ e crea movimenti di carico tracciati
 
-Per documentazione completa (numeri progressivi, allegati, lotti/seriali) usa il flusso **Documenti → Arrivo merce**; la ricezione rapida da ordine resta disponibile per operatività veloce in magazzino.
+Il pulsante **Registra arrivo merce** sull'ordine apre il form **Documenti → Arrivo merce** con righe e quantità residue già precompilate; non esiste più una ricezione «silenziosa» senza documento.
 
 ### Compilare un ordine
 
 - **Fornitore** e **Variante** (per ogni riga): nel menu a tendina usa la **ricerca** per filtrare per nome prodotto o SKU.
-- **Quantità** e **Costo unitario**; il **Subtotale** riga si calcola automaticamente (campo in sola lettura).
+- **Righe in griglia tabellare** con menu **Colonne** (preset, mostra/nascondi, **Ripristina colonne**); su smartphone le righe diventano **card** impilate.
+- **Quantità** e **Costo unitario**; il **Subtotale** riga si calcola automaticamente.
 - **Data attesa** (opzionale): selettore con **calendario** (stesso stile dei filtri data nei report).
 - Puoi creare un **nuovo fornitore** inline dal form (**Nuovo fornitore**).
 
 ### Stati e azioni
 
-| Stato ordine         | Cosa puoi fare (Manager e superiori, salvo dove indicato) |
-| -------------------- | --------------------------------------------------------- |
-| **Bozza**            | Modifica bozza, Invia ordine, Annulla ordine              |
-| **Inviato**          | Annulla ordine, Ricevi merce (tutti i ruoli operativi)    |
-| **Annullato**        | **Elimina ordine** — rimozione definitiva dall'elenco     |
-| **Ricevuto** / parz. | Solo consultazione                                        |
+| Stato ordine         | Cosa puoi fare (Manager e superiori, salvo dove indicato)           |
+| -------------------- | ------------------------------------------------------------------- |
+| **Bozza**            | Modifica bozza, Invia ordine, Annulla ordine                        |
+| **Inviato**          | Annulla ordine, **Registra arrivo merce** (tutti i ruoli operativi) |
+| **Annullato**        | **Elimina ordine** — rimozione definitiva dall'elenco               |
+| **Ricevuto** / parz. | Solo consultazione                                                  |
 
 L'**Annulla ordine** segna l'ordine come annullato ma lo lascia in lista. **Elimina ordine** (solo su ordini già annullati) lo rimuove in modo irreversibile.
 
@@ -712,6 +725,8 @@ VestiFlow centralizza i documenti che impattano magazzino e contabilità. **Non 
 | Tipo                        | Uso operativo                                                         |
 | --------------------------- | --------------------------------------------------------------------- |
 | **Arrivo merce**            | Carico da fornitore con righe, costi, opzionale collegamento a ordine |
+| **Carico manuale**          | Carico magazzino senza DDT fornitore (fornitore opzionale)            |
+| **Carico iniziale**         | Stock di partenza / primo inventario (fornitore opzionale)            |
 | **DDT vendita**             | Consegna merce al cliente; base per successiva fatturazione           |
 | **Bozza fattura**           | Dati per emissione fattura (anche da conversione DDT)                 |
 | **Proforma**                | Preventivo non fiscale                                                |
@@ -758,17 +773,29 @@ Da **Documenti**, pulsante **Nuovo documento** (se hai **Gestire documenti**):
 | Scarico / Rettifica            | **Documenti → Scarico manuale** / **Rettifica** |
 | DDT / Proforma / Bozza fattura | **Documenti → Nuovo** (tipo vendita)            |
 
-**Arrivo merce — campi principali:** fornitore, sede destinazione, data, righe (variante, quantità, costo). Opzionali per riga: **lotto**, **scadenza lotto**, **numeri seriali** (testo separato da virgola). Puoi collegare un **ordine fornitore** per precompilare le righe attese.
+**Arrivo merce — schermata e campi principali**
 
-Alla **conferma** dell'arrivo merce VestiFlow registra i **carichi** in magazzino e aggiorna le giacenze (e Shopify/TikTok se collegati).
+- **Testata:** tipo documento (**Arrivo merce**, DDT fornitore, Fattura accompagnatoria, **Carico manuale**, **Carico iniziale**), fornitore (obbligatorio per arrivo/DDT/fattura accomp.; opzionale per carichi manuali), sede destinazione, data documento VestiFlow, numero/data **documento fornitore** (es. DDT 242/2026), **causale di carico**, flag **Seguirà fattura**, riferimento fattura fornitore, note.
+- **Numero interno VestiFlow:** in bozza vedi l'**anteprima** (es. `CAR-2026-0045`); il numero definitivo viene assegnato alla **conferma** (distinto dal documento del fornitore).
+- **Righe in griglia:** menu **Colonne** (preset, resize intestazioni, **Ripristina colonne**); cerca articolo per **nome, SKU o barcode/EAN**; **Crea articolo rapido** o **Crea anagrafica completa** (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag **Carica magazzino**, totale riga.
+- **Ordine fornitore collegato:** se apri l'arrivo da **Registra arrivo merce** sull'ordine, compaiono anche colonne **Ordinato / Già ricevuto / Residuo** per ogni riga.
+- **Conferma:** se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede, compare un dialog per **aggiornare i prezzi fornitore**.
+- **Documento già confermato:** avvisi se stampato/inviato/registrato esternamente; azioni **Segna stampato**, **Segna inviato**, **Registra esternamente** disponibili nel form.
+- Opzionali per riga: **lotto**, **scadenza lotto**, **numeri seriali** (testo separato da virgola).
+
+Alla **conferma** dell'arrivo merce (o carico manuale/iniziale) VestiFlow registra i **carichi** in magazzino, aggiorna le giacenze e, se collegato, l'ordine fornitore e l'**in arrivo** (e Shopify/TikTok se collegati).
+
+**Modifica di un documento già confermato:** apri il documento in modifica, clicca **Sblocca modifica** e conferma l'avviso — VestiFlow aggiorna movimenti e giacenze e salva lo storico revisioni.
 
 ### Allegati
 
-Nel **dettaglio documento**, pannello **Allegati**: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.
+Nel **form arrivo merce** (dopo il primo salvataggio bozza) e nel **dettaglio documento**, pannello **Allegati**: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.
 
 ### Colonne personalizzabili
 
-Sopra la tabella **Documenti** (e in altre liste del gestionale) usa **Colonne** per mostrare/nascondere campi e scegliere un **preset** (Completo, Compatto, Fornitore, …). Le preferenze si **sincronizzano** con il tuo account: stesse colonne su desktop e smartphone dopo il login.
+Usa **Colonne** sopra le tabelle principali per mostrare/nascondere campi, scegliere un **preset** (Completo, Magazzino, Fornitore, …) e **Ripristina colonne**. Le preferenze si **sincronizzano** con il tuo account.
+
+Viste con column picker: **Documenti**, **Giacenze**, **Movimenti**, **Fornitori**, **Prodotti**, **Clienti**, righe **Ordine fornitore** e righe **Arrivo merce**. Su mobile molte liste passano a **card** con etichette campo.
 
 ### Impostazioni numerazione
 
@@ -973,9 +1000,9 @@ Verifica i permessi **Consultare documenti** e **Consultare report**. Il **Regis
 
 Sono **DDT vendita** già confermati (consegnati al cliente) per i quali non esiste ancora una **bozza fattura** collegata in VestiFlow. Apri l'elenco filtrato da **Registro commercialista** o dal filtro omonimo in **Documenti** per emettere o registrare le fatture esternamente.
 
-### Differenza tra Ricevi merce e Arrivo merce (Documenti)
+### Differenza tra Registra arrivo merce (ordine) e Arrivo merce manuale
 
-Entrambi incrementano lo stock. **Ricevi merce** dall'ordine fornitore è il flusso rapido in **Ordini Fornitori**. **Arrivo merce** in **Documenti** aggiunge numerazione, allegati, lotti/seriali e tracciamento completo per contabilità — consigliato quando serve documentazione per il commercialista.
+Entrambi usano lo **stesso form Documenti → Arrivo merce**. Da un ordine **Inviato**, **Registra arrivo merce** crea una **bozza collegata** con righe e quantità residue precompilate (colonne Ord./Ric./Res.). Da **Documenti → Nuovo arrivo merce** crei un carico anche **senza ordine** precedente. In entrambi i casi serve **Conferma e carica magazzino** per movimentare lo stock; in bozza il magazzino non cambia.
 
 ### Il prodotto creato in VestiFlow non compare su Shopify
 

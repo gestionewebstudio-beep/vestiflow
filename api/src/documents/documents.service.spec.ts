@@ -41,7 +41,7 @@ function createPrismaMock() {
     },
     documentLine: { deleteMany: vi.fn() },
     documentRevision: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
-    documentSequence: { upsert: vi.fn() },
+    documentSequence: { upsert: vi.fn(), findUnique: vi.fn() },
     productVariant: {
       findFirst: vi.fn().mockResolvedValue({
         id: 'var-1',
@@ -64,6 +64,10 @@ function createPrismaMock() {
     location: { findFirst: vi.fn() },
     supplierOrder: { findFirst: vi.fn() },
     supplierOrderLine: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    tenantFeatureSettings: {
+      findUnique: vi.fn().mockResolvedValue({ updateSupplierPriceOnLoad: 'never' }),
+    },
+    supplierVariantLink: { findUnique: vi.fn(), upsert: vi.fn() },
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation((arg: unknown) => {
@@ -1317,6 +1321,88 @@ describe('DocumentsService', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('getById', () => {
+    it('include linkedSupplierOrderLines quando il documento ha ordine fornitore', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findFirst.mockResolvedValue({
+        id: 'doc-gr-1',
+        tenantId,
+        type: DocumentType.goods_receipt,
+        status: DocumentStatus.draft,
+        lines: [],
+        salesOrder: null,
+        supplierOrder: {
+          id: 'po-1',
+          reference: 'OF-2026-001',
+          lines: [
+            {
+              id: 'pol-1',
+              variantId: 'var-1',
+              sku: 'SKU-1',
+              orderedQuantity: 10,
+              receivedQuantity: 3,
+            },
+          ],
+        },
+      });
+
+      const detail = await service.getById(tenantId, 'doc-gr-1');
+
+      expect(detail.linkedSupplierOrder).toEqual({ id: 'po-1', reference: 'OF-2026-001' });
+      expect(detail.linkedSupplierOrderLines).toEqual([
+        {
+          id: 'pol-1',
+          variantId: 'var-1',
+          sku: 'SKU-1',
+          orderedQuantity: 10,
+          receivedQuantity: 3,
+        },
+      ]);
+    });
+  });
+
+  describe('previewNextReference', () => {
+    it('calcola anteprima senza incrementare il numeratore', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({
+          type: DocumentType.goods_receipt,
+          numberPrefix: 'CAR',
+          defaultSeries: 'A',
+        }),
+      );
+      prisma.documentSequence.findUnique.mockResolvedValue({ lastNumber: 44 });
+
+      const preview = await service.previewNextReference(
+        tenantId,
+        DocumentType.goods_receipt,
+        'A',
+        2026,
+      );
+
+      expect(preview).toEqual({
+        reference: 'CAR-2026-0045',
+        previewNumber: 45,
+        series: 'A',
+        year: 2026,
+      });
+      expect(prisma.documentSequence.upsert).not.toHaveBeenCalled();
+    });
+
+    it('usa 1 come primo numero se la sequenza non esiste', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.goods_receipt, numberPrefix: 'CAR' }),
+      );
+      prisma.documentSequence.findUnique.mockResolvedValue(null);
+
+      const preview = await service.previewNextReference(tenantId, DocumentType.goods_receipt);
+
+      expect(preview.previewNumber).toBe(1);
+      expect(preview.reference).toBe(`CAR-${preview.year}-0001`);
     });
   });
 

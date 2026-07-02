@@ -5,6 +5,8 @@ export const DOCUMENT_STOCK_LOAD_TYPES: readonly DocumentType[] = [
   DocumentType.goods_receipt,
   DocumentType.supplier_ddt,
   DocumentType.supplier_invoice_accompanying,
+  DocumentType.manual_load,
+  DocumentType.initial_load,
 ] as const;
 
 /** Tipi documento che generano scarichi di magazzino alla conferma (§2, §5). */

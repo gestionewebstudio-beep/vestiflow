@@ -144,7 +144,7 @@ ol {
 </head>
 <body>
 <h1 id="vestiflow--piano-di-test-completo">VestiFlow — Piano di test completo</h1>
-<p><strong>Versione documento:</strong> 2.0 — Luglio 2026</p>
+<p><strong>Versione documento:</strong> 2.1 — Luglio 2026</p>
 <p><strong>Scopo:</strong> elenco ordinato di tutti i test manuali da eseguire sul gestionale VestiFlow, dal primo all&#39;ultimo, con passaggi operativi e risultati attesi. Pensato per essere letto e compilato in parallelo da due tester (tu e un collega).</p>
 <p><strong>Due percorsi di test distinti</strong></p>
 <table>
@@ -170,7 +170,7 @@ ol {
 <p><strong>Come usare questo documento</strong></p>
 <ol>
 <li>Leggi la sezione <strong>0 — Preparazione</strong> prima di iniziare qualsiasi test.</li>
-<li>Esegui i test <strong>nell&#39;ordine numerico</strong> (T-001 → T-210). Alcuni test dipendono da dati creati in test precedenti.</li>
+<li>Esegui i test <strong>nell&#39;ordine numerico</strong> (T-001 → T-206). Alcuni test dipendono da dati creati in test precedenti.</li>
 <li>Compila per ogni test: <strong>Esito</strong> (OK / KO / N/A), <strong>Tester</strong>, <strong>Data</strong>, <strong>Note</strong>.</li>
 <li>In caso di KO, descrivi cosa è successo e allega screenshot se utile.</li>
 <li>Non saltare i test contrassegnati <strong>Obbligatorio</strong> prima del go-live.</li>
@@ -1251,6 +1251,53 @@ ol {
 <li>Verifica nome, email e ruolo mostrati.</li>
 </ol>
 <p><strong>Risultato atteso:</strong> dati coerenti con account usato per il login.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-045--impostazioni-magazzino-e-documenti">T-045 — Impostazioni Magazzino e documenti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Magazzino e documenti</strong>.</li>
+<li>Attiva <strong>Gestione lotti</strong> e <strong>Gestione seriali</strong>; salva.</li>
+<li>Imposta <strong>Policy aggiornamento prezzo fornitore</strong> (es. «Chiedi sempre»); salva.</li>
+<li>Modifica <strong>IVA predefinita</strong> e <strong>Unità di misura predefinita</strong>; salva.</li>
+<li>Ricarica pagina e verifica persistenza.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> flag e valori salvati. In <strong>Arrivo merce</strong>, colonne lotto/scadenza/seriali visibili solo se attivate. Alla conferma arrivo con costo diverso dal listino fornitore, comportamento coerente con la policy scelta.</p>
 <table>
 <thead>
 <tr>
@@ -4033,7 +4080,7 @@ ol {
 </tr>
 </tbody></table>
 <hr>
-<h3 id="t-123--ricevi-merce-ordine-fornitore">T-123 — Ricevi merce (ordine fornitore)</h3>
+<h3 id="t-123--registra-arrivo-merce-da-ordine-fornitore">T-123 — Registra arrivo merce da ordine fornitore</h3>
 <table>
 <thead>
 <tr>
@@ -4054,14 +4101,15 @@ ol {
 <td>Desktop</td>
 </tr>
 </tbody></table>
+<p><strong>Prerequisiti:</strong> ordine fornitore <strong>Inviato</strong> (T-122).</p>
 <p><strong>Passaggi:</strong></p>
 <ol>
-<li>Apri ordine inviato/in arrivo.</li>
-<li>Clicca <strong>Ricevi merce</strong>.</li>
-<li>Inserisci quantità ricevute per ogni riga (parziale o totale).</li>
-<li>Conferma ricezione.</li>
+<li>Apri dettaglio ordine inviato/in arrivo.</li>
+<li>Clicca <strong>Registra arrivo merce</strong>.</li>
+<li>Verifica apertura form <strong>Arrivo merce</strong> con ordine collegato, righe precompilate e colonne <strong>Ordinato / Già ricevuto / Residuo</strong>.</li>
+<li>Inserisci quantità ricevute (parziale o totale) e <strong>Conferma e carica magazzino</strong>.</li>
 </ol>
-<p><strong>Risultato atteso:</strong> giacenze incrementate sulla location destinazione. Movimenti carico in storico. Stato ordine aggiornato (parzialmente ricevuto / completato).</p>
+<p><strong>Risultato atteso:</strong> documento <strong>Confermato</strong> con numero progressivo. Giacenze incrementate sulla sede destinazione. Movimenti <strong>Carico</strong> in storico. Colonna <strong>In arrivo</strong> aggiornata. Stato ordine <strong>Parzialmente ricevuto</strong> o <strong>Completato</strong>. Nessuna ricezione «silenziosa» senza documento.</p>
 <table>
 <thead>
 <tr>
@@ -4104,7 +4152,53 @@ ol {
 <ol>
 <li>Accedi come Commesso. Verifica assenza pulsante <strong>Nuovo ordine</strong>. Prova <code>/app/orders/new</code>.</li>
 </ol>
-<p><strong>Risultato atteso:</strong> creazione bloccata. Ricezione merce ancora possibile (T-123).</p>
+<p><strong>Risultato atteso:</strong> creazione bloccata. <strong>Registra arrivo merce</strong> su ordine inviato ancora possibile (T-123).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-124b--griglia-ordine-fornitore-colonne-e-mobile">T-124b — Griglia ordine fornitore: colonne e mobile</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Entrambi</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Crea o modifica un <strong>Ordine fornitore</strong> con almeno 2 righe.</li>
+<li>Apri menu <strong>Colonne</strong>: cambia preset, nascondi una colonna, ridimensiona un&#39;intestazione.</li>
+<li>Clic <strong>Ripristina colonne</strong> e verifica reset.</li>
+<li>Su smartphone: verifica righe in <strong>card</strong> impilate con etichette campo.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> griglia tabellare su desktop; preferenze colonne persistite dopo reload. Layout mobile leggibile senza scroll orizzontale incontrollato.</p>
 <table>
 <thead>
 <tr>
@@ -4172,7 +4266,7 @@ ol {
 </tr>
 </tbody></table>
 <hr>
-<h3 id="t-136--arrivo-merce-creazione-e-conferma">T-136 — Arrivo merce: creazione e conferma</h3>
+<h3 id="t-136--arrivo-merce-creazione-griglia-e-conferma">T-136 — Arrivo merce: creazione, griglia e conferma</h3>
 <table>
 <thead>
 <tr>
@@ -4198,11 +4292,12 @@ ol {
 <ol>
 <li><strong>Documenti → Nuovo documento → Arrivo merce</strong>.</li>
 <li>Seleziona fornitore, sede destinazione, data.</li>
-<li>Aggiungi riga: cerca variante per SKU, quantità 5, costo unitario.</li>
-<li>Opzionale: lotto, scadenza, seriali su una riga.</li>
-<li>Salva bozza, poi <strong>Conferma</strong> documento.</li>
+<li>Aggiungi riga: cerca variante per <strong>nome, SKU o barcode</strong>, quantità 5, costo unitario.</li>
+<li>Apri menu <strong>Colonne</strong> sulle righe: cambia preset, ridimensiona colonna, poi <strong>Ripristina colonne</strong>.</li>
+<li>Se attivi in T-045: compila lotto/scadenza/seriali su una riga.</li>
+<li>Salva bozza (giacenza <strong>non</strong> cambia), poi <strong>Conferma e carica magazzino</strong>.</li>
 </ol>
-<p><strong>Risultato atteso:</strong> stato passa a <strong>Confermato</strong>. Giacenza +5 sulla sede. Movimento <strong>Carico</strong> in storico. Numero progressivo assegnato alla conferma.</p>
+<p><strong>Risultato atteso:</strong> stato <strong>Confermato</strong>. Giacenza +5 sulla sede. Movimento <strong>Carico</strong> in storico. Numero progressivo assegnato alla conferma. Documento protetto da modifiche distruttive dopo conferma.</p>
 <table>
 <thead>
 <tr>
@@ -4244,12 +4339,11 @@ ol {
 <p><strong>Prerequisiti:</strong> ordine fornitore <strong>Inviato</strong> (T-122).</p>
 <p><strong>Passaggi:</strong></p>
 <ol>
-<li><strong>Documenti → Arrivo merce</strong>.</li>
-<li>Collega l&#39;<strong>ordine fornitore</strong> creato in T-122.</li>
-<li>Verifica precompilazione righe attese.</li>
+<li>Dal dettaglio ordine clicca <strong>Registra arrivo merce</strong> (oppure <strong>Documenti → Arrivo merce</strong> e seleziona l&#39;ordine).</li>
+<li>Verifica precompilazione righe con colonne <strong>Ordinato / Già ricevuto / Residuo</strong>.</li>
 <li>Conferma arrivo con quantità ricevute.</li>
 </ol>
-<p><strong>Risultato atteso:</strong> colonna <strong>In arrivo</strong> in Giacenze azzerata per quelle righe. Ordine aggiornato a ricevuto/parziale.</p>
+<p><strong>Risultato atteso:</strong> colonna <strong>In arrivo</strong> in Giacenze azzerata per quelle righe. Ordine aggiornato a ricevuto/parziale. Stesso effetto stock/movimenti della conferma manuale (T-136).</p>
 <table>
 <thead>
 <tr>
@@ -4267,7 +4361,7 @@ ol {
 </tr>
 </tbody></table>
 <hr>
-<h3 id="t-138--crea-articolo-rapido-da-riga-arrivo-merce">T-138 — Crea articolo rapido da riga arrivo merce</h3>
+<h3 id="t-138--crea-articolo-da-riga-arrivo-merce-rapido-e-pannello">T-138 — Crea articolo da riga arrivo merce (rapido e pannello)</h3>
 <table>
 <thead>
 <tr>
@@ -4290,11 +4384,102 @@ ol {
 </tbody></table>
 <p><strong>Passaggi:</strong></p>
 <ol>
-<li>In form <strong>Arrivo merce</strong>, su una riga usa <strong>Crea articolo rapido</strong>.</li>
-<li>Compila nome, SKU, prezzo in modal/dialog inline.</li>
-<li>Conferma e completa documento.</li>
+<li>In form <strong>Arrivo merce</strong>, su una riga usa <strong>Crea articolo rapido</strong>: compila nome, SKU, prezzo; conferma e associa alla riga.</li>
+<li>Su un&#39;altra riga usa <strong>Crea anagrafica completa</strong>: compila il pannello laterale prodotto (wizard embedded), salva <strong>e collega alla riga</strong> (o salva senza collegare e verifica comportamento).</li>
+<li>Completa e conferma documento.</li>
 </ol>
-<p><strong>Risultato atteso:</strong> nuovo prodotto + variante creati e associati alla riga. Disponibile subito in catalogo.</p>
+<p><strong>Risultato atteso:</strong> nuovi prodotti/varianti creati senza uscire dal documento. Variante collegata disponibile in catalogo. SKU duplicato bloccato in validazione.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-138b--dialog-aggiornamento-prezzo-fornitore">T-138b — Dialog aggiornamento prezzo fornitore</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> fornitore con listino/prezzo noto su variante. Policy prezzo ≠ «Mai» (T-045).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Crea <strong>Arrivo merce</strong> con costo unitario <strong>diverso</strong> dal prezzo fornitore salvato.</li>
+<li><strong>Conferma e carica magazzino</strong>.</li>
+<li>Se compare dialog prezzi: verifica elenco differenze; prova <strong>Applica</strong> e ripeti con <strong>Ignora</strong> (secondo documento).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> dialog mostra SKU e prezzo vecchio/nuovo. Con «Applica», prezzo fornitore aggiornato in anagrafica. Con «Ignora», conferma documento senza aggiornare listino.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-138c--carico-manuale-e-carico-iniziale">T-138c — Carico manuale e carico iniziale</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Documenti → Nuovo → Carico manuale</strong>: aggiungi righe, conferma.</li>
+<li><strong>Documenti → Nuovo → Carico iniziale</strong>: stesso flusso con almeno una variante.</li>
+<li>Verifica movimenti e giacenze.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> entrambi i tipi incrementano stock alla conferma con movimenti tracciati distinti per tipo documento. Numerazione e PDF coerenti con impostazioni documenti.</p>
 <table>
 <thead>
 <tr>
@@ -6337,10 +6522,10 @@ ol {
 <p><strong>Passaggi:</strong></p>
 <ol>
 <li>Manager crea e invia ordine fornitore (10 pz variante Z).</li>
-<li>Commesso riceve merce (10 pz).</li>
+<li>Commesso: <strong>Registra arrivo merce</strong> dall&#39;ordine, conferma documento (10 pz).</li>
 <li>Verifica giacenza +10 e movimento carico.</li>
 </ol>
-<p><strong>Risultato atteso:</strong> stock e storico coerenti. Ordine completato.</p>
+<p><strong>Risultato atteso:</strong> stock e storico coerenti. Ordine completato. Documento arrivo merce confermato collegato all&#39;ordine.</p>
 <table>
 <thead>
 <tr>
@@ -6641,6 +6826,142 @@ ol {
 </tr>
 </tbody></table>
 <hr>
+<h3 id="t-200--arrivo-merce-post-conferma-stampa-invio-registro-esterno">T-200 — Arrivo merce post-conferma: stampa, invio, registro esterno</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> arrivo merce <strong>Confermato</strong> (T-136 o T-137).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dal dettaglio documento confermato: <strong>Stampa</strong> / scarica PDF.</li>
+<li>Se disponibile: <strong>Invia</strong> (email o canale configurato) e verifica stato «inviato».</li>
+<li><strong>Registra esternamente</strong> (es. commercialista/ERP) se previsto; verifica badge o avviso in lista/dettaglio.</li>
+<li>Tenta modifica righe su documento già stampato/inviato/registrato.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> azioni lifecycle disponibili dopo conferma. Avvisi visibili se documento già stampato/inviato/registrato. Modifiche distruttive bloccate o con conferma esplicita.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-201--column-picker-prodotti-e-clienti">T-201 — Column picker: Prodotti e Clienti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Prodotti</strong>: menu <strong>Colonne</strong>, nascondi/mostra campi, <strong>Ripristina colonne</strong>, reload pagina.</li>
+<li><strong>Clienti</strong>: stesso flusso con preset diverso.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> preferenze salvate per utente (sync server). Ripristino torna al default vista.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-202--arrivo-merce-su-mobile-card-righe">T-202 — Arrivo merce su mobile (card righe)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi (anche Commesso)</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Da smartphone apri bozza <strong>Arrivo merce</strong> con almeno 2 righe.</li>
+<li>Verifica layout <strong>card</strong> per riga (etichette campo + valori).</li>
+<li>Modifica quantità su una riga e salva bozza.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> nessun overflow orizzontale. Touch target sufficienti. Salvataggio bozza OK.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
 <h2 id="riepilogo-finale">Riepilogo finale</h2>
 <p>Al termine di tutti i test, compilare:</p>
 <table>
@@ -6652,7 +6973,7 @@ ol {
 </thead>
 <tbody><tr>
 <td>Test totali</td>
-<td>~110</td>
+<td>~118</td>
 </tr>
 <tr>
 <td>OK</td>
@@ -6748,7 +7069,7 @@ ol {
 <tr>
 <td>T-121–T-123</td>
 <td>Ordini</td>
-<td>Crea → invia → ricevi</td>
+<td>Crea → invia → registra arrivo merce</td>
 </tr>
 <tr>
 <td>T-125–T-126</td>
@@ -6758,7 +7079,7 @@ ol {
 <tr>
 <td>T-136–T-137</td>
 <td>Documenti</td>
-<td>Arrivo merce</td>
+<td>Arrivo merce (manuale e da ordine)</td>
 </tr>
 <tr>
 <td>T-143</td>

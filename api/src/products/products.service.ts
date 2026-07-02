@@ -193,6 +193,13 @@ export class ProductsService {
       tenantId,
       ...(query.variantId ? { id: query.variantId } : {}),
       ...(search ? buildInventoryVariantSearchWhere(search) : {}),
+      ...(query.supplierId
+        ? {
+            supplierLinks: {
+              some: { supplierId: query.supplierId },
+            },
+          }
+        : {}),
     };
 
     const [rows, total] = await Promise.all([
@@ -202,10 +209,33 @@ export class ProductsService {
           id: true,
           productId: true,
           sku: true,
+          barcode: true,
           optionValues: true,
           currency: true,
           sellingPriceMinor: true,
+          purchasePriceMinor: true,
           product: { select: { name: true } },
+          ...(query.supplierId
+            ? {
+                supplierLinks: {
+                  where: { supplierId: query.supplierId },
+                  select: {
+                    supplierSku: true,
+                    lastPurchasePriceMinor: true,
+                  },
+                  take: 1,
+                },
+              }
+            : {}),
+          ...(query.locationId
+            ? {
+                inventoryLevels: {
+                  where: { locationId: query.locationId },
+                  select: { onHand: true },
+                  take: 1,
+                },
+              }
+            : {}),
         },
         orderBy: [{ product: { name: 'asc' } }, { sku: 'asc' }],
         skip: (query.page - 1) * query.pageSize,
@@ -214,17 +244,30 @@ export class ProductsService {
       this.prisma.productVariant.count({ where }),
     ]);
 
-    const items: VariantSummaryDto[] = rows.map((row) => ({
-      variantId: row.id,
-      productId: row.productId,
-      sku: row.sku,
-      productName: row.product.name,
-      title: buildVariantTitle(row.product.name, row.optionValues),
-      sellingPrice: {
-        amountMinor: row.sellingPriceMinor,
-        currencyCode: row.currency,
-      },
-    }));
+    const items: VariantSummaryDto[] = rows.map((row) => {
+      const supplierLink = 'supplierLinks' in row ? row.supplierLinks?.[0] : undefined;
+      const level = 'inventoryLevels' in row ? row.inventoryLevels?.[0] : undefined;
+      const purchaseMinor =
+        supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null;
+      return {
+        variantId: row.id,
+        productId: row.productId,
+        sku: row.sku,
+        productName: row.product.name,
+        title: buildVariantTitle(row.product.name, row.optionValues),
+        barcode: row.barcode,
+        sellingPrice: {
+          amountMinor: row.sellingPriceMinor,
+          currencyCode: row.currency,
+        },
+        purchasePrice:
+          purchaseMinor != null
+            ? { amountMinor: purchaseMinor, currencyCode: row.currency }
+            : null,
+        supplierSku: supplierLink?.supplierSku ?? null,
+        stockOnHand: level?.onHand ?? null,
+      };
+    });
 
     return { items, total, page: query.page, pageSize: query.pageSize };
   }

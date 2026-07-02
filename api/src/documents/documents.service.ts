@@ -68,9 +68,14 @@ import {
 import {
   applySupplierOrderReceipt,
   assertSupplierOrderReceiptQuantities,
+  enrichReceiptLinesWithSupplierOrderLineIds,
   reconcileSupplierOrderReceipt,
   reverseSupplierOrderReceipt,
 } from './document-supplier-order.util';
+import {
+  applySupplierPriceUpdates,
+  findSupplierPriceDiffs,
+} from './document-supplier-price.util';
 import { DocumentSettingsService } from './document-settings.service';
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
 import type { CreateGoodsReceiptFromSupplierOrderDto } from './dto/create-goods-receipt-from-supplier-order.dto';
@@ -88,6 +93,15 @@ export type DocumentDetail = DocumentWithLines & {
   blockAfterConfirm: boolean;
   salesOrder: { id: string; orderNumber: string } | null;
   linkedSupplierOrder: { id: string; reference: string } | null;
+  linkedSupplierOrderLines: readonly LinkedSupplierOrderLineContext[];
+};
+
+export type LinkedSupplierOrderLineContext = {
+  readonly id: string;
+  readonly variantId: string;
+  readonly sku: string;
+  readonly orderedQuantity: number;
+  readonly receivedQuantity: number;
 };
 
 /** Stati in cui il documento può essere modificato (§4), salvo blockAfterConfirm. */
@@ -204,7 +218,21 @@ export class DocumentsService {
       include: {
         lines: { orderBy: { lineNumber: 'asc' } },
         salesOrder: { select: { id: true, orderNumber: true } },
-        supplierOrder: { select: { id: true, reference: true } },
+        supplierOrder: {
+          select: {
+            id: true,
+            reference: true,
+            lines: {
+              select: {
+                id: true,
+                variantId: true,
+                sku: true,
+                orderedQuantity: true,
+                receivedQuantity: true,
+              },
+            },
+          },
+        },
       },
     });
     if (!doc) {
@@ -212,11 +240,73 @@ export class DocumentsService {
     }
     const setting = await this.settings.getResolved(tenantId, doc.type);
     const { salesOrder, supplierOrder, ...rest } = doc;
+    const linkedSupplierOrderLines =
+      supplierOrder?.lines.map((line) => ({
+        id: line.id,
+        variantId: line.variantId,
+        sku: line.sku,
+        orderedQuantity: line.orderedQuantity,
+        receivedQuantity: line.receivedQuantity,
+      })) ?? [];
     return {
       ...rest,
       blockAfterConfirm: setting.blockAfterConfirm,
       salesOrder: salesOrder ?? null,
-      linkedSupplierOrder: supplierOrder ?? null,
+      linkedSupplierOrder: supplierOrder
+        ? { id: supplierOrder.id, reference: supplierOrder.reference }
+        : null,
+      linkedSupplierOrderLines,
+    };
+  }
+
+  /** Differenze costo vs ultimo prezzo fornitore (§13) per dialog pre-conferma. */
+  async listSupplierPriceDiffs(tenantId: string, documentId: string) {
+    const doc = await this.getById(tenantId, documentId);
+    if (!documentTypeLoadsStockOnConfirm(doc.type)) {
+      return { items: [] as const, policy: 'never' as const };
+    }
+    const featureSettings = await this.prisma.tenantFeatureSettings.findUnique({
+      where: { tenantId },
+    });
+    const policy = featureSettings?.updateSupplierPriceOnLoad ?? 'ask';
+    const items = await this.prisma.$transaction((tx) =>
+      findSupplierPriceDiffs(tx, tenantId, doc.supplierId, doc.lines),
+    );
+    return { items, policy };
+  }
+
+  /** Anteprima prossimo numero interno (non incrementa il numeratore). */
+  async previewNextReference(
+    tenantId: string,
+    type: DocumentType,
+    series?: string,
+    year?: number,
+  ): Promise<{ reference: string; previewNumber: number; series: string; year: number }> {
+    const setting = await this.settings.getResolved(tenantId, type);
+    if (!setting.enabled) {
+      throw new UnprocessableEntityException(
+        `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
+      );
+    }
+    const resolvedSeries = (series ?? setting.defaultSeries).trim() || 'A';
+    const resolvedYear = year ?? new Date().getFullYear();
+    const sequence = await this.prisma.documentSequence.findUnique({
+      where: {
+        tenantId_type_series_year: {
+          tenantId,
+          type,
+          series: resolvedSeries,
+          year: resolvedYear,
+        },
+      },
+    });
+    const previewNumber = (sequence?.lastNumber ?? 0) + 1;
+    const prefix = (setting.numberPrefix ?? 'DOC').trim() || 'DOC';
+    return {
+      reference: this.formatReference(prefix, resolvedYear, previewNumber),
+      previewNumber,
+      series: resolvedSeries,
+      year: resolvedYear,
     };
   }
 
@@ -972,6 +1062,7 @@ export class DocumentsService {
     tenantId: string,
     id: string,
     user?: UserProfileDto,
+    options?: { readonly applySupplierPriceUpdates?: boolean },
   ): Promise<DocumentWithLines> {
     const actorName = user?.displayName ?? 'API';
     const actorId = user?.id ?? null;
@@ -993,8 +1084,17 @@ export class DocumentsService {
         throw new UnprocessableEntityException('Impossibile confermare un documento senza righe.');
       }
 
+      let receiptLines = doc.lines;
+      if (doc.supplierOrderId && documentTypeLoadsStockOnConfirm(doc.type)) {
+        receiptLines = await enrichReceiptLinesWithSupplierOrderLineIds(
+          tx,
+          doc.supplierOrderId,
+          doc.lines,
+        );
+      }
+
       if (documentTypeLoadsStockOnConfirm(doc.type)) {
-        this.assertStockLoadDocument(doc);
+        this.assertStockLoadDocument({ ...doc, lines: receiptLines });
       }
       if (doc.type === DocumentType.sales_ddt) {
         this.assertStockUnloadDocument(doc);
@@ -1013,8 +1113,14 @@ export class DocumentsService {
         doc.supplierOrderId &&
         documentTypeLoadsStockOnConfirm(doc.type)
       ) {
-        await assertSupplierOrderReceiptQuantities(tx, doc.supplierOrderId, doc.lines);
+        await assertSupplierOrderReceiptQuantities(tx, doc.supplierOrderId, receiptLines);
       }
+
+      const featureSettings = await tx.tenantFeatureSettings.findUnique({ where: { tenantId } });
+      const pricePolicy = featureSettings?.updateSupplierPriceOnLoad ?? 'ask';
+      const shouldApplySupplierPrices =
+        pricePolicy === 'always' ||
+        (pricePolicy === 'ask' && options?.applySupplierPriceUpdates === true);
 
       const setting = await this.settings.getResolved(tenantId, doc.type);
 
@@ -1026,11 +1132,11 @@ export class DocumentsService {
       }
 
       if (documentTypeLoadsStockOnConfirm(doc.type)) {
-        await assertSerialNumbersForDocumentLines(tx, tenantId, doc.lines);
+        await assertSerialNumbersForDocumentLines(tx, tenantId, receiptLines);
         const reason = reference
           ? `Arrivo merce ${reference}`
           : `Arrivo merce ${doc.type}`;
-        for (const line of doc.lines) {
+        for (const line of receiptLines) {
           if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
             continue;
           }
@@ -1059,13 +1165,21 @@ export class DocumentsService {
           tx,
           tenantId,
           doc.locationId!,
-          doc.lines,
+          receiptLines,
         );
         await applyInventorySerialsFromDocumentLines(
           tx,
           tenantId,
           doc.locationId!,
-          doc.lines,
+          receiptLines,
+        );
+        await applySupplierPriceUpdates(
+          tx,
+          tenantId,
+          doc.supplierId,
+          receiptLines,
+          pricePolicy,
+          shouldApplySupplierPrices,
         );
       }
 
@@ -1216,7 +1330,7 @@ export class DocumentsService {
         await applySupplierOrderReceipt(
           tx,
           doc.supplierOrderId,
-          doc.lines,
+          receiptLines,
           doc.locationId!,
           tenantId,
         );
@@ -1759,7 +1873,15 @@ export class DocumentsService {
   }
 
   private assertStockLoadDocument(doc: Document & { lines: DocumentLine[] }): void {
-    if (!doc.supplierId) {
+    const supplierRequiredTypes: readonly DocumentType[] = [
+      DocumentType.goods_receipt,
+      DocumentType.supplier_ddt,
+      DocumentType.supplier_invoice_accompanying,
+    ];
+    if (
+      (supplierRequiredTypes as readonly string[]).includes(doc.type) &&
+      !doc.supplierId
+    ) {
       throw new UnprocessableEntityException(
         'Seleziona un fornitore prima di confermare l\'arrivo merce.',
       );

@@ -69,6 +69,14 @@ export interface DocumentApiRow {
   readonly blockAfterConfirm?: boolean;
   readonly salesOrder?: { readonly id: EntityId; readonly orderNumber: string } | null;
   readonly supplierOrder?: { readonly id: EntityId; readonly reference: string } | null;
+  readonly linkedSupplierOrder?: { readonly id: EntityId; readonly reference: string } | null;
+  readonly linkedSupplierOrderLines?: readonly {
+    readonly id: EntityId;
+    readonly variantId: EntityId;
+    readonly sku: string;
+    readonly orderedQuantity: number;
+    readonly receivedQuantity: number;
+  }[];
   readonly attachments?: readonly DocumentAttachmentApiRow[];
 }
 
@@ -154,7 +162,8 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     lineCount: row.lineCount,
     blockAfterConfirm: row.blockAfterConfirm,
     linkedSalesOrder: row.salesOrder ?? undefined,
-    linkedSupplierOrder: row.supplierOrder ?? undefined,
+    linkedSupplierOrder: row.linkedSupplierOrder ?? row.supplierOrder ?? undefined,
+    linkedSupplierOrderLines: row.linkedSupplierOrderLines,
     attachments: row.attachments?.map(mapAttachment),
   };
 }

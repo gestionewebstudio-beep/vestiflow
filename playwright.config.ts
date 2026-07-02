@@ -20,7 +20,7 @@ const authenticatedProjects = hasE2eCredentials()
   ? [
       {
         name: 'setup',
-        testMatch: /auth\.setup\.ts/,
+        testMatch: /\/auth\.setup\.ts$/,
       },
       {
         name: 'chromium',

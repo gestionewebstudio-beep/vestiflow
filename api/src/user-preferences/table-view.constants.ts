@@ -4,6 +4,10 @@ export const TABLE_VIEW_IDS = [
   'inventory_levels',
   'documents_list',
   'suppliers_list',
+  'goods_receipt_lines',
+  'supplier_order_lines',
+  'products_list',
+  'customers_list',
 ] as const;
 
 export type TableViewId = (typeof TABLE_VIEW_IDS)[number];

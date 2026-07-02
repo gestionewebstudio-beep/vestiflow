@@ -14,6 +14,7 @@ import type { Product } from '@core/models/product.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 import { catalogOriginShortLabel, catalogOriginTone } from '../../models/catalog-origin.util';
 import { productDisplayCategoryShort } from '../../models/product-display.util';
@@ -33,6 +34,7 @@ import type { ProductSortField } from '../../models/product-list-query.model';
 })
 export class ProductTableComponent {
   readonly products = input.required<readonly Product[]>();
+  readonly columns = input.required<readonly ResolvedTableColumn[]>();
   readonly sortField = input<ProductSortField>();
   readonly sortOrder = input<SortOrder>();
   readonly showShopifyColumn = input(false);
@@ -47,6 +49,14 @@ export class ProductTableComponent {
   readonly selectAllToggle = output<boolean>();
 
   private readonly selectAllCheckbox = viewChild<ElementRef<HTMLInputElement>>('selectAllCheckbox');
+
+  protected showColumn(id: string): boolean {
+    return this.columns().some((col) => col.id === id);
+  }
+
+  protected columnLabel(id: string): string {
+    return this.columns().find((col) => col.id === id)?.label ?? id;
+  }
 
   constructor() {
     effect(() => {

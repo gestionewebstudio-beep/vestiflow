@@ -394,9 +394,11 @@ describe('ProductsService', () => {
         id: 'var-1',
         productId: 'prod-1',
         sku: 'SKU-1',
+        barcode: '8001234567890',
         optionValues: [{ name: 'Taglia', value: 'M' }],
         currency: 'EUR',
         sellingPriceMinor: 1990,
+        purchasePriceMinor: 990,
         product: { name: 'Maglietta' },
       },
     ]);
@@ -412,7 +414,9 @@ describe('ProductsService', () => {
       variantId: 'var-1',
       sku: 'SKU-1',
       productName: 'Maglietta',
+      barcode: '8001234567890',
       sellingPrice: { amountMinor: 1990, currencyCode: 'EUR' },
+      purchasePrice: { amountMinor: 990, currencyCode: 'EUR' },
     });
     const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: { tenantId: string } })
       .where;
