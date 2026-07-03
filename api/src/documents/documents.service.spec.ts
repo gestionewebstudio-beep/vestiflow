@@ -58,7 +58,7 @@ function createPrismaMock() {
       findFirst: vi.fn().mockResolvedValue(null),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
-    stockMovement: { create: vi.fn() },
+    stockMovement: { create: vi.fn(), count: vi.fn().mockResolvedValue(0) },
     supplier: { findFirst: vi.fn() },
     customer: { findFirst: vi.fn() },
     location: { findFirst: vi.fn() },
