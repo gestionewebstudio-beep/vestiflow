@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertBackupDatabaseUrl, resolveBackupDatabaseUrl } from './backup-url.mjs';
+import {
+  assertBackupDatabaseUrl,
+  resolveBackupDatabaseUrl,
+  sanitizeBackupDatabaseUrl,
+} from './backup-url.mjs';
 
 describe('backup-url.mjs', () => {
   it('preferisce BACKUP_DATABASE_URL rispetto a DIRECT_URL', () => {
@@ -34,5 +38,22 @@ describe('backup-url.mjs', () => {
         'postgres://user:pass@aws-0-eu-west-1.pooler.supabase.com:5432/postgres',
       ),
     ).not.toThrow();
+  });
+
+  it('sanitizeBackupDatabaseUrl rimuove pgbouncer e passa a session pooler 5432', () => {
+    expect(
+      sanitizeBackupDatabaseUrl(
+        'postgresql://postgres.x:pass@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5',
+      ),
+    ).toBe('postgresql://postgres.x:pass@aws-0-eu-west-1.pooler.supabase.com:5432/postgres');
+  });
+
+  it('resolveBackupDatabaseUrl sanitizza DIRECT_URL con parametri Prisma', () => {
+    expect(
+      resolveBackupDatabaseUrl({
+        DIRECT_URL:
+          'postgresql://postgres.x:pass@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true',
+      }),
+    ).toBe('postgresql://postgres.x:pass@aws-0-eu-west-1.pooler.supabase.com:5432/postgres');
   });
 });
