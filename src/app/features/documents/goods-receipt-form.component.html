@@ -54,12 +54,30 @@
       (ngSubmit)="isConfirmedEdit() ? saveConfirmedChanges() : requestConfirm()"
     >
       @if (formReadOnly()) {
-        <div class="gr-form__unlock-banner" role="status">
-          <p>Questo documento ha già aggiornato il magazzino ed è protetto da modifica.</p>
+        <div
+          class="gr-form__unlock-banner"
+          role="status"
+          tabindex="0"
+          (click)="requestUnlockEdit()"
+          (keydown.enter)="requestUnlockEdit()"
+          (keydown.space)="requestUnlockEdit(); $event.preventDefault()"
+        >
+          <p>
+            @if (isConfirmedEdit()) {
+              Questo documento è completato ed è protetto da modifica. Sbloccalo per continuare a
+              lavorarci.
+            } @else {
+              Questo documento è protetto da modifica. Sbloccalo per continuare a lavorarci.
+            }
+          </p>
           <app-button type="button" variant="secondary" (click)="requestUnlockEdit()">
             Sblocca modifica
           </app-button>
         </div>
+      }
+
+      @if (autoSaveStatus() === 'saving') {
+        <p class="gr-form__autosave-hint" role="status">Salvataggio automatico…</p>
       }
 
       @if (operationalStatusWarning(); as warning) {
@@ -290,6 +308,10 @@
             <h2 id="gr-lines-title" class="gr-form__subtitle">Righe documento</h2>
             <div class="gr-form__lines-tools">
               <app-table-column-picker [viewId]="lineColumnsView" />
+              <app-button type="button" variant="secondary" (click)="openNewProduct()">
+                <i class="pi pi-box" aria-hidden="true"></i>
+                Nuovo prodotto
+              </app-button>
               <app-button type="button" variant="ghost" (click)="addLine()">
                 <i class="pi pi-plus" aria-hidden="true"></i>
                 Aggiungi riga
@@ -402,37 +424,46 @@
                   <tr class="gr-form__table-row" [formGroupName]="i">
                     @if (isLineColumnVisible('variant')) {
                       <td class="gr-form__cell gr-form__cell--variant">
-                        <app-select-menu
-                          [options]="variantOptions()"
-                          [value]="line.controls.variantId.value"
-                          ariaLabel="Variante"
-                          placeholder="Cerca SKU, EAN…"
-                          [compact]="true"
-                          [fullWidth]="true"
-                          [searchable]="true"
-                          [filterOptionsLocally]="false"
-                          searchPlaceholder="Cerca prodotto, SKU, barcode…"
-                          searchAriaLabel="Cerca variante"
-                          [invalid]="lineFieldInvalid(i, 'variantId')"
-                          (valueChange)="onVariantSelect(i, $event)"
-                          (searchChange)="onVariantSearch($event)"
-                        />
-                        <button
-                          type="button"
-                          class="gr-form__inline-toggle"
-                          (click)="openQuickCreate(i)"
-                        >
-                          <i class="pi pi-plus" aria-hidden="true"></i>
-                          Crea articolo rapido
-                        </button>
-                        <button
-                          type="button"
-                          class="gr-form__inline-toggle"
-                          (click)="openFullProductCreate(i)"
-                        >
-                          <i class="pi pi-external-link" aria-hidden="true"></i>
-                          Crea anagrafica completa
-                        </button>
+                        @if (lineHasLinkedProduct(i)) {
+                          <p
+                            class="gr-form__linked-variant"
+                            [title]="line.controls.description.value"
+                          >
+                            {{ line.controls.description.value || 'Prodotto collegato' }}
+                          </p>
+                          <button
+                            type="button"
+                            class="gr-form__inline-toggle"
+                            (click)="openProductDetail(i)"
+                          >
+                            <i class="pi pi-external-link" aria-hidden="true"></i>
+                            Apri anagrafica prodotto
+                          </button>
+                        } @else {
+                          <app-select-menu
+                            [options]="variantOptions()"
+                            [value]="line.controls.variantId.value"
+                            ariaLabel="Variante"
+                            placeholder="Cerca SKU, EAN…"
+                            [compact]="true"
+                            [fullWidth]="true"
+                            [searchable]="true"
+                            [filterOptionsLocally]="false"
+                            searchPlaceholder="Cerca prodotto, SKU, barcode…"
+                            searchAriaLabel="Cerca variante"
+                            [invalid]="lineFieldInvalid(i, 'variantId')"
+                            (valueChange)="onVariantSelect(i, $event)"
+                            (searchChange)="onVariantSearch($event)"
+                          />
+                          <button
+                            type="button"
+                            class="gr-form__inline-toggle gr-form__inline-toggle--primary"
+                            (click)="openProductAnagraphic(i)"
+                          >
+                            <i class="pi pi-box" aria-hidden="true"></i>
+                            Crea prodotto
+                          </button>
+                        }
                       </td>
                     }
                     @if (isLineColumnVisible('description')) {
@@ -665,7 +696,8 @@
           </section>
         } @else {
           <p class="gr-form__hint">
-            Salva una bozza per allegare DDT, fatture o foto del documento.
+            Il documento viene salvato automaticamente quando inserisci righe valide. Puoi allegare
+            file dopo il primo salvataggio.
           </p>
         }
       </fieldset>
@@ -696,7 +728,7 @@
             Salva bozza
           </app-button>
           <app-button type="submit" [disabled]="saving()" [loading]="saving()">
-            Conferma e carica magazzino
+            Completa documento
           </app-button>
         }
       </div>
@@ -706,9 +738,9 @@
 
 <app-confirm-dialog
   [(open)]="confirmDialogOpen"
-  title="Conferma arrivo merce"
-  message="Confermando il documento verranno generati i movimenti di carico e aggiornate le giacenze. Procedere?"
-  confirmLabel="Conferma e carica"
+  title="Completa arrivo merce"
+  message="Segnare il documento come completato? Le righe valide sono già operative sul magazzino; il completamento chiude il documento a fini organizzativi."
+  confirmLabel="Completa documento"
   [busy]="saving()"
   (confirmed)="confirmAndSave()"
 />
@@ -726,7 +758,7 @@
 <app-confirm-dialog
   [(open)]="unlockDialogOpen"
   title="Sblocca modifica documento"
-  message="Questo documento ha già aggiornato il magazzino. Se lo modifichi, VestiFlow aggiornerà automaticamente i movimenti collegati e salverà lo storico della modifica."
+  message="Modificando il documento, VestiFlow aggiornerà automaticamente i movimenti collegati e salverà lo storico della modifica."
   confirmLabel="Sblocca e modifica"
   (confirmed)="confirmUnlockEdit()"
 />
@@ -750,14 +782,11 @@
   (dismissed)="dismissAttachPendingVariant()"
 />
 
-<app-slide-panel
-  [open]="productPanelOpen()"
-  title="Crea anagrafica completa"
-  (closed)="closeProductPanel()"
->
+<app-slide-panel [open]="productPanelOpen()" title="Nuovo prodotto" (closed)="closeProductPanel()">
   @if (productPanelOpen()) {
     <app-product-form
       [embeddedPanel]="true"
+      [embeddedPrefill]="productPanelPrefill()"
       (productCreatedWithAttach)="onProductCreatedFromPanel($event)"
       (productSavedWithoutAttach)="onProductSavedWithoutAttach($event)"
       (panelDismissed)="closeProductPanel()"

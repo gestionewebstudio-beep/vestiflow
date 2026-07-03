@@ -88,6 +88,7 @@ type SubmitState =
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 1;
+const AUTO_SAVE_DEBOUNCE_MS = 2500;
 
 /**
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
@@ -176,6 +177,8 @@ export class GoodsReceiptFormComponent {
 
   protected readonly previewReference = signal<string | null>(null);
   protected readonly editUnlocked = signal(false);
+  /** Evita il lock immediato dopo auto-save che crea il documento e cambia route. */
+  private readonly preserveEditSession = signal(false);
   protected readonly unlockDialogOpen = signal(false);
   protected readonly productPanelOpen = signal(false);
   protected readonly productPanelLineIndex = signal<number | null>(null);
@@ -236,7 +239,7 @@ export class GoodsReceiptFormComponent {
     );
   });
 
-  protected readonly formReadOnly = computed(() => this.isConfirmedEdit() && !this.editUnlocked());
+  protected readonly formReadOnly = computed(() => this.isEditMode() && !this.editUnlocked());
 
   protected readonly documentStatus = computed(
     () => this.loadedDocument()?.status ?? DocumentStatus.Draft,
@@ -383,6 +386,74 @@ export class GoodsReceiptFormComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.refreshNumberPreview());
     this.refreshNumberPreview();
+    this.setupAutoSave();
+  }
+
+  private setupAutoSave(): void {
+    this.form.valueChanges
+      .pipe(debounceTime(AUTO_SAVE_DEBOUNCE_MS), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (this.formReadOnly() || this.saving()) {
+          return;
+        }
+        if (!this.canAutoSave()) {
+          return;
+        }
+        this.autoSavePending.set(true);
+        this.persist(false, false, { stayOnPage: true });
+      });
+  }
+
+  private canAutoSave(): boolean {
+    return this.validateForAutoSave();
+  }
+
+  private validateForAutoSave(): boolean {
+    const headerOk =
+      !this.form.controls.supplierId.invalid &&
+      !this.form.controls.locationId.invalid &&
+      !this.form.controls.documentDate.invalid &&
+      !this.form.controls.type.invalid;
+    if (!headerOk) {
+      return false;
+    }
+    return this.lines.controls.some(
+      (line) =>
+        line.controls.loadsStock.value &&
+        Number(line.controls.quantity.value) > 0 &&
+        Boolean(line.controls.variantId.value) &&
+        !line.controls.description.invalid &&
+        !line.controls.quantity.invalid,
+    );
+  }
+
+  protected lineHasLinkedProduct(index: number): boolean {
+    return Boolean(this.lines.at(index)?.controls.variantId.value);
+  }
+
+  private syncLineFieldAccess(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    for (const line of this.lines.controls) {
+      const linked = Boolean(line.controls.variantId.value);
+      const productFields = [
+        line.controls.variantId,
+        line.controls.description,
+        line.controls.unitCost,
+        line.controls.vatRatePercent,
+        line.controls.lotCode,
+        line.controls.lotExpiryDate,
+        line.controls.serialNumbersText,
+      ] as const;
+      for (const control of productFields) {
+        if (linked) {
+          control.disable({ emitEvent: false });
+        } else {
+          control.enable({ emitEvent: false });
+        }
+      }
+    }
   }
 
   protected get lines(): FormArray<ReturnType<GoodsReceiptFormComponent['createLine']>> {
@@ -461,7 +532,16 @@ export class GoodsReceiptFormComponent {
   private applySupplierPriceUpdates = false;
   private readonly pendingConfirmDocId = signal<string | null>(null);
 
+  private autoSaveSubscription: Subscription | null = null;
+  private readonly autoSavePending = signal(false);
   private supplierSubscription: Subscription | null = null;
+
+  protected readonly autoSaveStatus = computed(() => {
+    if (this.saving() && this.autoSavePending()) {
+      return 'saving' as const;
+    }
+    return 'idle' as const;
+  });
   private quickProductSubscription: Subscription | null = null;
   private submitSubscription: Subscription | null = null;
 
@@ -520,6 +600,56 @@ export class GoodsReceiptFormComponent {
         }
       }
     }
+    this.syncLineFieldAccess();
+  }
+
+  protected productPanelPrefill = computed(() => {
+    const index = this.productPanelLineIndex();
+    if (index == null) {
+      return null;
+    }
+    const line = this.lines.at(index);
+    if (!line) {
+      return null;
+    }
+    const desc = line.controls.description.value.trim();
+    const namePart = desc.split('·')[0]?.trim() || desc;
+    const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
+    const vatRaw = line.controls.vatRatePercent.value.trim();
+    return {
+      name: namePart,
+      description: desc,
+      purchasePriceMajor: cost ? cost.amountMinor / 100 : null,
+      defaultVatRatePercent: vatRaw ? Number(vatRaw) : null,
+    };
+  });
+
+  protected openProductAnagraphic(index: number): void {
+    this.openFullProductCreate(index);
+  }
+
+  protected openNewProduct(): void {
+    this.attachTargetLineIndex.set(null);
+    this.productPanelLineIndex.set(null);
+    this.productPanelOpen.set(true);
+  }
+
+  protected openProductDetail(index: number): void {
+    const variantId = this.lines.at(index)?.controls.variantId.value;
+    if (!variantId) {
+      return;
+    }
+    this.productService
+      .searchVariantSummaries({ variantId })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rows) => {
+          const productId = rows[0]?.productId;
+          if (productId) {
+            void this.router.navigate(['/app/products', productId]);
+          }
+        },
+      });
   }
 
   protected poLineContext(index: number): {
@@ -549,6 +679,7 @@ export class GoodsReceiptFormComponent {
   protected confirmUnlockEdit(): void {
     this.unlockDialogOpen.set(false);
     this.editUnlocked.set(true);
+    this.syncLineFieldAccess();
   }
 
   protected openSupplierDetail(): void {
@@ -793,6 +924,7 @@ export class GoodsReceiptFormComponent {
     const lineIndex = this.productPanelLineIndex();
     if (lineIndex != null) {
       this.onVariantSelect(lineIndex, event.variantId);
+      this.syncLineFieldAccess();
     }
     this.closeProductPanel();
   }
@@ -876,6 +1008,17 @@ export class GoodsReceiptFormComponent {
   }
 
   protected cancel(): void {
+    if (this.saving()) {
+      return;
+    }
+    if (!this.formReadOnly() && this.canAutoSave()) {
+      const leave = globalThis.confirm(
+        'Hai modifiche non ancora salvate automaticamente. Uscire comunque?',
+      );
+      if (!leave) {
+        return;
+      }
+    }
     void this.router.navigateByUrl(this.listPath);
   }
 
@@ -920,8 +1063,19 @@ export class GoodsReceiptFormComponent {
     );
   }
 
-  private persist(confirmAfterSave: boolean, applySupplierPriceUpdates = false): void {
-    if (this.saving() || !this.validateForm()) {
+  private persist(
+    confirmAfterSave: boolean,
+    applySupplierPriceUpdates = false,
+    options?: { readonly stayOnPage?: boolean },
+  ): void {
+    if (this.saving()) {
+      return;
+    }
+    if (!(options?.stayOnPage ? this.validateForAutoSave() : this.validateForm())) {
+      if (!options?.stayOnPage) {
+        this.form.markAllAsTouched();
+      }
+      this.autoSavePending.set(false);
       return;
     }
     const raw = this.form.getRawValue();
@@ -997,16 +1151,33 @@ export class GoodsReceiptFormComponent {
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (doc) => {
         this._submitState.set({ status: 'idle' });
+        this.autoSavePending.set(false);
+        this.loadedDocument.set(doc);
+        if (options?.stayOnPage) {
+          if (!editId) {
+            this.preserveEditSession.set(true);
+            void this.router.navigate(['/app/documents', doc.id, 'edit'], { replaceUrl: true });
+          }
+          this.editUnlocked.set(true);
+          this.syncLineFieldAccess();
+          return;
+        }
         void this.router.navigate([this.listPath, doc.id]);
       },
       error: (err: unknown) => {
+        this.autoSavePending.set(false);
         this._submitState.set({ status: 'error', error: this.toAppError(err) });
       },
     });
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
-    this.editUnlocked.set(false);
+    if (this.preserveEditSession()) {
+      this.preserveEditSession.set(false);
+      this.editUnlocked.set(true);
+    } else {
+      this.editUnlocked.set(false);
+    }
     const poMap = new Map<string, LinkedSupplierOrderLineContext>();
     for (const line of doc.linkedSupplierOrderLines ?? []) {
       poMap.set(line.id, line);
@@ -1050,6 +1221,7 @@ export class GoodsReceiptFormComponent {
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
     }
+    this.syncLineFieldAccess();
   }
 
   private createLine() {

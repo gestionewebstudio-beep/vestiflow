@@ -10,6 +10,7 @@ import {
   DocumentStatus,
   DocumentType,
   Prisma,
+  StockMovementType,
   SupplierOrderStatus,
   type Document,
   type DocumentLine,
@@ -437,6 +438,8 @@ export class DocumentsService {
     const doc = await this.getById(tenantId, id);
     const isDraft = doc.status === DocumentStatus.draft;
     const isConfirmedEdit = CONFIRMED_EDITABLE_STATUSES.includes(doc.status);
+    const reconcilesLoadStock =
+      (isDraft || isConfirmedEdit) && documentTypeLoadsStockOnConfirm(doc.type);
 
     if (!isDraft && !isConfirmedEdit) {
       throw new ConflictException('Questo documento non può essere modificato.');
@@ -487,7 +490,7 @@ export class DocumentsService {
         })) ?? base.lines,
     });
 
-    if (isConfirmedEdit && documentTypeLoadsStockOnConfirm(doc.type)) {
+    if (reconcilesLoadStock) {
       const mergedForValidation = mergedLinesForValidation(doc);
       this.assertStockLoadDocument(mergedForValidation);
       if (!newLocationId) {
@@ -601,7 +604,7 @@ export class DocumentsService {
         }
       }
 
-      if (isConfirmedEdit && documentTypeLoadsStockOnConfirm(doc.type) && doc.locationId) {
+      if (reconcilesLoadStock && doc.locationId) {
         const newLinesComputed =
           lines ??
           doc.lines.map((line) => ({
@@ -934,11 +937,7 @@ export class DocumentsService {
         }
       }
 
-      if (
-        isConfirmedEdit &&
-        doc.supplierOrderId &&
-        documentTypeLoadsStockOnConfirm(doc.type)
-      ) {
+      if (reconcilesLoadStock && doc.supplierOrderId) {
         const newLinesForPo =
           lines?.map((line, index) => ({
             id: `new-${index}`,
@@ -1133,33 +1132,39 @@ export class DocumentsService {
 
       if (documentTypeLoadsStockOnConfirm(doc.type)) {
         await assertSerialNumbersForDocumentLines(tx, tenantId, receiptLines);
-        const reason = reference
-          ? `Arrivo merce ${reference}`
-          : `Arrivo merce ${doc.type}`;
-        for (const line of receiptLines) {
-          if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
-            continue;
+        const stockAlreadyApplied =
+          (await tx.stockMovement.count({
+            where: { tenantId, externalRef: doc.id, type: StockMovementType.load },
+          })) > 0;
+        if (!stockAlreadyApplied) {
+          const reason = reference
+            ? `Arrivo merce ${reference}`
+            : `Arrivo merce ${doc.type}`;
+          for (const line of receiptLines) {
+            if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
+              continue;
+            }
+            const variant = await tx.productVariant.findFirst({
+              where: { id: line.variantId, tenantId },
+              select: { id: true, sku: true },
+            });
+            if (!variant) {
+              throw new UnprocessableEntityException(
+                `Variante non trovata per la riga ${line.lineNumber}.`,
+              );
+            }
+            await applyStockLoad(tx, {
+              tenantId,
+              variantId: variant.id,
+              sku: line.sku ?? variant.sku,
+              locationId: doc.locationId!,
+              quantity: line.quantity,
+              reason,
+              externalRef: doc.id,
+              actor: { createdById: actorId, createdByName: actorName },
+            });
+            syncTargets.push({ variantId: variant.id, locationId: doc.locationId! });
           }
-          const variant = await tx.productVariant.findFirst({
-            where: { id: line.variantId, tenantId },
-            select: { id: true, sku: true },
-          });
-          if (!variant) {
-            throw new UnprocessableEntityException(
-              `Variante non trovata per la riga ${line.lineNumber}.`,
-            );
-          }
-          await applyStockLoad(tx, {
-            tenantId,
-            variantId: variant.id,
-            sku: line.sku ?? variant.sku,
-            locationId: doc.locationId!,
-            quantity: line.quantity,
-            reason,
-            externalRef: doc.id,
-            actor: { createdById: actorId, createdByName: actorName },
-          });
-          syncTargets.push({ variantId: variant.id, locationId: doc.locationId! });
         }
         await applyInventoryLotsFromDocumentLines(
           tx,
@@ -1181,6 +1186,16 @@ export class DocumentsService {
           pricePolicy,
           shouldApplySupplierPrices,
         );
+
+        if (doc.supplierOrderId && !stockAlreadyApplied) {
+          await applySupplierOrderReceipt(
+            tx,
+            doc.supplierOrderId,
+            receiptLines,
+            doc.locationId!,
+            tenantId,
+          );
+        }
       }
 
       if (doc.type === DocumentType.sales_ddt) {
@@ -1320,19 +1335,6 @@ export class DocumentsService {
           doc.locationId!,
           doc.targetLocationId!,
           doc.lines,
-        );
-      }
-
-      if (
-        doc.supplierOrderId &&
-        documentTypeLoadsStockOnConfirm(doc.type)
-      ) {
-        await applySupplierOrderReceipt(
-          tx,
-          doc.supplierOrderId,
-          receiptLines,
-          doc.locationId!,
-          tenantId,
         );
       }
 

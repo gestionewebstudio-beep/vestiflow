@@ -119,6 +119,46 @@ export function ensureQuickModeDraft(
   };
 }
 
+/** Prefill per creazione prodotto da pannello embedded (es. riga arrivo merce). */
+export interface ProductEmbeddedCreatePrefill {
+  readonly name?: string;
+  readonly description?: string;
+  readonly sku?: string;
+  readonly barcode?: string;
+  readonly purchasePriceMajor?: number | null;
+  readonly defaultVatRatePercent?: number | null;
+}
+
+/** Costruisce un draft quick-mode precompilato da dati riga documento. */
+export function productFormDraftFromEmbeddedPrefill(
+  prefill: ProductEmbeddedCreatePrefill,
+): ProductFormDraft {
+  const base = ensureQuickModeDraft(emptyProductFormDraft());
+  const name = prefill.name?.trim() || base.general.name;
+  const variant = base.variants[0]!;
+  return ensureQuickModeDraft(
+    {
+      ...base,
+      general: {
+        ...base.general,
+        name,
+        description: prefill.description?.trim() || base.general.description,
+        defaultVatRatePercent: prefill.defaultVatRatePercent ?? base.general.defaultVatRatePercent,
+      },
+      variants: [
+        {
+          ...variant,
+          sku: prefill.sku?.trim() || variant.sku,
+          barcode: prefill.barcode?.trim() || variant.barcode,
+          purchasePrice:
+            prefill.purchasePriceMajor != null ? prefill.purchasePriceMajor : variant.purchasePrice,
+        },
+      ],
+    },
+    Boolean(prefill.sku?.trim()),
+  );
+}
+
 /** Draft iniziale vuoto per la creazione. */
 export function emptyProductFormDraft(): ProductFormDraft {
   return {

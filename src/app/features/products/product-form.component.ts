@@ -48,10 +48,12 @@ import { ProductOptionsStepComponent } from './components/product-options-step/p
 import { ProductQuickVariantFieldsComponent } from './components/product-quick-variant-fields/product-quick-variant-fields.component';
 import { ProductReviewStepComponent } from './components/product-review-step/product-review-step.component';
 import { ProductVariantsStepComponent } from './components/product-variants-step/product-variants-step.component';
+import type { ProductEmbeddedCreatePrefill } from './models/product-form.mapper';
 import {
   emptyProductFormDraft,
   ensureQuickModeDraft,
   generateVariantDrafts,
+  productFormDraftFromEmbeddedPrefill,
   productToFormDraft,
   toCreateProductDto,
   toUpdateProductDto,
@@ -136,6 +138,8 @@ type FormLoadState =
 export class ProductFormComponent implements CanComponentDeactivate {
   /** Quando true, il form vive in un pannello laterale (es. arrivo merce). */
   readonly embeddedPanel = input(false);
+  /** Prefill opzionale in creazione embedded (dati dalla riga documento). */
+  readonly embeddedPrefill = input<ProductEmbeddedCreatePrefill | null>(null);
 
   readonly productCreatedWithAttach = output<{ readonly variantId: string }>();
   readonly productSavedWithoutAttach = output<{ readonly variantId: string }>();
@@ -212,7 +216,14 @@ export class ProductFormComponent implements CanComponentDeactivate {
           this.catalogOrigin.set(CatalogOrigin.VestiFlow);
           this.creationMode.set('quick');
           this.skuManuallyEdited.set(false);
-          this.resetDraft(ensureQuickModeDraft(emptyProductFormDraft()));
+          const prefill = this.embeddedPrefill();
+          const initialDraft = prefill
+            ? productFormDraftFromEmbeddedPrefill(prefill)
+            : ensureQuickModeDraft(emptyProductFormDraft());
+          this.resetDraft(initialDraft);
+          if (prefill?.sku?.trim()) {
+            this.skuManuallyEdited.set(true);
+          }
           return of<FormLoadState>({ status: 'ready' });
         }
         return forkJoin({
