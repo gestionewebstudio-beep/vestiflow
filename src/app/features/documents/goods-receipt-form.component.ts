@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  HostListener,
   computed,
   inject,
   signal,
@@ -11,19 +12,23 @@ import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } fr
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
   forkJoin,
+  from,
+  last,
   map,
   of,
   startWith,
   switchMap,
-  EMPTY,
+  throwError,
+  defaultIfEmpty,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 import { take } from 'rxjs';
 
-import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
 import type { LinkedSupplierOrderLineContext } from '@core/models/document.model';
@@ -41,10 +46,10 @@ import {
   parseMoneyInput,
   zeroMoney,
 } from '@core/utils/money.util';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
+import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import { suggestVariantSku } from '@features/products/models/product-sku.util';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
-import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
 import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -66,12 +71,16 @@ import { TenantFeatureSettingsService } from '@features/settings/services/tenant
 import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
 import { ProductFormComponent } from '@features/products/product-form.component';
 
-import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
+import type { VariantSummary } from '@features/products/models/variant-summary.model';
+import { GoodsReceiptLineProductCellComponent } from './components/goods-receipt-line-product-cell/goods-receipt-line-product-cell.component';
+import { GoodsReceiptProductSearchPanelComponent } from './components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
 import {
   GOODS_RECEIPT_LINE_COLUMNS,
   GOODS_RECEIPT_LINE_PRESETS,
   GOODS_RECEIPT_LINES_VIEW,
+  normalizeGoodsReceiptColumnId,
 } from './models/goods-receipt-line-columns.config';
+import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import {
   documentTypeLabel,
   documentStatusLabel,
@@ -88,7 +97,7 @@ type SubmitState =
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 1;
-const AUTO_SAVE_DEBOUNCE_MS = 2500;
+const AUTO_SAVE_DEBOUNCE_MS = 800;
 
 /**
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
@@ -111,13 +120,15 @@ const AUTO_SAVE_DEBOUNCE_MS = 2500;
     TableColumnPickerComponent,
     TableColumnResizeDirective,
     DocumentAttachmentsPanelComponent,
+    GoodsReceiptLineProductCellComponent,
+    GoodsReceiptProductSearchPanelComponent,
     SlidePanelComponent,
     ProductFormComponent,
   ],
   templateUrl: './goods-receipt-form.component.html',
   styleUrl: './goods-receipt-form.component.scss',
 })
-export class GoodsReceiptFormComponent {
+export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
   private readonly supplierService = inject(SupplierService);
@@ -185,6 +196,10 @@ export class GoodsReceiptFormComponent {
   protected readonly attachTargetLineIndex = signal<number | null>(null);
   protected readonly registerDialogOpen = signal(false);
   protected readonly lifecycleActionSaving = signal(false);
+  protected readonly productSearchPanelOpen = signal(false);
+  protected readonly productSearchLineIndex = signal<number | null>(null);
+  protected readonly autocompleteLineIndex = signal<number | null>(null);
+  protected readonly deleteDocumentDialogOpen = signal(false);
   protected readonly attachWithoutAddDialogOpen = signal(false);
   protected readonly pendingAttachVariantId = signal<string | null>(null);
 
@@ -392,43 +407,154 @@ export class GoodsReceiptFormComponent {
   private setupAutoSave(): void {
     this.form.valueChanges
       .pipe(debounceTime(AUTO_SAVE_DEBOUNCE_MS), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        if (this.formReadOnly() || this.saving()) {
-          return;
-        }
-        if (!this.canAutoSave()) {
-          return;
-        }
-        this.autoSavePending.set(true);
-        this.persist(false, false, { stayOnPage: true });
-      });
+      .subscribe(() => this.triggerAutoSave());
   }
 
-  private canAutoSave(): boolean {
-    return this.validateForAutoSave();
+  private triggerAutoSave(): void {
+    if (this.formReadOnly() || this.saving()) {
+      return;
+    }
+    if (!this.validateForAutoSave()) {
+      return;
+    }
+    this.autoSavePending.set(true);
+    this.persistAutoSave({ stayOnPage: true });
   }
 
   private validateForAutoSave(): boolean {
-    const headerOk =
+    return (
       !this.form.controls.supplierId.invalid &&
       !this.form.controls.locationId.invalid &&
       !this.form.controls.documentDate.invalid &&
-      !this.form.controls.type.invalid;
-    if (!headerOk) {
-      return false;
-    }
-    return this.lines.controls.some(
-      (line) =>
-        line.controls.loadsStock.value &&
-        Number(line.controls.quantity.value) > 0 &&
-        Boolean(line.controls.variantId.value) &&
-        !line.controls.description.invalid &&
-        !line.controls.quantity.invalid,
+      !this.form.controls.type.invalid
     );
   }
 
   protected lineHasLinkedProduct(index: number): boolean {
     return Boolean(this.lines.at(index)?.controls.variantId.value);
+  }
+
+  protected lineSuggestions(index: number): readonly VariantSummary[] {
+    if (this.autocompleteLineIndex() !== index || this.lineHasLinkedProduct(index)) {
+      return [];
+    }
+    return mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants());
+  }
+
+  protected lineSuggestionsOpen(index: number): boolean {
+    const term = this.variantSearchDraft().trim();
+    return (
+      this.autocompleteLineIndex() === index &&
+      term.length >= VARIANT_SEARCH_MIN_CHARS &&
+      !this.lineHasLinkedProduct(index)
+    );
+  }
+
+  protected linkedProductLabel(index: number): string {
+    const line = this.lines.at(index);
+    if (!line) {
+      return '';
+    }
+    const name = line.controls.productName.value.trim();
+    if (name) {
+      return name;
+    }
+    const variantId = line.controls.variantId.value;
+    if (!variantId) {
+      return '';
+    }
+    const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
+      (v) => v.variantId === variantId,
+    );
+    return summary?.title ?? line.controls.description.value;
+  }
+
+  protected onLineProductNameChange(index: number, value: string): void {
+    const line = this.lines.at(index);
+    line.controls.productName.setValue(value);
+    line.controls.description.setValue(value, { emitEvent: false });
+    this.autocompleteLineIndex.set(index);
+    this.variantSearchDraft.set(value);
+    this.ensureTrailingEmptyRow();
+    this.triggerAutoSave();
+  }
+
+  protected onLineProductFocus(index: number): void {
+    this.autocompleteLineIndex.set(index);
+    this.variantSearchDraft.set(this.lines.at(index).controls.productName.value);
+  }
+
+  protected onLineProductBlur(index: number): void {
+    if (this.autocompleteLineIndex() === index) {
+      this.autocompleteLineIndex.set(null);
+    }
+    this.tryLinkLineByCode(index);
+    this.triggerAutoSave();
+  }
+
+  protected tryLinkLineByCode(index: number): void {
+    if (this.lineHasLinkedProduct(index)) {
+      return;
+    }
+    const code = this.lines.at(index).controls.productName.value.trim();
+    if (code.length < 3) {
+      return;
+    }
+    this.productService
+      .findVariantByCode(code)
+      .pipe(
+        take(1),
+        catchError(() => of(null)),
+      )
+      .subscribe((variant) => {
+        if (variant) {
+          this.onVariantSelect(index, variant.variantId);
+        }
+      });
+  }
+
+  protected openLineProductSearch(index: number): void {
+    this.productSearchLineIndex.set(index);
+    this.productSearchPanelOpen.set(true);
+  }
+
+  protected closeLineProductSearch(): void {
+    this.productSearchPanelOpen.set(false);
+    this.productSearchLineIndex.set(null);
+  }
+
+  protected onLineProductSearchPick(variantId: string): void {
+    const index = this.productSearchLineIndex();
+    if (index != null) {
+      this.onVariantSelect(index, variantId);
+    }
+    this.closeLineProductSearch();
+  }
+
+  protected advanceToNextLine(index: number): void {
+    this.ensureTrailingEmptyRow();
+    const nextIndex = index + 1;
+    if (nextIndex >= this.lines.length) {
+      return;
+    }
+    globalThis.document.getElementById(`gr-product-${nextIndex}`)?.focus();
+  }
+
+  protected onLineFieldKeydown(
+    index: number,
+    field: 'quantity' | 'unitCost' | 'sellingPrice' | 'compareAtPrice' | 'vat',
+    event: KeyboardEvent,
+  ): void {
+    if (event.key !== 'Tab' || event.shiftKey) {
+      return;
+    }
+    const order = ['quantity', 'unitCost', 'sellingPrice', 'compareAtPrice', 'vat'] as const;
+    const pos = order.indexOf(field);
+    if (pos < order.length - 1) {
+      return;
+    }
+    event.preventDefault();
+    this.advanceToNextLine(index);
   }
 
   private syncLineFieldAccess(): void {
@@ -437,22 +563,65 @@ export class GoodsReceiptFormComponent {
     }
     for (const line of this.lines.controls) {
       const linked = Boolean(line.controls.variantId.value);
-      const productFields = [
-        line.controls.variantId,
-        line.controls.description,
+      const lockedWhenLinked = [
+        line.controls.productName,
         line.controls.unitCost,
         line.controls.vatRatePercent,
+        line.controls.sellingPrice,
+        line.controls.compareAtPrice,
         line.controls.lotCode,
         line.controls.lotExpiryDate,
         line.controls.serialNumbersText,
       ] as const;
-      for (const control of productFields) {
+      for (const control of lockedWhenLinked) {
         if (linked) {
           control.disable({ emitEvent: false });
         } else {
           control.enable({ emitEvent: false });
         }
       }
+    }
+  }
+
+  private lineIsEmpty(line: ReturnType<GoodsReceiptFormComponent['createLine']>): boolean {
+    return (
+      !line.controls.variantId.value &&
+      !line.controls.productName.value.trim() &&
+      !line.controls.unitCost.value.trim() &&
+      !line.controls.sellingPrice.value.trim() &&
+      !line.controls.compareAtPrice.value.trim()
+    );
+  }
+
+  private lineHasPersistableData(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): boolean {
+    const qty = Number(line.controls.quantity.value);
+    if (line.controls.variantId.value) {
+      return qty > 0;
+    }
+    const name = line.controls.productName.value.trim();
+    return name.length >= 2 && qty > 0;
+  }
+
+  private lineNeedsProductCreation(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): boolean {
+    return (
+      !line.controls.variantId.value &&
+      line.controls.productName.value.trim().length >= 2 &&
+      Number(line.controls.quantity.value) > 0 &&
+      line.controls.loadsStock.value
+    );
+  }
+
+  private ensureTrailingEmptyRow(): void {
+    if (this.formReadOnly() || this.lines.length === 0) {
+      return;
+    }
+    const last = this.lines.at(this.lines.length - 1);
+    if (!this.lineIsEmpty(last)) {
+      this.lines.push(this.createLine());
     }
   }
 
@@ -487,12 +656,6 @@ export class GoodsReceiptFormComponent {
     { initialValue: [] as readonly VariantSummary[] },
   );
 
-  protected readonly variantOptions = computed(() =>
-    toVariantSelectMenuOptions(
-      mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()),
-    ),
-  );
-
   private readonly formValue = toSignal(this.form.valueChanges, {
     initialValue: this.form.getRawValue(),
   });
@@ -516,36 +679,21 @@ export class GoodsReceiptFormComponent {
   private readonly _savingSupplier = signal(false);
   protected readonly savingSupplier = this._savingSupplier.asReadonly();
 
-  protected readonly quickCreateLineIndex = signal<number | null>(null);
-  readonly quickCreateForm = this.fb.group({
-    name: this.fb.control('', { validators: [Validators.required] }),
-    sku: this.fb.control('', { validators: [Validators.required] }),
-    barcode: this.fb.control(''),
-    purchasePrice: this.fb.control(''),
-    sellingPrice: this.fb.control(''),
-  });
-  private readonly _savingQuickProduct = signal(false);
-  protected readonly savingQuickProduct = this._savingQuickProduct.asReadonly();
-
-  protected readonly confirmDialogOpen = signal(false);
-  protected readonly supplierPriceDialogOpen = signal(false);
-  private applySupplierPriceUpdates = false;
-  private readonly pendingConfirmDocId = signal<string | null>(null);
-
-  private autoSaveSubscription: Subscription | null = null;
-  private readonly autoSavePending = signal(false);
+  private autoSavePending = signal(false);
   private supplierSubscription: Subscription | null = null;
-
-  protected readonly autoSaveStatus = computed(() => {
-    if (this.saving() && this.autoSavePending()) {
-      return 'saving' as const;
-    }
-    return 'idle' as const;
-  });
-  private quickProductSubscription: Subscription | null = null;
   private submitSubscription: Subscription | null = null;
+  private readonly dirtySinceLastSave = signal(false);
 
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
+  protected readonly autoSaveStatus = computed(() => {
+    if (this.saving()) {
+      return 'saving' as const;
+    }
+    if (this.dirtySinceLastSave()) {
+      return 'pending' as const;
+    }
+    return 'saved' as const;
+  });
   protected readonly saving = computed(() => this._submitState().status === 'saving');
   protected readonly submitError = computed(() => {
     const state = this._submitState();
@@ -577,30 +725,32 @@ export class GoodsReceiptFormComponent {
     this.form.controls.locationId.markAsTouched();
   }
 
-  protected onVariantSearch(value: string): void {
-    this.variantSearchDraft.set(value);
-  }
-
   protected onVariantSelect(index: number, value: string | null): void {
     const line = this.lines.at(index);
     line.controls.variantId.setValue(value ?? '');
-    line.controls.variantId.markAsTouched();
     if (value) {
       const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
         (v) => v.variantId === value,
       );
       if (summary) {
-        if (!line.controls.description.value.trim()) {
-          line.controls.description.setValue(`${summary.productName} · ${summary.title}`.trim());
-        }
+        const label = summary.title || summary.productName;
+        line.controls.productName.setValue(label, { emitEvent: false });
+        line.controls.description.setValue(label, { emitEvent: false });
         if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
           line.controls.unitCost.setValue(
             moneyToDecimalString(summary.purchasePrice).replace('.', ','),
           );
         }
+        if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
+          line.controls.sellingPrice.setValue(
+            moneyToDecimalString(summary.sellingPrice).replace('.', ','),
+          );
+        }
       }
     }
     this.syncLineFieldAccess();
+    this.ensureTrailingEmptyRow();
+    this.triggerAutoSave();
   }
 
   protected productPanelPrefill = computed(() => {
@@ -612,26 +762,37 @@ export class GoodsReceiptFormComponent {
     if (!line) {
       return null;
     }
-    const desc = line.controls.description.value.trim();
-    const namePart = desc.split('·')[0]?.trim() || desc;
+    const name = line.controls.productName.value.trim();
     const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
+    const selling = parseMoneyInput(line.controls.sellingPrice.value, this.currency);
     const vatRaw = line.controls.vatRatePercent.value.trim();
     return {
-      name: namePart,
-      description: desc,
+      name,
+      description: line.controls.description.value.trim() || name,
       purchasePriceMajor: cost ? cost.amountMinor / 100 : null,
       defaultVatRatePercent: vatRaw ? Number(vatRaw) : null,
+      sellingPriceMajor: selling ? selling.amountMinor / 100 : null,
     };
   });
 
+  protected productSearchInitialTerm = computed(() => {
+    const index = this.productSearchLineIndex();
+    if (index == null) {
+      return '';
+    }
+    return this.lines.at(index)?.controls.productName.value.trim() ?? '';
+  });
+
   protected openProductAnagraphic(index: number): void {
-    this.openFullProductCreate(index);
+    this.flushAutoSaveBeforeAction(() => this.openFullProductCreate(index));
   }
 
   protected openNewProduct(): void {
-    this.attachTargetLineIndex.set(null);
-    this.productPanelLineIndex.set(null);
-    this.productPanelOpen.set(true);
+    this.flushAutoSaveBeforeAction(() => {
+      this.attachTargetLineIndex.set(null);
+      this.productPanelLineIndex.set(null);
+      this.productPanelOpen.set(true);
+    });
   }
 
   protected openProductDetail(index: number): void {
@@ -689,29 +850,22 @@ export class GoodsReceiptFormComponent {
     }
   }
 
-  protected onLoadsStockChange(index: number): void {
-    const line = this.lines.at(index);
-    const loads = line.controls.loadsStock.value;
-    const variantControl = line.controls.variantId;
-    if (loads) {
-      variantControl.setValidators([Validators.required]);
-    } else {
-      variantControl.clearValidators();
-    }
-    variantControl.updateValueAndValidity();
+  protected onLoadsStockChange(_index: number): void {
+    this.triggerAutoSave();
   }
 
   protected addLine(): void {
     this.lines.push(this.createLine());
+    this.ensureTrailingEmptyRow();
   }
 
   protected removeLine(index: number): void {
-    if (this.lines.length > 1) {
-      this.lines.removeAt(index);
-      if (this.quickCreateLineIndex() === index) {
-        this.quickCreateLineIndex.set(null);
-      }
+    if (this.lines.length <= 1) {
+      return;
     }
+    this.lines.removeAt(index);
+    this.ensureTrailingEmptyRow();
+    this.triggerAutoSave();
   }
 
   protected fieldInvalid(name: 'supplierId' | 'locationId' | 'documentDate'): boolean {
@@ -719,10 +873,7 @@ export class GoodsReceiptFormComponent {
     return control.invalid && (control.touched || control.dirty);
   }
 
-  protected lineFieldInvalid(
-    index: number,
-    name: 'variantId' | 'description' | 'quantity',
-  ): boolean {
+  protected lineFieldInvalid(index: number, name: 'productName' | 'quantity'): boolean {
     const control = this.lines.at(index).controls[name];
     return control.invalid && (control.touched || control.dirty);
   }
@@ -740,22 +891,61 @@ export class GoodsReceiptFormComponent {
     this.showSupplierForm.update((open) => !open);
   }
 
-  protected openQuickCreate(index: number): void {
-    const line = this.lines.at(index);
-    const draft = this.variantSearchDraft().trim();
-    this.quickCreateForm.reset({
-      name: line.controls.description.value.trim() || draft,
-      sku: draft.length >= 2 ? draft.toUpperCase() : '',
-      barcode: '',
-      purchasePrice: line.controls.unitCost.value,
-      sellingPrice: line.controls.unitCost.value,
-    });
-    this.quickCreateLineIndex.set(index);
+  protected requestDeleteDocument(): void {
+    this.deleteDocumentDialogOpen.set(true);
   }
 
-  protected closeQuickCreate(): void {
-    this.quickCreateLineIndex.set(null);
-    this.quickCreateForm.reset();
+  protected confirmDeleteDocument(): void {
+    const id = this.editDocumentId();
+    this.deleteDocumentDialogOpen.set(false);
+    if (!id || this.saving()) {
+      return;
+    }
+    this._submitState.set({ status: 'saving' });
+    this.documentService
+      .deleteDocument(id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this._submitState.set({ status: 'idle' });
+          void this.router.navigateByUrl(this.listPath);
+        },
+        error: (err: unknown) => {
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  canDeactivate(): boolean {
+    if (this.saving()) {
+      return false;
+    }
+    if (this.dirtySinceLastSave() || this.autoSavePending()) {
+      return globalThis.confirm(
+        'Ci sono modifiche non ancora salvate. Uscire comunque dal documento?',
+      );
+    }
+    return true;
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  protected onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.dirtySinceLastSave() || this.autoSavePending() || this.saving()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }
+
+  private flushAutoSaveBeforeAction(action: () => void): void {
+    if (!this.validateForAutoSave() || this.formReadOnly()) {
+      action();
+      return;
+    }
+    this.autoSavePending.set(true);
+    this.persistAutoSave({
+      stayOnPage: true,
+      onComplete: () => action(),
+    });
   }
 
   protected saveSupplier(): void {
@@ -779,6 +969,7 @@ export class GoodsReceiptFormComponent {
           this.supplierForm.reset();
           this.suppliersReload.update((t) => t + 1);
           this.form.controls.supplierId.setValue(supplier.id);
+          this.triggerAutoSave();
         },
         error: (err: unknown) => {
           this._savingSupplier.set(false);
@@ -787,126 +978,41 @@ export class GoodsReceiptFormComponent {
       });
   }
 
-  protected saveQuickProduct(): void {
-    const index = this.quickCreateLineIndex();
-    if (index == null || this.quickCreateForm.invalid || this._savingQuickProduct()) {
-      this.quickCreateForm.markAllAsTouched();
-      return;
-    }
-    const raw = this.quickCreateForm.getRawValue();
-    const purchase = parseMoneyInput(raw.purchasePrice, this.currency) ?? zeroMoney(this.currency);
-    const selling =
-      parseMoneyInput(raw.sellingPrice, this.currency) ??
-      (purchase.amountMinor > 0 ? purchase : moneyFromMajor(0, this.currency));
-
-    this._savingQuickProduct.set(true);
-    this.quickProductSubscription = this.productService
-      .createProduct({
-        name: raw.name.trim(),
-        status: ProductStatus.Active,
-        options: [],
-        variants: [
-          {
-            sku: raw.sku.trim(),
-            optionValues: [],
-            sellingPrice: selling,
-            purchasePrice: purchase.amountMinor > 0 ? purchase : undefined,
-            barcode: raw.barcode.trim() || undefined,
-          },
-        ],
-      })
-      .pipe(
-        switchMap(() => this.productService.findVariantByCode(raw.sku.trim())),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: (variant) => {
-          this._savingQuickProduct.set(false);
-          this.onVariantSelect(index, variant.variantId);
-          const line = this.lines.at(index);
-          line.controls.description.setValue(variant.productName);
-          if (!line.controls.unitCost.value.trim() && purchase.amountMinor > 0) {
-            line.controls.unitCost.setValue(moneyToDecimalString(purchase).replace('.', ','));
-          }
-          this.closeQuickCreate();
-        },
-        error: (err: unknown) => {
-          this._savingQuickProduct.set(false);
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
-  }
-
-  protected saveDraft(): void {
-    void this.persist(false);
-  }
-
-  protected saveConfirmedChanges(): void {
-    void this.persist(false);
-  }
-
-  protected requestConfirm(): void {
-    if (!this.validateForm()) {
-      return;
-    }
-    this.applySupplierPriceUpdates = false;
-    this.confirmDialogOpen.set(true);
-  }
-
-  protected confirmAndSave(): void {
-    this.confirmDialogOpen.set(false);
-    void this.persist(true, this.applySupplierPriceUpdates);
-  }
-
-  protected confirmSupplierPriceUpdate(apply: boolean): void {
-    const docId = this.pendingConfirmDocId();
-    this.supplierPriceDialogOpen.set(false);
-    if (!docId) {
-      return;
-    }
-    this._submitState.set({ status: 'saving' });
-    this.documentService
-      .confirmDocument(docId, { applySupplierPriceUpdates: apply })
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (doc) => {
-          this.pendingConfirmDocId.set(null);
-          this._submitState.set({ status: 'idle' });
-          void this.router.navigate([this.listPath, doc.id]);
-        },
-        error: (err: unknown) => {
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
-  }
-
   protected isLineColumnVisible(columnId: string): boolean {
+    const normalizedId = normalizeGoodsReceiptColumnId(columnId);
     const settings = this.tenantSettings();
-    if (columnId === 'lot' || columnId === 'expiry') {
+    if (normalizedId === 'lot' || normalizedId === 'expiry') {
       if (settings && !settings.lotsEnabled) {
         return false;
       }
     }
-    if (columnId === 'serials' && settings && !settings.serialsEnabled) {
+    if (normalizedId === 'serials' && settings && !settings.serialsEnabled) {
       return false;
     }
     if (
-      (columnId === 'poOrdered' || columnId === 'poReceived' || columnId === 'poRemaining') &&
+      (normalizedId === 'poOrdered' ||
+        normalizedId === 'poReceived' ||
+        normalizedId === 'poRemaining') &&
       !this.hasLinkedSupplierOrder()
     ) {
       return false;
     }
-    return this.columnPreferences.isColumnVisible(GOODS_RECEIPT_LINES_VIEW, columnId);
+    return this.columnPreferences.isColumnVisible(GOODS_RECEIPT_LINES_VIEW, normalizedId);
   }
 
   protected lineColumnWidth(columnId: string): string {
-    const def = GOODS_RECEIPT_LINE_COLUMNS.find((col) => col.id === columnId);
+    const normalizedId = normalizeGoodsReceiptColumnId(columnId);
+    const def = GOODS_RECEIPT_LINE_COLUMNS.find((col) => col.id === normalizedId);
     const fallback = def?.defaultWidthPx ?? 96;
-    return `${this.columnPreferences.columnWidth(GOODS_RECEIPT_LINES_VIEW, columnId, fallback)}px`;
+    return `${this.columnPreferences.columnWidth(GOODS_RECEIPT_LINES_VIEW, normalizedId, fallback)}px`;
   }
 
   protected onLineColumnResize(columnId: string, widthPx: number): void {
-    this.columnPreferences.setColumnWidth(GOODS_RECEIPT_LINES_VIEW, columnId, widthPx);
+    this.columnPreferences.setColumnWidth(
+      GOODS_RECEIPT_LINES_VIEW,
+      normalizeGoodsReceiptColumnId(columnId),
+      widthPx,
+    );
   }
 
   protected openFullProductCreate(lineIndex: number): void {
@@ -1008,16 +1114,8 @@ export class GoodsReceiptFormComponent {
   }
 
   protected cancel(): void {
-    if (this.saving()) {
+    if (!this.canDeactivate()) {
       return;
-    }
-    if (!this.formReadOnly() && this.canAutoSave()) {
-      const leave = globalThis.confirm(
-        'Hai modifiche non ancora salvate automaticamente. Uscire comunque?',
-      );
-      if (!leave) {
-        return;
-      }
     }
     void this.router.navigateByUrl(this.listPath);
   }
@@ -1047,128 +1145,167 @@ export class GoodsReceiptFormComponent {
     if (defaultLoc && !this.form.controls.locationId.value) {
       this.form.controls.locationId.setValue(defaultLoc);
     }
+    this.ensureTrailingEmptyRow();
   }
 
-  private validateForm(): boolean {
-    if (this.form.invalid || this.hasInvalidCost() || !this.hasStockLine()) {
-      this.form.markAllAsTouched();
-      return false;
-    }
-    return true;
-  }
-
-  private hasStockLine(): boolean {
-    return this.lines.controls.some(
-      (line) => line.controls.loadsStock.value && Number(line.controls.quantity.value) > 0,
-    );
-  }
-
-  private persist(
-    confirmAfterSave: boolean,
-    applySupplierPriceUpdates = false,
-    options?: { readonly stayOnPage?: boolean },
-  ): void {
+  private persistAutoSave(options?: {
+    readonly stayOnPage?: boolean;
+    readonly onComplete?: () => void;
+  }): void {
     if (this.saving()) {
       return;
     }
-    if (!(options?.stayOnPage ? this.validateForAutoSave() : this.validateForm())) {
-      if (!options?.stayOnPage) {
-        this.form.markAllAsTouched();
-      }
+    if (!this.validateForAutoSave()) {
       this.autoSavePending.set(false);
+      options?.onComplete?.();
       return;
     }
-    const raw = this.form.getRawValue();
-    const body = {
-      type: raw.type,
-      documentDate: new Date(raw.documentDate).toISOString(),
-      supplierId: raw.supplierId,
-      locationId: raw.locationId,
-      currency: this.currency,
-      notes: raw.notes.trim() || undefined,
-      internalComment: raw.internalComment.trim() || undefined,
-      billingCause: raw.invoicePending ? 'In attesa fattura' : raw.billingCause.trim() || undefined,
-      externalRef: raw.externalRef.trim() || undefined,
-      externalDocNumber: raw.externalDocNumber.trim() || undefined,
-      externalDocDate: raw.externalDocDate
-        ? new Date(raw.externalDocDate).toISOString()
-        : undefined,
-      lines: raw.lines
-        .filter((line) => line.description.trim() || line.variantId)
-        .map((line) => {
-          const cost = parseMoneyInput(line.unitCost, this.currency);
-          return {
-            variantId: line.variantId || undefined,
-            description: line.description.trim() || 'Riga documento',
-            quantity: Number(line.quantity),
-            unitPriceMinor: cost?.amountMinor ?? 0,
-            vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
-            loadsStock: line.loadsStock,
-            supplierOrderLineId: line.supplierOrderLineId || undefined,
-            lotCode: line.lotCode.trim() || undefined,
-            lotExpiryDate: line.lotExpiryDate
-              ? new Date(line.lotExpiryDate).toISOString()
-              : undefined,
-            serialNumbers: parseSerialNumbersText(line.serialNumbersText),
-          };
-        }),
-    };
-
-    const editId = this.editDocumentId();
-    const confirmedEdit = this.isConfirmedEdit();
+    this.dirtySinceLastSave.set(true);
     this._submitState.set({ status: 'saving' });
 
-    const save$ = editId
-      ? this.documentService.updateDocument(editId, body)
-      : this.documentService.createDocument(body);
-
-    const request$ =
-      confirmAfterSave && !confirmedEdit
-        ? save$.pipe(
-            switchMap((doc) => {
-              if (applySupplierPriceUpdates) {
-                return this.documentService.confirmDocument(doc.id, {
-                  applySupplierPriceUpdates: true,
-                });
-              }
-              return this.documentService.listSupplierPriceDiffs(doc.id).pipe(
-                switchMap(({ items, policy }) => {
-                  if (policy === 'ask' && items.length > 0) {
-                    this.pendingConfirmDocId.set(doc.id);
-                    this._submitState.set({ status: 'idle' });
-                    this.supplierPriceDialogOpen.set(true);
-                    return EMPTY;
-                  }
-                  return this.documentService.confirmDocument(doc.id, {
-                    applySupplierPriceUpdates: policy === 'always' && items.length > 0,
-                  });
-                }),
-              );
-            }),
-          )
-        : save$;
-
-    this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (doc) => {
-        this._submitState.set({ status: 'idle' });
-        this.autoSavePending.set(false);
-        this.loadedDocument.set(doc);
-        if (options?.stayOnPage) {
-          if (!editId) {
-            this.preserveEditSession.set(true);
-            void this.router.navigate(['/app/documents', doc.id, 'edit'], { replaceUrl: true });
+    const editId = this.editDocumentId();
+    this.ensureLineProductsLinked$()
+      .pipe(
+        switchMap(() => {
+          const raw = this.form.getRawValue();
+          const body = {
+            type: raw.type,
+            documentDate: new Date(raw.documentDate).toISOString(),
+            supplierId: raw.supplierId,
+            locationId: raw.locationId,
+            currency: this.currency,
+            notes: raw.notes.trim() || undefined,
+            internalComment: raw.internalComment.trim() || undefined,
+            billingCause: raw.invoicePending
+              ? 'In attesa fattura'
+              : raw.billingCause.trim() || undefined,
+            externalRef: raw.externalRef.trim() || undefined,
+            externalDocNumber: raw.externalDocNumber.trim() || undefined,
+            externalDocDate: raw.externalDocDate
+              ? new Date(raw.externalDocDate).toISOString()
+              : undefined,
+            lines: raw.lines
+              .filter((line) => this.lineHasPersistableDataFromRaw(line))
+              .map((line) => {
+                const cost = parseMoneyInput(line.unitCost, this.currency);
+                const name = line.productName.trim() || line.description.trim();
+                return {
+                  variantId: line.variantId || undefined,
+                  description: name || 'Riga documento',
+                  quantity: Number(line.quantity),
+                  unitPriceMinor: cost?.amountMinor ?? 0,
+                  vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
+                  loadsStock: line.loadsStock,
+                  supplierOrderLineId: line.supplierOrderLineId || undefined,
+                  lotCode: line.lotCode.trim() || undefined,
+                  lotExpiryDate: line.lotExpiryDate
+                    ? new Date(line.lotExpiryDate).toISOString()
+                    : undefined,
+                  serialNumbers: parseSerialNumbersText(line.serialNumbersText),
+                };
+              }),
+          };
+          return editId
+            ? this.documentService.updateDocument(editId, body)
+            : this.documentService.createDocument(body);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (doc) => {
+          this._submitState.set({ status: 'idle' });
+          this.autoSavePending.set(false);
+          this.dirtySinceLastSave.set(false);
+          this.loadedDocument.set(doc);
+          if (options?.stayOnPage) {
+            if (!editId) {
+              this.preserveEditSession.set(true);
+              void this.router.navigate(['/app/documents', doc.id, 'edit'], { replaceUrl: true });
+            }
+            this.editUnlocked.set(true);
+            this.syncLineFieldAccess();
+            this.ensureTrailingEmptyRow();
+            options.onComplete?.();
+            return;
           }
-          this.editUnlocked.set(true);
+          void this.router.navigate([this.listPath, doc.id]);
+        },
+        error: (err: unknown) => {
+          this.autoSavePending.set(false);
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+          options?.onComplete?.();
+        },
+      });
+  }
+
+  private lineHasPersistableDataFromRaw(line: {
+    readonly variantId: string;
+    readonly productName: string;
+    readonly description: string;
+    readonly quantity: number;
+  }): boolean {
+    const qty = Number(line.quantity);
+    if (line.variantId) {
+      return qty > 0;
+    }
+    const name = line.productName.trim() || line.description.trim();
+    return name.length >= 2 && qty > 0;
+  }
+
+  private ensureLineProductsLinked$() {
+    const pending = this.lines.controls
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => this.lineNeedsProductCreation(line));
+    if (pending.length === 0) {
+      return of(undefined);
+    }
+    return from(pending).pipe(
+      concatMap(({ line, index }) => this.createProductForLine(line, index)),
+      defaultIfEmpty(undefined),
+      last(),
+    );
+  }
+
+  private createProductForLine(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+    _index: number,
+  ) {
+    const name = line.controls.productName.value.trim();
+    const purchase = parseMoneyInput(line.controls.unitCost.value, this.currency);
+    const selling =
+      parseMoneyInput(line.controls.sellingPrice.value, this.currency) ??
+      moneyFromMajor(0, this.currency);
+    const compareAt = parseMoneyInput(line.controls.compareAtPrice.value, this.currency);
+    const sku = suggestVariantSku(name, []);
+    const barcode = /^\d{8,14}$/.test(name) ? name : undefined;
+
+    return this.productService
+      .createProduct({
+        name,
+        status: ProductStatus.Active,
+        options: [],
+        variants: [
+          {
+            sku,
+            optionValues: [],
+            sellingPrice: selling,
+            purchasePrice: purchase?.amountMinor ? purchase : undefined,
+            compareAtPrice: compareAt?.amountMinor ? compareAt : undefined,
+            barcode,
+          },
+        ],
+      })
+      .pipe(
+        switchMap(() => this.productService.findVariantByCode(sku)),
+        map((variant) => {
+          line.controls.variantId.setValue(variant.variantId, { emitEvent: false });
+          line.controls.productName.setValue(variant.productName, { emitEvent: false });
+          line.controls.description.setValue(variant.productName, { emitEvent: false });
           this.syncLineFieldAccess();
-          return;
-        }
-        void this.router.navigate([this.listPath, doc.id]);
-      },
-      error: (err: unknown) => {
-        this.autoSavePending.set(false);
-        this._submitState.set({ status: 'error', error: this.toAppError(err) });
-      },
-    });
+          return undefined;
+        }),
+        catchError((err: unknown) => throwError(() => err)),
+      );
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
@@ -1201,14 +1338,15 @@ export class GoodsReceiptFormComponent {
     for (const line of doc.lines ?? []) {
       this.lines.push(
         this.fb.group({
-          variantId: this.fb.control(line.variantId ?? '', {
-            validators: line.loadsStock ? [Validators.required] : [],
-          }),
-          description: this.fb.control(line.description, { validators: [Validators.required] }),
+          variantId: this.fb.control(line.variantId ?? ''),
+          productName: this.fb.control(line.description),
+          description: this.fb.control(line.description),
           quantity: this.fb.control(line.quantity, {
             validators: [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)],
           }),
           unitCost: this.fb.control(moneyToDecimalString(line.unitPrice).replace('.', ',')),
+          sellingPrice: this.fb.control(''),
+          compareAtPrice: this.fb.control(''),
           vatRatePercent: this.fb.control(line.vatRatePercent?.toString() ?? ''),
           loadsStock: this.fb.control(line.loadsStock),
           supplierOrderLineId: this.fb.control(line.supplierOrderLineId ?? ''),
@@ -1221,17 +1359,21 @@ export class GoodsReceiptFormComponent {
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
     }
+    this.ensureTrailingEmptyRow();
     this.syncLineFieldAccess();
   }
 
   private createLine() {
     return this.fb.group({
-      variantId: this.fb.control('', { validators: [Validators.required] }),
-      description: this.fb.control('', { validators: [Validators.required] }),
+      variantId: this.fb.control(''),
+      productName: this.fb.control(''),
+      description: this.fb.control(''),
       quantity: this.fb.control(1, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
       unitCost: this.fb.control(''),
+      sellingPrice: this.fb.control(''),
+      compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(''),
       loadsStock: this.fb.control(true),
       supplierOrderLineId: this.fb.control(''),

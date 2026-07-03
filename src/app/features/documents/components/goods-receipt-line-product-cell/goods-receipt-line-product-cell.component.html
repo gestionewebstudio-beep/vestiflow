@@ -1,0 +1,80 @@
+@if (linked()) {
+  <div class="gr-product-cell gr-product-cell--linked">
+    <p class="gr-product-cell__linked-label" [title]="linkedLabel()">
+      {{ linkedLabel() || 'Prodotto collegato' }}
+    </p>
+    <button
+      type="button"
+      class="gr-product-cell__link-action"
+      [disabled]="disabled()"
+      (click)="openDetail($event)"
+    >
+      Apri anagrafica prodotto
+    </button>
+  </div>
+} @else {
+  <div class="gr-product-cell">
+    <div class="gr-product-cell__field" [class.gr-product-cell__field--invalid]="invalid()">
+      <input
+        #productInput
+        class="gr-product-cell__input"
+        type="text"
+        [id]="inputId() || null"
+        [disabled]="disabled()"
+        [value]="value()"
+        [attr.aria-invalid]="invalid() ? true : null"
+        [attr.aria-expanded]="suggestionsOpen()"
+        [attr.aria-controls]="listboxId()"
+        aria-label="Nome prodotto"
+        autocomplete="off"
+        placeholder="Nome, SKU o EAN…"
+        (input)="onInput($any($event.target).value)"
+        (focus)="onFocus()"
+        (blur)="onBlur()"
+        (keydown)="onKeydown($event)"
+      />
+      <button
+        type="button"
+        class="gr-product-cell__search"
+        [disabled]="disabled()"
+        aria-label="Cerca prodotto"
+        (mousedown)="$event.preventDefault()"
+        (click)="openSearch($event)"
+      >
+        <i class="pi pi-search" aria-hidden="true"></i>
+      </button>
+    </div>
+    @if (suggestionsOpen() && suggestions().length > 0) {
+      <ul
+        class="gr-product-cell__suggestions"
+        role="listbox"
+        [id]="listboxId()"
+        [attr.aria-label]="'Suggerimenti prodotto'"
+      >
+        @for (item of suggestions(); track item.variantId; let i = $index) {
+          <li
+            role="option"
+            tabindex="0"
+            class="gr-product-cell__suggestion"
+            [class.gr-product-cell__suggestion--active]="i === activeSuggestionIndex()"
+            [attr.aria-selected]="i === activeSuggestionIndex()"
+            (mousedown)="$event.preventDefault()"
+            (click)="pickSuggestion(item.variantId)"
+            (keydown)="onSuggestionKeydown($event, item.variantId)"
+          >
+            <span class="gr-product-cell__suggestion-title">{{ item.title }}</span>
+            <span class="gr-product-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
+          </li>
+        }
+      </ul>
+    }
+    <button
+      type="button"
+      class="gr-product-cell__link-action gr-product-cell__link-action--primary"
+      [disabled]="disabled()"
+      (click)="openAnagraphic($event)"
+    >
+      Crea prodotto
+    </button>
+  </div>
+}

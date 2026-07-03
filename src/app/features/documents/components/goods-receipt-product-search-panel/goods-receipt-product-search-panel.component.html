@@ -1,0 +1,49 @@
+<section class="gr-product-search">
+  <div class="gr-product-search__head">
+    <label class="gr-product-search__label" for="gr-product-search-input">Cerca prodotto</label>
+    <div class="gr-product-search__field">
+      <input
+        id="gr-product-search-input"
+        class="gr-product-search__input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Nome, SKU, EAN, codice fornitore…"
+        autocomplete="off"
+        (input)="onSearchInput($any($event.target).value)"
+      />
+      <i class="pi pi-search gr-product-search__icon" aria-hidden="true"></i>
+    </div>
+  </div>
+
+  @if (results().length === 0) {
+    <app-empty-state
+      icon="pi-search"
+      title="Nessun prodotto trovato"
+      description="Prova con un altro termine o crea un nuovo prodotto dal documento."
+    />
+  } @else {
+    <ul class="gr-product-search__list">
+      @for (item of results(); track item.variantId) {
+        <li>
+          <button
+            type="button"
+            class="gr-product-search__item"
+            (click)="selectVariant(item.variantId)"
+          >
+            <span class="gr-product-search__title">{{ item.title }}</span>
+            <span class="gr-product-search__detail">{{ resultDetail(item) }}</span>
+            @if (item.sellingPrice.amountMinor > 0) {
+              <span class="gr-product-search__price tabular-nums">{{
+                formatMoney(item.sellingPrice)
+              }}</span>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+  }
+
+  <div class="gr-product-search__actions">
+    <app-button type="button" variant="ghost" (click)="close()">Chiudi</app-button>
+  </div>
+</section>

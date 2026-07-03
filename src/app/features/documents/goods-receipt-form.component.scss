@@ -204,6 +204,14 @@
   margin: 0;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+
+  &--saved {
+    color: var(--status-success-fg);
+  }
+}
+
+.gr-form__cell--product {
+  min-inline-size: calc(var(--space-8) * 16);
 }
 
 .gr-form__linked-variant {

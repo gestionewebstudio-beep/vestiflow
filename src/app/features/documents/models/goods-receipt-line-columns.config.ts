@@ -8,8 +8,14 @@ import { TableViewPresetId as PresetId } from '@shared/table-columns/table-colum
 export const GOODS_RECEIPT_LINES_VIEW = TableViewId.GoodsReceiptLines;
 
 export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
-  { id: 'variant', label: 'Articolo / SKU', defaultWidthPx: 200, minWidthPx: 120 },
-  { id: 'description', label: 'Descrizione', defaultWidthPx: 220, minWidthPx: 140 },
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 320, minWidthPx: 200 },
+  {
+    id: 'description',
+    label: 'Descrizione',
+    defaultVisible: false,
+    defaultWidthPx: 220,
+    minWidthPx: 140,
+  },
   {
     id: 'poOrdered',
     label: 'Ord.',
@@ -36,6 +42,22 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   },
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 72, minWidthPx: 56 },
   { id: 'unitCost', label: 'Costo', numeric: true, defaultWidthPx: 88, minWidthPx: 72 },
+  {
+    id: 'sellingPrice',
+    label: 'Prezzo di vendita',
+    numeric: true,
+    defaultVisible: false,
+    defaultWidthPx: 112,
+    minWidthPx: 88,
+  },
+  {
+    id: 'compareAtPrice',
+    label: 'Prezzo barrato',
+    numeric: true,
+    defaultVisible: false,
+    defaultWidthPx: 112,
+    minWidthPx: 88,
+  },
   { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 64, minWidthPx: 56 },
   { id: 'lot', label: 'Lotto', defaultVisible: false, defaultWidthPx: 96, minWidthPx: 72 },
   { id: 'expiry', label: 'Scadenza', defaultVisible: false, defaultWidthPx: 112, minWidthPx: 96 },
@@ -47,8 +69,7 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
 
 export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Default]: [
-    'variant',
-    'description',
+    'product',
     'quantity',
     'unitCost',
     'vat',
@@ -57,8 +78,7 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
     'actions',
   ],
   [PresetId.Warehouse]: [
-    'variant',
-    'description',
+    'product',
     'poOrdered',
     'poReceived',
     'poRemaining',
@@ -71,24 +91,22 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
     'lineTotal',
     'actions',
   ],
-  [PresetId.Supplier]: [
-    'variant',
-    'description',
-    'quantity',
-    'unitCost',
-    'vat',
-    'lineTotal',
-    'actions',
-  ],
-  [PresetId.Accountant]: ['description', 'quantity', 'unitCost', 'vat', 'lineTotal'],
-  [PresetId.Analysis]: ['variant', 'description', 'quantity', 'unitCost', 'lineTotal'],
+  [PresetId.Supplier]: ['product', 'quantity', 'unitCost', 'vat', 'lineTotal', 'actions'],
+  [PresetId.Accountant]: ['product', 'quantity', 'unitCost', 'vat', 'lineTotal'],
+  [PresetId.Analysis]: ['product', 'quantity', 'unitCost', 'lineTotal'],
   [PresetId.Operational]: [
-    'variant',
-    'description',
+    'product',
     'quantity',
     'unitCost',
+    'sellingPrice',
+    'compareAtPrice',
     'loadsStock',
     'lineTotal',
     'actions',
   ],
 };
+
+/** Alias colonna legacy salvata nelle preferenze utente. */
+export function normalizeGoodsReceiptColumnId(columnId: string): string {
+  return columnId === 'variant' ? 'product' : columnId;
+}

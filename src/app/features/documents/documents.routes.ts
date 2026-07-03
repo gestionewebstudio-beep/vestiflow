@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
+import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { DocumentType } from '@core/models/document.model';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import {
@@ -71,6 +72,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () =>
       import('./goods-receipt-form.component').then((m) => m.GoodsReceiptFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {
@@ -145,6 +147,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () =>
       import('./goods-receipt-form.component').then((m) => m.GoodsReceiptFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {

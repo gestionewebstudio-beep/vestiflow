@@ -47,12 +47,7 @@
       (ctaClick)="cancel()"
     />
   } @else {
-    <form
-      class="gr-form__form"
-      [class.gr-form__form--readonly]="formReadOnly()"
-      [formGroup]="form"
-      (ngSubmit)="isConfirmedEdit() ? saveConfirmedChanges() : requestConfirm()"
-    >
+    <form class="gr-form__form" [class.gr-form__form--readonly]="formReadOnly()" [formGroup]="form">
       @if (formReadOnly()) {
         <div
           class="gr-form__unlock-banner"
@@ -62,14 +57,7 @@
           (keydown.enter)="requestUnlockEdit()"
           (keydown.space)="requestUnlockEdit(); $event.preventDefault()"
         >
-          <p>
-            @if (isConfirmedEdit()) {
-              Questo documento è completato ed è protetto da modifica. Sbloccalo per continuare a
-              lavorarci.
-            } @else {
-              Questo documento è protetto da modifica. Sbloccalo per continuare a lavorarci.
-            }
-          </p>
+          <p>Documento protetto da modifica. Sblocca per continuare a lavorare.</p>
           <app-button type="button" variant="secondary" (click)="requestUnlockEdit()">
             Sblocca modifica
           </app-button>
@@ -78,6 +66,12 @@
 
       @if (autoSaveStatus() === 'saving') {
         <p class="gr-form__autosave-hint" role="status">Salvataggio automatico…</p>
+      } @else if (autoSaveStatus() === 'pending') {
+        <p class="gr-form__autosave-hint" role="status">Modifiche in attesa di salvataggio…</p>
+      } @else if (editDocumentId()) {
+        <p class="gr-form__autosave-hint gr-form__autosave-hint--saved" role="status">
+          Documento salvato automaticamente.
+        </p>
       }
 
       @if (operationalStatusWarning(); as warning) {
@@ -323,12 +317,12 @@
             <table class="gr-form__table">
               <thead>
                 <tr>
-                  @if (isLineColumnVisible('variant')) {
-                    <th scope="col" [style.width]="lineColumnWidth('variant')">
-                      Articolo / SKU
+                  @if (isLineColumnVisible('product')) {
+                    <th scope="col" [style.width]="lineColumnWidth('product')">
+                      Nome prodotto
                       <span
                         appTableColumnResize
-                        (resized)="onLineColumnResize('variant', $event)"
+                        (resized)="onLineColumnResize('product', $event)"
                       ></span>
                     </th>
                   }
@@ -384,6 +378,36 @@
                       [style.width]="lineColumnWidth('unitCost')"
                     >
                       Costo
+                      <span
+                        appTableColumnResize
+                        (resized)="onLineColumnResize('unitCost', $event)"
+                      ></span>
+                    </th>
+                  }
+                  @if (isLineColumnVisible('sellingPrice')) {
+                    <th
+                      scope="col"
+                      class="gr-form__num"
+                      [style.width]="lineColumnWidth('sellingPrice')"
+                    >
+                      Prezzo di vendita
+                      <span
+                        appTableColumnResize
+                        (resized)="onLineColumnResize('sellingPrice', $event)"
+                      ></span>
+                    </th>
+                  }
+                  @if (isLineColumnVisible('compareAtPrice')) {
+                    <th
+                      scope="col"
+                      class="gr-form__num"
+                      [style.width]="lineColumnWidth('compareAtPrice')"
+                    >
+                      Prezzo barrato
+                      <span
+                        appTableColumnResize
+                        (resized)="onLineColumnResize('compareAtPrice', $event)"
+                      ></span>
                     </th>
                   }
                   @if (isLineColumnVisible('vat')) {
@@ -422,48 +446,28 @@
               <tbody formArrayName="lines">
                 @for (line of lines.controls; track line; let i = $index) {
                   <tr class="gr-form__table-row" [formGroupName]="i">
-                    @if (isLineColumnVisible('variant')) {
-                      <td class="gr-form__cell gr-form__cell--variant">
-                        @if (lineHasLinkedProduct(i)) {
-                          <p
-                            class="gr-form__linked-variant"
-                            [title]="line.controls.description.value"
-                          >
-                            {{ line.controls.description.value || 'Prodotto collegato' }}
-                          </p>
-                          <button
-                            type="button"
-                            class="gr-form__inline-toggle"
-                            (click)="openProductDetail(i)"
-                          >
-                            <i class="pi pi-external-link" aria-hidden="true"></i>
-                            Apri anagrafica prodotto
-                          </button>
-                        } @else {
-                          <app-select-menu
-                            [options]="variantOptions()"
-                            [value]="line.controls.variantId.value"
-                            ariaLabel="Variante"
-                            placeholder="Cerca SKU, EAN…"
-                            [compact]="true"
-                            [fullWidth]="true"
-                            [searchable]="true"
-                            [filterOptionsLocally]="false"
-                            searchPlaceholder="Cerca prodotto, SKU, barcode…"
-                            searchAriaLabel="Cerca variante"
-                            [invalid]="lineFieldInvalid(i, 'variantId')"
-                            (valueChange)="onVariantSelect(i, $event)"
-                            (searchChange)="onVariantSearch($event)"
-                          />
-                          <button
-                            type="button"
-                            class="gr-form__inline-toggle gr-form__inline-toggle--primary"
-                            (click)="openProductAnagraphic(i)"
-                          >
-                            <i class="pi pi-box" aria-hidden="true"></i>
-                            Crea prodotto
-                          </button>
-                        }
+                    @if (isLineColumnVisible('product')) {
+                      <td class="gr-form__cell gr-form__cell--product">
+                        <app-goods-receipt-line-product-cell
+                          [lineIndex]="i"
+                          [inputId]="'gr-product-' + i"
+                          [value]="line.controls.productName.value"
+                          [linked]="lineHasLinkedProduct(i)"
+                          [linkedLabel]="linkedProductLabel(i)"
+                          [disabled]="formReadOnly()"
+                          [invalid]="lineFieldInvalid(i, 'productName')"
+                          [suggestions]="lineSuggestions(i)"
+                          [suggestionsOpen]="lineSuggestionsOpen(i)"
+                          (valueChange)="onLineProductNameChange(i, $event)"
+                          (focused)="onLineProductFocus(i)"
+                          (blurred)="onLineProductBlur(i)"
+                          (searchOpen)="openLineProductSearch(i)"
+                          (anagraphicOpen)="openProductAnagraphic(i)"
+                          (detailOpen)="openProductDetail(i)"
+                          (suggestionPick)="onVariantSelect($event.lineIndex, $event.variantId)"
+                          (commitCode)="tryLinkLineByCode(i)"
+                          (lineAdvance)="advanceToNextLine(i)"
+                        />
                       </td>
                     }
                     @if (isLineColumnVisible('description')) {
@@ -510,6 +514,7 @@
                           min="0"
                           step="1"
                           formControlName="quantity"
+                          (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
                         />
                       </td>
                     }
@@ -522,6 +527,33 @@
                           inputmode="decimal"
                           formControlName="unitCost"
                           placeholder="0,00"
+                          (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
+                        />
+                      </td>
+                    }
+                    @if (isLineColumnVisible('sellingPrice')) {
+                      <td class="gr-form__cell gr-form__num">
+                        <input
+                          [id]="'gr-selling-' + i"
+                          class="gr-form__input gr-form__input--table gr-form__input--num"
+                          type="text"
+                          inputmode="decimal"
+                          formControlName="sellingPrice"
+                          placeholder="0,00"
+                          (keydown)="onLineFieldKeydown(i, 'sellingPrice', $event)"
+                        />
+                      </td>
+                    }
+                    @if (isLineColumnVisible('compareAtPrice')) {
+                      <td class="gr-form__cell gr-form__num">
+                        <input
+                          [id]="'gr-compare-' + i"
+                          class="gr-form__input gr-form__input--table gr-form__input--num"
+                          type="text"
+                          inputmode="decimal"
+                          formControlName="compareAtPrice"
+                          placeholder="0,00"
+                          (keydown)="onLineFieldKeydown(i, 'compareAtPrice', $event)"
                         />
                       </td>
                     }
@@ -536,6 +568,7 @@
                           step="1"
                           formControlName="vatRatePercent"
                           placeholder="22"
+                          (keydown)="onLineFieldKeydown(i, 'vat', $event)"
                         />
                       </td>
                     }
@@ -601,74 +634,6 @@
                       </td>
                     }
                   </tr>
-                  @if (quickCreateLineIndex() === i) {
-                    <tr class="gr-form__quick-row">
-                      <td [attr.colspan]="hasLinkedSupplierOrder() ? 14 : 11">
-                        <div class="gr-form__quick-create" [formGroup]="quickCreateForm">
-                          <h3 class="gr-form__quick-title">Crea articolo rapido</h3>
-                          <div class="gr-form__grid">
-                            <div class="gr-form__field">
-                              <label class="gr-form__label" [attr.for]="'gr-qp-name-' + i"
-                                >Nome</label
-                              >
-                              <input
-                                [id]="'gr-qp-name-' + i"
-                                class="gr-form__input"
-                                type="text"
-                                formControlName="name"
-                              />
-                            </div>
-                            <div class="gr-form__field">
-                              <label class="gr-form__label" [attr.for]="'gr-qp-sku-' + i"
-                                >SKU</label
-                              >
-                              <input
-                                [id]="'gr-qp-sku-' + i"
-                                class="gr-form__input"
-                                type="text"
-                                formControlName="sku"
-                              />
-                            </div>
-                            <div class="gr-form__field">
-                              <label class="gr-form__label" [attr.for]="'gr-qp-barcode-' + i"
-                                >Barcode</label
-                              >
-                              <input
-                                [id]="'gr-qp-barcode-' + i"
-                                class="gr-form__input"
-                                type="text"
-                                formControlName="barcode"
-                              />
-                            </div>
-                            <div class="gr-form__field">
-                              <label class="gr-form__label" [attr.for]="'gr-qp-cost-' + i"
-                                >Costo</label
-                              >
-                              <input
-                                [id]="'gr-qp-cost-' + i"
-                                class="gr-form__input"
-                                type="text"
-                                formControlName="purchasePrice"
-                              />
-                            </div>
-                          </div>
-                          <div class="gr-form__quick-actions">
-                            <app-button type="button" variant="ghost" (click)="closeQuickCreate()">
-                              Annulla
-                            </app-button>
-                            <app-button
-                              type="button"
-                              [loading]="savingQuickProduct()"
-                              [disabled]="savingQuickProduct()"
-                              (click)="saveQuickProduct()"
-                            >
-                              Salva e usa nel documento
-                            </app-button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  }
                 }
               </tbody>
             </table>
@@ -696,8 +661,8 @@
           </section>
         } @else {
           <p class="gr-form__hint">
-            Il documento viene salvato automaticamente quando inserisci righe valide. Puoi allegare
-            file dopo il primo salvataggio.
+            Il documento si salva automaticamente mentre compili testata e righe. Gli allegati sono
+            disponibili dopo il primo salvataggio.
           </p>
         }
       </fieldset>
@@ -708,27 +673,19 @@
 
       <div class="gr-form__actions">
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
-          Annulla
+          Esci
         </app-button>
         <app-button type="button" variant="secondary" [disabled]="saving()" (click)="printLabels()">
           Stampa etichette
         </app-button>
-        @if (isConfirmedEdit()) {
-          <app-button type="submit" [disabled]="saving() || formReadOnly()" [loading]="saving()">
-            Salva modifiche
-          </app-button>
-        } @else {
+        @if (editDocumentId()) {
           <app-button
             type="button"
-            variant="secondary"
+            variant="ghost"
             [disabled]="saving()"
-            [loading]="saving()"
-            (click)="saveDraft()"
+            (click)="requestDeleteDocument()"
           >
-            Salva bozza
-          </app-button>
-          <app-button type="submit" [disabled]="saving()" [loading]="saving()">
-            Completa documento
+            Elimina documento
           </app-button>
         }
       </div>
@@ -737,30 +694,20 @@
 </section>
 
 <app-confirm-dialog
-  [(open)]="confirmDialogOpen"
-  title="Completa arrivo merce"
-  message="Segnare il documento come completato? Le righe valide sono già operative sul magazzino; il completamento chiude il documento a fini organizzativi."
-  confirmLabel="Completa documento"
-  [busy]="saving()"
-  (confirmed)="confirmAndSave()"
-/>
-
-<app-confirm-dialog
-  [(open)]="supplierPriceDialogOpen"
-  title="Aggiornare prezzo fornitore?"
-  message="Il costo inserito è diverso dall'ultimo prezzo fornitore. Vuoi aggiornare il prezzo fornitore?"
-  confirmLabel="Aggiorna prezzi"
-  cancelLabel="Non aggiornare"
-  (confirmed)="confirmSupplierPriceUpdate(true)"
-  (dismissed)="confirmSupplierPriceUpdate(false)"
-/>
-
-<app-confirm-dialog
   [(open)]="unlockDialogOpen"
   title="Sblocca modifica documento"
   message="Modificando il documento, VestiFlow aggiornerà automaticamente i movimenti collegati e salverà lo storico della modifica."
   confirmLabel="Sblocca e modifica"
   (confirmed)="confirmUnlockEdit()"
+/>
+
+<app-confirm-dialog
+  [(open)]="deleteDocumentDialogOpen"
+  title="Elimina documento"
+  message="Eliminare definitivamente questo arrivo merce? L'operazione non è reversibile."
+  confirmLabel="Elimina documento"
+  [busy]="saving()"
+  (confirmed)="confirmDeleteDocument()"
 />
 
 <app-confirm-dialog
@@ -781,6 +728,22 @@
   (confirmed)="attachPendingVariantToLine()"
   (dismissed)="dismissAttachPendingVariant()"
 />
+
+<app-slide-panel
+  [open]="productSearchPanelOpen()"
+  title="Cerca prodotto"
+  (closed)="closeLineProductSearch()"
+>
+  @if (productSearchPanelOpen()) {
+    <app-goods-receipt-product-search-panel
+      [initialSearch]="productSearchInitialTerm()"
+      [supplierId]="form.controls.supplierId.value"
+      [locationId]="form.controls.locationId.value"
+      (variantSelected)="onLineProductSearchPick($event.variantId)"
+      (dismissed)="closeLineProductSearch()"
+    />
+  }
+</app-slide-panel>
 
 <app-slide-panel [open]="productPanelOpen()" title="Nuovo prodotto" (closed)="closeProductPanel()">
   @if (productPanelOpen()) {
