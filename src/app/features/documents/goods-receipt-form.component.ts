@@ -63,6 +63,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -133,6 +134,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
     ErrorStateComponent,
     TableSkeletonComponent,
     TableColumnPickerComponent,
+    HoverTooltipComponent,
     TableColumnResizeDirective,
     DocumentAttachmentsPanelComponent,
     GoodsReceiptLineCodeCellComponent,
@@ -166,6 +168,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected readonly lineColumnsView = TableViewId.GoodsReceiptLines;
   protected readonly lineColumnDefs = GOODS_RECEIPT_LINE_COLUMNS;
+  protected readonly loadsStockTooltip =
+    'Se attivo, la quantità della riga aggiorna la disponibilità di magazzino. Se disattivato, la riga resta nel documento ma non movimenta il magazzino.';
+
+  /** Re-render colonne/larghezze quando cambiano preferenze utente o resize. */
+  private readonly lineTableColumnState = computed(() =>
+    this.columnPreferences.state(GOODS_RECEIPT_LINES_VIEW)(),
+  );
 
   protected readonly typeOptions: readonly SelectMenuOption[] = [
     DocumentType.GoodsReceipt,
@@ -514,26 +523,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected onLineSkuChange(index: number, value: string): void {
     this.lines.at(index).controls.sku.setValue(value);
     this.clearCodeLookup();
-    this.ensureTrailingEmptyRow();
     this.triggerAutoSave();
   }
 
   protected onLineBarcodeChange(index: number, value: string): void {
     this.lines.at(index).controls.barcode.setValue(value);
     this.clearCodeLookup();
-    this.ensureTrailingEmptyRow();
     this.triggerAutoSave();
   }
 
   protected onLineProductNameChange(index: number, value: string): void {
     const line = this.lines.at(index);
     line.controls.productName.setValue(value);
-    line.controls.description.setValue(value, { emitEvent: false });
     this.autocompleteLineIndex.set(index);
     this.activeSuggestionIndex.set(0);
     this.variantSearchDraft.set(value);
     this.clearCodeLookup();
-    this.ensureTrailingEmptyRow();
     this.triggerAutoSave();
   }
 
@@ -678,12 +683,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected advanceToNextLine(index: number): void {
-    this.ensureTrailingEmptyRow();
     const nextIndex = index + 1;
     if (nextIndex >= this.lines.length) {
-      return;
+      this.lines.push(this.createLine());
     }
+    this.trimDuplicateTrailingEmptyRows();
     this.focusFirstLineField(nextIndex);
+  }
+
+  protected lineRowActive(index: number): boolean {
+    return (
+      this.lineSuggestionsOpen(index) ||
+      this.codeSuggestionsOpen(index, 'sku') ||
+      this.codeSuggestionsOpen(index, 'barcode')
+    );
   }
 
   protected advanceFromProductField(index: number): void {
@@ -699,6 +712,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     field: GoodsReceiptLineFocusField,
     event: KeyboardEvent,
   ): void {
+    if (event.key === 'ArrowDown' && !event.shiftKey) {
+      event.preventDefault();
+      this.advanceToNextLine(index);
+      return;
+    }
     if (event.key !== 'Tab' || event.shiftKey) {
       return;
     }
@@ -813,7 +831,25 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
       if (!line.controls.productName.value.trim()) {
         line.controls.productName.setValue(summary.productName, { emitEvent: false });
-        line.controls.description.setValue(summary.productName, { emitEvent: false });
+      }
+    }
+  }
+
+  private ensureMinimumOneRow(): void {
+    if (this.lines.length === 0) {
+      this.lines.push(this.createLine());
+    }
+  }
+
+  private trimDuplicateTrailingEmptyRows(): void {
+    while (this.lines.length > 1) {
+      const lastIdx = this.lines.length - 1;
+      const last = this.lines.at(lastIdx);
+      const prev = this.lines.at(lastIdx - 1);
+      if (this.lineIsEmpty(last) && this.lineIsEmpty(prev)) {
+        this.lines.removeAt(lastIdx);
+      } else {
+        break;
       }
     }
   }
@@ -878,16 +914,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       Number(line.controls.quantity.value) > 0 &&
       line.controls.loadsStock.value
     );
-  }
-
-  private ensureTrailingEmptyRow(): void {
-    if (this.formReadOnly() || this.lines.length === 0) {
-      return;
-    }
-    const last = this.lines.at(this.lines.length - 1);
-    if (!this.lineIsEmpty(last)) {
-      this.lines.push(this.createLine());
-    }
   }
 
   protected get lines(): FormArray<ReturnType<GoodsReceiptFormComponent['createLine']>> {
@@ -1002,7 +1028,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
         const label = summary.productName || summary.title;
         line.controls.productName.setValue(label, { emitEvent: false });
-        line.controls.description.setValue(label, { emitEvent: false });
         if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
           line.controls.unitCost.setValue(
             moneyToDecimalString(summary.purchasePrice).replace('.', ','),
@@ -1018,7 +1043,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.clearCodeLookup();
     this.clearProductAutocomplete();
     this.syncLineFieldAccess();
-    this.ensureTrailingEmptyRow();
     this.triggerAutoSave();
   }
 
@@ -1038,7 +1062,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const vatRaw = line.controls.vatRatePercent.value.trim();
     return {
       name,
-      description: line.controls.description.value.trim() || name,
+      description: line.controls.description.value.trim() || undefined,
       sku: line.controls.sku.value.trim() || undefined,
       barcode: line.controls.barcode.value.trim() || undefined,
       purchasePriceMajor: cost ? cost.amountMinor / 100 : null,
@@ -1141,7 +1165,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected addLine(): void {
     this.lines.push(this.createLine());
-    this.ensureTrailingEmptyRow();
   }
 
   protected removeLine(index: number): void {
@@ -1149,7 +1172,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     this.lines.removeAt(index);
-    this.ensureTrailingEmptyRow();
+    this.ensureMinimumOneRow();
+    this.trimDuplicateTrailingEmptyRows();
     this.triggerAutoSave();
   }
 
@@ -1264,6 +1288,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected isLineColumnVisible(columnId: string): boolean {
+    this.lineTableColumnState();
     const normalizedId = normalizeGoodsReceiptColumnId(columnId);
     const settings = this.tenantSettings();
     if (normalizedId === 'lot' || normalizedId === 'expiry') {
@@ -1286,6 +1311,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected lineColumnWidth(columnId: string): string {
+    this.lineTableColumnState();
     const normalizedId = normalizeGoodsReceiptColumnId(columnId);
     const def = GOODS_RECEIPT_LINE_COLUMNS.find((col) => col.id === normalizedId);
     const fallback = def?.defaultWidthPx ?? 96;
@@ -1436,7 +1462,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (defaultLoc && !this.form.controls.locationId.value) {
       this.form.controls.locationId.setValue(defaultLoc);
     }
-    this.ensureTrailingEmptyRow();
+    this.ensureMinimumOneRow();
   }
 
   private persistAutoSave(options?: {
@@ -1482,7 +1508,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
                 const name = line.productName.trim() || line.description.trim();
                 return {
                   variantId: line.variantId || undefined,
-                  description: name || 'Riga documento',
+                  description: name || line.description.trim() || 'Riga documento',
                   quantity: Number(line.quantity),
                   unitPriceMinor: cost?.amountMinor ?? 0,
                   vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
@@ -1515,7 +1541,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             }
             this.editUnlocked.set(true);
             this.syncLineFieldAccess();
-            this.ensureTrailingEmptyRow();
+            this.ensureMinimumOneRow();
+            this.trimDuplicateTrailingEmptyRows();
             options.onComplete?.();
             return;
           }
@@ -1539,7 +1566,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (line.variantId) {
       return qty > 0;
     }
-    const name = line.productName.trim() || line.description.trim();
+    const name = line.productName.trim();
     return name.length >= 2 && qty > 0;
   }
 
@@ -1593,7 +1620,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           line.controls.sku.setValue(variant.sku, { emitEvent: false });
           line.controls.barcode.setValue(variant.barcode ?? '', { emitEvent: false });
           line.controls.productName.setValue(variant.productName, { emitEvent: false });
-          line.controls.description.setValue(variant.productName, { emitEvent: false });
           this.syncLineFieldAccess();
           return undefined;
         }),
@@ -1654,7 +1680,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
     }
-    this.ensureTrailingEmptyRow();
+    this.trimDuplicateTrailingEmptyRows();
     this.syncLineFieldAccess();
   }
 

@@ -10,7 +10,7 @@ export const GOODS_RECEIPT_LINES_VIEW = TableViewId.GoodsReceiptLines;
 export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'sku', label: 'SKU', defaultWidthPx: 88, minWidthPx: 64 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 104, minWidthPx: 80 },
-  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 220, minWidthPx: 140 },
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 280, minWidthPx: 160 },
   {
     id: 'description',
     label: 'Descrizione',

@@ -114,141 +114,143 @@
       }
 
       <fieldset class="gr-form__fieldset" [disabled]="formReadOnly()">
-        <div class="gr-form__grid">
-          <div class="gr-form__field">
-            <span class="gr-form__label">Tipo documento</span>
-            @if (isConfirmedEdit()) {
-              <p class="gr-form__readonly">{{ documentTypeLabel(form.controls.type.value) }}</p>
-            } @else {
+        <div class="gr-form__header">
+          <div class="gr-form__grid gr-form__grid--header">
+            <div class="gr-form__field">
+              <span class="gr-form__label">Tipo documento</span>
+              @if (isConfirmedEdit()) {
+                <p class="gr-form__readonly">{{ documentTypeLabel(form.controls.type.value) }}</p>
+              } @else {
+                <app-select-menu
+                  [options]="typeOptions"
+                  [value]="form.controls.type.value"
+                  ariaLabel="Tipo documento"
+                  placeholder="Tipo documento"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="onTypeSelect($event)"
+                />
+              }
+            </div>
+
+            <div class="gr-form__field">
+              <span class="gr-form__label" id="gr-supplier-label">Fornitore</span>
               <app-select-menu
-                [options]="typeOptions"
-                [value]="form.controls.type.value"
-                ariaLabel="Tipo documento"
-                placeholder="Tipo documento"
+                [options]="supplierOptions()"
+                [value]="form.controls.supplierId.value"
+                ariaLabel="Fornitore"
+                placeholder="Seleziona fornitore…"
                 [compact]="true"
                 [fullWidth]="true"
-                (valueChange)="onTypeSelect($event)"
+                [searchable]="true"
+                searchPlaceholder="Cerca fornitore…"
+                searchAriaLabel="Cerca fornitore"
+                [invalid]="fieldInvalid('supplierId')"
+                describedBy="gr-supplier-error"
+                (valueChange)="onSupplierSelect($event)"
               />
-            }
-          </div>
-
-          <div class="gr-form__field">
-            <span class="gr-form__label" id="gr-supplier-label">Fornitore</span>
-            <app-select-menu
-              [options]="supplierOptions()"
-              [value]="form.controls.supplierId.value"
-              ariaLabel="Fornitore"
-              placeholder="Seleziona fornitore…"
-              [compact]="true"
-              [fullWidth]="true"
-              [searchable]="true"
-              searchPlaceholder="Cerca fornitore…"
-              searchAriaLabel="Cerca fornitore"
-              [invalid]="fieldInvalid('supplierId')"
-              describedBy="gr-supplier-error"
-              (valueChange)="onSupplierSelect($event)"
-            />
-            @if (fieldInvalid('supplierId')) {
-              <p id="gr-supplier-error" class="gr-form__error">Seleziona un fornitore.</p>
-            }
-            <button type="button" class="gr-form__inline-toggle" (click)="toggleSupplierForm()">
-              <i
-                class="pi"
-                [class.pi-plus]="!showSupplierForm()"
-                [class.pi-minus]="showSupplierForm()"
-                aria-hidden="true"
-              ></i>
-              {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
-            </button>
-            @if (form.controls.supplierId.value) {
-              <button type="button" class="gr-form__inline-toggle" (click)="openSupplierDetail()">
-                <i class="pi pi-external-link" aria-hidden="true"></i>
-                Scheda fornitore
+              @if (fieldInvalid('supplierId')) {
+                <p id="gr-supplier-error" class="gr-form__error">Seleziona un fornitore.</p>
+              }
+              <button type="button" class="gr-form__inline-toggle" (click)="toggleSupplierForm()">
+                <i
+                  class="pi"
+                  [class.pi-plus]="!showSupplierForm()"
+                  [class.pi-minus]="showSupplierForm()"
+                  aria-hidden="true"
+                ></i>
+                {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
               </button>
-            }
+              @if (form.controls.supplierId.value) {
+                <button type="button" class="gr-form__inline-toggle" (click)="openSupplierDetail()">
+                  <i class="pi pi-external-link" aria-hidden="true"></i>
+                  Scheda fornitore
+                </button>
+              }
+            </div>
+
+            <div class="gr-form__field">
+              <span class="gr-form__label">Location destinazione</span>
+              <app-select-menu
+                [options]="locationOptions()"
+                [value]="form.controls.locationId.value"
+                ariaLabel="Location di destinazione"
+                placeholder="Seleziona location…"
+                [compact]="true"
+                [fullWidth]="true"
+                [invalid]="fieldInvalid('locationId')"
+                describedBy="gr-location-error"
+                (valueChange)="onLocationSelect($event)"
+              />
+              @if (fieldInvalid('locationId')) {
+                <p id="gr-location-error" class="gr-form__error">Seleziona la location.</p>
+              }
+            </div>
+
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="gr-date">Data documento</label>
+              <app-date-input
+                inputId="gr-date"
+                formControlName="documentDate"
+                ariaLabel="Data documento"
+                [compact]="true"
+                [fullWidth]="true"
+              />
+            </div>
+
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="gr-ext-num">N. documento fornitore</label>
+              <input
+                id="gr-ext-num"
+                class="gr-form__input"
+                type="text"
+                formControlName="externalDocNumber"
+                placeholder="Es. DDT 242/2026"
+              />
+            </div>
+
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="gr-ext-date">Data doc. fornitore</label>
+              <app-date-input
+                inputId="gr-ext-date"
+                formControlName="externalDocDate"
+                ariaLabel="Data documento fornitore"
+                placeholder="Opzionale"
+                [compact]="true"
+                [fullWidth]="true"
+              />
+            </div>
           </div>
 
-          <div class="gr-form__field">
-            <span class="gr-form__label">Location destinazione</span>
-            <app-select-menu
-              [options]="locationOptions()"
-              [value]="form.controls.locationId.value"
-              ariaLabel="Location di destinazione"
-              placeholder="Seleziona location…"
-              [compact]="true"
-              [fullWidth]="true"
-              [invalid]="fieldInvalid('locationId')"
-              describedBy="gr-location-error"
-              (valueChange)="onLocationSelect($event)"
-            />
-            @if (fieldInvalid('locationId')) {
-              <p id="gr-location-error" class="gr-form__error">Seleziona la location.</p>
-            }
-          </div>
+          <div class="gr-form__grid gr-form__grid--header gr-form__grid--header-secondary">
+            <div class="gr-form__field gr-form__field--wide">
+              <label class="gr-form__label" for="gr-causale">Causale di carico</label>
+              <input
+                id="gr-causale"
+                class="gr-form__input"
+                type="text"
+                formControlName="internalComment"
+                placeholder="Es. Acquisto stagione SS26"
+              />
+            </div>
 
-          <div class="gr-form__field">
-            <label class="gr-form__label" for="gr-date">Data documento</label>
-            <app-date-input
-              inputId="gr-date"
-              formControlName="documentDate"
-              ariaLabel="Data documento"
-              [compact]="true"
-              [fullWidth]="true"
-            />
-          </div>
+            <div class="gr-form__field">
+              <label class="gr-form__check gr-form__check--block" for="gr-invoice-pending">
+                <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
+                <span>Seguirà fattura</span>
+              </label>
+            </div>
 
-          <div class="gr-form__field">
-            <label class="gr-form__label" for="gr-ext-num">N. documento fornitore</label>
-            <input
-              id="gr-ext-num"
-              class="gr-form__input"
-              type="text"
-              formControlName="externalDocNumber"
-              placeholder="Es. DDT 242/2026"
-            />
-          </div>
-
-          <div class="gr-form__field">
-            <label class="gr-form__label" for="gr-ext-date">Data doc. fornitore</label>
-            <app-date-input
-              inputId="gr-ext-date"
-              formControlName="externalDocDate"
-              ariaLabel="Data documento fornitore"
-              placeholder="Opzionale"
-              [compact]="true"
-              [fullWidth]="true"
-            />
-          </div>
-        </div>
-
-        <div class="gr-form__grid">
-          <div class="gr-form__field gr-form__field--wide">
-            <label class="gr-form__label" for="gr-causale">Causale di carico</label>
-            <input
-              id="gr-causale"
-              class="gr-form__input"
-              type="text"
-              formControlName="internalComment"
-              placeholder="Es. Acquisto stagione SS26"
-            />
-          </div>
-
-          <div class="gr-form__field">
-            <label class="gr-form__check gr-form__check--block" for="gr-invoice-pending">
-              <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
-              <span>Seguirà fattura</span>
-            </label>
-          </div>
-
-          <div class="gr-form__field">
-            <label class="gr-form__label" for="gr-ext-invoice">Rif. fattura fornitore</label>
-            <input
-              id="gr-ext-invoice"
-              class="gr-form__input"
-              type="text"
-              formControlName="externalRef"
-              placeholder="Es. Fattura 58/2026"
-            />
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="gr-ext-invoice">Rif. fattura fornitore</label>
+              <input
+                id="gr-ext-invoice"
+                class="gr-form__input"
+                type="text"
+                formControlName="externalRef"
+                placeholder="Es. Fattura 58/2026"
+              />
+            </div>
           </div>
         </div>
 
@@ -338,7 +340,11 @@
                     </th>
                   }
                   @if (isLineColumnVisible('product')) {
-                    <th scope="col" [style.width]="lineColumnWidth('product')">
+                    <th
+                      scope="col"
+                      class="gr-form__th--product"
+                      [style.width]="lineColumnWidth('product')"
+                    >
                       Nome prodotto
                       <span
                         appTableColumnResize
@@ -459,7 +465,17 @@
                     <th scope="col" [style.width]="lineColumnWidth('serials')">Seriali</th>
                   }
                   @if (isLineColumnVisible('loadsStock')) {
-                    <th scope="col" [style.width]="lineColumnWidth('loadsStock')">Mag.</th>
+                    <th scope="col" [style.width]="lineColumnWidth('loadsStock')">
+                      <span class="gr-form__th-label">
+                        Mag.
+                        <app-hover-tooltip [text]="loadsStockTooltip" position="bottom">
+                          <i
+                            class="pi pi-info-circle gr-form__th-info"
+                            aria-label="Info colonna Magazzino"
+                          ></i>
+                        </app-hover-tooltip>
+                      </span>
+                    </th>
                   }
                   @if (isLineColumnVisible('lineTotal')) {
                     <th
@@ -479,7 +495,11 @@
               </thead>
               <tbody formArrayName="lines">
                 @for (line of lines.controls; track line; let i = $index) {
-                  <tr class="gr-form__table-row" [formGroupName]="i">
+                  <tr
+                    class="gr-form__table-row"
+                    [class.gr-form__table-row--active]="lineRowActive(i)"
+                    [formGroupName]="i"
+                  >
                     @if (isLineColumnVisible('sku')) {
                       <td class="gr-form__cell gr-form__cell--code">
                         <app-goods-receipt-line-code-cell
@@ -496,6 +516,7 @@
                           (focused)="onLineCodeFocus(i, 'sku')"
                           (blurred)="onLineCodeBlur(i)"
                           (commit)="commitSkuLookup(i)"
+                          (lineRowAdvance)="advanceToNextLine(i)"
                           (suggestionPick)="
                             onCodeSuggestionPick($event.lineIndex, $event.variantId)
                           "
@@ -518,6 +539,7 @@
                           (focused)="onLineCodeFocus(i, 'barcode')"
                           (blurred)="onLineCodeBlur(i)"
                           (commit)="commitBarcodeLookup(i)"
+                          (lineRowAdvance)="advanceToNextLine(i)"
                           (suggestionPick)="
                             onCodeSuggestionPick($event.lineIndex, $event.variantId)
                           "
@@ -547,6 +569,7 @@
                             onProductSuggestionPick($event.lineIndex, $event.variantId)
                           "
                           (lineAdvance)="advanceFromProductField(i)"
+                          (lineRowAdvance)="advanceToNextLine(i)"
                         />
                       </td>
                     }

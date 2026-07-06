@@ -39,6 +39,7 @@ export class GoodsReceiptLineProductCellComponent {
   readonly detailOpen = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
   readonly lineAdvance = output<number>();
+  readonly lineRowAdvance = output<number>();
 
   private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('productInput');
 
@@ -89,6 +90,11 @@ export class GoodsReceiptLineProductCellComponent {
     const open = this.suggestionsOpen() && suggestions.length > 0;
     const active = this.activeSuggestionIndex();
 
+    if (event.key === 'ArrowDown' && !open) {
+      event.preventDefault();
+      this.lineRowAdvance.emit(this.lineIndex());
+      return;
+    }
     if (event.key === 'ArrowDown' && open) {
       event.preventDefault();
       return;

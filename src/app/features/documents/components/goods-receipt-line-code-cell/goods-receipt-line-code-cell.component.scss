@@ -30,9 +30,9 @@
 
 .gr-code-cell__suggestions {
   position: absolute;
-  inset-block-start: calc(100% + var(--space-1));
+  inset-block-start: 100%;
   inset-inline: 0;
-  z-index: var(--z-dropdown);
+  z-index: var(--z-tooltip);
   margin: 0;
   padding: var(--space-1);
   list-style: none;
