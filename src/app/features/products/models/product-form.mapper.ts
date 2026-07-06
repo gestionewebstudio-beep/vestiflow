@@ -126,6 +126,8 @@ export interface ProductEmbeddedCreatePrefill {
   readonly sku?: string;
   readonly barcode?: string;
   readonly purchasePriceMajor?: number | null;
+  readonly sellingPriceMajor?: number | null;
+  readonly compareAtPriceMajor?: number | null;
   readonly defaultVatRatePercent?: number | null;
 }
 
@@ -152,6 +154,12 @@ export function productFormDraftFromEmbeddedPrefill(
           barcode: prefill.barcode?.trim() || variant.barcode,
           purchasePrice:
             prefill.purchasePriceMajor != null ? prefill.purchasePriceMajor : variant.purchasePrice,
+          sellingPrice:
+            prefill.sellingPriceMajor != null ? prefill.sellingPriceMajor : variant.sellingPrice,
+          compareAtPrice:
+            prefill.compareAtPriceMajor != null
+              ? prefill.compareAtPriceMajor
+              : variant.compareAtPrice,
         },
       ],
     },

@@ -23,7 +23,7 @@
 .gr-product-cell__input {
   flex: 1;
   min-inline-size: 0;
-  padding: var(--space-2);
+  padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
   border: none;
   background: transparent;
@@ -37,7 +37,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: var(--btn-min-height);
+  inline-size: calc(var(--field-height) - var(--space-1));
   flex-shrink: 0;
   border: none;
   border-inline-start: var(--border-width) solid var(--color-border);

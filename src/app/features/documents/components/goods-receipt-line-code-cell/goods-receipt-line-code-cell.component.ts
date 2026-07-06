@@ -13,20 +13,20 @@ import type { VariantSummary } from '@features/products/models/variant-summary.m
 import { formatMoney } from '@core/utils/money.util';
 
 @Component({
-  selector: 'app-goods-receipt-line-product-cell',
+  selector: 'app-goods-receipt-line-code-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule],
-  templateUrl: './goods-receipt-line-product-cell.component.html',
-  styleUrl: './goods-receipt-line-product-cell.component.scss',
+  templateUrl: './goods-receipt-line-code-cell.component.html',
+  styleUrl: './goods-receipt-line-code-cell.component.scss',
 })
-export class GoodsReceiptLineProductCellComponent {
+export class GoodsReceiptLineCodeCellComponent {
   readonly lineIndex = input.required<number>();
   readonly inputId = input('');
+  readonly ariaLabel = input.required<string>();
   readonly value = input.required<string>();
   readonly linked = input(false);
-  readonly linkedLabel = input('');
+  readonly linkedValue = input('');
   readonly disabled = input(false);
-  readonly invalid = input(false);
   readonly suggestions = input<readonly VariantSummary[]>([]);
   readonly suggestionsOpen = input(false);
   readonly activeSuggestionIndex = input(0);
@@ -34,17 +34,12 @@ export class GoodsReceiptLineProductCellComponent {
   readonly valueChange = output<string>();
   readonly focused = output<number>();
   readonly blurred = output<number>();
-  readonly searchOpen = output<number>();
-  readonly anagraphicOpen = output<number>();
-  readonly detailOpen = output<number>();
+  readonly commit = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
-  readonly lineAdvance = output<number>();
 
-  private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('productInput');
+  private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('codeInput');
 
-  protected readonly listboxId = signal(
-    `gr-product-list-${Math.random().toString(36).slice(2, 9)}`,
-  );
+  protected readonly listboxId = signal(`gr-code-list-${Math.random().toString(36).slice(2, 9)}`);
 
   protected onInput(value: string): void {
     this.valueChange.emit(value);
@@ -56,21 +51,6 @@ export class GoodsReceiptLineProductCellComponent {
 
   protected onBlur(): void {
     this.blurred.emit(this.lineIndex());
-  }
-
-  protected openSearch(event: Event): void {
-    event.stopPropagation();
-    this.searchOpen.emit(this.lineIndex());
-  }
-
-  protected openAnagraphic(event: Event): void {
-    event.stopPropagation();
-    this.anagraphicOpen.emit(this.lineIndex());
-  }
-
-  protected openDetail(event: Event): void {
-    event.stopPropagation();
-    this.detailOpen.emit(this.lineIndex());
   }
 
   protected pickSuggestion(variantId: string): void {
@@ -103,13 +83,16 @@ export class GoodsReceiptLineProductCellComponent {
         this.pickSuggestion(suggestions[active].variantId);
         return;
       }
-      this.lineAdvance.emit(this.lineIndex());
+      this.commit.emit(this.lineIndex());
       return;
+    }
+    if (event.key === 'Tab' && !event.shiftKey) {
+      this.commit.emit(this.lineIndex());
     }
   }
 
   protected suggestionDetail(variant: VariantSummary): string {
-    const parts: string[] = [variant.sku];
+    const parts: string[] = [variant.productName];
     if (variant.barcode) {
       parts.push(`EAN ${variant.barcode}`);
     }

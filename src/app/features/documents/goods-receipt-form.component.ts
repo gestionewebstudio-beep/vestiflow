@@ -4,6 +4,7 @@ import {
   DestroyRef,
   HostListener,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -47,6 +48,7 @@ import {
   zeroMoney,
 } from '@core/utils/money.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import { normalizeSku } from '@features/products/models/product-form.validators';
 import { suggestVariantSku } from '@features/products/models/product-sku.util';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
@@ -72,6 +74,7 @@ import type { TenantFeatureSettings } from '@features/settings/models/tenant-fea
 import { ProductFormComponent } from '@features/products/product-form.component';
 
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
+import { GoodsReceiptLineCodeCellComponent } from './components/goods-receipt-line-code-cell/goods-receipt-line-code-cell.component';
 import { GoodsReceiptLineProductCellComponent } from './components/goods-receipt-line-product-cell/goods-receipt-line-product-cell.component';
 import { GoodsReceiptProductSearchPanelComponent } from './components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
 import {
@@ -96,8 +99,20 @@ type SubmitState =
   | { readonly status: 'error'; readonly error: AppError };
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-const VARIANT_SEARCH_MIN_CHARS = 1;
+const VARIANT_SEARCH_MIN_CHARS = 3;
 const AUTO_SAVE_DEBOUNCE_MS = 800;
+
+type GoodsReceiptLineFocusField =
+  | 'sku'
+  | 'barcode'
+  | 'product'
+  | 'quantity'
+  | 'unitCost'
+  | 'sellingPrice'
+  | 'compareAtPrice'
+  | 'vat';
+
+type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
 
 /**
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
@@ -120,6 +135,7 @@ const AUTO_SAVE_DEBOUNCE_MS = 800;
     TableColumnPickerComponent,
     TableColumnResizeDirective,
     DocumentAttachmentsPanelComponent,
+    GoodsReceiptLineCodeCellComponent,
     GoodsReceiptLineProductCellComponent,
     GoodsReceiptProductSearchPanelComponent,
     SlidePanelComponent,
@@ -199,6 +215,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly productSearchPanelOpen = signal(false);
   protected readonly productSearchLineIndex = signal<number | null>(null);
   protected readonly autocompleteLineIndex = signal<number | null>(null);
+  protected readonly activeSuggestionIndex = signal(0);
+  protected readonly codeLookupLineIndex = signal<number | null>(null);
+  protected readonly codeLookupField = signal<GoodsReceiptCodeLookupField | null>(null);
+  protected readonly codeLookupSuggestions = signal<readonly VariantSummary[]>([]);
   protected readonly deleteDocumentDialogOpen = signal(false);
   protected readonly attachWithoutAddDialogOpen = signal(false);
   protected readonly pendingAttachVariantId = signal<string | null>(null);
@@ -402,6 +422,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .subscribe(() => this.refreshNumberPreview());
     this.refreshNumberPreview();
     this.setupAutoSave();
+    effect(() => {
+      this.pinnedVariants();
+      this.syncLineCodesFromVariants();
+    });
   }
 
   private setupAutoSave(): void {
@@ -450,6 +474,24 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     );
   }
 
+  protected codeSuggestions(
+    index: number,
+    field: GoodsReceiptCodeLookupField,
+  ): readonly VariantSummary[] {
+    if (this.codeLookupLineIndex() !== index || this.codeLookupField() !== field) {
+      return [];
+    }
+    return this.codeLookupSuggestions();
+  }
+
+  protected codeSuggestionsOpen(index: number, field: GoodsReceiptCodeLookupField): boolean {
+    return (
+      this.codeLookupLineIndex() === index &&
+      this.codeLookupField() === field &&
+      this.codeLookupSuggestions().length > 0
+    );
+  }
+
   protected linkedProductLabel(index: number): string {
     const line = this.lines.at(index);
     if (!line) {
@@ -466,7 +508,21 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
       (v) => v.variantId === variantId,
     );
-    return summary?.title ?? line.controls.description.value;
+    return summary?.productName ?? summary?.title ?? line.controls.description.value;
+  }
+
+  protected onLineSkuChange(index: number, value: string): void {
+    this.lines.at(index).controls.sku.setValue(value);
+    this.clearCodeLookup();
+    this.ensureTrailingEmptyRow();
+    this.triggerAutoSave();
+  }
+
+  protected onLineBarcodeChange(index: number, value: string): void {
+    this.lines.at(index).controls.barcode.setValue(value);
+    this.clearCodeLookup();
+    this.ensureTrailingEmptyRow();
+    this.triggerAutoSave();
   }
 
   protected onLineProductNameChange(index: number, value: string): void {
@@ -474,13 +530,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     line.controls.productName.setValue(value);
     line.controls.description.setValue(value, { emitEvent: false });
     this.autocompleteLineIndex.set(index);
+    this.activeSuggestionIndex.set(0);
     this.variantSearchDraft.set(value);
+    this.clearCodeLookup();
     this.ensureTrailingEmptyRow();
     this.triggerAutoSave();
   }
 
   protected onLineProductFocus(index: number): void {
     this.autocompleteLineIndex.set(index);
+    this.activeSuggestionIndex.set(0);
     this.variantSearchDraft.set(this.lines.at(index).controls.productName.value);
   }
 
@@ -488,29 +547,110 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.autocompleteLineIndex() === index) {
       this.autocompleteLineIndex.set(null);
     }
-    this.tryLinkLineByCode(index);
     this.triggerAutoSave();
   }
 
-  protected tryLinkLineByCode(index: number): void {
+  protected onLineCodeFocus(index: number, field: GoodsReceiptCodeLookupField): void {
+    this.clearProductAutocomplete();
+    if (this.codeLookupLineIndex() === index && this.codeLookupField() === field) {
+      return;
+    }
+    this.clearCodeLookup();
+  }
+
+  protected onLineCodeBlur(index: number): void {
+    if (this.codeLookupLineIndex() === index) {
+      this.clearCodeLookup();
+    }
+    this.triggerAutoSave();
+  }
+
+  protected commitSkuLookup(index: number): void {
+    this.commitCodeLookup(index, 'sku');
+  }
+
+  protected commitBarcodeLookup(index: number): void {
+    this.commitCodeLookup(index, 'barcode');
+  }
+
+  private commitCodeLookup(index: number, field: GoodsReceiptCodeLookupField): void {
     if (this.lineHasLinkedProduct(index)) {
+      this.focusNextLineField(index, field);
       return;
     }
-    const code = this.lines.at(index).controls.productName.value.trim();
-    if (code.length < 3) {
+    const line = this.lines.at(index);
+    const value =
+      field === 'sku' ? line.controls.sku.value.trim() : line.controls.barcode.value.trim();
+    if (!value) {
+      this.clearCodeLookup();
+      this.focusNextLineField(index, field);
       return;
     }
+
+    const supplierId = this.form.controls.supplierId.value || undefined;
+    const locationId = this.form.controls.locationId.value || undefined;
+
     this.productService
-      .findVariantByCode(code)
+      .searchVariantSummaries({ search: value, pageSize: 20, supplierId, locationId })
       .pipe(
         take(1),
-        catchError(() => of(null)),
+        catchError(() => of([] as readonly VariantSummary[])),
       )
-      .subscribe((variant) => {
-        if (variant) {
-          this.onVariantSelect(index, variant.variantId);
+      .subscribe((results) => {
+        const matches = this.filterLookupMatches(results, value, field);
+        if (matches.length === 1) {
+          const match = matches[0];
+          if (match) {
+            this.onVariantSelect(index, match.variantId);
+            this.clearCodeLookup();
+            this.focusLineField(index, 'quantity');
+          }
+          return;
         }
+        if (matches.length > 1) {
+          this.codeLookupLineIndex.set(index);
+          this.codeLookupField.set(field);
+          this.codeLookupSuggestions.set(matches);
+          return;
+        }
+
+        this.productService
+          .findVariantByCode(value)
+          .pipe(
+            take(1),
+            catchError(() => of(null)),
+          )
+          .subscribe((variant) => {
+            if (variant) {
+              this.onVariantSelect(index, variant.variantId);
+              this.clearCodeLookup();
+              this.focusLineField(index, 'quantity');
+              return;
+            }
+            this.clearCodeLookup();
+            this.focusNextLineField(index, field);
+          });
       });
+  }
+
+  private filterLookupMatches(
+    results: readonly VariantSummary[],
+    value: string,
+    field: GoodsReceiptCodeLookupField,
+  ): readonly VariantSummary[] {
+    if (field === 'sku') {
+      const exact = results.filter((row) => normalizeSku(row.sku) === normalizeSku(value));
+      return exact.length > 0 ? exact : results;
+    }
+    const normalized = value.trim();
+    const exact = results.filter((row) => row.barcode?.trim() === normalized);
+    return exact.length > 0 ? exact : results;
+  }
+
+  protected onCodeSuggestionPick(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    this.clearCodeLookup();
+    this.focusLineField(index, 'quantity');
   }
 
   protected openLineProductSearch(index: number): void {
@@ -527,8 +667,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const index = this.productSearchLineIndex();
     if (index != null) {
       this.onVariantSelect(index, variantId);
+      this.focusLineField(index, 'quantity');
     }
     this.closeLineProductSearch();
+  }
+
+  protected onProductSuggestionPick(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    this.focusLineField(index, 'quantity');
   }
 
   protected advanceToNextLine(index: number): void {
@@ -537,24 +683,139 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (nextIndex >= this.lines.length) {
       return;
     }
-    globalThis.document.getElementById(`gr-product-${nextIndex}`)?.focus();
+    this.focusFirstLineField(nextIndex);
+  }
+
+  protected advanceFromProductField(index: number): void {
+    if (this.lineHasLinkedProduct(index)) {
+      this.focusLineField(index, 'quantity');
+      return;
+    }
+    this.focusNextLineField(index, 'product');
   }
 
   protected onLineFieldKeydown(
     index: number,
-    field: 'quantity' | 'unitCost' | 'sellingPrice' | 'compareAtPrice' | 'vat',
+    field: GoodsReceiptLineFocusField,
     event: KeyboardEvent,
   ): void {
     if (event.key !== 'Tab' || event.shiftKey) {
       return;
     }
-    const order = ['quantity', 'unitCost', 'sellingPrice', 'compareAtPrice', 'vat'] as const;
+    const order = this.visibleLineFocusFields(index);
     const pos = order.indexOf(field);
     if (pos < order.length - 1) {
       return;
     }
     event.preventDefault();
     this.advanceToNextLine(index);
+  }
+
+  private visibleLineFocusFields(index: number): readonly GoodsReceiptLineFocusField[] {
+    const all: GoodsReceiptLineFocusField[] = [
+      'sku',
+      'barcode',
+      'product',
+      'quantity',
+      'unitCost',
+      'sellingPrice',
+      'compareAtPrice',
+      'vat',
+    ];
+    const linked = this.lineHasLinkedProduct(index);
+    return all.filter((field) => {
+      if (linked) {
+        return field === 'quantity';
+      }
+      if (field === 'sku') {
+        return this.isLineColumnVisible('sku');
+      }
+      if (field === 'barcode') {
+        return this.isLineColumnVisible('barcode');
+      }
+      if (field === 'product') {
+        return this.isLineColumnVisible('product');
+      }
+      if (field === 'quantity') {
+        return this.isLineColumnVisible('quantity');
+      }
+      if (field === 'unitCost') {
+        return this.isLineColumnVisible('unitCost');
+      }
+      if (field === 'sellingPrice') {
+        return this.isLineColumnVisible('sellingPrice');
+      }
+      if (field === 'compareAtPrice') {
+        return this.isLineColumnVisible('compareAtPrice');
+      }
+      if (field === 'vat') {
+        return this.isLineColumnVisible('vat');
+      }
+      return false;
+    });
+  }
+
+  protected focusLineField(index: number, field: GoodsReceiptLineFocusField): void {
+    const idMap: Record<GoodsReceiptLineFocusField, string> = {
+      sku: `gr-sku-${index}`,
+      barcode: `gr-barcode-${index}`,
+      product: `gr-product-${index}`,
+      quantity: `gr-qty-${index}`,
+      unitCost: `gr-cost-${index}`,
+      sellingPrice: `gr-selling-${index}`,
+      compareAtPrice: `gr-compare-${index}`,
+      vat: `gr-vat-${index}`,
+    };
+    globalThis.document.getElementById(idMap[field])?.focus();
+  }
+
+  protected focusFirstLineField(index: number): void {
+    const order = this.visibleLineFocusFields(index);
+    const first = order[0];
+    if (first) {
+      this.focusLineField(index, first);
+    }
+  }
+
+  protected focusNextLineField(index: number, current: GoodsReceiptLineFocusField): void {
+    const order = this.visibleLineFocusFields(index);
+    const pos = order.indexOf(current);
+    if (pos >= 0 && pos < order.length - 1) {
+      this.focusLineField(index, order[pos + 1]!);
+      return;
+    }
+    this.advanceToNextLine(index);
+  }
+
+  private clearCodeLookup(): void {
+    this.codeLookupLineIndex.set(null);
+    this.codeLookupField.set(null);
+    this.codeLookupSuggestions.set([]);
+  }
+
+  private clearProductAutocomplete(): void {
+    this.autocompleteLineIndex.set(null);
+    this.activeSuggestionIndex.set(0);
+  }
+
+  private syncLineCodesFromVariants(): void {
+    const summaries = this.pinnedVariants();
+    for (const line of this.lines.controls) {
+      const variantId = line.controls.variantId.value;
+      if (!variantId) {
+        continue;
+      }
+      const summary = summaries.find((row) => row.variantId === variantId);
+      if (!summary) {
+        continue;
+      }
+      line.controls.sku.setValue(summary.sku, { emitEvent: false });
+      line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
+      if (!line.controls.productName.value.trim()) {
+        line.controls.productName.setValue(summary.productName, { emitEvent: false });
+        line.controls.description.setValue(summary.productName, { emitEvent: false });
+      }
+    }
   }
 
   private syncLineFieldAccess(): void {
@@ -564,6 +825,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     for (const line of this.lines.controls) {
       const linked = Boolean(line.controls.variantId.value);
       const lockedWhenLinked = [
+        line.controls.sku,
+        line.controls.barcode,
         line.controls.productName,
         line.controls.unitCost,
         line.controls.vatRatePercent,
@@ -586,6 +849,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private lineIsEmpty(line: ReturnType<GoodsReceiptFormComponent['createLine']>): boolean {
     return (
       !line.controls.variantId.value &&
+      !line.controls.sku.value.trim() &&
+      !line.controls.barcode.value.trim() &&
       !line.controls.productName.value.trim() &&
       !line.controls.unitCost.value.trim() &&
       !line.controls.sellingPrice.value.trim() &&
@@ -733,7 +998,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         (v) => v.variantId === value,
       );
       if (summary) {
-        const label = summary.title || summary.productName;
+        line.controls.sku.setValue(summary.sku, { emitEvent: false });
+        line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
+        const label = summary.productName || summary.title;
         line.controls.productName.setValue(label, { emitEvent: false });
         line.controls.description.setValue(label, { emitEvent: false });
         if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
@@ -748,6 +1015,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         }
       }
     }
+    this.clearCodeLookup();
+    this.clearProductAutocomplete();
     this.syncLineFieldAccess();
     this.ensureTrailingEmptyRow();
     this.triggerAutoSave();
@@ -765,13 +1034,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const name = line.controls.productName.value.trim();
     const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
     const selling = parseMoneyInput(line.controls.sellingPrice.value, this.currency);
+    const compareAt = parseMoneyInput(line.controls.compareAtPrice.value, this.currency);
     const vatRaw = line.controls.vatRatePercent.value.trim();
     return {
       name,
       description: line.controls.description.value.trim() || name,
+      sku: line.controls.sku.value.trim() || undefined,
+      barcode: line.controls.barcode.value.trim() || undefined,
       purchasePriceMajor: cost ? cost.amountMinor / 100 : null,
-      defaultVatRatePercent: vatRaw ? Number(vatRaw) : null,
       sellingPriceMajor: selling ? selling.amountMinor / 100 : null,
+      compareAtPriceMajor: compareAt ? compareAt.amountMinor / 100 : null,
+      defaultVatRatePercent: vatRaw ? Number(vatRaw) : null,
     };
   });
 
@@ -784,6 +1057,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   });
 
   protected openProductAnagraphic(index: number): void {
+    const line = this.lines.at(index);
+    const name = line.controls.productName.value.trim();
+    if (!name) {
+      this._submitState.set({
+        status: 'error',
+        error: {
+          kind: AppErrorKind.Validation,
+          message: "Inserisci almeno il nome prodotto prima di aprire l'anagrafica.",
+        },
+      });
+      return;
+    }
     this.flushAutoSaveBeforeAction(() => this.openFullProductCreate(index));
   }
 
@@ -1005,6 +1290,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const def = GOODS_RECEIPT_LINE_COLUMNS.find((col) => col.id === normalizedId);
     const fallback = def?.defaultWidthPx ?? 96;
     return `${this.columnPreferences.columnWidth(GOODS_RECEIPT_LINES_VIEW, normalizedId, fallback)}px`;
+  }
+
+  protected lineColumnMinWidth(columnId: string): number {
+    const normalizedId = normalizeGoodsReceiptColumnId(columnId);
+    const def = GOODS_RECEIPT_LINE_COLUMNS.find((col) => col.id === normalizedId);
+    return def?.minWidthPx ?? 48;
   }
 
   protected onLineColumnResize(columnId: string, widthPx: number): void {
@@ -1276,8 +1567,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       parseMoneyInput(line.controls.sellingPrice.value, this.currency) ??
       moneyFromMajor(0, this.currency);
     const compareAt = parseMoneyInput(line.controls.compareAtPrice.value, this.currency);
-    const sku = suggestVariantSku(name, []);
-    const barcode = /^\d{8,14}$/.test(name) ? name : undefined;
+    const sku = line.controls.sku.value.trim() || suggestVariantSku(name, []);
+    const barcode = line.controls.barcode.value.trim() || undefined;
 
     return this.productService
       .createProduct({
@@ -1299,6 +1590,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         switchMap(() => this.productService.findVariantByCode(sku)),
         map((variant) => {
           line.controls.variantId.setValue(variant.variantId, { emitEvent: false });
+          line.controls.sku.setValue(variant.sku, { emitEvent: false });
+          line.controls.barcode.setValue(variant.barcode ?? '', { emitEvent: false });
           line.controls.productName.setValue(variant.productName, { emitEvent: false });
           line.controls.description.setValue(variant.productName, { emitEvent: false });
           this.syncLineFieldAccess();
@@ -1339,6 +1632,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.lines.push(
         this.fb.group({
           variantId: this.fb.control(line.variantId ?? ''),
+          sku: this.fb.control(''),
+          barcode: this.fb.control(''),
           productName: this.fb.control(line.description),
           description: this.fb.control(line.description),
           quantity: this.fb.control(line.quantity, {
@@ -1366,6 +1661,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private createLine() {
     return this.fb.group({
       variantId: this.fb.control(''),
+      sku: this.fb.control(''),
+      barcode: this.fb.control(''),
       productName: this.fb.control(''),
       description: this.fb.control(''),
       quantity: this.fb.control(1, {

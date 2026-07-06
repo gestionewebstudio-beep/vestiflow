@@ -211,7 +211,11 @@
 }
 
 .gr-form__cell--product {
-  min-inline-size: calc(var(--space-8) * 16);
+  min-inline-size: 0;
+}
+
+.gr-form__cell--code {
+  min-inline-size: 0;
 }
 
 .gr-form__linked-variant {
@@ -255,16 +259,17 @@
 
 .gr-form__table {
   inline-size: 100%;
-  min-inline-size: calc(var(--space-16) * 8);
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--text-sm);
 }
 
 .gr-form__table th,
 .gr-form__table td {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-2);
   border-inline-end: var(--border-width) solid var(--color-border);
-  vertical-align: top;
+  vertical-align: middle;
+  overflow: hidden;
 }
 
 .gr-form__table th:last-child,
@@ -310,9 +315,11 @@
 }
 
 .gr-form__input--table {
-  min-inline-size: calc(var(--space-16) * 1.5);
-  block-size: var(--field-height);
-  padding-inline: var(--space-2);
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: calc(var(--field-height) - var(--space-1));
+  padding-inline: var(--space-1);
+  padding-block: var(--space-1);
   font-size: var(--text-sm);
 }
 
@@ -327,7 +334,7 @@
 .gr-form__lines {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .gr-form__lines-head {

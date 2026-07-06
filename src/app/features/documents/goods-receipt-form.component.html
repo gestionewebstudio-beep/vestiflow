@@ -317,11 +317,32 @@
             <table class="gr-form__table">
               <thead>
                 <tr>
+                  @if (isLineColumnVisible('sku')) {
+                    <th scope="col" [style.width]="lineColumnWidth('sku')">
+                      SKU
+                      <span
+                        appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('sku')"
+                        (resized)="onLineColumnResize('sku', $event)"
+                      ></span>
+                    </th>
+                  }
+                  @if (isLineColumnVisible('barcode')) {
+                    <th scope="col" [style.width]="lineColumnWidth('barcode')">
+                      EAN
+                      <span
+                        appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('barcode')"
+                        (resized)="onLineColumnResize('barcode', $event)"
+                      ></span>
+                    </th>
+                  }
                   @if (isLineColumnVisible('product')) {
                     <th scope="col" [style.width]="lineColumnWidth('product')">
                       Nome prodotto
                       <span
                         appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('product')"
                         (resized)="onLineColumnResize('product', $event)"
                       ></span>
                     </th>
@@ -369,6 +390,11 @@
                       [style.width]="lineColumnWidth('quantity')"
                     >
                       Q.tà
+                      <span
+                        appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('quantity')"
+                        (resized)="onLineColumnResize('quantity', $event)"
+                      ></span>
                     </th>
                   }
                   @if (isLineColumnVisible('unitCost')) {
@@ -380,6 +406,7 @@
                       Costo
                       <span
                         appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('unitCost')"
                         (resized)="onLineColumnResize('unitCost', $event)"
                       ></span>
                     </th>
@@ -393,6 +420,7 @@
                       Prezzo di vendita
                       <span
                         appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('sellingPrice')"
                         (resized)="onLineColumnResize('sellingPrice', $event)"
                       ></span>
                     </th>
@@ -406,6 +434,7 @@
                       Prezzo barrato
                       <span
                         appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('compareAtPrice')"
                         (resized)="onLineColumnResize('compareAtPrice', $event)"
                       ></span>
                     </th>
@@ -413,6 +442,11 @@
                   @if (isLineColumnVisible('vat')) {
                     <th scope="col" class="gr-form__num" [style.width]="lineColumnWidth('vat')">
                       IVA
+                      <span
+                        appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('vat')"
+                        (resized)="onLineColumnResize('vat', $event)"
+                      ></span>
                     </th>
                   }
                   @if (isLineColumnVisible('lot')) {
@@ -446,6 +480,50 @@
               <tbody formArrayName="lines">
                 @for (line of lines.controls; track line; let i = $index) {
                   <tr class="gr-form__table-row" [formGroupName]="i">
+                    @if (isLineColumnVisible('sku')) {
+                      <td class="gr-form__cell gr-form__cell--code">
+                        <app-goods-receipt-line-code-cell
+                          [lineIndex]="i"
+                          [inputId]="'gr-sku-' + i"
+                          ariaLabel="SKU"
+                          [value]="line.controls.sku.value"
+                          [linked]="lineHasLinkedProduct(i)"
+                          [linkedValue]="line.controls.sku.value"
+                          [disabled]="formReadOnly()"
+                          [suggestions]="codeSuggestions(i, 'sku')"
+                          [suggestionsOpen]="codeSuggestionsOpen(i, 'sku')"
+                          (valueChange)="onLineSkuChange(i, $event)"
+                          (focused)="onLineCodeFocus(i, 'sku')"
+                          (blurred)="onLineCodeBlur(i)"
+                          (commit)="commitSkuLookup(i)"
+                          (suggestionPick)="
+                            onCodeSuggestionPick($event.lineIndex, $event.variantId)
+                          "
+                        />
+                      </td>
+                    }
+                    @if (isLineColumnVisible('barcode')) {
+                      <td class="gr-form__cell gr-form__cell--code">
+                        <app-goods-receipt-line-code-cell
+                          [lineIndex]="i"
+                          [inputId]="'gr-barcode-' + i"
+                          ariaLabel="EAN"
+                          [value]="line.controls.barcode.value"
+                          [linked]="lineHasLinkedProduct(i)"
+                          [linkedValue]="line.controls.barcode.value"
+                          [disabled]="formReadOnly()"
+                          [suggestions]="codeSuggestions(i, 'barcode')"
+                          [suggestionsOpen]="codeSuggestionsOpen(i, 'barcode')"
+                          (valueChange)="onLineBarcodeChange(i, $event)"
+                          (focused)="onLineCodeFocus(i, 'barcode')"
+                          (blurred)="onLineCodeBlur(i)"
+                          (commit)="commitBarcodeLookup(i)"
+                          (suggestionPick)="
+                            onCodeSuggestionPick($event.lineIndex, $event.variantId)
+                          "
+                        />
+                      </td>
+                    }
                     @if (isLineColumnVisible('product')) {
                       <td class="gr-form__cell gr-form__cell--product">
                         <app-goods-receipt-line-product-cell
@@ -458,15 +536,17 @@
                           [invalid]="lineFieldInvalid(i, 'productName')"
                           [suggestions]="lineSuggestions(i)"
                           [suggestionsOpen]="lineSuggestionsOpen(i)"
+                          [activeSuggestionIndex]="activeSuggestionIndex()"
                           (valueChange)="onLineProductNameChange(i, $event)"
                           (focused)="onLineProductFocus(i)"
                           (blurred)="onLineProductBlur(i)"
                           (searchOpen)="openLineProductSearch(i)"
                           (anagraphicOpen)="openProductAnagraphic(i)"
                           (detailOpen)="openProductDetail(i)"
-                          (suggestionPick)="onVariantSelect($event.lineIndex, $event.variantId)"
-                          (commitCode)="tryLinkLineByCode(i)"
-                          (lineAdvance)="advanceToNextLine(i)"
+                          (suggestionPick)="
+                            onProductSuggestionPick($event.lineIndex, $event.variantId)
+                          "
+                          (lineAdvance)="advanceFromProductField(i)"
                         />
                       </td>
                     }

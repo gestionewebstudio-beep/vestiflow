@@ -27,7 +27,7 @@
         [attr.aria-controls]="listboxId()"
         aria-label="Nome prodotto"
         autocomplete="off"
-        placeholder="Nome, SKU o EAN…"
+        placeholder="Nome prodotto"
         (input)="onInput($any($event.target).value)"
         (focus)="onFocus()"
         (blur)="onBlur()"
@@ -49,7 +49,7 @@
         class="gr-product-cell__suggestions"
         role="listbox"
         [id]="listboxId()"
-        [attr.aria-label]="'Suggerimenti prodotto'"
+        aria-label="Suggerimenti prodotto"
       >
         @for (item of suggestions(); track item.variantId; let i = $index) {
           <li
@@ -74,7 +74,7 @@
       [disabled]="disabled()"
       (click)="openAnagraphic($event)"
     >
-      Crea prodotto
+      Completa anagrafica prodotto
     </button>
   </div>
 }
