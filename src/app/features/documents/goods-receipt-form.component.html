@@ -906,13 +906,19 @@
   }
 </app-slide-panel>
 
-<app-slide-panel [open]="productPanelOpen()" title="Nuovo prodotto" (closed)="closeProductPanel()">
+<app-slide-panel
+  [open]="productPanelOpen()"
+  [title]="productPanelTitle()"
+  (closed)="closeProductPanel()"
+>
   @if (productPanelOpen()) {
     <app-product-form
       [embeddedPanel]="true"
       [embeddedPrefill]="productPanelPrefill()"
+      [embeddedProductId]="productPanelEditProductId()"
       (productCreatedWithAttach)="onProductCreatedFromPanel($event)"
       (productSavedWithoutAttach)="onProductSavedWithoutAttach($event)"
+      (productUpdatedInPanel)="onProductUpdatedFromPanel($event)"
       (panelDismissed)="closeProductPanel()"
     />
   }

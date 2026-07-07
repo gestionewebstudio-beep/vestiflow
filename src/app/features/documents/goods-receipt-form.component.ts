@@ -218,6 +218,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly unlockDialogOpen = signal(false);
   protected readonly productPanelOpen = signal(false);
   protected readonly productPanelLineIndex = signal<number | null>(null);
+  protected readonly productPanelMode = signal<'create' | 'edit'>('create');
+  protected readonly productPanelEditProductId = signal<string | null>(null);
   protected readonly attachTargetLineIndex = signal<number | null>(null);
   protected readonly registerDialogOpen = signal(false);
   protected readonly lifecycleActionSaving = signal(false);
@@ -1047,6 +1049,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected productPanelPrefill = computed(() => {
+    if (this.productPanelMode() !== 'create') {
+      return null;
+    }
     const index = this.productPanelLineIndex();
     if (index == null) {
       return null;
@@ -1080,15 +1085,31 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return this.lines.at(index)?.controls.productName.value.trim() ?? '';
   });
 
+  protected readonly productPanelTitle = computed(() => {
+    if (this.productPanelMode() === 'edit') {
+      return 'Anagrafica prodotto';
+    }
+    if (this.productPanelLineIndex() != null) {
+      return 'Completa anagrafica';
+    }
+    return 'Nuovo prodotto';
+  });
+
   protected openProductAnagraphic(index: number): void {
     const line = this.lines.at(index);
-    const name = line.controls.productName.value.trim();
-    if (!name) {
+    if (!line) {
+      return;
+    }
+    const hasLineData =
+      line.controls.productName.value.trim() ||
+      line.controls.sku.value.trim() ||
+      line.controls.barcode.value.trim();
+    if (!hasLineData) {
       this._submitState.set({
         status: 'error',
         error: {
           kind: AppErrorKind.Validation,
-          message: "Inserisci almeno il nome prodotto prima di aprire l'anagrafica.",
+          message: "Inserisci almeno SKU, EAN o nome prodotto prima di completare l'anagrafica.",
         },
       });
       return;
@@ -1100,6 +1121,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.flushAutoSaveBeforeAction(() => {
       this.attachTargetLineIndex.set(null);
       this.productPanelLineIndex.set(null);
+      this.productPanelEditProductId.set(null);
+      this.productPanelMode.set('create');
       this.productPanelOpen.set(true);
     });
   }
@@ -1109,17 +1132,30 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!variantId) {
       return;
     }
-    this.productService
-      .searchVariantSummaries({ variantId })
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (rows) => {
-          const productId = rows[0]?.productId;
-          if (productId) {
-            void this.router.navigate(['/app/products', productId]);
-          }
-        },
-      });
+    this.flushAutoSaveBeforeAction(() => {
+      this.productService
+        .searchVariantSummaries({ variantId })
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (rows) => {
+            const productId = rows[0]?.productId;
+            if (!productId) {
+              this._submitState.set({
+                status: 'error',
+                error: {
+                  kind: AppErrorKind.NotFound,
+                  message: 'Prodotto collegato non trovato.',
+                },
+              });
+              return;
+            }
+            this.openProductEditInPanel(index, productId);
+          },
+          error: (err: unknown) => {
+            this._submitState.set({ status: 'error', error: this.toAppError(err) });
+          },
+        });
+    });
   }
 
   protected poLineContext(index: number): {
@@ -1335,12 +1371,24 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected openFullProductCreate(lineIndex: number): void {
     this.attachTargetLineIndex.set(lineIndex);
     this.productPanelLineIndex.set(lineIndex);
+    this.productPanelEditProductId.set(null);
+    this.productPanelMode.set('create');
+    this.productPanelOpen.set(true);
+  }
+
+  private openProductEditInPanel(lineIndex: number, productId: string): void {
+    this.attachTargetLineIndex.set(lineIndex);
+    this.productPanelLineIndex.set(lineIndex);
+    this.productPanelEditProductId.set(productId);
+    this.productPanelMode.set('edit');
     this.productPanelOpen.set(true);
   }
 
   protected closeProductPanel(): void {
     this.productPanelOpen.set(false);
     this.productPanelLineIndex.set(null);
+    this.productPanelEditProductId.set(null);
+    this.productPanelMode.set('create');
   }
 
   protected onProductCreatedFromPanel(event: { readonly variantId: string }): void {
@@ -1350,6 +1398,37 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.syncLineFieldAccess();
     }
     this.closeProductPanel();
+  }
+
+  protected onProductUpdatedFromPanel(_event: { readonly productId: string }): void {
+    const lineIndex = this.productPanelLineIndex();
+    const variantId =
+      lineIndex != null ? (this.lines.at(lineIndex)?.controls.variantId.value ?? null) : null;
+    if (lineIndex != null && variantId) {
+      this.refreshLineVariantSummary(lineIndex, variantId);
+    }
+    this.closeProductPanel();
+  }
+
+  private refreshLineVariantSummary(index: number, variantId: string): void {
+    this.productService
+      .searchVariantSummaries({ variantId })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rows) => {
+          const summary = rows[0];
+          if (!summary) {
+            return;
+          }
+          const line = this.lines.at(index);
+          line.controls.sku.setValue(summary.sku, { emitEvent: false });
+          line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
+          const label = summary.productName || summary.title;
+          line.controls.productName.setValue(label, { emitEvent: false });
+          this.syncLineFieldAccess();
+          this.triggerAutoSave();
+        },
+      });
   }
 
   protected onProductSavedWithoutAttach(event: { readonly variantId: string }): void {

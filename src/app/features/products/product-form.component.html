@@ -1,10 +1,12 @@
-<section class="product-form">
-  <a class="product-form__back" [routerLink]="listPath">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Prodotti
-  </a>
+<section class="product-form" [class.product-form--embedded]="embeddedPanel()">
+  @if (!embeddedPanel()) {
+    <a class="product-form__back" [routerLink]="listPath">
+      <i class="pi pi-arrow-left" aria-hidden="true"></i>
+      Prodotti
+    </a>
 
-  <h1 class="product-form__title">{{ formTitle() }}</h1>
+    <h1 class="product-form__title">{{ formTitle() }}</h1>
+  }
 
   @if (loading() || !filtersReady()) {
     <app-table-skeleton [columns]="2" [rows]="5" />
@@ -153,7 +155,11 @@
           </app-button>
         }
         @if (showSubmitOnCurrentStep()) {
-          @if (embeddedPanel()) {
+          @if (embeddedPanel() && mode() === 'edit') {
+            <app-button [disabled]="!canSubmit()" (click)="onSubmit(false)">
+              {{ submitting() ? 'Salvataggio…' : 'Salva modifiche' }}
+            </app-button>
+          } @else if (embeddedPanel()) {
             <app-button variant="secondary" [disabled]="!canSubmit()" (click)="onSubmit(false)">
               Salva senza aggiungere
             </app-button>

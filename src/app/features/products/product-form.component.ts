@@ -140,9 +140,12 @@ export class ProductFormComponent implements CanComponentDeactivate {
   readonly embeddedPanel = input(false);
   /** Prefill opzionale in creazione embedded (dati dalla riga documento). */
   readonly embeddedPrefill = input<ProductEmbeddedCreatePrefill | null>(null);
+  /** Id prodotto in modifica embedded (es. anagrafica da arrivo merce). */
+  readonly embeddedProductId = input<string | null>(null);
 
   readonly productCreatedWithAttach = output<{ readonly variantId: string }>();
   readonly productSavedWithoutAttach = output<{ readonly variantId: string }>();
+  readonly productUpdatedInPanel = output<{ readonly productId: string }>();
   readonly panelDismissed = output<void>();
 
   private readonly service = inject(ProductService);
@@ -167,7 +170,12 @@ export class ProductFormComponent implements CanComponentDeactivate {
   });
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
-  private readonly productId = computed(() => this.paramMap().get('id'));
+  private readonly productId = computed(() => {
+    if (this.embeddedPanel()) {
+      return this.embeddedProductId();
+    }
+    return this.paramMap().get('id');
+  });
   protected readonly mode = computed<ProductFormMode>(() => (this.productId() ? 'edit' : 'create'));
 
   // Stato del form condiviso tra gli step. In edit viene prefillato al load.
@@ -578,6 +586,10 @@ export class ProductFormComponent implements CanComponentDeactivate {
       next: (product) => {
         this.saved.set(true);
         if (this.embeddedPanel()) {
+          if (id) {
+            this.productUpdatedInPanel.emit({ productId: product.id });
+            return;
+          }
           this.service
             .getProductVariants(product.id)
             .pipe(take(1), takeUntilDestroyed(this.destroyRef))
@@ -694,7 +706,9 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   private initialLoadState(): FormLoadState {
     // Evita il flash di loading in create (nessun id da caricare).
-    return this.route.snapshot.paramMap.get('id') ? { status: 'loading' } : { status: 'ready' };
+    const routeId = this.route.snapshot.paramMap.get('id');
+    const embeddedId = this.embeddedPanel() ? this.embeddedProductId() : null;
+    return routeId || embeddedId ? { status: 'loading' } : { status: 'ready' };
   }
 
   private toErrorState(err: unknown): FormLoadState {
