@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
+import { catchError, debounceTime, of, switchMap } from 'rxjs';
 
 import { formatMoney } from '@core/utils/money.util';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
@@ -40,22 +40,29 @@ export class GoodsReceiptProductSearchPanelComponent {
 
   private readonly productService = inject(ProductService);
 
-  protected readonly searchDraft = signal('');
+  protected readonly searchQuery = signal('');
+  /** Forza riesecuzione ricerca anche se il testo non cambia (Invio / pulsante Cerca). */
+  private readonly searchRevision = signal(0);
   protected readonly formatMoney = formatMoney;
 
   private readonly searchResults = toSignal(
-    toObservable(this.searchDraft).pipe(
+    toObservable(
+      computed(() => ({
+        query: this.searchQuery(),
+        revision: this.searchRevision(),
+        locationId: this.locationId(),
+      })),
+    ).pipe(
       debounceTime(SEARCH_DEBOUNCE_MS),
-      distinctUntilChanged(),
-      switchMap((term) => {
-        const trimmed = term.trim();
+      switchMap(({ query, locationId }) => {
+        const trimmed = query.trim();
         if (trimmed.length === 0) {
           return of([] as readonly VariantSummary[]);
         }
         return this.productService
           .searchVariantSummaries({
             search: trimmed,
-            locationId: this.locationId() ?? undefined,
+            locationId: locationId ?? undefined,
             pageSize: 40,
           })
           .pipe(catchError(() => of([] as readonly VariantSummary[])));
@@ -69,12 +76,25 @@ export class GoodsReceiptProductSearchPanelComponent {
   constructor() {
     effect(() => {
       this.launchSeq();
-      this.searchDraft.set(untracked(() => this.launchTerm()));
+      this.searchQuery.set(untracked(() => this.launchTerm()));
+      this.searchRevision.update((value) => value + 1);
     });
   }
 
   protected onSearchInput(value: string): void {
-    this.searchDraft.set(value);
+    this.searchQuery.set(value);
+    this.searchRevision.update((value) => value + 1);
+  }
+
+  protected runSearch(): void {
+    this.searchRevision.update((value) => value + 1);
+  }
+
+  protected onSearchKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.runSearch();
+    }
   }
 
   protected selectVariant(variantId: string): void {
@@ -90,11 +110,17 @@ export class GoodsReceiptProductSearchPanelComponent {
     if (variant.barcode) {
       parts.push(`EAN ${variant.barcode}`);
     }
+    if (variant.category) {
+      parts.push(variant.category);
+    }
     if (variant.supplierSku) {
       parts.push(`Cod. forn. ${variant.supplierSku}`);
     }
     if (variant.stockOnHand != null) {
-      parts.push(`Giac. ${variant.stockOnHand}`);
+      parts.push(`Disp. ${variant.stockOnHand}`);
+    }
+    if (variant.sellingPrice.amountMinor > 0) {
+      parts.push(formatMoney(variant.sellingPrice));
     }
     return parts.join(' · ');
   }

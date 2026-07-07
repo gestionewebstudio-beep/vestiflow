@@ -680,6 +680,7 @@
                           min="0"
                           step="1"
                           formControlName="quantity"
+                          (blur)="onLineOperationalBlur(i)"
                           (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
                         />
                       </td>
@@ -693,6 +694,7 @@
                           inputmode="decimal"
                           formControlName="unitCost"
                           placeholder="0,00"
+                          (blur)="onLineOperationalBlur(i)"
                           (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
                         />
                       </td>
@@ -706,6 +708,7 @@
                           inputmode="decimal"
                           formControlName="sellingPrice"
                           placeholder="0,00"
+                          (blur)="onLineOperationalBlur(i)"
                           (keydown)="onLineFieldKeydown(i, 'sellingPrice', $event)"
                         />
                       </td>
@@ -719,6 +722,7 @@
                           inputmode="decimal"
                           formControlName="compareAtPrice"
                           placeholder="0,00"
+                          (blur)="onLineOperationalBlur(i)"
                           (keydown)="onLineFieldKeydown(i, 'compareAtPrice', $event)"
                         />
                       </td>
@@ -734,6 +738,7 @@
                           step="1"
                           formControlName="vatRatePercent"
                           placeholder="22"
+                          (blur)="onLineOperationalBlur(i)"
                           (keydown)="onLineFieldKeydown(i, 'vat', $event)"
                         />
                       </td>

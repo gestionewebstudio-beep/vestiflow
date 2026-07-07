@@ -501,7 +501,10 @@ export class DocumentsService {
 
     if (reconcilesLoadStock) {
       const mergedForValidation = mergedLinesForValidation(doc);
-      this.assertStockLoadDocument(mergedForValidation);
+      // In bozza consentiamo righe con Mag. attivo ma senza variantId (compilazione progressiva).
+      if (isConfirmedEdit) {
+        this.assertStockLoadDocument(mergedForValidation);
+      }
       if (!newLocationId) {
         throw new UnprocessableEntityException(
           'Location di destinazione obbligatoria per documenti con carico magazzino.',

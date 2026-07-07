@@ -854,6 +854,85 @@ describe('DocumentsService', () => {
       );
     });
 
+    it('goods_receipt bozza: consente righe con Mag. attivo senza variantId', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.goods_receipt }),
+      );
+      const doc = {
+        id: 'doc-gr-draft',
+        tenantId,
+        type: DocumentType.goods_receipt,
+        status: DocumentStatus.draft,
+        series: 'A',
+        year: 2026,
+        number: null,
+        reference: null,
+        documentDate: new Date('2026-03-01'),
+        currency: 'EUR',
+        supplierId: 'sup-1',
+        supplierName: 'Fornitore A',
+        locationId: 'loc-1',
+        notes: null,
+        internalComment: null,
+        customerId: null,
+        customerName: null,
+        targetLocationId: null,
+        externalDocNumber: null,
+        supplierOrderId: null,
+        blockAfterConfirm: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lines: [],
+        salesOrder: null,
+        supplierOrder: null,
+      };
+      const updatedDoc = {
+        ...doc,
+        lines: [
+          {
+            id: 'l1',
+            lineNumber: 1,
+            variantId: null,
+            sku: 'NEW-SKU',
+            description: 'Nuovo prodotto',
+            quantity: 3,
+            unitPriceMinor: 1000,
+            discountPercent: 0,
+            vatRatePercent: 22,
+            lineTotalMinor: 3000,
+            loadsStock: true,
+            documentId: 'doc-gr-draft',
+            tenantId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      };
+      prisma.document.findFirst
+        .mockResolvedValueOnce(doc)
+        .mockResolvedValueOnce(updatedDoc);
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+      prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
+      prisma.documentLine.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.document.update.mockResolvedValue(updatedDoc);
+
+      const result = await service.update(tenantId, 'doc-gr-draft', {
+        lines: [
+          {
+            description: 'Nuovo prodotto',
+            sku: 'NEW-SKU',
+            quantity: 3,
+            unitPriceMinor: 1000,
+            loadsStock: true,
+          },
+        ],
+      });
+
+      expect(result.lines[0]?.variantId).toBeNull();
+      expect(prisma.document.update).toHaveBeenCalled();
+    });
+
     it('goods_receipt confermato: riconcilia giacenza e registra revisione', async () => {
       const { service, channelSync } = createService(
         prisma,

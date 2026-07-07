@@ -1,31 +1,42 @@
 <section class="gr-product-search">
   <div class="gr-product-search__head">
     <label class="gr-product-search__label" for="gr-product-search-input">Cerca prodotto</label>
+    <p class="gr-product-search__hint">
+      Cerca per nome, SKU o EAN. Seleziona un risultato per aggiungerlo alla riga in modifica.
+    </p>
     <div class="gr-product-search__field">
       <input
         id="gr-product-search-input"
         class="gr-product-search__input"
         type="search"
-        [value]="searchDraft()"
+        [ngModel]="searchQuery()"
         placeholder="Nome, SKU, EAN, codice fornitore…"
         autocomplete="off"
-        (input)="onSearchInput($any($event.target).value)"
+        (ngModelChange)="onSearchInput($event)"
+        (keydown)="onSearchKeydown($event)"
       />
-      <i class="pi pi-search gr-product-search__icon" aria-hidden="true"></i>
+      <button
+        type="button"
+        class="gr-product-search__search-btn"
+        aria-label="Cerca prodotto"
+        (click)="runSearch()"
+      >
+        <i class="pi pi-search" aria-hidden="true"></i>
+      </button>
     </div>
   </div>
 
-  @if (searchDraft().trim().length === 0) {
+  @if (searchQuery().trim().length === 0) {
     <app-empty-state
       icon="pi-search"
       title="Digita per cercare"
-      description="Inserisci almeno un carattere nel campo sopra per avviare la ricerca."
+      description="Inserisci almeno un carattere e premi Cerca o Invio."
     />
   } @else if (results().length === 0) {
     <app-empty-state
       icon="pi-search"
       title="Nessun prodotto trovato"
-      description="Prova con un altro termine o crea un nuovo prodotto dal documento."
+      description="Prova con un altro termine o crea un nuovo prodotto dalla riga del documento."
     />
   } @else {
     <ul class="gr-product-search__list">
@@ -34,17 +45,12 @@
           <button
             type="button"
             class="gr-product-search__item"
-            title="Doppio clic per aggiungere alla riga"
+            title="Clicca o doppio clic per aggiungere alla riga"
             (click)="selectVariant(item.variantId)"
             (dblclick)="selectVariant(item.variantId)"
           >
             <span class="gr-product-search__title">{{ item.title }}</span>
             <span class="gr-product-search__detail">{{ resultDetail(item) }}</span>
-            @if (item.sellingPrice.amountMinor > 0) {
-              <span class="gr-product-search__price tabular-nums">{{
-                formatMoney(item.sellingPrice)
-              }}</span>
-            }
           </button>
         </li>
       }

@@ -49,6 +49,7 @@ import {
   zeroMoney,
 } from '@core/utils/money.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import { normalizeSku } from '@features/products/models/product-form.validators';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
@@ -564,6 +565,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.autocompleteLineIndex() === index) {
       this.autocompleteLineIndex.set(null);
     }
+    this.commitLineIfSignificant(index);
+  }
+
+  protected onLineOperationalBlur(index: number): void {
+    this.commitLineIfSignificant(index);
+  }
+
+  private commitLineIfSignificant(index: number): void {
+    const line = this.lines.at(index);
+    if (!line || this.formReadOnly()) {
+      return;
+    }
+    if (this.lineHasSignificantProductData(line) || Number(line.controls.quantity.value) > 0) {
+      this.commitLineAndSave(index);
+      return;
+    }
     this.triggerAutoSave();
   }
 
@@ -579,7 +596,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.codeLookupLineIndex() === index) {
       this.clearCodeLookup();
     }
-    this.triggerAutoSave();
+    this.commitLineIfSignificant(index);
   }
 
   protected commitSkuLookup(index: number): void {
@@ -961,13 +978,50 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private lineNeedsProductCreation(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
   ): boolean {
+    if (line.controls.variantId.value) {
+      return false;
+    }
+    if (Number(line.controls.quantity.value) <= 0) {
+      return false;
+    }
     const sku = line.controls.sku.value.trim();
-    return (
-      !line.controls.variantId.value &&
-      sku.length > 0 &&
-      line.controls.productName.value.trim().length >= 2 &&
-      Number(line.controls.quantity.value) > 0
-    );
+    const name = line.controls.productName.value.trim();
+    return sku.length > 0 && name.length >= 2;
+  }
+
+  private lineNeedsVariantLink(line: ReturnType<GoodsReceiptFormComponent['createLine']>): boolean {
+    if (line.controls.variantId.value || this.lineNeedsProductCreation(line)) {
+      return false;
+    }
+    if (Number(line.controls.quantity.value) <= 0) {
+      return false;
+    }
+    const code = line.controls.sku.value.trim() || line.controls.barcode.value.trim();
+    return code.length > 0;
+  }
+
+  private validateStockLinesForFinalSave(): AppError | null {
+    for (let index = 0; index < this.lines.length; index++) {
+      const line = this.lines.at(index);
+      if (!line.controls.loadsStock.value || Number(line.controls.quantity.value) <= 0) {
+        continue;
+      }
+      if (line.controls.variantId.value) {
+        continue;
+      }
+      if (!line.controls.sku.value.trim()) {
+        return {
+          kind: AppErrorKind.Validation,
+          message: `Riga ${index + 1}: per creare questo articolo devi inserire anche lo SKU.`,
+        };
+      }
+      return {
+        kind: AppErrorKind.Validation,
+        message:
+          'Non è stato possibile salvare alcune righe. Controlla i dati evidenziati e riprova.',
+      };
+    }
+    return null;
   }
 
   protected get lines(): FormArray<ReturnType<GoodsReceiptFormComponent['createLine']>> {
@@ -1356,10 +1410,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.resolveExit(false);
       return;
     }
+    const stockValidation = this.validateStockLinesForFinalSave();
+    if (stockValidation) {
+      this._submitState.set({ status: 'error', error: stockValidation });
+      this.resolveExit(false);
+      return;
+    }
     this._submitState.set({ status: 'saving' });
     this.commitAllLineProducts$()
       .pipe(
-        switchMap(() => this.saveDocument$()),
+        switchMap(() => {
+          const afterCommit = this.validateStockLinesForFinalSave();
+          if (afterCommit) {
+            return throwError(() => afterCommit);
+          }
+          return this.saveDocument$();
+        }),
         take(1),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -1374,13 +1440,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         error: (err: unknown) => {
           this._submitState.set({
             status: 'error',
-            error: isAppError(err)
-              ? err
-              : {
-                  kind: AppErrorKind.Unknown,
-                  message:
-                    'Non è stato possibile salvare il documento. Controlla le righe e riprova.',
-                },
+            error: this.toAppError(err),
           });
           this.resolveExit(false);
         },
@@ -1720,8 +1780,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this._submitState.set({ status: 'saving' });
 
     const editId = this.editDocumentId();
-    this.saveDocument$()
-      .pipe(takeUntilDestroyed(this.destroyRef))
+    this.commitAllLineProducts$()
+      .pipe(
+        switchMap(() => this.saveDocument$()),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (doc) => {
           this._submitState.set({ status: 'idle' });
@@ -1876,21 +1940,52 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private commitAllLineProducts$() {
     const indices = this.lines.controls
       .map((_, lineIndex) => lineIndex)
-      .filter((lineIndex) => this.lineNeedsProductCreation(this.lines.at(lineIndex)));
+      .filter((lineIndex) => {
+        const line = this.lines.at(lineIndex);
+        return this.lineNeedsProductCreation(line) || this.lineNeedsVariantLink(line);
+      });
     return this.commitLineProducts$(indices);
   }
 
   private commitLineProducts$(lineIndices: readonly number[]) {
     const pending = lineIndices
       .map((index) => ({ line: this.lines.at(index), index }))
-      .filter(({ line }) => line != null && this.lineNeedsProductCreation(line));
+      .filter(
+        ({ line }) =>
+          line != null && (this.lineNeedsProductCreation(line) || this.lineNeedsVariantLink(line)),
+      );
     if (pending.length === 0) {
       return of(undefined);
     }
     return from(pending).pipe(
-      concatMap(({ line, index }) => this.createProductForLine(line, index)),
+      concatMap(({ line, index }) => {
+        if (this.lineNeedsProductCreation(line)) {
+          return this.createProductForLine(line, index);
+        }
+        return this.linkLineByCode(line, index);
+      }),
       defaultIfEmpty(undefined),
       last(),
+    );
+  }
+
+  private linkLineByCode(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+    index: number,
+  ): Observable<void> {
+    const code = line.controls.sku.value.trim() || line.controls.barcode.value.trim();
+    if (!code) {
+      return of(undefined);
+    }
+    return this.productService.findVariantByCode(code).pipe(
+      switchMap((variant) => {
+        if (!variant) {
+          return of(undefined);
+        }
+        this.onVariantSelect(index, variant.variantId);
+        return of(undefined);
+      }),
+      catchError(() => of(undefined)),
     );
   }
 
@@ -1901,7 +1996,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const name = line.controls.productName.value.trim();
     const sku = line.controls.sku.value.trim();
     if (!sku) {
-      return of(undefined);
+      return throwError(() => ({
+        kind: AppErrorKind.Validation,
+        message: 'Per creare questo articolo devi inserire anche lo SKU.',
+      }));
+    }
+    if (name.length < 2) {
+      return throwError(() => ({
+        kind: AppErrorKind.Validation,
+        message: 'Per creare questo articolo inserisci il nome prodotto.',
+      }));
     }
     const purchase = parseMoneyInput(line.controls.unitCost.value, this.currency);
     const selling =
@@ -1909,11 +2013,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       moneyFromMajor(0, this.currency);
     const compareAt = parseMoneyInput(line.controls.compareAtPrice.value, this.currency);
     const barcode = line.controls.barcode.value.trim() || undefined;
+    const vatRaw = line.controls.vatRatePercent.value.trim();
+    const defaultVat = vatRaw ? Number(vatRaw) : undefined;
 
     return this.productService
       .createProduct({
         name,
         status: ProductStatus.Active,
+        defaultVatRatePercent:
+          defaultVat != null && Number.isFinite(defaultVat) ? defaultVat : undefined,
         options: [],
         variants: [
           {
@@ -2062,9 +2170,24 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   private toAppError(err: unknown): AppError {
-    if (isAppError(err)) {
-      return err;
+    const base = isAppError(err) ? err : mapHttpErrorToAppError(err);
+    return { ...base, message: this.toGoodsReceiptUserMessage(base.message) };
+  }
+
+  private toGoodsReceiptUserMessage(message: string): string {
+    const normalized = message.trim();
+    if (/carica magazzino ma non ha una variante associata/i.test(normalized)) {
+      return 'Non è stato possibile salvare alcune righe. Collega un articolo esistente o inserisci lo SKU per crearne uno nuovo.';
     }
-    return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
+    if (/property .* should not exist/i.test(normalized)) {
+      return 'Non è stato possibile salvare alcune righe. Controlla i dati evidenziati e riprova.';
+    }
+    if (/variante non trovata/i.test(normalized)) {
+      return 'Non è stato possibile salvare alcune righe. Controlla i dati evidenziati e riprova.';
+    }
+    return (
+      normalized ||
+      'Non è stato possibile salvare alcune righe. Controlla i dati evidenziati e riprova.'
+    );
   }
 }
