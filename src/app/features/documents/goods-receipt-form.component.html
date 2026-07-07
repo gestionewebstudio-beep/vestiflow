@@ -934,8 +934,8 @@
 >
   @if (productSearchPanelOpen()) {
     <app-goods-receipt-product-search-panel
-      [initialSearch]="productSearchInitialTerm()"
-      [supplierId]="form.controls.supplierId.value"
+      [launchTerm]="productSearchLaunchTerm()"
+      [launchSeq]="productSearchLaunchSeq()"
       [locationId]="form.controls.locationId.value"
       (variantSelected)="onLineProductSearchPick($event.variantId)"
       (dismissed)="closeLineProductSearch()"

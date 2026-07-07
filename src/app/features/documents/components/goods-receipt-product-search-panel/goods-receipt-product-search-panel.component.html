@@ -15,7 +15,13 @@
     </div>
   </div>
 
-  @if (results().length === 0) {
+  @if (searchDraft().trim().length === 0) {
+    <app-empty-state
+      icon="pi-search"
+      title="Digita per cercare"
+      description="Inserisci almeno un carattere nel campo sopra per avviare la ricerca."
+    />
+  } @else if (results().length === 0) {
     <app-empty-state
       icon="pi-search"
       title="Nessun prodotto trovato"
@@ -28,7 +34,9 @@
           <button
             type="button"
             class="gr-product-search__item"
+            title="Doppio clic per aggiungere alla riga"
             (click)="selectVariant(item.variantId)"
+            (dblclick)="selectVariant(item.variantId)"
           >
             <span class="gr-product-search__title">{{ item.title }}</span>
             <span class="gr-product-search__detail">{{ resultDetail(item) }}</span>

@@ -239,6 +239,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly lifecycleActionSaving = signal(false);
   protected readonly productSearchPanelOpen = signal(false);
   protected readonly productSearchLineIndex = signal<number | null>(null);
+  protected readonly productSearchLaunchTerm = signal('');
+  protected readonly productSearchLaunchSeq = signal(0);
   protected readonly autocompleteLineIndex = signal<number | null>(null);
   protected readonly activeSuggestionIndex = signal(0);
   protected readonly codeLookupLineIndex = signal<number | null>(null);
@@ -669,6 +671,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected openLineProductSearch(index: number): void {
+    const line = this.lines.at(index);
+    const term = line?.controls.productName.value.trim() ?? '';
+    line?.controls.productName.setValue(term, { emitEvent: false });
+    this.productSearchLaunchTerm.set(term);
+    this.productSearchLaunchSeq.update((seq) => seq + 1);
     this.productSearchLineIndex.set(index);
     this.productSearchPanelOpen.set(true);
   }
@@ -682,6 +689,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const index = this.productSearchLineIndex();
     if (index != null) {
       this.onVariantSelect(index, variantId);
+      this.refreshLineVariantSummary(index, variantId);
       this.focusLineField(index, 'quantity');
     }
     this.closeLineProductSearch();
@@ -1119,14 +1127,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       compareAtPriceMajor: compareAt ? compareAt.amountMinor / 100 : null,
       defaultVatRatePercent: vatRaw ? Number(vatRaw) : null,
     };
-  });
-
-  protected productSearchInitialTerm = computed(() => {
-    const index = this.productSearchLineIndex();
-    if (index == null) {
-      return '';
-    }
-    return this.lines.at(index)?.controls.productName.value.trim() ?? '';
   });
 
   protected readonly productPanelTitle = computed(() => {

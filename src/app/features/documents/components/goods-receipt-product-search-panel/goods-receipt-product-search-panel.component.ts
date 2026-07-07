@@ -7,10 +7,11 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { catchError, debounceTime, of, switchMap } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 
 import { formatMoney } from '@core/utils/money.util';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
@@ -28,8 +29,10 @@ const SEARCH_DEBOUNCE_MS = 300;
   styleUrl: './goods-receipt-product-search-panel.component.scss',
 })
 export class GoodsReceiptProductSearchPanelComponent {
-  readonly initialSearch = input('');
-  readonly supplierId = input<string | null>(null);
+  /** Termine catturato all'apertura del pannello (campo griglia). */
+  readonly launchTerm = input('');
+  /** Incrementato a ogni apertura: reinizializza la query senza sovrascriverla durante la digitazione. */
+  readonly launchSeq = input(0);
   readonly locationId = input<string | null>(null);
 
   readonly variantSelected = output<{ readonly variantId: string }>();
@@ -43,12 +46,15 @@ export class GoodsReceiptProductSearchPanelComponent {
   private readonly searchResults = toSignal(
     toObservable(this.searchDraft).pipe(
       debounceTime(SEARCH_DEBOUNCE_MS),
+      distinctUntilChanged(),
       switchMap((term) => {
         const trimmed = term.trim();
+        if (trimmed.length === 0) {
+          return of([] as readonly VariantSummary[]);
+        }
         return this.productService
           .searchVariantSummaries({
-            search: trimmed.length > 0 ? trimmed : undefined,
-            supplierId: this.supplierId() ?? undefined,
+            search: trimmed,
             locationId: this.locationId() ?? undefined,
             pageSize: 40,
           })
@@ -62,8 +68,8 @@ export class GoodsReceiptProductSearchPanelComponent {
 
   constructor() {
     effect(() => {
-      const initial = this.initialSearch();
-      this.searchDraft.set(initial);
+      this.launchSeq();
+      this.searchDraft.set(untracked(() => this.launchTerm()));
     });
   }
 
