@@ -49,7 +49,6 @@ import {
 } from '@core/utils/money.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { normalizeSku } from '@features/products/models/product-form.validators';
-import { suggestVariantSku } from '@features/products/models/product-sku.util';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
@@ -233,6 +232,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly deleteDocumentDialogOpen = signal(false);
   protected readonly attachWithoutAddDialogOpen = signal(false);
   protected readonly pendingAttachVariantId = signal<string | null>(null);
+  protected readonly exitDialogOpen = signal(false);
+
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
 
   private readonly tenantSettings = toSignal(
     this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
@@ -285,7 +287,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     );
   });
 
-  protected readonly formReadOnly = computed(() => this.isEditMode() && !this.editUnlocked());
+  protected readonly formReadOnly = computed(() => this.isConfirmedEdit() && !this.editUnlocked());
 
   protected readonly documentStatus = computed(
     () => this.loadedDocument()?.status ?? DocumentStatus.Draft,
@@ -685,12 +687,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected advanceToNextLine(index: number): void {
-    const nextIndex = index + 1;
-    if (nextIndex >= this.lines.length) {
-      this.lines.push(this.createLine());
-    }
-    this.trimDuplicateTrailingEmptyRows();
-    this.focusFirstLineField(nextIndex);
+    this.commitLineAndSave(index, () => {
+      const nextIndex = index + 1;
+      if (nextIndex >= this.lines.length) {
+        this.lines.push(this.createLine());
+      }
+      this.trimDuplicateTrailingEmptyRows();
+      this.focusFirstLineField(nextIndex);
+    });
   }
 
   protected lineRowActive(index: number): boolean {
@@ -896,6 +900,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     );
   }
 
+  private lineHasSignificantProductData(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): boolean {
+    return Boolean(
+      line.controls.sku.value.trim() ||
+      line.controls.barcode.value.trim() ||
+      line.controls.productName.value.trim() ||
+      line.controls.unitCost.value.trim() ||
+      line.controls.sellingPrice.value.trim() ||
+      line.controls.compareAtPrice.value.trim() ||
+      line.controls.vatRatePercent.value.trim(),
+    );
+  }
+
   private lineHasPersistableData(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
   ): boolean {
@@ -903,15 +921,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (line.controls.variantId.value) {
       return qty > 0;
     }
-    const name = line.controls.productName.value.trim();
-    return name.length >= 2 && qty > 0;
+    if (qty <= 0) {
+      return false;
+    }
+    return this.lineHasSignificantProductData(line);
   }
 
   private lineNeedsProductCreation(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
   ): boolean {
+    const sku = line.controls.sku.value.trim();
     return (
       !line.controls.variantId.value &&
+      sku.length > 0 &&
       line.controls.productName.value.trim().length >= 2 &&
       Number(line.controls.quantity.value) > 0 &&
       line.controls.loadsStock.value
@@ -1200,7 +1222,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected addLine(): void {
-    this.lines.push(this.createLine());
+    const lastIndex = Math.max(0, this.lines.length - 1);
+    this.commitLineAndSave(lastIndex, () => {
+      this.lines.push(this.createLine());
+      this.trimDuplicateTrailingEmptyRows();
+      this.focusFirstLineField(this.lines.length - 1);
+    });
   }
 
   protected removeLine(index: number): void {
@@ -1261,16 +1288,77 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
   }
 
-  canDeactivate(): boolean {
+  canDeactivate(): boolean | Promise<boolean> {
     if (this.saving()) {
       return false;
     }
-    if (this.dirtySinceLastSave() || this.autoSavePending()) {
-      return globalThis.confirm(
-        'Ci sono modifiche non ancora salvate. Uscire comunque dal documento?',
-      );
+    const hasLineData = this.lines.controls.some((line) =>
+      this.lineHasSignificantProductData(line),
+    );
+    if (!hasLineData) {
+      if (this.dirtySinceLastSave() || this.autoSavePending()) {
+        return globalThis.confirm(
+          'Ci sono modifiche non ancora salvate. Uscire comunque dal documento?',
+        );
+      }
+      return true;
     }
-    return true;
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  protected confirmExitSaveDocument(): void {
+    this.exitDialogOpen.set(false);
+    this.commitAllLineProducts$()
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.persistAutoSave({
+            stayOnPage: true,
+            onComplete: () => this.resolveExit(true),
+          });
+        },
+        error: (err: unknown) => {
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+          this.resolveExit(false);
+        },
+      });
+  }
+
+  protected confirmExitDeleteDocument(): void {
+    this.exitDialogOpen.set(false);
+    const id = this.editDocumentId();
+    if (!id) {
+      this.resolveExit(true);
+      return;
+    }
+    this._submitState.set({ status: 'saving' });
+    this.documentService
+      .deleteDocument(id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this._submitState.set({ status: 'idle' });
+          this.resolveExit(true);
+        },
+        error: (err: unknown) => {
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+          this.resolveExit(false);
+        },
+      });
+  }
+
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.resolveExit(false);
+  }
+
+  private resolveExit(allow: boolean): void {
+    const resolve = this.pendingDeactivate;
+    this.pendingDeactivate = null;
+    resolve?.(allow);
   }
 
   @HostListener('window:beforeunload', ['$event'])
@@ -1510,7 +1598,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected cancel(): void {
-    if (!this.canDeactivate()) {
+    const result = this.canDeactivate();
+    if (result === false) {
+      return;
+    }
+    if (result instanceof Promise) {
+      void result.then((allow) => {
+        if (allow) {
+          void this.router.navigateByUrl(this.listPath);
+        }
+      });
+      return;
+    }
+    if (!result) {
       return;
     }
     void this.router.navigateByUrl(this.listPath);
@@ -1560,7 +1660,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this._submitState.set({ status: 'saving' });
 
     const editId = this.editDocumentId();
-    this.ensureLineProductsLinked$()
+    of(undefined)
       .pipe(
         switchMap(() => {
           const raw = this.form.getRawValue();
@@ -1587,6 +1687,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
                 const name = line.productName.trim() || line.description.trim();
                 return {
                   variantId: line.variantId || undefined,
+                  sku: line.sku.trim() || undefined,
                   description: name || line.description.trim() || 'Riga documento',
                   quantity: Number(line.quantity),
                   unitPriceMinor: cost?.amountMinor ?? 0,
@@ -1613,12 +1714,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.autoSavePending.set(false);
           this.dirtySinceLastSave.set(false);
           this.loadedDocument.set(doc);
+          if (doc.status === DocumentStatus.Draft || options?.stayOnPage) {
+            this.editUnlocked.set(true);
+          }
           if (options?.stayOnPage) {
             if (!editId) {
               this.preserveEditSession.set(true);
               void this.router.navigate(['/app/documents', doc.id, 'edit'], { replaceUrl: true });
             }
-            this.editUnlocked.set(true);
             this.syncLineFieldAccess();
             this.ensureMinimumOneRow();
             this.trimDuplicateTrailingEmptyRows();
@@ -1637,22 +1740,62 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   private lineHasPersistableDataFromRaw(line: {
     readonly variantId: string;
+    readonly sku?: string;
+    readonly barcode?: string;
     readonly productName: string;
     readonly description: string;
     readonly quantity: number;
+    readonly unitCost?: string;
+    readonly sellingPrice?: string;
+    readonly compareAtPrice?: string;
+    readonly vatRatePercent?: string;
   }): boolean {
     const qty = Number(line.quantity);
     if (line.variantId) {
       return qty > 0;
     }
-    const name = line.productName.trim();
-    return name.length >= 2 && qty > 0;
+    if (qty <= 0) {
+      return false;
+    }
+    return Boolean(
+      line.sku?.trim() ||
+      line.barcode?.trim() ||
+      line.productName.trim() ||
+      line.unitCost?.trim() ||
+      line.sellingPrice?.trim() ||
+      line.compareAtPrice?.trim() ||
+      line.vatRatePercent?.trim(),
+    );
   }
 
-  private ensureLineProductsLinked$() {
-    const pending = this.lines.controls
-      .map((line, index) => ({ line, index }))
-      .filter(({ line }) => this.lineNeedsProductCreation(line));
+  private commitLineAndSave(index: number, after?: () => void): void {
+    if (this.formReadOnly()) {
+      after?.();
+      return;
+    }
+    this.commitLineProducts$([index])
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.persistAutoSave({ stayOnPage: true, onComplete: after });
+        },
+        error: (err: unknown) => {
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  private commitAllLineProducts$() {
+    const indices = this.lines.controls
+      .map((_, lineIndex) => lineIndex)
+      .filter((lineIndex) => this.lineNeedsProductCreation(this.lines.at(lineIndex)));
+    return this.commitLineProducts$(indices);
+  }
+
+  private commitLineProducts$(lineIndices: readonly number[]) {
+    const pending = lineIndices
+      .map((index) => ({ line: this.lines.at(index), index }))
+      .filter(({ line }) => line != null && this.lineNeedsProductCreation(line));
     if (pending.length === 0) {
       return of(undefined);
     }
@@ -1668,12 +1811,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     _index: number,
   ) {
     const name = line.controls.productName.value.trim();
+    const sku = line.controls.sku.value.trim();
+    if (!sku) {
+      return of(undefined);
+    }
     const purchase = parseMoneyInput(line.controls.unitCost.value, this.currency);
     const selling =
       parseMoneyInput(line.controls.sellingPrice.value, this.currency) ??
       moneyFromMajor(0, this.currency);
     const compareAt = parseMoneyInput(line.controls.compareAtPrice.value, this.currency);
-    const sku = line.controls.sku.value.trim() || suggestVariantSku(name, []);
     const barcode = line.controls.barcode.value.trim() || undefined;
 
     return this.productService
@@ -1710,6 +1856,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.preserveEditSession()) {
       this.preserveEditSession.set(false);
       this.editUnlocked.set(true);
+    } else if (doc.status === DocumentStatus.Draft) {
+      this.editUnlocked.set(true);
     } else {
       this.editUnlocked.set(false);
     }
@@ -1737,7 +1885,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.lines.push(
         this.fb.group({
           variantId: this.fb.control(line.variantId ?? ''),
-          sku: this.fb.control(''),
+          sku: this.fb.control(line.sku ?? ''),
           barcode: this.fb.control(''),
           productName: this.fb.control(line.description),
           description: this.fb.control(line.description),

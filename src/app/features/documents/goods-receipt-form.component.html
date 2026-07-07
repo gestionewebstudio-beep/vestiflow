@@ -890,6 +890,38 @@
   (dismissed)="dismissAttachPendingVariant()"
 />
 
+@if (exitDialogOpen()) {
+  <div class="gr-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
+  <div class="gr-form__exit-dialog" role="dialog" aria-modal="true" aria-labelledby="gr-exit-title">
+    <h2 id="gr-exit-title" class="gr-form__exit-title">Salvare l'arrivo merce?</h2>
+    <p class="gr-form__exit-message">
+      Hai inserito dati in questo arrivo merce. Vuoi salvare il documento oppure eliminarlo?
+    </p>
+    <div class="gr-form__exit-actions">
+      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
+        Continua a modificare
+      </app-button>
+      <app-button
+        type="button"
+        variant="danger"
+        [loading]="saving()"
+        [disabled]="saving()"
+        (click)="confirmExitDeleteDocument()"
+      >
+        Elimina documento
+      </app-button>
+      <app-button
+        type="button"
+        [loading]="saving()"
+        [disabled]="saving()"
+        (click)="confirmExitSaveDocument()"
+      >
+        Salva documento
+      </app-button>
+    </div>
+  </div>
+}
+
 <app-slide-panel
   [open]="productSearchPanelOpen()"
   title="Cerca prodotto"
