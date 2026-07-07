@@ -92,7 +92,7 @@ import {
 } from './models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { DocumentService } from './services/document.service';
-import type { CreateDocumentBody } from './services/document-api.mapper';
+import type { CreateDocumentBody, UpdateDocumentBody } from './services/document-api.mapper';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
 
 type SubmitState =
@@ -378,28 +378,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly variantSearchDraft = signal('');
 
   private readonly searchedVariants = toSignal(
-    toObservable(
-      computed(() => ({
-        search: this.variantSearchDraft(),
-        supplierId: this.form.controls.supplierId.value,
-        locationId: this.form.controls.locationId.value,
-      })),
-    ).pipe(
+    toObservable(computed(() => this.variantSearchDraft())).pipe(
       debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
-      distinctUntilChanged(
-        (a, b) =>
-          a.search === b.search && a.supplierId === b.supplierId && a.locationId === b.locationId,
-      ),
-      switchMap(({ search, supplierId, locationId }) => {
+      distinctUntilChanged(),
+      switchMap((search) => {
         const term = search.trim();
         if (term.length < VARIANT_SEARCH_MIN_CHARS) {
           return of([] as readonly VariantSummary[]);
         }
+        const locationId = this.form.controls.locationId.value || undefined;
         return this.productService.searchVariantSummaries({
           search: term,
           pageSize: 30,
-          supplierId: supplierId || undefined,
-          locationId: locationId || undefined,
+          locationId,
         });
       }),
     ),
@@ -699,6 +690,23 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected onProductSuggestionPick(index: number, variantId: string): void {
     this.onVariantSelect(index, variantId);
     this.focusLineField(index, 'quantity');
+  }
+
+  protected onProductSuggestionNavigate(direction: 'next' | 'prev'): void {
+    const lineIndex = this.autocompleteLineIndex();
+    if (lineIndex == null) {
+      return;
+    }
+    const suggestions = this.lineSuggestions(lineIndex);
+    if (suggestions.length === 0) {
+      return;
+    }
+    const current = this.activeSuggestionIndex();
+    const nextIndex =
+      direction === 'next'
+        ? Math.min(current + 1, suggestions.length - 1)
+        : Math.max(current - 1, 0);
+    this.activeSuggestionIndex.set(nextIndex);
   }
 
   protected advanceToNextLine(index: number): void {
@@ -1325,6 +1333,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected confirmExitSaveDocument(): void {
     this.exitDialogOpen.set(false);
+    this.syncActiveFieldBeforeSave();
     if (!this.validateForAutoSave()) {
       this._submitState.set({
         status: 'error',
@@ -1698,6 +1707,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private persistAutoSave(options?: {
     readonly stayOnPage?: boolean;
     readonly onComplete?: () => void;
+    readonly onCompleteOnError?: boolean;
   }): void {
     if (this.saving()) {
       return;
@@ -1737,6 +1747,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         error: (err: unknown) => {
           this.autoSavePending.set(false);
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
+          if (options?.onCompleteOnError) {
+            options.onComplete?.();
+          }
         },
       });
   }
@@ -1792,12 +1805,24 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     };
   }
 
+  private buildDocumentUpdateBody(): UpdateDocumentBody {
+    const { type: _documentType, ...body } = this.buildDocumentSaveBody();
+    return body;
+  }
+
   private saveDocument$(): Observable<DocumentRecord> {
     const editId = this.editDocumentId();
-    const body = this.buildDocumentSaveBody();
-    return editId
-      ? this.documentService.updateDocument(editId, body)
-      : this.documentService.createDocument(body);
+    if (editId) {
+      return this.documentService.updateDocument(editId, this.buildDocumentUpdateBody());
+    }
+    return this.documentService.createDocument(this.buildDocumentSaveBody());
+  }
+
+  private syncActiveFieldBeforeSave(): void {
+    const active = globalThis.document.activeElement;
+    if (active instanceof HTMLElement) {
+      active.blur();
+    }
   }
 
   private lineHasPersistableDataFromRaw(line: {
@@ -1839,10 +1864,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.persistAutoSave({ stayOnPage: true, onComplete: after });
+          this.persistAutoSave({ stayOnPage: true, onComplete: after, onCompleteOnError: true });
         },
         error: (err: unknown) => {
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
+          after?.();
         },
       });
   }

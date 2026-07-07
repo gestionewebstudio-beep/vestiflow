@@ -38,6 +38,7 @@ export class GoodsReceiptLineProductCellComponent {
   readonly anagraphicOpen = output<number>();
   readonly detailOpen = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
+  readonly suggestionNavigate = output<'next' | 'prev'>();
   readonly lineAdvance = output<number>();
   readonly lineRowAdvance = output<number>();
 
@@ -97,10 +98,12 @@ export class GoodsReceiptLineProductCellComponent {
     }
     if (event.key === 'ArrowDown' && open) {
       event.preventDefault();
+      this.suggestionNavigate.emit('next');
       return;
     }
     if (event.key === 'ArrowUp' && open) {
       event.preventDefault();
+      this.suggestionNavigate.emit('prev');
       return;
     }
     if (event.key === 'Enter') {
@@ -115,12 +118,24 @@ export class GoodsReceiptLineProductCellComponent {
   }
 
   protected suggestionDetail(variant: VariantSummary): string {
-    const parts: string[] = [variant.sku];
+    const parts: string[] = [];
+    if (variant.sku) {
+      parts.push(variant.sku);
+    }
     if (variant.barcode) {
       parts.push(`EAN ${variant.barcode}`);
     }
+    if (variant.category) {
+      parts.push(variant.category);
+    }
+    if (variant.stockOnHand != null) {
+      parts.push(`Disp. ${variant.stockOnHand}`);
+    }
+    if (variant.sellingPrice.amountMinor > 0) {
+      parts.push(formatMoney(variant.sellingPrice));
+    }
     if (variant.purchasePrice && variant.purchasePrice.amountMinor > 0) {
-      parts.push(formatMoney(variant.purchasePrice));
+      parts.push(`Acq. ${formatMoney(variant.purchasePrice)}`);
     }
     return parts.join(' · ');
   }

@@ -213,4 +213,4 @@ export interface CreateDocumentBody {
 }
 
 /** Body PATCH /documents/:id (bozze e documenti confermati editabili). */
-export type UpdateDocumentBody = Partial<CreateDocumentBody>;
+export type UpdateDocumentBody = Partial<Omit<CreateDocumentBody, 'type'>>;

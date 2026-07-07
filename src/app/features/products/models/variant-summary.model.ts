@@ -17,4 +17,5 @@ export interface VariantSummary {
   readonly purchasePrice?: Money;
   readonly supplierSku?: string;
   readonly stockOnHand?: number | null;
+  readonly category?: string;
 }

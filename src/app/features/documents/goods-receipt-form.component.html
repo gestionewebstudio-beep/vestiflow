@@ -628,6 +628,7 @@
                           (suggestionPick)="
                             onProductSuggestionPick($event.lineIndex, $event.variantId)
                           "
+                          (suggestionNavigate)="onProductSuggestionNavigate($event)"
                           (lineAdvance)="advanceFromProductField(i)"
                           (lineRowAdvance)="advanceToNextLine(i)"
                         />
