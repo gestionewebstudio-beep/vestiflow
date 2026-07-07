@@ -8,9 +8,9 @@ import { TableViewPresetId as PresetId } from '@shared/table-columns/table-colum
 export const GOODS_RECEIPT_LINES_VIEW = TableViewId.GoodsReceiptLines;
 
 export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
-  { id: 'sku', label: 'SKU', defaultWidthPx: 88, minWidthPx: 64 },
-  { id: 'barcode', label: 'EAN', defaultWidthPx: 104, minWidthPx: 80 },
-  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 280, minWidthPx: 160 },
+  { id: 'sku', label: 'SKU', defaultWidthPx: 72, minWidthPx: 56 },
+  { id: 'barcode', label: 'EAN', defaultWidthPx: 88, minWidthPx: 72 },
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 320, minWidthPx: 160 },
   {
     id: 'description',
     label: 'Descrizione',
@@ -42,8 +42,8 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
     defaultWidthPx: 48,
     minWidthPx: 40,
   },
-  { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 56, minWidthPx: 48 },
-  { id: 'unitCost', label: 'Costo', numeric: true, defaultWidthPx: 72, minWidthPx: 56 },
+  { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 52, minWidthPx: 44 },
+  { id: 'unitCost', label: 'Costo', numeric: true, defaultWidthPx: 64, minWidthPx: 52 },
   {
     id: 'sellingPrice',
     label: 'Prezzo di vendita',
@@ -60,13 +60,13 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
     defaultWidthPx: 96,
     minWidthPx: 72,
   },
-  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 52, minWidthPx: 44 },
+  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 44, minWidthPx: 40 },
   { id: 'lot', label: 'Lotto', defaultVisible: false, defaultWidthPx: 88, minWidthPx: 64 },
   { id: 'expiry', label: 'Scadenza', defaultVisible: false, defaultWidthPx: 104, minWidthPx: 88 },
   { id: 'serials', label: 'Seriali', defaultVisible: false, defaultWidthPx: 112, minWidthPx: 88 },
-  { id: 'loadsStock', label: 'Mag.', defaultWidthPx: 44, minWidthPx: 40 },
-  { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 80, minWidthPx: 64 },
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 40 },
+  { id: 'loadsStock', label: 'Mag.', defaultWidthPx: 36, minWidthPx: 32 },
+  { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 72, minWidthPx: 56 },
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 36, minWidthPx: 32 },
 ];
 
 export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {

@@ -317,6 +317,62 @@
 
           <div class="gr-form__table-wrap">
             <table class="gr-form__table">
+              <colgroup>
+                @if (isLineColumnVisible('sku')) {
+                  <col [style.width]="lineColumnWidth('sku')" />
+                }
+                @if (isLineColumnVisible('barcode')) {
+                  <col [style.width]="lineColumnWidth('barcode')" />
+                }
+                @if (isLineColumnVisible('product')) {
+                  <col [style.width]="lineColumnWidth('product')" />
+                }
+                @if (isLineColumnVisible('description')) {
+                  <col [style.width]="lineColumnWidth('description')" />
+                }
+                @if (isLineColumnVisible('poOrdered') && hasLinkedSupplierOrder()) {
+                  <col [style.width]="lineColumnWidth('poOrdered')" />
+                }
+                @if (isLineColumnVisible('poReceived') && hasLinkedSupplierOrder()) {
+                  <col [style.width]="lineColumnWidth('poReceived')" />
+                }
+                @if (isLineColumnVisible('poRemaining') && hasLinkedSupplierOrder()) {
+                  <col [style.width]="lineColumnWidth('poRemaining')" />
+                }
+                @if (isLineColumnVisible('quantity')) {
+                  <col [style.width]="lineColumnWidth('quantity')" />
+                }
+                @if (isLineColumnVisible('unitCost')) {
+                  <col [style.width]="lineColumnWidth('unitCost')" />
+                }
+                @if (isLineColumnVisible('sellingPrice')) {
+                  <col [style.width]="lineColumnWidth('sellingPrice')" />
+                }
+                @if (isLineColumnVisible('compareAtPrice')) {
+                  <col [style.width]="lineColumnWidth('compareAtPrice')" />
+                }
+                @if (isLineColumnVisible('vat')) {
+                  <col [style.width]="lineColumnWidth('vat')" />
+                }
+                @if (isLineColumnVisible('lot')) {
+                  <col [style.width]="lineColumnWidth('lot')" />
+                }
+                @if (isLineColumnVisible('expiry')) {
+                  <col [style.width]="lineColumnWidth('expiry')" />
+                }
+                @if (isLineColumnVisible('serials')) {
+                  <col [style.width]="lineColumnWidth('serials')" />
+                }
+                @if (isLineColumnVisible('loadsStock')) {
+                  <col [style.width]="lineColumnWidth('loadsStock')" />
+                }
+                @if (isLineColumnVisible('lineTotal')) {
+                  <col [style.width]="lineColumnWidth('lineTotal')" />
+                }
+                @if (isLineColumnVisible('actions')) {
+                  <col [style.width]="lineColumnWidth('actions')" />
+                }
+              </colgroup>
               <thead>
                 <tr>
                   @if (isLineColumnVisible('sku')) {
@@ -585,27 +641,29 @@
                     }
                     @if (isLineColumnVisible('poOrdered') && hasLinkedSupplierOrder()) {
                       @if (poLineContext(i); as poCtx) {
-                        <td class="gr-form__cell gr-form__num tabular-nums">{{ poCtx.ordered }}</td>
+                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums">
+                          {{ poCtx.ordered }}
+                        </td>
                       } @else {
-                        <td class="gr-form__cell gr-form__num">—</td>
+                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num">—</td>
                       }
                     }
                     @if (isLineColumnVisible('poReceived') && hasLinkedSupplierOrder()) {
                       @if (poLineContext(i); as poCtx) {
-                        <td class="gr-form__cell gr-form__num tabular-nums">
+                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums">
                           {{ poCtx.received }}
                         </td>
                       } @else {
-                        <td class="gr-form__cell gr-form__num">—</td>
+                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num">—</td>
                       }
                     }
                     @if (isLineColumnVisible('poRemaining') && hasLinkedSupplierOrder()) {
                       @if (poLineContext(i); as poCtx) {
-                        <td class="gr-form__cell gr-form__num tabular-nums">
+                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums">
                           {{ poCtx.remaining }}
                         </td>
                       } @else {
-                        <td class="gr-form__cell gr-form__num">—</td>
+                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num">—</td>
                       }
                     }
                     @if (isLineColumnVisible('quantity')) {
@@ -719,7 +777,7 @@
                       </td>
                     }
                     @if (isLineColumnVisible('lineTotal')) {
-                      <td class="gr-form__cell gr-form__num tabular-nums">
+                      <td class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums">
                         {{ formatMoney(lineMoney(i)) }}
                       </td>
                     }

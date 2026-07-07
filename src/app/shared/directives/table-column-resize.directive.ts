@@ -16,6 +16,7 @@ export class TableColumnResizeDirective {
 
   private startX = 0;
   private startWidth = 0;
+  private lastWidth = 0;
 
   onMouseDown(event: MouseEvent): void {
     event.preventDefault();
@@ -25,18 +26,32 @@ export class TableColumnResizeDirective {
     if (!(th instanceof HTMLTableCellElement)) {
       return;
     }
+    const table = th.closest('table');
+    const col = table?.querySelector('colgroup')?.children.item(th.cellIndex) ?? null;
+
     this.startX = event.clientX;
     this.startWidth = th.getBoundingClientRect().width;
+    this.lastWidth = this.startWidth;
+
+    const applyWidth = (widthPx: number): void => {
+      const width = `${widthPx}px`;
+      th.style.width = width;
+      if (col instanceof HTMLTableColElement) {
+        col.style.width = width;
+      }
+      this.lastWidth = widthPx;
+    };
 
     const onMove = (moveEvent: MouseEvent): void => {
       const delta = moveEvent.clientX - this.startX;
       const next = Math.max(this.minWidthPx(), Math.round(this.startWidth + delta));
-      this.resized.emit(next);
+      applyWidth(next);
     };
 
     const onUp = (): void => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      this.resized.emit(this.lastWidth);
     };
 
     document.addEventListener('mousemove', onMove);

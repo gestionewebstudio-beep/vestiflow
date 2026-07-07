@@ -1,28 +1,39 @@
+:host {
+  display: block;
+  block-size: 100%;
+  min-inline-size: 0;
+}
+
 .gr-code-cell {
   position: relative;
+  block-size: 100%;
   min-inline-size: 0;
 }
 
 .gr-code-cell__input {
   inline-size: 100%;
   min-inline-size: 0;
+  block-size: 100%;
+  min-block-size: var(--gr-line-row-height, calc(var(--field-height) - var(--space-3)));
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
+  line-height: var(--line-height-normal);
   color: var(--color-text);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  border-radius: 0;
 
   &:focus-visible {
-    border-color: var(--color-interactive);
     outline: none;
-    box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+    box-shadow: none;
   }
 }
 
 .gr-code-cell__linked {
   margin: 0;
+  padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
+  line-height: var(--line-height-normal);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
