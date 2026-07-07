@@ -220,7 +220,7 @@ export class SalesDocumentFormComponent {
   private readonly customersReload = signal(0);
   private readonly customers = toSignal(
     toObservable(this.customersReload).pipe(
-      switchMap(() => this.customerService.getCustomers({ page: 1, pageSize: 200 })),
+      switchMap(() => this.customerService.getCustomers({ page: 1, pageSize: 100 })),
       map((response) => response.data),
     ),
     { initialValue: [] },

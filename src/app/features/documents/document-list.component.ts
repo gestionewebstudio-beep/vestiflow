@@ -140,7 +140,7 @@ export class DocumentListComponent {
   );
 
   protected readonly customerOptions = toSignal(
-    this.customerService.getCustomers({ page: 1, pageSize: 200 }).pipe(
+    this.customerService.getCustomers({ page: 1, pageSize: 100 }).pipe(
       map((response) =>
         response.data.map((customer) => ({
           value: customer.id,
@@ -156,12 +156,10 @@ export class DocumentListComponent {
     this.isGoodsReceiptList() ? TableViewId.GoodsReceiptDocumentsList : TableViewId.DocumentsList,
   );
 
-  private readonly genericTableColumns = this.columnPreferences.visibleColumns(
-    TableViewId.DocumentsList,
-  );
-  private readonly goodsReceiptTableColumns = this.columnPreferences.visibleColumns(
-    TableViewId.GoodsReceiptDocumentsList,
-  );
+  private readonly genericTableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+  private readonly goodsReceiptTableColumns: ReturnType<
+    TableColumnPreferenceService['visibleColumns']
+  >;
 
   protected readonly tableColumns = computed(() =>
     this.isGoodsReceiptList() ? this.goodsReceiptTableColumns() : this.genericTableColumns(),
@@ -291,6 +289,10 @@ export class DocumentListComponent {
       TableViewId.GoodsReceiptDocumentsList,
       GOODS_RECEIPT_LIST_COLUMN_DEFS,
       GOODS_RECEIPT_LIST_COLUMN_PRESETS,
+    );
+    this.genericTableColumns = this.columnPreferences.visibleColumns(TableViewId.DocumentsList);
+    this.goodsReceiptTableColumns = this.columnPreferences.visibleColumns(
+      TableViewId.GoodsReceiptDocumentsList,
     );
 
     this.searchSubscription = toObservable(this.searchDraft)
