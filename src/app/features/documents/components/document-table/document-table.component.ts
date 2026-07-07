@@ -8,8 +8,8 @@ import type { ResolvedTableColumn } from '@shared/table-columns/table-column.mod
 
 import {
   documentReferenceLabel,
-  documentStatusLabel,
-  documentStatusTone,
+  documentStatusDisplayLabel,
+  documentStatusDisplayTone,
   documentTypeLabel,
 } from '../../models/document-labels.util';
 
@@ -31,12 +31,10 @@ export class DocumentTableComponent {
   readonly rowClick = output<DocumentRecord>();
 
   protected readonly typeLabel = documentTypeLabel;
-  protected readonly statusLabel = documentStatusLabel;
-  protected readonly statusTone = documentStatusTone;
   protected readonly formatMoney = formatMoney;
 
   protected referenceLabel(doc: DocumentRecord): string {
-    return documentReferenceLabel(doc.reference, doc.series);
+    return documentReferenceLabel(doc.type, doc.reference, doc.series);
   }
 
   protected counterparty(doc: DocumentRecord): string {
@@ -49,6 +47,30 @@ export class DocumentTableComponent {
 
   protected lineCount(doc: DocumentRecord): number {
     return doc.lineCount ?? doc.lines?.length ?? 0;
+  }
+
+  protected notesLabel(doc: DocumentRecord): string {
+    return doc.internalComment?.trim() || doc.notes?.trim() || '—';
+  }
+
+  protected locationLabel(doc: DocumentRecord): string {
+    return doc.locationName ?? '—';
+  }
+
+  protected externalDocLabel(doc: DocumentRecord): string {
+    return doc.externalDocNumber?.trim() || doc.externalRef?.trim() || '—';
+  }
+
+  protected billingCauseLabel(doc: DocumentRecord): string {
+    return doc.billingCause?.trim() || '—';
+  }
+
+  protected statusLabel(doc: DocumentRecord): string | null {
+    return documentStatusDisplayLabel(doc.type, doc.status, doc);
+  }
+
+  protected statusTone(doc: DocumentRecord) {
+    return documentStatusDisplayTone(doc.type, doc.status);
   }
 
   protected rowLabel(doc: DocumentRecord): string {

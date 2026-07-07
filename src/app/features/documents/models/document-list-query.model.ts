@@ -5,6 +5,9 @@ import { DocumentStatus, DocumentType } from '@core/models/document.model';
 export const DEFAULT_DOCUMENT_PAGE_SIZE = 20;
 export const DOCUMENT_PAGE_SIZE_OPTIONS: readonly number[] = [10, 20, 50];
 
+/** Profilo lista documenti (route data). */
+export type DocumentListProfile = 'generic' | 'goods-receipt';
+
 /** Query registro documenti (ordinamento fisso: data documento discendente). */
 export interface DocumentListQuery {
   readonly page?: number;
@@ -12,10 +15,12 @@ export interface DocumentListQuery {
   /** Ricerca libera su riferimento, controparti e numero documento esterno. */
   readonly search?: string;
   readonly type?: DocumentType;
+  readonly types?: readonly DocumentType[];
   readonly status?: DocumentStatus;
   readonly dateFrom?: string;
   readonly dateTo?: string;
   readonly customerId?: string;
+  readonly locationId?: string;
   readonly accountant?: boolean;
   readonly pendingInvoice?: boolean;
 }
@@ -34,6 +39,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
   const dateFrom = params.get('dateFrom') ?? '';
   const dateTo = params.get('dateTo') ?? '';
   const customerId = params.get('customerId') ?? '';
+  const locationId = params.get('locationId') ?? '';
 
   return {
     page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -47,6 +53,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
     dateFrom: ISO_DATE.test(dateFrom) ? dateFrom : undefined,
     dateTo: ISO_DATE.test(dateTo) ? dateTo : undefined,
     customerId: isUuid(customerId) ? customerId : undefined,
+    locationId: isUuid(locationId) ? locationId : undefined,
     accountant: params.get('accountant') === '1',
     pendingInvoice: params.get('pendingInvoice') === '1',
   };

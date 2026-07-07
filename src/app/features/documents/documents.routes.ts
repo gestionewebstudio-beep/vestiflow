@@ -13,9 +13,29 @@ export const documentsRoutes: Routes = [
   {
     path: '',
     title: 'VestiFlow · Documenti',
-    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    loadComponent: () => import('./documents-hub.component').then((m) => m.DocumentsHubComponent),
     canActivate: [tenantPermissionGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS },
+  },
+  {
+    path: 'registro',
+    title: 'VestiFlow · Registro documenti',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'generic',
+    },
+  },
+  {
+    path: 'arrivi-merce',
+    title: 'VestiFlow · Arrivi merce',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'goods-receipt',
+    },
   },
   {
     path: 'proforma/new',

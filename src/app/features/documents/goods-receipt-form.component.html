@@ -1,7 +1,11 @@
 <section class="gr-form">
-  <a class="gr-form__back" href="/app/documents" (click)="$event.preventDefault(); cancel()">
+  <a
+    class="gr-form__back"
+    href="/app/documents/arrivi-merce"
+    (click)="$event.preventDefault(); cancel()"
+  >
     <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Documenti
+    Arrivi merce
   </a>
 
   <h1 class="gr-form__title">
@@ -10,9 +14,9 @@
 
   @if (isEditMode()) {
     <div class="gr-form__meta">
-      <app-badge [tone]="documentStatusTone(documentStatus())">
-        {{ documentStatusLabel(documentStatus()) }}
-      </app-badge>
+      @if (statusDisplayLabel(); as label) {
+        <app-badge [tone]="statusDisplayTone()!">{{ label }}</app-badge>
+      }
       @if (internalReferenceLabel(); as ref) {
         <span class="gr-form__internal-ref tabular-nums">N. interno: {{ ref }}</span>
       }

@@ -37,3 +37,61 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Analysis]: ['documentDate', 'type', 'status', 'lineCount', 'total'],
   [TableViewPresetId.Operational]: ['documentDate', 'type', 'reference', 'status', 'counterparty'],
 };
+
+export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
+  { id: 'reference', label: 'Numero', defaultVisible: true },
+  { id: 'counterparty', label: 'Fornitore', defaultVisible: true },
+  { id: 'billingCause', label: 'Causale', defaultVisible: true },
+  { id: 'notes', label: 'Note', defaultVisible: false },
+  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
+  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  { id: 'location', label: 'Magazzino', defaultVisible: true },
+  { id: 'externalDocNumber', label: 'Rif. fattura', defaultVisible: true },
+  { id: 'status', label: 'Stato', defaultVisible: false },
+  { id: 'type', label: 'Tipo', defaultVisible: false },
+] as const;
+
+export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
+  [TableViewPresetId.Default]: [
+    'documentDate',
+    'reference',
+    'counterparty',
+    'billingCause',
+    'lineCount',
+    'total',
+    'location',
+    'externalDocNumber',
+  ],
+  [TableViewPresetId.Warehouse]: [
+    'documentDate',
+    'reference',
+    'counterparty',
+    'lineCount',
+    'location',
+  ],
+  [TableViewPresetId.Accountant]: [
+    'documentDate',
+    'reference',
+    'counterparty',
+    'total',
+    'externalDocNumber',
+  ],
+  [TableViewPresetId.Supplier]: [
+    'documentDate',
+    'reference',
+    'counterparty',
+    'billingCause',
+    'externalDocNumber',
+    'total',
+  ],
+  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'lineCount', 'total'],
+  [TableViewPresetId.Operational]: [
+    'documentDate',
+    'reference',
+    'counterparty',
+    'billingCause',
+    'lineCount',
+    'location',
+  ],
+};

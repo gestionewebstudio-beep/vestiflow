@@ -15,13 +15,13 @@
       <div class="doc-detail__heading">
         <button type="button" class="doc-detail__back" (click)="goToList()">
           <i class="pi pi-arrow-left" aria-hidden="true"></i>
-          Registro documenti
+          {{ listPath().includes('arrivi-merce') ? 'Arrivi merce' : 'Registro documenti' }}
         </button>
         <h1 class="doc-detail__title">
           {{ title() }}
-          <app-badge [tone]="statusTone(doc.status)">{{
-            statusLabel(doc.type, doc.status, doc)
-          }}</app-badge>
+          @if (statusDisplayLabel(doc.type, doc.status, doc); as label) {
+            <app-badge [tone]="statusDisplayTone(doc.type, doc.status)!">{{ label }}</app-badge>
+          }
         </h1>
       </div>
 

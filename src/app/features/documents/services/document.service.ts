@@ -39,10 +39,12 @@ export class DocumentService {
 
     if (query.search) params = params.set('search', query.search);
     if (query.type) params = params.set('type', query.type);
+    if (query.types?.length) params = params.set('types', query.types.join(','));
     if (query.status) params = params.set('status', query.status);
     if (query.dateFrom) params = params.set('dateFrom', query.dateFrom);
     if (query.dateTo) params = params.set('dateTo', query.dateTo);
     if (query.customerId) params = params.set('customerId', query.customerId);
+    if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.accountant) params = params.set('accountant', '1');
     if (query.pendingInvoice) params = params.set('pendingInvoice', '1');
 

@@ -25,6 +25,7 @@ import {
   switchMap,
   throwError,
   defaultIfEmpty,
+  type Observable,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 import { take } from 'rxjs';
@@ -86,11 +87,12 @@ import {
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import {
   documentTypeLabel,
-  documentStatusLabel,
-  documentStatusTone,
+  documentStatusDisplayLabel,
+  documentStatusDisplayTone,
 } from './models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { DocumentService } from './services/document.service';
+import type { CreateDocumentBody } from './services/document-api.mapper';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
 
 type SubmitState =
@@ -157,7 +159,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly listPath = '/app/documents';
+  protected readonly listPath = '/app/documents/arrivi-merce';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly documentTypeLabel = documentTypeLabel;
@@ -200,8 +202,21 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return this.isConfirmedEdit() ? 'Modifica documento confermato' : 'Modifica arrivo merce';
   });
 
-  protected readonly documentStatusLabel = documentStatusLabel;
-  protected readonly documentStatusTone = documentStatusTone;
+  protected statusDisplayLabel(): string | null {
+    const doc = this.loadedDocument();
+    if (!doc) {
+      return null;
+    }
+    return documentStatusDisplayLabel(doc.type, doc.status, doc);
+  }
+
+  protected statusDisplayTone() {
+    const doc = this.loadedDocument();
+    if (!doc) {
+      return null;
+    }
+    return documentStatusDisplayTone(doc.type, doc.status);
+  }
 
   private readonly supplierOrderLineMap = signal<Map<string, LinkedSupplierOrderLineContext>>(
     new Map(),
@@ -451,7 +466,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.formReadOnly() || this.saving()) {
       return;
     }
-    if (!this.validateForAutoSave()) {
+    if (!this.canPersistAutoSaveDocument()) {
       return;
     }
     this.autoSavePending.set(true);
@@ -935,8 +950,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       !line.controls.variantId.value &&
       sku.length > 0 &&
       line.controls.productName.value.trim().length >= 2 &&
-      Number(line.controls.quantity.value) > 0 &&
-      line.controls.loadsStock.value
+      Number(line.controls.quantity.value) > 0
     );
   }
 
@@ -1311,17 +1325,54 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected confirmExitSaveDocument(): void {
     this.exitDialogOpen.set(false);
+    if (!this.validateForAutoSave()) {
+      this._submitState.set({
+        status: 'error',
+        error: {
+          kind: AppErrorKind.Validation,
+          message: 'Compila fornitore, magazzino e data documento prima di salvare.',
+        },
+      });
+      this.resolveExit(false);
+      return;
+    }
+    if (!this.lines.controls.some((line) => this.lineHasPersistableData(line))) {
+      this._submitState.set({
+        status: 'error',
+        error: {
+          kind: AppErrorKind.Validation,
+          message: 'Aggiungi almeno una riga prodotto prima di salvare.',
+        },
+      });
+      this.resolveExit(false);
+      return;
+    }
+    this._submitState.set({ status: 'saving' });
     this.commitAllLineProducts$()
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        switchMap(() => this.saveDocument$()),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
-        next: () => {
-          this.persistAutoSave({
-            stayOnPage: true,
-            onComplete: () => this.resolveExit(true),
-          });
+        next: (doc) => {
+          this._submitState.set({ status: 'idle' });
+          this.autoSavePending.set(false);
+          this.dirtySinceLastSave.set(false);
+          this.loadedDocument.set(doc);
+          this.resolveExit(true);
         },
         error: (err: unknown) => {
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+          this._submitState.set({
+            status: 'error',
+            error: isAppError(err)
+              ? err
+              : {
+                  kind: AppErrorKind.Unknown,
+                  message:
+                    'Non è stato possibile salvare il documento. Controlla le righe e riprova.',
+                },
+          });
           this.resolveExit(false);
         },
       });
@@ -1651,63 +1702,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.saving()) {
       return;
     }
-    if (!this.validateForAutoSave()) {
+    if (!this.canPersistAutoSaveDocument()) {
       this.autoSavePending.set(false);
-      options?.onComplete?.();
       return;
     }
     this.dirtySinceLastSave.set(true);
     this._submitState.set({ status: 'saving' });
 
     const editId = this.editDocumentId();
-    of(undefined)
-      .pipe(
-        switchMap(() => {
-          const raw = this.form.getRawValue();
-          const body = {
-            type: raw.type,
-            documentDate: new Date(raw.documentDate).toISOString(),
-            supplierId: raw.supplierId,
-            locationId: raw.locationId,
-            currency: this.currency,
-            notes: raw.notes.trim() || undefined,
-            internalComment: raw.internalComment.trim() || undefined,
-            billingCause: raw.invoicePending
-              ? 'In attesa fattura'
-              : raw.billingCause.trim() || undefined,
-            externalRef: raw.externalRef.trim() || undefined,
-            externalDocNumber: raw.externalDocNumber.trim() || undefined,
-            externalDocDate: raw.externalDocDate
-              ? new Date(raw.externalDocDate).toISOString()
-              : undefined,
-            lines: raw.lines
-              .filter((line) => this.lineHasPersistableDataFromRaw(line))
-              .map((line) => {
-                const cost = parseMoneyInput(line.unitCost, this.currency);
-                const name = line.productName.trim() || line.description.trim();
-                return {
-                  variantId: line.variantId || undefined,
-                  sku: line.sku.trim() || undefined,
-                  description: name || line.description.trim() || 'Riga documento',
-                  quantity: Number(line.quantity),
-                  unitPriceMinor: cost?.amountMinor ?? 0,
-                  vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
-                  loadsStock: line.loadsStock,
-                  supplierOrderLineId: line.supplierOrderLineId || undefined,
-                  lotCode: line.lotCode.trim() || undefined,
-                  lotExpiryDate: line.lotExpiryDate
-                    ? new Date(line.lotExpiryDate).toISOString()
-                    : undefined,
-                  serialNumbers: parseSerialNumbersText(line.serialNumbersText),
-                };
-              }),
-          };
-          return editId
-            ? this.documentService.updateDocument(editId, body)
-            : this.documentService.createDocument(body);
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    this.saveDocument$()
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (doc) => {
           this._submitState.set({ status: 'idle' });
@@ -1733,9 +1737,67 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         error: (err: unknown) => {
           this.autoSavePending.set(false);
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
-          options?.onComplete?.();
         },
       });
+  }
+
+  /** Autosave: header valido + almeno una riga persistibile prima del primo create. */
+  private canPersistAutoSaveDocument(): boolean {
+    if (!this.validateForAutoSave()) {
+      return false;
+    }
+    if (this.editDocumentId()) {
+      return true;
+    }
+    return this.lines.controls.some((line) => this.lineHasPersistableData(line));
+  }
+
+  private buildDocumentSaveBody(): CreateDocumentBody {
+    const raw = this.form.getRawValue();
+    return {
+      type: raw.type,
+      documentDate: new Date(raw.documentDate).toISOString(),
+      supplierId: raw.supplierId,
+      locationId: raw.locationId,
+      currency: this.currency,
+      notes: raw.notes.trim() || undefined,
+      internalComment: raw.internalComment.trim() || undefined,
+      billingCause: raw.invoicePending ? 'In attesa fattura' : raw.billingCause.trim() || undefined,
+      externalRef: raw.externalRef.trim() || undefined,
+      externalDocNumber: raw.externalDocNumber.trim() || undefined,
+      externalDocDate: raw.externalDocDate
+        ? new Date(raw.externalDocDate).toISOString()
+        : undefined,
+      lines: raw.lines
+        .filter((line) => this.lineHasPersistableDataFromRaw(line))
+        .map((line) => {
+          const cost = parseMoneyInput(line.unitCost, this.currency);
+          const name = line.productName.trim() || line.description.trim();
+          return {
+            variantId: line.variantId || undefined,
+            sku: line.sku.trim() || undefined,
+            description: name || line.description.trim() || 'Riga documento',
+            quantity: Number(line.quantity),
+            unitPriceMinor: cost?.amountMinor ?? 0,
+            vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
+            loadsStock: line.loadsStock,
+            supplierOrderLineId: line.supplierOrderLineId || undefined,
+            lotCode: line.lotCode.trim() || undefined,
+            lotExpiryDate: line.lotExpiryDate
+              ? new Date(line.lotExpiryDate).toISOString()
+              : undefined,
+            serialNumbers: parseSerialNumbersText(line.serialNumbersText),
+          };
+        }),
+    };
+  }
+
+  private saveDocument$(): Observable<DocumentRecord> {
+    const editId = this.editDocumentId();
+    const body = this.buildDocumentSaveBody();
+    return editId
+      ? this.documentService.updateDocument(editId, body)
+      : this.documentService.createDocument(body);
   }
 
   private lineHasPersistableDataFromRaw(line: {
@@ -1856,7 +1918,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.preserveEditSession()) {
       this.preserveEditSession.set(false);
       this.editUnlocked.set(true);
-    } else if (doc.status === DocumentStatus.Draft) {
+      return;
+    }
+    if (doc.status === DocumentStatus.Draft) {
       this.editUnlocked.set(true);
     } else {
       this.editUnlocked.set(false);

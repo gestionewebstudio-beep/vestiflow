@@ -36,8 +36,9 @@ import { DocumentLinesTableComponent } from './components/document-lines-table/d
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import {
   documentReferenceLabel,
+  documentStatusDisplayLabel,
+  documentStatusDisplayTone,
   documentStatusLabelForType,
-  documentStatusTone,
   documentTypeLabel,
 } from './models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
@@ -114,11 +115,18 @@ export class DocumentDetailComponent {
     externalDocDate: this.fb.control(''),
   });
 
-  protected readonly listPath = '/app/documents';
+  protected readonly listPath = computed(() => {
+    const doc = this.document();
+    if (doc && isGoodsReceiptDocumentType(doc.type)) {
+      return '/app/documents/arrivi-merce';
+    }
+    return '/app/documents/registro';
+  });
   protected readonly skeletonColumns = 8;
 
   protected readonly statusLabel = documentStatusLabelForType;
-  protected readonly statusTone = documentStatusTone;
+  protected readonly statusDisplayLabel = documentStatusDisplayLabel;
+  protected readonly statusDisplayTone = documentStatusDisplayTone;
   protected readonly formatMoney = formatMoney;
   protected readonly formatDate = formatDate;
 
@@ -160,7 +168,7 @@ export class DocumentDetailComponent {
     if (!doc) {
       return 'Documento';
     }
-    return `${documentTypeLabel(doc.type)} · ${documentReferenceLabel(doc.reference, doc.series)}`;
+    return `${documentTypeLabel(doc.type)} · ${documentReferenceLabel(doc.type, doc.reference, doc.series)}`;
   });
 
   protected readonly lines = computed(() => this.document()?.lines ?? []);
@@ -472,7 +480,7 @@ export class DocumentDetailComponent {
   }
 
   protected goToList(): void {
-    void this.router.navigateByUrl(this.listPath);
+    void this.router.navigateByUrl(this.listPath());
   }
 
   protected editDocument(): void {
@@ -521,7 +529,7 @@ export class DocumentDetailComponent {
       .subscribe({
         next: (blob) => {
           this.downloadingPdf.set(false);
-          const reference = documentReferenceLabel(doc.reference, doc.series);
+          const reference = documentReferenceLabel(doc.type, doc.reference, doc.series);
           const stamp = doc.documentDate.slice(0, 10);
           this.downloadBlob(blob, `documento-${reference}-${stamp}.pdf`);
         },
@@ -671,7 +679,7 @@ export class DocumentDetailComponent {
       .subscribe({
         next: () => {
           this._actionState.set({ status: 'idle' });
-          void this.router.navigateByUrl(this.listPath);
+          void this.router.navigateByUrl(this.listPath());
         },
         error: (err: unknown) => {
           this._actionState.set({ status: 'error', error: this.toAppError(err) });

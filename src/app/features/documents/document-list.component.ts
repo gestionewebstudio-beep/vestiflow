@@ -26,6 +26,7 @@ import type { AppError } from '@core/models/app-error.model';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { CustomerService } from '@features/customers/services/customer.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -36,20 +37,27 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import { RouterLink } from '@angular/router';
+
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { DocumentTableComponent } from './components/document-table/document-table.component';
+import { GOODS_RECEIPT_DOCUMENT_TYPES } from './models/document-goods-receipt.util';
 import { documentStatusLabel, documentTypeLabel } from './models/document-labels.util';
 import {
   DOCUMENT_LIST_COLUMN_DEFS,
   DOCUMENT_LIST_COLUMN_PRESETS,
+  GOODS_RECEIPT_LIST_COLUMN_DEFS,
+  GOODS_RECEIPT_LIST_COLUMN_PRESETS,
 } from './models/document-table-columns.config';
 import {
   DEFAULT_DOCUMENT_PAGE_SIZE,
   DOCUMENT_PAGE_SIZE_OPTIONS,
   parseDocumentListQuery,
+  type DocumentListProfile,
+  type DocumentListQuery,
 } from './models/document-list-query.model';
 import { DocumentService } from './services/document.service';
 
@@ -80,6 +88,7 @@ type DocumentListState =
   selector: 'app-document-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     ButtonComponent,
     DateInputComponent,
     EmptyStateComponent,
@@ -101,6 +110,34 @@ export class DocumentListComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
   private readonly customerService = inject(CustomerService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
+
+  private readonly routeData = toSignal(this.route.data, {
+    initialValue: this.route.snapshot.data,
+  });
+
+  protected readonly listProfile = computed(
+    () => (this.routeData()['documentListProfile'] as DocumentListProfile | undefined) ?? 'generic',
+  );
+
+  protected readonly isGoodsReceiptList = computed(() => this.listProfile() === 'goods-receipt');
+
+  protected readonly pageTitle = computed(() =>
+    this.isGoodsReceiptList() ? 'Arrivi merce' : 'Registro documenti',
+  );
+
+  protected readonly pageSubtitle = computed(() =>
+    this.isGoodsReceiptList()
+      ? 'Registro carichi fornitore, DDT e movimenti di magazzino collegati.'
+      : 'Registro DDT, arrivi merce, trasferimenti, proforma e documenti fiscali.',
+  );
+
+  protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
+    this.operationalLocations.locations().map((loc) => ({
+      value: loc.id,
+      label: loc.name,
+    })),
+  );
 
   protected readonly customerOptions = toSignal(
     this.customerService.getCustomers({ page: 1, pageSize: 200 }).pipe(
@@ -115,8 +152,20 @@ export class DocumentListComponent {
     { initialValue: [] as readonly SelectMenuOption[] },
   );
 
-  protected readonly tableViewId = TableViewId.DocumentsList;
-  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+  protected readonly tableViewId = computed(() =>
+    this.isGoodsReceiptList() ? TableViewId.GoodsReceiptDocumentsList : TableViewId.DocumentsList,
+  );
+
+  private readonly genericTableColumns = this.columnPreferences.visibleColumns(
+    TableViewId.DocumentsList,
+  );
+  private readonly goodsReceiptTableColumns = this.columnPreferences.visibleColumns(
+    TableViewId.GoodsReceiptDocumentsList,
+  );
+
+  protected readonly tableColumns = computed(() =>
+    this.isGoodsReceiptList() ? this.goodsReceiptTableColumns() : this.genericTableColumns(),
+  );
 
   protected readonly canManageDocuments = computed(() =>
     canManageDocuments(this.authService.currentUser()),
@@ -145,11 +194,26 @@ export class DocumentListComponent {
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseDocumentListQuery(this.queryParams()));
 
+  protected readonly apiQuery = computed((): DocumentListQuery => {
+    const q = this.query();
+    if (this.isGoodsReceiptList()) {
+      return {
+        ...q,
+        types: [...GOODS_RECEIPT_DOCUMENT_TYPES],
+        type: undefined,
+        accountant: undefined,
+        pendingInvoice: undefined,
+        customerId: undefined,
+      };
+    }
+    return q;
+  });
+
   private readonly refreshTick = signal(0);
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
 
-  private readonly request = computed(() => ({ query: this.query(), tick: this.refreshTick() }));
+  private readonly request = computed(() => ({ query: this.apiQuery(), tick: this.refreshTick() }));
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(
@@ -196,6 +260,9 @@ export class DocumentListComponent {
 
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
+    if (this.isGoodsReceiptList()) {
+      return Boolean(q.search ?? q.dateFrom ?? q.dateTo ?? q.locationId);
+    }
     return Boolean(
       q.search ??
       q.type ??
@@ -220,7 +287,11 @@ export class DocumentListComponent {
       DOCUMENT_LIST_COLUMN_DEFS,
       DOCUMENT_LIST_COLUMN_PRESETS,
     );
-    this.tableColumns = this.columnPreferences.visibleColumns(TableViewId.DocumentsList);
+    this.columnPreferences.registerView(
+      TableViewId.GoodsReceiptDocumentsList,
+      GOODS_RECEIPT_LIST_COLUMN_DEFS,
+      GOODS_RECEIPT_LIST_COLUMN_PRESETS,
+    );
 
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
@@ -257,6 +328,10 @@ export class DocumentListComponent {
 
   protected onDateToChange(value: string): void {
     this.updateParams({ dateTo: value || null, page: null }, true);
+  }
+
+  protected onLocationFilterChange(value: string | null): void {
+    this.updateParams({ locationId: value, page: null }, true);
   }
 
   protected onCreateDocumentType(value: string | null): void {
@@ -297,6 +372,7 @@ export class DocumentListComponent {
         dateFrom: null,
         dateTo: null,
         customerId: null,
+        locationId: null,
         accountant: null,
         pendingInvoice: null,
         page: null,
@@ -321,7 +397,15 @@ export class DocumentListComponent {
   }
 
   protected openDocument(doc: DocumentRecord): void {
+    if (this.isGoodsReceiptList()) {
+      void this.router.navigate(['/app/documents', doc.id, 'edit']);
+      return;
+    }
     void this.router.navigate(['/app/documents', doc.id]);
+  }
+
+  protected openHub(): void {
+    void this.router.navigateByUrl('/app/documents');
   }
 
   protected openSettings(): void {

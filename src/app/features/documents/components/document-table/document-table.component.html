@@ -57,11 +57,37 @@
             }
             @case ('status') {
               <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                <span class="doc-table__cell-value">
-                  <app-badge [tone]="statusTone(doc.status)">{{
-                    statusLabel(doc.status)
-                  }}</app-badge>
-                </span>
+                @if (statusLabel(doc); as label) {
+                  <span class="doc-table__cell-value">
+                    <app-badge [tone]="statusTone(doc)!">{{ label }}</app-badge>
+                  </span>
+                } @else {
+                  —
+                }
+              </td>
+            }
+            @case ('billingCause') {
+              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ billingCauseLabel(doc) }}
+              </td>
+            }
+            @case ('notes') {
+              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ notesLabel(doc) }}
+              </td>
+            }
+            @case ('location') {
+              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ locationLabel(doc) }}
+              </td>
+            }
+            @case ('externalDocNumber') {
+              <td
+                class="tabular-nums"
+                [class.doc-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ externalDocLabel(doc) }}
               </td>
             }
             @case ('lineCount') {

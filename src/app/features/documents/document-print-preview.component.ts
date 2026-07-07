@@ -84,7 +84,7 @@ export class DocumentPrintPreviewComponent {
     if (!doc) {
       return '';
     }
-    return documentReferenceLabel(doc.reference, doc.series);
+    return documentReferenceLabel(doc.type, doc.reference, doc.series);
   });
 
   protected readonly showProformaDisclaimer = computed(() => {
@@ -136,7 +136,7 @@ export class DocumentPrintPreviewComponent {
       .subscribe({
         next: (blob) => {
           this.downloadingPdf.set(false);
-          const reference = documentReferenceLabel(doc.reference, doc.series);
+          const reference = documentReferenceLabel(doc.type, doc.reference, doc.series);
           const stamp = doc.documentDate.slice(0, 10);
           this.downloadBlob(blob, `documento-${reference}-${stamp}.pdf`);
         },

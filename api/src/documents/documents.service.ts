@@ -88,7 +88,7 @@ import type { MarkExternallyIssuedDto } from './dto/mark-externally-issued.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
 
 export type DocumentWithLines = Document & { lines: DocumentLine[] };
-export type DocumentListRow = Document & { lineCount: number };
+export type DocumentListRow = Document & { lineCount: number; locationName: string | null };
 
 export type DocumentDetail = DocumentWithLines & {
   blockAfterConfirm: boolean;
@@ -155,7 +155,11 @@ export class DocumentsService {
   ): Promise<Paginated<DocumentListRow>> {
     const where: Prisma.DocumentWhereInput = {
       tenantId,
-      ...(query.type ? { type: query.type } : {}),
+      ...(query.types?.length
+        ? { type: { in: query.types } }
+        : query.type
+          ? { type: query.type }
+          : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.dateFrom || query.dateTo
         ? {
@@ -177,6 +181,7 @@ export class DocumentsService {
         : {}),
       ...(query.supplierOrderId ? { supplierOrderId: query.supplierOrderId } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
+      ...(query.locationId ? { locationId: query.locationId } : {}),
       ...(query.accountant ? { type: { in: [...ACCOUNTANT_DOCUMENT_TYPES] } } : {}),
       ...(query.pendingInvoice
         ? {
@@ -197,7 +202,10 @@ export class DocumentsService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.document.findMany({
         where,
-        include: { _count: { select: { lines: true } } },
+        include: {
+          _count: { select: { lines: true } },
+          location: { select: { name: true } },
+        },
         orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
@@ -205,9 +213,10 @@ export class DocumentsService {
       this.prisma.document.count({ where }),
     ]);
 
-    const items: DocumentListRow[] = rows.map(({ _count, ...doc }) => ({
+    const items: DocumentListRow[] = rows.map(({ _count, location, ...doc }) => ({
       ...doc,
       lineCount: _count.lines,
+      locationName: location?.name ?? null,
     }));
 
     return { items, total, page: query.page, pageSize: query.pageSize };

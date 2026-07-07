@@ -46,6 +46,7 @@ export interface DocumentApiRow {
   readonly customerId?: EntityId | null;
   readonly customerName?: string | null;
   readonly locationId?: EntityId | null;
+  readonly locationName?: string | null;
   readonly targetLocationId?: EntityId | null;
   readonly adjustmentDirection?: AdjustmentDirection | null;
   readonly externalDocNumber?: string | null;
@@ -140,6 +141,7 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     customerId: row.customerId ?? undefined,
     customerName: row.customerName ?? undefined,
     locationId: row.locationId ?? undefined,
+    locationName: row.locationName ?? undefined,
     targetLocationId: row.targetLocationId ?? undefined,
     adjustmentDirection: row.adjustmentDirection ?? undefined,
     externalDocNumber: row.externalDocNumber ?? undefined,

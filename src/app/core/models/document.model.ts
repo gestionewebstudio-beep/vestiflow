@@ -98,6 +98,7 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly customerId?: EntityId;
   readonly customerName?: string;
   readonly locationId?: EntityId;
+  readonly locationName?: string;
   readonly targetLocationId?: EntityId;
   readonly adjustmentDirection?: AdjustmentDirection;
   readonly externalDocNumber?: string;

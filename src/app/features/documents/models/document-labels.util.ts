@@ -3,6 +3,8 @@
 import { DocumentStatus, DocumentType, type DocumentRecord } from '@core/models/document.model';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
+import { isOperationalDocumentType } from './document-operational.util';
+
 const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.SupplierOrder]: 'Ordine fornitore',
   [DocumentType.GoodsReceipt]: 'Arrivo merce',
@@ -77,10 +79,50 @@ export function documentStatusTone(status: DocumentStatus): BadgeTone {
   return STATUS_TONES[status];
 }
 
-/** Etichetta breve del documento in lista: riferimento se assegnato, altrimenti "Bozza". */
-export function documentReferenceLabel(reference: string | undefined, series: string): string {
+/**
+ * Etichetta stato per UI: null = nessun badge (es. documenti operativi salvati non numerati).
+ */
+export function documentStatusDisplayLabel(
+  type: DocumentType,
+  status: DocumentStatus,
+  doc: Pick<DocumentRecord, 'externallyIssuedAt'> = { externallyIssuedAt: undefined },
+): string | null {
+  if (isOperationalDocumentType(type)) {
+    if (status === DocumentStatus.Draft) {
+      return null;
+    }
+    if (status === DocumentStatus.Cancelled) {
+      return 'Annullato';
+    }
+    if (status === DocumentStatus.Confirmed) {
+      return 'Confermato';
+    }
+    return documentStatusLabel(status);
+  }
+  return documentStatusLabelForType(type, status, doc);
+}
+
+export function documentStatusDisplayTone(
+  type: DocumentType,
+  status: DocumentStatus,
+): BadgeTone | null {
+  if (isOperationalDocumentType(type) && status === DocumentStatus.Draft) {
+    return null;
+  }
+  return documentStatusTone(status);
+}
+
+/** Etichetta breve del documento in lista. */
+export function documentReferenceLabel(
+  type: DocumentType,
+  reference: string | undefined,
+  series: string,
+): string {
   if (reference) {
     return reference;
+  }
+  if (isOperationalDocumentType(type)) {
+    return `Serie ${series} (non numerato)`;
   }
   return `Bozza · serie ${series}`;
 }

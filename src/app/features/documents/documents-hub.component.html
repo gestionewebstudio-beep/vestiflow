@@ -1,0 +1,58 @@
+<section class="doc-hub">
+  <header class="doc-hub__header">
+    <div class="doc-hub__heading">
+      <h1 class="doc-hub__title">Documenti</h1>
+      <p class="doc-hub__subtitle">
+        Scegli il tipo di documento da consultare o creare. Ogni tipologia ha il proprio registro
+        gestionale.
+      </p>
+    </div>
+    @if (canManageDocuments()) {
+      <div class="doc-hub__actions">
+        <a routerLink="/app/documents/settings">
+          <app-button variant="ghost">
+            <i class="pi pi-cog" aria-hidden="true"></i>
+            Numeratori
+          </app-button>
+        </a>
+      </div>
+    }
+  </header>
+
+  @for (group of groups; track group.title) {
+    <section class="doc-hub__group" [attr.aria-labelledby]="'doc-hub-' + group.title">
+      <h2 class="doc-hub__group-title" [id]="'doc-hub-' + group.title">{{ group.title }}</h2>
+      <div class="doc-hub__grid">
+        @for (item of group.items; track item.id) {
+          @if (item.available) {
+            <a
+              class="doc-hub__card doc-hub__card--link"
+              [routerLink]="item.route"
+              [queryParams]="item.queryParams ?? null"
+            >
+              <span class="doc-hub__card-icon" aria-hidden="true">
+                <i [class]="'pi ' + item.icon"></i>
+              </span>
+              <span class="doc-hub__card-body">
+                <span class="doc-hub__card-title">{{ item.label }}</span>
+                <span class="doc-hub__card-desc">{{ item.description }}</span>
+              </span>
+              <i class="pi pi-chevron-right doc-hub__card-arrow" aria-hidden="true"></i>
+            </a>
+          } @else {
+            <div class="doc-hub__card doc-hub__card--disabled" aria-disabled="true">
+              <span class="doc-hub__card-icon" aria-hidden="true">
+                <i [class]="'pi ' + item.icon"></i>
+              </span>
+              <span class="doc-hub__card-body">
+                <span class="doc-hub__card-title">{{ item.label }}</span>
+                <span class="doc-hub__card-desc">{{ item.description }}</span>
+              </span>
+              <span class="doc-hub__card-soon">Presto</span>
+            </div>
+          }
+        }
+      </div>
+    </section>
+  }
+</section>
