@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -302,6 +303,13 @@ export class DocumentListComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.applySearch(value));
+
+    effect(() => {
+      const fromUrl = this.query().search ?? '';
+      if (fromUrl !== this.searchDraft()) {
+        this.searchDraft.set(fromUrl);
+      }
+    });
   }
 
   protected onSearchInput(event: Event): void {

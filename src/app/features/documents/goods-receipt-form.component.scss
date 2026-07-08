@@ -701,6 +701,13 @@
   line-height: var(--line-height-normal);
 }
 
+.gr-form__exit-error {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  line-height: var(--line-height-normal);
+}
+
 .gr-form__exit-actions {
   display: flex;
   flex-wrap: wrap;

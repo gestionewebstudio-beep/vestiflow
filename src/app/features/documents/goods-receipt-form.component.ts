@@ -463,6 +463,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!this.canPersistAutoSaveDocument()) {
       return;
     }
+    this.dirtySinceLastSave.set(true);
     this.autoSavePending.set(true);
     this.persistAutoSave({ stayOnPage: true });
   }
@@ -1082,6 +1083,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private supplierSubscription: Subscription | null = null;
   private submitSubscription: Subscription | null = null;
   private readonly dirtySinceLastSave = signal(false);
+  private pendingAutoSaveCallbacks: (() => void)[] = [];
 
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
   protected readonly autoSaveStatus = computed(() => {
@@ -1344,7 +1346,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected confirmDeleteDocument(): void {
-    const id = this.editDocumentId();
+    const id = this.persistedDocumentId();
     this.deleteDocumentDialogOpen.set(false);
     if (!id || this.saving()) {
       return;
@@ -1365,6 +1367,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   canDeactivate(): boolean | Promise<boolean> {
+    if (this.preserveEditSession()) {
+      return true;
+    }
+    if (this.exitDialogOpen()) {
+      return false;
+    }
     if (this.saving()) {
       return false;
     }
@@ -1379,6 +1387,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       }
       return true;
     }
+    if (!this.dirtySinceLastSave() && !this.autoSavePending()) {
+      return true;
+    }
     this.exitDialogOpen.set(true);
     return new Promise<boolean>((resolve) => {
       this.pendingDeactivate = resolve;
@@ -1386,7 +1397,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected confirmExitSaveDocument(): void {
-    this.exitDialogOpen.set(false);
     this.syncActiveFieldBeforeSave();
     if (!this.validateForAutoSave()) {
       this._submitState.set({
@@ -1396,7 +1406,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           message: 'Compila fornitore, magazzino e data documento prima di salvare.',
         },
       });
-      this.resolveExit(false);
       return;
     }
     if (!this.lines.controls.some((line) => this.lineHasPersistableData(line))) {
@@ -1407,15 +1416,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           message: 'Aggiungi almeno una riga prodotto prima di salvare.',
         },
       });
-      this.resolveExit(false);
       return;
     }
     const stockValidation = this.validateStockLinesForFinalSave();
     if (stockValidation) {
       this._submitState.set({ status: 'error', error: stockValidation });
-      this.resolveExit(false);
       return;
     }
+    this.exitDialogOpen.set(false);
     this._submitState.set({ status: 'saving' });
     this.commitAllLineProducts$()
       .pipe(
@@ -1449,7 +1457,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected confirmExitDeleteDocument(): void {
     this.exitDialogOpen.set(false);
-    const id = this.editDocumentId();
+    const id = this.persistedDocumentId();
     if (!id) {
       this.resolveExit(true);
       return;
@@ -1494,6 +1502,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       action();
       return;
     }
+    if (!this.dirtySinceLastSave() && !this.autoSavePending()) {
+      action();
+      return;
+    }
+    this.dirtySinceLastSave.set(true);
     this.autoSavePending.set(true);
     this.persistAutoSave({
       stayOnPage: true,
@@ -1770,16 +1783,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     readonly onCompleteOnError?: boolean;
   }): void {
     if (this.saving()) {
+      if (options?.onComplete) {
+        this.pendingAutoSaveCallbacks.push(options.onComplete);
+      }
       return;
     }
     if (!this.canPersistAutoSaveDocument()) {
       this.autoSavePending.set(false);
+      options?.onComplete?.();
       return;
     }
-    this.dirtySinceLastSave.set(true);
     this._submitState.set({ status: 'saving' });
 
-    const editId = this.editDocumentId();
+    const hadRouteEditId = Boolean(this.editDocumentId());
     this.commitAllLineProducts$()
       .pipe(
         switchMap(() => this.saveDocument$()),
@@ -1796,26 +1812,50 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             this.editUnlocked.set(true);
           }
           if (options?.stayOnPage) {
-            if (!editId) {
+            if (!hadRouteEditId) {
               this.preserveEditSession.set(true);
               void this.router.navigate(['/app/documents', doc.id, 'edit'], { replaceUrl: true });
             }
             this.syncLineFieldAccess();
             this.ensureMinimumOneRow();
             this.trimDuplicateTrailingEmptyRows();
-            options.onComplete?.();
+            this.flushAutoSaveCallbacks(options);
             return;
           }
+          this.flushAutoSaveCallbacks(options);
           void this.router.navigate([this.listPath, doc.id]);
         },
         error: (err: unknown) => {
           this.autoSavePending.set(false);
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
-          if (options?.onCompleteOnError) {
-            options.onComplete?.();
-          }
+          this.flushAutoSaveCallbacks({
+            ...options,
+            fromError: true,
+          });
         },
       });
+  }
+
+  private flushAutoSaveCallbacks(options?: {
+    readonly onComplete?: () => void;
+    readonly onCompleteOnError?: boolean;
+    readonly fromError?: boolean;
+  }): void {
+    const runComplete = !options?.fromError || options.onCompleteOnError;
+    if (runComplete) {
+      options?.onComplete?.();
+      const queued = [...this.pendingAutoSaveCallbacks];
+      this.pendingAutoSaveCallbacks = [];
+      for (const callback of queued) {
+        callback();
+      }
+      return;
+    }
+    this.pendingAutoSaveCallbacks = [];
+  }
+
+  private persistedDocumentId(): string | null {
+    return this.editDocumentId() ?? this.loadedDocument()?.id ?? null;
   }
 
   /** Autosave: header valido + almeno una riga persistibile prima del primo create. */
@@ -1875,9 +1915,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   private saveDocument$(): Observable<DocumentRecord> {
-    const editId = this.editDocumentId();
-    if (editId) {
-      return this.documentService.updateDocument(editId, this.buildDocumentUpdateBody());
+    const id = this.persistedDocumentId();
+    if (id) {
+      return this.documentService.updateDocument(id, this.buildDocumentUpdateBody());
     }
     return this.documentService.createDocument(this.buildDocumentSaveBody());
   }

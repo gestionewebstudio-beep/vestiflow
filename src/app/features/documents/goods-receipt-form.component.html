@@ -907,6 +907,9 @@
     <p class="gr-form__exit-message">
       Hai inserito dati in questo arrivo merce. Vuoi salvare il documento oppure eliminarlo?
     </p>
+    @if (submitError(); as error) {
+      <p class="gr-form__exit-error" role="alert">{{ error.message }}</p>
+    }
     <div class="gr-form__exit-actions">
       <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
         Continua a modificare
