@@ -22,7 +22,13 @@ describe('mapSupplierFormToInput', () => {
         postalCode: '20100',
         countryCode: 'IT',
         paymentTerms: '30 gg',
+        supplierDiscount: ' 10 ',
+        defaultVatRatePercent: '22',
+        transportResponsible: '',
+        freightTerms: ' Franco ',
+        documentCreationNote: '',
         notes: 'Note interne',
+        alsoCustomer: true,
       }),
     ).toEqual({
       code: 'F01',
@@ -39,7 +45,11 @@ describe('mapSupplierFormToInput', () => {
       postalCode: '20100',
       countryCode: 'IT',
       paymentTerms: '30 gg',
+      supplierDiscount: '10',
+      defaultVatRatePercent: 22,
+      freightTerms: 'Franco',
       notes: 'Note interne',
+      alsoCustomer: true,
     });
   });
 });
