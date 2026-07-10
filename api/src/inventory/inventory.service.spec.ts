@@ -252,6 +252,11 @@ describe('InventoryService', () => {
             { sku: { contains: 'SKU', mode: 'insensitive' } },
             { barcode: { contains: 'SKU', mode: 'insensitive' } },
             { product: { name: { contains: 'SKU', mode: 'insensitive' } } },
+            {
+              supplierLinks: {
+                some: { supplierSku: { contains: 'SKU', mode: 'insensitive' } },
+              },
+            },
           ],
         }),
       }),
