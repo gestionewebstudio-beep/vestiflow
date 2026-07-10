@@ -5,4 +5,9 @@ export class ConfirmDocumentDto {
   @IsOptional()
   @IsBoolean()
   applySupplierPriceUpdates?: boolean;
+
+  /** Se true, chiude l'ordine fornitore collegato anche con quantità residue. */
+  @IsOptional()
+  @IsBoolean()
+  closeLinkedSupplierOrder?: boolean;
 }

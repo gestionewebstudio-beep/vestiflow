@@ -114,7 +114,10 @@ export class DocumentService {
 
   confirmDocument(
     id: EntityId,
-    body: { applySupplierPriceUpdates?: boolean } = {},
+    body: {
+      applySupplierPriceUpdates?: boolean;
+      closeLinkedSupplierOrder?: boolean;
+    } = {},
   ): Observable<DocumentRecord> {
     return this.http
       .post<DocumentApiRow>(this.url(`/documents/${id}/confirm`), body)

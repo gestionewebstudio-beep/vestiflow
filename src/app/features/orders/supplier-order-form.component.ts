@@ -60,6 +60,12 @@ import { InventoryService } from '@features/inventory/services/inventory.service
 
 import { SupplierOrderService } from './services/supplier-order.service';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { SupplierFormFieldsComponent } from '@features/suppliers/components/supplier-form-fields/supplier-form-fields.component';
+import {
+  createSupplierFormGroup,
+  mapSupplierFormToInput,
+  resetSupplierFormGroup,
+} from '@features/suppliers/utils/supplier-form.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -87,6 +93,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
     TableSkeletonComponent,
     TableColumnPickerComponent,
     TableColumnResizeDirective,
+    SupplierFormFieldsComponent,
   ],
   templateUrl: './supplier-order-form.component.html',
   styleUrl: './supplier-order-form.component.scss',
@@ -242,11 +249,7 @@ export class SupplierOrderFormComponent {
 
   // Creazione fornitore inline.
   protected readonly showSupplierForm = signal(false);
-  readonly supplierForm = this.fb.group({
-    name: this.fb.control('', { validators: [Validators.required, Validators.minLength(1)] }),
-    email: this.fb.control('', { validators: [Validators.email] }),
-    phone: this.fb.control(''),
-  });
+  readonly supplierForm = createSupplierFormGroup(this.fb);
   private readonly _savingSupplier = signal(false);
   protected readonly savingSupplier = this._savingSupplier.asReadonly();
 
@@ -354,17 +357,13 @@ export class SupplierOrderFormComponent {
     const raw = this.supplierForm.getRawValue();
     this._savingSupplier.set(true);
     this.supplierSubscription = this.supplierService
-      .createSupplier({
-        name: raw.name.trim(),
-        email: raw.email.trim() || undefined,
-        phone: raw.phone.trim() || undefined,
-      })
+      .createSupplier(mapSupplierFormToInput(raw))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (supplier) => {
           this._savingSupplier.set(false);
           this.showSupplierForm.set(false);
-          this.supplierForm.reset();
+          resetSupplierFormGroup(this.supplierForm);
           this.suppliersReload.update((tick) => tick + 1);
           this.form.controls.supplierId.setValue(supplier.id);
         },

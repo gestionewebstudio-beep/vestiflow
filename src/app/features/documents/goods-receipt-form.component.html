@@ -32,6 +32,11 @@
       Collegato all'ordine fornitore
       <a [routerLink]="['/app/orders', po.id]">{{ po.reference }}</a>
     </p>
+  } @else if (activeSupplierOrderReference(); as pendingRef) {
+    <p class="gr-form__po-link">
+      Ordine fornitore incluso: <strong>{{ pendingRef }}</strong>
+      <span class="gr-form__po-link-hint">(collegamento salvato al prossimo autosalvataggio)</span>
+    </p>
   }
 
   @if (loading()) {
@@ -84,6 +89,20 @@
 
       @if (isConfirmedEdit()) {
         <div class="gr-form__post-actions" aria-label="Azioni documento confermato">
+          @if (canExportPdf()) {
+            <app-button type="button" variant="secondary" (click)="openPrintPreview()">
+              Anteprima stampa
+            </app-button>
+            <app-button
+              type="button"
+              variant="secondary"
+              [loading]="downloadingPdf()"
+              [disabled]="downloadingPdf()"
+              (click)="downloadDocumentPdf()"
+            >
+              Scarica PDF
+            </app-button>
+          }
           @if (canPrintDocument()) {
             <app-button
               type="button"
@@ -259,37 +278,9 @@
         </div>
 
         @if (showSupplierForm()) {
-          <div class="gr-form__supplier-box" [formGroup]="supplierForm">
+          <div class="gr-form__supplier-box">
             <h2 class="gr-form__subtitle">Nuovo fornitore</h2>
-            <div class="gr-form__grid">
-              <div class="gr-form__field">
-                <label class="gr-form__label" for="gr-new-supplier-name">Nome</label>
-                <input
-                  id="gr-new-supplier-name"
-                  class="gr-form__input"
-                  type="text"
-                  formControlName="name"
-                />
-              </div>
-              <div class="gr-form__field">
-                <label class="gr-form__label" for="gr-new-supplier-email">Email</label>
-                <input
-                  id="gr-new-supplier-email"
-                  class="gr-form__input"
-                  type="email"
-                  formControlName="email"
-                />
-              </div>
-              <div class="gr-form__field">
-                <label class="gr-form__label" for="gr-new-supplier-phone">Telefono</label>
-                <input
-                  id="gr-new-supplier-phone"
-                  class="gr-form__input"
-                  type="tel"
-                  formControlName="phone"
-                />
-              </div>
-            </div>
+            <app-supplier-form-fields idPrefix="gr-new-supplier" [formGroup]="supplierForm" />
             <div class="gr-form__supplier-actions">
               <app-button
                 type="button"
@@ -308,16 +299,76 @@
             <h2 id="gr-lines-title" class="gr-form__subtitle">Righe documento</h2>
             <div class="gr-form__lines-tools">
               <app-table-column-picker [viewId]="lineColumnsView" />
+              @if (canIncludeSupplierOrder()) {
+                <app-button type="button" variant="secondary" (click)="openIncludeOrderPanel()">
+                  <i class="pi pi-link" aria-hidden="true"></i>
+                  Includi ordine
+                </app-button>
+              }
+              <app-button
+                type="button"
+                [variant]="barcodeScanMode() ? 'primary' : 'secondary'"
+                [disabled]="formReadOnly()"
+                (click)="toggleBarcodeScanMode()"
+              >
+                <i class="pi pi-barcode" aria-hidden="true"></i>
+                Cod. a barre
+              </app-button>
+              <app-button
+                type="button"
+                variant="secondary"
+                [disabled]="formReadOnly()"
+                (click)="triggerCsvImport(csvFileInput)"
+              >
+                <i class="pi pi-upload" aria-hidden="true"></i>
+                Importa CSV
+              </app-button>
+              <input
+                #csvFileInput
+                class="sr-only"
+                type="file"
+                accept=".csv,text/csv"
+                (change)="onCsvFileSelected($event)"
+              />
               <app-button type="button" variant="secondary" (click)="openNewProduct()">
                 <i class="pi pi-box" aria-hidden="true"></i>
                 Nuovo prodotto
               </app-button>
               <app-button type="button" variant="ghost" (click)="addLine()">
                 <i class="pi pi-plus" aria-hidden="true"></i>
-                Aggiungi riga
+                Manuale
               </app-button>
             </div>
           </div>
+
+          @if (barcodeScanMode()) {
+            <div class="gr-form__scan-bar" role="region" aria-label="Lettura codici a barre">
+              <label class="gr-form__scan-label" for="gr-barcode-scan"
+                >Lettura codici a barre</label
+              >
+              <input
+                #barcodeScanInput
+                id="gr-barcode-scan"
+                class="gr-form__input gr-form__scan-input"
+                type="text"
+                [value]="barcodeScanDraft()"
+                [disabled]="formReadOnly() || barcodeScanBusy()"
+                autocomplete="off"
+                placeholder="Scansiona o digita codice…"
+                aria-describedby="gr-barcode-scan-hint"
+                (input)="onBarcodeScanInput($any($event.target).value)"
+                (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
+              />
+              <p id="gr-barcode-scan-hint" class="gr-form__scan-hint">
+                Per indicare la quantità prima della scansione digita ad esempio
+                <kbd>148*</kbd> seguito dal codice a barre.
+              </p>
+            </div>
+          }
+
+          @if (csvImportSummary(); as summary) {
+            <p class="gr-form__import-summary" role="status">{{ summary }}</p>
+          }
 
           <div class="gr-form__table-wrap">
             <table class="gr-form__table">
@@ -327,6 +378,9 @@
                 }
                 @if (isLineColumnVisible('barcode')) {
                   <col [style.width]="lineColumnWidth('barcode')" />
+                }
+                @if (isLineColumnVisible('supplierCode')) {
+                  <col [style.width]="lineColumnWidth('supplierCode')" />
                 }
                 @if (isLineColumnVisible('product')) {
                   <col [style.width]="lineColumnWidth('product')" />
@@ -381,7 +435,22 @@
                 <tr>
                   @if (isLineColumnVisible('sku')) {
                     <th scope="col" [style.width]="lineColumnWidth('sku')">
-                      SKU
+                      <button
+                        type="button"
+                        class="gr-form__th-sort"
+                        [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
+                        (click)="toggleLineSort('sku')"
+                      >
+                        SKU
+                        @if (lineSortColumn() === 'sku') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
+                      </button>
                       <span
                         appTableColumnResize
                         [minWidthPx]="lineColumnMinWidth('sku')"
@@ -391,11 +460,51 @@
                   }
                   @if (isLineColumnVisible('barcode')) {
                     <th scope="col" [style.width]="lineColumnWidth('barcode')">
-                      EAN
+                      <button
+                        type="button"
+                        class="gr-form__th-sort"
+                        [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
+                        (click)="toggleLineSort('barcode')"
+                      >
+                        EAN
+                        @if (lineSortColumn() === 'barcode') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
+                      </button>
                       <span
                         appTableColumnResize
                         [minWidthPx]="lineColumnMinWidth('barcode')"
                         (resized)="onLineColumnResize('barcode', $event)"
+                      ></span>
+                    </th>
+                  }
+                  @if (isLineColumnVisible('supplierCode')) {
+                    <th scope="col" [style.width]="lineColumnWidth('supplierCode')">
+                      <button
+                        type="button"
+                        class="gr-form__th-sort"
+                        [attr.aria-label]="lineSortAriaLabel('supplierCode', 'Codice fornitore')"
+                        (click)="toggleLineSort('supplierCode')"
+                      >
+                        Cod. fornitore
+                        @if (lineSortColumn() === 'supplierCode') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
+                      </button>
+                      <span
+                        appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('supplierCode')"
+                        (resized)="onLineColumnResize('supplierCode', $event)"
                       ></span>
                     </th>
                   }
@@ -405,7 +514,22 @@
                       class="gr-form__th--product"
                       [style.width]="lineColumnWidth('product')"
                     >
-                      Nome prodotto
+                      <button
+                        type="button"
+                        class="gr-form__th-sort"
+                        [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
+                        (click)="toggleLineSort('product')"
+                      >
+                        Nome prodotto
+                        @if (lineSortColumn() === 'product') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
+                      </button>
                       <span
                         appTableColumnResize
                         [minWidthPx]="lineColumnMinWidth('product')"
@@ -455,7 +579,22 @@
                       class="gr-form__num"
                       [style.width]="lineColumnWidth('quantity')"
                     >
-                      Q.tà
+                      <button
+                        type="button"
+                        class="gr-form__th-sort gr-form__th-sort--num"
+                        [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
+                        (click)="toggleLineSort('quantity')"
+                      >
+                        Q.tà
+                        @if (lineSortColumn() === 'quantity') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
+                      </button>
                       <span
                         appTableColumnResize
                         [minWidthPx]="lineColumnMinWidth('quantity')"
@@ -469,7 +608,22 @@
                       class="gr-form__num"
                       [style.width]="lineColumnWidth('unitCost')"
                     >
-                      Costo
+                      <button
+                        type="button"
+                        class="gr-form__th-sort gr-form__th-sort--num"
+                        [attr.aria-label]="lineSortAriaLabel('unitCost', 'Costo')"
+                        (click)="toggleLineSort('unitCost')"
+                      >
+                        Costo
+                        @if (lineSortColumn() === 'unitCost') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
+                      </button>
                       <span
                         appTableColumnResize
                         [minWidthPx]="lineColumnMinWidth('unitCost')"
@@ -507,7 +661,22 @@
                   }
                   @if (isLineColumnVisible('vat')) {
                     <th scope="col" class="gr-form__num" [style.width]="lineColumnWidth('vat')">
-                      IVA
+                      <button
+                        type="button"
+                        class="gr-form__th-sort gr-form__th-sort--num"
+                        [attr.aria-label]="lineSortAriaLabel('vat', 'IVA')"
+                        (click)="toggleLineSort('vat')"
+                      >
+                        IVA
+                        @if (lineSortColumn() === 'vat') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
+                      </button>
                       <span
                         appTableColumnResize
                         [minWidthPx]="lineColumnMinWidth('vat')"
@@ -577,6 +746,7 @@
                           (blurred)="onLineCodeBlur(i)"
                           (commit)="commitSkuLookup(i)"
                           (lineRowAdvance)="advanceToNextLine(i)"
+                          (lineRowRetreat)="advanceToPreviousLine(i)"
                           (suggestionPick)="
                             onCodeSuggestionPick($event.lineIndex, $event.variantId)
                           "
@@ -600,10 +770,33 @@
                           (blurred)="onLineCodeBlur(i)"
                           (commit)="commitBarcodeLookup(i)"
                           (lineRowAdvance)="advanceToNextLine(i)"
+                          (lineRowRetreat)="advanceToPreviousLine(i)"
                           (suggestionPick)="
                             onCodeSuggestionPick($event.lineIndex, $event.variantId)
                           "
                         />
+                      </td>
+                    }
+                    @if (isLineColumnVisible('supplierCode')) {
+                      <td class="gr-form__cell gr-form__cell--code">
+                        @if (lineHasLinkedProduct(i)) {
+                          <span class="gr-form__readonly-cell">{{
+                            line.controls.supplierSku.value || '—'
+                          }}</span>
+                        } @else {
+                          <input
+                            [id]="'gr-supplier-code-' + i"
+                            class="gr-form__input gr-form__input--table"
+                            type="text"
+                            [value]="line.controls.supplierSku.value"
+                            [disabled]="formReadOnly()"
+                            aria-label="Codice fornitore"
+                            autocomplete="off"
+                            (input)="onLineSupplierSkuChange(i, $any($event.target).value)"
+                            (blur)="commitSupplierSkuLookup(i)"
+                            (keydown)="onLineFieldKeydown(i, 'supplierCode', $event)"
+                          />
+                        }
                       </td>
                     }
                     @if (isLineColumnVisible('product')) {
@@ -631,6 +824,7 @@
                           (suggestionNavigate)="onProductSuggestionNavigate($event)"
                           (lineAdvance)="advanceFromProductField(i)"
                           (lineRowAdvance)="advanceToNextLine(i)"
+                          (lineRowRetreat)="advanceToPreviousLine(i)"
                         />
                       </td>
                     }
@@ -746,10 +940,13 @@
                     @if (isLineColumnVisible('lot')) {
                       <td class="gr-form__cell">
                         <input
+                          [id]="'gr-lot-' + i"
                           class="gr-form__input gr-form__input--table"
                           type="text"
                           formControlName="lotCode"
                           autocomplete="off"
+                          (blur)="onLineOperationalBlur(i)"
+                          (keydown)="onLineFieldKeydown(i, 'lot', $event)"
                         />
                       </td>
                     }
@@ -760,17 +957,22 @@
                           formControlName="lotExpiryDate"
                           ariaLabel="Scadenza lotto"
                           [compact]="true"
+                          (triggerBlur)="onLineOperationalBlur(i)"
+                          (triggerKeydown)="onLineFieldKeydown(i, 'expiry', $event)"
                         />
                       </td>
                     }
                     @if (isLineColumnVisible('serials')) {
                       <td class="gr-form__cell">
                         <input
+                          [id]="'gr-serial-' + i"
                           class="gr-form__input gr-form__input--table"
                           type="text"
                           formControlName="serialNumbersText"
                           placeholder="SN001, SN002"
                           autocomplete="off"
+                          (blur)="onLineOperationalBlur(i)"
+                          (keydown)="onLineFieldKeydown(i, 'serials', $event)"
                         />
                       </td>
                     }
@@ -793,15 +995,35 @@
                     }
                     @if (isLineColumnVisible('actions')) {
                       <td class="gr-form__cell gr-form__cell--actions">
-                        <button
-                          type="button"
-                          class="gr-form__line-remove"
-                          [disabled]="lines.length <= 1"
-                          aria-label="Rimuovi riga"
-                          (click)="removeLine(i)"
-                        >
-                          <i class="pi pi-trash" aria-hidden="true"></i>
-                        </button>
+                        <div class="gr-form__line-actions">
+                          <button
+                            type="button"
+                            class="gr-form__line-move"
+                            [disabled]="formReadOnly() || i === 0"
+                            aria-label="Sposta riga su"
+                            (click)="moveLineUp(i)"
+                          >
+                            <i class="pi pi-chevron-up" aria-hidden="true"></i>
+                          </button>
+                          <button
+                            type="button"
+                            class="gr-form__line-move"
+                            [disabled]="formReadOnly() || i >= lines.length - 1"
+                            aria-label="Sposta riga giù"
+                            (click)="moveLineDown(i)"
+                          >
+                            <i class="pi pi-chevron-down" aria-hidden="true"></i>
+                          </button>
+                          <button
+                            type="button"
+                            class="gr-form__line-remove"
+                            [disabled]="lines.length <= 1"
+                            aria-label="Rimuovi riga"
+                            (click)="removeLine(i)"
+                          >
+                            <i class="pi pi-trash" aria-hidden="true"></i>
+                          </button>
+                        </div>
                       </td>
                     }
                   </tr>
@@ -849,6 +1071,30 @@
         <app-button type="button" variant="secondary" [disabled]="saving()" (click)="printLabels()">
           Stampa etichette
         </app-button>
+        @if (canConfirmDraft()) {
+          <app-button
+            type="button"
+            [loading]="saving()"
+            [disabled]="saving()"
+            (click)="requestConfirmGoodsReceipt()"
+          >
+            Conferma e carica magazzino
+          </app-button>
+        }
+        @if (canExportPdf()) {
+          <app-button type="button" variant="secondary" (click)="openPrintPreview()">
+            Anteprima stampa
+          </app-button>
+          <app-button
+            type="button"
+            variant="secondary"
+            [loading]="downloadingPdf()"
+            [disabled]="downloadingPdf()"
+            (click)="downloadDocumentPdf()"
+          >
+            Scarica PDF
+          </app-button>
+        }
         @if (editDocumentId()) {
           <app-button
             type="button"
@@ -934,6 +1180,113 @@
     </div>
   </div>
 }
+
+<app-confirm-dialog
+  [(open)]="confirmStockDialogOpen"
+  title="Confermare l'arrivo merce?"
+  message="Confermando verrà assegnato il numero progressivo e le righe con Mag. attivo aggiorneranno le giacenze. Procedere?"
+  confirmLabel="Conferma e carica"
+  [busy]="saving()"
+  (confirmed)="confirmStockLoad()"
+/>
+
+<app-confirm-dialog
+  [(open)]="supplierPriceDialogOpen"
+  title="Aggiornare i prezzi fornitore?"
+  message="Alcuni costi inseriti differiscono dai prezzi di acquisto attuali. Vuoi aggiornare l'anagrafica articoli?"
+  confirmLabel="Aggiorna prezzi"
+  cancelLabel="Non aggiornare"
+  (confirmed)="applySupplierPriceAndConfirm()"
+  (dismissed)="skipSupplierPriceAndConfirm()"
+/>
+
+@if (partialReceiptDialogOpen()) {
+  <div
+    class="gr-form__exit-backdrop"
+    aria-hidden="true"
+    (click)="cancelPartialReceiptDialog()"
+  ></div>
+  <div
+    class="gr-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="gr-partial-receipt-title"
+  >
+    <h2 id="gr-partial-receipt-title" class="gr-form__exit-title">Ricezione ordine fornitore</h2>
+    <p class="gr-form__exit-message">
+      Stai ricevendo quantità diverse da quelle residue sull'ordine collegato. Come vuoi procedere?
+    </p>
+    <div class="gr-form__exit-actions">
+      <app-button
+        type="button"
+        variant="ghost"
+        [disabled]="saving()"
+        (click)="cancelPartialReceiptDialog()"
+      >
+        Annulla
+      </app-button>
+      <app-button
+        type="button"
+        variant="secondary"
+        [disabled]="saving()"
+        (click)="confirmPartialReceiptContinue()"
+      >
+        Ricezione parziale
+      </app-button>
+      <app-button type="button" [disabled]="saving()" (click)="confirmCloseSupplierOrderContinue()">
+        Chiudi ordine
+      </app-button>
+    </div>
+  </div>
+}
+
+<app-slide-panel
+  [open]="includeOrderPanelOpen()"
+  title="Includi ordine fornitore"
+  (closed)="closeIncludeOrderPanel()"
+>
+  @if (includeOrderPanelOpen()) {
+    <div class="gr-form__include-order">
+      <p class="gr-form__include-order-hint">
+        Seleziona un ordine inviato o parzialmente ricevuto del fornitore corrente. Le righe residue
+        verranno aggiunte al documento.
+      </p>
+      @if (receivableOrdersLoading()) {
+        <app-table-skeleton [columns]="1" [rows]="4" />
+      } @else if (receivableOrdersError(); as error) {
+        <app-error-state
+          [description]="error.message"
+          retryLabel="Riprova"
+          (retry)="openIncludeOrderPanel()"
+        />
+      } @else if (receivableOrders().length === 0) {
+        <app-empty-state
+          icon="pi-inbox"
+          title="Nessun ordine da ricevere"
+          description="Non ci sono ordini inviati con quantità residue per questo fornitore."
+        />
+      } @else {
+        <ul class="gr-form__include-order-list">
+          @for (order of receivableOrders(); track order.id) {
+            <li class="gr-form__include-order-item">
+              <div class="gr-form__include-order-meta">
+                <strong class="tabular-nums">{{ order.reference }}</strong>
+                <span>{{ order.lineCount ?? order.lines.length }} righe ordine</span>
+              </div>
+              <app-button
+                type="button"
+                variant="secondary"
+                (click)="includeSupplierOrder(order.id)"
+              >
+                Includi
+              </app-button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+</app-slide-panel>
 
 <app-slide-panel
   [open]="productSearchPanelOpen()"

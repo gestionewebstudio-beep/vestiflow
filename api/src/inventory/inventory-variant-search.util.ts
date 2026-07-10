@@ -9,6 +9,11 @@ export function buildInventoryVariantSearchWhere(
       { sku: { contains: search, mode: 'insensitive' } },
       { barcode: { contains: search, mode: 'insensitive' } },
       { product: { name: { contains: search, mode: 'insensitive' } } },
+      {
+        supplierLinks: {
+          some: { supplierSku: { contains: search, mode: 'insensitive' } },
+        },
+      },
     ],
   };
 }

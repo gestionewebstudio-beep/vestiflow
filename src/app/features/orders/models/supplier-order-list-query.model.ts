@@ -12,6 +12,7 @@ export interface SupplierOrderListQuery {
   /** Ricerca libera su riferimento e nome fornitore. */
   readonly search?: string;
   readonly status?: SupplierOrderStatus;
+  readonly supplierId?: string;
 }
 
 const STATUS_VALUES = new Set<string>(Object.values(SupplierOrderStatus));

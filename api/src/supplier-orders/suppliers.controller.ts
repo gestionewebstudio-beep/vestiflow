@@ -66,6 +66,12 @@ export class SuppliersController {
     return this.suppliers.list(tenantId, query);
   }
 
+  @Get('preview-code')
+  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
+  previewCode(@CurrentTenant() tenantId: string): Promise<{ readonly code: string }> {
+    return this.suppliers.previewNextCode(tenantId);
+  }
+
   @Get(':id')
   @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
   getById(

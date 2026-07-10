@@ -151,6 +151,8 @@
   padding: var(--space-4);
   background-color: var(--color-surface-sunken);
   border-radius: var(--radius-md);
+  max-block-size: min(70vh, var(--content-wide));
+  overflow-y: auto;
 }
 
 .po-form__supplier-actions {

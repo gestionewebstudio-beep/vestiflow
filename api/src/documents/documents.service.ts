@@ -70,6 +70,7 @@ import {
   applySupplierOrderReceipt,
   assertSupplierOrderReceiptQuantities,
   enrichReceiptLinesWithSupplierOrderLineIds,
+  forceCloseSupplierOrder,
   reconcileSupplierOrderReceipt,
   reverseSupplierOrderReceipt,
 } from './document-supplier-order.util';
@@ -570,6 +571,40 @@ export class DocumentsService {
     }
     if (dto.externalDocDate !== undefined) {
       data.externalDocDate = dto.externalDocDate ? new Date(dto.externalDocDate) : null;
+    }
+
+    if (dto.supplierOrderId !== undefined) {
+      if (!isDraft) {
+        throw new ConflictException(
+          'Impossibile collegare un ordine fornitore a un documento già confermato.',
+        );
+      }
+      if (dto.supplierOrderId === null) {
+        throw new UnprocessableEntityException(
+          'La rimozione del collegamento ordine fornitore non è supportata.',
+        );
+      }
+      if (doc.supplierOrderId && doc.supplierOrderId !== dto.supplierOrderId) {
+        throw new ConflictException(
+          'Questo documento è già collegato a un altro ordine fornitore.',
+        );
+      }
+      await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId);
+      const order = await this.prisma.supplierOrder.findFirst({
+        where: { id: dto.supplierOrderId, tenantId },
+        select: { supplierId: true },
+      });
+      if (!order) {
+        throw new NotFoundException('Ordine fornitore non trovato');
+      }
+      const effectiveSupplierId =
+        dto.supplierId !== undefined ? dto.supplierId : doc.supplierId;
+      if (effectiveSupplierId && order.supplierId !== effectiveSupplierId) {
+        throw new UnprocessableEntityException(
+          'L\'ordine fornitore selezionato appartiene a un altro fornitore.',
+        );
+      }
+      data.supplierOrderId = dto.supplierOrderId;
     }
 
     if (lines) {
@@ -1073,7 +1108,10 @@ export class DocumentsService {
     tenantId: string,
     id: string,
     user?: UserProfileDto,
-    options?: { readonly applySupplierPriceUpdates?: boolean },
+    options?: {
+      readonly applySupplierPriceUpdates?: boolean;
+      readonly closeLinkedSupplierOrder?: boolean;
+    },
   ): Promise<DocumentWithLines> {
     const actorName = user?.displayName ?? 'API';
     const actorId = user?.id ?? null;
@@ -1207,6 +1245,9 @@ export class DocumentsService {
             doc.locationId!,
             tenantId,
           );
+          if (options?.closeLinkedSupplierOrder) {
+            await forceCloseSupplierOrder(tx, doc.supplierOrderId);
+          }
         }
       }
 

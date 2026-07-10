@@ -1,0 +1,179 @@
+<div class="supplier-fields" [formGroup]="formGroup()">
+  <div class="supplier-fields__grid">
+    @if (showCodeField()) {
+      <div class="supplier-fields__field">
+        <label class="supplier-fields__label" [for]="idPrefix() + '-code'">Codice</label>
+        <input
+          [id]="idPrefix() + '-code'"
+          class="supplier-fields__control"
+          type="text"
+          formControlName="code"
+          autocomplete="off"
+        />
+      </div>
+    }
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-name'">Ragione sociale</label>
+      <input
+        [id]="idPrefix() + '-name'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="name"
+        [attr.aria-invalid]="formGroup().controls.name.invalid && formGroup().controls.name.touched"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-vat'">P. IVA</label>
+      <input
+        [id]="idPrefix() + '-vat'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="vatNumber"
+        autocomplete="off"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-tax'">Codice fiscale</label>
+      <input
+        [id]="idPrefix() + '-tax'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="taxCode"
+        autocomplete="off"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-email'">Email</label>
+      <input
+        [id]="idPrefix() + '-email'"
+        class="supplier-fields__control"
+        type="email"
+        formControlName="email"
+        autocomplete="email"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-pec'">PEC</label>
+      <input
+        [id]="idPrefix() + '-pec'"
+        class="supplier-fields__control"
+        type="email"
+        formControlName="pec"
+        autocomplete="off"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-phone'">Telefono</label>
+      <input
+        [id]="idPrefix() + '-phone'"
+        class="supplier-fields__control"
+        type="tel"
+        formControlName="phone"
+        autocomplete="tel"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-contact'">Referente</label>
+      <input
+        [id]="idPrefix() + '-contact'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="contactName"
+        autocomplete="off"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-website'">Sito web</label>
+      <input
+        [id]="idPrefix() + '-website'"
+        class="supplier-fields__control"
+        type="url"
+        formControlName="website"
+        autocomplete="url"
+      />
+    </div>
+    <div class="supplier-fields__field supplier-fields__field--full">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-address1'">Indirizzo</label>
+      <input
+        [id]="idPrefix() + '-address1'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="addressLine1"
+        autocomplete="street-address"
+      />
+    </div>
+    <div class="supplier-fields__field supplier-fields__field--full">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-address2'"
+        >Indirizzo (riga 2)</label
+      >
+      <input
+        [id]="idPrefix() + '-address2'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="addressLine2"
+        autocomplete="off"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-city'">Città</label>
+      <input
+        [id]="idPrefix() + '-city'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="city"
+        autocomplete="address-level2"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-cap'">CAP</label>
+      <input
+        [id]="idPrefix() + '-cap'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="postalCode"
+        autocomplete="postal-code"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-province'">Provincia</label>
+      <input
+        [id]="idPrefix() + '-province'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="province"
+        autocomplete="address-level1"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-country'">Paese</label>
+      <input
+        [id]="idPrefix() + '-country'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="countryCode"
+        autocomplete="country"
+      />
+    </div>
+    <div class="supplier-fields__field supplier-fields__field--full">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-payment'"
+        >Condizioni di pagamento</label
+      >
+      <input
+        [id]="idPrefix() + '-payment'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="paymentTerms"
+        autocomplete="off"
+      />
+    </div>
+    <div class="supplier-fields__field supplier-fields__field--full">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-notes'">Note</label>
+      <textarea
+        [id]="idPrefix() + '-notes'"
+        class="supplier-fields__control supplier-fields__textarea"
+        rows="3"
+        formControlName="notes"
+      ></textarea>
+    </div>
+  </div>
+</div>

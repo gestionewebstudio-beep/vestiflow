@@ -81,6 +81,10 @@ export class UpdateDocumentDto {
   externalRef?: string | null;
 
   @IsOptional()
+  @IsUUID()
+  supplierOrderId?: string | null;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(500)
   @ValidateNested({ each: true })

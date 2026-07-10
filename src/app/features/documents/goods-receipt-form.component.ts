@@ -2,11 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   HostListener,
   computed,
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -25,6 +27,7 @@ import {
   switchMap,
   throwError,
   defaultIfEmpty,
+  toArray,
   type Observable,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
@@ -54,6 +57,14 @@ import { normalizeSku } from '@features/products/models/product-form.validators'
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { SupplierFormFieldsComponent } from '@features/suppliers/components/supplier-form-fields/supplier-form-fields.component';
+import {
+  createSupplierFormGroup,
+  mapSupplierFormToInput,
+  resetSupplierFormGroup,
+} from '@features/suppliers/utils/supplier-form.util';
+import { SupplierOrderService } from '@features/orders/services/supplier-order.service';
+import { SupplierOrderStatus, type SupplierOrder } from '@core/models/supplier-order.model';
 import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -76,6 +87,7 @@ import type { TenantFeatureSettings } from '@features/settings/models/tenant-fea
 import { ProductFormComponent } from '@features/products/product-form.component';
 
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
+import type { VariantByCodeDto } from '@features/products/models/product.dto';
 import { GoodsReceiptLineCodeCellComponent } from './components/goods-receipt-line-code-cell/goods-receipt-line-code-cell.component';
 import { GoodsReceiptLineProductCellComponent } from './components/goods-receipt-line-product-cell/goods-receipt-line-product-cell.component';
 import { GoodsReceiptProductSearchPanelComponent } from './components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
@@ -95,6 +107,17 @@ import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util
 import { DocumentService } from './services/document.service';
 import type { CreateDocumentBody, UpdateDocumentBody } from './services/document-api.mapper';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
+import {
+  GoodsReceiptCsvParseError,
+  parseGoodsReceiptLinesCsv,
+  type GoodsReceiptCsvLine,
+} from './utils/goods-receipt-lines-csv.util';
+import { parseBarcodeScanInput } from './utils/parse-barcode-scan-input.util';
+import {
+  GOODS_RECEIPT_SORTABLE_LINE_COLUMNS,
+  compareGoodsReceiptLines,
+  type GoodsReceiptLineSortColumn,
+} from './utils/goods-receipt-line-sort.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -108,12 +131,16 @@ const AUTO_SAVE_DEBOUNCE_MS = 800;
 type GoodsReceiptLineFocusField =
   | 'sku'
   | 'barcode'
+  | 'supplierCode'
   | 'product'
   | 'quantity'
   | 'unitCost'
   | 'sellingPrice'
   | 'compareAtPrice'
-  | 'vat';
+  | 'vat'
+  | 'lot'
+  | 'expiry'
+  | 'serials';
 
 type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
 
@@ -144,6 +171,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
     GoodsReceiptProductSearchPanelComponent,
     SlidePanelComponent,
     ProductFormComponent,
+    SupplierFormFieldsComponent,
   ],
   templateUrl: './goods-receipt-form.component.html',
   styleUrl: './goods-receipt-form.component.scss',
@@ -152,6 +180,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
   private readonly supplierService = inject(SupplierService);
+  private readonly supplierOrderService = inject(SupplierOrderService);
   private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
@@ -238,6 +267,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly attachTargetLineIndex = signal<number | null>(null);
   protected readonly registerDialogOpen = signal(false);
   protected readonly lifecycleActionSaving = signal(false);
+  protected readonly downloadingPdf = signal(false);
+  private readonly supplierSkuByVariantId = signal<Map<string, string>>(new Map());
+  private readonly variantIdBySupplierSku = signal<Map<string, string>>(new Map());
   protected readonly productSearchPanelOpen = signal(false);
   protected readonly productSearchLineIndex = signal<number | null>(null);
   protected readonly productSearchLaunchTerm = signal('');
@@ -251,8 +283,28 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly attachWithoutAddDialogOpen = signal(false);
   protected readonly pendingAttachVariantId = signal<string | null>(null);
   protected readonly exitDialogOpen = signal(false);
+  protected readonly includeOrderPanelOpen = signal(false);
+  protected readonly receivableOrders = signal<readonly SupplierOrder[]>([]);
+  protected readonly receivableOrdersLoading = signal(false);
+  protected readonly receivableOrdersError = signal<AppError | null>(null);
+  protected readonly csvImportSummary = signal<string | null>(null);
+  protected readonly barcodeScanMode = signal(false);
+  protected readonly barcodeScanDraft = signal('');
+  protected readonly barcodeScanBusy = signal(false);
+  protected readonly lineSortColumn = signal<GoodsReceiptLineSortColumn | null>(null);
+  protected readonly lineSortDirection = signal<'asc' | 'desc'>('asc');
+  protected readonly confirmStockDialogOpen = signal(false);
+  protected readonly partialReceiptDialogOpen = signal(false);
+  protected readonly supplierPriceDialogOpen = signal(false);
+  private readonly pendingSupplierOrderId = signal<string | null>(null);
+  private readonly pendingLinkedSupplierOrderRef = signal<string | null>(null);
+  private pendingCloseLinkedSupplierOrder = false;
+  private pendingConfirmAfterPriceAsk: ((applyPrices: boolean) => void) | null = null;
 
   private pendingDeactivate: ((allow: boolean) => void) | null = null;
+
+  private readonly barcodeScanInputRef =
+    viewChild<ElementRef<HTMLInputElement>>('barcodeScanInput');
 
   private readonly tenantSettings = toSignal(
     this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
@@ -321,6 +373,28 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly linkedSupplierOrder = computed(
     () => this.loadedDocument()?.linkedSupplierOrder ?? null,
   );
+
+  protected readonly activeSupplierOrderReference = computed(() => {
+    const linked = this.linkedSupplierOrder();
+    if (linked) {
+      return linked.reference;
+    }
+    return this.pendingLinkedSupplierOrderRef();
+  });
+
+  protected readonly canIncludeSupplierOrder = computed(
+    () =>
+      !this.formReadOnly() &&
+      !this.isConfirmedEdit() &&
+      !this.resolveSupplierOrderId() &&
+      Boolean(this.form.controls.supplierId.value),
+  );
+
+  protected readonly canConfirmDraft = computed(
+    () => !this.formReadOnly() && this.documentStatus() === DocumentStatus.Draft,
+  );
+
+  protected readonly canExportPdf = computed(() => Boolean(this.persistedDocumentId()));
 
   private readonly loadTick = signal(0);
   private readonly loadRequest = computed(() => ({
@@ -444,6 +518,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .subscribe(() => this.refreshNumberPreview());
     this.refreshNumberPreview();
     this.setupAutoSave();
+    this.form.controls.supplierId.valueChanges
+      .pipe(startWith(this.form.controls.supplierId.value), takeUntilDestroyed(this.destroyRef))
+      .subscribe((supplierId) => this.reloadSupplierVariantLinks(supplierId));
     effect(() => {
       this.pinnedVariants();
       this.syncLineCodesFromVariants();
@@ -746,6 +823,67 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     });
   }
 
+  protected advanceToPreviousLine(index: number): void {
+    if (index <= 0) {
+      return;
+    }
+    this.commitLineAndSave(index, () => {
+      this.focusLastLineField(index - 1);
+    });
+  }
+
+  protected moveLineUp(index: number): void {
+    if (index <= 0 || this.formReadOnly()) {
+      return;
+    }
+    const focusField = this.activeLineFocusField(index);
+    this.swapLines(index, index - 1);
+    this.triggerAutoSave();
+    if (focusField) {
+      this.focusLineField(index - 1, focusField);
+    }
+  }
+
+  protected moveLineDown(index: number): void {
+    if (index >= this.lines.length - 1 || this.formReadOnly()) {
+      return;
+    }
+    const focusField = this.activeLineFocusField(index);
+    this.swapLines(index, index + 1);
+    this.triggerAutoSave();
+    if (focusField) {
+      this.focusLineField(index + 1, focusField);
+    }
+  }
+
+  private activeLineFocusField(_index: number): GoodsReceiptLineFocusField | null {
+    const active = globalThis.document.activeElement;
+    if (!(active instanceof HTMLElement)) {
+      return null;
+    }
+    const id = active.id;
+    const prefixMap: readonly [string, GoodsReceiptLineFocusField][] = [
+      ['gr-sku-', 'sku'],
+      ['gr-barcode-', 'barcode'],
+      ['gr-supplier-code-', 'supplierCode'],
+      ['gr-product-', 'product'],
+      ['gr-qty-', 'quantity'],
+      ['gr-cost-', 'unitCost'],
+      ['gr-selling-', 'sellingPrice'],
+      ['gr-compare-', 'compareAtPrice'],
+      ['gr-vat-', 'vat'],
+      ['gr-lot-', 'lot'],
+      ['gr-lot-date-', 'expiry'],
+      ['gr-serial-', 'serials'],
+    ];
+    for (const [prefix, field] of prefixMap) {
+      if (id.startsWith(prefix)) {
+        return field;
+      }
+    }
+    return null;
+  }
+
   protected lineRowActive(index: number): boolean {
     return (
       this.lineSuggestionsOpen(index) ||
@@ -767,9 +905,37 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     field: GoodsReceiptLineFocusField,
     event: KeyboardEvent,
   ): void {
-    if (event.key === 'ArrowDown' && !event.shiftKey) {
+    if (event.ctrlKey && event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.moveLineUp(index);
+      return;
+    }
+    if (event.ctrlKey && event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.moveLineDown(index);
+      return;
+    }
+    if (event.key === 'ArrowDown' && !event.shiftKey && !event.ctrlKey) {
       event.preventDefault();
       this.advanceToNextLine(index);
+      return;
+    }
+    if (event.key === 'ArrowUp' && !event.shiftKey && !event.ctrlKey) {
+      event.preventDefault();
+      this.advanceToPreviousLine(index);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (field === 'supplierCode') {
+        this.commitSupplierSkuLookup(index);
+        return;
+      }
+      if (field === 'quantity' && this.lineHasLinkedProduct(index)) {
+        this.advanceToNextLine(index);
+        return;
+      }
+      this.focusNextLineField(index, field);
       return;
     }
     if (event.key !== 'Tab' || event.shiftKey) {
@@ -784,27 +950,74 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.advanceToNextLine(index);
   }
 
+  protected onLineSupplierSkuChange(index: number, value: string): void {
+    this.lines.at(index).controls.supplierSku.setValue(value);
+    this.triggerAutoSave();
+  }
+
+  protected commitSupplierSkuLookup(index: number): void {
+    const line = this.lines.at(index);
+    if (!line || line.controls.variantId.value) {
+      this.focusNextLineField(index, 'supplierCode');
+      return;
+    }
+    const code = line.controls.supplierSku.value.trim();
+    if (!code) {
+      this.focusNextLineField(index, 'supplierCode');
+      return;
+    }
+    const variantId = this.variantIdBySupplierSku().get(normalizeSku(code));
+    if (!variantId) {
+      this.focusNextLineField(index, 'supplierCode');
+      return;
+    }
+    this.onVariantSelect(index, variantId);
+    this.refreshLineVariantSummary(index, variantId);
+    this.focusLineField(index, 'quantity');
+  }
+
   private visibleLineFocusFields(index: number): readonly GoodsReceiptLineFocusField[] {
     const all: GoodsReceiptLineFocusField[] = [
       'sku',
       'barcode',
+      'supplierCode',
       'product',
       'quantity',
       'unitCost',
       'sellingPrice',
       'compareAtPrice',
       'vat',
+      'lot',
+      'expiry',
+      'serials',
     ];
     const linked = this.lineHasLinkedProduct(index);
     return all.filter((field) => {
       if (linked) {
-        return field === 'quantity';
+        if (field === 'quantity' || field === 'unitCost' || field === 'vat') {
+          return this.isLineColumnVisible(
+            field === 'quantity' ? 'quantity' : field === 'unitCost' ? 'unitCost' : 'vat',
+          );
+        }
+        if (field === 'lot' && this.isLineColumnVisible('lot')) {
+          return true;
+        }
+        if (field === 'expiry' && this.isLineColumnVisible('expiry')) {
+          return true;
+        }
+        if (field === 'serials' && this.isLineColumnVisible('serials')) {
+          return true;
+        }
+        return false;
       }
       if (field === 'sku') {
         return this.isLineColumnVisible('sku');
       }
       if (field === 'barcode') {
         return this.isLineColumnVisible('barcode');
+      }
+      if (field === 'supplierCode') {
+        return this.isLineColumnVisible('supplierCode');
       }
       if (field === 'product') {
         return this.isLineColumnVisible('product');
@@ -824,6 +1037,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       if (field === 'vat') {
         return this.isLineColumnVisible('vat');
       }
+      if (field === 'lot') {
+        return this.isLineColumnVisible('lot');
+      }
+      if (field === 'expiry') {
+        return this.isLineColumnVisible('expiry');
+      }
+      if (field === 'serials') {
+        return this.isLineColumnVisible('serials');
+      }
       return false;
     });
   }
@@ -832,12 +1054,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const idMap: Record<GoodsReceiptLineFocusField, string> = {
       sku: `gr-sku-${index}`,
       barcode: `gr-barcode-${index}`,
+      supplierCode: `gr-supplier-code-${index}`,
       product: `gr-product-${index}`,
       quantity: `gr-qty-${index}`,
       unitCost: `gr-cost-${index}`,
       sellingPrice: `gr-selling-${index}`,
       compareAtPrice: `gr-compare-${index}`,
       vat: `gr-vat-${index}`,
+      lot: `gr-lot-${index}`,
+      expiry: `gr-lot-date-${index}`,
+      serials: `gr-serial-${index}`,
     };
     globalThis.document.getElementById(idMap[field])?.focus();
   }
@@ -847,6 +1073,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const first = order[0];
     if (first) {
       this.focusLineField(index, first);
+    }
+  }
+
+  private focusLastLineField(index: number): void {
+    const order = this.visibleLineFocusFields(index);
+    const last = order[order.length - 1];
+    if (last) {
+      this.focusLineField(index, last);
     }
   }
 
@@ -887,6 +1121,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       if (!line.controls.productName.value.trim()) {
         line.controls.productName.setValue(summary.productName, { emitEvent: false });
       }
+      const supplierSku =
+        summary.supplierSku?.trim() || this.supplierSkuByVariantId().get(variantId) || '';
+      if (supplierSku) {
+        line.controls.supplierSku.setValue(supplierSku, { emitEvent: false });
+      }
     }
   }
 
@@ -918,6 +1157,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       const lockedWhenLinked = [
         line.controls.sku,
         line.controls.barcode,
+        line.controls.supplierSku,
         line.controls.productName,
         line.controls.unitCost,
         line.controls.vatRatePercent,
@@ -1071,11 +1311,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   });
 
   protected readonly showSupplierForm = signal(false);
-  readonly supplierForm = this.fb.group({
-    name: this.fb.control('', { validators: [Validators.required] }),
-    email: this.fb.control('', { validators: [Validators.email] }),
-    phone: this.fb.control(''),
-  });
+  readonly supplierForm = createSupplierFormGroup(this.fb);
   private readonly _savingSupplier = signal(false);
   protected readonly savingSupplier = this._savingSupplier.asReadonly();
 
@@ -1119,6 +1355,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected onSupplierSelect(value: string | null): void {
     this.form.controls.supplierId.setValue(value ?? '');
     this.form.controls.supplierId.markAsTouched();
+    this.reloadSupplierVariantLinks(value ?? '');
   }
 
   protected onLocationSelect(value: string | null): void {
@@ -1147,6 +1384,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           line.controls.sellingPrice.setValue(
             moneyToDecimalString(summary.sellingPrice).replace('.', ','),
           );
+        }
+        const supplierSku =
+          summary.supplierSku?.trim() || this.supplierSkuByVariantId().get(value) || '';
+        if (supplierSku) {
+          line.controls.supplierSku.setValue(supplierSku, { emitEvent: false });
         }
       }
     }
@@ -1278,6 +1520,172 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     };
   }
 
+  protected openIncludeOrderPanel(): void {
+    const supplierId = this.form.controls.supplierId.value;
+    if (!supplierId) {
+      this._submitState.set({
+        status: 'error',
+        error: {
+          kind: AppErrorKind.Validation,
+          message: 'Seleziona un fornitore prima di includere un ordine.',
+        },
+      });
+      return;
+    }
+    if (this.resolveSupplierOrderId()) {
+      this._submitState.set({
+        status: 'error',
+        error: {
+          kind: AppErrorKind.Validation,
+          message: 'Questo documento è già collegato a un ordine fornitore.',
+        },
+      });
+      return;
+    }
+    this.includeOrderPanelOpen.set(true);
+    this.loadReceivableOrders(supplierId);
+  }
+
+  protected closeIncludeOrderPanel(): void {
+    this.includeOrderPanelOpen.set(false);
+  }
+
+  protected includeSupplierOrder(orderId: string): void {
+    if (this.saving() || this.formReadOnly()) {
+      return;
+    }
+    this.receivableOrdersLoading.set(true);
+    this.supplierOrderService
+      .getSupplierOrderById(orderId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (order) => {
+          this.receivableOrdersLoading.set(false);
+          this.mergeSupplierOrderLines(order);
+          this.includeOrderPanelOpen.set(false);
+        },
+        error: (err: unknown) => {
+          this.receivableOrdersLoading.set(false);
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  protected triggerCsvImport(input: HTMLInputElement): void {
+    if (this.formReadOnly() || this.saving()) {
+      return;
+    }
+    input.click();
+  }
+
+  protected onCsvFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || this.formReadOnly()) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const raw = reader.result;
+        const text = typeof raw === 'string' ? raw : '';
+        const parsed = parseGoodsReceiptLinesCsv(text);
+        this.flushAutoSaveBeforeAction(() => this.applyImportedCsvLines(parsed));
+      } catch (err: unknown) {
+        const message =
+          err instanceof GoodsReceiptCsvParseError
+            ? err.message
+            : 'Impossibile leggere il file CSV selezionato.';
+        this._submitState.set({
+          status: 'error',
+          error: { kind: AppErrorKind.Validation, message },
+        });
+      }
+    };
+    reader.onerror = () => {
+      this._submitState.set({
+        status: 'error',
+        error: {
+          kind: AppErrorKind.Unknown,
+          message: 'Impossibile leggere il file CSV selezionato.',
+        },
+      });
+    };
+    reader.readAsText(file);
+  }
+
+  protected requestConfirmGoodsReceipt(): void {
+    if (this.saving() || !this.canConfirmDraft()) {
+      return;
+    }
+    const validationError = this.validateForConfirm();
+    if (validationError) {
+      this._submitState.set({ status: 'error', error: validationError });
+      return;
+    }
+    this.flushAutoSaveBeforeAction(() => {
+      if (this.needsSupplierOrderCloseChoice()) {
+        this.partialReceiptDialogOpen.set(true);
+        return;
+      }
+      this.confirmStockDialogOpen.set(true);
+    });
+  }
+
+  protected confirmPartialReceiptContinue(): void {
+    this.partialReceiptDialogOpen.set(false);
+    this.pendingCloseLinkedSupplierOrder = false;
+    this.confirmStockDialogOpen.set(true);
+  }
+
+  protected confirmCloseSupplierOrderContinue(): void {
+    this.partialReceiptDialogOpen.set(false);
+    this.pendingCloseLinkedSupplierOrder = true;
+    this.confirmStockDialogOpen.set(true);
+  }
+
+  protected cancelPartialReceiptDialog(): void {
+    this.partialReceiptDialogOpen.set(false);
+    this.pendingCloseLinkedSupplierOrder = false;
+  }
+
+  protected confirmStockLoad(): void {
+    this.confirmStockDialogOpen.set(false);
+    this.maybeAskSupplierPrices((applyPrices) =>
+      this.executeConfirm({
+        closeLinkedSupplierOrder: this.pendingCloseLinkedSupplierOrder,
+        applySupplierPriceUpdates: applyPrices,
+      }),
+    );
+    this.pendingCloseLinkedSupplierOrder = false;
+  }
+
+  protected applySupplierPriceAndConfirm(): void {
+    this.supplierPriceDialogOpen.set(false);
+    this.pendingConfirmAfterPriceAsk?.(true);
+    this.pendingConfirmAfterPriceAsk = null;
+  }
+
+  protected skipSupplierPriceAndConfirm(): void {
+    this.supplierPriceDialogOpen.set(false);
+    this.pendingConfirmAfterPriceAsk?.(false);
+    this.pendingConfirmAfterPriceAsk = null;
+  }
+
+  private syncSupplierOrderLineMapFromDocument(doc: DocumentRecord): void {
+    if (!doc.linkedSupplierOrderLines?.length) {
+      return;
+    }
+    const poMap = new Map<string, LinkedSupplierOrderLineContext>();
+    for (const line of doc.linkedSupplierOrderLines) {
+      poMap.set(line.id, line);
+    }
+    this.supplierOrderLineMap.set(poMap);
+    this.pendingSupplierOrderId.set(null);
+    this.pendingLinkedSupplierOrderRef.set(null);
+  }
+
   protected requestUnlockEdit(): void {
     this.unlockDialogOpen.set(true);
   }
@@ -1305,6 +1713,210 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.lines.push(this.createLine());
       this.trimDuplicateTrailingEmptyRows();
       this.focusFirstLineField(this.lines.length - 1);
+    });
+  }
+
+  protected toggleBarcodeScanMode(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.barcodeScanMode.update((open) => !open);
+    if (this.barcodeScanMode()) {
+      this.scheduleBarcodeScanFocus();
+    }
+  }
+
+  protected onBarcodeScanInput(value: string): void {
+    this.barcodeScanDraft.set(value);
+  }
+
+  protected commitBarcodeScan(): void {
+    if (this.formReadOnly() || this.barcodeScanBusy()) {
+      return;
+    }
+    const raw = this.barcodeScanDraft().trim();
+    if (!raw) {
+      return;
+    }
+    const { quantity, code } = parseBarcodeScanInput(raw);
+    if (!code) {
+      return;
+    }
+    this.barcodeScanDraft.set('');
+    this.barcodeScanBusy.set(true);
+
+    const supplierId = this.form.controls.supplierId.value || undefined;
+    const locationId = this.form.controls.locationId.value || undefined;
+
+    this.productService
+      .findVariantByCode(code)
+      .pipe(
+        take(1),
+        catchError(() => of(null)),
+        switchMap((variant) => {
+          if (variant) {
+            return of(variant.variantId);
+          }
+          const supplierVariantId = this.variantIdBySupplierSku().get(normalizeSku(code));
+          if (supplierVariantId) {
+            return of(supplierVariantId);
+          }
+          return this.productService
+            .searchVariantSummaries({ search: code, pageSize: 5, supplierId, locationId })
+            .pipe(
+              map((rows) => {
+                const exactBarcode = rows.find((row) => row.barcode?.trim() === code);
+                if (exactBarcode) {
+                  return exactBarcode.variantId;
+                }
+                const exactSku = rows.find((row) => normalizeSku(row.sku) === normalizeSku(code));
+                return exactSku?.variantId ?? null;
+              }),
+              catchError(() => of(null)),
+            );
+        }),
+      )
+      .subscribe({
+        next: (variantId) => {
+          this.barcodeScanBusy.set(false);
+          if (variantId) {
+            this.applyScannedVariant(variantId, quantity);
+            return;
+          }
+          this.applyUnknownBarcodeScan(code, quantity);
+        },
+        error: () => {
+          this.barcodeScanBusy.set(false);
+          this.applyUnknownBarcodeScan(code, quantity);
+        },
+      });
+  }
+
+  protected isLineColumnSortable(columnId: string): boolean {
+    return (GOODS_RECEIPT_SORTABLE_LINE_COLUMNS as readonly string[]).includes(columnId);
+  }
+
+  protected toggleLineSort(columnId: GoodsReceiptLineSortColumn): void {
+    if (this.formReadOnly() || !this.isLineColumnVisible(columnId)) {
+      return;
+    }
+    if (this.lineSortColumn() === columnId) {
+      this.lineSortDirection.update((dir) => (dir === 'asc' ? 'desc' : 'asc'));
+    } else {
+      this.lineSortColumn.set(columnId);
+      this.lineSortDirection.set('asc');
+    }
+    this.applyLineSort();
+  }
+
+  protected lineSortAriaLabel(columnId: GoodsReceiptLineSortColumn, label: string): string {
+    if (this.lineSortColumn() !== columnId) {
+      return `Ordina per ${label}`;
+    }
+    return this.lineSortDirection() === 'asc'
+      ? `${label}: ordinamento crescente`
+      : `${label}: ordinamento decrescente`;
+  }
+
+  private applyLineSort(): void {
+    const column = this.lineSortColumn();
+    if (!column || this.lines.length <= 1) {
+      return;
+    }
+    const direction = this.lineSortDirection();
+    const controls = [...this.lines.controls];
+    controls.sort((left, right) => {
+      const leftRaw = left.getRawValue();
+      const rightRaw = right.getRawValue();
+      const cmp = compareGoodsReceiptLines(
+        {
+          sku: leftRaw.sku,
+          barcode: leftRaw.barcode,
+          supplierSku: leftRaw.supplierSku,
+          productName: leftRaw.productName,
+          quantity: Number(leftRaw.quantity) || 0,
+          unitCost: leftRaw.unitCost,
+          vatRatePercent: leftRaw.vatRatePercent,
+        },
+        {
+          sku: rightRaw.sku,
+          barcode: rightRaw.barcode,
+          supplierSku: rightRaw.supplierSku,
+          productName: rightRaw.productName,
+          quantity: Number(rightRaw.quantity) || 0,
+          unitCost: rightRaw.unitCost,
+          vatRatePercent: rightRaw.vatRatePercent,
+        },
+        column,
+        this.currency,
+      );
+      return direction === 'asc' ? cmp : -cmp;
+    });
+    this.lines.clear();
+    for (const control of controls) {
+      this.lines.push(control);
+    }
+    this.triggerAutoSave();
+  }
+
+  private applyScannedVariant(variantId: string, quantity: number): void {
+    let targetIndex = this.lines.controls.findIndex(
+      (line) => line.controls.variantId.value === variantId,
+    );
+    if (targetIndex < 0) {
+      targetIndex = this.lines.controls.findIndex((line) => this.lineIsEmpty(line));
+      if (targetIndex < 0) {
+        this.lines.push(this.createLine());
+        targetIndex = this.lines.length - 1;
+      }
+      this.onVariantSelect(targetIndex, variantId);
+      this.refreshLineVariantSummary(targetIndex, variantId);
+    }
+    const line = this.lines.at(targetIndex);
+    const currentQty = Number(line.controls.quantity.value) || 0;
+    line.controls.quantity.setValue(currentQty + quantity);
+    line.controls.loadsStock.setValue(true);
+    this.commitLineAndSave(targetIndex, () => this.scheduleBarcodeScanFocus());
+  }
+
+  private applyUnknownBarcodeScan(code: string, quantity: number): void {
+    let targetIndex = this.lines.controls.findIndex((line) => this.lineIsEmpty(line));
+    if (targetIndex < 0) {
+      this.lines.push(this.createLine());
+      targetIndex = this.lines.length - 1;
+    }
+    const line = this.lines.at(targetIndex);
+    line.controls.barcode.setValue(code);
+    line.controls.quantity.setValue(quantity);
+    line.controls.loadsStock.setValue(true);
+    this._submitState.set({
+      status: 'error',
+      error: {
+        kind: AppErrorKind.NotFound,
+        message: `Codice "${code}" non trovato. Completa SKU e nome prodotto sulla riga evidenziata.`,
+      },
+    });
+    this.commitLineAndSave(targetIndex, () => this.focusLineField(targetIndex, 'sku'));
+  }
+
+  private scheduleBarcodeScanFocus(): void {
+    queueMicrotask(() => this.focusBarcodeScanInput());
+  }
+
+  private focusBarcodeScanInput(): void {
+    this.barcodeScanInputRef()?.nativeElement.focus();
+  }
+
+  private scheduleInitialLineFocus(): void {
+    if (this.isEditMode() || this.formReadOnly()) {
+      return;
+    }
+    queueMicrotask(() => {
+      if (this.barcodeScanMode()) {
+        this.focusBarcodeScanInput();
+        return;
+      }
+      this.focusFirstLineField(0);
     });
   }
 
@@ -1522,17 +2134,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const raw = this.supplierForm.getRawValue();
     this._savingSupplier.set(true);
     this.supplierSubscription = this.supplierService
-      .createSupplier({
-        name: raw.name.trim(),
-        email: raw.email.trim() || undefined,
-        phone: raw.phone.trim() || undefined,
-      })
+      .createSupplier(mapSupplierFormToInput(raw))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (supplier) => {
           this._savingSupplier.set(false);
           this.showSupplierForm.set(false);
-          this.supplierForm.reset();
+          resetSupplierFormGroup(this.supplierForm);
           this.suppliersReload.update((t) => t + 1);
           this.form.controls.supplierId.setValue(supplier.id);
           this.triggerAutoSave();
@@ -1562,6 +2170,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         normalizedId === 'poRemaining') &&
       !this.hasLinkedSupplierOrder()
     ) {
+      return false;
+    }
+    if (normalizedId === 'supplierCode' && !this.form.controls.supplierId.value) {
       return false;
     }
     return this.columnPreferences.isColumnVisible(GOODS_RECEIPT_LINES_VIEW, normalizedId);
@@ -1693,6 +2304,47 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
   }
 
+  protected openPrintPreview(): void {
+    const id = this.persistedDocumentId();
+    if (!id) {
+      return;
+    }
+    void this.router.navigate(['/app/documents', id, 'print']);
+  }
+
+  protected downloadDocumentPdf(): void {
+    const id = this.persistedDocumentId();
+    if (!id || this.downloadingPdf()) {
+      return;
+    }
+    const doc = this.loadedDocument();
+    this.downloadingPdf.set(true);
+    this.documentService
+      .exportPdf(id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          this.downloadingPdf.set(false);
+          const reference = doc?.reference ?? 'bozza';
+          const stamp = (doc?.documentDate ?? new Date().toISOString()).slice(0, 10);
+          this.downloadBlob(blob, `arrivo-merce-${reference}-${stamp}.pdf`);
+        },
+        error: (err: unknown) => {
+          this.downloadingPdf.set(false);
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename.replace(/[^\w\s.-]/g, '-');
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   protected sendDocumentLifecycle(): void {
     const id = this.editDocumentId();
     if (!id || this.lifecycleActionSaving()) {
@@ -1775,6 +2427,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.form.controls.locationId.setValue(defaultLoc);
     }
     this.ensureMinimumOneRow();
+    this.scheduleInitialLineFocus();
   }
 
   private persistAutoSave(options?: {
@@ -1808,6 +2461,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.autoSavePending.set(false);
           this.dirtySinceLastSave.set(false);
           this.loadedDocument.set(doc);
+          this.syncSupplierOrderLineMapFromDocument(doc);
           if (doc.status === DocumentStatus.Draft || options?.stayOnPage) {
             this.editUnlocked.set(true);
           }
@@ -1854,6 +2508,398 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.pendingAutoSaveCallbacks = [];
   }
 
+  private resolveSupplierOrderId(): string | null {
+    return this.loadedDocument()?.linkedSupplierOrder?.id ?? this.pendingSupplierOrderId() ?? null;
+  }
+
+  private loadReceivableOrders(supplierId: string): void {
+    this.receivableOrdersLoading.set(true);
+    this.receivableOrdersError.set(null);
+    this.supplierOrderService
+      .getSupplierOrders({ supplierId, page: 1, pageSize: 50 })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          const orders = response.data.filter(
+            (order) =>
+              order.status === SupplierOrderStatus.Sent ||
+              order.status === SupplierOrderStatus.PartiallyReceived,
+          );
+          this.receivableOrders.set(orders);
+          this.receivableOrdersLoading.set(false);
+        },
+        error: (err: unknown) => {
+          this.receivableOrdersLoading.set(false);
+          this.receivableOrdersError.set(this.toAppError(err));
+        },
+      });
+  }
+
+  private mergeSupplierOrderLines(order: SupplierOrder): void {
+    const existingPoLineIds = new Set(
+      this.lines.controls
+        .map((line) => line.controls.supplierOrderLineId.value)
+        .filter((value) => value.length > 0),
+    );
+
+    const poMap = new Map(this.supplierOrderLineMap());
+    for (const line of order.lines) {
+      poMap.set(line.id, {
+        id: line.id,
+        variantId: line.variantId,
+        sku: line.sku,
+        orderedQuantity: line.orderedQuantity,
+        receivedQuantity: line.receivedQuantity,
+      });
+    }
+    this.supplierOrderLineMap.set(poMap);
+    this.pendingSupplierOrderId.set(order.id);
+    this.pendingLinkedSupplierOrderRef.set(order.reference);
+
+    if (!this.form.controls.supplierId.value) {
+      this.form.controls.supplierId.setValue(order.supplierId);
+    }
+    if (!this.form.controls.locationId.value && order.destinationLocationId) {
+      this.form.controls.locationId.setValue(order.destinationLocationId);
+    }
+
+    let added = 0;
+    for (const orderLine of order.lines) {
+      const remaining = orderLine.orderedQuantity - orderLine.receivedQuantity;
+      if (remaining <= 0 || existingPoLineIds.has(orderLine.id)) {
+        continue;
+      }
+      this.lines.push(this.createLineFromSupplierOrderLine(orderLine, remaining));
+      added += 1;
+    }
+
+    if (added === 0) {
+      this._submitState.set({
+        status: 'error',
+        error: {
+          kind: AppErrorKind.Validation,
+          message: "Nessuna quantità residua da ricevere sulle righe dell'ordine selezionato.",
+        },
+      });
+      return;
+    }
+
+    this.trimDuplicateTrailingEmptyRows();
+    this.syncLineFieldAccess();
+    this.triggerAutoSave();
+  }
+
+  private createLineFromSupplierOrderLine(
+    orderLine: SupplierOrder['lines'][number],
+    quantity: number,
+  ): ReturnType<GoodsReceiptFormComponent['createLine']> {
+    return this.fb.group({
+      variantId: this.fb.control(orderLine.variantId),
+      sku: this.fb.control(orderLine.sku),
+      barcode: this.fb.control(''),
+      supplierSku: this.fb.control(this.supplierSkuByVariantId().get(orderLine.variantId) ?? ''),
+      productName: this.fb.control(orderLine.sku),
+      description: this.fb.control(orderLine.sku),
+      quantity: this.fb.control(quantity, {
+        validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
+      }),
+      unitCost: this.fb.control(moneyToDecimalString(orderLine.unitCost).replace('.', ',')),
+      sellingPrice: this.fb.control(''),
+      compareAtPrice: this.fb.control(''),
+      vatRatePercent: this.fb.control(''),
+      loadsStock: this.fb.control(true),
+      supplierOrderLineId: this.fb.control(orderLine.id),
+      lotCode: this.fb.control(''),
+      lotExpiryDate: this.fb.control(''),
+      serialNumbersText: this.fb.control(''),
+    });
+  }
+
+  private applyImportedCsvLines(csvLines: readonly GoodsReceiptCsvLine[]): void {
+    this._submitState.set({ status: 'saving' });
+    from(csvLines)
+      .pipe(
+        concatMap((line) => {
+          const code = line.sku || line.barcode;
+          if (code) {
+            return this.productService.findVariantByCode(code).pipe(
+              map((variant) => ({ line, variant })),
+              catchError(() => of({ line, variant: null as VariantByCodeDto | null })),
+            );
+          }
+          const supplierSku = line.supplierSku.trim();
+          if (supplierSku) {
+            const variantId = this.variantIdBySupplierSku().get(normalizeSku(supplierSku));
+            if (!variantId) {
+              return of({ line, variant: null as VariantByCodeDto | null });
+            }
+            return this.productService.searchVariantSummaries({ variantId }).pipe(
+              map((rows) => {
+                const summary = rows[0];
+                if (!summary) {
+                  return { line, variant: null as VariantByCodeDto | null };
+                }
+                return {
+                  line,
+                  variant: {
+                    variantId: summary.variantId,
+                    productId: summary.productId,
+                    sku: summary.sku,
+                    barcode: summary.barcode ?? null,
+                    productName: summary.productName,
+                  } satisfies VariantByCodeDto,
+                };
+              }),
+              catchError(() => of({ line, variant: null as VariantByCodeDto | null })),
+            );
+          }
+          return of({ line, variant: null as VariantByCodeDto | null });
+        }),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (rows) => {
+          let linked = 0;
+          for (const { line, variant } of rows) {
+            this.lines.push(this.createLineFromCsv(line, variant));
+            if (variant) {
+              linked += 1;
+            }
+          }
+          this.csvImportSummary.set(
+            `${rows.length} righe importate${linked > 0 ? ` (${linked} articoli collegati)` : ''}.`,
+          );
+          this.trimDuplicateTrailingEmptyRows();
+          this.syncLineFieldAccess();
+          this._submitState.set({ status: 'idle' });
+          this.triggerAutoSave();
+        },
+        error: (err: unknown) => {
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  private createLineFromCsv(
+    line: GoodsReceiptCsvLine,
+    variant: VariantByCodeDto | null,
+  ): ReturnType<GoodsReceiptFormComponent['createLine']> {
+    const productName = variant?.productName ?? line.productName ?? line.sku ?? line.barcode;
+    return this.fb.group({
+      variantId: this.fb.control(variant?.variantId ?? ''),
+      sku: this.fb.control(variant?.sku ?? line.sku),
+      barcode: this.fb.control(variant?.barcode ?? line.barcode),
+      supplierSku: this.fb.control(
+        line.supplierSku ||
+          (variant ? (this.supplierSkuByVariantId().get(variant.variantId) ?? '') : ''),
+      ),
+      productName: this.fb.control(productName),
+      description: this.fb.control(productName),
+      quantity: this.fb.control(line.quantity, {
+        validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
+      }),
+      unitCost: this.fb.control(line.unitCostText),
+      sellingPrice: this.fb.control(''),
+      compareAtPrice: this.fb.control(''),
+      vatRatePercent: this.fb.control(line.vatRatePercentText),
+      loadsStock: this.fb.control(true),
+      supplierOrderLineId: this.fb.control(''),
+      lotCode: this.fb.control(''),
+      lotExpiryDate: this.fb.control(''),
+      serialNumbersText: this.fb.control(''),
+    });
+  }
+
+  private validateForConfirm(): AppError | null {
+    if (!this.validateForAutoSave()) {
+      return {
+        kind: AppErrorKind.Validation,
+        message: 'Compila fornitore, magazzino e data documento prima di confermare.',
+      };
+    }
+    if (!this.lines.controls.some((line) => this.lineHasPersistableData(line))) {
+      return {
+        kind: AppErrorKind.Validation,
+        message: 'Aggiungi almeno una riga prodotto prima di confermare.',
+      };
+    }
+    if (this.hasInvalidCost()) {
+      this.form.markAllAsTouched();
+      return {
+        kind: AppErrorKind.Validation,
+        message: 'Controlla i costi delle righe prima di confermare.',
+      };
+    }
+    return this.validateStockLinesForFinalSave();
+  }
+
+  private needsSupplierOrderCloseChoice(): boolean {
+    if (!this.resolveSupplierOrderId()) {
+      return false;
+    }
+    const poMap = this.supplierOrderLineMap();
+    if (poMap.size === 0) {
+      return false;
+    }
+
+    for (const [poLineId, ctx] of poMap) {
+      const remaining = ctx.orderedQuantity - ctx.receivedQuantity;
+      if (remaining <= 0) {
+        continue;
+      }
+      const docQty = this.lines.controls.reduce((sum, line) => {
+        if (
+          line.controls.supplierOrderLineId.value !== poLineId ||
+          !line.controls.loadsStock.value
+        ) {
+          return sum;
+        }
+        return sum + Number(line.controls.quantity.value);
+      }, 0);
+      if (docQty !== remaining) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private maybeAskSupplierPrices(then: (applyPrices: boolean) => void): void {
+    const settings = this.tenantSettings();
+    if (settings?.updateSupplierPriceOnLoad === 'never') {
+      then(false);
+      return;
+    }
+    if (settings?.updateSupplierPriceOnLoad === 'always') {
+      then(true);
+      return;
+    }
+
+    const id = this.persistedDocumentId();
+    if (!id) {
+      then(false);
+      return;
+    }
+
+    this.documentService
+      .listSupplierPriceDiffs(id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ items }) => {
+          if (items.length === 0) {
+            then(false);
+            return;
+          }
+          this.pendingConfirmAfterPriceAsk = then;
+          this.supplierPriceDialogOpen.set(true);
+        },
+        error: () => then(false),
+      });
+  }
+
+  private executeConfirm(options: {
+    readonly closeLinkedSupplierOrder: boolean;
+    readonly applySupplierPriceUpdates?: boolean;
+  }): void {
+    if (this.saving()) {
+      return;
+    }
+    const validationError = this.validateForConfirm();
+    if (validationError) {
+      this._submitState.set({ status: 'error', error: validationError });
+      return;
+    }
+
+    this.syncActiveFieldBeforeSave();
+    this._submitState.set({ status: 'saving' });
+    this.submitSubscription?.unsubscribe();
+    this.submitSubscription = this.commitAllLineProducts$()
+      .pipe(
+        switchMap(() => {
+          const afterCommit = this.validateStockLinesForFinalSave();
+          if (afterCommit) {
+            return throwError(() => afterCommit);
+          }
+          return this.saveDocument$();
+        }),
+        switchMap((doc) =>
+          this.documentService.confirmDocument(doc.id, {
+            applySupplierPriceUpdates: options.applySupplierPriceUpdates,
+            closeLinkedSupplierOrder: options.closeLinkedSupplierOrder,
+          }),
+        ),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (doc) => {
+          this._submitState.set({ status: 'idle' });
+          this.autoSavePending.set(false);
+          this.dirtySinceLastSave.set(false);
+          this.loadedDocument.set(doc);
+          this.pendingSupplierOrderId.set(null);
+          this.pendingLinkedSupplierOrderRef.set(null);
+          void this.router.navigate([this.listPath, doc.id]);
+        },
+        error: (err: unknown) => {
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
+  private reloadSupplierVariantLinks(supplierId: string): void {
+    if (!supplierId) {
+      this.supplierSkuByVariantId.set(new Map());
+      this.variantIdBySupplierSku.set(new Map());
+      return;
+    }
+    this.supplierService
+      .getVariantLinksBySupplier(supplierId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (links) => {
+          const byVariant = new Map<string, string>();
+          const bySku = new Map<string, string>();
+          for (const link of links) {
+            const sku = link.supplierSku?.trim();
+            if (!sku) {
+              continue;
+            }
+            byVariant.set(link.variantId, sku);
+            bySku.set(normalizeSku(sku), link.variantId);
+          }
+          this.supplierSkuByVariantId.set(byVariant);
+          this.variantIdBySupplierSku.set(bySku);
+          this.syncSupplierSkuOnAllLines();
+        },
+        error: () => {
+          this.supplierSkuByVariantId.set(new Map());
+          this.variantIdBySupplierSku.set(new Map());
+        },
+      });
+  }
+
+  private syncSupplierSkuOnAllLines(): void {
+    const byVariant = this.supplierSkuByVariantId();
+    for (const line of this.lines.controls) {
+      const variantId = line.controls.variantId.value;
+      if (!variantId) {
+        continue;
+      }
+      const sku = byVariant.get(variantId);
+      if (sku) {
+        line.controls.supplierSku.setValue(sku, { emitEvent: false });
+      }
+    }
+  }
+
+  private swapLines(from: number, to: number): void {
+    const control = this.lines.at(from);
+    this.lines.removeAt(from);
+    this.lines.insert(to, control);
+  }
+
   private persistedDocumentId(): string | null {
     return this.editDocumentId() ?? this.loadedDocument()?.id ?? null;
   }
@@ -1871,6 +2917,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   private buildDocumentSaveBody(): CreateDocumentBody {
     const raw = this.form.getRawValue();
+    const supplierOrderId = this.resolveSupplierOrderId();
     return {
       type: raw.type,
       documentDate: new Date(raw.documentDate).toISOString(),
@@ -1885,6 +2932,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       externalDocDate: raw.externalDocDate
         ? new Date(raw.externalDocDate).toISOString()
         : undefined,
+      ...(supplierOrderId ? { supplierOrderId } : {}),
       lines: raw.lines
         .filter((line) => this.lineHasPersistableDataFromRaw(line))
         .map((line) => {
@@ -2125,6 +3173,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           variantId: this.fb.control(line.variantId ?? ''),
           sku: this.fb.control(line.sku ?? ''),
           barcode: this.fb.control(''),
+          supplierSku: this.fb.control(''),
           productName: this.fb.control(line.description),
           description: this.fb.control(line.description),
           quantity: this.fb.control(line.quantity, {
@@ -2147,6 +3196,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     this.trimDuplicateTrailingEmptyRows();
     this.syncLineFieldAccess();
+    this.reloadSupplierVariantLinks(doc.supplierId ?? '');
   }
 
   private createLine() {
@@ -2154,6 +3204,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       variantId: this.fb.control(''),
       sku: this.fb.control(''),
       barcode: this.fb.control(''),
+      supplierSku: this.fb.control(''),
       productName: this.fb.control(''),
       description: this.fb.control(''),
       quantity: this.fb.control(1, {

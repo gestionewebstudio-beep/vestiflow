@@ -75,6 +75,17 @@ async function recalculateSupplierOrderStatus(
   });
 }
 
+/** Imposta l'ordine fornitore come ricevuto (chiusura forzata dopo ricezione parziale). */
+export async function forceCloseSupplierOrder(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+): Promise<void> {
+  await tx.supplierOrder.update({
+    where: { id: orderId },
+    data: { status: SupplierOrderStatus.received },
+  });
+}
+
 /** Collega righe documento alle righe ordine fornitore per variante se manca supplierOrderLineId. */
 export async function enrichReceiptLinesWithSupplierOrderLineIds(
   tx: Prisma.TransactionClient,

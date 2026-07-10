@@ -37,6 +37,7 @@ export class SupplierOrderService {
 
     if (query.search) params = params.set('search', query.search);
     if (query.status) params = params.set('status', query.status);
+    if (query.supplierId) params = params.set('supplierId', query.supplierId);
 
     return this.http
       .get<ApiPaginated<SupplierOrderApiRow>>(this.url('/supplier-orders'), { params })

@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { SupplierOrderStatus } from '@prisma/client';
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -11,4 +11,8 @@ export class ListSupplierOrdersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(SupplierOrderStatus)
   status?: SupplierOrderStatus;
+
+  @IsOptional()
+  @IsUUID()
+  supplierId?: string;
 }

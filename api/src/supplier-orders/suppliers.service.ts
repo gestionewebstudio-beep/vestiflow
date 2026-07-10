@@ -12,6 +12,7 @@ import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { ListSuppliersQueryDto } from './dto/list-suppliers.query.dto';
 import type { UpdateSupplierDto } from './dto/update-supplier.dto';
 import type { UpsertSupplierVariantLinkDto } from './dto/upsert-supplier-variant-link.dto';
+import { nextNumericSupplierCode, SUPPLIER_NUMERIC_CODE_PAD } from './supplier-code.util';
 
 const SUPPLIER_VARIANT_LINK_INCLUDE = {
   supplier: { select: { id: true, name: true, code: true } },
@@ -108,10 +109,18 @@ export class SuppliersService {
     if (!data.name) {
       throw new UnprocessableEntityException('Il nome fornitore è obbligatorio');
     }
+    if (!data.code) {
+      data.code = await this.allocateNextSupplierCode(tenantId);
+    }
     await this.assertCodeAvailable(tenantId, data.code ?? null);
     return this.prisma.supplier.create({
       data: { tenantId, ...data, name: data.name },
     });
+  }
+
+  async previewNextCode(tenantId: string): Promise<{ readonly code: string }> {
+    const code = await this.allocateNextSupplierCode(tenantId);
+    return { code };
   }
 
   async update(tenantId: string, id: string, dto: UpdateSupplierDto): Promise<Supplier> {
@@ -310,5 +319,27 @@ export class SuppliersService {
     if (existing) {
       throw new ConflictException(`Codice fornitore "${code}" già in uso`);
     }
+  }
+
+  private async allocateNextSupplierCode(tenantId: string): Promise<string> {
+    const rows = await this.prisma.supplier.findMany({
+      where: { tenantId, code: { not: null } },
+      select: { code: true },
+    });
+    let candidate = nextNumericSupplierCode(
+      rows.map((row) => row.code ?? '').filter(Boolean),
+    );
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const taken = await this.prisma.supplier.findFirst({
+        where: { tenantId, code: candidate },
+        select: { id: true },
+      });
+      if (!taken) {
+        return candidate;
+      }
+      const numeric = Number.parseInt(candidate, 10);
+      candidate = String(numeric + 1).padStart(SUPPLIER_NUMERIC_CODE_PAD, '0');
+    }
+    throw new ConflictException('Impossibile generare un codice fornitore progressivo univoco');
   }
 }

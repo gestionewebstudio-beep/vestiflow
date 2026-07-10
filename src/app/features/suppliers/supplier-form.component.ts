@@ -7,13 +7,19 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { Supplier, SupplierInput } from '@core/models/supplier.model';
+import type { Supplier } from '@core/models/supplier.model';
+import { SupplierFormFieldsComponent } from '@features/suppliers/components/supplier-form-fields/supplier-form-fields.component';
+import {
+  createSupplierFormGroup,
+  mapSupplierFormToInput,
+  patchSupplierFormGroup,
+} from '@features/suppliers/utils/supplier-form.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -29,6 +35,7 @@ import { SupplierService } from './services/supplier.service';
     ButtonComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    SupplierFormFieldsComponent,
   ],
   templateUrl: './supplier-form.component.html',
   styleUrl: './supplier-form.component.scss',
@@ -78,32 +85,14 @@ export class SupplierFormComponent {
     return state.status === 'error' ? state.error : null;
   });
 
-  protected readonly form = this.fb.group({
-    code: this.fb.control(''),
-    name: this.fb.control('', [Validators.required]),
-    vatNumber: this.fb.control(''),
-    taxCode: this.fb.control(''),
-    email: this.fb.control(''),
-    pec: this.fb.control(''),
-    phone: this.fb.control(''),
-    contactName: this.fb.control(''),
-    website: this.fb.control(''),
-    addressLine1: this.fb.control(''),
-    addressLine2: this.fb.control(''),
-    city: this.fb.control(''),
-    province: this.fb.control(''),
-    postalCode: this.fb.control(''),
-    countryCode: this.fb.control('IT'),
-    paymentTerms: this.fb.control(''),
-    notes: this.fb.control(''),
-  });
+  protected readonly form = createSupplierFormGroup(this.fb);
 
   constructor() {
     toObservable(this.loadState)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((state) => {
         if (state.status === 'ready' && state.supplier) {
-          this.patchForm(state.supplier);
+          patchSupplierFormGroup(this.form, state.supplier);
         }
       });
   }
@@ -115,14 +104,14 @@ export class SupplierFormComponent {
     }
     this.saving.set(true);
     this.saveError.set(null);
-    const payload = this.form.getRawValue() satisfies SupplierInput;
+    const payload = mapSupplierFormToInput(this.form.getRawValue());
     const id = this.supplierId();
     const request$ = id
       ? this.service.updateSupplier(id, payload)
       : this.service.createSupplier(payload);
 
     request$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (supplier) => {
+      next: (supplier: Supplier) => {
         this.saving.set(false);
         void this.router.navigate(['/app/suppliers', supplier.id]);
       },
@@ -130,28 +119,6 @@ export class SupplierFormComponent {
         this.saving.set(false);
         this.saveError.set(isAppError(err) ? err.message : 'Salvataggio non riuscito');
       },
-    });
-  }
-
-  private patchForm(supplier: Supplier): void {
-    this.form.patchValue({
-      code: supplier.code ?? '',
-      name: supplier.name,
-      vatNumber: supplier.vatNumber ?? '',
-      taxCode: supplier.taxCode ?? '',
-      email: supplier.email ?? '',
-      pec: supplier.pec ?? '',
-      phone: supplier.phone ?? '',
-      contactName: supplier.contactName ?? '',
-      website: supplier.website ?? '',
-      addressLine1: supplier.addressLine1 ?? '',
-      addressLine2: supplier.addressLine2 ?? '',
-      city: supplier.city ?? '',
-      province: supplier.province ?? '',
-      postalCode: supplier.postalCode ?? '',
-      countryCode: supplier.countryCode ?? 'IT',
-      paymentTerms: supplier.paymentTerms ?? '',
-      notes: supplier.notes ?? '',
     });
   }
 }

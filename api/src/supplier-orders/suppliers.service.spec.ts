@@ -48,12 +48,25 @@ describe('SuppliersService', () => {
   });
 
   it('create normalizza il nome', async () => {
+    prisma.supplier.findMany.mockResolvedValue([]);
     prisma.supplier.findFirst.mockResolvedValue(null);
-    prisma.supplier.create.mockResolvedValue({ id: 'sup-1', name: 'Fornitore' });
+    prisma.supplier.create.mockResolvedValue({ id: 'sup-1', name: 'Fornitore', code: '0001' });
     await service.create(tenantId, { name: '  Fornitore  ' });
     expect(prisma.supplier.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ name: 'Fornitore' }),
+        data: expect.objectContaining({ name: 'Fornitore', code: '0001' }),
+      }),
+    );
+  });
+
+  it('create assegna codice progressivo se assente', async () => {
+    prisma.supplier.findMany.mockResolvedValue([{ code: '0002' }, { code: 'FORN-X' }]);
+    prisma.supplier.findFirst.mockResolvedValue(null);
+    prisma.supplier.create.mockResolvedValue({ id: 'sup-2', name: 'Nuovo', code: '0003' });
+    await service.create(tenantId, { name: 'Nuovo' });
+    expect(prisma.supplier.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ code: '0003', name: 'Nuovo' }),
       }),
     );
   });

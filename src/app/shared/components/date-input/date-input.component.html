@@ -15,6 +15,8 @@
     [attr.aria-expanded]="open()"
     [disabled]="disabled()"
     (click)="toggle()"
+    (keydown)="triggerKeydown.emit($event)"
+    (blur)="onTriggerBlur()"
   >
     <i class="date-input__icon pi pi-calendar" aria-hidden="true"></i>
     <span

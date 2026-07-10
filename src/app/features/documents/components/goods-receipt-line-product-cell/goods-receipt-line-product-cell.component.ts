@@ -41,6 +41,7 @@ export class GoodsReceiptLineProductCellComponent {
   readonly suggestionNavigate = output<'next' | 'prev'>();
   readonly lineAdvance = output<number>();
   readonly lineRowAdvance = output<number>();
+  readonly lineRowRetreat = output<number>();
 
   private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('productInput');
 
@@ -96,6 +97,11 @@ export class GoodsReceiptLineProductCellComponent {
       this.lineRowAdvance.emit(this.lineIndex());
       return;
     }
+    if (event.key === 'ArrowUp' && !open) {
+      event.preventDefault();
+      this.lineRowRetreat.emit(this.lineIndex());
+      return;
+    }
     if (event.key === 'ArrowDown' && open) {
       event.preventDefault();
       this.suggestionNavigate.emit('next');
@@ -114,6 +120,9 @@ export class GoodsReceiptLineProductCellComponent {
       }
       this.lineAdvance.emit(this.lineIndex());
       return;
+    }
+    if (event.key === 'Tab' && !event.shiftKey && !open) {
+      this.lineAdvance.emit(this.lineIndex());
     }
   }
 

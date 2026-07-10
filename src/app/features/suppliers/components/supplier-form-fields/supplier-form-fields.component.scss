@@ -1,0 +1,47 @@
+@use 'breakpoints' as bp;
+
+.supplier-fields__grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@include bp.media-up('md') {
+  .supplier-fields__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.supplier-fields__field--full {
+  grid-column: 1 / -1;
+}
+
+.supplier-fields__label {
+  display: block;
+  margin-block-end: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.supplier-fields__control {
+  inline-size: 100%;
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.supplier-fields__control:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: var(--space-1);
+}
+
+.supplier-fields__textarea {
+  block-size: auto;
+  min-block-size: calc(var(--field-height) * 2);
+  padding-block: var(--space-2);
+  resize: vertical;
+}

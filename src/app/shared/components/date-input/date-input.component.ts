@@ -63,6 +63,8 @@ export class DateInputComponent implements ControlValueAccessor {
   readonly value = input<string | undefined>(undefined);
 
   readonly valueChange = output<string>();
+  readonly triggerKeydown = output<KeyboardEvent>();
+  readonly triggerBlur = output<void>();
 
   protected readonly open = signal(false);
   protected readonly disabled = signal(false);
@@ -140,6 +142,11 @@ export class DateInputComponent implements ControlValueAccessor {
 
   protected close(): void {
     this.open.set(false);
+    this.onTouched();
+  }
+
+  protected onTriggerBlur(): void {
+    this.triggerBlur.emit();
     this.onTouched();
   }
 

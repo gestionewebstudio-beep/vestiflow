@@ -187,6 +187,7 @@ export class DocumentsController {
   ): Promise<DocumentWithLines> {
     return this.documents.confirm(tenantId, id, user, {
       applySupplierPriceUpdates: dto.applySupplierPriceUpdates,
+      closeLinkedSupplierOrder: dto.closeLinkedSupplierOrder,
     });
   }
 

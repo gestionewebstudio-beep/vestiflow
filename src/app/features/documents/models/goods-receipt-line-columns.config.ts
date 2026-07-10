@@ -10,6 +10,13 @@ export const GOODS_RECEIPT_LINES_VIEW = TableViewId.GoodsReceiptLines;
 export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'sku', label: 'SKU', defaultWidthPx: 72, minWidthPx: 56 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 88, minWidthPx: 72 },
+  {
+    id: 'supplierCode',
+    label: 'Cod. fornitore',
+    defaultVisible: false,
+    defaultWidthPx: 96,
+    minWidthPx: 72,
+  },
   { id: 'product', label: 'Nome prodotto', defaultWidthPx: 320, minWidthPx: 160 },
   {
     id: 'description',
@@ -66,7 +73,7 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'serials', label: 'Seriali', defaultVisible: false, defaultWidthPx: 112, minWidthPx: 88 },
   { id: 'loadsStock', label: 'Mag.', defaultWidthPx: 36, minWidthPx: 32 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 72, minWidthPx: 56 },
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 36, minWidthPx: 32 },
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 88, minWidthPx: 72 },
 ];
 
 export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
@@ -100,6 +107,7 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Supplier]: [
     'sku',
     'barcode',
+    'supplierCode',
     'product',
     'quantity',
     'unitCost',

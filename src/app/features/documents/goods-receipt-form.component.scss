@@ -44,6 +44,58 @@
   font-weight: var(--font-weight-medium);
 }
 
+.gr-form__po-link-hint {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.gr-form__import-summary {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.gr-form__include-order {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.gr-form__include-order-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.gr-form__include-order-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.gr-form__include-order-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.gr-form__include-order-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 .gr-form__form {
   display: flex;
   flex-direction: column;
@@ -80,18 +132,19 @@
 }
 
 .gr-form__header .gr-form__input {
-  block-size: calc(var(--field-height) - var(--space-2));
+  block-size: var(--field-height);
+  min-block-size: var(--field-height);
   padding-inline: var(--space-2);
   font-size: var(--text-sm);
 }
 
 .gr-form__header .gr-form__readonly {
-  min-block-size: calc(var(--field-height) - var(--space-2));
+  min-block-size: var(--field-height);
   font-size: var(--text-sm);
 }
 
 .gr-form__header .gr-form__check--block {
-  min-block-size: calc(var(--field-height) - var(--space-2));
+  min-block-size: var(--field-height);
 }
 
 .gr-form__header .gr-form__inline-toggle {
@@ -195,6 +248,8 @@
   padding: var(--space-4);
   background-color: var(--color-surface-sunken);
   border-radius: var(--radius-md);
+  max-block-size: min(70vh, var(--content-wide));
+  overflow-y: auto;
 }
 
 .gr-form__supplier-actions,
@@ -429,19 +484,73 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-md);
+  gap: var(--space-4);
   flex-wrap: wrap;
 }
 
 .gr-form__lines-tools {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
 
+.gr-form__scan-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background-color: var(--color-surface-muted);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.gr-form__scan-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.gr-form__scan-input {
+  max-inline-size: var(--content-narrow);
+}
+
+.gr-form__scan-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.gr-form__th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.gr-form__th-sort:hover {
+  color: var(--color-primary);
+}
+
+.gr-form__th-sort:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.gr-form__th-sort--num {
+  justify-content: flex-end;
+  inline-size: 100%;
+}
+
 .gr-form__attachments {
-  margin-block-start: var(--space-md);
+  margin-block-start: var(--space-4);
 }
 
 .gr-form__hint {
@@ -550,6 +659,45 @@
 .gr-form__line-remove:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.gr-form__line-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.gr-form__line-move {
+  block-size: var(--gr-line-row-height);
+  inline-size: var(--gr-line-row-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.gr-form__line-move:hover:not(:disabled) {
+  color: var(--color-primary);
+  background-color: var(--color-surface-muted);
+}
+
+.gr-form__line-move:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.gr-form__readonly-cell {
+  display: block;
+  padding-inline: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gr-form__quick-create {

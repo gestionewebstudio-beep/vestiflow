@@ -89,40 +89,9 @@
       </div>
 
       @if (showSupplierForm()) {
-        <div class="po-form__supplier-box" [formGroup]="supplierForm">
+        <div class="po-form__supplier-box">
           <h2 class="po-form__subtitle">Nuovo fornitore</h2>
-          <div class="po-form__grid">
-            <div class="po-form__field">
-              <label class="po-form__label" for="po-new-supplier-name">Nome</label>
-              <input
-                id="po-new-supplier-name"
-                class="po-form__input"
-                type="text"
-                formControlName="name"
-                placeholder="Es. Tessuti Italia S.r.l."
-              />
-            </div>
-            <div class="po-form__field">
-              <label class="po-form__label" for="po-new-supplier-email">Email (opzionale)</label>
-              <input
-                id="po-new-supplier-email"
-                class="po-form__input"
-                type="email"
-                formControlName="email"
-                placeholder="ordini@fornitore.it"
-              />
-            </div>
-            <div class="po-form__field">
-              <label class="po-form__label" for="po-new-supplier-phone">Telefono (opzionale)</label>
-              <input
-                id="po-new-supplier-phone"
-                class="po-form__input"
-                type="tel"
-                formControlName="phone"
-                placeholder="+39 ..."
-              />
-            </div>
-          </div>
+          <app-supplier-form-fields idPrefix="po-new-supplier" [formGroup]="supplierForm" />
           <div class="po-form__supplier-actions">
             <app-button
               type="button"

@@ -287,6 +287,7 @@ export class SupplierOrdersService {
     const where: Prisma.SupplierOrderWhereInput = {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
+      ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.search
         ? {
             OR: [

@@ -36,6 +36,7 @@ export class GoodsReceiptLineCodeCellComponent {
   readonly blurred = output<number>();
   readonly commit = output<number>();
   readonly lineRowAdvance = output<number>();
+  readonly lineRowRetreat = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
 
   private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('codeInput');
@@ -73,6 +74,11 @@ export class GoodsReceiptLineCodeCellComponent {
     if (event.key === 'ArrowDown' && !open) {
       event.preventDefault();
       this.lineRowAdvance.emit(this.lineIndex());
+      return;
+    }
+    if (event.key === 'ArrowUp' && !open) {
+      event.preventDefault();
+      this.lineRowRetreat.emit(this.lineIndex());
       return;
     }
     if (event.key === 'ArrowDown' && open) {
