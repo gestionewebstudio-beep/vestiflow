@@ -49,10 +49,14 @@ import {
   moneyFromMajor,
   moneyToDecimalString,
   parseMoneyInput,
-  zeroMoney,
 } from '@core/utils/money.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
+import {
+  applyDiscountMinor,
+  parseEffectiveDiscountPercent,
+} from '@core/utils/discount-percent.util';
+import type { Supplier } from '@core/models/supplier.model';
 import { normalizeSku } from '@features/products/models/product-form.validators';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
@@ -135,6 +139,7 @@ type GoodsReceiptLineFocusField =
   | 'product'
   | 'quantity'
   | 'unitCost'
+  | 'discount'
   | 'sellingPrice'
   | 'compareAtPrice'
   | 'vat'
@@ -455,7 +460,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly variantSearchDraft = signal('');
 
   private readonly searchedVariants = toSignal(
-    toObservable(computed(() => this.variantSearchDraft())).pipe(
+    toObservable(this.variantSearchDraft).pipe(
       debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
       distinctUntilChanged(),
       switchMap((search) => {
@@ -497,6 +502,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     billingCause: this.fb.control(''),
     externalRef: this.fb.control(''),
     invoicePending: this.fb.control(false),
+    documentDiscountPercent: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
   });
 
@@ -566,12 +572,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected lineSuggestionsOpen(index: number): boolean {
-    const term = this.variantSearchDraft().trim();
-    return (
-      this.autocompleteLineIndex() === index &&
-      term.length >= VARIANT_SEARCH_MIN_CHARS &&
-      !this.lineHasLinkedProduct(index)
-    );
+    return this.autocompleteLineIndex() === index && this.lineSuggestions(index).length > 0;
   }
 
   protected codeSuggestions(
@@ -869,6 +870,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       ['gr-product-', 'product'],
       ['gr-qty-', 'quantity'],
       ['gr-cost-', 'unitCost'],
+      ['gr-discount-', 'discount'],
       ['gr-selling-', 'sellingPrice'],
       ['gr-compare-', 'compareAtPrice'],
       ['gr-vat-', 'vat'],
@@ -984,6 +986,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       'product',
       'quantity',
       'unitCost',
+      'discount',
       'sellingPrice',
       'compareAtPrice',
       'vat',
@@ -994,9 +997,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const linked = this.lineHasLinkedProduct(index);
     return all.filter((field) => {
       if (linked) {
-        if (field === 'quantity' || field === 'unitCost' || field === 'vat') {
+        if (
+          field === 'quantity' ||
+          field === 'unitCost' ||
+          field === 'discount' ||
+          field === 'vat'
+        ) {
           return this.isLineColumnVisible(
-            field === 'quantity' ? 'quantity' : field === 'unitCost' ? 'unitCost' : 'vat',
+            field === 'quantity'
+              ? 'quantity'
+              : field === 'unitCost'
+                ? 'unitCost'
+                : field === 'discount'
+                  ? 'discount'
+                  : 'vat',
           );
         }
         if (field === 'lot' && this.isLineColumnVisible('lot')) {
@@ -1028,6 +1042,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       if (field === 'unitCost') {
         return this.isLineColumnVisible('unitCost');
       }
+      if (field === 'discount') {
+        return this.isLineColumnVisible('discount');
+      }
       if (field === 'sellingPrice') {
         return this.isLineColumnVisible('sellingPrice');
       }
@@ -1058,6 +1075,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       product: `gr-product-${index}`,
       quantity: `gr-qty-${index}`,
       unitCost: `gr-cost-${index}`,
+      discount: `gr-discount-${index}`,
       sellingPrice: `gr-selling-${index}`,
       compareAtPrice: `gr-compare-${index}`,
       vat: `gr-vat-${index}`,
@@ -1300,15 +1318,63 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     initialValue: this.form.getRawValue(),
   });
 
-  protected readonly documentTotal = computed<Money>(() => {
-    this.formValue();
-    return this.lines.controls.reduce<Money>((acc, line) => {
-      const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
-      const qty = Number(line.controls.quantity.value);
-      const amount = cost && Number.isFinite(qty) ? cost.amountMinor * qty : 0;
-      return { amountMinor: acc.amountMinor + amount, currencyCode: this.currency };
-    }, zeroMoney(this.currency));
+  protected readonly selectedSupplier = computed((): Supplier | null => {
+    const supplierId = this.formValue()?.supplierId;
+    if (!supplierId) {
+      return null;
+    }
+    return this.suppliers().find((supplier) => supplier.id === supplierId) ?? null;
   });
+
+  protected readonly supplierDocumentNote = computed(() => {
+    const note = this.selectedSupplier()?.documentCreationNote?.trim();
+    return note ?? '';
+  });
+
+  protected readonly documentTotals = computed(() => {
+    this.formValue();
+    const currency = this.currency;
+    let lineSumMinor = 0;
+    const lineTaxParts: { readonly netMinor: number; readonly vatRate: number }[] = [];
+
+    for (const line of this.lines.controls) {
+      const netMinor = this.lineNetMinor(line);
+      lineSumMinor += netMinor;
+      const vatRaw = line.controls.vatRatePercent.value.trim();
+      const vatRate = vatRaw ? Number(vatRaw) : 0;
+      if (vatRate > 0 && netMinor > 0) {
+        lineTaxParts.push({ netMinor, vatRate });
+      }
+    }
+
+    const docDiscountPercent = parseEffectiveDiscountPercent(
+      this.form.controls.documentDiscountPercent.value,
+    );
+    const docDiscountAmount = Math.round((lineSumMinor * docDiscountPercent) / 100);
+    const discountedLineSum = lineSumMinor - docDiscountAmount;
+
+    const taxMinor =
+      lineSumMinor === 0
+        ? 0
+        : lineTaxParts.reduce((sum, part) => {
+            const share = part.netMinor / lineSumMinor;
+            const discountedNet = Math.round(discountedLineSum * share);
+            return sum + Math.round((discountedNet * part.vatRate) / 100);
+          }, 0);
+
+    return {
+      linesTotal: { amountMinor: lineSumMinor, currencyCode: currency },
+      documentDiscount: { amountMinor: docDiscountAmount, currencyCode: currency },
+      subtotal: { amountMinor: discountedLineSum, currencyCode: currency },
+      tax: { amountMinor: taxMinor, currencyCode: currency },
+      total: {
+        amountMinor: discountedLineSum + taxMinor,
+        currencyCode: currency,
+      },
+    };
+  });
+
+  protected readonly documentTotal = computed<Money>(() => this.documentTotals().total);
 
   protected readonly showSupplierForm = signal(false);
   readonly supplierForm = createSupplierFormGroup(this.fb);
@@ -1337,13 +1403,99 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return state.status === 'error' ? state.error : null;
   });
 
+  protected lineGrossMoney(index: number): Money {
+    this.formValue();
+    const line = this.lines.at(index);
+    return {
+      amountMinor: this.lineGrossMinor(line),
+      currencyCode: this.currency,
+    };
+  }
+
   protected lineMoney(index: number): Money {
     this.formValue();
     const line = this.lines.at(index);
+    return {
+      amountMinor: this.lineNetMinor(line),
+      currencyCode: this.currency,
+    };
+  }
+
+  protected lineHasDiscount(index: number): boolean {
+    this.formValue();
+    const line = this.lines.at(index);
+    return parseEffectiveDiscountPercent(line.controls.discountPercent.value) > 0;
+  }
+
+  protected lineVariantSummary(index: number): VariantSummary | null {
+    const line = this.lines.at(index);
+    const variantId = line.controls.variantId.value;
+    if (!variantId) {
+      return null;
+    }
+    return (
+      mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
+        (summary) => summary.variantId === variantId,
+      ) ?? null
+    );
+  }
+
+  protected lineStockAvailable(index: number): string {
+    const summary = this.lineVariantSummary(index);
+    if (!summary || summary.stockOnHand == null) {
+      return '—';
+    }
+    return String(summary.stockOnHand);
+  }
+
+  protected lineUnitOfMeasure(index: number): string {
+    const summary = this.lineVariantSummary(index);
+    return summary?.unitOfMeasure?.trim() || 'pz';
+  }
+
+  protected lineRowComplete(index: number): boolean {
+    const line = this.lines.at(index);
+    if (this.lineIsEmpty(line)) {
+      return true;
+    }
+    const hasProduct =
+      Boolean(line.controls.variantId.value.trim()) ||
+      Boolean(line.controls.productName.value.trim());
+    const hasCost = Boolean(line.controls.unitCost.value.trim());
+    return hasProduct && hasCost;
+  }
+
+  private lineGrossMinor(line: ReturnType<GoodsReceiptFormComponent['createLine']>): number {
     const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
     const qty = Number(line.controls.quantity.value);
-    const amount = cost && Number.isFinite(qty) ? cost.amountMinor * qty : 0;
-    return { amountMinor: amount, currencyCode: this.currency };
+    return cost && Number.isFinite(qty) ? cost.amountMinor * qty : 0;
+  }
+
+  private lineNetMinor(line: ReturnType<GoodsReceiptFormComponent['createLine']>): number {
+    return applyDiscountMinor(this.lineGrossMinor(line), line.controls.discountPercent.value);
+  }
+
+  private applySupplierDefaultsToLine(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): void {
+    const supplierId = this.form?.controls.supplierId.value;
+    if (!supplierId) {
+      return;
+    }
+    const supplier = this.suppliers().find((item) => item.id === supplierId);
+    if (!supplier) {
+      return;
+    }
+    if (!line.controls.discountPercent.value.trim() && supplier.supplierDiscount?.trim()) {
+      line.controls.discountPercent.setValue(supplier.supplierDiscount.trim(), {
+        emitEvent: false,
+      });
+    }
+    if (!line.controls.vatRatePercent.value.trim() && supplier.defaultVatRatePercent != null) {
+      line.controls.vatRatePercent.setValue(String(supplier.defaultVatRatePercent), {
+        emitEvent: false,
+      });
+    }
   }
 
   protected onTypeSelect(value: string | null): void {
@@ -1356,6 +1508,23 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.form.controls.supplierId.setValue(value ?? '');
     this.form.controls.supplierId.markAsTouched();
     this.reloadSupplierVariantLinks(value ?? '');
+
+    const supplier = this.suppliers().find((item) => item.id === value);
+    if (supplier) {
+      for (const line of this.lines.controls) {
+        if (!line.controls.discountPercent.value.trim() && supplier.supplierDiscount?.trim()) {
+          line.controls.discountPercent.setValue(supplier.supplierDiscount.trim(), {
+            emitEvent: false,
+          });
+        }
+        if (!line.controls.vatRatePercent.value.trim() && supplier.defaultVatRatePercent != null) {
+          line.controls.vatRatePercent.setValue(String(supplier.defaultVatRatePercent), {
+            emitEvent: false,
+          });
+        }
+      }
+    }
+    this.triggerAutoSave();
   }
 
   protected onLocationSelect(value: string | null): void {
@@ -1384,6 +1553,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           line.controls.sellingPrice.setValue(
             moneyToDecimalString(summary.sellingPrice).replace('.', ','),
           );
+        }
+        if (!line.controls.vatRatePercent.value.trim()) {
+          const supplierVat = this.selectedSupplier()?.defaultVatRatePercent;
+          if (supplierVat != null) {
+            line.controls.vatRatePercent.setValue(String(supplierVat), { emitEvent: false });
+          }
+        }
+        if (!line.controls.discountPercent.value.trim()) {
+          const supplierDiscount = this.selectedSupplier()?.supplierDiscount?.trim();
+          if (supplierDiscount) {
+            line.controls.discountPercent.setValue(supplierDiscount, { emitEvent: false });
+          }
         }
         const supplierSku =
           summary.supplierSku?.trim() || this.supplierSkuByVariantId().get(value) || '';
@@ -1703,6 +1884,23 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
   }
 
+  protected visibleLineColumnCount(): number {
+    const poColumns = ['poOrdered', 'poReceived', 'poRemaining'] as const;
+    let count = 0;
+    for (const columnId of GOODS_RECEIPT_LINE_COLUMNS.map((column) => column.id)) {
+      if ((poColumns as readonly string[]).includes(columnId)) {
+        if (this.hasLinkedSupplierOrder() && this.isLineColumnVisible(columnId)) {
+          count += 1;
+        }
+        continue;
+      }
+      if (this.isLineColumnVisible(columnId)) {
+        count += 1;
+      }
+    }
+    return Math.max(count, 1);
+  }
+
   protected onLoadsStockChange(_index: number): void {
     this.triggerAutoSave();
   }
@@ -1710,7 +1908,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected addLine(): void {
     const lastIndex = Math.max(0, this.lines.length - 1);
     this.commitLineAndSave(lastIndex, () => {
-      this.lines.push(this.createLine());
+      const line = this.createLine();
+      this.applySupplierDefaultsToLine(line);
+      this.lines.push(line);
       this.trimDuplicateTrailingEmptyRows();
       this.focusFirstLineField(this.lines.length - 1);
     });
@@ -1720,10 +1920,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.formReadOnly()) {
       return;
     }
-    this.barcodeScanMode.update((open) => !open);
-    if (this.barcodeScanMode()) {
-      this.scheduleBarcodeScanFocus();
-    }
+    this.barcodeScanMode.set(true);
+    this.scheduleBarcodeScanFocus();
   }
 
   protected onBarcodeScanInput(value: string): void {
@@ -2593,7 +2791,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     orderLine: SupplierOrder['lines'][number],
     quantity: number,
   ): ReturnType<GoodsReceiptFormComponent['createLine']> {
-    return this.fb.group({
+    const line = this.fb.group({
       variantId: this.fb.control(orderLine.variantId),
       sku: this.fb.control(orderLine.sku),
       barcode: this.fb.control(''),
@@ -2604,6 +2802,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
       unitCost: this.fb.control(moneyToDecimalString(orderLine.unitCost).replace('.', ',')),
+      discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(''),
@@ -2613,6 +2812,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       lotExpiryDate: this.fb.control(''),
       serialNumbersText: this.fb.control(''),
     });
+    this.applySupplierDefaultsToLine(line);
+    return line;
   }
 
   private applyImportedCsvLines(csvLines: readonly GoodsReceiptCsvLine[]): void {
@@ -2687,7 +2888,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     variant: VariantByCodeDto | null,
   ): ReturnType<GoodsReceiptFormComponent['createLine']> {
     const productName = variant?.productName ?? line.productName ?? line.sku ?? line.barcode;
-    return this.fb.group({
+    const row = this.fb.group({
       variantId: this.fb.control(variant?.variantId ?? ''),
       sku: this.fb.control(variant?.sku ?? line.sku),
       barcode: this.fb.control(variant?.barcode ?? line.barcode),
@@ -2701,6 +2902,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
       unitCost: this.fb.control(line.unitCostText),
+      discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(line.vatRatePercentText),
@@ -2710,6 +2912,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       lotExpiryDate: this.fb.control(''),
       serialNumbersText: this.fb.control(''),
     });
+    this.applySupplierDefaultsToLine(row);
+    return row;
   }
 
   private validateForConfirm(): AppError | null {
@@ -2933,6 +3137,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         ? new Date(raw.externalDocDate).toISOString()
         : undefined,
       ...(supplierOrderId ? { supplierOrderId } : {}),
+      documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       lines: raw.lines
         .filter((line) => this.lineHasPersistableDataFromRaw(line))
         .map((line) => {
@@ -2944,6 +3149,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             description: name || line.description.trim() || 'Riga documento',
             quantity: Number(line.quantity),
             unitPriceMinor: cost?.amountMinor ?? 0,
+            discountPercent: parseEffectiveDiscountPercent(line.discountPercent ?? ''),
             vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
             loadsStock: line.loadsStock,
             supplierOrderLineId: line.supplierOrderLineId || undefined,
@@ -2987,6 +3193,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     readonly unitCost?: string;
     readonly sellingPrice?: string;
     readonly compareAtPrice?: string;
+    readonly discountPercent?: string;
     readonly vatRatePercent?: string;
   }): boolean {
     const qty = Number(line.quantity);
@@ -3165,6 +3372,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       billingCause: doc.billingCause === 'In attesa fattura' ? '' : (doc.billingCause ?? ''),
       externalRef: doc.externalRef ?? '',
       invoicePending: doc.billingCause === 'In attesa fattura',
+      documentDiscountPercent:
+        doc.documentDiscountPercent != null && doc.documentDiscountPercent > 0
+          ? String(doc.documentDiscountPercent)
+          : '',
     });
     this.lines.clear();
     for (const line of doc.lines ?? []) {
@@ -3182,6 +3393,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           unitCost: this.fb.control(moneyToDecimalString(line.unitPrice).replace('.', ',')),
           sellingPrice: this.fb.control(''),
           compareAtPrice: this.fb.control(''),
+          discountPercent: this.fb.control(
+            line.discountPercent > 0 ? String(line.discountPercent) : '',
+          ),
           vatRatePercent: this.fb.control(line.vatRatePercent?.toString() ?? ''),
           loadsStock: this.fb.control(line.loadsStock),
           supplierOrderLineId: this.fb.control(line.supplierOrderLineId ?? ''),
@@ -3200,7 +3414,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   private createLine() {
-    return this.fb.group({
+    const line = this.fb.group({
       variantId: this.fb.control(''),
       sku: this.fb.control(''),
       barcode: this.fb.control(''),
@@ -3211,6 +3425,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
       unitCost: this.fb.control(''),
+      discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(''),
@@ -3220,6 +3435,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       lotExpiryDate: this.fb.control(''),
       serialNumbersText: this.fb.control(''),
     });
+    return line;
   }
 
   private hasInvalidCost(): boolean {

@@ -31,6 +31,11 @@ import {
   moneyToDecimalString,
   parseMoneyInput,
 } from '@core/utils/money.util';
+import {
+  applyDiscountMinor,
+  parseEffectiveDiscountPercent,
+} from '@core/utils/discount-percent.util';
+import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { CustomerService } from '@features/customers/services/customer.service';
@@ -166,8 +171,11 @@ export class SalesDocumentFormComponent {
     relatedDdtRef: this.fb.control(''),
     notes: this.fb.control(this.routeType === DocumentType.Proforma ? PROFORMA_DISCLAIMER : ''),
     internalComment: this.fb.control(''),
+    documentDiscountPercent: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
   });
+
+  private readonly selectedCustomer = signal<Customer | null>(null);
 
   protected readonly confirmDialogOpen = signal(false);
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
@@ -229,7 +237,7 @@ export class SalesDocumentFormComponent {
   protected readonly customerOptions = computed<readonly SelectMenuOption[]>(() =>
     this.customers().map((c) => ({
       value: c.id,
-      label: `${c.firstName} ${c.lastName}`.trim() || c.email || c.id,
+      label: customerDisplayName(c),
     })),
   );
 
@@ -261,6 +269,24 @@ export class SalesDocumentFormComponent {
     toVariantSelectMenuOptions(mergeVariantSummaries(this.searchedVariants(), [])),
   );
 
+  protected readonly customerCommercialHint = computed(() => {
+    const customer = this.selectedCustomer();
+    if (!customer) {
+      return null;
+    }
+    const parts: string[] = [];
+    if (customer.customerDiscount?.trim()) {
+      parts.push(`Sconto cliente: ${customer.customerDiscount.trim()}`);
+    }
+    if (customer.paymentTerms?.trim()) {
+      parts.push(`Pagamento: ${customer.paymentTerms.trim()}`);
+    }
+    if (customer.commercialNotes?.trim()) {
+      parts.push(customer.commercialNotes.trim());
+    }
+    return parts.length > 0 ? parts.join(' · ') : null;
+  });
+
   protected readonly lineTotals = computed(() => {
     let subtotalMinor = 0;
     let taxMinor = 0;
@@ -269,16 +295,25 @@ export class SalesDocumentFormComponent {
       const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
       const unitMinor = price?.amountMinor ?? 0;
       const vat = Number(line.controls.vatRatePercent.value) || 0;
-      const lineTotal = Math.round((qty * unitMinor * (100 - 0)) / 100);
-      subtotalMinor += lineTotal;
+      const gross = Math.round(qty * unitMinor);
+      const discounted = applyDiscountMinor(gross, line.controls.discountPercent.value);
+      subtotalMinor += discounted;
       if (vat > 0) {
-        taxMinor += Math.round((lineTotal * vat) / 100);
+        taxMinor += Math.round((discounted * vat) / 100);
       }
     }
+    const docDiscount = parseEffectiveDiscountPercent(
+      this.form.controls.documentDiscountPercent.value,
+    );
+    const docMultiplier = (100 - docDiscount) / 100;
+    const adjustedSubtotal = Math.round(subtotalMinor * docMultiplier);
+    const adjustedTax = Math.round(taxMinor * docMultiplier);
     return {
-      subtotal: { amountMinor: subtotalMinor, currencyCode: this.currency },
-      tax: { amountMinor: taxMinor, currencyCode: this.currency },
-      total: { amountMinor: subtotalMinor + taxMinor, currencyCode: this.currency },
+      subtotal: { amountMinor: adjustedSubtotal, currencyCode: this.currency },
+      tax: { amountMinor: adjustedTax, currencyCode: this.currency },
+      total: { amountMinor: adjustedSubtotal + adjustedTax, currencyCode: this.currency },
+      grossSubtotal: { amountMinor: subtotalMinor, currencyCode: this.currency },
+      hasDocumentDiscount: docDiscount > 0,
     };
   });
 
@@ -299,6 +334,34 @@ export class SalesDocumentFormComponent {
   protected onCustomerSelect(value: string | null): void {
     this.form.controls.customerId.setValue(value ?? '');
     this.form.controls.customerId.markAsTouched();
+    const customer = value ? (this.customers().find((c) => c.id === value) ?? null) : null;
+    this.selectedCustomer.set(customer);
+    if (customer) {
+      this.applyCustomerCommercialDefaults(customer);
+    }
+  }
+
+  private applyCustomerCommercialDefaults(customer: Customer): void {
+    const discount = customer.customerDiscount?.trim();
+    if (discount) {
+      for (const line of this.lines.controls) {
+        if (!line.controls.discountPercent.value.trim()) {
+          line.controls.discountPercent.setValue(discount, { emitEvent: false });
+        }
+      }
+    }
+
+    const commentParts: string[] = [];
+    if (customer.paymentTerms?.trim()) {
+      commentParts.push(`Pagamento: ${customer.paymentTerms.trim()}`);
+    }
+    if (customer.commercialNotes?.trim()) {
+      commentParts.push(customer.commercialNotes.trim());
+    }
+    const internalControl = this.form.controls.internalComment;
+    if (commentParts.length > 0 && !internalControl.value.trim()) {
+      internalControl.setValue(commentParts.join('\n'));
+    }
   }
 
   protected onVariantSearch(value: string): void {
@@ -316,7 +379,12 @@ export class SalesDocumentFormComponent {
   }
 
   protected addLine(): void {
-    this.lines.push(this.createLine());
+    const line = this.createLine();
+    const discount = this.selectedCustomer()?.customerDiscount?.trim();
+    if (discount) {
+      line.controls.discountPercent.setValue(discount, { emitEvent: false });
+    }
+    this.lines.push(line);
   }
 
   protected removeLine(index: number): void {
@@ -396,6 +464,7 @@ export class SalesDocumentFormComponent {
       internalComment: raw.internalComment.trim() || undefined,
       billingCause: raw.billingCause.trim() || undefined,
       externalRef: raw.relatedDdtRef.trim() || undefined,
+      documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       lines: raw.lines
         .filter((line) => line.description.trim() || line.variantId)
         .map((line) => {
@@ -406,6 +475,7 @@ export class SalesDocumentFormComponent {
             quantity: Number(line.quantity),
             unitPriceMinor: price?.amountMinor ?? 0,
             vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
+            discountPercent: parseEffectiveDiscountPercent(line.discountPercent),
             loadsStock: loadsStockLines && Boolean(line.variantId),
             serialNumbers: loadsStockLines
               ? parseSerialNumbersText(line.serialNumbersText)
@@ -447,7 +517,15 @@ export class SalesDocumentFormComponent {
       relatedDdtRef: doc.externalRef ?? '',
       notes: doc.notes ?? '',
       internalComment: doc.internalComment ?? '',
+      documentDiscountPercent:
+        doc.documentDiscountPercent && doc.documentDiscountPercent > 0
+          ? String(doc.documentDiscountPercent)
+          : '',
     });
+    if (doc.customerId) {
+      const customer = this.customers().find((c) => c.id === doc.customerId) ?? null;
+      this.selectedCustomer.set(customer);
+    }
     this.lines.clear();
     for (const line of doc.lines ?? []) {
       this.lines.push(
@@ -459,6 +537,9 @@ export class SalesDocumentFormComponent {
           }),
           unitPrice: this.fb.control(moneyToDecimalString(line.unitPrice).replace('.', ',')),
           vatRatePercent: this.fb.control(line.vatRatePercent?.toString() ?? '22'),
+          discountPercent: this.fb.control(
+            line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
+          ),
           serialNumbersText: this.fb.control((line.serialNumbers ?? []).join(', ')),
         }),
       );
@@ -477,6 +558,7 @@ export class SalesDocumentFormComponent {
       }),
       unitPrice: this.fb.control(''),
       vatRatePercent: this.fb.control('22'),
+      discountPercent: this.fb.control(''),
       serialNumbersText: this.fb.control(''),
     });
   }

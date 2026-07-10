@@ -7,7 +7,7 @@ import type { ApiPaginated } from '@core/api/api-paginated.model';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ApiHttpClient } from '@core/http/api-http.client';
 import type { PaginatedResponse } from '@core/models/api.model';
-import type { Customer } from '@core/models/customer.model';
+import type { Customer, CustomerInput } from '@core/models/customer.model';
 import type { EntityId } from '@core/models/common.model';
 
 import type { CustomerListQuery, CustomerExportQuery } from '../models/customer-list-query.model';
@@ -16,10 +16,7 @@ import { mapCustomerApiRow, type CustomerApiRow } from './customer-api.mapper';
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
-/**
- * Anagrafica clienti read-only via NestJS. Owner Shopify per ecommerce:
- * nessun CRUD locale; i dati arrivano da sync.
- */
+/** Anagrafica clienti via NestJS (CRUD locale + sync Shopify). */
 @Injectable({ providedIn: 'root' })
 export class CustomerService {
   private readonly http = inject(ApiHttpClient);
@@ -49,6 +46,18 @@ export class CustomerService {
   getCustomerById(id: EntityId): Observable<Customer> {
     return this.http
       .get<CustomerApiRow>(this.url(`/customers/${id}`))
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapCustomerApiRow));
+  }
+
+  createCustomer(input: CustomerInput): Observable<Customer> {
+    return this.http
+      .post<CustomerApiRow>(this.url('/customers'), input)
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapCustomerApiRow));
+  }
+
+  updateCustomer(id: EntityId, input: Partial<CustomerInput>): Observable<Customer> {
+    return this.http
+      .patch<CustomerApiRow>(this.url(`/customers/${id}`), input)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapCustomerApiRow));
   }
 

@@ -18,4 +18,5 @@ export interface VariantSummary {
   readonly supplierSku?: string;
   readonly stockOnHand?: number | null;
   readonly category?: string;
+  readonly unitOfMeasure?: string;
 }

@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsOptional()
@@ -82,6 +82,36 @@ export class CreateSupplierDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
+  supplierDiscount?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  defaultVatRatePercent?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  transportResponsible?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  freightTerms?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  documentCreationNote?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  alsoCustomer?: boolean;
 }

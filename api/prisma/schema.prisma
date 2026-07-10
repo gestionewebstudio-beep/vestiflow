@@ -653,15 +653,26 @@ model Supplier {
   postalCode   String?  @map("postal_code")
   countryCode  String?  @map("country_code")
   paymentTerms String?  @map("payment_terms")
+  /// Sconto fornitore (es. "10%" o "4+10%" — applicazione a cascata).
+  supplierDiscount       String? @map("supplier_discount")
+  /// Aliquota IVA predefinita per documenti di questo fornitore.
+  defaultVatRatePercent  Int?    @map("default_vat_rate_percent")
+  /// Incaricato trasporto (es. "Vettore", "Mittente").
+  transportResponsible   String? @map("transport_responsible")
+  /// Porto (es. "Franco", "Assegnato").
+  freightTerms           String? @map("freight_terms")
+  /// Avviso mostrato in creazione arrivo merce per questo fornitore.
+  documentCreationNote   String? @map("document_creation_note")
   notes        String?
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  tenant       Tenant                @relation(fields: [tenantId], references: [id])
-  orders       SupplierOrder[]
-  documents    Document[]
-  attachments  SupplierAttachment[]
-  variantLinks SupplierVariantLink[]
+  tenant         Tenant                @relation(fields: [tenantId], references: [id])
+  linkedCustomer Customer?
+  orders         SupplierOrder[]
+  documents      Document[]
+  attachments    SupplierAttachment[]
+  variantLinks   SupplierVariantLink[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -756,13 +767,23 @@ model Customer {
   province          String?
   postalCode        String?  @map("postal_code")
   countryCode       String?  @map("country_code")
+  /// Ragione sociale (rivenditori/aziende).
+  companyName       String?  @map("company_name")
+  vatNumber         String?  @map("vat_number")
+  /// Sconto cliente (es. "10%" o "4+10%" — applicazione a cascata).
+  customerDiscount  String?  @map("customer_discount")
+  paymentTerms      String?  @map("payment_terms")
+  commercialNotes   String?  @map("commercial_notes")
   shopifyCustomerId String?  @map("shopify_customer_id")
+  /// Fornitore collegato se il cliente è anche fornitore (ruolo duale).
+  linkedSupplierId  String?  @unique @map("linked_supplier_id") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  tenant    Tenant       @relation(fields: [tenantId], references: [id])
-  orders    SalesOrder[]
-  documents Document[]
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  linkedSupplier Supplier?    @relation(fields: [linkedSupplierId], references: [id], onDelete: SetNull)
+  orders         SalesOrder[]
+  documents      Document[]
 
   @@unique([tenantId, shopifyCustomerId])
   @@index([tenantId, lastName])
@@ -1080,6 +1101,8 @@ model Document {
   subtotalMinor     Int            @default(0) @map("subtotal_minor")
   taxMinor          Int            @default(0) @map("tax_minor")
   totalMinor        Int            @default(0) @map("total_minor")
+  /// Sconto extra percentuale applicato sull'intero documento oltre agli sconti riga.
+  documentDiscountPercent Int      @default(0) @map("document_discount_percent")
   pricesIncludeVat  Boolean        @default(false) @map("prices_include_vat")
   createdById       String?        @map("created_by_id") @db.Uuid
   /// Snapshot nome operatore (audit stabile anche se l'utente cambia nome).

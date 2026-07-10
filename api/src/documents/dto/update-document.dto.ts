@@ -3,12 +3,15 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEnum,
+  IsInt,
   IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Max,
   MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { AdjustmentDirection } from '@prisma/client';
@@ -79,6 +82,12 @@ export class UpdateDocumentDto {
   @IsString()
   @MaxLength(500)
   externalRef?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  documentDiscountPercent?: number;
 
   @IsOptional()
   @IsUUID()

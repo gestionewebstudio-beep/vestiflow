@@ -1,5 +1,5 @@
 import type { Address, EntityId, IsoDateString } from '@core/models/common.model';
-import type { Customer } from '@core/models/customer.model';
+import type { Customer, CustomerSource } from '@core/models/customer.model';
 
 /** Riga API NestJS (indirizzo flat, allineato a Prisma). */
 export interface CustomerApiRow {
@@ -16,7 +16,13 @@ export interface CustomerApiRow {
   readonly province?: string | null;
   readonly postalCode?: string | null;
   readonly countryCode?: string | null;
+  readonly companyName?: string | null;
+  readonly vatNumber?: string | null;
+  readonly customerDiscount?: string | null;
+  readonly paymentTerms?: string | null;
+  readonly commercialNotes?: string | null;
   readonly shopifyCustomerId?: string | null;
+  readonly linkedSupplierId?: string | null;
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
 }
@@ -35,6 +41,10 @@ function mapAddress(row: CustomerApiRow): Address | undefined {
   };
 }
 
+function mapSource(row: CustomerApiRow): CustomerSource {
+  return row.shopifyCustomerId ? 'shopify' : 'manual';
+}
+
 export function mapCustomerApiRow(row: CustomerApiRow): Customer {
   return {
     tenantId: row.tenantId,
@@ -45,7 +55,14 @@ export function mapCustomerApiRow(row: CustomerApiRow): Customer {
     phone: row.phone ?? undefined,
     notes: row.notes ?? undefined,
     address: mapAddress(row),
+    companyName: row.companyName ?? undefined,
+    vatNumber: row.vatNumber ?? undefined,
+    customerDiscount: row.customerDiscount ?? undefined,
+    paymentTerms: row.paymentTerms ?? undefined,
+    commercialNotes: row.commercialNotes ?? undefined,
     shopifyCustomerId: row.shopifyCustomerId ?? undefined,
+    linkedSupplierId: row.linkedSupplierId ?? undefined,
+    source: mapSource(row),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

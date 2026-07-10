@@ -112,6 +112,7 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly subtotal: Money;
   readonly tax: Money;
   readonly total: Money;
+  readonly documentDiscountPercent?: number;
   readonly pricesIncludeVat: boolean;
   readonly createdByName: string;
   readonly confirmedAt?: IsoDateString;

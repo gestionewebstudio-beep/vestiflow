@@ -3,11 +3,18 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { Customer } from '@core/models/customer.model';
+import {
+  customerDisplayName,
+  customerSourceLabel,
+  type Customer,
+} from '@core/models/customer.model';
+import { canManageCustomers } from '@core/permissions/tenant-permissions.util';
 import { formatDate } from '@core/utils/date.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -22,13 +29,14 @@ type DetailState =
   | { readonly status: 'not-found' }
   | { readonly status: 'error'; readonly error: AppError };
 
-/** Dettaglio cliente read-only (smart): anagrafica e contatti. */
+/** Dettaglio cliente (smart): anagrafica, dati commerciali e collegamenti. */
 @Component({
   selector: 'app-customer-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
     BadgeComponent,
+    ButtonComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -41,6 +49,7 @@ export class CustomerDetailComponent {
   private readonly service = inject(CustomerService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly authService = inject(AuthService);
 
   protected readonly listPath = '/app/customers';
   protected readonly skeletonColumns = 3;
@@ -79,14 +88,21 @@ export class CustomerDetailComponent {
     return current.status === 'success' ? current.customer : null;
   });
 
-  protected readonly fullName = computed(() => {
+  protected readonly displayName = computed(() => {
     const customer = this.customer();
-    return customer ? `${customer.firstName} ${customer.lastName}` : '';
+    return customer ? customerDisplayName(customer) : '';
   });
 
-  protected readonly isShopifyOwned = computed(() => Boolean(this.customer()?.shopifyCustomerId));
+  protected readonly isShopifyOwned = computed(() => this.customer()?.source === 'shopify');
 
-  protected readonly facts = computed<readonly DetailFact[]>(() => {
+  protected readonly canManage = computed(() => canManageCustomers(this.authService.currentUser()));
+
+  protected readonly editPath = computed(() => {
+    const customer = this.customer();
+    return customer ? `/app/customers/${customer.id}/edit` : this.listPath;
+  });
+
+  protected readonly anagraficaFacts = computed<readonly DetailFact[]>(() => {
     const customer = this.customer();
     if (!customer) {
       return [];
@@ -98,13 +114,39 @@ export class CustomerDetailComponent {
           .join(', ')
       : '—';
     return [
+      { label: 'Origine', value: customerSourceLabel(customer.source) },
+      { label: 'Nome', value: customer.firstName },
+      { label: 'Cognome', value: customer.lastName },
       { label: 'Email', value: customer.email ?? '—' },
       { label: 'Telefono', value: customer.phone ?? '—', numeric: true },
       { label: 'Indirizzo', value: addressLabel },
       { label: 'Cliente dal', value: formatDate(customer.createdAt), numeric: true },
       { label: 'Aggiornato il', value: formatDate(customer.updatedAt), numeric: true },
-      { label: 'Note', value: customer.notes ?? '—', wide: true },
+      { label: 'Note anagrafiche', value: customer.notes ?? '—', wide: true },
     ];
+  });
+
+  protected readonly commercialFacts = computed<readonly DetailFact[]>(() => {
+    const customer = this.customer();
+    if (!customer) {
+      return [];
+    }
+    return [
+      { label: 'Ragione sociale', value: customer.companyName ?? '—' },
+      { label: 'P. IVA', value: customer.vatNumber ?? '—', numeric: true },
+      { label: 'Sconto', value: customer.customerDiscount ?? '—' },
+      { label: 'Pagamento', value: customer.paymentTerms ?? '—' },
+      { label: 'Note commerciali', value: customer.commercialNotes ?? '—', wide: true },
+      {
+        label: 'Anche fornitore',
+        value: customer.linkedSupplierId ? 'Sì — collegato in anagrafica fornitori' : 'No',
+      },
+    ];
+  });
+
+  protected readonly supplierLinkPath = computed(() => {
+    const supplierId = this.customer()?.linkedSupplierId;
+    return supplierId ? `/app/suppliers/${supplierId}` : null;
   });
 
   protected reload(): void {

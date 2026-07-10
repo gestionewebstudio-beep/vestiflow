@@ -348,7 +348,11 @@ export class DocumentsService {
 
     const documentDate = new Date(dto.documentDate);
     const lines = this.computeLines(dto.lines ?? [], dto.type);
-    const totals = this.computeTotals(lines, setting.pricesIncludeVat);
+    const totals = this.computeTotals(
+      lines,
+      setting.pricesIncludeVat,
+      dto.documentDiscountPercent ?? 0,
+    );
 
     return this.prisma.document.create({
       data: {
@@ -376,6 +380,7 @@ export class DocumentsService {
         externalRef: dto.externalRef?.trim() || null,
         currency: dto.currency ?? 'EUR',
         pricesIncludeVat: setting.pricesIncludeVat,
+        documentDiscountPercent: dto.documentDiscountPercent ?? 0,
         ...totals,
         createdById: user?.id ?? null,
         createdByName: user?.displayName ?? 'API',
@@ -565,6 +570,9 @@ export class DocumentsService {
     if (dto.externalRef !== undefined) {
       data.externalRef = dto.externalRef?.trim() || null;
     }
+    if (dto.documentDiscountPercent !== undefined) {
+      data.documentDiscountPercent = dto.documentDiscountPercent;
+    }
 
     if (dto.externalDocNumber !== undefined) {
       data.externalDocNumber = dto.externalDocNumber;
@@ -608,11 +616,40 @@ export class DocumentsService {
     }
 
     if (lines) {
-      const totals = this.computeTotals(lines, setting.pricesIncludeVat);
+      const totals = this.computeTotals(
+        lines,
+        setting.pricesIncludeVat,
+        dto.documentDiscountPercent ?? doc.documentDiscountPercent,
+      );
       data.subtotalMinor = totals.subtotalMinor;
       data.taxMinor = totals.taxMinor;
       data.totalMinor = totals.totalMinor;
       data.lines = { create: lines.map((line) => ({ ...line, tenantId })) };
+    } else if (dto.documentDiscountPercent !== undefined) {
+      const totals = this.computeTotals(
+        this.computeLines(
+          doc.lines.map((line) => ({
+            variantId: line.variantId ?? undefined,
+            sku: line.sku ?? undefined,
+            description: line.description,
+            quantity: line.quantity,
+            unitPriceMinor: line.unitPriceMinor,
+            discountPercent: line.discountPercent,
+            vatRatePercent: line.vatRatePercent ?? undefined,
+            loadsStock: line.loadsStock,
+            supplierOrderLineId: line.supplierOrderLineId ?? undefined,
+            lotCode: line.lotCode ?? undefined,
+            lotExpiryDate: line.lotExpiryDate?.toISOString(),
+            serialNumbers: (line.serialNumbers as string[]) ?? [],
+          })),
+          doc.type,
+        ),
+        setting.pricesIncludeVat,
+        dto.documentDiscountPercent,
+      );
+      data.subtotalMinor = totals.subtotalMinor;
+      data.taxMinor = totals.taxMinor;
+      data.totalMinor = totals.totalMinor;
     }
 
     const actor = {
@@ -2065,24 +2102,41 @@ export class DocumentsService {
     }
   }
 
-  private computeTotals(lines: readonly ComputedLine[], pricesIncludeVat: boolean): DocumentTotals {
+  private computeTotals(
+    lines: readonly ComputedLine[],
+    pricesIncludeVat: boolean,
+    documentDiscountPercent = 0,
+  ): DocumentTotals {
     const lineSum = lines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+    const docDiscount = Math.min(100, Math.max(0, documentDiscountPercent));
+    const docDiscountAmount = Math.round((lineSum * docDiscount) / 100);
+    const discountedLineSum = lineSum - docDiscountAmount;
+
     const taxMinor = lines.reduce((sum, line) => {
-      if (line.vatRatePercent == null || line.vatRatePercent === 0) {
+      if (line.vatRatePercent == null || line.vatRatePercent === 0 || lineSum === 0) {
         return sum;
       }
+      const lineShare = line.lineTotalMinor / lineSum;
+      const discountedLineTotal = Math.round(discountedLineSum * lineShare);
       const rate = line.vatRatePercent;
       const tax = pricesIncludeVat
-        ? line.lineTotalMinor - Math.round((line.lineTotalMinor * 100) / (100 + rate))
-        : Math.round((line.lineTotalMinor * rate) / 100);
+        ? discountedLineTotal - Math.round((discountedLineTotal * 100) / (100 + rate))
+        : Math.round((discountedLineTotal * rate) / 100);
       return sum + tax;
     }, 0);
 
     if (pricesIncludeVat) {
-      // I prezzi contengono già l'IVA: il totale coincide con la somma righe.
-      return { subtotalMinor: lineSum - taxMinor, taxMinor, totalMinor: lineSum };
+      return {
+        subtotalMinor: discountedLineSum - taxMinor,
+        taxMinor,
+        totalMinor: discountedLineSum,
+      };
     }
-    return { subtotalMinor: lineSum, taxMinor, totalMinor: lineSum + taxMinor };
+    return {
+      subtotalMinor: discountedLineSum,
+      taxMinor,
+      totalMinor: discountedLineSum + taxMinor,
+    };
   }
 
   private async assertCounterparties(

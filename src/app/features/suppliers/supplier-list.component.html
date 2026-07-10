@@ -27,11 +27,14 @@
         (input)="onSearchInput($event)"
       />
     </div>
-    <app-table-column-picker [viewId]="tableViewId" />
-    <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
-      <i class="pi pi-filter-slash" aria-hidden="true"></i>
-      Azzera filtri
-    </app-button>
+
+    <div class="supplier-list__toolbar-actions">
+      <app-table-column-picker [viewId]="tableViewId" />
+      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+        <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        Azzera filtri
+      </app-button>
+    </div>
   </div>
 
   @if (loading()) {

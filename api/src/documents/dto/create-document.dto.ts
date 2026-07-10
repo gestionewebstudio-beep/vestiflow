@@ -160,6 +160,12 @@ export class CreateDocumentDto {
   externalRef?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  documentDiscountPercent?: number;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(500)
   @ValidateNested({ each: true })

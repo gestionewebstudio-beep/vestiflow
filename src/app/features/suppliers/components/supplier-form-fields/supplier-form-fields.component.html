@@ -167,6 +167,72 @@
       />
     </div>
     <div class="supplier-fields__field supplier-fields__field--full">
+      <h3 class="supplier-fields__section-title">Condizioni commerciali</h3>
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-supplier-discount'"
+        >Sconto fornitore</label
+      >
+      <input
+        [id]="idPrefix() + '-supplier-discount'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="supplierDiscount"
+        placeholder="Es. 10% o 4+10%"
+        autocomplete="off"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-default-vat'"
+        >Aliquota IVA predefinita</label
+      >
+      <app-select-menu
+        [options]="vatSelectOptions"
+        [value]="formGroup().controls.defaultVatRatePercent.value"
+        ariaLabel="Aliquota IVA predefinita"
+        placeholder="Seleziona IVA…"
+        [fullWidth]="true"
+        [includeEmptyOption]="true"
+        (valueChange)="onVatSelect($event)"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-transport'"
+        >Incaricato trasporto</label
+      >
+      <input
+        [id]="idPrefix() + '-transport'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="transportResponsible"
+        placeholder="Es. Vettore, Mittente"
+        autocomplete="off"
+      />
+    </div>
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-freight'">Porto</label>
+      <input
+        [id]="idPrefix() + '-freight'"
+        class="supplier-fields__control"
+        type="text"
+        formControlName="freightTerms"
+        placeholder="Es. Franco, Assegnato"
+        autocomplete="off"
+      />
+    </div>
+    <div class="supplier-fields__field supplier-fields__field--full">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-doc-note'"
+        >Nota alla creazione documento</label
+      >
+      <textarea
+        [id]="idPrefix() + '-doc-note'"
+        class="supplier-fields__control supplier-fields__textarea"
+        rows="2"
+        formControlName="documentCreationNote"
+        placeholder="Es. Controllare sempre la data di consegna prevista"
+      ></textarea>
+    </div>
+    <div class="supplier-fields__field supplier-fields__field--full">
       <label class="supplier-fields__label" [for]="idPrefix() + '-notes'">Note</label>
       <textarea
         [id]="idPrefix() + '-notes'"
@@ -174,6 +240,16 @@
         rows="3"
         formControlName="notes"
       ></textarea>
+    </div>
+    <div class="supplier-fields__field supplier-fields__field--full">
+      <label class="supplier-fields__checkbox">
+        <input type="checkbox" formControlName="alsoCustomer" />
+        <span>È anche cliente</span>
+      </label>
+      <p class="supplier-fields__hint">
+        Se attivo, il fornitore comparirà anche nell'elenco clienti e potrà essere selezionato nei
+        documenti di vendita.
+      </p>
     </div>
   </div>
 </div>

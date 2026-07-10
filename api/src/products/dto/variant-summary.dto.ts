@@ -16,4 +16,5 @@ export interface VariantSummaryDto {
   readonly supplierSku?: string | null;
   readonly stockOnHand?: number | null;
   readonly category?: string | null;
+  readonly unitOfMeasure?: string | null;
 }

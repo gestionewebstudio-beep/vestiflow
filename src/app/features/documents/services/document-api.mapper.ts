@@ -59,6 +59,7 @@ export interface DocumentApiRow {
   readonly subtotalMinor: number;
   readonly taxMinor: number;
   readonly totalMinor: number;
+  readonly documentDiscountPercent?: number;
   readonly pricesIncludeVat: boolean;
   readonly createdByName: string;
   readonly confirmedAt?: IsoDateString | null;
@@ -154,6 +155,7 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     subtotal: { amountMinor: row.subtotalMinor, currencyCode: row.currency },
     tax: { amountMinor: row.taxMinor, currencyCode: row.currency },
     total: { amountMinor: row.totalMinor, currencyCode: row.currency },
+    documentDiscountPercent: row.documentDiscountPercent ?? 0,
     pricesIncludeVat: row.pricesIncludeVat,
     createdByName: row.createdByName,
     confirmedAt: row.confirmedAt ?? undefined,
@@ -209,6 +211,7 @@ export interface CreateDocumentBody {
   readonly supplierOrderId?: EntityId;
   readonly billingCause?: string;
   readonly externalRef?: string;
+  readonly documentDiscountPercent?: number;
   readonly lines?: readonly DocumentLineInputBody[];
 }
 

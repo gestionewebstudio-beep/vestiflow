@@ -26,13 +26,20 @@ export function createSupplierFormGroup(fb: NonNullableFormBuilder) {
     postalCode: fb.control(''),
     countryCode: fb.control('IT'),
     paymentTerms: fb.control(''),
+    supplierDiscount: fb.control(''),
+    defaultVatRatePercent: fb.control(''),
+    transportResponsible: fb.control(''),
+    freightTerms: fb.control(''),
+    documentCreationNote: fb.control(''),
     notes: fb.control(''),
+    alsoCustomer: fb.control(false),
   });
 }
 
 export type SupplierFormGroup = ReturnType<typeof createSupplierFormGroup>;
 
 export function mapSupplierFormToInput(raw: SupplierFormGroup['value']): SupplierInput {
+  const vatRaw = raw.defaultVatRatePercent?.trim();
   return {
     code: trimOptional(raw.code),
     name: raw.name?.trim() ?? '',
@@ -50,7 +57,13 @@ export function mapSupplierFormToInput(raw: SupplierFormGroup['value']): Supplie
     postalCode: trimOptional(raw.postalCode),
     countryCode: trimOptional(raw.countryCode),
     paymentTerms: trimOptional(raw.paymentTerms),
+    supplierDiscount: trimOptional(raw.supplierDiscount),
+    defaultVatRatePercent: vatRaw ? Number(vatRaw) : undefined,
+    transportResponsible: trimOptional(raw.transportResponsible),
+    freightTerms: trimOptional(raw.freightTerms),
+    documentCreationNote: trimOptional(raw.documentCreationNote),
     notes: trimOptional(raw.notes),
+    alsoCustomer: raw.alsoCustomer ?? false,
   };
 }
 
@@ -72,7 +85,14 @@ export function patchSupplierFormGroup(form: SupplierFormGroup, supplier: Suppli
     postalCode: supplier.postalCode ?? '',
     countryCode: supplier.countryCode ?? 'IT',
     paymentTerms: supplier.paymentTerms ?? '',
+    supplierDiscount: supplier.supplierDiscount ?? '',
+    defaultVatRatePercent:
+      supplier.defaultVatRatePercent != null ? String(supplier.defaultVatRatePercent) : '',
+    transportResponsible: supplier.transportResponsible ?? '',
+    freightTerms: supplier.freightTerms ?? '',
+    documentCreationNote: supplier.documentCreationNote ?? '',
     notes: supplier.notes ?? '',
+    alsoCustomer: Boolean(supplier.linkedCustomerId),
   });
 }
 
@@ -94,6 +114,12 @@ export function resetSupplierFormGroup(form: SupplierFormGroup): void {
     postalCode: '',
     countryCode: 'IT',
     paymentTerms: '',
+    supplierDiscount: '',
+    defaultVatRatePercent: '',
+    transportResponsible: '',
+    freightTerms: '',
+    documentCreationNote: '',
     notes: '',
+    alsoCustomer: false,
   });
 }

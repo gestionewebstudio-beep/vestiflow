@@ -58,6 +58,9 @@
           @if (fieldInvalid('customerId')) {
             <p id="sd-customer-error" class="gr-form__error">Seleziona un cliente.</p>
           }
+          @if (customerCommercialHint(); as hint) {
+            <p class="gr-form__hint" role="note">{{ hint }}</p>
+          }
         </div>
 
         @if (isSalesDdt()) {
@@ -174,6 +177,17 @@
                     placeholder="0,00"
                   />
                 </div>
+                <div class="gr-form__line-field gr-form__line-field--discount">
+                  <label class="gr-form__label" [for]="'sd-discount-' + i">Sconto</label>
+                  <input
+                    [id]="'sd-discount-' + i"
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="discountPercent"
+                    placeholder="es. 10%"
+                    autocomplete="off"
+                  />
+                </div>
                 <div class="gr-form__line-field gr-form__line-field--vat">
                   <label class="gr-form__label" [for]="'sd-vat-' + i">IVA %</label>
                   <input
@@ -211,7 +225,14 @@
         <dl class="gr-form__totals">
           <div class="gr-form__total-row">
             <dt>Imponibile stimato</dt>
-            <dd class="tabular-nums">{{ formatMoney(lineTotals().subtotal) }}</dd>
+            <dd class="tabular-nums">
+              @if (lineTotals().hasDocumentDiscount) {
+                <span class="gr-form__total-struck">{{
+                  formatMoney(lineTotals().grossSubtotal)
+                }}</span>
+              }
+              {{ formatMoney(lineTotals().subtotal) }}
+            </dd>
           </div>
           <div class="gr-form__total-row">
             <dt>IVA stimata</dt>
@@ -222,6 +243,18 @@
             <dd class="tabular-nums">{{ formatMoney(lineTotals().total) }}</dd>
           </div>
         </dl>
+
+        <div class="gr-form__field">
+          <label class="gr-form__label" for="sd-doc-discount">Sconto extra documento</label>
+          <input
+            id="sd-doc-discount"
+            class="gr-form__input"
+            type="text"
+            formControlName="documentDiscountPercent"
+            placeholder="es. 5%"
+            autocomplete="off"
+          />
+        </div>
       </section>
 
       <div class="gr-form__field">

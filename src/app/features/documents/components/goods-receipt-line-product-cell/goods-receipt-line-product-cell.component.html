@@ -23,7 +23,7 @@
         [disabled]="disabled()"
         [value]="value()"
         [attr.aria-invalid]="invalid() ? true : null"
-        [attr.aria-expanded]="suggestionsOpen()"
+        [attr.aria-expanded]="suggestionsOpen() && suggestions().length > 0"
         [attr.aria-controls]="listboxId()"
         aria-label="Nome prodotto"
         autocomplete="off"

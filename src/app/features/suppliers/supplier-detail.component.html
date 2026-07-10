@@ -32,6 +32,13 @@
       <app-detail-facts [facts]="facts()" />
     </section>
 
+    @if (customerLinkPath(); as customerPath) {
+      <p class="supplier-detail__link">
+        <i class="pi pi-users" aria-hidden="true"></i>
+        <a [routerLink]="customerPath">Apri scheda cliente collegata</a>
+      </p>
+    }
+
     <app-supplier-attachments-panel [supplierId]="s.id" [canManage]="canManage()" />
 
     <section class="supplier-detail__panel" aria-labelledby="supplier-articles">

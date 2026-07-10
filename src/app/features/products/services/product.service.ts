@@ -68,6 +68,7 @@ interface VariantSummaryApiRow {
   readonly supplierSku?: string | null;
   readonly stockOnHand?: number | null;
   readonly category?: string | null;
+  readonly unitOfMeasure?: string | null;
 }
 
 export interface VariantSummarySearchQuery {
@@ -376,6 +377,7 @@ export class ProductService {
       supplierSku: row.supplierSku ?? undefined,
       stockOnHand: row.stockOnHand ?? undefined,
       category: row.category?.trim() || undefined,
+      unitOfMeasure: row.unitOfMeasure?.trim() || undefined,
     };
   }
 

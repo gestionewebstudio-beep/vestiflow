@@ -29,7 +29,13 @@ export interface Supplier extends TenantScoped, Timestamped {
   readonly postalCode?: string | null;
   readonly countryCode?: string | null;
   readonly paymentTerms?: string | null;
+  readonly supplierDiscount?: string | null;
+  readonly defaultVatRatePercent?: number | null;
+  readonly transportResponsible?: string | null;
+  readonly freightTerms?: string | null;
+  readonly documentCreationNote?: string | null;
   readonly notes?: string | null;
+  readonly linkedCustomerId?: string | null;
 }
 
 /** Payload creazione/aggiornamento fornitore. */
@@ -50,7 +56,13 @@ export interface SupplierInput {
   readonly postalCode?: string;
   readonly countryCode?: string;
   readonly paymentTerms?: string;
+  readonly supplierDiscount?: string;
+  readonly defaultVatRatePercent?: number;
+  readonly transportResponsible?: string;
+  readonly freightTerms?: string;
+  readonly documentCreationNote?: string;
   readonly notes?: string;
+  readonly alsoCustomer?: boolean;
 }
 
 /** @deprecated Usa SupplierInput */

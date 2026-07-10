@@ -120,8 +120,25 @@ export class SupplierDetailComponent {
       { label: 'Sito web', value: s.website ?? '—' },
       { label: 'Indirizzo', value: this.formatAddress(s) },
       { label: 'Pagamento', value: s.paymentTerms ?? '—' },
+      { label: 'Sconto fornitore', value: s.supplierDiscount ?? '—' },
+      {
+        label: 'IVA predefinita',
+        value: s.defaultVatRatePercent != null ? `${s.defaultVatRatePercent}%` : '—',
+      },
+      { label: 'Incaricato trasporto', value: s.transportResponsible ?? '—' },
+      { label: 'Porto', value: s.freightTerms ?? '—' },
+      { label: 'Nota creazione documento', value: s.documentCreationNote ?? '—' },
       { label: 'Note', value: s.notes ?? '—' },
+      {
+        label: 'Anche cliente',
+        value: s.linkedCustomerId ? 'Sì — collegato in anagrafica clienti' : 'No',
+      },
     ];
+  });
+
+  protected readonly customerLinkPath = computed(() => {
+    const customerId = this.supplier()?.linkedCustomerId;
+    return customerId ? `/app/customers/${customerId}` : null;
   });
 
   protected formatPrice(link: SupplierVariantLink): string {

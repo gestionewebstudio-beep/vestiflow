@@ -7,6 +7,7 @@ import {
 import { Prisma, type Supplier, type SupplierVariantLink } from '@prisma/client';
 
 import type { Paginated } from '../common/dto/pagination.dto';
+import { CustomersService } from '../customers/customers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { ListSuppliersQueryDto } from './dto/list-suppliers.query.dto';
@@ -34,6 +35,10 @@ export type SupplierVariantLinkRow = SupplierVariantLink & {
   };
 };
 
+export type SupplierWithLinkedCustomer = Supplier & {
+  readonly linkedCustomerId: string | null;
+};
+
 type SupplierWriteData = {
   code?: string | null;
   name?: string;
@@ -51,12 +56,20 @@ type SupplierWriteData = {
   postalCode?: string | null;
   countryCode?: string | null;
   paymentTerms?: string | null;
+  supplierDiscount?: string | null;
+  defaultVatRatePercent?: number | null;
+  transportResponsible?: string | null;
+  freightTerms?: string | null;
+  documentCreationNote?: string | null;
   notes?: string | null;
 };
 
 @Injectable()
 export class SuppliersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly customers: CustomersService,
+  ) {}
 
   /** Elenco completo non paginato (compatibilità select inline ordini/arrivi). */
   listAll(tenantId: string): Promise<Supplier[]> {
@@ -94,17 +107,17 @@ export class SuppliersService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getById(tenantId: string, id: string): Promise<Supplier> {
+  async getById(tenantId: string, id: string): Promise<SupplierWithLinkedCustomer> {
     const supplier = await this.prisma.supplier.findFirst({
       where: { id, tenantId },
     });
     if (!supplier) {
       throw new NotFoundException('Fornitore non trovato');
     }
-    return supplier;
+    return this.withLinkedCustomerId(supplier);
   }
 
-  async create(tenantId: string, dto: CreateSupplierDto): Promise<Supplier> {
+  async create(tenantId: string, dto: CreateSupplierDto): Promise<SupplierWithLinkedCustomer> {
     const data = this.normalizeWrite(dto);
     if (!data.name) {
       throw new UnprocessableEntityException('Il nome fornitore è obbligatorio');
@@ -113,9 +126,13 @@ export class SuppliersService {
       data.code = await this.allocateNextSupplierCode(tenantId);
     }
     await this.assertCodeAvailable(tenantId, data.code ?? null);
-    return this.prisma.supplier.create({
+    const supplier = await this.prisma.supplier.create({
       data: { tenantId, ...data, name: data.name },
     });
+    if (dto.alsoCustomer) {
+      await this.customers.linkCustomerToSupplier(tenantId, supplier.id, true);
+    }
+    return this.getById(tenantId, supplier.id);
   }
 
   async previewNextCode(tenantId: string): Promise<{ readonly code: string }> {
@@ -123,16 +140,22 @@ export class SuppliersService {
     return { code };
   }
 
-  async update(tenantId: string, id: string, dto: UpdateSupplierDto): Promise<Supplier> {
+  async update(tenantId: string, id: string, dto: UpdateSupplierDto): Promise<SupplierWithLinkedCustomer> {
     await this.getById(tenantId, id);
     const data = this.normalizeWrite(dto);
     if (data.code !== undefined) {
       await this.assertCodeAvailable(tenantId, data.code, id);
     }
-    return this.prisma.supplier.update({
+    await this.prisma.supplier.update({
       where: { id },
       data,
     });
+    if (dto.alsoCustomer === true) {
+      await this.customers.linkCustomerToSupplier(tenantId, id, true);
+    } else if (dto.alsoCustomer === false) {
+      await this.customers.linkCustomerToSupplier(tenantId, id, false);
+    }
+    return this.getById(tenantId, id);
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
@@ -284,6 +307,10 @@ export class SuppliersService {
       'postalCode',
       'countryCode',
       'paymentTerms',
+      'supplierDiscount',
+      'transportResponsible',
+      'freightTerms',
+      'documentCreationNote',
       'notes',
     ];
 
@@ -295,6 +322,10 @@ export class SuppliersService {
           ? (trimmed as string)
           : null;
       }
+    }
+
+    if ('defaultVatRatePercent' in dto && dto.defaultVatRatePercent !== undefined) {
+      result.defaultVatRatePercent = dto.defaultVatRatePercent;
     }
 
     return result;
@@ -341,5 +372,13 @@ export class SuppliersService {
       candidate = String(numeric + 1).padStart(SUPPLIER_NUMERIC_CODE_PAD, '0');
     }
     throw new ConflictException('Impossibile generare un codice fornitore progressivo univoco');
+  }
+
+  private async withLinkedCustomerId(supplier: Supplier): Promise<SupplierWithLinkedCustomer> {
+    const linked = await this.prisma.customer.findFirst({
+      where: { linkedSupplierId: supplier.id },
+      select: { id: true },
+    });
+    return { ...supplier, linkedCustomerId: linked?.id ?? null };
   }
 }

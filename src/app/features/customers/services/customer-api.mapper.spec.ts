@@ -31,11 +31,25 @@ describe('mapCustomerApiRow', () => {
       country: 'IT',
     });
     expect(customer.shopifyCustomerId).toBe('gid://shopify/Customer/1');
+    expect(customer.source).toBe('shopify');
+  });
+
+  it('imposta origine gestionale senza shopifyCustomerId', () => {
+    const customer = mapCustomerApiRow({
+      id: 'cust-2',
+      tenantId: 'tenant-1',
+      firstName: 'Luigi',
+      lastName: 'Verdi',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    expect(customer.source).toBe('manual');
   });
 
   it('omette indirizzo se dati insufficienti', () => {
     const customer = mapCustomerApiRow({
-      id: 'cust-2',
+      id: 'cust-3',
       tenantId: 'tenant-1',
       firstName: 'Luigi',
       lastName: 'Verdi',

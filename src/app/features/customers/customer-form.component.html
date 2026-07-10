@@ -1,0 +1,37 @@
+<section class="customer-form">
+  <a class="customer-form__back" [routerLink]="listPath">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Clienti
+  </a>
+
+  <header class="customer-form__header">
+    <h1 class="customer-form__title">
+      {{ isEdit() ? 'Modifica cliente' : 'Nuovo cliente' }}
+    </h1>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="8" />
+  } @else if (loadError(); as appError) {
+    <app-error-state [description]="appError.message" />
+  } @else {
+    <form class="customer-form__body" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <app-customer-form-fields
+        idPrefix="customer-page"
+        [formGroup]="form"
+        [anagraficaReadOnly]="anagraficaReadOnly()"
+      />
+
+      @if (saveError(); as message) {
+        <p class="customer-form__error" role="alert">{{ message }}</p>
+      }
+
+      <div class="customer-form__actions">
+        <app-button type="submit" variant="primary" [loading]="saving()" [disabled]="saving()">
+          Salva cliente
+        </app-button>
+        <app-button variant="ghost" [routerLink]="listPath">Annulla</app-button>
+      </div>
+    </form>
+  }
+</section>

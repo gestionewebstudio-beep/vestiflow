@@ -1,9 +1,12 @@
 import {
+  Body,
   Controller,
   Get,
   Header,
   Param,
   ParseUUIDPipe,
+  Patch,
+  Post,
   Query,
   StreamableFile,
   UseGuards,
@@ -24,8 +27,10 @@ import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CustomersExportService } from './customers-export.service';
 import { CustomersService } from './customers.service';
+import { CreateCustomerDto } from './dto/create-customer.dto';
 import { ExportCustomersQueryDto } from './dto/export-customers.query.dto';
 import { ListCustomersQueryDto } from './dto/list-customers.query.dto';
+import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -66,5 +71,24 @@ export class CustomersController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<Customer> {
     return this.customers.getById(tenantId, id);
+  }
+
+  @Post()
+  @RequirePermissions(TenantPermission.CustomersManage)
+  create(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: CreateCustomerDto,
+  ): Promise<Customer> {
+    return this.customers.create(tenantId, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(TenantPermission.CustomersManage)
+  update(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCustomerDto,
+  ): Promise<Customer> {
+    return this.customers.update(tenantId, id, dto);
   }
 }

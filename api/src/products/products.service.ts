@@ -214,7 +214,7 @@ export class ProductsService {
           currency: true,
           sellingPriceMinor: true,
           purchasePriceMinor: true,
-          product: { select: { name: true, category: true } },
+          product: { select: { name: true, category: true, unitOfMeasure: true } },
           ...(query.supplierId
             ? {
                 supplierLinks: {
@@ -267,6 +267,7 @@ export class ProductsService {
         supplierSku: supplierLink?.supplierSku ?? null,
         stockOnHand: level?.onHand ?? null,
         category: row.product.category?.trim() || null,
+        unitOfMeasure: row.product.unitOfMeasure ?? 'pz',
       };
     });
 

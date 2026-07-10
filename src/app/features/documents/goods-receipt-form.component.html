@@ -87,6 +87,13 @@
         <p class="gr-form__warning-banner" role="status">{{ warning }}</p>
       }
 
+      @if (supplierDocumentNote(); as supplierNote) {
+        <p class="gr-form__supplier-note-banner" role="status">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          {{ supplierNote }}
+        </p>
+      }
+
       @if (isConfirmedEdit()) {
         <div class="gr-form__post-actions" aria-label="Azioni documento confermato">
           @if (canExportPdf()) {
@@ -138,7 +145,7 @@
 
       <fieldset class="gr-form__fieldset" [disabled]="formReadOnly()">
         <div class="gr-form__header">
-          <div class="gr-form__grid gr-form__grid--header">
+          <div class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact">
             <div class="gr-form__field">
               <span class="gr-form__label">Tipo documento</span>
               @if (isConfirmedEdit()) {
@@ -243,9 +250,7 @@
                 [fullWidth]="true"
               />
             </div>
-          </div>
 
-          <div class="gr-form__grid gr-form__grid--header gr-form__grid--header-secondary">
             <div class="gr-form__field gr-form__field--wide">
               <label class="gr-form__label" for="gr-causale">Causale di carico</label>
               <input
@@ -341,31 +346,6 @@
             </div>
           </div>
 
-          @if (barcodeScanMode()) {
-            <div class="gr-form__scan-bar" role="region" aria-label="Lettura codici a barre">
-              <label class="gr-form__scan-label" for="gr-barcode-scan"
-                >Lettura codici a barre</label
-              >
-              <input
-                #barcodeScanInput
-                id="gr-barcode-scan"
-                class="gr-form__input gr-form__scan-input"
-                type="text"
-                [value]="barcodeScanDraft()"
-                [disabled]="formReadOnly() || barcodeScanBusy()"
-                autocomplete="off"
-                placeholder="Scansiona o digita codice…"
-                aria-describedby="gr-barcode-scan-hint"
-                (input)="onBarcodeScanInput($any($event.target).value)"
-                (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
-              />
-              <p id="gr-barcode-scan-hint" class="gr-form__scan-hint">
-                Per indicare la quantità prima della scansione digita ad esempio
-                <kbd>148*</kbd> seguito dal codice a barre.
-              </p>
-            </div>
-          }
-
           @if (csvImportSummary(); as summary) {
             <p class="gr-form__import-summary" role="status">{{ summary }}</p>
           }
@@ -400,8 +380,17 @@
                 @if (isLineColumnVisible('quantity')) {
                   <col [style.width]="lineColumnWidth('quantity')" />
                 }
+                @if (isLineColumnVisible('stockAvailable')) {
+                  <col [style.width]="lineColumnWidth('stockAvailable')" />
+                }
+                @if (isLineColumnVisible('unitOfMeasure')) {
+                  <col [style.width]="lineColumnWidth('unitOfMeasure')" />
+                }
                 @if (isLineColumnVisible('unitCost')) {
                   <col [style.width]="lineColumnWidth('unitCost')" />
+                }
+                @if (isLineColumnVisible('discount')) {
+                  <col [style.width]="lineColumnWidth('discount')" />
                 }
                 @if (isLineColumnVisible('sellingPrice')) {
                   <col [style.width]="lineColumnWidth('sellingPrice')" />
@@ -602,6 +591,30 @@
                       ></span>
                     </th>
                   }
+                  @if (isLineColumnVisible('stockAvailable')) {
+                    <th
+                      scope="col"
+                      class="gr-form__num"
+                      [style.width]="lineColumnWidth('stockAvailable')"
+                    >
+                      Q.tà disp.
+                      <span
+                        appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('stockAvailable')"
+                        (resized)="onLineColumnResize('stockAvailable', $event)"
+                      ></span>
+                    </th>
+                  }
+                  @if (isLineColumnVisible('unitOfMeasure')) {
+                    <th scope="col" [style.width]="lineColumnWidth('unitOfMeasure')">
+                      U.m.
+                      <span
+                        appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('unitOfMeasure')"
+                        (resized)="onLineColumnResize('unitOfMeasure', $event)"
+                      ></span>
+                    </th>
+                  }
                   @if (isLineColumnVisible('unitCost')) {
                     <th
                       scope="col"
@@ -628,6 +641,20 @@
                         appTableColumnResize
                         [minWidthPx]="lineColumnMinWidth('unitCost')"
                         (resized)="onLineColumnResize('unitCost', $event)"
+                      ></span>
+                    </th>
+                  }
+                  @if (isLineColumnVisible('discount')) {
+                    <th
+                      scope="col"
+                      class="gr-form__num"
+                      [style.width]="lineColumnWidth('discount')"
+                    >
+                      Sconto
+                      <span
+                        appTableColumnResize
+                        [minWidthPx]="lineColumnMinWidth('discount')"
+                        (resized)="onLineColumnResize('discount', $event)"
                       ></span>
                     </th>
                   }
@@ -727,6 +754,7 @@
                   <tr
                     class="gr-form__table-row"
                     [class.gr-form__table-row--active]="lineRowActive(i)"
+                    [class.gr-form__table-row--incomplete]="!lineRowComplete(i)"
                     [formGroupName]="i"
                   >
                     @if (isLineColumnVisible('sku')) {
@@ -866,7 +894,7 @@
                       }
                     }
                     @if (isLineColumnVisible('quantity')) {
-                      <td class="gr-form__cell gr-form__num">
+                      <td class="gr-form__cell gr-form__cell--editable gr-form__num">
                         <input
                           [id]="'gr-qty-' + i"
                           class="gr-form__input gr-form__input--table gr-form__input--num"
@@ -879,8 +907,20 @@
                         />
                       </td>
                     }
+                    @if (isLineColumnVisible('stockAvailable')) {
+                      <td
+                        class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                      >
+                        {{ lineStockAvailable(i) }}
+                      </td>
+                    }
+                    @if (isLineColumnVisible('unitOfMeasure')) {
+                      <td class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed">
+                        {{ lineUnitOfMeasure(i) }}
+                      </td>
+                    }
                     @if (isLineColumnVisible('unitCost')) {
-                      <td class="gr-form__cell gr-form__num">
+                      <td class="gr-form__cell gr-form__cell--editable gr-form__num">
                         <input
                           [id]="'gr-cost-' + i"
                           class="gr-form__input gr-form__input--table gr-form__input--num"
@@ -890,6 +930,19 @@
                           placeholder="0,00"
                           (blur)="onLineOperationalBlur(i)"
                           (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
+                        />
+                      </td>
+                    }
+                    @if (isLineColumnVisible('discount')) {
+                      <td class="gr-form__cell gr-form__cell--editable gr-form__num">
+                        <input
+                          [id]="'gr-discount-' + i"
+                          class="gr-form__input gr-form__input--table gr-form__input--num"
+                          type="text"
+                          formControlName="discountPercent"
+                          placeholder="0%"
+                          (blur)="onLineOperationalBlur(i)"
+                          (keydown)="onLineFieldKeydown(i, 'discount', $event)"
                         />
                       </td>
                     }
@@ -989,8 +1042,15 @@
                       </td>
                     }
                     @if (isLineColumnVisible('lineTotal')) {
-                      <td class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums">
-                        {{ formatMoney(lineMoney(i)) }}
+                      <td
+                        class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                      >
+                        @if (lineHasDiscount(i)) {
+                          <span class="gr-form__line-total-gross">{{
+                            formatMoney(lineGrossMoney(i))
+                          }}</span>
+                        }
+                        <span>{{ formatMoney(lineMoney(i)) }}</span>
                       </td>
                     }
                     @if (isLineColumnVisible('actions')) {
@@ -1028,13 +1088,88 @@
                     }
                   </tr>
                 }
+                <tr class="gr-form__table-row gr-form__table-row--scan">
+                  <td
+                    class="gr-form__cell gr-form__cell--scan"
+                    [attr.colspan]="visibleLineColumnCount()"
+                  >
+                    <div
+                      class="gr-form__scan-inline"
+                      role="region"
+                      aria-label="Lettura codici a barre"
+                    >
+                      <label class="gr-form__scan-label" for="gr-barcode-scan">
+                        <i class="pi pi-barcode" aria-hidden="true"></i>
+                        Scansione codice a barre
+                      </label>
+                      <input
+                        #barcodeScanInput
+                        id="gr-barcode-scan"
+                        class="gr-form__input gr-form__scan-input"
+                        type="text"
+                        [value]="barcodeScanDraft()"
+                        [disabled]="formReadOnly() || barcodeScanBusy()"
+                        autocomplete="off"
+                        placeholder="Scansiona o digita codice…"
+                        aria-describedby="gr-barcode-scan-hint"
+                        (input)="onBarcodeScanInput($any($event.target).value)"
+                        (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
+                      />
+                      <p id="gr-barcode-scan-hint" class="gr-form__scan-hint">
+                        Quantità + codice: <kbd>148*</kbd> seguito dal codice a barre.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
 
-          <p class="gr-form__total tabular-nums">
-            Totale documento: <strong>{{ formatMoney(documentTotal()) }}</strong>
-          </p>
+          <aside class="gr-form__totals-bar" aria-label="Totali documento">
+            <dl class="gr-form__totals">
+              <div class="gr-form__totals-row">
+                <dt>Imponibile righe</dt>
+                <dd class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</dd>
+              </div>
+              <div class="gr-form__totals-row gr-form__totals-row--field">
+                <dt>
+                  <label for="gr-doc-discount">Sconto extra documento</label>
+                </dt>
+                <dd>
+                  <input
+                    id="gr-doc-discount"
+                    class="gr-form__input gr-form__input--num gr-form__totals-input"
+                    type="text"
+                    formControlName="documentDiscountPercent"
+                    placeholder="0%"
+                    aria-label="Sconto extra documento"
+                  />
+                </dd>
+              </div>
+              @if (documentTotals().documentDiscount.amountMinor > 0) {
+                <div class="gr-form__totals-row">
+                  <dt>Sconto documento</dt>
+                  <dd class="tabular-nums">
+                    −{{ formatMoney(documentTotals().documentDiscount) }}
+                  </dd>
+                </div>
+              }
+              <div class="gr-form__totals-row">
+                <dt>Imponibile</dt>
+                <dd class="tabular-nums">{{ formatMoney(documentTotals().subtotal) }}</dd>
+              </div>
+              <div class="gr-form__totals-row">
+                <dt>IVA</dt>
+                <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
+              </div>
+              <div class="gr-form__totals-row gr-form__totals-row--total">
+                <dt>Totale</dt>
+                <dd class="tabular-nums">
+                  <strong>{{ formatMoney(documentTotals().total) }}</strong>
+                </dd>
+              </div>
+            </dl>
+          </aside>
         </section>
 
         <div class="gr-form__field">

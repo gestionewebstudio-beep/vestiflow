@@ -1,28 +1,28 @@
 @use 'breakpoints' as bp;
 
-.supplier-fields__grid {
+.customer-fields__grid {
   display: grid;
   gap: var(--space-4);
 }
 
 @include bp.media-up('md') {
-  .supplier-fields__grid {
+  .customer-fields__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.supplier-fields__field--full {
+.customer-fields__field--full {
   grid-column: 1 / -1;
 }
 
-.supplier-fields__section-title {
+.customer-fields__section-title {
   margin: 0;
   font-size: var(--text-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
-.supplier-fields__label {
+.customer-fields__label {
   display: block;
   margin-block-end: var(--space-1);
   font-size: var(--text-sm);
@@ -30,7 +30,7 @@
   color: var(--color-text);
 }
 
-.supplier-fields__control {
+.customer-fields__control {
   inline-size: 100%;
   block-size: var(--field-height);
   padding-inline: var(--space-3);
@@ -41,19 +41,24 @@
   border-radius: var(--radius-md);
 }
 
-.supplier-fields__control:focus-visible {
+.customer-fields__control:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus);
   outline-offset: var(--space-1);
 }
 
-.supplier-fields__textarea {
+.customer-fields__control:disabled {
+  opacity: var(--opacity-muted);
+  cursor: not-allowed;
+}
+
+.customer-fields__textarea {
   block-size: auto;
   min-block-size: calc(var(--field-height) * 2);
   padding-block: var(--space-2);
   resize: vertical;
 }
 
-.supplier-fields__checkbox {
+.customer-fields__checkbox {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -62,7 +67,7 @@
   cursor: pointer;
 }
 
-.supplier-fields__hint {
+.customer-fields__hint {
   margin: var(--space-2) 0 0;
   font-size: var(--text-xs);
   color: var(--color-text-muted);

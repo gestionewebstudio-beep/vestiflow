@@ -3,34 +3,16 @@
     <div class="customer-list__heading">
       <h1 class="customer-list__title">Clienti</h1>
       <p class="customer-list__subtitle">
-        Anagrafica in sola lettura: con l'integrazione attiva i clienti ecommerce arrivano da
-        Shopify.
+        Anagrafica clienti del gestionale. Con Shopify attivo i clienti ecommerce vengono importati
+        automaticamente; puoi anche crearne di nuovi manualmente.
       </p>
     </div>
-    <div class="customer-list__actions">
-      @if (showShopifyCustomersSync()) {
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="shopifyCustomersLoading()"
-          [disabled]="shopifyCustomersLoading()"
-          (click)="syncCustomersFromShopify()"
-        >
-          <i class="pi pi-sync" aria-hidden="true"></i>
-          Sincronizza clienti da Shopify
-        </app-button>
-      }
-      @if (canExportData()) {
-        <app-button variant="secondary" [disabled]="exporting()" (click)="exportCustomers()">
-          <i class="pi pi-download" aria-hidden="true"></i>
-          @if (exporting()) {
-            Export in corso…
-          } @else {
-            Esporta CSV
-          }
-        </app-button>
-      }
-    </div>
+    @if (canManage()) {
+      <app-button variant="primary" routerLink="/app/customers/new">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+        Nuovo cliente
+      </app-button>
+    }
   </header>
 
   @if (shopifySyncError(); as message) {
@@ -59,12 +41,38 @@
       />
     </div>
 
-    <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
-      <i class="pi pi-filter-slash" aria-hidden="true"></i>
-      Azzera filtri
-    </app-button>
+    <div class="customer-list__toolbar-actions">
+      <app-table-column-picker [viewId]="customerListView" />
 
-    <app-table-column-picker [viewId]="customerListView" />
+      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+        <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        Azzera filtri
+      </app-button>
+
+      @if (canExportData()) {
+        <app-button variant="secondary" [disabled]="exporting()" (click)="exportCustomers()">
+          <i class="pi pi-download" aria-hidden="true"></i>
+          @if (exporting()) {
+            Export in corso…
+          } @else {
+            Esporta CSV
+          }
+        </app-button>
+      }
+
+      @if (showShopifyCustomersSync()) {
+        <app-button
+          variant="secondary"
+          loadingIndicator="icon"
+          [loading]="shopifyCustomersLoading()"
+          [disabled]="shopifyCustomersLoading()"
+          (click)="syncCustomersFromShopify()"
+        >
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          Sincronizza da Shopify
+        </app-button>
+      }
+    </div>
   </div>
 
   @if (loading()) {

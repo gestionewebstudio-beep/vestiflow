@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   catchError,
   debounceTime,
@@ -21,7 +21,10 @@ import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
-import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
+import {
+  canExportOperationalData,
+  canManageCustomers,
+} from '@core/permissions/tenant-permissions.util';
 import { CUSTOMERS_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
 import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
 import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
@@ -80,11 +83,12 @@ type CustomerListState =
     }
   | { readonly status: 'error'; readonly error: AppError };
 
-/** Lista clienti read-only (smart). URL come fonte di verita' (page, search). */
+/** Lista clienti (smart). URL come fonte di verita' (page, search). */
 @Component({
   selector: 'app-customer-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -113,7 +117,7 @@ export class CustomerListComponent {
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly skeletonColumns = 4;
+  protected readonly skeletonColumns = 5;
   protected readonly pageSizeOptions = CUSTOMER_PAGE_SIZE_OPTIONS;
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
@@ -137,6 +141,8 @@ export class CustomerListComponent {
       isShopifyConnected(this.shopifyConnection()) &&
       canSyncShopifyCustomersOrOrders(this.authService.currentUser()),
   );
+
+  protected readonly canManage = computed(() => canManageCustomers(this.authService.currentUser()));
 
   protected readonly canExportData = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
