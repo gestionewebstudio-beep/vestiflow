@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEnum, IsISO8601, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsISO8601, IsOptional, IsString, IsUUID } from 'class-validator';
 import { DocumentStatus, DocumentType } from '@prisma/client';
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -47,7 +47,21 @@ export class ListDocumentsQueryDto extends PaginationQueryDto {
 
   @IsOptional()
   @IsUUID()
+  supplierId?: string;
+
+  @IsOptional()
+  @IsUUID()
   locationId?: string;
+
+  /** Stato collegamento fattura per Arrivi merce (prompt §3-4). */
+  @IsOptional()
+  @IsIn(['suspended', 'linked', 'cancelled'])
+  linkStatus?: 'suspended' | 'linked' | 'cancelled';
+
+  /** Filtro causale di carico (match parziale su causalText). */
+  @IsOptional()
+  @IsString()
+  causal?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === '1' || value === 'true' || value === true)

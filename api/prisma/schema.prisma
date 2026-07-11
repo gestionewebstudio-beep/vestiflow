@@ -251,6 +251,7 @@ model Tenant {
   userTableViewPreferences UserTableViewPreference[]
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
+  goodsReceiptCausals     GoodsReceiptCausal[]
   featureSettings         TenantFeatureSettings?
   shopifyConnection       ShopifyConnection?
   shopifyCredential       ShopifyCredential?
@@ -596,8 +597,11 @@ model InventoryCountLine {
   @@map("inventory_count_lines")
 }
 
-/// Log immutabile: ogni modifica inventariale produce una riga qui
-/// (regole-gestionale: mai update silenziosi). Append-only by design.
+/// Log movimenti inventariali: ogni modifica inventariale produce una riga qui
+/// (regole-gestionale: mai update silenziosi). I movimenti generati dalle righe
+/// di un Arrivo merce sono invece "vivi": un solo movimento per riga documento
+/// (UNIQUE su source_document_type + source_line_id), aggiornato ai salvataggi
+/// successivi del documento — mai storni visibili per le modifiche ordinarie.
 model StockMovement {
   id               String               @id @default(uuid()) @db.Uuid
   tenantId         String               @map("tenant_id") @db.Uuid
@@ -614,6 +618,15 @@ model StockMovement {
   reason           String?
   /// Riferimento esterno (es. id ordine Shopify che ha generato la vendita).
   externalRef      String?              @map("external_ref")
+  /// Documento origine del movimento (es. GOODS_RECEIPT per arrivi merce).
+  sourceDocumentType DocumentType?      @map("source_document_type")
+  sourceDocumentId   String?            @map("source_document_id") @db.Uuid
+  /// Riga documento origine: al massimo UN movimento per riga (no doppi carichi).
+  sourceLineId       String?            @map("source_line_id") @db.Uuid
+  /// Costo unitario effettivo (netto sconto riga) in unità minori — solo carichi documentali.
+  unitCostMinor      Int?               @map("unit_cost_minor")
+  /// Costo totale riga in unità minori — solo carichi documentali.
+  totalCostMinor     Int?               @map("total_cost_minor")
   createdAt        DateTime             @default(now()) @map("created_at")
   createdById      String?              @map("created_by_id") @db.Uuid
   /// Snapshot del nome operatore (audit stabile anche se l'utente cambia nome).
@@ -624,8 +637,10 @@ model StockMovement {
   location       Location       @relation("MovementLocation", fields: [locationId], references: [id])
   targetLocation Location?      @relation("MovementTargetLocation", fields: [targetLocationId], references: [id])
 
+  @@unique([sourceDocumentType, sourceLineId])
   @@index([tenantId, createdAt(sort: Desc)])
   @@index([tenantId, locationId, createdAt(sort: Desc)])
+  @@index([sourceDocumentId])
   @@index([variantId])
   @@index([locationId])
   @@map("stock_movements")
@@ -1096,6 +1111,10 @@ model Document {
   supplierOrderId   String?        @map("supplier_order_id") @db.Uuid
   /// Causale fatturazione (bozza fattura, §9.2).
   billingCause      String?        @map("billing_cause")
+  /// Causale di carico (arrivo merce): es. "DDT 145 del 08/05/2026".
+  causalText        String?        @map("causal_text")
+  /// Tipo riferimento documento fornitore: DDT, Fattura, Reso, Altro.
+  supplierRefType   String?        @map("supplier_ref_type")
   // ── Totali (denaro in unità minori intere, mai float) ──
   currency          String         @default("EUR")
   subtotalMinor     Int            @default(0) @map("subtotal_minor")
@@ -1127,6 +1146,12 @@ model Document {
   supplierOrder  SupplierOrder? @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
   salesOrder       SalesOrder?
   inventoryCountSessions InventoryCountSession[]
+  /// Link fattura registrata → arrivi merce inclusi (questo doc è la fattura).
+  goodsReceiptLinks      PurchaseInvoiceGoodsReceiptLink[] @relation("LinkInvoice")
+  /// Link arrivo merce → fatture registrate che lo includono (questo doc è l'arrivo).
+  purchaseInvoiceLinks   PurchaseInvoiceGoodsReceiptLink[] @relation("LinkReceipt")
+  /// Righe riepilogative di fatture registrate che puntano a questo arrivo merce.
+  summaryLines           DocumentLine[]                    @relation("LineGoodsReceipt")
 
   // Numero univoco per serie/anno/tipo (NULL distinti in Postgres: le bozze non collidono).
   @@unique([tenantId, type, series, year, number])
@@ -1165,17 +1190,62 @@ model DocumentLine {
   lotExpiryDate   DateTime? @map("lot_expiry_date") @db.Date
   /// Numeri seriali (tracciamento serial, opzionale).
   serialNumbers   Json     @default("[]") @map("serial_numbers")
+  /// Riga riepilogativa di registrazione fattura: arrivo merce riepilogato.
+  linkedGoodsReceiptId String? @map("linked_goods_receipt_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
   variant  ProductVariant? @relation(fields: [variantId], references: [id])
   supplierOrderLine SupplierOrderLine? @relation(fields: [supplierOrderLineId], references: [id], onDelete: SetNull)
+  linkedGoodsReceipt Document? @relation("LineGoodsReceipt", fields: [linkedGoodsReceiptId], references: [id], onDelete: SetNull)
   inventorySerials InventorySerial[]
 
   @@index([documentId])
   @@index([tenantId])
+  @@index([linkedGoodsReceiptId])
   @@map("document_lines")
+}
+
+/// Causale di carico per Arrivo merce: elenco editabile per tenant con
+/// ordinamento e predefinita (finestra "Gestione causali").
+model GoodsReceiptCausal {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  /// Testo/template della causale, es. "DDT ... del ..." o "Reso".
+  label        String
+  sortOrder    Int      @default(0) @map("sort_order")
+  isDefault    Boolean  @default(false) @map("is_default")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, label])
+  @@index([tenantId, sortOrder])
+  @@map("goods_receipt_causals")
+}
+
+/// Collegamento documentale fattura registrata ↔ arrivo merce (§6 prompt).
+/// Solo informativo/contabile: NON genera movimenti di magazzino.
+model PurchaseInvoiceGoodsReceiptLink {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  purchaseInvoiceId String   @map("purchase_invoice_id") @db.Uuid
+  goodsReceiptId    String   @map("goods_receipt_id") @db.Uuid
+  linkedNetMinor    Int      @default(0) @map("linked_net_minor")
+  linkedVatMinor    Int      @default(0) @map("linked_vat_minor")
+  linkedGrossMinor  Int      @default(0) @map("linked_gross_minor")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  purchaseInvoice Document @relation("LinkInvoice", fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  goodsReceipt    Document @relation("LinkReceipt", fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+
+  @@unique([purchaseInvoiceId, goodsReceiptId])
+  @@index([tenantId, goodsReceiptId])
+  @@index([tenantId, purchaseInvoiceId])
+  @@map("purchase_invoice_goods_receipt_links")
 }
 
 /// Storico leggero modifiche documento confermato (§4 piano funzionale).

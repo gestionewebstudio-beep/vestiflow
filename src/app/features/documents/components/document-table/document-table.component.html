@@ -71,6 +71,22 @@
                 {{ billingCauseLabel(doc) }}
               </td>
             }
+            @case ('causal') {
+              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ causalLabel(doc) }}
+              </td>
+            }
+            @case ('linkStatus') {
+              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                @if (linkStatusLabel(doc); as label) {
+                  <span class="doc-table__cell-value">
+                    <app-badge [tone]="linkStatusTone(doc)!">{{ label }}</app-badge>
+                  </span>
+                } @else {
+                  —
+                }
+              </td>
+            }
             @case ('notes') {
               <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
                 {{ notesLabel(doc) }}

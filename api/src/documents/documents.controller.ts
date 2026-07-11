@@ -49,6 +49,10 @@ import {
   type DocumentListRow,
   type DocumentWithLines,
 } from './documents.service';
+import { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
+import { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
+import { ListLinkableGoodsReceiptsQueryDto } from './dto/list-linkable-goods-receipts.query.dto';
+import { GoodsReceiptWorkflowService } from './goods-receipt-workflow.service';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -57,6 +61,7 @@ export class DocumentsController {
     private readonly documents: DocumentsService,
     private readonly attachments: DocumentAttachmentsService,
     private readonly documentPdf: DocumentPdfService,
+    private readonly goodsReceiptWorkflow: GoodsReceiptWorkflowService,
   ) {}
 
   @Get()
@@ -66,6 +71,56 @@ export class DocumentsController {
     @Query() query: ListDocumentsQueryDto,
   ): Promise<Paginated<DocumentListRow>> {
     return this.documents.list(tenantId, query);
+  }
+
+  /** Arrivi merce includibili in una registrazione fattura (prompt §5.1). */
+  @Get('linkable-goods-receipts')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  listLinkableGoodsReceipts(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ListLinkableGoodsReceiptsQueryDto,
+  ) {
+    return this.goodsReceiptWorkflow.listLinkableGoodsReceipts(
+      tenantId,
+      query.supplierId,
+      query.excludeInvoiceId,
+    );
+  }
+
+  /**
+   * Salvataggio unico Arrivo merce (prompt §2.1): testata + righe + totali +
+   * movimenti per riga + giacenze in un'unica operazione idempotente.
+   */
+  @Post('goods-receipt/save')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  async saveGoodsReceipt(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Body() dto: SaveGoodsReceiptDto,
+  ): Promise<DocumentDetail> {
+    const saved = await this.goodsReceiptWorkflow.saveGoodsReceipt(tenantId, dto, user);
+    return this.documents.getById(tenantId, saved.id);
+  }
+
+  /** Registrazione fattura fornitore (prompt §5-6): mai movimenti di magazzino. */
+  @Post('purchase-invoice/save')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  async savePurchaseInvoice(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Body() dto: SavePurchaseInvoiceDto,
+  ): Promise<{
+    document: DocumentDetail;
+    receiptsTotalMinor: number;
+    totalsMatch: boolean;
+  }> {
+    const result = await this.goodsReceiptWorkflow.savePurchaseInvoice(tenantId, dto, user);
+    const document = await this.documents.getById(tenantId, result.document.id);
+    return {
+      document,
+      receiptsTotalMinor: result.receiptsTotalMinor,
+      totalsMatch: result.totalsMatch,
+    };
   }
 
   @Get('preview-number')

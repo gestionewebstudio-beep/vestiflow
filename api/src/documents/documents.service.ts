@@ -35,6 +35,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
 import {
+  buildGoodsReceiptMovementReason,
+  syncGoodsReceiptLineMovements,
+} from './document-goods-receipt-sync.util';
+import {
+  INVOICE_LINKABLE_RECEIPT_TYPES,
   documentTypeAdjustsStockOnConfirm,
   documentTypeLoadsStockOnConfirm,
   documentTypeTransfersStockOnConfirm,
@@ -89,13 +94,46 @@ import type { MarkExternallyIssuedDto } from './dto/mark-externally-issued.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
 
 export type DocumentWithLines = Document & { lines: DocumentLine[] };
-export type DocumentListRow = Document & { lineCount: number; locationName: string | null };
+
+/** Fattura registrata collegata a un arrivo merce (display lista/dettaglio). */
+export type LinkedPurchaseInvoiceInfo = {
+  readonly id: string;
+  readonly reference: string | null;
+  readonly externalDocNumber: string | null;
+  readonly externalDocDate: Date | null;
+  readonly documentDate: Date;
+};
+
+/** Arrivo merce incluso in una registrazione fattura (dettaglio fattura). */
+export type LinkedGoodsReceiptInfo = {
+  readonly id: string;
+  readonly number: number | null;
+  readonly reference: string | null;
+  readonly documentDate: Date;
+  readonly causalText: string | null;
+  readonly subtotalMinor: number;
+  readonly taxMinor: number;
+  readonly totalMinor: number;
+};
+
+/** Stato collegamento fattura di un arrivo merce (prompt §3): mai in stampa. */
+export type GoodsReceiptLinkStatus = 'suspended' | 'linked' | 'cancelled';
+
+export type DocumentListRow = Document & {
+  lineCount: number;
+  locationName: string | null;
+  linkStatus: GoodsReceiptLinkStatus | null;
+  linkedPurchaseInvoice: LinkedPurchaseInvoiceInfo | null;
+};
 
 export type DocumentDetail = DocumentWithLines & {
   blockAfterConfirm: boolean;
   salesOrder: { id: string; orderNumber: string } | null;
   linkedSupplierOrder: { id: string; reference: string } | null;
   linkedSupplierOrderLines: readonly LinkedSupplierOrderLineContext[];
+  linkStatus: GoodsReceiptLinkStatus | null;
+  linkedPurchaseInvoice: LinkedPurchaseInvoiceInfo | null;
+  linkedGoodsReceipts: readonly LinkedGoodsReceiptInfo[];
 };
 
 export type LinkedSupplierOrderLineContext = {
@@ -170,19 +208,15 @@ export class DocumentsService {
             },
           }
         : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { reference: { contains: query.search, mode: 'insensitive' } },
-              { supplierName: { contains: query.search, mode: 'insensitive' } },
-              { customerName: { contains: query.search, mode: 'insensitive' } },
-              { externalDocNumber: { contains: query.search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+      ...(query.search ? { OR: this.buildSearchClauses(query.search) } : {}),
       ...(query.supplierOrderId ? { supplierOrderId: query.supplierOrderId } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
+      ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.locationId ? { locationId: query.locationId } : {}),
+      ...(query.causal
+        ? { causalText: { contains: query.causal, mode: 'insensitive' } }
+        : {}),
+      ...this.buildLinkStatusClause(query.linkStatus),
       ...(query.accountant ? { type: { in: [...ACCOUNTANT_DOCUMENT_TYPES] } } : {}),
       ...(query.pendingInvoice
         ? {
@@ -206,6 +240,21 @@ export class DocumentsService {
         include: {
           _count: { select: { lines: true } },
           location: { select: { name: true } },
+          purchaseInvoiceLinks: {
+            where: { purchaseInvoice: { status: { not: DocumentStatus.cancelled } } },
+            include: {
+              purchaseInvoice: {
+                select: {
+                  id: true,
+                  reference: true,
+                  externalDocNumber: true,
+                  externalDocDate: true,
+                  documentDate: true,
+                },
+              },
+            },
+            take: 1,
+          },
         },
         orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
         skip: (query.page - 1) * query.pageSize,
@@ -214,13 +263,101 @@ export class DocumentsService {
       this.prisma.document.count({ where }),
     ]);
 
-    const items: DocumentListRow[] = rows.map(({ _count, location, ...doc }) => ({
-      ...doc,
-      lineCount: _count.lines,
-      locationName: location?.name ?? null,
-    }));
+    const items: DocumentListRow[] = rows.map(
+      ({ _count, location, purchaseInvoiceLinks, ...doc }) => ({
+        ...doc,
+        lineCount: _count.lines,
+        locationName: location?.name ?? null,
+        ...this.resolveLinkInfo(doc, purchaseInvoiceLinks),
+      }),
+    );
 
     return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /** Ricerca libera lista: numero, fornitore/cliente, causale, commento, fattura collegata, totale. */
+  private buildSearchClauses(search: string): Prisma.DocumentWhereInput[] {
+    const clauses: Prisma.DocumentWhereInput[] = [
+      { reference: { contains: search, mode: 'insensitive' } },
+      { supplierName: { contains: search, mode: 'insensitive' } },
+      { customerName: { contains: search, mode: 'insensitive' } },
+      { externalDocNumber: { contains: search, mode: 'insensitive' } },
+      { causalText: { contains: search, mode: 'insensitive' } },
+      { internalComment: { contains: search, mode: 'insensitive' } },
+      {
+        purchaseInvoiceLinks: {
+          some: {
+            purchaseInvoice: {
+              status: { not: DocumentStatus.cancelled },
+              OR: [
+                { externalDocNumber: { contains: search, mode: 'insensitive' } },
+                { reference: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
+      },
+    ];
+    // Numero documento puro (es. "12") e totale (es. "1.234,50" o "1234.50").
+    const numeric = search.trim().replace(/\s/g, '');
+    if (/^\d+$/.test(numeric)) {
+      clauses.push({ number: Number(numeric) });
+    }
+    if (/^\d+([.,]\d{1,2})?$/.test(numeric)) {
+      const normalized = numeric.replace(',', '.');
+      const totalMinor = Math.round(Number(normalized) * 100);
+      if (Number.isFinite(totalMinor)) {
+        clauses.push({ totalMinor });
+      }
+    }
+    return clauses;
+  }
+
+  /** Filtro stato collegamento fattura (Arrivi merce, prompt §4). */
+  private buildLinkStatusClause(
+    linkStatus?: 'suspended' | 'linked' | 'cancelled',
+  ): Prisma.DocumentWhereInput {
+    if (!linkStatus) {
+      return {};
+    }
+    if (linkStatus === 'cancelled') {
+      return { status: DocumentStatus.cancelled };
+    }
+    if (linkStatus === 'linked') {
+      return {
+        status: { not: DocumentStatus.cancelled },
+        purchaseInvoiceLinks: {
+          some: { purchaseInvoice: { status: { not: DocumentStatus.cancelled } } },
+        },
+      };
+    }
+    return {
+      status: { not: DocumentStatus.cancelled },
+      purchaseInvoiceLinks: {
+        none: { purchaseInvoice: { status: { not: DocumentStatus.cancelled } } },
+      },
+    };
+  }
+
+  /** Stato collegamento derivato (mai persistito: nessun drift possibile). */
+  private resolveLinkInfo(
+    doc: Pick<Document, 'type' | 'status'>,
+    links: readonly { purchaseInvoice: LinkedPurchaseInvoiceInfo }[],
+  ): {
+    linkStatus: GoodsReceiptLinkStatus | null;
+    linkedPurchaseInvoice: LinkedPurchaseInvoiceInfo | null;
+  } {
+    if (!(INVOICE_LINKABLE_RECEIPT_TYPES as readonly string[]).includes(doc.type)) {
+      return { linkStatus: null, linkedPurchaseInvoice: null };
+    }
+    if (doc.status === DocumentStatus.cancelled) {
+      return { linkStatus: 'cancelled', linkedPurchaseInvoice: null };
+    }
+    const link = links[0];
+    if (link) {
+      return { linkStatus: 'linked', linkedPurchaseInvoice: link.purchaseInvoice };
+    }
+    return { linkStatus: 'suspended', linkedPurchaseInvoice: null };
   }
 
   async getById(tenantId: string, id: string): Promise<DocumentDetail> {
@@ -244,13 +381,47 @@ export class DocumentsService {
             },
           },
         },
+        // Arrivo merce → fattura registrata che lo include (stato collegamento).
+        purchaseInvoiceLinks: {
+          where: { purchaseInvoice: { status: { not: DocumentStatus.cancelled } } },
+          include: {
+            purchaseInvoice: {
+              select: {
+                id: true,
+                reference: true,
+                externalDocNumber: true,
+                externalDocDate: true,
+                documentDate: true,
+              },
+            },
+          },
+          take: 1,
+        },
+        // Registrazione fattura → arrivi merce inclusi (form di modifica).
+        goodsReceiptLinks: {
+          include: {
+            goodsReceipt: {
+              select: {
+                id: true,
+                number: true,
+                reference: true,
+                documentDate: true,
+                causalText: true,
+                subtotalMinor: true,
+                taxMinor: true,
+                totalMinor: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
     if (!doc) {
       throw new NotFoundException('Documento non trovato');
     }
     const setting = await this.settings.getResolved(tenantId, doc.type);
-    const { salesOrder, supplierOrder, ...rest } = doc;
+    const { salesOrder, supplierOrder, purchaseInvoiceLinks, goodsReceiptLinks, ...rest } = doc;
     const linkedSupplierOrderLines =
       supplierOrder?.lines.map((line) => ({
         id: line.id,
@@ -267,6 +438,8 @@ export class DocumentsService {
         ? { id: supplierOrder.id, reference: supplierOrder.reference }
         : null,
       linkedSupplierOrderLines,
+      ...this.resolveLinkInfo(doc, purchaseInvoiceLinks),
+      linkedGoodsReceipts: goodsReceiptLinks.map((link) => link.goodsReceipt),
     };
   }
 
@@ -500,6 +673,7 @@ export class DocumentsService {
           id: `new-${index}`,
           documentId: doc.id,
           tenantId,
+          linkedGoodsReceiptId: null,
           createdAt: doc.createdAt,
           updatedAt: doc.updatedAt,
         })) ?? base.lines,
@@ -688,7 +862,15 @@ export class DocumentsService {
         }
       }
 
-      if (reconcilesLoadStock && doc.locationId) {
+      // Documenti con movimenti per-riga (nuovo flusso Arrivo merce): il sync
+      // avviene DOPO il salvataggio righe, sui loro id definitivi.
+      const hasLineMovements =
+        reconcilesLoadStock &&
+        (await tx.stockMovement.count({
+          where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
+        })) > 0;
+
+      if (reconcilesLoadStock && doc.locationId && !hasLineMovements) {
         const newLinesComputed =
           lines ??
           doc.lines.map((line) => ({
@@ -732,6 +914,7 @@ export class DocumentsService {
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
+            linkedGoodsReceiptId: null,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -794,6 +977,7 @@ export class DocumentsService {
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
+            linkedGoodsReceiptId: null,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -856,6 +1040,7 @@ export class DocumentsService {
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
+            linkedGoodsReceiptId: null,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -929,6 +1114,7 @@ export class DocumentsService {
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
+            linkedGoodsReceiptId: null,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -1003,6 +1189,7 @@ export class DocumentsService {
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
+            linkedGoodsReceiptId: null,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -1060,6 +1247,26 @@ export class DocumentsService {
         data,
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
+
+      if (hasLineMovements && saved.locationId) {
+        const reason = buildGoodsReceiptMovementReason({
+          number: saved.number,
+          reference: saved.reference,
+          documentDate: saved.documentDate,
+          causalText: saved.causalText,
+        });
+        const sync = await syncGoodsReceiptLineMovements(tx, {
+          tenantId,
+          documentId: id,
+          documentType: saved.type,
+          locationId: saved.locationId,
+          reason,
+          lines: saved.lines,
+          actor,
+        });
+        stockDeltas = sync.deltas;
+        syncTargets.push(...sync.syncTargets);
+      }
 
       if (isConfirmedEdit && lines && saved.lines.length > 0) {
         if (documentTypeUnloadsStockOnConfirm(saved.type) && saved.locationId) {
@@ -1614,6 +1821,11 @@ export class DocumentsService {
     if (doc.status === DocumentStatus.cancelled) {
       throw new ConflictException('Il documento è già annullato.');
     }
+    if (doc.linkStatus === 'linked') {
+      throw new ConflictException(
+        'Questo arrivo merce è collegato a una fattura registrata: scollegalo dalla fattura prima di annullarlo.',
+      );
+    }
 
     const actor = {
       createdById: user?.id ?? null,
@@ -1650,18 +1862,38 @@ export class DocumentsService {
     await this.prisma.$transaction(async (tx) => {
       let stockDeltas: readonly { sku: string; delta: number }[] = [];
       if (wasStockLoaded) {
-        const reversed = await reverseDocumentStockLoad(tx, {
-          tenantId,
-          documentId: id,
-          reference: doc.reference,
-          locationId: doc.locationId!,
-          lines: doc.lines,
-          actor,
-        });
-        stockDeltas = reversed.deltas;
-        for (const line of doc.lines) {
-          if (line.variantId && line.loadsStock) {
-            syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
+        const hasLineMovements =
+          (await tx.stockMovement.count({
+            where: { tenantId, sourceDocumentId: id },
+          })) > 0;
+        if (hasLineMovements) {
+          // Nuovo modello (arrivo merce): i movimenti collegati alle righe
+          // vengono rimossi e la giacenza torna alla situazione precedente.
+          const sync = await syncGoodsReceiptLineMovements(tx, {
+            tenantId,
+            documentId: id,
+            documentType: doc.type,
+            locationId: doc.locationId,
+            reason: '',
+            lines: [],
+            actor,
+          });
+          stockDeltas = sync.deltas;
+          syncTargets.push(...sync.syncTargets);
+        } else {
+          const reversed = await reverseDocumentStockLoad(tx, {
+            tenantId,
+            documentId: id,
+            reference: doc.reference,
+            locationId: doc.locationId!,
+            lines: doc.lines,
+            actor,
+          });
+          stockDeltas = reversed.deltas;
+          for (const line of doc.lines) {
+            if (line.variantId && line.loadsStock) {
+              syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
+            }
           }
         }
         const summary = buildRevisionSummary(false, stockDeltas, true);
@@ -1818,12 +2050,68 @@ export class DocumentsService {
 
   async delete(tenantId: string, id: string): Promise<void> {
     const doc = await this.getById(tenantId, id);
-    if (doc.status !== DocumentStatus.draft && doc.status !== DocumentStatus.cancelled) {
+    const isFinalized =
+      doc.status !== DocumentStatus.draft && doc.status !== DocumentStatus.cancelled;
+
+    // Arrivi merce (nuovo flusso): eliminazione consentita anche da salvato,
+    // con rimozione movimenti e ripristino giacenze (prompt §2.3 caso E).
+    const isDeletableReceipt =
+      documentTypeLoadsStockOnConfirm(doc.type) || doc.type === DocumentType.supplier_invoice;
+
+    if (isFinalized && !isDeletableReceipt) {
       throw new ConflictException(
         'Solo i documenti in bozza o annullati possono essere eliminati.',
       );
     }
-    await this.prisma.document.delete({ where: { id } });
+    if (doc.linkStatus === 'linked') {
+      throw new ConflictException(
+        'Questo arrivo merce è collegato a una fattura registrata: scollegalo dalla fattura prima di eliminarlo.',
+      );
+    }
+
+    const actor = { createdById: null, createdByName: 'Sistema' };
+    const syncTargets: Array<{ variantId: string; locationId: string }> = [];
+
+    await this.prisma.$transaction(async (tx) => {
+      if (isFinalized && documentTypeLoadsStockOnConfirm(doc.type)) {
+        // Rimuove movimenti per-riga E movimenti legacy, stornando le giacenze.
+        const sync = await syncGoodsReceiptLineMovements(tx, {
+          tenantId,
+          documentId: id,
+          documentType: doc.type,
+          locationId: doc.locationId,
+          reason: '',
+          lines: [],
+          actor,
+        });
+        syncTargets.push(...sync.syncTargets);
+
+        if (doc.supplierOrderId) {
+          await reverseSupplierOrderReceipt(
+            tx,
+            doc.supplierOrderId,
+            doc.lines,
+            doc.locationId ?? undefined,
+            tenantId,
+          );
+        }
+        await reverseInventorySerialsForDocument(
+          tx,
+          tenantId,
+          doc.lines.map((line) => line.id),
+        );
+      }
+      await tx.document.delete({ where: { id } });
+    });
+
+    for (const entry of syncTargets) {
+      try {
+        await this.channelSync.pushInventoryLevels(tenantId, entry.variantId, [entry.locationId]);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Push inventario canale fallito';
+        this.logger.warn(`Push inventario non riuscito (${tenantId}): ${message}`);
+      }
+    }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

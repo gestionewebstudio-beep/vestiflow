@@ -9,6 +9,13 @@ export const DOCUMENT_STOCK_LOAD_TYPES: readonly DocumentType[] = [
   DocumentType.initial_load,
 ] as const;
 
+/** Tipi arrivo merce collegabili a una registrazione fattura (documenti fornitore). */
+export const INVOICE_LINKABLE_RECEIPT_TYPES: readonly DocumentType[] = [
+  DocumentType.goods_receipt,
+  DocumentType.supplier_ddt,
+  DocumentType.supplier_invoice_accompanying,
+] as const;
+
 /** Tipi documento che generano scarichi di magazzino alla conferma (§2, §5). */
 export const DOCUMENT_STOCK_UNLOAD_TYPES: readonly DocumentType[] = [
   DocumentType.sales_ddt,

@@ -112,6 +112,43 @@ export function documentStatusDisplayTone(
   return documentStatusTone(status);
 }
 
+/**
+ * Stato collegamento fattura di un Arrivo merce (colonna "Stato" della lista
+ * esterna, prompt §3-4): Sospeso, Collegato alla fattura registrata, Annullato.
+ */
+export function goodsReceiptLinkStatusLabel(
+  doc: Pick<DocumentRecord, 'linkStatus' | 'linkedPurchaseInvoice'>,
+): string | null {
+  switch (doc.linkStatus) {
+    case 'cancelled':
+      return 'Annullato';
+    case 'linked': {
+      const invoice = doc.linkedPurchaseInvoice;
+      const number = invoice?.externalDocNumber?.trim() || invoice?.reference?.trim();
+      return number ? `Fattura forn. N. ${number}` : 'Collegato a fattura';
+    }
+    case 'suspended':
+      return 'Sospeso';
+    default:
+      return null;
+  }
+}
+
+export function goodsReceiptLinkStatusTone(
+  doc: Pick<DocumentRecord, 'linkStatus'>,
+): BadgeTone | null {
+  switch (doc.linkStatus) {
+    case 'cancelled':
+      return 'error';
+    case 'linked':
+      return 'success';
+    case 'suspended':
+      return 'warning';
+    default:
+      return null;
+  }
+}
+
 /** Etichetta breve del documento in lista. */
 export function documentReferenceLabel(
   type: DocumentType,

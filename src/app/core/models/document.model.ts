@@ -44,6 +44,45 @@ export const DocumentStatus = {
 } as const;
 export type DocumentStatus = (typeof DocumentStatus)[keyof typeof DocumentStatus];
 
+/** Stato collegamento fattura di un Arrivo merce (lista esterna, prompt §3). */
+export const GoodsReceiptLinkStatus = {
+  Suspended: 'suspended',
+  Linked: 'linked',
+  Cancelled: 'cancelled',
+} as const;
+export type GoodsReceiptLinkStatus =
+  (typeof GoodsReceiptLinkStatus)[keyof typeof GoodsReceiptLinkStatus];
+
+/** Tipo riferimento documento fornitore sull'Arrivo merce (§9.3). */
+export const SupplierRefType = {
+  Ddt: 'ddt',
+  Invoice: 'invoice',
+  Return: 'return',
+  Other: 'other',
+} as const;
+export type SupplierRefType = (typeof SupplierRefType)[keyof typeof SupplierRefType];
+
+/** Fattura registrata collegata a un Arrivo merce. */
+export interface LinkedPurchaseInvoiceInfo {
+  readonly id: EntityId;
+  readonly reference?: string;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
+  readonly documentDate: IsoDateString;
+}
+
+/** Arrivo merce incluso in una Registrazione fattura. */
+export interface LinkedGoodsReceiptInfo {
+  readonly id: EntityId;
+  readonly number?: number;
+  readonly reference?: string;
+  readonly documentDate: IsoDateString;
+  readonly causalText?: string;
+  readonly subtotal: Money;
+  readonly tax: Money;
+  readonly total: Money;
+}
+
 /** Riga di un documento (§2, §3.2). */
 export interface DocumentLine {
   readonly id: EntityId;
@@ -66,6 +105,8 @@ export interface DocumentLine {
   readonly lotExpiryDate?: IsoDateString;
   /** Numeri seriali (tracciamento serial). */
   readonly serialNumbers?: readonly string[];
+  /** Arrivo merce collegato (righe riepilogative Registrazione fattura). */
+  readonly linkedGoodsReceiptId?: EntityId;
 }
 
 /** Allegato documento (PDF/XML — B4). */
@@ -108,6 +149,10 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly externalRef?: string;
   readonly sourceDocumentId?: EntityId;
   readonly billingCause?: string;
+  /** Causale di carico (Arrivo merce, prompt §9.2). */
+  readonly causalText?: string;
+  /** Tipo riferimento documento fornitore (Arrivo merce, prompt §9.3). */
+  readonly supplierRefType?: SupplierRefType;
   readonly currency: CurrencyCode;
   readonly subtotal: Money;
   readonly tax: Money;
@@ -135,6 +180,12 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   };
   /** Righe ordine fornitore per quantità ordinata/ricevuta/residua in arrivo merce. */
   readonly linkedSupplierOrderLines?: readonly LinkedSupplierOrderLineContext[];
+  /** Stato collegamento fattura (solo Arrivo merce). */
+  readonly linkStatus?: GoodsReceiptLinkStatus;
+  /** Fattura registrata a cui l'arrivo è collegato (solo Arrivo merce). */
+  readonly linkedPurchaseInvoice?: LinkedPurchaseInvoiceInfo;
+  /** Arrivi merce inclusi (solo Registrazione fattura). */
+  readonly linkedGoodsReceipts?: readonly LinkedGoodsReceiptInfo[];
   /** Allegati caricati sul documento (dettaglio). */
   readonly attachments?: readonly DocumentAttachment[];
 }

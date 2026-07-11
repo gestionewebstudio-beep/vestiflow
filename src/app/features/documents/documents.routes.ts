@@ -96,6 +96,22 @@ export const documentsRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {
+    path: 'registrazione-fattura/new',
+    title: 'VestiFlow · Nuova registrazione fattura',
+    loadComponent: () =>
+      import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+  },
+  {
+    path: 'registrazione-fattura/:id/edit',
+    title: 'VestiFlow · Modifica registrazione fattura',
+    loadComponent: () =>
+      import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+  },
+  {
     path: 'transfer/new',
     title: 'VestiFlow · Nuovo trasferimento',
     loadComponent: () => import('./transfer-form.component').then((m) => m.TransferFormComponent),

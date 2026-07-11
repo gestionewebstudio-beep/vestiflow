@@ -750,7 +750,8 @@
   font-weight: var(--font-weight-medium);
 }
 
-.gr-form__line-remove {
+.gr-form__line-remove,
+.gr-form__line-move {
   block-size: var(--gr-line-row-height);
   inline-size: var(--gr-line-row-height);
   display: inline-flex;
@@ -777,19 +778,6 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-}
-
-.gr-form__line-move {
-  block-size: var(--gr-line-row-height);
-  inline-size: var(--gr-line-row-height);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
 }
 
 .gr-form__line-move:hover:not(:disabled) {
@@ -958,4 +946,181 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+// ── Causale di carico: combobox con elenco preimpostato ─────────────────────
+
+.gr-form__causal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.gr-form__causal-input {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+
+  .gr-form__input {
+    flex: 1;
+    min-inline-size: 0;
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+  }
+}
+
+.gr-form__causal-toggle,
+.gr-form__causal-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.gr-form__causal-toggle {
+  inline-size: var(--field-height);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-inline-start: none;
+  border-start-end-radius: var(--radius-md);
+  border-end-end-radius: var(--radius-md);
+
+  &:hover {
+    color: var(--color-text);
+  }
+}
+
+.gr-form__causal-list {
+  position: absolute;
+  z-index: var(--z-dropdown);
+  inset-block-start: 100%;
+  inset-inline: 0;
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-block-size: calc(var(--field-height) * 6);
+  overflow-y: auto;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.gr-form__causal-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  text-align: start;
+  color: var(--color-text);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--color-surface-sunken);
+  }
+}
+
+.gr-form__causal-default {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.gr-form__causal-empty {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+// ── Pannello "Gestione causali" ─────────────────────────────────────────────
+
+.gr-form__causal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.gr-form__causal-panel-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.gr-form__causal-new {
+  display: flex;
+  gap: var(--space-2);
+
+  .gr-form__input {
+    flex: 1;
+    min-inline-size: 0;
+  }
+}
+
+.gr-form__causal-manage-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.gr-form__causal-manage-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface-sunken);
+  border-radius: var(--radius-md);
+
+  .gr-form__input {
+    flex: 1;
+    min-inline-size: 0;
+  }
+}
+
+.gr-form__causal-manage-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.gr-form__causal-manage-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.gr-form__causal-icon-btn {
+  inline-size: var(--btn-min-height);
+  block-size: var(--btn-min-height);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+
+  &:hover:not(:disabled) {
+    color: var(--color-text);
+    background-color: var(--color-surface);
+  }
+
+  &:disabled {
+    opacity: 0.6; // allineato allo stato disabled di app-button
+    cursor: default;
+  }
+
+  &--danger:hover:not(:disabled) {
+    color: var(--color-danger);
+  }
 }

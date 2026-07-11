@@ -1,6 +1,6 @@
 import type { ParamMap } from '@angular/router';
 
-import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import { DocumentStatus, DocumentType, GoodsReceiptLinkStatus } from '@core/models/document.model';
 
 export const DEFAULT_DOCUMENT_PAGE_SIZE = 20;
 export const DOCUMENT_PAGE_SIZE_OPTIONS: readonly number[] = [10, 20, 50];
@@ -21,12 +21,18 @@ export interface DocumentListQuery {
   readonly dateTo?: string;
   readonly customerId?: string;
   readonly locationId?: string;
+  readonly supplierId?: string;
+  /** Stato collegamento fattura (solo liste Arrivi merce). */
+  readonly linkStatus?: GoodsReceiptLinkStatus;
+  /** Filtro testuale sulla causale di carico. */
+  readonly causal?: string;
   readonly accountant?: boolean;
   readonly pendingInvoice?: boolean;
 }
 
 const TYPE_VALUES = new Set<string>(Object.values(DocumentType));
 const STATUS_VALUES = new Set<string>(Object.values(DocumentStatus));
+const LINK_STATUS_VALUES = new Set<string>(Object.values(GoodsReceiptLinkStatus));
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Parsing difensivo dei query param URL (URL = fonte di verità della lista). */
@@ -40,6 +46,9 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
   const dateTo = params.get('dateTo') ?? '';
   const customerId = params.get('customerId') ?? '';
   const locationId = params.get('locationId') ?? '';
+  const supplierId = params.get('supplierId') ?? '';
+  const linkStatus = params.get('linkStatus') ?? '';
+  const causal = params.get('causal')?.trim();
 
   return {
     page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -54,6 +63,11 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
     dateTo: ISO_DATE.test(dateTo) ? dateTo : undefined,
     customerId: isUuid(customerId) ? customerId : undefined,
     locationId: isUuid(locationId) ? locationId : undefined,
+    supplierId: isUuid(supplierId) ? supplierId : undefined,
+    linkStatus: LINK_STATUS_VALUES.has(linkStatus)
+      ? (linkStatus as GoodsReceiptLinkStatus)
+      : undefined,
+    causal: causal || undefined,
     accountant: params.get('accountant') === '1',
     pendingInvoice: params.get('pendingInvoice') === '1',
   };

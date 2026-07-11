@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { AdjustmentDirection, StockMovementType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 

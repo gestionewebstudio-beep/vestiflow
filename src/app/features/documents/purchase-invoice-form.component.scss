@@ -1,0 +1,300 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: block;
+  inline-size: 100%;
+}
+
+.pi-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pi-form__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--color-text);
+  }
+}
+
+.pi-form__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.pi-form__reference {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pi-form__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.pi-form__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+@include bp.media-up('md') {
+  .pi-form__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.pi-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+
+  app-select-menu,
+  app-date-input {
+    --select-menu-width: 100%;
+  }
+}
+
+.pi-form__label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.pi-form__input,
+.pi-form__textarea {
+  padding-inline: var(--space-3);
+  font-size: var(--text-base);
+  font-family: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.pi-form__input {
+  block-size: var(--field-height);
+}
+
+.pi-form__input--num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pi-form__textarea {
+  padding-block: var(--space-2);
+  resize: vertical;
+}
+
+.pi-form__input:focus-visible,
+.pi-form__textarea:focus-visible {
+  border-color: var(--color-interactive);
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+}
+
+.pi-form__error {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--status-error-fg);
+}
+
+.pi-form__subtitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.pi-form__receipts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pi-form__receipts-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pi-form__table-wrap {
+  inline-size: 100%;
+  overflow-x: auto;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.pi-form__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+
+  th,
+  td {
+    padding: var(--space-2) var(--space-3);
+    text-align: start;
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  thead th {
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-muted);
+    background-color: var(--color-surface-sunken);
+  }
+
+  tfoot th,
+  tfoot td {
+    border-block-end: none;
+    background-color: var(--color-surface-sunken);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+.pi-form__cell--num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.pi-form__cell--actions {
+  inline-size: var(--btn-min-height);
+  text-align: end;
+}
+
+.pi-form__remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--btn-min-height);
+  block-size: var(--btn-min-height);
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-danger);
+    background-color: var(--color-surface-sunken);
+  }
+}
+
+.pi-form__totals-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+
+  &--ok {
+    color: var(--status-success-fg);
+    background-color: var(--status-success-bg);
+    border: var(--border-width) solid var(--status-success-border);
+  }
+
+  &--warn {
+    color: var(--status-warning-fg);
+    background-color: var(--status-warning-bg);
+    border: var(--border-width) solid var(--status-warning-border);
+  }
+}
+
+.pi-form__submit-error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.pi-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+// ── Pannello "Includi documento" ────────────────────────────────────────────
+
+.pi-form__include {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.pi-form__include-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.pi-form__include-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.pi-form__include-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.pi-form__include-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+
+  input {
+    margin-block-start: var(--space-1);
+  }
+}
+
+.pi-form__include-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.pi-form__include-causal {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.pi-form__include-total {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.pi-form__include-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

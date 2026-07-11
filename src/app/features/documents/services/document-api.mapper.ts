@@ -7,6 +7,10 @@ import type {
   DocumentStatus,
   DocumentType,
   DocumentTypeSetting,
+  GoodsReceiptLinkStatus,
+  LinkedGoodsReceiptInfo,
+  LinkedPurchaseInvoiceInfo,
+  SupplierRefType,
 } from '@core/models/document.model';
 
 export interface DocumentLineApiRow {
@@ -25,6 +29,28 @@ export interface DocumentLineApiRow {
   readonly lotCode?: string | null;
   readonly lotExpiryDate?: IsoDateString | null;
   readonly serialNumbers?: readonly string[] | null;
+  readonly linkedGoodsReceiptId?: EntityId | null;
+}
+
+/** Fattura registrata collegata a un arrivo merce (payload API). */
+export interface LinkedPurchaseInvoiceApiRow {
+  readonly id: EntityId;
+  readonly reference?: string | null;
+  readonly externalDocNumber?: string | null;
+  readonly externalDocDate?: IsoDateString | null;
+  readonly documentDate: IsoDateString;
+}
+
+/** Arrivo merce incluso in una registrazione fattura (payload API). */
+export interface LinkedGoodsReceiptApiRow {
+  readonly id: EntityId;
+  readonly number?: number | null;
+  readonly reference?: string | null;
+  readonly documentDate: IsoDateString;
+  readonly causalText?: string | null;
+  readonly subtotalMinor: number;
+  readonly taxMinor: number;
+  readonly totalMinor: number;
 }
 
 export interface DocumentApiRow {
@@ -55,6 +81,8 @@ export interface DocumentApiRow {
   readonly externalRef?: string | null;
   readonly sourceDocumentId?: EntityId | null;
   readonly billingCause?: string | null;
+  readonly causalText?: string | null;
+  readonly supplierRefType?: string | null;
   readonly currency: CurrencyCode;
   readonly subtotalMinor: number;
   readonly taxMinor: number;
@@ -79,6 +107,9 @@ export interface DocumentApiRow {
     readonly orderedQuantity: number;
     readonly receivedQuantity: number;
   }[];
+  readonly linkStatus?: GoodsReceiptLinkStatus | null;
+  readonly linkedPurchaseInvoice?: LinkedPurchaseInvoiceApiRow | null;
+  readonly linkedGoodsReceipts?: readonly LinkedGoodsReceiptApiRow[] | null;
   readonly attachments?: readonly DocumentAttachmentApiRow[];
 }
 
@@ -108,6 +139,33 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     lotCode: row.lotCode ?? undefined,
     lotExpiryDate: row.lotExpiryDate ?? undefined,
     serialNumbers: row.serialNumbers ?? undefined,
+    linkedGoodsReceiptId: row.linkedGoodsReceiptId ?? undefined,
+  };
+}
+
+function mapLinkedPurchaseInvoice(row: LinkedPurchaseInvoiceApiRow): LinkedPurchaseInvoiceInfo {
+  return {
+    id: row.id,
+    reference: row.reference ?? undefined,
+    externalDocNumber: row.externalDocNumber ?? undefined,
+    externalDocDate: row.externalDocDate ?? undefined,
+    documentDate: row.documentDate,
+  };
+}
+
+function mapLinkedGoodsReceipt(
+  row: LinkedGoodsReceiptApiRow,
+  currency: CurrencyCode,
+): LinkedGoodsReceiptInfo {
+  return {
+    id: row.id,
+    number: row.number ?? undefined,
+    reference: row.reference ?? undefined,
+    documentDate: row.documentDate,
+    causalText: row.causalText ?? undefined,
+    subtotal: { amountMinor: row.subtotalMinor, currencyCode: currency },
+    tax: { amountMinor: row.taxMinor, currencyCode: currency },
+    total: { amountMinor: row.totalMinor, currencyCode: currency },
   };
 }
 
@@ -151,6 +209,8 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     externalRef: row.externalRef ?? undefined,
     sourceDocumentId: row.sourceDocumentId ?? undefined,
     billingCause: row.billingCause ?? undefined,
+    causalText: row.causalText ?? undefined,
+    supplierRefType: (row.supplierRefType as SupplierRefType | null | undefined) ?? undefined,
     currency: row.currency,
     subtotal: { amountMinor: row.subtotalMinor, currencyCode: row.currency },
     tax: { amountMinor: row.taxMinor, currencyCode: row.currency },
@@ -168,6 +228,13 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     linkedSalesOrder: row.salesOrder ?? undefined,
     linkedSupplierOrder: row.linkedSupplierOrder ?? row.supplierOrder ?? undefined,
     linkedSupplierOrderLines: row.linkedSupplierOrderLines,
+    linkStatus: row.linkStatus ?? undefined,
+    linkedPurchaseInvoice: row.linkedPurchaseInvoice
+      ? mapLinkedPurchaseInvoice(row.linkedPurchaseInvoice)
+      : undefined,
+    linkedGoodsReceipts: row.linkedGoodsReceipts?.map((receipt) =>
+      mapLinkedGoodsReceipt(receipt, row.currency),
+    ),
     attachments: row.attachments?.map(mapAttachment),
   };
 }
@@ -217,3 +284,62 @@ export interface CreateDocumentBody {
 
 /** Body PATCH /documents/:id (bozze e documenti confermati editabili). */
 export type UpdateDocumentBody = Partial<Omit<CreateDocumentBody, 'type'>>;
+
+/** Riga Arrivo merce in salvataggio unico: id presente = riga già salvata. */
+export interface SaveGoodsReceiptLineBody extends DocumentLineInputBody {
+  readonly id?: EntityId;
+}
+
+/** Body POST /documents/goods-receipt/save (prompt §2.1). */
+export interface SaveGoodsReceiptBody {
+  readonly id?: EntityId;
+  readonly type: DocumentType;
+  readonly series?: string;
+  readonly documentDate: IsoDateString;
+  readonly supplierId?: EntityId;
+  readonly locationId?: EntityId;
+  readonly causalText?: string;
+  readonly supplierRefType?: string;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
+  readonly notes?: string;
+  readonly internalComment?: string;
+  readonly billingCause?: string;
+  readonly externalRef?: string;
+  readonly supplierOrderId?: EntityId;
+  readonly currency?: CurrencyCode;
+  readonly documentDiscountPercent?: number;
+  readonly lines?: readonly SaveGoodsReceiptLineBody[];
+  readonly applySupplierPriceUpdates?: boolean;
+}
+
+/** Body POST /documents/purchase-invoice/save (prompt §5-6). */
+export interface SavePurchaseInvoiceBody {
+  readonly id?: EntityId;
+  readonly supplierId: EntityId;
+  readonly documentDate: IsoDateString;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
+  readonly notes?: string;
+  readonly internalComment?: string;
+  readonly currency?: CurrencyCode;
+  readonly totalMinor: number;
+  readonly subtotalMinor?: number;
+  readonly taxMinor?: number;
+  readonly goodsReceiptIds?: readonly EntityId[];
+}
+
+/** Riga GET /documents/linkable-goods-receipts (payload API). */
+export interface LinkableGoodsReceiptApiRow {
+  readonly id: EntityId;
+  readonly number?: number | null;
+  readonly reference?: string | null;
+  readonly documentDate: IsoDateString;
+  readonly causalText?: string | null;
+  readonly internalComment?: string | null;
+  readonly subtotalMinor: number;
+  readonly taxMinor: number;
+  readonly totalMinor: number;
+  readonly currency: CurrencyCode;
+  readonly locationName?: string | null;
+}

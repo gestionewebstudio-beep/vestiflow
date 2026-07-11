@@ -37,7 +37,7 @@ import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard'
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
 import type { LinkedSupplierOrderLineContext } from '@core/models/document.model';
-import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import { DocumentStatus, DocumentType, SupplierRefType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import { ProductStatus } from '@core/models/product.model';
@@ -108,8 +108,10 @@ import {
   documentStatusDisplayTone,
 } from './models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
+import type { GoodsReceiptCausal } from './models/goods-receipt-causal.model';
 import { DocumentService } from './services/document.service';
-import type { CreateDocumentBody, UpdateDocumentBody } from './services/document-api.mapper';
+import { GoodsReceiptCausalService } from './services/goods-receipt-causal.service';
+import type { SaveGoodsReceiptBody } from './services/document-api.mapper';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
 import {
   GoodsReceiptCsvParseError,
@@ -184,6 +186,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
 export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
+  private readonly causalService = inject(GoodsReceiptCausalService);
   private readonly supplierService = inject(SupplierService);
   private readonly supplierOrderService = inject(SupplierOrderService);
   private readonly labelPrintService = inject(ProductLabelPrintService);
@@ -298,12 +301,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly barcodeScanBusy = signal(false);
   protected readonly lineSortColumn = signal<GoodsReceiptLineSortColumn | null>(null);
   protected readonly lineSortDirection = signal<'asc' | 'desc'>('asc');
-  protected readonly confirmStockDialogOpen = signal(false);
-  protected readonly partialReceiptDialogOpen = signal(false);
   protected readonly supplierPriceDialogOpen = signal(false);
   private readonly pendingSupplierOrderId = signal<string | null>(null);
   private readonly pendingLinkedSupplierOrderRef = signal<string | null>(null);
-  private pendingCloseLinkedSupplierOrder = false;
   private pendingConfirmAfterPriceAsk: ((applyPrices: boolean) => void) | null = null;
 
   private pendingDeactivate: ((allow: boolean) => void) | null = null;
@@ -395,9 +395,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       Boolean(this.form.controls.supplierId.value),
   );
 
-  protected readonly canConfirmDraft = computed(
-    () => !this.formReadOnly() && this.documentStatus() === DocumentStatus.Draft,
-  );
+  protected readonly canSaveDocument = computed(() => !this.formReadOnly());
 
   protected readonly canExportPdf = computed(() => Boolean(this.persistedDocumentId()));
 
@@ -486,6 +484,37 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     })),
   );
 
+  // ── Causale di carico (prompt §1.2, §9.3) ──────────────────────────────────
+  protected readonly supplierRefTypeOptions: readonly SelectMenuOption[] = [
+    { value: '', label: '—' },
+    { value: SupplierRefType.Ddt, label: 'DDT' },
+    { value: SupplierRefType.Invoice, label: 'Fattura' },
+    { value: SupplierRefType.Return, label: 'Reso' },
+    { value: SupplierRefType.Other, label: 'Altro' },
+  ];
+
+  private readonly causalsReload = signal(0);
+  protected readonly causals = toSignal(
+    toObservable(this.causalsReload).pipe(
+      switchMap(() =>
+        this.causalService.list().pipe(catchError(() => of([] as readonly GoodsReceiptCausal[]))),
+      ),
+    ),
+    { initialValue: [] as readonly GoodsReceiptCausal[] },
+  );
+  protected readonly activeCausals = computed(() =>
+    this.causals().filter((causal) => causal.isActive),
+  );
+  protected readonly causalDropdownOpen = signal(false);
+  protected readonly causalPanelOpen = signal(false);
+  protected readonly causalPanelBusy = signal(false);
+  protected readonly causalPanelError = signal<string | null>(null);
+  protected readonly newCausalLabel = signal('');
+  protected readonly editingCausalId = signal<string | null>(null);
+  protected readonly editingCausalLabel = signal('');
+  /** true dopo una modifica manuale: blocca la rigenerazione automatica. */
+  private causalManuallyEdited = false;
+
   readonly form = this.fb.group({
     type: this.fb.control<DocumentType>(DocumentType.GoodsReceipt, {
       validators: [Validators.required],
@@ -495,8 +524,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     documentDate: this.fb.control(new Date().toISOString().slice(0, 10), {
       validators: [Validators.required],
     }),
+    supplierRefType: this.fb.control<SupplierRefType | ''>(''),
     externalDocNumber: this.fb.control(''),
     externalDocDate: this.fb.control(''),
+    causalText: this.fb.control(''),
     notes: this.fb.control(''),
     internalComment: this.fb.control(''),
     billingCause: this.fb.control(''),
@@ -522,6 +553,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.form.controls.documentDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.refreshNumberPreview());
+    this.form.controls.supplierRefType.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.regenerateCausalFromRefs());
+    this.form.controls.externalDocNumber.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.regenerateCausalFromRefs());
+    this.form.controls.externalDocDate.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.regenerateCausalFromRefs());
     this.refreshNumberPreview();
     this.setupAutoSave();
     this.form.controls.supplierId.valueChanges
@@ -1532,6 +1572,171 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.form.controls.locationId.markAsTouched();
   }
 
+  // ── Causale di carico ──────────────────────────────────────────────────────
+
+  protected onSupplierRefTypeSelect(value: string | null): void {
+    this.form.controls.supplierRefType.setValue((value ?? '') as SupplierRefType | '');
+  }
+
+  protected onCausalInput(value: string): void {
+    this.causalManuallyEdited = value.trim().length > 0;
+    this.form.controls.causalText.setValue(value);
+    this.causalDropdownOpen.set(false);
+  }
+
+  protected toggleCausalDropdown(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.causalDropdownOpen.update((open) => !open);
+  }
+
+  protected closeCausalDropdown(): void {
+    this.causalDropdownOpen.set(false);
+  }
+
+  protected pickCausal(label: string): void {
+    this.causalManuallyEdited = true;
+    this.form.controls.causalText.setValue(label);
+    this.causalDropdownOpen.set(false);
+  }
+
+  /**
+   * Rigenera la causale da tipo riferimento + numero + data documento fornitore
+   * (prompt §9.3), finché l'utente non la modifica manualmente.
+   */
+  private regenerateCausalFromRefs(): void {
+    if (this.causalManuallyEdited || this.formReadOnly()) {
+      return;
+    }
+    const generated = this.buildGeneratedCausal();
+    if (generated !== null) {
+      this.form.controls.causalText.setValue(generated, { emitEvent: false });
+    }
+  }
+
+  private buildGeneratedCausal(): string | null {
+    const refType = this.form.controls.supplierRefType.value;
+    if (!refType || refType === SupplierRefType.Other) {
+      return null;
+    }
+    const prefix =
+      refType === SupplierRefType.Ddt
+        ? 'DDT'
+        : refType === SupplierRefType.Invoice
+          ? 'Fatt.'
+          : 'Reso';
+    const number = this.form.controls.externalDocNumber.value.trim();
+    const dateRaw = this.form.controls.externalDocDate.value;
+    const date = dateRaw ? this.formatItalianDate(dateRaw) : '';
+    let causal = prefix;
+    if (number) {
+      causal += ` ${number}`;
+    }
+    if (date) {
+      causal += ` del ${date}`;
+    }
+    return causal;
+  }
+
+  private formatItalianDate(isoDate: string): string {
+    const [year, month, day] = isoDate.slice(0, 10).split('-');
+    if (!year || !month || !day) {
+      return isoDate;
+    }
+    return `${day}/${month}/${year}`;
+  }
+
+  // ── Gestione causali (finestra dedicata, prompt §1.2) ─────────────────────
+
+  protected openCausalPanel(): void {
+    this.causalPanelError.set(null);
+    this.causalPanelOpen.set(true);
+  }
+
+  protected closeCausalPanel(): void {
+    this.causalPanelOpen.set(false);
+    this.editingCausalId.set(null);
+    this.newCausalLabel.set('');
+  }
+
+  protected createCausal(): void {
+    const label = this.newCausalLabel().trim();
+    if (!label || this.causalPanelBusy()) {
+      return;
+    }
+    this.runCausalAction(this.causalService.create({ label }), () => this.newCausalLabel.set(''));
+  }
+
+  protected startEditCausal(causal: GoodsReceiptCausal): void {
+    this.editingCausalId.set(causal.id);
+    this.editingCausalLabel.set(causal.label);
+  }
+
+  protected cancelEditCausal(): void {
+    this.editingCausalId.set(null);
+  }
+
+  protected saveEditCausal(): void {
+    const id = this.editingCausalId();
+    const label = this.editingCausalLabel().trim();
+    if (!id || !label || this.causalPanelBusy()) {
+      return;
+    }
+    this.runCausalAction(this.causalService.update(id, { label }), () =>
+      this.editingCausalId.set(null),
+    );
+  }
+
+  protected setDefaultCausal(causal: GoodsReceiptCausal): void {
+    if (this.causalPanelBusy()) {
+      return;
+    }
+    this.runCausalAction(this.causalService.update(causal.id, { isDefault: !causal.isDefault }));
+  }
+
+  protected deleteCausal(causal: GoodsReceiptCausal): void {
+    if (this.causalPanelBusy()) {
+      return;
+    }
+    this.runCausalAction(this.causalService.delete(causal.id));
+  }
+
+  protected moveCausal(causal: GoodsReceiptCausal, direction: -1 | 1): void {
+    if (this.causalPanelBusy()) {
+      return;
+    }
+    const ordered = [...this.causals()].map((item) => item.id);
+    const index = ordered.indexOf(causal.id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= ordered.length) {
+      return;
+    }
+    const swapped = ordered[target];
+    if (swapped === undefined) {
+      return;
+    }
+    ordered[target] = causal.id;
+    ordered[index] = swapped;
+    this.runCausalAction(this.causalService.reorder(ordered));
+  }
+
+  private runCausalAction(action$: Observable<unknown>, onSuccess?: () => void): void {
+    this.causalPanelBusy.set(true);
+    this.causalPanelError.set(null);
+    action$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => {
+        this.causalPanelBusy.set(false);
+        onSuccess?.();
+        this.causalsReload.update((tick) => tick + 1);
+      },
+      error: (err: unknown) => {
+        this.causalPanelBusy.set(false);
+        this.causalPanelError.set(this.toAppError(err).message);
+      },
+    });
+  }
+
   protected onVariantSelect(index: number, value: string | null): void {
     const line = this.lines.at(index);
     line.controls.variantId.setValue(value ?? '');
@@ -1796,50 +2001,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     reader.readAsText(file);
   }
 
-  protected requestConfirmGoodsReceipt(): void {
-    if (this.saving() || !this.canConfirmDraft()) {
+  /**
+   * "Salva documento" (prompt §2.1): unico salvataggio che scrive testata,
+   * righe, totali, movimenti di magazzino e giacenze.
+   */
+  protected requestSaveDocument(): void {
+    if (this.saving() || this.formReadOnly()) {
       return;
     }
-    const validationError = this.validateForConfirm();
+    const validationError = this.validateForFinalSave();
     if (validationError) {
       this._submitState.set({ status: 'error', error: validationError });
       return;
     }
-    this.flushAutoSaveBeforeAction(() => {
-      if (this.needsSupplierOrderCloseChoice()) {
-        this.partialReceiptDialogOpen.set(true);
-        return;
-      }
-      this.confirmStockDialogOpen.set(true);
-    });
-  }
-
-  protected confirmPartialReceiptContinue(): void {
-    this.partialReceiptDialogOpen.set(false);
-    this.pendingCloseLinkedSupplierOrder = false;
-    this.confirmStockDialogOpen.set(true);
-  }
-
-  protected confirmCloseSupplierOrderContinue(): void {
-    this.partialReceiptDialogOpen.set(false);
-    this.pendingCloseLinkedSupplierOrder = true;
-    this.confirmStockDialogOpen.set(true);
-  }
-
-  protected cancelPartialReceiptDialog(): void {
-    this.partialReceiptDialogOpen.set(false);
-    this.pendingCloseLinkedSupplierOrder = false;
-  }
-
-  protected confirmStockLoad(): void {
-    this.confirmStockDialogOpen.set(false);
-    this.maybeAskSupplierPrices((applyPrices) =>
-      this.executeConfirm({
-        closeLinkedSupplierOrder: this.pendingCloseLinkedSupplierOrder,
-        applySupplierPriceUpdates: applyPrices,
-      }),
-    );
-    this.pendingCloseLinkedSupplierOrder = false;
+    this.maybeAskSupplierPrices((applyPrices) => this.executeExplicitSave(applyPrices));
   }
 
   protected applySupplierPriceAndConfirm(): void {
@@ -2297,6 +2472,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const resolve = this.pendingDeactivate;
     this.pendingDeactivate = null;
     resolve?.(allow);
+  }
+
+  /** Ctrl/Cmd + S esegue "Salva documento" (prompt §12). */
+  @HostListener('window:keydown', ['$event'])
+  protected onWindowKeydown(event: KeyboardEvent): void {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      this.requestSaveDocument();
+    }
   }
 
   @HostListener('window:beforeunload', ['$event'])
@@ -2792,6 +2976,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     quantity: number,
   ): ReturnType<GoodsReceiptFormComponent['createLine']> {
     const line = this.fb.group({
+      id: this.fb.control(''),
       variantId: this.fb.control(orderLine.variantId),
       sku: this.fb.control(orderLine.sku),
       barcode: this.fb.control(''),
@@ -2889,6 +3074,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   ): ReturnType<GoodsReceiptFormComponent['createLine']> {
     const productName = variant?.productName ?? line.productName ?? line.sku ?? line.barcode;
     const row = this.fb.group({
+      id: this.fb.control(''),
       variantId: this.fb.control(variant?.variantId ?? ''),
       sku: this.fb.control(variant?.sku ?? line.sku),
       barcode: this.fb.control(variant?.barcode ?? line.barcode),
@@ -2916,57 +3102,27 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return row;
   }
 
-  private validateForConfirm(): AppError | null {
+  private validateForFinalSave(): AppError | null {
     if (!this.validateForAutoSave()) {
       return {
         kind: AppErrorKind.Validation,
-        message: 'Compila fornitore, magazzino e data documento prima di confermare.',
+        message: 'Compila fornitore, magazzino e data documento prima di salvare.',
       };
     }
     if (!this.lines.controls.some((line) => this.lineHasPersistableData(line))) {
       return {
         kind: AppErrorKind.Validation,
-        message: 'Aggiungi almeno una riga prodotto prima di confermare.',
+        message: 'Aggiungi almeno una riga prodotto prima di salvare.',
       };
     }
     if (this.hasInvalidCost()) {
       this.form.markAllAsTouched();
       return {
         kind: AppErrorKind.Validation,
-        message: 'Controlla i costi delle righe prima di confermare.',
+        message: 'Controlla i costi delle righe prima di salvare.',
       };
     }
     return this.validateStockLinesForFinalSave();
-  }
-
-  private needsSupplierOrderCloseChoice(): boolean {
-    if (!this.resolveSupplierOrderId()) {
-      return false;
-    }
-    const poMap = this.supplierOrderLineMap();
-    if (poMap.size === 0) {
-      return false;
-    }
-
-    for (const [poLineId, ctx] of poMap) {
-      const remaining = ctx.orderedQuantity - ctx.receivedQuantity;
-      if (remaining <= 0) {
-        continue;
-      }
-      const docQty = this.lines.controls.reduce((sum, line) => {
-        if (
-          line.controls.supplierOrderLineId.value !== poLineId ||
-          !line.controls.loadsStock.value
-        ) {
-          return sum;
-        }
-        return sum + Number(line.controls.quantity.value);
-      }, 0);
-      if (docQty !== remaining) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private maybeAskSupplierPrices(then: (applyPrices: boolean) => void): void {
@@ -3002,14 +3158,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
   }
 
-  private executeConfirm(options: {
-    readonly closeLinkedSupplierOrder: boolean;
-    readonly applySupplierPriceUpdates?: boolean;
-  }): void {
+  private executeExplicitSave(applySupplierPriceUpdates: boolean): void {
     if (this.saving()) {
       return;
     }
-    const validationError = this.validateForConfirm();
+    const validationError = this.validateForFinalSave();
     if (validationError) {
       this._submitState.set({ status: 'error', error: validationError });
       return;
@@ -3025,14 +3178,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           if (afterCommit) {
             return throwError(() => afterCommit);
           }
-          return this.saveDocument$();
+          return this.saveDocument$({ applySupplierPriceUpdates });
         }),
-        switchMap((doc) =>
-          this.documentService.confirmDocument(doc.id, {
-            applySupplierPriceUpdates: options.applySupplierPriceUpdates,
-            closeLinkedSupplierOrder: options.closeLinkedSupplierOrder,
-          }),
-        ),
         take(1),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -3119,15 +3266,25 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return this.lines.controls.some((line) => this.lineHasPersistableData(line));
   }
 
-  private buildDocumentSaveBody(): CreateDocumentBody {
+  /** Righe inviate nell'ultimo salvataggio, per riadottare gli id dal server. */
+  private lastSavedLineControls: ReturnType<GoodsReceiptFormComponent['createLine']>[] = [];
+
+  private buildSaveGoodsReceiptBody(): SaveGoodsReceiptBody {
     const raw = this.form.getRawValue();
     const supplierOrderId = this.resolveSupplierOrderId();
+    const persistableControls = this.lines.controls.filter((line) =>
+      this.lineHasPersistableDataFromRaw(line.getRawValue()),
+    );
+    this.lastSavedLineControls = persistableControls;
     return {
+      id: this.persistedDocumentId() ?? undefined,
       type: raw.type,
       documentDate: new Date(raw.documentDate).toISOString(),
-      supplierId: raw.supplierId,
-      locationId: raw.locationId,
+      supplierId: raw.supplierId || undefined,
+      locationId: raw.locationId || undefined,
       currency: this.currency,
+      causalText: raw.causalText.trim() || undefined,
+      supplierRefType: raw.supplierRefType || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
       billingCause: raw.invoicePending ? 'In attesa fattura' : raw.billingCause.trim() || undefined,
@@ -3138,42 +3295,67 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         : undefined,
       ...(supplierOrderId ? { supplierOrderId } : {}),
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
-      lines: raw.lines
-        .filter((line) => this.lineHasPersistableDataFromRaw(line))
-        .map((line) => {
-          const cost = parseMoneyInput(line.unitCost, this.currency);
-          const name = line.productName.trim() || line.description.trim();
-          return {
-            variantId: line.variantId || undefined,
-            sku: line.sku.trim() || undefined,
-            description: name || line.description.trim() || 'Riga documento',
-            quantity: Number(line.quantity),
-            unitPriceMinor: cost?.amountMinor ?? 0,
-            discountPercent: parseEffectiveDiscountPercent(line.discountPercent ?? ''),
-            vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
-            loadsStock: line.loadsStock,
-            supplierOrderLineId: line.supplierOrderLineId || undefined,
-            lotCode: line.lotCode.trim() || undefined,
-            lotExpiryDate: line.lotExpiryDate
-              ? new Date(line.lotExpiryDate).toISOString()
-              : undefined,
-            serialNumbers: parseSerialNumbersText(line.serialNumbersText),
-          };
-        }),
+      lines: persistableControls.map((control) => {
+        const line = control.getRawValue();
+        const cost = parseMoneyInput(line.unitCost, this.currency);
+        const name = line.productName.trim() || line.description.trim();
+        return {
+          id: line.id || undefined,
+          variantId: line.variantId || undefined,
+          sku: line.sku.trim() || undefined,
+          description: name || line.description.trim() || 'Riga documento',
+          quantity: Number(line.quantity),
+          unitPriceMinor: cost?.amountMinor ?? 0,
+          discountPercent: parseEffectiveDiscountPercent(line.discountPercent ?? ''),
+          vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
+          // Le righe senza articolo collegato non caricano ancora il magazzino:
+          // il movimento nasce al salvataggio successivo, quando la riga è valida.
+          loadsStock: line.loadsStock && Boolean(line.variantId),
+          supplierOrderLineId: line.supplierOrderLineId || undefined,
+          lotCode: line.lotCode.trim() || undefined,
+          lotExpiryDate: line.lotExpiryDate
+            ? new Date(line.lotExpiryDate).toISOString()
+            : undefined,
+          serialNumbers: parseSerialNumbersText(line.serialNumbersText),
+        };
+      }),
     };
   }
 
-  private buildDocumentUpdateBody(): UpdateDocumentBody {
-    const { type: _documentType, ...body } = this.buildDocumentSaveBody();
-    return body;
+  /**
+   * Salvataggio unico "Salva documento" (prompt §2.1): testata + righe +
+   * totali + movimenti + giacenze. Idempotente: gli id riga restituiti dal
+   * server vengono riadottati per aggiornare i movimenti ai salvataggi futuri.
+   */
+  private saveDocument$(options?: {
+    readonly applySupplierPriceUpdates?: boolean;
+  }): Observable<DocumentRecord> {
+    const body = {
+      ...this.buildSaveGoodsReceiptBody(),
+      applySupplierPriceUpdates: options?.applySupplierPriceUpdates,
+    };
+    return this.documentService.saveGoodsReceipt(body).pipe(
+      map((doc) => {
+        this.adoptSavedLineIds(doc);
+        return doc;
+      }),
+    );
   }
 
-  private saveDocument$(): Observable<DocumentRecord> {
-    const id = this.persistedDocumentId();
-    if (id) {
-      return this.documentService.updateDocument(id, this.buildDocumentUpdateBody());
+  /**
+   * Riassegna gli id riga dal documento salvato ai form group inviati: le
+   * righe tornano nello stesso ordine (lineNumber progressivo sul payload).
+   */
+  private adoptSavedLineIds(doc: DocumentRecord): void {
+    const savedLines = doc.lines ?? [];
+    for (let index = 0; index < this.lastSavedLineControls.length; index += 1) {
+      const control = this.lastSavedLineControls[index];
+      const saved = savedLines[index];
+      if (control && saved && this.lines.controls.includes(control)) {
+        control.controls.id.setValue(saved.id, { emitEvent: false });
+      }
     }
-    return this.documentService.createDocument(this.buildDocumentSaveBody());
+    this.lastSavedLineControls = [];
   }
 
   private syncActiveFieldBeforeSave(): void {
@@ -3360,13 +3542,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     this.supplierOrderLineMap.set(poMap);
 
+    this.causalManuallyEdited = Boolean(doc.causalText?.trim());
     this.form.patchValue({
       type: doc.type,
       supplierId: doc.supplierId ?? '',
       locationId: doc.locationId ?? '',
       documentDate: doc.documentDate.slice(0, 10),
+      supplierRefType: doc.supplierRefType ?? '',
       externalDocNumber: doc.externalDocNumber ?? '',
       externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
+      causalText: doc.causalText ?? '',
       notes: doc.notes ?? '',
       internalComment: doc.internalComment ?? '',
       billingCause: doc.billingCause === 'In attesa fattura' ? '' : (doc.billingCause ?? ''),
@@ -3381,6 +3566,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     for (const line of doc.lines ?? []) {
       this.lines.push(
         this.fb.group({
+          id: this.fb.control(line.id),
           variantId: this.fb.control(line.variantId ?? ''),
           sku: this.fb.control(line.sku ?? ''),
           barcode: this.fb.control(''),
@@ -3415,6 +3601,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   private createLine() {
     const line = this.fb.group({
+      id: this.fb.control(''),
       variantId: this.fb.control(''),
       sku: this.fb.control(''),
       barcode: this.fb.control(''),

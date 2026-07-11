@@ -87,7 +87,7 @@ export class TenantBackupExportService {
     });
 
     const stamp = new Date().toISOString().slice(0, 10);
-    const safeName = tenant.name.replace(/[^\w\-]+/g, '-').slice(0, 40);
+    const safeName = tenant.name.replace(/[^\w-]+/g, '-').slice(0, 40);
     return {
       stream: output,
       filename: `vestiflow-backup-${safeName}-${stamp}.zip`,

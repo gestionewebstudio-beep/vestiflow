@@ -13,10 +13,14 @@ import type { DocumentAttachment } from '@core/models/document.model';
 import { DocumentType } from '@core/models/document.model';
 
 import type { DocumentListQuery } from '../models/document-list-query.model';
+import type { LinkableGoodsReceipt } from '../models/goods-receipt-causal.model';
 import {
   mapDocumentApiRow,
   type CreateDocumentBody,
   type DocumentApiRow,
+  type LinkableGoodsReceiptApiRow,
+  type SaveGoodsReceiptBody,
+  type SavePurchaseInvoiceBody,
   type UpdateDocumentBody,
 } from './document-api.mapper';
 
@@ -45,6 +49,9 @@ export class DocumentService {
     if (query.dateTo) params = params.set('dateTo', query.dateTo);
     if (query.customerId) params = params.set('customerId', query.customerId);
     if (query.locationId) params = params.set('locationId', query.locationId);
+    if (query.supplierId) params = params.set('supplierId', query.supplierId);
+    if (query.linkStatus) params = params.set('linkStatus', query.linkStatus);
+    if (query.causal) params = params.set('causal', query.causal);
     if (query.accountant) params = params.set('accountant', '1');
     if (query.pendingInvoice) params = params.set('pendingInvoice', '1');
 
@@ -104,6 +111,69 @@ export class DocumentService {
     return this.http
       .post<DocumentApiRow>(this.url(`/supplier-orders/${supplierOrderId}/goods-receipt`), body)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
+  }
+
+  /**
+   * Salvataggio unico Arrivo merce (prompt §2.1): testata, righe, totali,
+   * movimenti per riga e giacenze in un'unica operazione idempotente.
+   */
+  saveGoodsReceipt(body: SaveGoodsReceiptBody): Observable<DocumentRecord> {
+    return this.http
+      .post<DocumentApiRow>(this.url('/documents/goods-receipt/save'), body)
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
+  }
+
+  /** Registrazione fattura fornitore (prompt §5-6): mai movimenti di magazzino. */
+  savePurchaseInvoice(body: SavePurchaseInvoiceBody): Observable<{
+    document: DocumentRecord;
+    receiptsTotalMinor: number;
+    totalsMatch: boolean;
+  }> {
+    return this.http
+      .post<{
+        document: DocumentApiRow;
+        receiptsTotalMinor: number;
+        totalsMatch: boolean;
+      }>(this.url('/documents/purchase-invoice/save'), body)
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((response) => ({
+          document: mapDocumentApiRow(response.document),
+          receiptsTotalMinor: response.receiptsTotalMinor,
+          totalsMatch: response.totalsMatch,
+        })),
+      );
+  }
+
+  /** Arrivi merce includibili in una registrazione fattura (prompt §5.1). */
+  listLinkableGoodsReceipts(
+    supplierId: EntityId,
+    excludeInvoiceId?: EntityId,
+  ): Observable<readonly LinkableGoodsReceipt[]> {
+    let params = new HttpParams().set('supplierId', supplierId);
+    if (excludeInvoiceId) params = params.set('excludeInvoiceId', excludeInvoiceId);
+
+    return this.http
+      .get<
+        readonly LinkableGoodsReceiptApiRow[]
+      >(this.url('/documents/linkable-goods-receipts'), { params })
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((rows) =>
+          rows.map((row) => ({
+            id: row.id,
+            number: row.number ?? undefined,
+            reference: row.reference ?? undefined,
+            documentDate: row.documentDate,
+            causalText: row.causalText ?? undefined,
+            internalComment: row.internalComment ?? undefined,
+            subtotal: { amountMinor: row.subtotalMinor, currencyCode: row.currency },
+            tax: { amountMinor: row.taxMinor, currencyCode: row.currency },
+            total: { amountMinor: row.totalMinor, currencyCode: row.currency },
+            locationName: row.locationName ?? undefined,
+          })),
+        ),
+      );
   }
 
   updateDocument(id: EntityId, body: UpdateDocumentBody): Observable<DocumentRecord> {

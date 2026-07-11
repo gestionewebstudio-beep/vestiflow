@@ -229,13 +229,26 @@
             </div>
 
             <div class="gr-form__field">
+              <span class="gr-form__label">Tipo rif. fornitore</span>
+              <app-select-menu
+                [options]="supplierRefTypeOptions"
+                [value]="form.controls.supplierRefType.value"
+                ariaLabel="Tipo riferimento documento fornitore"
+                placeholder="DDT, Fattura…"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onSupplierRefTypeSelect($event)"
+              />
+            </div>
+
+            <div class="gr-form__field">
               <label class="gr-form__label" for="gr-ext-num">N. documento fornitore</label>
               <input
                 id="gr-ext-num"
                 class="gr-form__input"
                 type="text"
                 formControlName="externalDocNumber"
-                placeholder="Es. DDT 242/2026"
+                placeholder="Es. 145"
               />
             </div>
 
@@ -253,13 +266,55 @@
 
             <div class="gr-form__field gr-form__field--wide">
               <label class="gr-form__label" for="gr-causale">Causale di carico</label>
-              <input
-                id="gr-causale"
-                class="gr-form__input"
-                type="text"
-                formControlName="internalComment"
-                placeholder="Es. Acquisto stagione SS26"
-              />
+              <div class="gr-form__causal">
+                <div class="gr-form__causal-input">
+                  <input
+                    id="gr-causale"
+                    class="gr-form__input"
+                    type="text"
+                    autocomplete="off"
+                    [value]="form.controls.causalText.value"
+                    (input)="onCausalInput($any($event.target).value)"
+                    (keydown.escape)="closeCausalDropdown()"
+                    placeholder="Es. DDT 145 del 08/05/2026"
+                  />
+                  <button
+                    type="button"
+                    class="gr-form__causal-toggle"
+                    aria-label="Scegli causale dall'elenco"
+                    [attr.aria-expanded]="causalDropdownOpen()"
+                    (click)="toggleCausalDropdown()"
+                  >
+                    <i class="pi pi-chevron-down" aria-hidden="true"></i>
+                  </button>
+                  @if (causalDropdownOpen()) {
+                    <ul class="gr-form__causal-list" role="listbox" aria-label="Causali di carico">
+                      @for (causal of activeCausals(); track causal.id) {
+                        <li>
+                          <button
+                            type="button"
+                            class="gr-form__causal-option"
+                            role="option"
+                            [attr.aria-selected]="form.controls.causalText.value === causal.label"
+                            (click)="pickCausal(causal.label)"
+                          >
+                            {{ causal.label }}
+                            @if (causal.isDefault) {
+                              <span class="gr-form__causal-default">predefinita</span>
+                            }
+                          </button>
+                        </li>
+                      } @empty {
+                        <li class="gr-form__causal-empty">Nessuna causale configurata.</li>
+                      }
+                    </ul>
+                  }
+                </div>
+                <button type="button" class="gr-form__inline-toggle" (click)="openCausalPanel()">
+                  <i class="pi pi-cog" aria-hidden="true"></i>
+                  Gestione causali
+                </button>
+              </div>
             </div>
 
             <div class="gr-form__field">
@@ -1201,19 +1256,19 @@
 
       <div class="gr-form__actions">
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
-          Esci
+          Chiudi
         </app-button>
         <app-button type="button" variant="secondary" [disabled]="saving()" (click)="printLabels()">
           Stampa etichette
         </app-button>
-        @if (canConfirmDraft()) {
+        @if (canSaveDocument()) {
           <app-button
             type="button"
             [loading]="saving()"
             [disabled]="saving()"
-            (click)="requestConfirmGoodsReceipt()"
+            (click)="requestSaveDocument()"
           >
-            Conferma e carica magazzino
+            Salva documento
           </app-button>
         }
         @if (canExportPdf()) {
@@ -1317,15 +1372,6 @@
 }
 
 <app-confirm-dialog
-  [(open)]="confirmStockDialogOpen"
-  title="Confermare l'arrivo merce?"
-  message="Confermando verrà assegnato il numero progressivo e le righe con Mag. attivo aggiorneranno le giacenze. Procedere?"
-  confirmLabel="Conferma e carica"
-  [busy]="saving()"
-  (confirmed)="confirmStockLoad()"
-/>
-
-<app-confirm-dialog
   [(open)]="supplierPriceDialogOpen"
   title="Aggiornare i prezzi fornitore?"
   message="Alcuni costi inseriti differiscono dai prezzi di acquisto attuali. Vuoi aggiornare l'anagrafica articoli?"
@@ -1335,45 +1381,137 @@
   (dismissed)="skipSupplierPriceAndConfirm()"
 />
 
-@if (partialReceiptDialogOpen()) {
-  <div
-    class="gr-form__exit-backdrop"
-    aria-hidden="true"
-    (click)="cancelPartialReceiptDialog()"
-  ></div>
-  <div
-    class="gr-form__exit-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="gr-partial-receipt-title"
-  >
-    <h2 id="gr-partial-receipt-title" class="gr-form__exit-title">Ricezione ordine fornitore</h2>
-    <p class="gr-form__exit-message">
-      Stai ricevendo quantità diverse da quelle residue sull'ordine collegato. Come vuoi procedere?
-    </p>
-    <div class="gr-form__exit-actions">
-      <app-button
-        type="button"
-        variant="ghost"
-        [disabled]="saving()"
-        (click)="cancelPartialReceiptDialog()"
-      >
-        Annulla
-      </app-button>
-      <app-button
-        type="button"
-        variant="secondary"
-        [disabled]="saving()"
-        (click)="confirmPartialReceiptContinue()"
-      >
-        Ricezione parziale
-      </app-button>
-      <app-button type="button" [disabled]="saving()" (click)="confirmCloseSupplierOrderContinue()">
-        Chiudi ordine
-      </app-button>
+<app-slide-panel
+  [open]="causalPanelOpen()"
+  title="Gestione causali di carico"
+  (closed)="closeCausalPanel()"
+>
+  @if (causalPanelOpen()) {
+    <div class="gr-form__causal-panel">
+      <p class="gr-form__causal-panel-hint">
+        Le causali sono l'elenco proposto sul campo "Causale di carico". Eliminarne una non modifica
+        i documenti già salvati.
+      </p>
+
+      @if (causalPanelError(); as panelError) {
+        <p class="gr-form__submit-error" role="alert">{{ panelError }}</p>
+      }
+
+      <div class="gr-form__causal-new">
+        <input
+          class="gr-form__input"
+          type="text"
+          placeholder="Nuova causale…"
+          aria-label="Testo nuova causale"
+          [value]="newCausalLabel()"
+          (input)="newCausalLabel.set($any($event.target).value)"
+          (keydown.enter)="createCausal(); $event.preventDefault()"
+        />
+        <app-button
+          type="button"
+          [disabled]="causalPanelBusy() || !newCausalLabel().trim()"
+          (click)="createCausal()"
+        >
+          Aggiungi
+        </app-button>
+      </div>
+
+      <ul class="gr-form__causal-manage-list">
+        @for (causal of causals(); track causal.id; let first = $first; let last = $last) {
+          <li class="gr-form__causal-manage-item">
+            @if (editingCausalId() === causal.id) {
+              <input
+                class="gr-form__input"
+                type="text"
+                aria-label="Modifica testo causale"
+                [value]="editingCausalLabel()"
+                (input)="editingCausalLabel.set($any($event.target).value)"
+                (keydown.enter)="saveEditCausal(); $event.preventDefault()"
+                (keydown.escape)="cancelEditCausal()"
+              />
+              <div class="gr-form__causal-manage-actions">
+                <app-button
+                  type="button"
+                  variant="secondary"
+                  [disabled]="causalPanelBusy()"
+                  (click)="saveEditCausal()"
+                >
+                  Salva
+                </app-button>
+                <app-button type="button" variant="ghost" (click)="cancelEditCausal()">
+                  Annulla
+                </app-button>
+              </div>
+            } @else {
+              <span class="gr-form__causal-manage-label">
+                {{ causal.label }}
+                @if (causal.isDefault) {
+                  <app-badge tone="info">Predefinita</app-badge>
+                }
+              </span>
+              <div class="gr-form__causal-manage-actions">
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn"
+                  aria-label="Sposta su"
+                  [disabled]="first || causalPanelBusy()"
+                  (click)="moveCausal(causal, -1)"
+                >
+                  <i class="pi pi-arrow-up" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn"
+                  aria-label="Sposta giù"
+                  [disabled]="last || causalPanelBusy()"
+                  (click)="moveCausal(causal, 1)"
+                >
+                  <i class="pi pi-arrow-down" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn"
+                  [attr.aria-label]="
+                    causal.isDefault ? 'Rimuovi predefinita' : 'Imposta come predefinita'
+                  "
+                  [disabled]="causalPanelBusy()"
+                  (click)="setDefaultCausal(causal)"
+                >
+                  <i
+                    class="pi"
+                    [class.pi-star-fill]="causal.isDefault"
+                    [class.pi-star]="!causal.isDefault"
+                    aria-hidden="true"
+                  ></i>
+                </button>
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn"
+                  aria-label="Modifica causale"
+                  [disabled]="causalPanelBusy()"
+                  (click)="startEditCausal(causal)"
+                >
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn gr-form__causal-icon-btn--danger"
+                  aria-label="Elimina causale"
+                  [disabled]="causalPanelBusy()"
+                  (click)="deleteCausal(causal)"
+                >
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                </button>
+              </div>
+            }
+          </li>
+        } @empty {
+          <li class="gr-form__causal-empty">Nessuna causale configurata.</li>
+        }
+      </ul>
     </div>
-  </div>
-}
+  }
+</app-slide-panel>
 
 <app-slide-panel
   [open]="includeOrderPanelOpen()"

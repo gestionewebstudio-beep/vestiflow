@@ -30,9 +30,27 @@ function resolvedSetting(
 }
 
 function createPrismaMock() {
+  // getById include sempre purchaseInvoiceLinks/goodsReceiptLinks: Prisma
+  // restituisce array (anche vuoti), le fixture parziali dei test no.
+  // Il default qui evita di ripetere le due relazioni in ogni mock.
+  const documentFindFirst = vi.fn();
+  const withLinkDefaults = (value: unknown) =>
+    value && typeof value === 'object'
+      ? { purchaseInvoiceLinks: [], goodsReceiptLinks: [], ...value }
+      : value;
+  const rawMockResolvedValue = documentFindFirst.mockResolvedValue.bind(documentFindFirst);
+  documentFindFirst.mockResolvedValue = ((value: unknown) =>
+    rawMockResolvedValue(withLinkDefaults(value))) as typeof documentFindFirst.mockResolvedValue;
+  const rawMockResolvedValueOnce =
+    documentFindFirst.mockResolvedValueOnce.bind(documentFindFirst);
+  documentFindFirst.mockResolvedValueOnce = ((value: unknown) =>
+    rawMockResolvedValueOnce(
+      withLinkDefaults(value),
+    )) as typeof documentFindFirst.mockResolvedValueOnce;
+
   const prisma = {
     document: {
-      findFirst: vi.fn(),
+      findFirst: documentFindFirst,
       findMany: vi.fn(),
       count: vi.fn(),
       create: vi.fn(),

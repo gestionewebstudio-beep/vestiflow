@@ -1,0 +1,291 @@
+<section class="pi-form">
+  <a class="pi-form__back" [routerLink]="[listPath]" [queryParams]="{ type: 'supplier_invoice' }">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Registrazioni fattura
+  </a>
+
+  <h1 class="pi-form__title">{{ pageTitle() }}</h1>
+
+  @if (loadedReference(); as reference) {
+    <p class="pi-form__reference tabular-nums">N. interno: {{ reference }}</p>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="6" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare la registrazione fattura."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-lock"
+      title="Documento non modificabile"
+      description="Questa pagina gestisce solo le registrazioni fattura fornitore."
+      ctaLabel="Torna al registro"
+      (ctaClick)="cancel()"
+    />
+  } @else {
+    <form class="pi-form__form" [formGroup]="form" (ngSubmit)="save()">
+      <div class="pi-form__grid">
+        <div class="pi-form__field">
+          <span class="pi-form__label" id="pi-supplier-label">Fornitore</span>
+          <app-select-menu
+            [options]="supplierOptions()"
+            [value]="form.controls.supplierId.value"
+            ariaLabel="Fornitore"
+            placeholder="Seleziona fornitore…"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca fornitore…"
+            searchAriaLabel="Cerca fornitore"
+            [invalid]="fieldInvalid('supplierId')"
+            describedBy="pi-supplier-error"
+            (valueChange)="onSupplierSelect($event)"
+          />
+          @if (fieldInvalid('supplierId')) {
+            <p id="pi-supplier-error" class="pi-form__error">Seleziona un fornitore.</p>
+          }
+        </div>
+
+        <div class="pi-form__field">
+          <label class="pi-form__label" for="pi-date">Data registrazione</label>
+          <app-date-input
+            inputId="pi-date"
+            formControlName="documentDate"
+            ariaLabel="Data registrazione"
+            [compact]="true"
+            [fullWidth]="true"
+          />
+        </div>
+
+        <div class="pi-form__field">
+          <label class="pi-form__label" for="pi-ext-num">N. fattura fornitore</label>
+          <input
+            id="pi-ext-num"
+            class="pi-form__input"
+            type="text"
+            formControlName="externalDocNumber"
+            placeholder="Es. 58/2026"
+          />
+        </div>
+
+        <div class="pi-form__field">
+          <label class="pi-form__label" for="pi-ext-date">Data fattura fornitore</label>
+          <app-date-input
+            inputId="pi-ext-date"
+            formControlName="externalDocDate"
+            ariaLabel="Data fattura fornitore"
+            placeholder="Opzionale"
+            [compact]="true"
+            [fullWidth]="true"
+          />
+        </div>
+
+        <div class="pi-form__field">
+          <label class="pi-form__label" for="pi-total">Totale fattura</label>
+          <input
+            id="pi-total"
+            class="pi-form__input pi-form__input--num"
+            type="text"
+            inputmode="decimal"
+            formControlName="totalText"
+            placeholder="0,00"
+            [attr.aria-invalid]="totalInvalid() || fieldInvalid('totalText')"
+            aria-describedby="pi-total-error"
+          />
+          @if (totalInvalid()) {
+            <p id="pi-total-error" class="pi-form__error">Inserisci un importo valido.</p>
+          } @else if (fieldInvalid('totalText')) {
+            <p id="pi-total-error" class="pi-form__error">Il totale fattura è obbligatorio.</p>
+          }
+        </div>
+      </div>
+
+      <section class="pi-form__receipts" aria-labelledby="pi-receipts-title">
+        <div class="pi-form__receipts-head">
+          <h2 id="pi-receipts-title" class="pi-form__subtitle">Arrivi merce inclusi</h2>
+          <app-button type="button" variant="secondary" (click)="openIncludePanel()">
+            <i class="pi pi-link" aria-hidden="true"></i>
+            Includi documento
+          </app-button>
+        </div>
+
+        @if (includedReceipts().length === 0) {
+          <app-empty-state
+            icon="pi-inbox"
+            title="Nessun arrivo merce incluso"
+            description="Usa “Includi documento” per collegare gli arrivi merce sospesi di questo fornitore. Il collegamento è solo documentale: le giacenze non vengono toccate."
+          />
+        } @else {
+          <div class="pi-form__table-wrap">
+            <table class="pi-form__table">
+              <thead>
+                <tr>
+                  <th scope="col">Documento incluso</th>
+                  <th scope="col" class="pi-form__cell--num">Imponibile</th>
+                  <th scope="col" class="pi-form__cell--num">IVA</th>
+                  <th scope="col" class="pi-form__cell--num">Totale</th>
+                  <th scope="col">
+                    <span class="sr-only">Azioni</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of includedReceipts(); track row.id) {
+                  <tr>
+                    <td [attr.data-label]="'Documento'">{{ receiptSummaryLabel(row) }}</td>
+                    <td class="pi-form__cell--num tabular-nums" [attr.data-label]="'Imponibile'">
+                      {{ formatMoney(row.subtotal) }}
+                    </td>
+                    <td class="pi-form__cell--num tabular-nums" [attr.data-label]="'IVA'">
+                      {{ formatMoney(row.tax) }}
+                    </td>
+                    <td class="pi-form__cell--num tabular-nums" [attr.data-label]="'Totale'">
+                      {{ formatMoney(row.total) }}
+                    </td>
+                    <td class="pi-form__cell--actions">
+                      <button
+                        type="button"
+                        class="pi-form__remove-btn"
+                        [attr.aria-label]="'Rimuovi ' + receiptSummaryLabel(row)"
+                        (click)="removeReceipt(row.id)"
+                      >
+                        <i class="pi pi-times" aria-hidden="true"></i>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th scope="row">Somma arrivi inclusi</th>
+                  <td class="pi-form__cell--num tabular-nums">
+                    {{ formatMoney(receiptsSubtotal()) }}
+                  </td>
+                  <td class="pi-form__cell--num tabular-nums">{{ formatMoney(receiptsTax()) }}</td>
+                  <td class="pi-form__cell--num tabular-nums">
+                    <strong>{{ formatMoney(receiptsTotal()) }}</strong>
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        }
+
+        @if (totalsComparison() === 'match') {
+          <p class="pi-form__totals-check pi-form__totals-check--ok" role="status">
+            <i class="pi pi-check-circle" aria-hidden="true"></i>
+            Il totale fattura coincide con la somma degli arrivi inclusi.
+          </p>
+        } @else if (totalsComparison() === 'mismatch') {
+          <p class="pi-form__totals-check pi-form__totals-check--warn" role="status">
+            <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+            Il totale fattura non coincide con la somma degli arrivi inclusi (differenza
+            {{ formatMoney(totalsDifference()) }}). Puoi salvare comunque.
+          </p>
+        }
+      </section>
+
+      <div class="pi-form__field">
+        <label class="pi-form__label" for="pi-notes">Note</label>
+        <textarea id="pi-notes" class="pi-form__textarea" rows="2" formControlName="notes">
+        </textarea>
+      </div>
+
+      @if (savedTotalsWarning(); as warning) {
+        <p class="pi-form__totals-check pi-form__totals-check--warn" role="status">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+          {{ warning }}
+        </p>
+      }
+
+      @if (submitError(); as appError) {
+        <p class="pi-form__submit-error" role="alert">{{ appError.message }}</p>
+      }
+
+      <div class="pi-form__actions">
+        <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
+          Chiudi
+        </app-button>
+        <app-button type="submit" [loading]="saving()" [disabled]="saving()">
+          Salva registrazione
+        </app-button>
+      </div>
+    </form>
+  }
+</section>
+
+<app-slide-panel
+  [open]="includePanelOpen()"
+  title="Includi arrivo merce"
+  (closed)="closeIncludePanel()"
+>
+  @if (includePanelOpen()) {
+    <div class="pi-form__include">
+      <p class="pi-form__include-hint">
+        Arrivi merce sospesi del fornitore selezionato, non annullati e non ancora collegati ad
+        altre fatture.
+      </p>
+      @if (linkableLoading()) {
+        <app-table-skeleton [columns]="1" [rows]="4" />
+      } @else if (linkableError(); as error) {
+        <app-error-state
+          [description]="error.message"
+          retryLabel="Riprova"
+          (retry)="openIncludePanel()"
+        />
+      } @else if (linkableReceipts().length === 0) {
+        <app-empty-state
+          icon="pi-inbox"
+          title="Nessun arrivo merce disponibile"
+          description="Non ci sono arrivi merce sospesi da includere per questo fornitore."
+        />
+      } @else {
+        <ul class="pi-form__include-list">
+          @for (receipt of linkableReceipts(); track receipt.id) {
+            <li class="pi-form__include-item">
+              <label class="pi-form__include-check">
+                <input
+                  type="checkbox"
+                  [checked]="linkableSelection().has(receipt.id)"
+                  (change)="toggleLinkableSelection(receipt.id)"
+                />
+                <span class="pi-form__include-meta">
+                  <strong class="tabular-nums">
+                    {{ receipt.reference ?? 'Arrivo merce' }} ·
+                    {{ formatDate(receipt.documentDate) }}
+                  </strong>
+                  @if (receipt.causalText) {
+                    <span class="pi-form__include-causal">{{ receipt.causalText }}</span>
+                  }
+                  @if (receipt.locationName) {
+                    <app-badge tone="neutral">{{ receipt.locationName }}</app-badge>
+                  }
+                </span>
+              </label>
+              <span class="pi-form__include-total tabular-nums">
+                {{ formatMoney(receipt.total) }}
+              </span>
+            </li>
+          }
+        </ul>
+        <div class="pi-form__include-actions">
+          <app-button type="button" variant="ghost" (click)="closeIncludePanel()">
+            Annulla
+          </app-button>
+          <app-button
+            type="button"
+            [disabled]="linkableSelection().size === 0"
+            (click)="includeSelectedReceipts()"
+          >
+            Includi selezionati
+          </app-button>
+        </div>
+      }
+    </div>
+  }
+</app-slide-panel>

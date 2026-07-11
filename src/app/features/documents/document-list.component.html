@@ -64,7 +64,7 @@
         [value]="searchDraft()"
         [placeholder]="
           isGoodsReceiptList()
-            ? 'Cerca per numero, fornitore o riferimento fattura…'
+            ? 'Cerca per numero, fornitore, causale, commento o totale…'
             : 'Cerca per numero, controparte o documento esterno…'
         "
         aria-label="Cerca documenti"
@@ -120,6 +120,48 @@
               />
             </div>
           } @else {
+            <div class="doc-list__field">
+              <span class="doc-list__label">Fornitore</span>
+              <app-select-menu
+                [options]="supplierOptions()"
+                [value]="query().supplierId ?? ''"
+                ariaLabel="Filtra per fornitore"
+                placeholder="Tutti"
+                [compact]="true"
+                [fullWidth]="true"
+                [searchable]="true"
+                searchPlaceholder="Cerca fornitore…"
+                searchAriaLabel="Cerca fornitore"
+                (valueChange)="onSupplierFilterChange($event)"
+              />
+            </div>
+
+            <div class="doc-list__field">
+              <span class="doc-list__label">Stato</span>
+              <app-select-menu
+                [options]="linkStatusOptions"
+                [value]="query().linkStatus ?? ''"
+                ariaLabel="Filtra per stato collegamento fattura"
+                placeholder="Tutti"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onLinkStatusFilterChange($event)"
+              />
+            </div>
+
+            <div class="doc-list__field">
+              <span class="doc-list__label">Causale</span>
+              <app-select-menu
+                [options]="causalFilterOptions"
+                [value]="query().causal ?? ''"
+                ariaLabel="Filtra per causale di carico"
+                placeholder="Tutte"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onCausalFilterChange($event)"
+              />
+            </div>
+
             <div class="doc-list__field">
               <span class="doc-list__label">Magazzino</span>
               <app-select-menu

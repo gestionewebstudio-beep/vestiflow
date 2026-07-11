@@ -29,6 +29,7 @@ import type { DocumentRecord } from '@core/models/document.model';
 import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { CustomerService } from '@features/customers/services/customer.service';
+import { SupplierService } from '@features/suppliers/services/supplier.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -111,6 +112,7 @@ export class DocumentListComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
   private readonly customerService = inject(CustomerService);
+  private readonly supplierService = inject(SupplierService);
   private readonly operationalLocations = inject(OperationalLocationsService);
 
   private readonly routeData = toSignal(this.route.data, {
@@ -153,6 +155,32 @@ export class DocumentListComponent {
     { initialValue: [] as readonly SelectMenuOption[] },
   );
 
+  protected readonly supplierOptions = toSignal(
+    this.supplierService.getSuppliers().pipe(
+      map((suppliers) =>
+        suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name })),
+      ),
+      catchError(() => of([] as readonly SelectMenuOption[])),
+    ),
+    { initialValue: [] as readonly SelectMenuOption[] },
+  );
+
+  /** Stato collegamento fattura degli Arrivi merce (prompt §4). */
+  protected readonly linkStatusOptions: readonly SelectMenuOption[] = [
+    { value: 'suspended', label: 'Sospesi' },
+    { value: 'linked', label: 'Collegati a fattura' },
+    { value: 'cancelled', label: 'Annullati' },
+  ];
+
+  /** Filtro causale: ricerca testuale sul testo causale (prompt §4). */
+  protected readonly causalFilterOptions: readonly SelectMenuOption[] = [
+    { value: 'DDT', label: 'DDT' },
+    { value: 'Fatt', label: 'Fattura' },
+    { value: 'Reso', label: 'Reso' },
+    { value: 'Visione', label: 'Conto visione' },
+    { value: 'Lavorazione', label: 'Conto lavorazione' },
+  ];
+
   protected readonly tableViewId = computed(() =>
     this.isGoodsReceiptList() ? TableViewId.GoodsReceiptDocumentsList : TableViewId.DocumentsList,
   );
@@ -182,6 +210,7 @@ export class DocumentListComponent {
   );
 
   protected readonly secondaryCreateOptions: readonly SelectMenuOption[] = [
+    { value: 'purchase-invoice', label: 'Registrazione fattura' },
     { value: 'transfer', label: 'Trasferimento' },
     { value: 'manual-unload', label: 'Scarico manuale' },
     { value: 'adjustment', label: 'Rettifica inventario' },
@@ -260,7 +289,15 @@ export class DocumentListComponent {
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
     if (this.isGoodsReceiptList()) {
-      return Boolean(q.search ?? q.dateFrom ?? q.dateTo ?? q.locationId);
+      return Boolean(
+        q.search ??
+        q.dateFrom ??
+        q.dateTo ??
+        q.locationId ??
+        q.supplierId ??
+        q.linkStatus ??
+        q.causal,
+      );
     }
     return Boolean(
       q.search ??
@@ -344,11 +381,26 @@ export class DocumentListComponent {
     this.updateParams({ locationId: value, page: null }, true);
   }
 
+  protected onSupplierFilterChange(value: string | null): void {
+    this.updateParams({ supplierId: value, page: null }, true);
+  }
+
+  protected onLinkStatusFilterChange(value: string | null): void {
+    this.updateParams({ linkStatus: value, page: null }, true);
+  }
+
+  protected onCausalFilterChange(value: string | null): void {
+    this.updateParams({ causal: value, page: null }, true);
+  }
+
   protected onCreateDocumentType(value: string | null): void {
     if (!value) {
       return;
     }
     switch (value) {
+      case 'purchase-invoice':
+        this.openNewPurchaseInvoice();
+        break;
       case 'transfer':
         this.openNewTransfer();
         break;
@@ -383,6 +435,9 @@ export class DocumentListComponent {
         dateTo: null,
         customerId: null,
         locationId: null,
+        supplierId: null,
+        linkStatus: null,
+        causal: null,
         accountant: null,
         pendingInvoice: null,
         page: null,
@@ -411,6 +466,10 @@ export class DocumentListComponent {
       void this.router.navigate(['/app/documents', doc.id, 'edit']);
       return;
     }
+    if (doc.type === DocumentType.SupplierInvoice && doc.status !== DocumentStatus.Cancelled) {
+      void this.router.navigate(['/app/documents/registrazione-fattura', doc.id, 'edit']);
+      return;
+    }
     void this.router.navigate(['/app/documents', doc.id]);
   }
 
@@ -424,6 +483,10 @@ export class DocumentListComponent {
 
   protected openNewGoodsReceipt(): void {
     void this.router.navigate(['/app/documents/goods-receipt/new']);
+  }
+
+  protected openNewPurchaseInvoice(): void {
+    void this.router.navigate(['/app/documents/registrazione-fattura/new']);
   }
 
   protected openNewTransfer(): void {

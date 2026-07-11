@@ -11,6 +11,8 @@ import {
   documentStatusDisplayLabel,
   documentStatusDisplayTone,
   documentTypeLabel,
+  goodsReceiptLinkStatusLabel,
+  goodsReceiptLinkStatusTone,
 } from '../../models/document-labels.util';
 
 /**
@@ -63,6 +65,18 @@ export class DocumentTableComponent {
 
   protected billingCauseLabel(doc: DocumentRecord): string {
     return doc.billingCause?.trim() || '—';
+  }
+
+  protected causalLabel(doc: DocumentRecord): string {
+    return doc.causalText?.trim() || doc.billingCause?.trim() || '—';
+  }
+
+  protected linkStatusLabel(doc: DocumentRecord): string | null {
+    return goodsReceiptLinkStatusLabel(doc);
+  }
+
+  protected linkStatusTone(doc: DocumentRecord) {
+    return goodsReceiptLinkStatusTone(doc);
   }
 
   protected statusLabel(doc: DocumentRecord): string | null {
