@@ -31,6 +31,11 @@ import type {
   ListMovementsQueryDto,
 } from './dto/inventory-queries.dto';
 import type { RegisterMovementDto } from './dto/register-movement.dto';
+import {
+  collectDocumentLookupIds,
+  collectOnlineSaleLookupIds,
+  resolveMovementDocumentReference,
+} from './movement-document-reference.util';
 
 export type InventoryLevelWithRefs = InventoryLevel & {
   variant: { sku: string; optionValues: Prisma.JsonValue; product: { name: string } };
@@ -292,24 +297,34 @@ export class InventoryService {
       this.prisma.stockMovement.count({ where }),
     ]);
 
-    const externalRefs = [
-      ...new Set(rawItems.map((item) => item.externalRef).filter((ref): ref is string => Boolean(ref))),
-    ];
+    const documentIds = collectDocumentLookupIds(rawItems);
     const documents =
-      externalRefs.length > 0
+      documentIds.length > 0
         ? await this.prisma.document.findMany({
-            where: { tenantId, id: { in: externalRefs } },
+            where: { tenantId, id: { in: [...documentIds] } },
             select: { id: true, reference: true },
           })
         : [];
     const documentRefById = new Map(documents.map((doc) => [doc.id, doc.reference]));
 
+    const onlineSaleIds = collectOnlineSaleLookupIds(rawItems);
+    const onlineSales =
+      onlineSaleIds.length > 0
+        ? await this.prisma.onlineSale.findMany({
+            where: { tenantId, id: { in: [...onlineSaleIds] } },
+            select: { id: true, reference: true },
+          })
+        : [];
+    const onlineSaleRefById = new Map(onlineSales.map((sale) => [sale.id, sale.reference]));
+
     const items = rawItems.map(({ variant, ...movement }) => ({
       ...movement,
       productTitle: variant?.product?.name ?? null,
-      documentReference: movement.externalRef
-        ? (documentRefById.get(movement.externalRef) ?? movement.externalRef)
-        : null,
+      documentReference: resolveMovementDocumentReference(
+        movement,
+        documentRefById,
+        onlineSaleRefById,
+      ),
     }));
 
     return { items, total, page: query.page, pageSize: query.pageSize };

@@ -27,6 +27,12 @@ describe('InventoryService', () => {
         findMany: vi.fn(),
         count: vi.fn(),
       },
+      document: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      onlineSale: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       $transaction: vi.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
   }
@@ -221,6 +227,44 @@ describe('InventoryService', () => {
         documentReference: null,
       }),
     ]);
+  });
+
+  it('listMovements ignora externalRef non UUID (es. GID Shopify) nel lookup documenti', async () => {
+    const prisma = createPrismaMock();
+    prisma.stockMovement.findMany.mockResolvedValue([
+      {
+        id: 'mov-shopify',
+        externalRef: 'gid://shopify/Order/12345',
+        sourceDocumentId: '22222222-2222-4222-8222-222222222222',
+        sourceDocumentType: 'online_sale',
+        variant: { product: { name: 'Maglietta' } },
+      },
+    ]);
+    prisma.stockMovement.count.mockResolvedValue(1);
+    prisma.onlineSale.findMany.mockResolvedValue([
+      { id: '22222222-2222-4222-8222-222222222222', reference: 'VO-2026/00007' },
+    ]);
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    const result = await service.listMovements(tenantId, { page: 1, pageSize: 20 });
+
+    expect(prisma.document.findMany).not.toHaveBeenCalled();
+    expect(prisma.onlineSale.findMany).toHaveBeenCalledWith({
+      where: {
+        tenantId,
+        id: { in: ['22222222-2222-4222-8222-222222222222'] },
+      },
+      select: { id: true, reference: true },
+    });
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        documentReference: 'VO-2026/00007',
+        productTitle: 'Maglietta',
+      }),
+    );
   });
 
   it('listMovements senza locationId filtra solo sedi licenziate attive', async () => {
