@@ -1793,6 +1793,9 @@ model PurchaseInvoiceGoodsReceiptLink {
   linkedNetMinor    Int      @default(0) @map("linked_net_minor")
   linkedVatMinor    Int      @default(0) @map("linked_vat_minor")
   linkedGrossMinor  Int      @default(0) @map("linked_gross_minor")
+  /// "Totali da verificare" (§15): l'arrivo è stato modificato dopo il
+  /// collegamento alla fattura; si azzera al ri-salvataggio della fattura.
+  totalsCheckPending Boolean @default(false) @map("totals_check_pending")
   createdAt         DateTime @default(now()) @map("created_at")
 
   purchaseInvoice Document @relation("LinkInvoice", fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)

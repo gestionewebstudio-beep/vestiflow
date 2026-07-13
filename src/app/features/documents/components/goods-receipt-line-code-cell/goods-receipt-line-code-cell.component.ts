@@ -38,6 +38,7 @@ export class GoodsReceiptLineCodeCellComponent {
   readonly lineRowAdvance = output<number>();
   readonly lineRowRetreat = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
+  readonly escapePressed = output<number>();
 
   private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('codeInput');
 
@@ -71,6 +72,12 @@ export class GoodsReceiptLineCodeCellComponent {
     const open = this.suggestionsOpen() && suggestions.length > 0;
     const active = this.activeSuggestionIndex();
 
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.escapePressed.emit(this.lineIndex());
+      return;
+    }
     if (event.key === 'ArrowDown' && !open) {
       event.preventDefault();
       this.lineRowAdvance.emit(this.lineIndex());

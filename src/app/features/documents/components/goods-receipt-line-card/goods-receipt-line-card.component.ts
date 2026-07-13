@@ -3,6 +3,7 @@ import { ReactiveFormsModule, type FormControl } from '@angular/forms';
 
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import type { VariantSummary } from '@features/products/models/variant-summary.model';
 
 /**
  * Controlli della riga Arrivo merce usati dalla card mobile (§10.10).
@@ -50,17 +51,44 @@ export class GoodsReceiptLineCardComponent {
   readonly vatValue = input('');
   readonly disabled = input(false);
   readonly canRemove = input(true);
+  /** Suggerimenti ricerca contestuale (§7): stessa sorgente della tabella. */
+  readonly suggestions = input<readonly VariantSummary[]>([]);
+  readonly suggestionsOpen = input(false);
 
   readonly searchProduct = output<number>();
   readonly vatChange = output<string | null>();
   readonly fieldBlur = output<number>();
   readonly duplicated = output<number>();
   readonly removed = output<number>();
+  readonly nameInput = output<string>();
+  readonly nameFocus = output<number>();
+  readonly nameBlur = output<number>();
+  readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
+  readonly createNewRequest = output<number>();
 
   protected readonly detailsOpen = signal(false);
 
   protected toggleDetails(): void {
     this.detailsOpen.update((open) => !open);
+  }
+
+  protected onNameInput(value: string): void {
+    this.nameInput.emit(value);
+  }
+
+  protected pickSuggestion(variantId: string): void {
+    this.suggestionPick.emit({ lineIndex: this.lineIndex(), variantId });
+  }
+
+  protected suggestionDetail(variant: VariantSummary): string {
+    const parts: string[] = [];
+    if (variant.sku) {
+      parts.push(variant.sku);
+    }
+    if (variant.stockOnHand != null) {
+      parts.push(`Disp. ${variant.stockOnHand}`);
+    }
+    return parts.join(' · ');
   }
 
   protected codeLabel(): string {

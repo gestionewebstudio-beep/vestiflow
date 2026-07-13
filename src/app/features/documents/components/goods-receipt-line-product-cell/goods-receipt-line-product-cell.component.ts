@@ -30,6 +30,8 @@ export class GoodsReceiptLineProductCellComponent {
   readonly suggestions = input<readonly VariantSummary[]>([]);
   readonly suggestionsOpen = input(false);
   readonly activeSuggestionIndex = input(0);
+  /** True quando la riga è in modalità "Crea nuovo articolo" esplicita (§8). */
+  readonly createMode = input(false);
 
   readonly valueChange = output<string>();
   readonly focused = output<number>();
@@ -42,6 +44,9 @@ export class GoodsReceiptLineProductCellComponent {
   readonly lineAdvance = output<number>();
   readonly lineRowAdvance = output<number>();
   readonly lineRowRetreat = output<number>();
+  readonly createNewRequest = output<number>();
+  readonly createNewCancel = output<number>();
+  readonly escapePressed = output<number>();
 
   private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('productInput');
 
@@ -87,11 +92,27 @@ export class GoodsReceiptLineProductCellComponent {
     }
   }
 
+  protected requestCreateNew(event: Event): void {
+    event.stopPropagation();
+    this.createNewRequest.emit(this.lineIndex());
+  }
+
+  protected cancelCreateNew(event: Event): void {
+    event.stopPropagation();
+    this.createNewCancel.emit(this.lineIndex());
+  }
+
   protected onKeydown(event: KeyboardEvent): void {
     const suggestions = this.suggestions();
     const open = this.suggestionsOpen() && suggestions.length > 0;
     const active = this.activeSuggestionIndex();
 
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.escapePressed.emit(this.lineIndex());
+      return;
+    }
     if (event.key === 'ArrowDown' && !open) {
       event.preventDefault();
       this.lineRowAdvance.emit(this.lineIndex());

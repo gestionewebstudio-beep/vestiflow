@@ -140,6 +140,7 @@ export class GoodsReceiptWorkflowService {
       for (const vatCode of found) {
         vatCodesById.set(vatCode.id, vatCode);
       }
+      this.assertPurchaseVatCodes(dto, requestedVatCodeIds, vatCodesById);
     }
 
     const computedLines = computeGoodsReceiptLines({
@@ -428,6 +429,24 @@ export class GoodsReceiptWorkflowService {
         await this.recordRevision(tx, tenantId, documentId, sync.deltas, actor);
       }
 
+      // "Totali da verificare" (§15): se i totali di un arrivo già collegato
+      // a una fattura registrata cambiano, il collegamento viene marcato in
+      // modo persistente finché la fattura non viene ricontrollata.
+      const totalsChanged =
+        existing != null &&
+        (existing.subtotalMinor !== totals.subtotalMinor ||
+          existing.taxMinor !== totals.taxMinor ||
+          existing.totalMinor !== totals.totalMinor);
+      if (totalsChanged) {
+        await tx.purchaseInvoiceGoodsReceiptLink.updateMany({
+          where: {
+            goodsReceiptId: documentId,
+            purchaseInvoice: { status: { not: DocumentStatus.cancelled } },
+          },
+          data: { totalsCheckPending: true },
+        });
+      }
+
       return tx.document.findFirstOrThrow({
         where: { id: documentId, tenantId },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -700,6 +719,8 @@ export class GoodsReceiptWorkflowService {
             linkedNetMinor: receipt.subtotalMinor,
             linkedVatMinor: receipt.taxMinor,
             linkedGrossMinor: receipt.totalMinor,
+            // La fattura è stata ricontrollata: il flag §15 si azzera.
+            totalsCheckPending: false,
           },
         });
       }
@@ -718,6 +739,40 @@ export class GoodsReceiptWorkflowService {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /**
+   * Validazione Codici IVA riga (§9): devono esistere per il tenant, essere
+   * attivi e utilizzabili in acquisto. Il messaggio indica la prima riga
+   * coinvolta, mai dettagli tecnici.
+   */
+  private assertPurchaseVatCodes(
+    dto: SaveGoodsReceiptDto,
+    requestedVatCodeIds: readonly string[],
+    vatCodesById: ReadonlyMap<string, VatCodeWithNature>,
+  ): void {
+    const lineNumberForVatCode = (vatCodeId: string): number => {
+      const index = (dto.lines ?? []).findIndex((line) => line.vatCodeId === vatCodeId);
+      return index >= 0 ? index + 1 : 1;
+    };
+    for (const vatCodeId of requestedVatCodeIds) {
+      const vatCode = vatCodesById.get(vatCodeId);
+      if (!vatCode) {
+        throw new UnprocessableEntityException(
+          `Riga ${lineNumberForVatCode(vatCodeId)}: il Codice IVA selezionato non esiste più. Scegli un altro codice.`,
+        );
+      }
+      if (!vatCode.isActive) {
+        throw new UnprocessableEntityException(
+          `Riga ${lineNumberForVatCode(vatCodeId)}: il Codice IVA "${vatCode.code}" è disattivato. Scegli un codice attivo.`,
+        );
+      }
+      if (vatCode.usageScope === 'sales') {
+        throw new UnprocessableEntityException(
+          `Riga ${lineNumberForVatCode(vatCodeId)}: il Codice IVA "${vatCode.code}" è riservato alle vendite e non è utilizzabile in acquisto.`,
+        );
+      }
+    }
+  }
 
   private async pushInventory(
     tenantId: string,

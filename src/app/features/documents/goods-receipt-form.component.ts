@@ -145,6 +145,13 @@ import {
   type VatComputationInput,
   type VatLineAmounts,
 } from './utils/goods-receipt-vat.util';
+import {
+  lineDraftHasSignificantData,
+  lineDraftIsEmpty,
+  lineDraftPersistableForAutoSave,
+  lineDraftPersistableForExplicitSave,
+  type GoodsReceiptLineDraft,
+} from './utils/goods-receipt-line-state.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -154,6 +161,19 @@ type SubmitState =
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 3;
 const AUTO_SAVE_DEBOUNCE_MS = 800;
+/** Ritenta una volta l'autosalvataggio fallito per errore di rete (§6). */
+const AUTO_SAVE_RETRY_DELAY_MS = 5000;
+
+/**
+ * Documenti sbloccati nella sessione di lavoro corrente (§9): vive a livello
+ * di modulo perché il componente viene distrutto/ricreato quando la route
+ * passa da `goods-receipt/new` a `:id/edit`. Finché l'utente resta nell'app,
+ * i ricaricamenti della maschera non devono ribloccare il documento.
+ */
+const SESSION_UNLOCKED_DOC_IDS = new Set<string>();
+
+/** Modalità payload: l'autosave esclude righe non confermate (query, tentativi). */
+type GoodsReceiptSaveMode = 'auto' | 'explicit';
 
 type GoodsReceiptLineFocusField =
   | 'sku'
@@ -293,6 +313,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   /** Evita il lock immediato dopo auto-save che crea il documento e cambia route. */
   private readonly preserveEditSession = signal(false);
   protected readonly unlockDialogOpen = signal(false);
+
+  private markSessionUnlocked(docId: string | null | undefined): void {
+    if (docId) {
+      SESSION_UNLOCKED_DOC_IDS.add(docId);
+    }
+  }
   protected readonly productPanelOpen = signal(false);
   protected readonly productPanelLineIndex = signal<number | null>(null);
   protected readonly productPanelMode = signal<'create' | 'edit'>('create');
@@ -688,6 +714,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   });
 
   constructor() {
+    this.destroyRef.onDestroy(() => this.clearAutoSaveRetry());
     this.columnPreferences.registerView(
       GOODS_RECEIPT_LINES_VIEW,
       GOODS_RECEIPT_LINE_COLUMNS,
@@ -793,11 +820,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     );
   }
 
-  /** Righe persistibili che caricano magazzino: richiedono la location (§9.4). */
+  /** Righe che caricheranno davvero magazzino: richiedono la location (§9.4). */
   private hasStockLoadingLines(): boolean {
-    return this.lines.controls.some(
-      (line) => line.controls.loadsStock.value && this.lineHasPersistableData(line),
-    );
+    return this.lines.controls.some((line) => {
+      if (!line.controls.loadsStock.value || Number(line.controls.quantity.value) <= 0) {
+        return false;
+      }
+      return Boolean(line.controls.variantId.value) || this.lineNeedsProductCreation(line);
+    });
   }
 
   /** Validazione testata per il salvataggio (§9.2): messaggi contestuali. */
@@ -876,8 +906,75 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected onLineSkuChange(index: number, value: string): void {
     this.lines.at(index).controls.sku.setValue(value);
-    this.clearCodeLookup();
+    this.clearProductAutocomplete();
+    // Ricerca contestuale live anche sul codice (§7): da 3 caratteri in su.
+    const term = value.trim();
+    if (term.length >= VARIANT_SEARCH_MIN_CHARS && !this.lineHasLinkedProduct(index)) {
+      this.codeLookupLineIndex.set(index);
+      this.codeLookupField.set('sku');
+      this.codeSearchDraft.set(term);
+    } else {
+      this.clearCodeLookup();
+    }
     this.triggerAutoSave();
+  }
+
+  /** Ricerca live per SKU: debounce condiviso con la ricerca per nome (§7). */
+  private readonly codeSearchDraft = signal('');
+
+  private readonly skuLiveSearchSubscription = toObservable(this.codeSearchDraft)
+    .pipe(
+      debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
+      distinctUntilChanged(),
+      switchMap((term) => {
+        const value = term.trim();
+        if (value.length < VARIANT_SEARCH_MIN_CHARS) {
+          return of(null);
+        }
+        const supplierId = this.form.controls.supplierId.value || undefined;
+        const locationId = this.form.controls.locationId.value || undefined;
+        return this.productService
+          .searchVariantSummaries({ search: value, pageSize: 20, supplierId, locationId })
+          .pipe(catchError(() => of([] as readonly VariantSummary[])));
+      }),
+      takeUntilDestroyed(),
+    )
+    .subscribe((results) => {
+      if (results === null) {
+        return;
+      }
+      // La lookup potrebbe essere stata chiusa (blur/Esc) mentre la ricerca
+      // era in corso: in quel caso i risultati non vanno mostrati.
+      if (this.codeLookupField() !== 'sku' || this.codeLookupLineIndex() == null) {
+        return;
+      }
+      this.codeLookupSuggestions.set(results);
+    });
+
+  /** Avvio esplicito della creazione articolo dalla riga (§8). */
+  protected startCreateNewArticle(index: number): void {
+    const line = this.lines.at(index);
+    if (!line || this.formReadOnly() || line.controls.variantId.value) {
+      return;
+    }
+    line.controls.createNew.setValue(true);
+    this.clearProductAutocomplete();
+    this.clearCodeLookup();
+    this.focusLineField(index, 'sku');
+  }
+
+  protected cancelCreateNewArticle(index: number): void {
+    this.lines.at(index)?.controls.createNew.setValue(false);
+  }
+
+  protected lineCreateMode(index: number): boolean {
+    return Boolean(this.lines.at(index)?.controls.createNew.value);
+  }
+
+  /** Esc chiude ricerca contestuale e lookup codici senza toccare i dati (§7). */
+  protected onLineSearchEscape(_index: number): void {
+    this.clearProductAutocomplete();
+    this.clearCodeLookup();
   }
 
   protected onLineBarcodeChange(index: number, value: string): void {
@@ -894,6 +991,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.variantSearchDraft.set(value);
     this.clearCodeLookup();
     this.triggerAutoSave();
+  }
+
+  /**
+   * Variante per la card mobile: il valore è già scritto dal formControl,
+   * qui si aggiornano solo i segnali della ricerca contestuale (§7).
+   */
+  protected onCardProductNameInput(index: number, value: string): void {
+    this.autocompleteLineIndex.set(index);
+    this.activeSuggestionIndex.set(0);
+    this.variantSearchDraft.set(value);
+    this.clearCodeLookup();
   }
 
   protected onLineProductFocus(index: number): void {
@@ -1368,6 +1476,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.codeLookupLineIndex.set(null);
     this.codeLookupField.set(null);
     this.codeLookupSuggestions.set([]);
+    this.codeSearchDraft.set('');
   }
 
   private clearProductAutocomplete(): void {
@@ -1447,49 +1556,34 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
   }
 
+  /** Valore grezzo riga nel formato del classificatore di stato (§5). */
+  private lineDraft(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): GoodsReceiptLineDraft {
+    return line.getRawValue();
+  }
+
   private lineIsEmpty(line: ReturnType<GoodsReceiptFormComponent['createLine']>): boolean {
-    return (
-      !line.controls.variantId.value &&
-      !line.controls.sku.value.trim() &&
-      !line.controls.barcode.value.trim() &&
-      !line.controls.productName.value.trim() &&
-      !line.controls.unitCost.value.trim() &&
-      !line.controls.sellingPrice.value.trim() &&
-      !line.controls.compareAtPrice.value.trim()
-    );
+    return lineDraftIsEmpty(this.lineDraft(line));
   }
 
   private lineHasSignificantProductData(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
   ): boolean {
-    return Boolean(
-      line.controls.sku.value.trim() ||
-      line.controls.barcode.value.trim() ||
-      line.controls.productName.value.trim() ||
-      line.controls.unitCost.value.trim() ||
-      line.controls.sellingPrice.value.trim() ||
-      line.controls.compareAtPrice.value.trim() ||
-      line.controls.vatRatePercent.value.trim(),
-    );
+    return lineDraftHasSignificantData(this.lineDraft(line));
   }
 
   private lineHasPersistableData(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
   ): boolean {
-    const qty = Number(line.controls.quantity.value);
-    if (line.controls.variantId.value) {
-      return qty > 0;
-    }
-    if (qty <= 0) {
-      return false;
-    }
-    return this.lineHasSignificantProductData(line);
+    return lineDraftPersistableForExplicitSave(this.lineDraft(line));
   }
 
+  /** Creazione articolo SOLO dopo azione esplicita "Crea nuovo articolo" (§8). */
   private lineNeedsProductCreation(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
   ): boolean {
-    if (line.controls.variantId.value) {
+    if (line.controls.variantId.value || !line.controls.createNew.value) {
       return false;
     }
     if (Number(line.controls.quantity.value) <= 0) {
@@ -1511,28 +1605,34 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return code.length > 0;
   }
 
-  private validateStockLinesForFinalSave(): AppError | null {
-    for (let index = 0; index < this.lines.length; index++) {
+  /**
+   * Avvisi non bloccanti sulle righe dopo il salvataggio esplicito (§13):
+   * la testata è sempre salvabile, le righe senza articolo restano nel
+   * documento come righe economiche senza movimento.
+   */
+  private collectLineSaveWarnings(): string[] {
+    const warnings: string[] = [];
+    for (let index = 0; index < this.lines.length; index += 1) {
       const line = this.lines.at(index);
-      if (!line.controls.loadsStock.value || Number(line.controls.quantity.value) <= 0) {
+      const draft = this.lineDraft(line);
+      if (draft.variantId || !line.controls.loadsStock.value) {
         continue;
       }
-      if (line.controls.variantId.value) {
+      if (!lineDraftPersistableForExplicitSave(draft)) {
         continue;
       }
-      if (!line.controls.sku.value.trim()) {
-        return {
-          kind: AppErrorKind.Validation,
-          message: `Riga ${index + 1}: per creare questo articolo devi inserire anche lo SKU.`,
-        };
+      if (line.controls.createNew.value && !line.controls.sku.value.trim()) {
+        warnings.push(
+          `Riga ${index + 1}: per creare il nuovo articolo inserisci lo SKU. ` +
+            'La riga è stata salvata senza carico magazzino.',
+        );
+        continue;
       }
-      return {
-        kind: AppErrorKind.Validation,
-        message:
-          'Non è stato possibile salvare alcune righe. Controlla i dati evidenziati e riprova.',
-      };
+      warnings.push(
+        `Riga ${index + 1}: nessun articolo collegato, la riga è stata salvata senza carico magazzino.`,
+      );
     }
-    return null;
+    return warnings;
   }
 
   protected get lines(): FormArray<ReturnType<GoodsReceiptFormComponent['createLine']>> {
@@ -2529,6 +2629,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected onVariantSelect(index: number, value: string | null): void {
     const line = this.lines.at(index);
     line.controls.variantId.setValue(value ?? '');
+    line.controls.createNew.setValue(false, { emitEvent: false });
     if (value) {
       const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
         (v) => v.variantId === value,
@@ -2849,6 +2950,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected confirmUnlockEdit(): void {
     this.unlockDialogOpen.set(false);
+    this.markSessionUnlocked(this.persistedDocumentId());
     this.editUnlocked.set(true);
     this.syncLineFieldAccess();
   }
@@ -3218,22 +3320,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this._submitState.set({ status: 'error', error: headerError });
       return;
     }
-    const stockValidation = this.validateStockLinesForFinalSave();
-    if (stockValidation) {
-      this._submitState.set({ status: 'error', error: stockValidation });
-      return;
-    }
     this.exitDialogOpen.set(false);
     this._submitState.set({ status: 'saving' });
     this.commitAllLineProducts$()
       .pipe(
-        switchMap(() => {
-          const afterCommit = this.validateStockLinesForFinalSave();
-          if (afterCommit) {
-            return throwError(() => afterCommit);
-          }
-          return this.saveDocument$();
-        }),
+        switchMap(() => this.saveDocument$({ mode: 'explicit' })),
         take(1),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -3631,7 +3722,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const hadRouteEditId = Boolean(this.editDocumentId());
     this.commitAllLineProducts$()
       .pipe(
-        switchMap(() => this.saveDocument$()),
+        switchMap(() => this.saveDocument$({ mode: 'auto' })),
         take(1),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -3640,9 +3731,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this._submitState.set({ status: 'idle' });
           this.autoSavePending.set(false);
           this.dirtySinceLastSave.set(false);
+          this.clearAutoSaveRetry();
           this.loadedDocument.set(doc);
           this.syncSupplierOrderLineMapFromDocument(doc);
           if (doc.status === DocumentStatus.Draft || options?.stayOnPage) {
+            this.markSessionUnlocked(doc.id);
             this.editUnlocked.set(true);
           }
           if (options?.stayOnPage) {
@@ -3661,13 +3754,38 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         },
         error: (err: unknown) => {
           this.autoSavePending.set(false);
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+          const appError = this.toAppError(err);
+          this._submitState.set({ status: 'error', error: appError });
+          this.scheduleAutoSaveRetry(appError, options?.stayOnPage === true);
           this.flushAutoSaveCallbacks({
             ...options,
             fromError: true,
           });
         },
       });
+  }
+
+  // ── Retry autosave su errore di rete (§6): un solo tentativo differito. ─────
+  private autoSaveRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private scheduleAutoSaveRetry(error: AppError, stayOnPage: boolean): void {
+    const retriable = error.kind === AppErrorKind.Network || error.kind === AppErrorKind.Timeout;
+    if (!retriable || !stayOnPage || this.autoSaveRetryTimer != null) {
+      return;
+    }
+    this.autoSaveRetryTimer = setTimeout(() => {
+      this.autoSaveRetryTimer = null;
+      if (this.dirtySinceLastSave() || this.autoSavePending()) {
+        this.triggerAutoSave();
+      }
+    }, AUTO_SAVE_RETRY_DELAY_MS);
+  }
+
+  private clearAutoSaveRetry(): void {
+    if (this.autoSaveRetryTimer != null) {
+      clearTimeout(this.autoSaveRetryTimer);
+      this.autoSaveRetryTimer = null;
+    }
   }
 
   private flushAutoSaveCallbacks(options?: {
@@ -3791,6 +3909,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatRatePercent: this.fb.control(''),
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
+      createNew: this.fb.control(false),
       supplierOrderLineId: this.fb.control(orderLine.id),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),
@@ -3893,6 +4012,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatRatePercent: this.fb.control(line.vatRatePercentText),
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
+      createNew: this.fb.control(false),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),
@@ -3916,7 +4036,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         message: 'Controlla i costi delle righe prima di salvare.',
       };
     }
-    return this.validateStockLinesForFinalSave();
+    // Le righe senza articolo NON bloccano il salvataggio (§13): la testata è
+    // sempre salvabile e le righe restano senza movimento, con avviso.
+    return null;
   }
 
   private maybeAskSupplierPrices(then: (applyPrices: boolean) => void): void {
@@ -3967,13 +4089,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = this.commitAllLineProducts$()
       .pipe(
-        switchMap(() => {
-          const afterCommit = this.validateStockLinesForFinalSave();
-          if (afterCommit) {
-            return throwError(() => afterCommit);
-          }
-          return this.saveDocument$({ applySupplierPriceUpdates });
-        }),
+        switchMap(() => this.saveDocument$({ applySupplierPriceUpdates, mode: 'explicit' })),
         take(1),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -3987,6 +4103,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.pendingLinkedSupplierOrderRef.set(null);
           // "Salva documento" salva e resta nella maschera (§10.7):
           // si esce solo con "Chiudi".
+          this.markSessionUnlocked(doc.id);
           this.editUnlocked.set(true);
           if (!this.editDocumentId()) {
             this.preserveEditSession.set(true);
@@ -4058,7 +4175,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return this.editDocumentId() ?? this.loadedDocument()?.id ?? null;
   }
 
-  /** Autosave: header valido + almeno una riga persistibile prima del primo create. */
+  /**
+   * Autosave: header valido + almeno una riga auto-persistibile prima del
+   * primo create. Le query di ricerca e i tentativi non confermati non
+   * creano mai il documento (§6/§7).
+   */
   private canPersistAutoSaveDocument(): boolean {
     if (!this.validateForAutoSave()) {
       return false;
@@ -4066,17 +4187,23 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.editDocumentId()) {
       return true;
     }
-    return this.lines.controls.some((line) => this.lineHasPersistableData(line));
+    return this.lines.controls.some((line) =>
+      lineDraftPersistableForAutoSave(this.lineDraft(line)),
+    );
   }
 
   /** Righe inviate nell'ultimo salvataggio, per riadottare gli id dal server. */
   private lastSavedLineControls: ReturnType<GoodsReceiptFormComponent['createLine']>[] = [];
 
-  private buildSaveGoodsReceiptBody(): SaveGoodsReceiptBody {
+  private buildSaveGoodsReceiptBody(mode: GoodsReceiptSaveMode): SaveGoodsReceiptBody {
     const raw = this.form.getRawValue();
     const supplierOrderId = this.resolveSupplierOrderId();
+    // In autosave persistono solo righe con articolo o già salvate; le righe
+    // già salvate restano nel payload (ometterle le cancellerebbe sul server).
     const persistableControls = this.lines.controls.filter((line) =>
-      this.lineHasPersistableDataFromRaw(line.getRawValue()),
+      mode === 'auto'
+        ? lineDraftPersistableForAutoSave(this.lineDraft(line))
+        : lineDraftPersistableForExplicitSave(this.lineDraft(line)),
     );
     // Le righe che vanno in salvataggio ricevono il Codice IVA di precedenza
     // (§9.1) se ancora mancante (es. riga manuale digitata senza select).
@@ -4144,15 +4271,21 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    */
   private saveDocument$(options?: {
     readonly applySupplierPriceUpdates?: boolean;
+    readonly mode?: GoodsReceiptSaveMode;
   }): Observable<DocumentRecord> {
+    const mode = options?.mode ?? 'explicit';
     const body = {
-      ...this.buildSaveGoodsReceiptBody(),
+      ...this.buildSaveGoodsReceiptBody(mode),
       applySupplierPriceUpdates: options?.applySupplierPriceUpdates,
     };
     return this.documentService.saveGoodsReceipt(body).pipe(
       map(({ document, warnings }) => {
         this.adoptSavedLineIds(document);
-        this.saveWarnings.set(warnings);
+        // Al salvataggio esplicito si aggiungono gli avvisi locali sulle
+        // righe senza articolo (§13): salvate ma senza carico magazzino.
+        this.saveWarnings.set(
+          mode === 'explicit' ? [...warnings, ...this.collectLineSaveWarnings()] : warnings,
+        );
         return document;
       }),
     );
@@ -4179,37 +4312,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (active instanceof HTMLElement) {
       active.blur();
     }
-  }
-
-  private lineHasPersistableDataFromRaw(line: {
-    readonly variantId: string;
-    readonly sku?: string;
-    readonly barcode?: string;
-    readonly productName: string;
-    readonly description: string;
-    readonly quantity: number;
-    readonly unitCost?: string;
-    readonly sellingPrice?: string;
-    readonly compareAtPrice?: string;
-    readonly discountPercent?: string;
-    readonly vatRatePercent?: string;
-  }): boolean {
-    const qty = Number(line.quantity);
-    if (line.variantId) {
-      return qty > 0;
-    }
-    if (qty <= 0) {
-      return false;
-    }
-    return Boolean(
-      line.sku?.trim() ||
-      line.barcode?.trim() ||
-      line.productName.trim() ||
-      line.unitCost?.trim() ||
-      line.sellingPrice?.trim() ||
-      line.compareAtPrice?.trim() ||
-      line.vatRatePercent?.trim(),
-    );
   }
 
   private commitLineAndSave(index: number, after?: () => void): void {
@@ -4335,6 +4437,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           line.controls.sku.setValue(variant.sku, { emitEvent: false });
           line.controls.barcode.setValue(variant.barcode ?? '', { emitEvent: false });
           line.controls.productName.setValue(variant.productName, { emitEvent: false });
+          line.controls.createNew.setValue(false, { emitEvent: false });
           this.syncLineFieldAccess();
           return undefined;
         }),
@@ -4345,10 +4448,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private patchFormFromDocument(doc: DocumentRecord): void {
     if (this.preserveEditSession()) {
       this.preserveEditSession.set(false);
+      this.markSessionUnlocked(doc.id);
       this.editUnlocked.set(true);
       return;
     }
-    if (doc.status === DocumentStatus.Draft) {
+    // Lo sblocco vale per l'intera sessione di lavoro sul documento (§9):
+    // i salvataggi intermedi (status confirmed) non devono ribloccare la maschera.
+    if (doc.status === DocumentStatus.Draft || SESSION_UNLOCKED_DOC_IDS.has(doc.id)) {
       this.editUnlocked.set(true);
     } else {
       this.editUnlocked.set(false);
@@ -4421,7 +4527,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           ),
           vatRatePercent: this.fb.control(line.vatRatePercent?.toString() ?? ''),
           vatCodeId: this.fb.control(line.vatCodeId ?? ''),
-          loadsStock: this.fb.control(line.loadsStock),
+          // Le righe senza articolo persistono loadsStock=false come artefatto
+          // tecnico (nessun movimento possibile): in UI il flag resta al
+          // default attivo, così al collegamento dell'articolo il carico parte (§11).
+          loadsStock: this.fb.control(line.variantId ? line.loadsStock : true),
+          createNew: this.fb.control(false),
           supplierOrderLineId: this.fb.control(line.supplierOrderLineId ?? ''),
           lotCode: this.fb.control(line.lotCode ?? ''),
           lotExpiryDate: this.fb.control(line.lotExpiryDate ? line.lotExpiryDate.slice(0, 10) : ''),
@@ -4456,6 +4566,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatRatePercent: this.fb.control(''),
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
+      // Creazione nuovo articolo SOLO su azione esplicita dell'utente (§8).
+      createNew: this.fb.control(false),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),

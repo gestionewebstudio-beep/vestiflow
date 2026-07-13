@@ -44,6 +44,7 @@ export interface LinkedPurchaseInvoiceApiRow {
   readonly externalDocNumber?: string | null;
   readonly externalDocDate?: IsoDateString | null;
   readonly documentDate: IsoDateString;
+  readonly totalsCheckPending?: boolean | null;
 }
 
 /** Arrivo merce incluso in una registrazione fattura (payload API). */
@@ -163,6 +164,7 @@ function mapLinkedPurchaseInvoice(row: LinkedPurchaseInvoiceApiRow): LinkedPurch
     externalDocNumber: row.externalDocNumber ?? undefined,
     externalDocDate: row.externalDocDate ?? undefined,
     documentDate: row.documentDate,
+    totalsCheckPending: row.totalsCheckPending ?? false,
   };
 }
 

@@ -11,15 +11,59 @@
           <p class="gr-card__code tabular-nums">{{ codeLabel() }}</p>
         }
       } @else {
-        <input
-          class="gr-card__input gr-card__input--name"
-          type="text"
-          [formControl]="line().controls.productName"
-          placeholder="Nome prodotto…"
-          [attr.aria-label]="'Nome prodotto riga ' + (lineIndex() + 1)"
-          autocomplete="off"
-          (blur)="fieldBlur.emit(lineIndex())"
-        />
+        <div class="gr-card__search">
+          <input
+            class="gr-card__input gr-card__input--name"
+            type="text"
+            [formControl]="line().controls.productName"
+            placeholder="Nome prodotto…"
+            [attr.aria-label]="'Nome prodotto riga ' + (lineIndex() + 1)"
+            autocomplete="off"
+            role="combobox"
+            [attr.aria-expanded]="suggestionsOpen()"
+            [attr.aria-controls]="'gr-card-suggestions-' + lineIndex()"
+            (input)="onNameInput($any($event.target).value)"
+            (focus)="nameFocus.emit(lineIndex())"
+            (blur)="nameBlur.emit(lineIndex())"
+          />
+          @if (suggestionsOpen()) {
+            <ul
+              class="gr-card__suggestions"
+              role="listbox"
+              [id]="'gr-card-suggestions-' + lineIndex()"
+              aria-label="Articoli suggeriti"
+            >
+              @for (variant of suggestions(); track variant.variantId) {
+                <li>
+                  <button
+                    type="button"
+                    class="gr-card__suggestion"
+                    role="option"
+                    aria-selected="false"
+                    (mousedown)="$event.preventDefault()"
+                    (click)="pickSuggestion(variant.variantId)"
+                  >
+                    <span class="gr-card__suggestion-title">{{ variant.title }}</span>
+                    @if (suggestionDetail(variant); as detail) {
+                      <span class="gr-card__suggestion-detail tabular-nums">{{ detail }}</span>
+                    }
+                  </button>
+                </li>
+              }
+              <li>
+                <button
+                  type="button"
+                  class="gr-card__suggestion gr-card__suggestion--create"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="createNewRequest.emit(lineIndex())"
+                >
+                  <i class="pi pi-plus" aria-hidden="true"></i>
+                  Crea nuovo articolo
+                </button>
+              </li>
+            </ul>
+          }
+        </div>
       }
     </div>
     <button

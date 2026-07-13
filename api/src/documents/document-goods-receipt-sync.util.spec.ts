@@ -356,6 +356,34 @@ describe('syncGoodsReceiptLineMovements — casi A-F del prompt (§2.3)', () => 
     expect(tx.stockMovement.update.mock.calls[0][0].data.locationId).toBe('loc-2');
   });
 
+  it('toggle Mag. sì → no: rimuove il movimento e storna la giacenza (§11)', async () => {
+    const tx = createTxMock([existingMovement()]);
+
+    const result = await syncGoodsReceiptLineMovements(tx as never, {
+      ...baseParams,
+      lines: [line({ loadsStock: false })],
+    });
+
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    expect(tx.stockMovement.delete).toHaveBeenCalledWith({ where: { id: 'mov-1' } });
+    expect(inventoryDeltas(tx)).toEqual([{ variantId: 'var-1', locationId: 'loc-1', delta: -5 }]);
+    expect(result.deltas).toEqual([{ sku: 'SKU-1', delta: -5 }]);
+  });
+
+  it('toggle Mag. no → sì: crea il movimento e carica la giacenza (§11)', async () => {
+    const tx = createTxMock();
+
+    const result = await syncGoodsReceiptLineMovements(tx as never, {
+      ...baseParams,
+      lines: [line({ loadsStock: true })],
+    });
+
+    expect(tx.stockMovement.create).toHaveBeenCalledTimes(1);
+    expect(tx.stockMovement.create.mock.calls[0][0].data.sourceLineId).toBe('line-1');
+    expect(inventoryDeltas(tx)).toEqual([{ variantId: 'var-1', locationId: 'loc-1', delta: 5 }]);
+    expect(result.deltas).toEqual([{ sku: 'SKU-1', delta: 5 }]);
+  });
+
   it('righe non valide (loadsStock false, qty 0, senza variante) non generano movimenti', async () => {
     const tx = createTxMock();
 

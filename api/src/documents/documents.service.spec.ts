@@ -872,6 +872,51 @@ describe('DocumentsService', () => {
       );
     });
 
+    it('rifiuta PATCH con righe se il documento ha movimenti per riga (nuovo flusso AM)', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.goods_receipt }),
+      );
+      prisma.document.findFirst.mockResolvedValue({
+        id: 'doc-gr-lines',
+        tenantId,
+        type: DocumentType.goods_receipt,
+        status: DocumentStatus.confirmed,
+        lines: [],
+        series: 'A',
+        documentDate: new Date('2026-01-01'),
+        currency: 'EUR',
+        supplierId: 'sup-1',
+        locationId: 'loc-1',
+        reference: 'CAR-2026-0001',
+        customerId: null,
+        targetLocationId: null,
+        notes: null,
+        internalComment: null,
+        externalDocNumber: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      // Almeno un movimento con sourceLineId: il documento va aggiornato solo
+      // tramite «Salva documento» (saveGoodsReceipt), mai con PATCH righe.
+      prisma.stockMovement.count.mockResolvedValue(1);
+
+      await expect(
+        service.update(tenantId, 'doc-gr-lines', {
+          lines: [
+            {
+              description: 'Riga',
+              sku: 'SKU-1',
+              quantity: 2,
+              unitPriceMinor: 1000,
+              loadsStock: true,
+            },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.document.update).not.toHaveBeenCalled();
+    });
+
     it('goods_receipt bozza: consente righe con Mag. attivo senza variantId', async () => {
       const { service } = createService(
         prisma,

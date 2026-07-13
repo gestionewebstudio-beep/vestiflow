@@ -71,6 +71,8 @@ export interface LinkedPurchaseInvoiceInfo {
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
   readonly documentDate: IsoDateString;
+  /** "Totali da verificare": l'arrivo è stato modificato dopo il collegamento. */
+  readonly totalsCheckPending?: boolean;
 }
 
 /** Arrivo merce incluso in una Registrazione fattura. */

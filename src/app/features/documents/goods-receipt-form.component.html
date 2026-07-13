@@ -916,6 +916,7 @@
                           (suggestionPick)="
                             onCodeSuggestionPick($event.lineIndex, $event.variantId)
                           "
+                          (escapePressed)="onLineSearchEscape(i)"
                         />
                       </td>
                     }
@@ -940,6 +941,7 @@
                           (suggestionPick)="
                             onCodeSuggestionPick($event.lineIndex, $event.variantId)
                           "
+                          (escapePressed)="onLineSearchEscape(i)"
                         />
                       </td>
                     }
@@ -978,6 +980,7 @@
                           [suggestions]="lineSuggestions(i)"
                           [suggestionsOpen]="lineSuggestionsOpen(i)"
                           [activeSuggestionIndex]="activeSuggestionIndex()"
+                          [createMode]="lineCreateMode(i)"
                           (valueChange)="onLineProductNameChange(i, $event)"
                           (focused)="onLineProductFocus(i)"
                           (blurred)="onLineProductBlur(i)"
@@ -991,6 +994,9 @@
                           (lineAdvance)="advanceFromProductField(i)"
                           (lineRowAdvance)="advanceToNextLine(i)"
                           (lineRowRetreat)="advanceToPreviousLine(i)"
+                          (createNewRequest)="startCreateNewArticle(i)"
+                          (createNewCancel)="cancelCreateNewArticle(i)"
+                          (escapePressed)="onLineSearchEscape(i)"
                         />
                       </td>
                     }
@@ -1258,9 +1264,16 @@
                 [vatValue]="lineVatValue(i)"
                 [disabled]="formReadOnly()"
                 [canRemove]="lines.length > 1"
+                [suggestions]="lineSuggestions(i)"
+                [suggestionsOpen]="lineSuggestionsOpen(i)"
                 (searchProduct)="openLineProductSearch($event)"
                 (vatChange)="onLineVatSelect(i, $event)"
                 (fieldBlur)="onLineOperationalBlur($event)"
+                (nameInput)="onCardProductNameInput(i, $event)"
+                (nameFocus)="onLineProductFocus($event)"
+                (nameBlur)="onLineProductBlur($event)"
+                (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
+                (createNewRequest)="startCreateNewArticle($event)"
                 (duplicated)="duplicateLine($event)"
                 (removed)="removeLine($event)"
               />

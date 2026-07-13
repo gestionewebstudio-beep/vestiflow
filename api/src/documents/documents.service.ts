@@ -103,6 +103,8 @@ export type LinkedPurchaseInvoiceInfo = {
   readonly externalDocNumber: string | null;
   readonly externalDocDate: Date | null;
   readonly documentDate: Date;
+  /** "Totali da verificare" (§15): l'arrivo è cambiato dopo il collegamento. */
+  readonly totalsCheckPending: boolean;
 };
 
 /** Arrivo merce incluso in una registrazione fattura (dettaglio fattura). */
@@ -362,7 +364,10 @@ export class DocumentsService {
   /** Stato collegamento derivato (mai persistito: nessun drift possibile). */
   private resolveLinkInfo(
     doc: Pick<Document, 'type' | 'status'>,
-    links: readonly { purchaseInvoice: LinkedPurchaseInvoiceInfo }[],
+    links: readonly {
+      purchaseInvoice: Omit<LinkedPurchaseInvoiceInfo, 'totalsCheckPending'>;
+      totalsCheckPending: boolean;
+    }[],
   ): {
     linkStatus: GoodsReceiptLinkStatus | null;
     linkedPurchaseInvoice: LinkedPurchaseInvoiceInfo | null;
@@ -375,7 +380,13 @@ export class DocumentsService {
     }
     const link = links[0];
     if (link) {
-      return { linkStatus: 'linked', linkedPurchaseInvoice: link.purchaseInvoice };
+      return {
+        linkStatus: 'linked',
+        linkedPurchaseInvoice: {
+          ...link.purchaseInvoice,
+          totalsCheckPending: link.totalsCheckPending,
+        },
+      };
     }
     return { linkStatus: 'suspended', linkedPurchaseInvoice: null };
   }

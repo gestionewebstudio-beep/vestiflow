@@ -127,7 +127,9 @@ export function goodsReceiptLinkStatusLabel(
     case 'linked': {
       const invoice = doc.linkedPurchaseInvoice;
       const number = invoice?.externalDocNumber?.trim() || invoice?.reference?.trim();
-      return number ? `Fattura forn. N. ${number}` : 'Collegato a fattura';
+      const base = number ? `Fattura forn. N. ${number}` : 'Collegato a fattura';
+      // Flag persistito §15: l'arrivo è cambiato dopo il collegamento.
+      return invoice?.totalsCheckPending ? `${base} · Totali da verificare` : base;
     }
     case 'suspended':
       return 'Sospeso';

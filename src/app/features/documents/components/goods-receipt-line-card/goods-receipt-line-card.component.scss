@@ -92,6 +92,70 @@
   border-radius: var(--radius-md);
 }
 
+.gr-card__search {
+  position: relative;
+
+  .gr-card__input--name {
+    inline-size: 100%;
+  }
+}
+
+.gr-card__suggestions {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline: 0;
+  z-index: var(--z-dropdown);
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  max-block-size: calc(var(--space-8) * 8);
+  overflow-y: auto;
+}
+
+.gr-card__suggestion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  inline-size: 100%;
+  min-block-size: var(--btn-min-height);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  text-align: start;
+  color: var(--color-text);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--color-surface-muted);
+  }
+}
+
+.gr-card__suggestion-title {
+  font-weight: var(--font-weight-medium);
+}
+
+.gr-card__suggestion-detail {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.gr-card__suggestion--create {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-interactive);
+  border-block-start: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+}
+
 .gr-card__input--num {
   text-align: end;
   font-variant-numeric: tabular-nums;

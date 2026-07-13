@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import {
   confirmGoodsReceiptOnForm,
   fillMinimalGoodsReceiptDraft,
-  saveGoodsReceiptDraft,
+  saveGoodsReceiptDocument,
 } from './helpers/goods-receipt-form';
 import {
   fillSupplierOrderDraftForm,
@@ -13,7 +13,7 @@ import {
 } from './helpers/supplier-order-form';
 
 test.describe('Arrivo merce (documenti)', () => {
-  test('salva bozza arrivo merce manuale dal registro documenti', async ({ page }) => {
+  test('salva arrivo merce manuale dal registro documenti', async ({ page }) => {
     test.setTimeout(120_000);
 
     await page.goto('/app/documents');
@@ -30,7 +30,7 @@ test.describe('Arrivo merce (documenti)', () => {
     await expect(page.locator('h1.gr-form__title')).toHaveText('Nuovo arrivo merce');
 
     await fillMinimalGoodsReceiptDraft(page);
-    await saveGoodsReceiptDraft(page);
+    await saveGoodsReceiptDocument(page);
   });
 
   test('column picker righe: Ripristina colonne', async ({ page }) => {
@@ -61,9 +61,7 @@ test.describe('Arrivo merce (documenti)', () => {
     await expect(firstCheckbox).toBeChecked({ checked: wasChecked });
   });
 
-  test('flusso completo: ordine inviato → bozza documento → conferma parziale', async ({
-    page,
-  }) => {
+  test('flusso completo: ordine inviato → documento → ricezione parziale', async ({ page }) => {
     test.setTimeout(180_000);
 
     await page.goto('/app/orders');

@@ -66,7 +66,41 @@
             <span class="gr-product-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
           </li>
         }
+        <li class="gr-product-cell__suggestion-create">
+          <button
+            type="button"
+            class="gr-product-cell__create-btn"
+            (mousedown)="$event.preventDefault()"
+            (click)="requestCreateNew($event)"
+          >
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Crea nuovo articolo
+          </button>
+        </li>
       </ul>
+    }
+    @if (createMode()) {
+      <span class="gr-product-cell__create-badge" role="status">
+        Nuovo articolo
+        <button
+          type="button"
+          class="gr-product-cell__create-cancel"
+          aria-label="Annulla creazione nuovo articolo"
+          (click)="cancelCreateNew($event)"
+        >
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </span>
+    } @else {
+      <button
+        type="button"
+        class="gr-product-cell__link-action"
+        [disabled]="disabled()"
+        (mousedown)="$event.preventDefault()"
+        (click)="requestCreateNew($event)"
+      >
+        Crea nuovo articolo
+      </button>
     }
     <button
       type="button"
