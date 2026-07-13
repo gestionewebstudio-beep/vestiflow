@@ -380,7 +380,7 @@ describe('InventoryService', () => {
     expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
   });
 
-  it('registerMovement persiste scarico con giacenza sufficiente', async () => {
+  it('registerMovement persiste scarico senza guardia di disponibilità (§3)', async () => {
     const movement = { id: 'mov-unload', type: StockMovementType.unload };
     const tx = {
       productVariant: {
@@ -421,7 +421,7 @@ describe('InventoryService', () => {
 
     expect(result).toEqual(movement);
     expect(tx.inventoryLevel.updateMany).toHaveBeenCalledWith({
-      where: { tenantId, variantId: 'var-1', locationId: 'loc-1', available: { gte: 3 } },
+      where: { tenantId, variantId: 'var-1', locationId: 'loc-1' },
       data: { onHand: { increment: -3 }, available: { increment: -3 } },
     });
   });
@@ -473,7 +473,8 @@ describe('InventoryService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
-  it('registerMovement rifiuta scarico con giacenza insufficiente', async () => {
+  it('registerMovement registra scarico oltre la disponibile (§3: saldi negativi ammessi, mai bloccare)', async () => {
+    const movement = { id: 'mov-unload-neg', type: StockMovementType.unload };
     const tx = {
       productVariant: {
         findFirst: vi.fn().mockResolvedValue({ id: 'var-1', sku: 'SKU-1' }),
@@ -483,34 +484,39 @@ describe('InventoryService', () => {
       },
       inventoryLevel: {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 1, onHand: 1 }),
-        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-        findUnique: vi.fn().mockResolvedValue({ available: 1 }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
-      stockMovement: { create: vi.fn() },
+      stockMovement: { create: vi.fn().mockResolvedValue(movement) },
     };
     const prisma = {
       $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
     const service = new InventoryService(
       prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
+      channelSync as unknown as ChannelSyncFacade,
     );
 
-    await expect(
-      service.registerMovement(
-        tenantId,
-        {
-          type: StockMovementType.unload,
-          variantId: 'var-1',
-          locationId: 'loc-1',
-          quantity: 5,
-        },
-        'Tester',
-        'user-1',
-        ownerUser,
-      ),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
-    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    const result = await service.registerMovement(
+      tenantId,
+      {
+        type: StockMovementType.unload,
+        variantId: 'var-1',
+        locationId: 'loc-1',
+        quantity: 5,
+      },
+      'Tester',
+      'user-1',
+      ownerUser,
+    );
+
+    expect(result).toEqual(movement);
+    // Nessuna condizione `available >= qty` nel where: lo scarico passa sempre.
+    expect(tx.inventoryLevel.updateMany).toHaveBeenCalledWith({
+      where: { tenantId, variantId: 'var-1', locationId: 'loc-1' },
+      data: { onHand: { increment: -5 }, available: { increment: -5 } },
+    });
+    expect(tx.stockMovement.create).toHaveBeenCalledOnce();
   });
 
   it('registerMovement persiste trasferimento tra location', async () => {
@@ -806,23 +812,28 @@ describe('InventoryService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('registerRetailScan rifiuta vendita con giacenza insufficiente', async () => {
-    const { prisma, tx } = createRetailScanPrismaMock({ availableBefore: 0 });
+  it('registerRetailScan registra vendita anche con disponibile a zero (§3: saldo negativo ammesso)', async () => {
+    const { prisma, tx, movement } = createRetailScanPrismaMock({
+      availableBefore: 0,
+      availableAfter: -1,
+    });
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
     const service = new InventoryService(
       prisma as unknown as PrismaService,
-      {} as ChannelSyncFacade,
+      channelSync as unknown as ChannelSyncFacade,
     );
 
-    await expect(
-      service.registerRetailScan(
-        tenantId,
-        { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
-        'Commesso',
+    const result = await service.registerRetailScan(
+      tenantId,
+      { code: 'SKU-1', locationId: 'loc-1', action: RetailScanAction.Sale },
+      'Commesso',
       'user-1',
       ownerUser,
-      ),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
-    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    );
+
+    expect(result.movement).toEqual(movement);
+    expect(result.remainingAvailable).toBe(-1);
+    expect(tx.stockMovement.create).toHaveBeenCalledOnce();
   });
 
   it('registerRetailScan rifiuta location inesistente', async () => {

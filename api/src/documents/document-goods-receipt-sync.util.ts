@@ -40,8 +40,14 @@ interface SyncParams {
   readonly documentType: DocumentType;
   /** Location di destinazione del documento; null solo se non ci sono righe valide. */
   readonly locationId: string | null;
-  /** Causale movimento, es. "Arrivo 3 del 30/05/2026 (DDT 145 del 08/05/2026)". */
+  /** Causale movimento, es. "Arrivo merce n. 3 del 30/05/2026 (DDT 145 del 08/05/2026)". */
   readonly reason: string;
+  /**
+   * Data registrazione del documento: i movimenti collegati la seguono
+   * (cambiare la data aggiorna GLI STESSI movimenti, mai nuovi — §2).
+   * Null = lascia la data movimento invariata.
+   */
+  readonly movementDate?: Date | null;
   /** Righe documento SALVATE (id definitivi). Vuoto = rimuovi tutti i movimenti. */
   readonly lines: readonly DocumentLine[];
   readonly actor: StockMovementActor;
@@ -55,10 +61,6 @@ function isStockLine(line: DocumentLine): line is DocumentLine & { variantId: st
 function effectiveUnitCostMinor(line: DocumentLine): number {
   return Math.round((line.unitPriceMinor * (100 - line.discountPercent)) / 100);
 }
-
-const INSUFFICIENT_MESSAGE = (available: number, requested: number): string =>
-  `Impossibile ridurre il carico di ${requested} pezzi: disponibili ${available} ` +
-  '(la merce potrebbe essere già stata venduta o trasferita).';
 
 /**
  * Converte i movimenti "legacy" (aggregati per documento, senza sourceLineId)
@@ -96,9 +98,7 @@ async function convertLegacyMovements(
     net.set(key, entry);
   }
   for (const entry of net.values()) {
-    await applyInventoryDelta(tx, tenantId, entry.variantId, entry.locationId, -entry.qty, {
-      insufficientMessage: INSUFFICIENT_MESSAGE,
-    });
+    await applyInventoryDelta(tx, tenantId, entry.variantId, entry.locationId, -entry.qty);
   }
   await tx.stockMovement.deleteMany({
     where: { id: { in: legacy.map((movement) => movement.id) } },
@@ -163,6 +163,7 @@ export async function syncGoodsReceiptLineMovements(
           sourceLineId: line.id,
           unitCostMinor,
           totalCostMinor: line.lineTotalMinor,
+          ...(params.movementDate ? { createdAt: params.movementDate } : {}),
           createdById: params.actor.createdById ?? null,
           createdByName: params.actor.createdByName,
         },
@@ -175,18 +176,20 @@ export async function syncGoodsReceiptLineMovements(
 
     byLineId.delete(line.id);
 
-    const locationChanged = movement.locationId !== locationId;
+    // Variante o location diverse = la giacenza va spostata sulla nuova
+    // coppia variante × location, non solo aggiornato il movimento.
+    const targetChanged =
+      movement.locationId !== locationId || movement.variantId !== line.variantId;
     const quantityDelta = line.quantity - movement.quantity;
 
-    if (locationChanged) {
-      // Storno completo sulla vecchia location, carico sulla nuova.
+    if (targetChanged) {
+      // Storno completo sulla vecchia coppia, carico pieno sulla nuova.
       await applyInventoryDelta(
         tx,
         params.tenantId,
         movement.variantId,
         movement.locationId,
         -movement.quantity,
-        { insufficientMessage: INSUFFICIENT_MESSAGE },
       );
       await applyInventoryDelta(tx, params.tenantId, line.variantId, locationId, line.quantity);
       syncTargets.push({ variantId: movement.variantId, locationId: movement.locationId });
@@ -194,26 +197,22 @@ export async function syncGoodsReceiptLineMovements(
       deltas.push({ sku, delta: line.quantity - movement.quantity });
     } else if (quantityDelta !== 0) {
       // Casi B/C: la giacenza si muove solo della differenza effettiva.
-      await applyInventoryDelta(
-        tx,
-        params.tenantId,
-        line.variantId,
-        locationId,
-        quantityDelta,
-        { insufficientMessage: INSUFFICIENT_MESSAGE },
-      );
+      await applyInventoryDelta(tx, params.tenantId, line.variantId, locationId, quantityDelta);
       syncTargets.push({ variantId: line.variantId, locationId });
       deltas.push({ sku, delta: quantityDelta });
     }
 
+    const movementDateChanged =
+      params.movementDate != null && movement.createdAt.getTime() !== params.movementDate.getTime();
+
     const needsUpdate =
-      locationChanged ||
+      targetChanged ||
       quantityDelta !== 0 ||
-      movement.variantId !== line.variantId ||
       movement.sku !== sku ||
       movement.reason !== params.reason ||
       movement.unitCostMinor !== unitCostMinor ||
-      movement.totalCostMinor !== line.lineTotalMinor;
+      movement.totalCostMinor !== line.lineTotalMinor ||
+      movementDateChanged;
 
     if (needsUpdate) {
       await tx.stockMovement.update({
@@ -226,6 +225,9 @@ export async function syncGoodsReceiptLineMovements(
           reason: params.reason,
           unitCostMinor,
           totalCostMinor: line.lineTotalMinor,
+          // Stesso ID movimento: cambiare la data registrazione non crea
+          // nuovi movimenti e non tocca quantità o giacenze (§2).
+          ...(params.movementDate ? { createdAt: params.movementDate } : {}),
         },
       });
     }
@@ -240,7 +242,6 @@ export async function syncGoodsReceiptLineMovements(
       movement.variantId,
       movement.locationId,
       -movement.quantity,
-      { insufficientMessage: INSUFFICIENT_MESSAGE },
     );
     await tx.stockMovement.delete({ where: { id: movement.id } });
     deltas.push({ sku: movement.sku, delta: -movement.quantity });
@@ -250,7 +251,10 @@ export async function syncGoodsReceiptLineMovements(
   return { deltas, syncTargets, createdLineIds };
 }
 
-/** Causale movimento: "Arrivo 3 del 30/05/2026 (DDT 145 del 08/05/2026)" (§2.6). */
+/**
+ * Causale movimento (§12): "Arrivo merce n. 3 del 11/07/2026 (DDT 145 del 08/05/2026)".
+ * Con causale vuota resta "Arrivo merce n. 3 del 11/07/2026".
+ */
 export function buildGoodsReceiptMovementReason(params: {
   readonly number: number | null;
   readonly reference: string | null;
@@ -261,12 +265,13 @@ export function buildGoodsReceiptMovementReason(params: {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'UTC',
   });
   const base =
     params.number != null
-      ? `Arrivo ${params.number} del ${dateLabel}`
+      ? `Arrivo merce n. ${params.number} del ${dateLabel}`
       : params.reference
-        ? `Arrivo ${params.reference} del ${dateLabel}`
+        ? `Arrivo merce ${params.reference} del ${dateLabel}`
         : `Arrivo merce del ${dateLabel}`;
   const causal = params.causalText?.trim();
   return causal ? `${base} (${causal})` : base;

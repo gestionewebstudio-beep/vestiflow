@@ -419,9 +419,6 @@ export class InventoryCountService {
     locationId: string,
     delta: number,
   ): Promise<void> {
-    await applyInventoryDelta(tx, tenantId, variantId, locationId, delta, {
-      insufficientMessage: (available) =>
-        `Disponibilità insufficiente per SKU in rettifica inventario (disponibili ${available}).`,
-    });
+    await applyInventoryDelta(tx, tenantId, variantId, locationId, delta);
   }
 }
