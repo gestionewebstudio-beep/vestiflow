@@ -2,9 +2,7 @@
   <header class="sales-list__header">
     <div class="sales-list__heading">
       <h1 class="sales-list__title">{{ pageTitle() }}</h1>
-      <p class="sales-list__subtitle">
-        Ordini di vendita in sola lettura: la fonte autoritativa è Shopify/POS.
-      </p>
+      <p class="sales-list__subtitle">{{ pageSubtitle() }}</p>
     </div>
     @if (showShopifyOrdersSync()) {
       <div class="sales-list__actions">
@@ -69,6 +67,19 @@
 
     <div class="sales-list__filters">
       <div class="sales-list__field">
+        <span class="sales-list__label">Origine</span>
+        <app-select-menu
+          [options]="sourceOptions()"
+          [value]="query().source ?? ''"
+          ariaLabel="Filtra per origine ordine"
+          placeholder="Tutte"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onSourceFilterChange($event)"
+        />
+      </div>
+
+      <div class="sales-list__field">
         <span class="sales-list__label">Pagamento</span>
         <app-select-menu
           [options]="financialStatusOptions"
@@ -94,12 +105,16 @@
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (isEmpty()) {
     <app-empty-state
-      title="Nessuna vendita"
-      description="Nessuna vendita corrisponde ai filtri attuali. Le vendite arrivano da Shopify e dal POS."
+      title="Nessun ordine"
+      description="Nessun ordine corrisponde ai filtri attuali. Gli ordini arrivano dai canali collegati o dalla registrazione manuale."
       icon="pi-shopping-cart"
     />
   } @else {
-    <app-sales-order-table [orders]="orders()" (rowClick)="openOrder($event)" />
+    <app-sales-order-table
+      [orders]="orders()"
+      [profile]="listProfile()"
+      (rowClick)="openOrder($event)"
+    />
     <app-pagination
       label="Paginazione vendite"
       [meta]="meta()"

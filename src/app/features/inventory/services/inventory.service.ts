@@ -59,36 +59,7 @@ import {
   type InventoryCountLineApiRow,
   type InventoryCountSessionApiRow,
 } from '../models/inventory-count.mapper';
-
-/** Input per vendita o storno al banco (profilo solo gestionale). */
-/** Canale di registrazione vendita/storno: negozio (POS) oppure online. */
-export type RetailSaleChannel = 'in_store' | 'online';
-
-export interface RegisterRetailScanInput {
-  readonly code: string;
-  readonly locationId: EntityId;
-  readonly action: 'sale' | 'return';
-  /** Canale: 'in_store' (default) usa /retail-scans, 'online' usa /retail-scans/online. */
-  readonly channel?: RetailSaleChannel;
-}
-
-export interface RetailScanResult {
-  readonly variantId: EntityId;
-  readonly productId: EntityId;
-  readonly sku: string;
-  readonly productName: string;
-  readonly remainingAvailable: number;
-  readonly movementId: EntityId;
-}
-
-interface RetailScanResultApiRow {
-  readonly movement: { readonly id: string };
-  readonly variantId: string;
-  readonly productId: string;
-  readonly sku: string;
-  readonly productName: string;
-  readonly remainingAvailable: number;
-}
+import type { StockReservationRow } from '../models/stock-reservation.model';
 
 /** Input per la registrazione di un movimento manuale (carico/scarico/rettifica/trasferimento). */
 export interface RegisterMovementInput {
@@ -264,6 +235,17 @@ export class InventoryService {
       );
   }
 
+  /** Impegni attivi che compongono la Impegnata di una variante × location. */
+  getReservations(
+    variantId: EntityId,
+    locationId: EntityId,
+  ): Observable<readonly StockReservationRow[]> {
+    const params = new HttpParams().set('variantId', variantId).set('locationId', locationId);
+    return this.http
+      .get<readonly StockReservationRow[]>(this.url('/inventory/reservations'), { params })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   updateLevelMinThreshold(id: EntityId, minThreshold: number): Observable<InventoryLevel> {
     return this.http
       .patch<InventoryLevelApiRow>(this.url(`/inventory/levels/${id}`), { minThreshold })
@@ -283,24 +265,6 @@ export class InventoryService {
     return this.http
       .post<StockMovementApiRow>(this.url('/inventory/movements'), body)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapStockMovementApiRow));
-  }
-
-  /** Vendita o storno al banco o online (l'endpoint dipende dal canale). */
-  registerRetailScan(input: RegisterRetailScanInput): Observable<RetailScanResult> {
-    const { channel, ...body } = input;
-    const path =
-      channel === 'online' ? '/inventory/retail-scans/online' : '/inventory/retail-scans';
-    return this.http.post<RetailScanResultApiRow>(this.url(path), body).pipe(
-      timeout(HTTP_TIMEOUT_MS),
-      map((row) => ({
-        variantId: row.variantId,
-        productId: row.productId,
-        sku: row.sku,
-        productName: row.productName,
-        remainingAvailable: row.remainingAvailable,
-        movementId: row.movement.id,
-      })),
-    );
   }
 
   listInventoryCounts(): Observable<readonly InventoryCountSession[]> {

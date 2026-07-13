@@ -1,0 +1,482 @@
+<section class="pos">
+  <header class="pos__header">
+    <div class="pos__heading">
+      <h1 class="pos__title">Vendita negozio</h1>
+      <p class="pos__subtitle">
+        Cassa interna non fiscale: lo scontrino viene emesso sulla cassa esterna. Alla conclusione
+        la giacenza e la disponibilità vengono scaricate; l'impegnata resta invariata.
+      </p>
+    </div>
+    <a class="pos__link" routerLink="/app/inventory/movements">Storico movimenti</a>
+  </header>
+
+  <div class="pos__context">
+    <div class="pos__location">
+      <span class="pos__label">Location negozio</span>
+      @if (isFixedSingleStore() && fixedLocationLabel(); as label) {
+        <span class="pos__location-fixed" title="Sede operativa assegnata">
+          <i class="pi pi-shop" aria-hidden="true"></i>
+          {{ label }}
+        </span>
+      } @else {
+        <app-select-menu
+          [options]="locationOptions()"
+          [value]="selectedLocationId() ?? ''"
+          ariaLabel="Location negozio"
+          placeholder="Seleziona location"
+          [fullWidth]="true"
+          (valueChange)="onLocationChange($event)"
+        />
+      }
+    </div>
+
+    <div class="pos__tabs" role="tablist" aria-label="Operazione di cassa">
+      <button
+        type="button"
+        class="pos__tab"
+        role="tab"
+        [class.pos__tab--active]="mode() === 'sale'"
+        [attr.aria-selected]="mode() === 'sale'"
+        (click)="setMode('sale')"
+      >
+        Vendita
+      </button>
+      <button
+        type="button"
+        class="pos__tab"
+        role="tab"
+        [class.pos__tab--active]="mode() === 'return'"
+        [attr.aria-selected]="mode() === 'return'"
+        (click)="setMode('return')"
+      >
+        Reso vendita negozio
+      </button>
+    </div>
+  </div>
+
+  @if (mode() === 'sale') {
+    <!-- ── VENDITA A CARRELLO ─────────────────────────────────────────── -->
+    <section class="pos__panel" aria-labelledby="pos-sale-title">
+      <h2 id="pos-sale-title" class="pos__panel-title">Aggiungi articoli</h2>
+
+      <form class="pos__search-form" (submit)="onSearchSubmit($event)">
+        <label class="pos__field" for="pos-search">
+          <span class="pos__label">Barcode, SKU o nome prodotto</span>
+          <input
+            #searchInput
+            id="pos-search"
+            class="pos__input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            enterkeyhint="search"
+            placeholder="Scansiona o digita…"
+            [value]="searchDraft()"
+            (input)="onSearchInput($event)"
+          />
+        </label>
+        <div class="pos__search-actions">
+          @if (barcodeScannerEnabled) {
+            <app-barcode-scanner label="Scansiona barcode" (scanned)="onBarcodeScanned($event)" />
+          }
+          <app-button type="submit" [loading]="lookupPending()" [disabled]="lookupPending()">
+            Cerca
+          </app-button>
+        </div>
+      </form>
+
+      @if (lookupMessage(); as message) {
+        <p class="pos__feedback pos__feedback--error" role="status">{{ message }}</p>
+      }
+
+      @if (lookupResults(); as results) {
+        <ul class="pos__results" aria-label="Risultati ricerca">
+          @for (item of results; track item.variantId) {
+            <li>
+              <button type="button" class="pos__result" (click)="addResultToCart(item)">
+                <span class="pos__result-name">{{ item.productName }}</span>
+                @if (item.optionSummary) {
+                  <span class="pos__result-options">{{ item.optionSummary }}</span>
+                }
+                <span class="pos__result-meta tabular-nums">
+                  {{ item.sku }} · {{ money(item.sellingPriceMinor) }} · disp.
+                  {{ item.available }}
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="pos__panel" aria-labelledby="pos-cart-title">
+      <div class="pos__panel-head">
+        <h2 id="pos-cart-title" class="pos__panel-title">Carrello</h2>
+        <span class="pos__count tabular-nums">{{ cartQuantity() }}</span>
+      </div>
+
+      @if (cart().length === 0) {
+        <p class="pos__empty">
+          Il carrello è vuoto. Scansiona un barcode o cerca un prodotto per iniziare.
+        </p>
+      } @else {
+        <div class="pos__cart-scroll">
+          <table class="pos-cart">
+            <thead>
+              <tr>
+                <th scope="col">Articolo</th>
+                <th scope="col" class="pos-cart__cell--num">Qtà</th>
+                <th scope="col" class="pos-cart__cell--num">Prezzo</th>
+                <th scope="col" class="pos-cart__cell--num">Sconto %</th>
+                <th scope="col" class="pos-cart__cell--num">Totale</th>
+                <th scope="col"><span class="sr-only">Azioni</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of cart(); track line.variantId) {
+                <tr [class.pos-cart__row--warning]="line.quantity > line.available">
+                  <td data-label="Articolo">
+                    <span class="pos-cart__name">{{ line.description }}</span>
+                    <span class="pos-cart__meta tabular-nums">
+                      {{ line.sku }} · giacenza {{ line.onHand }} · impegnata {{ line.committed }} ·
+                      disponibile {{ line.available }}
+                    </span>
+                    @if (line.quantity > line.available) {
+                      <span class="pos-cart__warning" role="status">
+                        {{ availabilityMessage(line) }}
+                      </span>
+                    }
+                  </td>
+                  <td class="pos-cart__cell--num" data-label="Qtà">
+                    <div class="pos-cart__qty">
+                      <button
+                        type="button"
+                        class="pos-cart__qty-btn"
+                        aria-label="Diminuisci quantità"
+                        (click)="changeQuantity(line.variantId, -1)"
+                      >
+                        <i class="pi pi-minus" aria-hidden="true"></i>
+                      </button>
+                      <input
+                        class="pos-cart__qty-input tabular-nums"
+                        type="number"
+                        min="1"
+                        inputmode="numeric"
+                        [value]="line.quantity"
+                        [attr.aria-label]="'Quantità ' + line.sku"
+                        (change)="onQuantityInput(line.variantId, $event)"
+                      />
+                      <button
+                        type="button"
+                        class="pos-cart__qty-btn"
+                        aria-label="Aumenta quantità"
+                        (click)="changeQuantity(line.variantId, 1)"
+                      >
+                        <i class="pi pi-plus" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  </td>
+                  <td class="pos-cart__cell--num" data-label="Prezzo">
+                    <input
+                      class="pos-cart__price-input tabular-nums"
+                      type="text"
+                      inputmode="decimal"
+                      [value]="priceInputValue(line)"
+                      [attr.aria-label]="'Prezzo unitario ' + line.sku"
+                      (change)="onPriceInput(line.variantId, $event)"
+                    />
+                  </td>
+                  <td class="pos-cart__cell--num" data-label="Sconto %">
+                    <input
+                      class="pos-cart__discount-input tabular-nums"
+                      type="number"
+                      min="0"
+                      max="100"
+                      inputmode="numeric"
+                      [value]="line.discountPercent"
+                      [attr.aria-label]="'Sconto percentuale ' + line.sku"
+                      (change)="onDiscountInput(line.variantId, $event)"
+                    />
+                  </td>
+                  <td class="pos-cart__cell--num tabular-nums" data-label="Totale">
+                    {{ lineTotal(line) }}
+                  </td>
+                  <td class="pos-cart__cell--actions">
+                    <button
+                      type="button"
+                      class="pos-cart__remove"
+                      [attr.aria-label]="'Rimuovi ' + line.description"
+                      (click)="removeLine(line.variantId)"
+                    >
+                      <i class="pi pi-trash" aria-hidden="true"></i>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pos__checkout">
+          @if (hasAvailabilityWarning()) {
+            <p class="pos__availability-banner" role="status">
+              Una o più righe superano la disponibilità attuale. Puoi concludere la vendita: la
+              giacenza potrà andare in negativo.
+            </p>
+          }
+          <div class="pos__checkout-fields">
+            <div class="pos__field">
+              <span class="pos__label">Metodo di pagamento</span>
+              <app-select-menu
+                [options]="paymentOptions"
+                [value]="paymentMethod()"
+                ariaLabel="Metodo di pagamento"
+                placeholder="Metodo"
+                [includeEmptyOption]="false"
+                (valueChange)="onPaymentMethodChange($event)"
+              />
+            </div>
+            <label class="pos__field pos__field--grow" for="pos-sale-notes">
+              <span class="pos__label">Note (facoltative)</span>
+              <textarea
+                id="pos-sale-notes"
+                class="pos__textarea"
+                rows="2"
+                [value]="saleNotes()"
+                (input)="onSaleNotesInput($event)"
+              ></textarea>
+            </label>
+          </div>
+
+          <div class="pos__total-row">
+            <span class="pos__total-label">Totale</span>
+            <span class="pos__total-value tabular-nums">{{ money(cartTotalMinor()) }}</span>
+          </div>
+
+          <app-button
+            [disabled]="!canConcludeSale()"
+            [loading]="salePending()"
+            (click)="openSaleConfirm()"
+          >
+            Concludi vendita
+          </app-button>
+        </div>
+      }
+
+      @if (saleError(); as message) {
+        <p class="pos__feedback pos__feedback--error" role="alert">{{ message }}</p>
+      }
+
+      @if (lastSaleResult(); as result) {
+        <div class="pos__success" role="status">
+          <p class="pos__success-title">
+            Vendita {{ result.reference }} registrata: {{ money(result.totalMinor) }}
+          </p>
+          <ul class="pos__success-lines">
+            @for (line of result.lines; track line.sku + line.description) {
+              <li class="tabular-nums">
+                {{ line.description }} ({{ line.sku }}) × {{ line.quantity }} — disponibile residuo
+                {{ line.remainingAvailable }}
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </section>
+
+    <app-confirm-dialog
+      title="Concludi vendita"
+      [message]="saleConfirmMessage()"
+      confirmLabel="Concludi vendita"
+      [busy]="salePending()"
+      [(open)]="saleConfirmOpen"
+      (confirmed)="concludeSale()"
+    />
+  } @else {
+    <!-- ── RESO VENDITA NEGOZIO ───────────────────────────────────────── -->
+    <section class="pos__panel" aria-labelledby="pos-return-title">
+      <h2 id="pos-return-title" class="pos__panel-title">Vendita origine</h2>
+      <p class="pos__hint">
+        Il reso è collegato alla vendita origine. Solo la merce rientrata vendibile genera un carico
+        di magazzino; la merce non vendibile viene documentata senza carico.
+      </p>
+
+      @if (selectedSale(); as sale) {
+        <div class="pos__selected-sale">
+          <div>
+            <p class="pos__selected-sale-ref tabular-nums">{{ sale.reference }}</p>
+            <p class="pos__selected-sale-meta tabular-nums">
+              {{ formatDate(sale.documentDate) }} · {{ money(sale.totalMinor) }}
+              @if (sale.customerName) {
+                · {{ sale.customerName }}
+              }
+            </p>
+          </div>
+          <app-button variant="secondary" (click)="clearSelectedSale()">Cambia vendita</app-button>
+        </div>
+
+        <div class="pos__cart-scroll">
+          <table class="pos-cart">
+            <thead>
+              <tr>
+                <th scope="col">Articolo</th>
+                <th scope="col" class="pos-cart__cell--num">Venduta</th>
+                <th scope="col" class="pos-cart__cell--num">Da rendere</th>
+                <th scope="col">Vendibile</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of returnLines(); track $index) {
+                <tr>
+                  <td data-label="Articolo">
+                    <span class="pos-cart__name">{{ line.description }}</span>
+                    <span class="pos-cart__meta tabular-nums">{{ line.sku }}</span>
+                  </td>
+                  <td class="pos-cart__cell--num tabular-nums" data-label="Venduta">
+                    {{ line.soldQuantity }}
+                  </td>
+                  <td class="pos-cart__cell--num" data-label="Da rendere">
+                    <input
+                      class="pos-cart__qty-input tabular-nums"
+                      type="number"
+                      min="0"
+                      [max]="line.soldQuantity"
+                      inputmode="numeric"
+                      [value]="line.returnQuantity"
+                      [attr.aria-label]="'Quantità da rendere ' + line.sku"
+                      (change)="onReturnQuantityInput($index, $event)"
+                    />
+                  </td>
+                  <td data-label="Vendibile">
+                    <label class="pos__toggle">
+                      <input
+                        type="checkbox"
+                        [checked]="line.restockable"
+                        (change)="onRestockableToggle($index, $event)"
+                      />
+                      {{ line.restockable ? 'Vendibile (rientra)' : 'Non vendibile' }}
+                    </label>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pos__checkout">
+          <div class="pos__checkout-fields">
+            <label class="pos__field pos__field--grow" for="pos-return-reason">
+              <span class="pos__label">Causale reso (obbligatoria)</span>
+              <input
+                id="pos-return-reason"
+                class="pos__input"
+                type="text"
+                maxlength="500"
+                placeholder="Es. taglia errata, capo difettoso…"
+                [value]="returnReason()"
+                (input)="onReturnReasonInput($event)"
+              />
+            </label>
+            <label class="pos__field pos__field--grow" for="pos-return-notes">
+              <span class="pos__label">Note (facoltative)</span>
+              <textarea
+                id="pos-return-notes"
+                class="pos__textarea"
+                rows="2"
+                [value]="returnNotes()"
+                (input)="onReturnNotesInput($event)"
+              ></textarea>
+            </label>
+          </div>
+
+          <div class="pos__total-row">
+            <span class="pos__total-label">Articoli da rendere</span>
+            <span class="pos__total-value tabular-nums">
+              {{ returnableQuantity() }} (in giacenza: {{ restockQuantity() }})
+            </span>
+          </div>
+
+          <app-button
+            [disabled]="!canConcludeReturn()"
+            [loading]="returnPending()"
+            (click)="openReturnConfirm()"
+          >
+            Registra reso
+          </app-button>
+        </div>
+      } @else {
+        <form class="pos__search-form" (submit)="onRecentSearchSubmit($event)">
+          <label class="pos__field" for="pos-recent-search">
+            <span class="pos__label">Cerca per numero vendita, cliente o SKU</span>
+            <input
+              id="pos-recent-search"
+              class="pos__input"
+              type="text"
+              autocomplete="off"
+              placeholder="Es. VN-2026-0001"
+              [value]="recentSearchDraft()"
+              (input)="onRecentSearchInput($event)"
+            />
+          </label>
+          <div class="pos__search-actions">
+            <app-button type="submit" [loading]="recentPending()" [disabled]="recentPending()">
+              Cerca
+            </app-button>
+          </div>
+        </form>
+
+        @if (recentError(); as message) {
+          <p class="pos__feedback pos__feedback--error" role="alert">{{ message }}</p>
+        }
+
+        @if (recentSales().length === 0 && !recentPending()) {
+          <p class="pos__empty">Nessuna vendita negozio recente trovata.</p>
+        } @else {
+          <ul class="pos__results" aria-label="Vendite negozio recenti">
+            @for (sale of recentSales(); track sale.id) {
+              <li>
+                <button type="button" class="pos__result" (click)="selectSale(sale)">
+                  <span class="pos__result-name tabular-nums">{{ sale.reference }}</span>
+                  <span class="pos__result-meta tabular-nums">
+                    {{ formatDate(sale.documentDate) }} · {{ money(sale.totalMinor) }} ·
+                    {{ sale.lines.length }} righe
+                    @if (sale.customerName) {
+                      · {{ sale.customerName }}
+                    }
+                  </span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      }
+
+      @if (returnError(); as message) {
+        <p class="pos__feedback pos__feedback--error" role="alert">{{ message }}</p>
+      }
+
+      @if (lastReturnResult(); as result) {
+        <div class="pos__success" role="status">
+          <p class="pos__success-title">Reso {{ result.reference }} registrato.</p>
+          <ul class="pos__success-lines">
+            @for (line of result.lines; track line.sku + line.description) {
+              <li class="tabular-nums">
+                {{ line.description }} ({{ line.sku }}) × {{ line.quantity }} — disponibile
+                {{ line.remainingAvailable }}
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </section>
+
+    <app-confirm-dialog
+      title="Registra reso"
+      [message]="returnConfirmMessage()"
+      confirmLabel="Registra reso"
+      [busy]="returnPending()"
+      [(open)]="returnConfirmOpen"
+      (confirmed)="concludeReturn()"
+    />
+  }
+</section>

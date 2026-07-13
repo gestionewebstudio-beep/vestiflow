@@ -1,5 +1,15 @@
-import { SupplierPriceUpdatePolicy } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { PurchaseCostEntryMode, SupplierPriceUpdatePolicy } from '@prisma/client';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class TenantFeatureSettingsDto {
   lotsEnabled!: boolean;
@@ -14,7 +24,10 @@ export class TenantFeatureSettingsDto {
   warnNegativeInventory!: boolean;
   blockNegativeInventory!: boolean;
   defaultUnitOfMeasure!: string;
+  /** LEGACY: sostituito da defaultVatCodeId (mantenuto fino a fine migrazione). */
   defaultVatRatePercent!: number;
+  defaultVatCodeId!: string | null;
+  defaultPurchaseCostEntryMode!: PurchaseCostEntryMode;
 }
 
 export class UpdateTenantFeatureSettingsDto {
@@ -72,4 +85,12 @@ export class UpdateTenantFeatureSettingsDto {
   @Min(0)
   @Max(100)
   defaultVatRatePercent?: number;
+
+  @IsOptional()
+  @IsUUID()
+  defaultVatCodeId?: string;
+
+  @IsOptional()
+  @IsEnum(PurchaseCostEntryMode)
+  defaultPurchaseCostEntryMode?: PurchaseCostEntryMode;
 }

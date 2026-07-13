@@ -97,63 +97,6 @@ describe('InventoryService (HTTP)', () => {
     expect(movement.quantity).toBe(3);
   });
 
-  it('registerRetailScan invia POST e mappa la risposta', async () => {
-    const promise = firstValueFrom(
-      service.registerRetailScan({
-        code: '8001234567890',
-        locationId: 'loc-1',
-        action: 'sale',
-      }),
-    );
-
-    const req = httpMock.expectOne(`${API_BASE}/inventory/retail-scans`);
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({
-      code: '8001234567890',
-      locationId: 'loc-1',
-      action: 'sale',
-    });
-
-    req.flush({
-      movement: { id: 'mov-sale' },
-      variantId: 'var-1',
-      productId: 'prod-1',
-      sku: 'SKU-1',
-      productName: 'Maglietta',
-      remainingAvailable: 4,
-    });
-
-    const result = await promise;
-    expect(result.movementId).toBe('mov-sale');
-    expect(result.productName).toBe('Maglietta');
-    expect(result.remainingAvailable).toBe(4);
-  });
-
-  it('registerRetailScan supporta storno', async () => {
-    const promise = firstValueFrom(
-      service.registerRetailScan({
-        code: 'SKU-1',
-        locationId: 'loc-1',
-        action: 'return',
-      }),
-    );
-
-    const req = httpMock.expectOne(`${API_BASE}/inventory/retail-scans`);
-    expect(req.request.body).toMatchObject({ action: 'return' });
-    req.flush({
-      movement: { id: 'mov-return' },
-      variantId: 'var-1',
-      productId: 'prod-1',
-      sku: 'SKU-1',
-      productName: 'Maglietta',
-      remainingAvailable: 6,
-    });
-
-    const result = await promise;
-    expect(result.movementId).toBe('mov-return');
-    expect(result.remainingAvailable).toBe(6);
-  });
-
   it('getMovements mappa la lista paginata', async () => {
     const promise = firstValueFrom(service.getMovements());
 

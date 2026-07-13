@@ -84,6 +84,7 @@ import {
   findSupplierPriceDiffs,
 } from './document-supplier-price.util';
 import { DocumentSettingsService } from './document-settings.service';
+import { isFlowOnlyDocumentType, isInternalOnlyDocumentType } from './document-defaults';
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
 import type { CreateGoodsReceiptFromSupplierOrderDto } from './dto/create-goods-receipt-from-supplier-order.dto';
 import type { ConvertDocumentDto } from './dto/convert-document.dto';
@@ -150,6 +151,25 @@ const CONFIRMED_EDITABLE_STATUSES: readonly DocumentStatus[] = [
   DocumentStatus.printed,
   DocumentStatus.sent,
 ] as const;
+
+/**
+ * Default neutri per le colonne IVA delle righe temporanee usate solo nella
+ * riconciliazione stock (il flusso IVA completo vive nell'Arrivo merce).
+ */
+const EMPTY_LINE_VAT_FIELDS = {
+  vatCodeId: null,
+  vatSnapshot: null,
+  enteredUnitCost: null,
+  costEntryModeSnapshot: null,
+  unitCostNet: null,
+  unitCostGross: null,
+  unitVatAmount: null,
+  lineVatTotalMinor: 0,
+  lineGrossTotalMinor: 0,
+  supplierPayableLineMinor: 0,
+  reverseChargeVatMinor: 0,
+  nonDeductibleVatMinor: 0,
+} as const;
 
 interface ComputedLine {
   lineNumber: number;
@@ -507,6 +527,16 @@ export class DocumentsService {
     dto: CreateDocumentDto,
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
+    if (isInternalOnlyDocumentType(dto.type)) {
+      throw new UnprocessableEntityException(
+        'Questo tipo documento è generato automaticamente dal sistema e non può essere creato manualmente.',
+      );
+    }
+    if (isFlowOnlyDocumentType(dto.type)) {
+      throw new UnprocessableEntityException(
+        'Vendite e resi negozio si registrano dalla cassa (Vendita negozio), non dal registro documenti.',
+      );
+    }
     const setting = await this.settings.getResolved(tenantId, dto.type);
     if (!setting.enabled) {
       throw new UnprocessableEntityException(
@@ -624,6 +654,11 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id);
+    if (isFlowOnlyDocumentType(doc.type)) {
+      throw new ConflictException(
+        'Vendite e resi negozio non sono modificabili: registra un reso o una nuova vendita dalla cassa.',
+      );
+    }
     const isDraft = doc.status === DocumentStatus.draft;
     const isConfirmedEdit = CONFIRMED_EDITABLE_STATUSES.includes(doc.status);
     const reconcilesLoadStock =
@@ -649,6 +684,19 @@ export class DocumentsService {
     const documentDate = dto.documentDate ? new Date(dto.documentDate) : doc.documentDate;
 
     const lines = dto.lines !== undefined ? this.computeLines(dto.lines, doc.type) : null;
+
+    if (lines) {
+      const hasPerLineMovements =
+        (await this.prisma.stockMovement.count({
+          where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
+        })) > 0;
+      if (hasPerLineMovements) {
+        throw new ConflictException(
+          'Questo documento usa movimenti per riga: aggiornalo con «Salva documento» (arrivo merce), non con PATCH.',
+        );
+      }
+    }
+
     const newLocationId = dto.locationId !== undefined ? dto.locationId : doc.locationId;
     const newTargetLocationId =
       dto.targetLocationId !== undefined ? dto.targetLocationId : doc.targetLocationId;
@@ -674,6 +722,7 @@ export class DocumentsService {
           documentId: doc.id,
           tenantId,
           linkedGoodsReceiptId: null,
+          ...EMPTY_LINE_VAT_FIELDS,
           createdAt: doc.createdAt,
           updatedAt: doc.updatedAt,
         })) ?? base.lines,
@@ -915,6 +964,7 @@ export class DocumentsService {
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
+            ...EMPTY_LINE_VAT_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -933,7 +983,14 @@ export class DocumentsService {
         }
       }
 
-      if (isConfirmedEdit && doc.type === DocumentType.sales_ddt && doc.locationId) {
+      // Il DDT collegato a Vendita online non ha movimenti propri (fase 2 §9):
+      // nessuna riconciliazione scarico in modifica.
+      if (
+        isConfirmedEdit &&
+        doc.type === DocumentType.sales_ddt &&
+        !doc.onlineSaleId &&
+        doc.locationId
+      ) {
         const newLinesComputed =
           lines ??
           doc.lines.map((line) => ({
@@ -978,6 +1035,7 @@ export class DocumentsService {
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
+            ...EMPTY_LINE_VAT_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -1041,6 +1099,7 @@ export class DocumentsService {
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
+            ...EMPTY_LINE_VAT_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -1115,6 +1174,7 @@ export class DocumentsService {
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
+            ...EMPTY_LINE_VAT_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -1190,6 +1250,7 @@ export class DocumentsService {
             lotExpiryDate: line.lotExpiryDate ?? null,
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
+            ...EMPTY_LINE_VAT_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -1261,6 +1322,7 @@ export class DocumentsService {
           documentType: saved.type,
           locationId: saved.locationId,
           reason,
+          movementDate: saved.documentDate,
           lines: saved.lines,
           actor,
         });
@@ -1369,6 +1431,10 @@ export class DocumentsService {
       });
       if (!doc) {
         throw new NotFoundException('Documento non trovato');
+      }
+      if (isFlowOnlyDocumentType(doc.type)) {
+        // Cassa negozio: creati già confermati con movimenti in transazione.
+        throw new ConflictException('Le vendite e i resi negozio sono già registrati alla conclusione.');
       }
       if (doc.status !== DocumentStatus.draft) {
         throw new ConflictException('Solo i documenti in bozza possono essere confermati.');
@@ -1495,7 +1561,10 @@ export class DocumentsService {
         }
       }
 
-      if (doc.type === DocumentType.sales_ddt) {
+      // Fase 2 §9: DDT collegato a una Vendita online che ha GIÀ scaricato il
+      // magazzino ⇒ nessun movimento, nessun consumo impegni, nessun secondo
+      // scarico. La scelta non è attivabile dall'utente: è forzata dal link.
+      if (doc.type === DocumentType.sales_ddt && !doc.onlineSaleId) {
         const reason = reference ? `DDT vendita ${reference}` : `DDT vendita ${doc.type}`;
         await assertSerialNumbersForUnloadLines(tx, tenantId, doc.locationId!, doc.lines);
         for (const line of doc.lines) {
@@ -1818,6 +1887,11 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id);
+    if (isFlowOnlyDocumentType(doc.type)) {
+      throw new ConflictException(
+        'Le vendite negozio non si annullano: registra un Reso vendita negozio per il rientro della merce.',
+      );
+    }
     if (doc.status === DocumentStatus.cancelled) {
       throw new ConflictException('Il documento è già annullato.');
     }
@@ -1836,9 +1910,12 @@ export class DocumentsService {
       doc.status !== DocumentStatus.draft &&
       documentTypeLoadsStockOnConfirm(doc.type) &&
       doc.locationId != null;
+    // DDT collegato a Vendita online (fase 2 §9): non ha mai scaricato,
+    // quindi l'annullamento non deve ricaricare nulla.
     const wasStockUnloaded =
       doc.status !== DocumentStatus.draft &&
       doc.type === DocumentType.sales_ddt &&
+      doc.onlineSaleId == null &&
       doc.locationId != null;
     const wasManualUnloaded =
       doc.status !== DocumentStatus.draft &&
@@ -2050,6 +2127,11 @@ export class DocumentsService {
 
   async delete(tenantId: string, id: string): Promise<void> {
     const doc = await this.getById(tenantId, id);
+    if (isFlowOnlyDocumentType(doc.type)) {
+      throw new ConflictException(
+        'Le vendite e i resi negozio non si eliminano: fanno parte dello storico movimenti.',
+      );
+    }
     const isFinalized =
       doc.status !== DocumentStatus.draft && doc.status !== DocumentStatus.cancelled;
 

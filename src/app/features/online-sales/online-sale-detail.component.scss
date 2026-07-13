@@ -1,0 +1,34 @@
+@use 'breakpoints' as bp;
+@use 'detail-page' as dp;
+@use 'responsive-table' as rt;
+
+:host {
+  display: block;
+}
+
+@include dp.detail-page('os-detail');
+@include rt.data-table-desktop('os-lines');
+@include rt.data-table-mobile-cards('os-lines');
+
+.os-detail__table-scroll {
+  inline-size: 100%;
+  max-inline-size: 100%;
+
+  @include bp.media-up('lg') {
+    overflow-x: auto;
+  }
+}
+
+.os-detail__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+@include bp.media-up('lg') {
+  .os-lines th.os-lines__cell--num,
+  .os-lines td.os-lines__cell--num {
+    text-align: end;
+    white-space: nowrap;
+  }
+}

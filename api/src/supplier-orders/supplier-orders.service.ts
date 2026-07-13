@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import {
   Prisma,
-  StockMovementType,
   SupplierOrderStatus,
   type Supplier,
   type SupplierOrder,
@@ -17,7 +16,6 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
-import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
@@ -340,33 +338,5 @@ export class SupplierOrdersService {
     throw new GoneException(
       'La ricezione merce diretta non è più disponibile. Crea un documento di arrivo merce (goods receipt) collegato all\'ordine fornitore.',
     );
-  }
-
-  private async applyLoad(
-    tx: Prisma.TransactionClient,
-    tenantId: string,
-    locationId: string,
-    variantId: string,
-    sku: string,
-    quantity: number,
-    reason: string,
-    externalRef: string,
-  ): Promise<void> {
-    await applyInventoryDelta(tx, tenantId, variantId, locationId, quantity);
-
-    await tx.stockMovement.create({
-      data: {
-        tenantId,
-        type: StockMovementType.load,
-        origin: 'manual',
-        variantId,
-        sku,
-        locationId,
-        quantity,
-        reason,
-        externalRef,
-        createdByName: 'API',
-      },
-    });
   }
 }

@@ -1,8 +1,10 @@
-import { MovementOrigin, StockMovementType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
+import type { OnlineOrderLifecycleService } from '../order-reservations/online-order-lifecycle.service';
 import type { ShopifyConnectionService } from './shopify-connection.service';
+import type { ShopifyInventoryPushService } from './shopify-inventory-push.service';
+import type { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
 import type { ShopifyProductPullService } from './shopify-product-pull.service';
 import type { ShopifyOrderDocumentService } from './shopify-order-document.service';
 import { ShopifySyncService } from './shopify-sync.service';
@@ -46,14 +48,38 @@ describe('ShopifySyncService', () => {
       syncFromShopifyOrder: vi.fn().mockResolvedValue(null),
     };
 
+    const onlineOrderLifecycle = {
+      handle: vi.fn().mockResolvedValue('applied'),
+    };
+
+    const inventoryReconciliation = {
+      reconcileFromShopifyWebhook: vi.fn().mockResolvedValue('skipped'),
+    };
+
+    const inventoryPush = {
+      pushLevel: vi.fn().mockResolvedValue({ pushed: true }),
+    };
+
     const service = new ShopifySyncService(
       prisma as unknown as PrismaService,
       shopifyConnection as unknown as ShopifyConnectionService,
       shopifyProductPull as unknown as ShopifyProductPullService,
       shopifyOrderDocument as unknown as ShopifyOrderDocumentService,
+      onlineOrderLifecycle as unknown as OnlineOrderLifecycleService,
+      inventoryReconciliation as unknown as ShopifyInventoryReconciliationService,
+      inventoryPush as unknown as ShopifyInventoryPushService,
     );
 
-    return { service, prisma, shopifyConnection, shopifyProductPull, shopifyOrderDocument };
+    return {
+      service,
+      prisma,
+      shopifyConnection,
+      shopifyProductPull,
+      shopifyOrderDocument,
+      onlineOrderLifecycle,
+      inventoryReconciliation,
+      inventoryPush,
+    };
   }
 
   it('handleWebhook ignora topic sconosciuto', async () => {
@@ -107,38 +133,50 @@ describe('ShopifySyncService', () => {
     expect(prisma.customer.upsert).not.toHaveBeenCalled();
   });
 
-  it('applyInventoryLevelFromShopify salta se mapping mancante', async () => {
-    const { service, prisma } = createService();
-    prisma.productVariant.findFirst.mockResolvedValue(null);
+  it('applyInventoryLevelFromShopify delega alla riconciliazione senza modificare giacenze', async () => {
+    const { service, inventoryReconciliation, inventoryPush } = createService();
+    inventoryReconciliation.reconcileFromShopifyWebhook.mockResolvedValue('reconciled');
+
+    const result = await service.applyInventoryLevelFromShopify(
+      'tenant-1',
+      'inv-1',
+      'shop-loc-1',
+      7,
+      'Sync inventario Shopify',
+    );
+
+    expect(result).toBe('unchanged');
+    expect(inventoryReconciliation.reconcileFromShopifyWebhook).toHaveBeenCalledWith(
+      'tenant-1',
+      'inv-1',
+      'shop-loc-1',
+      7,
+    );
+    expect(inventoryPush.pushLevel).not.toHaveBeenCalled();
+  });
+
+  it('applyInventoryLevelFromShopify Caso D: ripubblica valore VestiFlow', async () => {
+    const { service, prisma, inventoryReconciliation, inventoryPush } = createService();
+    inventoryReconciliation.reconcileFromShopifyWebhook.mockResolvedValue('mismatch_republish');
+    prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1' });
     prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
 
     const result = await service.applyInventoryLevelFromShopify(
       'tenant-1',
       'inv-1',
       'shop-loc-1',
-      10,
+      3,
       'Sync inventario Shopify',
     );
 
-    expect(result).toBe('skipped');
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(result).toBe('updated');
+    await Promise.resolve();
+    expect(inventoryPush.pushLevel).toHaveBeenCalledWith('tenant-1', 'var-1', 'loc-1');
   });
 
-  it('applyInventoryLevelFromShopify crea livello e movimento shopify', async () => {
-    const { service, prisma } = createService();
-    prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
-    prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
-
-    const tx = {
-      inventoryLevel: {
-        findUnique: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockResolvedValue({}),
-      },
-      stockMovement: {
-        create: vi.fn().mockResolvedValue({}),
-      },
-    };
-    prisma.$transaction.mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx));
+  it('applyInventoryLevelFromShopify restituisce skipped se riconciliazione differita', async () => {
+    const { service, inventoryReconciliation } = createService();
+    inventoryReconciliation.reconcileFromShopifyWebhook.mockResolvedValue('deferred');
 
     const result = await service.applyInventoryLevelFromShopify(
       'tenant-1',
@@ -148,90 +186,7 @@ describe('ShopifySyncService', () => {
       'Sync inventario Shopify',
     );
 
-    expect(result).toBe('created');
-    expect(tx.inventoryLevel.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          available: 5,
-          onHand: 5,
-        }),
-      }),
-    );
-    expect(tx.stockMovement.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          type: StockMovementType.return,
-          origin: MovementOrigin.shopify,
-          quantity: 5,
-        }),
-      }),
-    );
-  });
-
-  it('applyInventoryLevelFromShopify allinea livello esistente con update atomico', async () => {
-    const { service, prisma } = createService();
-    prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
-    prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
-
-    const tx = {
-      inventoryLevel: {
-        findUnique: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 10, onHand: 10 }),
-      },
-      $executeRaw: vi.fn().mockResolvedValue(1),
-      stockMovement: {
-        create: vi.fn().mockResolvedValue({}),
-      },
-    };
-    prisma.$transaction.mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx));
-
-    const result = await service.applyInventoryLevelFromShopify(
-      'tenant-1',
-      'inv-1',
-      'shop-loc-1',
-      4,
-      'Sync inventario Shopify',
-    );
-
-    expect(result).toBe('updated');
-    // Update atomico via SQL parametrizzato (no read-modify-write su onHand).
-    expect(tx.$executeRaw).toHaveBeenCalledOnce();
-    expect(tx.stockMovement.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          type: StockMovementType.sale,
-          origin: MovementOrigin.shopify,
-          quantity: 6,
-        }),
-      }),
-    );
-  });
-
-  it('applyInventoryLevelFromShopify restituisce unchanged se quantità uguale', async () => {
-    const { service, prisma } = createService();
-    prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
-    prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
-
-    const tx = {
-      inventoryLevel: {
-        findUnique: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 8, onHand: 8 }),
-        update: vi.fn(),
-      },
-      stockMovement: {
-        create: vi.fn(),
-      },
-    };
-    prisma.$transaction.mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx));
-
-    const result = await service.applyInventoryLevelFromShopify(
-      'tenant-1',
-      'inv-1',
-      'shop-loc-1',
-      8,
-      'Sync inventario Shopify',
-    );
-
-    expect(result).toBe('unchanged');
-    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    expect(result).toBe('skipped');
   });
 
   it('applyOrderFromShopify salta payload senza id ordine', async () => {

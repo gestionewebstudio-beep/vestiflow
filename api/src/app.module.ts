@@ -12,7 +12,9 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DocumentsModule } from './documents/documents.module';
 import { TenantModule } from './tenant/tenant.module';
+import { OnlineSalesModule } from './online-sales/online-sales.module';
 import { SalesOrdersModule } from './sales-orders/sales-orders.module';
+import { StoreSalesModule } from './store-sales/store-sales.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { TikTokModule } from './tiktok/tiktok.module';
 import { validateEnv } from './config/env.validation';
@@ -22,6 +24,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
+import { VatModule } from './vat/vat.module';
 import { SupportSessionModule } from './support/support-session.module';
 import { UserPreferencesModule } from './user-preferences/user-preferences.module';
 
@@ -42,9 +45,12 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     ProductsModule,
     InventoryModule,
     SupplierOrdersModule,
+    VatModule,
     DocumentsModule,
     CustomersModule,
     SalesOrdersModule,
+    OnlineSalesModule,
+    StoreSalesModule,
     CorrispettiviModule,
     AccountantRegisterModule,
     ShopifyModule,

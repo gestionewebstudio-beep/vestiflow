@@ -97,9 +97,17 @@ export class DocumentsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SaveGoodsReceiptDto,
-  ): Promise<DocumentDetail> {
+  ): Promise<{ document: DocumentDetail; warnings: string[] }> {
     const saved = await this.goodsReceiptWorkflow.saveGoodsReceipt(tenantId, dto, user);
-    return this.documents.getById(tenantId, saved.id);
+    const document = await this.documents.getById(tenantId, saved.id);
+    const warnings: string[] = [];
+    if (document.linkStatus === 'linked') {
+      warnings.push(
+        'Totali da verificare: l\'arrivo merce è collegato a una fattura registrata. ' +
+          'Controlla l\'allineamento dei totali sulla registrazione fattura.',
+      );
+    }
+    return { document, warnings };
   }
 
   /** Registrazione fattura fornitore (prompt §5-6): mai movimenti di magazzino. */

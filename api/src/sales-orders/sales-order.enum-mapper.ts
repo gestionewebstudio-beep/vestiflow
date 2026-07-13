@@ -7,6 +7,10 @@ import {
 /** Valori canale accettati in query (allineati al frontend). */
 export const API_SOURCE_ONLINE = 'online';
 export const API_SOURCE_POS = 'pos';
+/** Ordini creati manualmente nel gestionale (fase 3 §2: registro multicanale). */
+export const API_SOURCE_MANUAL = 'manual';
+/** Tutti i canali Shopify (online + POS), per la schermata Ordini Shopify (fase 3 §3). */
+export const API_SOURCE_SHOPIFY = 'shopify';
 
 /** Valori pagamento accettati in query (allineati al frontend). */
 export const API_FINANCIAL_VALUES = [
@@ -17,7 +21,10 @@ export const API_FINANCIAL_VALUES = [
   'voided',
 ] as const;
 
-export type ApiSalesOrderSource = typeof API_SOURCE_ONLINE | typeof API_SOURCE_POS;
+export type ApiSalesOrderSource =
+  | typeof API_SOURCE_ONLINE
+  | typeof API_SOURCE_POS
+  | typeof API_SOURCE_MANUAL;
 export type ApiSalesOrderFinancialStatus = (typeof API_FINANCIAL_VALUES)[number];
 
 export function toPrismaSource(source?: string): PrismaSource | undefined {
@@ -26,12 +33,26 @@ export function toPrismaSource(source?: string): PrismaSource | undefined {
       return PrismaSource.shopify_online;
     case API_SOURCE_POS:
       return PrismaSource.shopify_pos;
+    case API_SOURCE_MANUAL:
+      return PrismaSource.manual;
     default:
       return undefined;
   }
 }
 
+/** Filtro multi-canale: 'shopify' copre online + POS (fase 3 §3). */
+export function prismaSourceFilter(source?: string): PrismaSource[] | undefined {
+  if (source === API_SOURCE_SHOPIFY) {
+    return [PrismaSource.shopify_online, PrismaSource.shopify_pos];
+  }
+  const single = toPrismaSource(source);
+  return single ? [single] : undefined;
+}
+
 export function fromPrismaSource(source: PrismaSource): ApiSalesOrderSource {
+  if (source === PrismaSource.manual) {
+    return API_SOURCE_MANUAL;
+  }
   return source === PrismaSource.shopify_pos ? API_SOURCE_POS : API_SOURCE_ONLINE;
 }
 
@@ -84,6 +105,9 @@ export function fromPrismaFulfillment(
 }
 
 export function sourceDisplayLabel(source: PrismaSource): string {
+  if (source === PrismaSource.manual) {
+    return 'Manuale';
+  }
   return source === PrismaSource.shopify_pos ? 'Negozio' : 'Online';
 }
 

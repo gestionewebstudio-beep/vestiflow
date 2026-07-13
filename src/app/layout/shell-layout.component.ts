@@ -23,8 +23,6 @@ import {
 import { SupportSessionService } from '@core/support/support-session.service';
 import {
   TenantChannelProfile,
-  showOnlineSalesRegister,
-  onlineSalesRegisterLabel,
   showRetailSalesRegister,
   showSalesOrderHistory,
 } from '@core/models/tenant-channel-profile.model';
@@ -35,7 +33,7 @@ import { AppSidebarComponent } from '@shared/components/app-sidebar/app-sidebar.
 import { AppTopbarComponent } from '@shared/components/app-topbar/app-topbar.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PwaUpdateBannerComponent } from '@shared/components/pwa-update-banner/pwa-update-banner.component';
-import type { NavItem } from '@shared/models/nav-item.model';
+import type { NavItem, NavSection } from '@shared/models/nav-item.model';
 import type { ThemeMode } from '@shared/models/theme.model';
 
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
@@ -45,7 +43,6 @@ import { isShopifySyncUiActive } from '@features/integrations/shopify/models/sho
 import {
   canAccessCatalogSection,
   canAccessInventorySection,
-  canRegisterOnlineSales,
   canRegisterRetailSales,
   canViewCustomers,
   canViewDocuments,
@@ -305,44 +302,17 @@ export class ShellLayoutComponent {
     activeRoutePrefix: '/app/admin/guide',
   };
 
-  readonly navItems = computed((): readonly NavItem[] => {
+  /** Menu a gruppi (fase 3 §1): sezione principale, «Vendite», «Canali online», gestione. */
+  readonly navSections = computed((): readonly NavSection[] => {
     if (this.isPlatformOperator()) {
-      return [...this.operatorNavItems, this.adminGuideNavItem];
+      return [{ id: 'operator', items: [...this.operatorNavItems, this.adminGuideNavItem] }];
     }
 
     const user = this.currentUser();
     const profile = user?.tenantChannelProfile;
-    const salesNavItems: NavItem[] = [];
+    const sections: NavSection[] = [];
 
-    if (showRetailSalesRegister(profile) && canRegisterRetailSales(user)) {
-      salesNavItems.push({
-        label: 'Registra vendita negozio fisico',
-        icon: 'pi-shopping-bag',
-        route: '/app/sales/register',
-        activeRoutePrefix: '/app/sales/register',
-      });
-    }
-
-    if (showOnlineSalesRegister(profile) && canRegisterOnlineSales(user)) {
-      salesNavItems.push({
-        label: onlineSalesRegisterLabel(profile),
-        icon: 'pi-globe',
-        route: '/app/sales/register-online',
-        activeRoutePrefix: '/app/sales/register-online',
-      });
-    }
-
-    if (showSalesOrderHistory(profile)) {
-      salesNavItems.push({
-        label: this.salesHistoryLabel(profile),
-        icon: 'pi-shopping-cart',
-        route: '/app/sales',
-        activeRoutePrefix: '/app/sales',
-        activeRouteExclude: ['/app/sales/register', '/app/sales/register-online'],
-      });
-    }
-
-    const tenantItems: NavItem[] = [
+    const mainItems: NavItem[] = [
       {
         label: 'Dashboard',
         icon: 'pi-th-large',
@@ -352,7 +322,7 @@ export class ShellLayoutComponent {
     ];
 
     if (canAccessCatalogSection(user)) {
-      tenantItems.push({
+      mainItems.push({
         label: 'Prodotti',
         icon: 'pi-tags',
         route: '/app/products',
@@ -361,7 +331,7 @@ export class ShellLayoutComponent {
     }
 
     if (canAccessInventorySection(user)) {
-      tenantItems.push({
+      mainItems.push({
         label: 'Magazzino',
         icon: 'pi-box',
         route: '/app/inventory/lookup',
@@ -370,13 +340,13 @@ export class ShellLayoutComponent {
     }
 
     if (canViewSupplierOrders(user)) {
-      tenantItems.push({
+      mainItems.push({
         label: 'Fornitori',
         icon: 'pi-building',
         route: '/app/suppliers',
         activeRoutePrefix: '/app/suppliers',
       });
-      tenantItems.push({
+      mainItems.push({
         label: 'Ordini Fornitori',
         icon: 'pi-truck',
         route: '/app/orders',
@@ -385,18 +355,92 @@ export class ShellLayoutComponent {
     }
 
     if (canViewDocuments(user)) {
-      tenantItems.push({
+      mainItems.push({
         label: 'Documenti',
         icon: 'pi-file',
         route: '/app/documents',
         activeRoutePrefix: '/app/documents',
+        activeRouteExclude: ['/app/documents/registro'],
       });
     }
 
-    tenantItems.push(...salesNavItems);
+    sections.push({ id: 'main', items: mainItems });
+
+    const salesItems: NavItem[] = [];
+
+    if (showRetailSalesRegister(profile) && canRegisterRetailSales(user)) {
+      salesItems.push({
+        label: 'Vendita negozio',
+        icon: 'pi-shopping-bag',
+        route: '/app/sales/register',
+        activeRoutePrefix: '/app/sales/register',
+      });
+    }
+
+    if (canViewReports(user)) {
+      salesItems.push({
+        label: 'Ordini cliente',
+        icon: 'pi-shopping-cart',
+        route: '/app/sales',
+        activeRoutePrefix: '/app/sales',
+        activeRouteExclude: [
+          '/app/sales/register',
+          '/app/sales/shopify',
+          '/app/sales/online',
+          '/app/sales/corrispettivi',
+        ],
+      });
+      salesItems.push({
+        label: 'Vendite online',
+        icon: 'pi-send',
+        route: '/app/sales/online',
+        activeRoutePrefix: '/app/sales/online',
+      });
+      salesItems.push({
+        label: 'Corrispettivi',
+        icon: 'pi-calculator',
+        route: '/app/sales/corrispettivi',
+        activeRoutePrefix: '/app/sales/corrispettivi',
+      });
+    }
+
+    if (canViewDocuments(user)) {
+      salesItems.push({
+        label: 'Preventivi',
+        icon: 'pi-file',
+        route: '/app/documents/registro',
+        disabled: true,
+      });
+      salesItems.push(
+        this.documentRegisterNavItem('Proforma', 'pi-file-edit', 'proforma'),
+        this.documentRegisterNavItem('DDT vendita', 'pi-truck', 'sales_ddt'),
+        this.documentRegisterNavItem('Bozze fattura', 'pi-receipt', 'invoice_draft'),
+      );
+    }
+
+    if (salesItems.length > 0) {
+      sections.push({ id: 'sales', label: 'Vendite', items: salesItems });
+    }
+
+    if (showSalesOrderHistory(profile) && canViewReports(user)) {
+      sections.push({
+        id: 'channels',
+        label: 'Canali online',
+        items: [
+          {
+            label: 'Ordini Shopify',
+            icon: 'pi-shopping-cart',
+            route: '/app/sales/shopify',
+            activeRoutePrefix: '/app/sales/shopify',
+          },
+        ],
+      });
+    }
+
+    const manageItems: NavItem[] = [];
 
     if (canViewCustomers(user)) {
-      tenantItems.push({
+      manageItems.push({
         label: 'Clienti',
         icon: 'pi-users',
         route: '/app/customers',
@@ -405,14 +449,14 @@ export class ShellLayoutComponent {
     }
 
     if (canViewReports(user)) {
-      tenantItems.push({
+      manageItems.push({
         label: 'Report',
         icon: 'pi-chart-line',
         route: '/app/reports',
         activeRoutePrefix: '/app/reports',
         activeRouteExclude: ['/app/reports/accountant-register'],
       });
-      tenantItems.push({
+      manageItems.push({
         label: 'Registro commercialista',
         icon: 'pi-briefcase',
         route: '/app/reports/accountant-register',
@@ -420,25 +464,36 @@ export class ShellLayoutComponent {
       });
     }
 
-    tenantItems.push({
+    manageItems.push({
       label: 'Impostazioni',
       icon: 'pi-cog',
       route: '/app/settings',
       activeRoutePrefix: '/app/settings',
     });
 
-    return [...tenantItems, this.guideNavItem];
+    manageItems.push(this.guideNavItem);
+
+    sections.push({ id: 'manage', items: manageItems });
+
+    return sections;
   });
 
-  /** Etichetta vendite: specifica il canale ecommerce quando il profilo lo prevede. */
-  private salesHistoryLabel(profile: TenantChannelProfile | undefined): string {
-    if (profile === TenantChannelProfile.Shopify) {
-      return 'Vendite Shopify';
-    }
-    if (profile === TenantChannelProfile.TikTokShop) {
-      return 'Vendite TikTok';
-    }
-    return 'Vendite';
+  /** Voce sidebar sul registro documenti filtrato per tipo (Proforma, DDT, Bozze). */
+  private documentRegisterNavItem(label: string, icon: string, type: string): NavItem {
+    return {
+      label,
+      icon,
+      route: '/app/documents/registro',
+      queryParams: { type },
+      // Evidenza limitata: il registro filtrato condivide la route, si evita
+      // di accendere piu' voci insieme lasciando l'evidenza al gruppo Documenti.
+      linkActiveOptions: {
+        paths: 'exact',
+        queryParams: 'subset',
+        matrixParams: 'ignored',
+        fragment: 'ignored',
+      },
+    };
   }
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).

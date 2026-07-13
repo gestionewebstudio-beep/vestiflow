@@ -129,6 +129,7 @@ export interface ProductEmbeddedCreatePrefill {
   readonly sellingPriceMajor?: number | null;
   readonly compareAtPriceMajor?: number | null;
   readonly defaultVatRatePercent?: number | null;
+  readonly defaultVatCodeId?: string | null;
 }
 
 /** Costruisce un draft quick-mode precompilato da dati riga documento. */
@@ -146,6 +147,7 @@ export function productFormDraftFromEmbeddedPrefill(
         name,
         description: prefill.description?.trim() || base.general.description,
         defaultVatRatePercent: prefill.defaultVatRatePercent ?? base.general.defaultVatRatePercent,
+        defaultVatCodeId: prefill.defaultVatCodeId ?? base.general.defaultVatCodeId,
       },
       variants: [
         {
@@ -183,6 +185,7 @@ export function emptyProductFormDraft(): ProductFormDraft {
       status: ProductStatus.Draft,
       unitOfMeasure: 'pz',
       defaultVatRatePercent: 22,
+      defaultVatCodeId: '',
       inventoryTracking: InventoryTrackingMode.Standard,
       managesStock: true,
     },
@@ -262,6 +265,7 @@ function generalToDto(
     status: general.status,
     unitOfMeasure: general.unitOfMeasure.trim() || 'pz',
     defaultVatRatePercent: general.defaultVatRatePercent,
+    defaultVatCodeId: general.defaultVatCodeId || null,
     inventoryTracking: general.inventoryTracking,
     managesStock: general.managesStock,
   };
@@ -334,6 +338,7 @@ export function productToFormDraft(
     status: product.status,
     unitOfMeasure: product.unitOfMeasure ?? 'pz',
     defaultVatRatePercent: product.defaultVatRatePercent ?? 22,
+    defaultVatCodeId: product.defaultVatCodeId ?? '',
     inventoryTracking: product.inventoryTracking ?? InventoryTrackingMode.Standard,
     managesStock: product.managesStock ?? true,
   };

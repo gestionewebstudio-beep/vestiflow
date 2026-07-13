@@ -11,6 +11,7 @@ import {
   onlineSalesRegisterGuard,
   retailSalesRegisterGuard,
   salesHistoryGuard,
+  shopifyOrdersGuard,
 } from './retail-sales.guard';
 
 function userWithProfile(profile: User['tenantChannelProfile']): User {
@@ -101,34 +102,51 @@ describe('retail-sales guards', () => {
   });
 
   describe('salesHistoryGuard', () => {
+    it.each([
+      TenantChannelProfile.Gestionale,
+      TenantChannelProfile.Shopify,
+      TenantChannelProfile.TikTokShop,
+    ])('consente il registro Ordini cliente al profilo %s (fase 3 §2)', (profile) => {
+      const auth = TestBed.inject(AuthService);
+      vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(profile));
+
+      const result = TestBed.runInInjectionContext(() =>
+        salesHistoryGuard({} as never, {} as never),
+      );
+      expect(result).toBe(true);
+    });
+
+    it('redirige utente assente alla dashboard', () => {
+      const auth = TestBed.inject(AuthService);
+      vi.mocked(auth.currentUser).mockReturnValue(null);
+
+      const result = TestBed.runInInjectionContext(() =>
+        salesHistoryGuard({} as never, {} as never),
+      );
+      expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/dashboard']);
+      expect(result).not.toBe(true);
+    });
+  });
+
+  describe('shopifyOrdersGuard', () => {
     it('consente accesso al profilo Shopify', () => {
       const auth = TestBed.inject(AuthService);
       vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(TenantChannelProfile.Shopify));
 
       const result = TestBed.runInInjectionContext(() =>
-        salesHistoryGuard({} as never, {} as never),
+        shopifyOrdersGuard({} as never, {} as never),
       );
       expect(result).toBe(true);
     });
 
-    it('consente accesso al profilo TikTok Shop', () => {
-      const auth = TestBed.inject(AuthService);
-      vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(TenantChannelProfile.TikTokShop));
-
-      const result = TestBed.runInInjectionContext(() =>
-        salesHistoryGuard({} as never, {} as never),
-      );
-      expect(result).toBe(true);
-    });
-
-    it('redirige profilo gestionale a registra vendita', () => {
+    it('redirige gli altri profili a Ordini cliente', () => {
       const auth = TestBed.inject(AuthService);
       vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(TenantChannelProfile.Gestionale));
 
       const result = TestBed.runInInjectionContext(() =>
-        salesHistoryGuard({} as never, {} as never),
+        shopifyOrdersGuard({} as never, {} as never),
       );
-      expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/sales/register']);
+      expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/sales']);
       expect(result).not.toBe(true);
     });
   });

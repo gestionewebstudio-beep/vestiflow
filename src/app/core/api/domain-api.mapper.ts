@@ -30,6 +30,7 @@ export interface ProductApiRow {
   readonly catalogOrigin: CatalogOrigin;
   readonly unitOfMeasure?: string;
   readonly defaultVatRatePercent?: number | null;
+  readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: string;
   readonly managesStock?: boolean;
   readonly options: readonly ProductOption[];
@@ -233,6 +234,7 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     catalogOrigin: row.catalogOrigin ?? CatalogOrigin.VestiFlow,
     unitOfMeasure: row.unitOfMeasure ?? 'pz',
     defaultVatRatePercent: row.defaultVatRatePercent ?? undefined,
+    defaultVatCodeId: row.defaultVatCodeId ?? null,
     inventoryTracking: (row.inventoryTracking as Product['inventoryTracking']) ?? undefined,
     managesStock: row.managesStock ?? true,
     options: row.options ?? [],

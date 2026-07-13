@@ -4,6 +4,7 @@ import {
   buildCalendarMonthGrid,
   formatItalianInputDate,
   parseIsoDateLocal,
+  parseItalianDateInput,
   toIsoDateLocal,
   viewMonthFromIso,
 } from './calendar.util';
@@ -30,5 +31,34 @@ describe('calendar.util', () => {
 
   it('parseIsoDateLocal rifiuta date invalide', () => {
     expect(parseIsoDateLocal('2026-02-31')).toBeNull();
+  });
+
+  describe('parseItalianDateInput', () => {
+    it('accetta GG/MM/AAAA completo', () => {
+      expect(parseItalianDateInput('11/07/2026')).toBe('2026-07-11');
+    });
+
+    it('normalizza G/M/AAAA in ISO senza slittamenti', () => {
+      expect(parseItalianDateInput('1/7/2026')).toBe('2026-07-01');
+    });
+
+    it('accetta separatori . e -', () => {
+      expect(parseItalianDateInput('11.07.2026')).toBe('2026-07-11');
+      expect(parseItalianDateInput('11-07-2026')).toBe('2026-07-11');
+    });
+
+    it('espande anno a due cifre come 20xx', () => {
+      expect(parseItalianDateInput('11/07/26')).toBe('2026-07-11');
+    });
+
+    it('rifiuta date inesistenti', () => {
+      expect(parseItalianDateInput('31/02/2026')).toBeNull();
+    });
+
+    it('rifiuta date incomplete o testo libero', () => {
+      expect(parseItalianDateInput('11/07')).toBeNull();
+      expect(parseItalianDateInput('domani')).toBeNull();
+      expect(parseItalianDateInput('')).toBeNull();
+    });
   });
 });

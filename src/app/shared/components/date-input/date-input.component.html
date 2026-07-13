@@ -2,31 +2,42 @@
   class="date-input"
   [class.date-input--compact]="compact()"
   [class.date-input--open]="open()"
-  [class.date-input--invalid]="invalid()"
+  [class.date-input--invalid]="invalid() || parseError()"
 >
-  <button
-    type="button"
-    class="date-input__trigger"
-    [id]="inputId() || null"
-    [attr.aria-label]="ariaLabel()"
-    [attr.aria-invalid]="invalid() ? true : null"
-    [attr.aria-describedby]="describedBy() || null"
-    aria-haspopup="dialog"
-    [attr.aria-expanded]="open()"
-    [disabled]="disabled()"
-    (click)="toggle()"
-    (keydown)="triggerKeydown.emit($event)"
-    (blur)="onTriggerBlur()"
-  >
+  <div class="date-input__control">
     <i class="date-input__icon pi pi-calendar" aria-hidden="true"></i>
-    <span
-      class="date-input__trigger-label"
-      [class.date-input__trigger-label--placeholder]="isEmpty()"
+    <input
+      type="text"
+      class="date-input__field"
+      inputmode="numeric"
+      autocomplete="off"
+      [id]="inputId() || null"
+      [attr.aria-label]="ariaLabel()"
+      [attr.aria-invalid]="invalid() || parseError() ? true : null"
+      [attr.aria-describedby]="describedByIds()"
+      [placeholder]="placeholder()"
+      [disabled]="disabled()"
+      [value]="inputText()"
+      (input)="onFieldInput($any($event.target).value)"
+      (keydown)="onFieldKeydown($event)"
+      (blur)="onFieldBlur()"
+    />
+    <button
+      type="button"
+      class="date-input__toggle"
+      aria-label="Apri calendario"
+      aria-haspopup="dialog"
+      [attr.aria-expanded]="open()"
+      [disabled]="disabled()"
+      (click)="toggle()"
     >
-      {{ displayLabel() }}
-    </span>
-    <i class="date-input__chevron pi pi-chevron-down" aria-hidden="true"></i>
-  </button>
+      <i class="date-input__chevron pi pi-chevron-down" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  @if (parseError()) {
+    <p class="date-input__error" [id]="errorId()">Data non valida: usa il formato GG/MM/AAAA.</p>
+  }
 
   @if (open()) {
     <div class="date-input__panel" role="dialog" [attr.aria-label]="ariaLabel()">

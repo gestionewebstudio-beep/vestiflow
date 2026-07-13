@@ -75,6 +75,7 @@ const PRODUCT_LIST_SELECT = {
   tiktokLastError: true,
   unitOfMeasure: true,
   defaultVatRatePercent: true,
+  defaultVatCodeId: true,
   inventoryTracking: true,
   managesStock: true,
   createdAt: true,
@@ -214,7 +215,9 @@ export class ProductsService {
           currency: true,
           sellingPriceMinor: true,
           purchasePriceMinor: true,
-          product: { select: { name: true, category: true, unitOfMeasure: true } },
+          product: {
+            select: { name: true, category: true, unitOfMeasure: true, defaultVatCodeId: true },
+          },
           ...(query.supplierId
             ? {
                 supplierLinks: {
@@ -268,6 +271,7 @@ export class ProductsService {
         stockOnHand: level?.onHand ?? null,
         category: row.product.category?.trim() || null,
         unitOfMeasure: row.product.unitOfMeasure ?? 'pz',
+        defaultVatCodeId: row.product.defaultVatCodeId ?? null,
       };
     });
 
@@ -323,6 +327,7 @@ export class ProductsService {
         status: dto.status,
         unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
         defaultVatRatePercent: dto.defaultVatRatePercent ?? null,
+        defaultVatCodeId: dto.defaultVatCodeId ?? null,
         inventoryTracking: dto.inventoryTracking ?? undefined,
         managesStock: dto.managesStock ?? true,
         options: dto.options as unknown as Prisma.InputJsonValue,
@@ -381,6 +386,9 @@ export class ProductsService {
             : {}),
           ...(dto.defaultVatRatePercent !== undefined
             ? { defaultVatRatePercent: dto.defaultVatRatePercent }
+            : {}),
+          ...(dto.defaultVatCodeId !== undefined
+            ? { defaultVatCodeId: dto.defaultVatCodeId }
             : {}),
           ...(dto.inventoryTracking !== undefined
             ? { inventoryTracking: dto.inventoryTracking }

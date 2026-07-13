@@ -33,10 +33,12 @@ export const SalesOrderFulfillmentStatus = {
 export type SalesOrderFulfillmentStatus =
   (typeof SalesOrderFulfillmentStatus)[keyof typeof SalesOrderFulfillmentStatus];
 
-/** Canale di vendita. */
+/** Canale di vendita (origine dell'ordine, fase 3 §2: registro multicanale). */
 export const SalesOrderSource = {
   Online: 'online',
   Pos: 'pos',
+  /** Ordine creato manualmente nel gestionale. */
+  Manual: 'manual',
 } as const;
 export type SalesOrderSource = (typeof SalesOrderSource)[keyof typeof SalesOrderSource];
 
@@ -79,12 +81,60 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly total: Money;
   /** Data dell'ordine (Shopify processedAt). */
   readonly placedAt: IsoDateString;
+  /** Annullamento comunicato dal canale (impegni rilasciati). */
+  readonly cancelledAt?: IsoDateString;
+  /** Evasione completa registrata dal canale (scarico in fase successiva). */
+  readonly fulfilledAt?: IsoDateString;
+  /** Evasione parziale o anomalia: richiede verifica manuale (fase 1 §7). */
+  readonly requiresReview?: boolean;
+  readonly reviewReason?: string;
   readonly shopify?: ShopifyLink;
+  /** Quantità ancora impegnata dagli impegni attivi dell'ordine (fase 3 §2). */
+  readonly committedQuantity?: number;
+  /** Location principale degli impegni/scarico (fase 3 §2-§3). */
+  readonly locationName?: string;
   /** DDT vendita collegato (sync Shopify). */
   readonly linkedDocument?: {
     readonly id: EntityId;
     readonly reference?: string;
     readonly type: string;
     readonly status: string;
+  };
+  /** Vendita online generata dall'evasione (fase 2): scarico + Corrispettivo. */
+  readonly onlineSale?: SalesOrderOnlineSaleLink;
+}
+
+/** Stato magazzino della Vendita online collegata. */
+export const OnlineSaleInventoryStatus = {
+  Unloaded: 'unloaded',
+  PartiallyUnloaded: 'partially_unloaded',
+  NotApplied: 'not_applied',
+} as const;
+export type OnlineSaleInventoryStatus =
+  (typeof OnlineSaleInventoryStatus)[keyof typeof OnlineSaleInventoryStatus];
+
+/** Stato della voce Corrispettivo collegata alla Vendita online. */
+export const CorrispettivoEntryStatus = {
+  ToVerify: 'to_verify',
+  Included: 'included',
+  ExcludedInvoiced: 'excluded_invoiced',
+  Adjusted: 'adjusted',
+  Refunded: 'refunded',
+} as const;
+export type CorrispettivoEntryStatus =
+  (typeof CorrispettivoEntryStatus)[keyof typeof CorrispettivoEntryStatus];
+
+/** Riferimento alla Vendita online collegata a un ordine evaso. */
+export interface SalesOrderOnlineSaleLink {
+  readonly id: EntityId;
+  readonly reference: string;
+  readonly fulfilledAt: IsoDateString;
+  readonly inventoryStatus: OnlineSaleInventoryStatus;
+  readonly refundedAt?: IsoDateString;
+  readonly corrispettivo?: {
+    readonly id: EntityId;
+    readonly reference: string;
+    readonly fiscalDate: IsoDateString;
+    readonly status: CorrispettivoEntryStatus;
   };
 }

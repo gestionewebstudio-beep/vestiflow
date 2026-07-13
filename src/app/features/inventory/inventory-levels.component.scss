@@ -142,3 +142,40 @@
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
 }
+
+.inventory-levels__reservations-context {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.inventory-levels__reservations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inventory-levels__reservation {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.inventory-levels__reservation-qty {
+  text-align: end;
+  font-weight: var(--font-weight-semibold);
+}
+
+.inventory-levels__reservation-location {
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}

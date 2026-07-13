@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, combineLatest, filter, map, of, startWith, switchMap, take } from 'rxjs';
 
@@ -134,6 +134,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     ButtonComponent,
     ErrorStateComponent,
     ReactiveFormsModule,
+    RouterLink,
     TableSkeletonComponent,
     LocationTableComponent,
     LocationLicensingPanelComponent,

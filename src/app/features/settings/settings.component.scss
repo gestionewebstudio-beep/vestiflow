@@ -44,6 +44,12 @@
   color: var(--color-text);
 }
 
+.settings__panel-cta {
+  display: inline-flex;
+  margin-block-start: var(--space-3);
+  text-decoration: none;
+}
+
 .settings__panel-hint {
   margin: var(--space-sm) 0 0;
   color: var(--color-text-muted);

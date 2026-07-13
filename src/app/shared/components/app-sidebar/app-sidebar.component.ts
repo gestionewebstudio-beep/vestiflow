@@ -4,11 +4,12 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 
-import type { NavItem } from '@shared/models/nav-item.model';
+import type { NavItem, NavSection } from '@shared/models/nav-item.model';
 import { isNavItemActive } from '@shared/utils/nav-link-active.util';
 
 /**
- * Sidebar di navigazione. Componente dumb puro: nessuna iniezione di servizi,
+ * Sidebar di navigazione a gruppi (es. «Vendite», «Canali online»).
+ * Componente dumb puro: nessuna iniezione di servizi di stato,
  * dati via input(), comunicazione via output().
  */
 @Component({
@@ -31,7 +32,7 @@ export class AppSidebarComponent {
     { initialValue: this.router.url },
   );
 
-  readonly items = input.required<readonly NavItem[]>();
+  readonly sections = input.required<readonly NavSection[]>();
   /** Mostra voce Esci ancorata in fondo alla sidebar. */
   readonly showLogout = input<boolean>(false);
   /** Stato del drawer (mobile): mostra il pulsante di chiusura quando aperto. */

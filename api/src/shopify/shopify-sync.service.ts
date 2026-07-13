@@ -1,18 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  MovementOrigin,
+  OnlineOrderEventType,
   SalesOrderFinancialStatus,
   SalesOrderFiscalStatus,
   SalesOrderFulfillmentStatus,
   SalesOrderSource,
-  StockMovementType,
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { setInventoryAvailableAbsolute } from '../inventory/inventory-level-delta.util';
+import { OnlineOrderLifecycleService } from '../order-reservations/online-order-lifecycle.service';
+import type { ReservationLineInput } from '../order-reservations/stock-reservation.service';
+import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
+import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOrderDocumentService } from './shopify-order-document.service';
+import { resolveShopifyOrderLocationId } from './shopify-order-location.util';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 
 @Injectable()
@@ -24,6 +27,9 @@ export class ShopifySyncService {
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyProductPull: ShopifyProductPullService,
     private readonly shopifyOrderDocument: ShopifyOrderDocumentService,
+    private readonly onlineOrderLifecycle: OnlineOrderLifecycleService,
+    private readonly inventoryReconciliation: ShopifyInventoryReconciliationService,
+    private readonly inventoryPush: ShopifyInventoryPushService,
   ) {}
 
   async handleWebhook(tenantId: string, topic: string, payload: unknown): Promise<void> {
@@ -36,6 +42,7 @@ export class ShopifySyncService {
         break;
       case 'orders/create':
       case 'orders/updated':
+      case 'orders/cancelled':
         await this.applyOrderFromShopify(tenantId, data);
         break;
       case 'inventory_levels/update':
@@ -193,35 +200,67 @@ export class ShopifySyncService {
             },
           });
 
-      await tx.salesOrderLine.deleteMany({ where: { orderId: saved.id } });
+      // Upsert per riga con id esterno stabile (line_item Shopify): gli id
+      // riga VF restano invariati tra webhook, requisito per gli impegni.
+      const lineRows = await Promise.all(
+        lines.map(async (line, index) => {
+          const variantId = await this.resolveVariantId(
+            tenantId,
+            line.variant_id as number | undefined,
+            line.sku as string | undefined,
+          );
+          const unitMinor = shopifyDecimalToMinor(String(line.price ?? '0'));
+          const qty = Number(line.quantity ?? 0);
+          return {
+            externalLineId: line.id != null ? String(line.id) : `pos-${index}`,
+            variantId,
+            sku: String(line.sku ?? '—'),
+            title: String(line.title ?? line.name ?? 'Riga ordine'),
+            quantity: qty,
+            unitPriceMinor: unitMinor,
+            totalMinor: unitMinor * qty,
+          };
+        }),
+      );
 
-      if (lines.length > 0) {
-        await tx.salesOrderLine.createMany({
-          data: await Promise.all(
-            lines.map(async (line) => {
-              const variantId = await this.resolveVariantId(
-                tenantId,
-                line.variant_id as number | undefined,
-                line.sku as string | undefined,
-              );
-              const unitMinor = shopifyDecimalToMinor(String(line.price ?? '0'));
-              const qty = Number(line.quantity ?? 0);
-              return {
-                orderId: saved.id,
-                variantId,
-                sku: String(line.sku ?? '—'),
-                title: String(line.title ?? line.name ?? 'Riga ordine'),
-                quantity: qty,
-                unitPriceMinor: unitMinor,
-                totalMinor: unitMinor * qty,
-              };
-            }),
-          ),
+      // Rimuove righe non più presenti (o legacy senza id esterno): gli
+      // eventuali impegni collegati diventano orfani e verranno rilasciati
+      // dal dominio, mai cancellati silenziosamente.
+      await tx.salesOrderLine.deleteMany({
+        where: {
+          orderId: saved.id,
+          OR: [
+            { externalLineId: null },
+            { externalLineId: { notIn: lineRows.map((row) => row.externalLineId) } },
+          ],
+        },
+      });
+
+      for (const row of lineRows) {
+        await tx.salesOrderLine.upsert({
+          where: {
+            orderId_externalLineId: { orderId: saved.id, externalLineId: row.externalLineId },
+          },
+          create: { orderId: saved.id, ...row },
+          update: {
+            variantId: row.variantId,
+            sku: row.sku,
+            title: row.title,
+            quantity: row.quantity,
+            unitPriceMinor: row.unitPriceMinor,
+            totalMinor: row.totalMinor,
+          },
         });
       }
 
       savedOrderId = saved.id;
     });
+
+    if (savedOrderId) {
+      await this.emitCanonicalOrderEvents(tenantId, savedOrderId, shopifyOrderId, order, {
+        isNew: !existingBefore,
+      });
+    }
 
     if (savedOrderId) {
       try {
@@ -243,81 +282,272 @@ export class ShopifySyncService {
   }
 
   /**
-   * Allinea una giacenza locale al valore `available` Shopify (webhook o import bulk).
-   * @returns esito applicazione; `skipped` se manca mapping variante/location.
+   * Traduzione connettore → eventi canonici ONLINE_ORDER_* (§8 fase 1).
+   * Il dominio quantità (impegni, rilasci, evasioni) non conosce i payload
+   * Shopify: riceve solo eventi interni normalizzati e idempotenti.
+   */
+  private async emitCanonicalOrderEvents(
+    tenantId: string,
+    salesOrderId: string,
+    shopifyOrderId: string,
+    order: Record<string, unknown>,
+    context: { readonly isNew: boolean },
+  ): Promise<void> {
+    const channel = this.mapOrderSource(order);
+    const base = {
+      tenantId,
+      channel,
+      salesOrderId,
+      externalOrderId: shopifyOrderId,
+    } as const;
+
+    const savedLines = await this.prisma.salesOrderLine.findMany({
+      where: { orderId: salesOrderId },
+      select: { id: true, variantId: true, sku: true, quantity: true, externalLineId: true },
+    });
+    const reservationLines: ReservationLineInput[] = savedLines.flatMap((line) =>
+      line.variantId && line.quantity > 0
+        ? [
+            {
+              salesOrderLineId: line.id,
+              variantId: line.variantId,
+              sku: line.sku,
+              quantity: line.quantity,
+              externalLineRef: line.externalLineId,
+            },
+          ]
+        : [],
+    );
+
+    const locationId =
+      reservationLines.length > 0
+        ? await resolveShopifyOrderLocationId(this.prisma, tenantId, order)
+        : null;
+
+    // updated_at distingue aggiornamenti reali dai retry dello stesso webhook.
+    const updatedSuffix =
+      typeof order.updated_at === 'string' && order.updated_at
+        ? order.updated_at
+        : String(Date.now());
+
+    await this.onlineOrderLifecycle.handle({
+      ...base,
+      type: context.isNew
+        ? OnlineOrderEventType.online_order_created
+        : OnlineOrderEventType.online_order_updated,
+      dedupeSuffix: context.isNew ? undefined : updatedSuffix,
+      locationId,
+      lines: reservationLines,
+    });
+
+    const cancelledAtRaw =
+      typeof order.cancelled_at === 'string' && order.cancelled_at ? order.cancelled_at : null;
+    const financial = this.mapFinancialStatus(String(order.financial_status ?? 'pending'));
+    const fulfillment = this.mapFulfillmentStatus(
+      String(order.fulfillment_status ?? 'unfulfilled'),
+    );
+
+    if (cancelledAtRaw || financial === SalesOrderFinancialStatus.voided) {
+      await this.onlineOrderLifecycle.handle({
+        ...base,
+        type: OnlineOrderEventType.online_order_cancelled,
+        occurredAt: cancelledAtRaw ? new Date(cancelledAtRaw) : undefined,
+      });
+    } else if (fulfillment === SalesOrderFulfillmentStatus.fulfilled) {
+      const fulfillmentInfo = this.extractFulfillmentInfo(order);
+      await this.onlineOrderLifecycle.handle({
+        ...base,
+        type: OnlineOrderEventType.online_order_fulfilled,
+        occurredAt: fulfillmentInfo.occurredAt,
+        externalFulfillmentId: fulfillmentInfo.externalFulfillmentId,
+        locationId,
+      });
+    } else if (fulfillment === SalesOrderFulfillmentStatus.partially_fulfilled) {
+      await this.onlineOrderLifecycle.handle({
+        ...base,
+        type: OnlineOrderEventType.online_order_partially_fulfilled,
+      });
+    }
+
+    if (financial === SalesOrderFinancialStatus.refunded) {
+      await this.onlineOrderLifecycle.handle({
+        ...base,
+        type: OnlineOrderEventType.online_order_refunded,
+      });
+    }
+
+    // Restock REALE (fase 2 §8): solo refund line con restock fisico dichiarato
+    // dal canale. Il solo stato "rimborsato" NON genera mai carichi.
+    await this.emitRestockEvents(base, order, savedLines);
+  }
+
+  /**
+   * Eventi canonici `online_order_restocked` dai rimborsi Shopify con
+   * `restock_type` fisico (`return`/`legacy_restock`). Un evento per
+   * rimborso × location, idempotente via dedupe suffix (id refund + location).
+   * `cancel` è escluso: pre-evasione la giacenza non era mai stata scaricata.
+   */
+  private async emitRestockEvents(
+    base: {
+      readonly tenantId: string;
+      readonly channel: SalesOrderSource;
+      readonly salesOrderId: string;
+      readonly externalOrderId: string;
+    },
+    order: Record<string, unknown>,
+    savedLines: readonly {
+      id: string;
+      variantId: string | null;
+      sku: string;
+      quantity: number;
+      externalLineId: string | null;
+    }[],
+  ): Promise<void> {
+    const refunds = Array.isArray(order.refunds)
+      ? (order.refunds as Record<string, unknown>[])
+      : [];
+    if (refunds.length === 0) {
+      return;
+    }
+
+    const lineByExternalId = new Map(
+      savedLines
+        .filter((line) => line.externalLineId !== null)
+        .map((line) => [line.externalLineId as string, line]),
+    );
+
+    for (const refund of refunds) {
+      const refundId = refund.id != null ? String(refund.id) : null;
+      const refundLineItems = Array.isArray(refund.refund_line_items)
+        ? (refund.refund_line_items as Record<string, unknown>[])
+        : [];
+      if (!refundId || refundLineItems.length === 0) {
+        continue;
+      }
+
+      // Raggruppa per location Shopify: un evento restock per location.
+      const byShopifyLocation = new Map<string, ReservationLineInput[]>();
+      for (const item of refundLineItems) {
+        const restockType = typeof item.restock_type === 'string' ? item.restock_type : '';
+        if (restockType !== 'return' && restockType !== 'legacy_restock') {
+          continue;
+        }
+        const quantity = Number(item.quantity ?? 0);
+        const externalLineId = item.line_item_id != null ? String(item.line_item_id) : null;
+        const shopifyLocationId = item.location_id != null ? String(item.location_id) : '';
+        if (!externalLineId || quantity <= 0) {
+          continue;
+        }
+        const orderLine = lineByExternalId.get(externalLineId);
+        if (!orderLine?.variantId) {
+          continue;
+        }
+        const group = byShopifyLocation.get(shopifyLocationId) ?? [];
+        group.push({
+          salesOrderLineId: orderLine.id,
+          variantId: orderLine.variantId,
+          sku: orderLine.sku,
+          quantity,
+          externalLineRef: externalLineId,
+        });
+        byShopifyLocation.set(shopifyLocationId, group);
+      }
+
+      const occurredAtRaw =
+        typeof refund.processed_at === 'string'
+          ? refund.processed_at
+          : typeof refund.created_at === 'string'
+            ? refund.created_at
+            : null;
+
+      for (const [shopifyLocationId, lines] of byShopifyLocation) {
+        const location = shopifyLocationId
+          ? await this.prisma.location.findFirst({
+              where: { tenantId: base.tenantId, shopifyLocationId },
+              select: { id: true },
+            })
+          : null;
+
+        await this.onlineOrderLifecycle.handle({
+          ...base,
+          type: OnlineOrderEventType.online_order_restocked,
+          dedupeSuffix: `${refundId}:${shopifyLocationId || 'default'}`,
+          occurredAt: occurredAtRaw ? new Date(occurredAtRaw) : undefined,
+          locationId: location?.id ?? null,
+          lines,
+        });
+      }
+    }
+  }
+
+  /** Data e id evasione dal payload ordine (primo fulfillment disponibile). */
+  private extractFulfillmentInfo(order: Record<string, unknown>): {
+    occurredAt: Date | undefined;
+    externalFulfillmentId: string | null;
+  } {
+    const fulfillments = order.fulfillments as Record<string, unknown>[] | undefined;
+    const first = fulfillments?.[0];
+    if (!first) {
+      return { occurredAt: undefined, externalFulfillmentId: null };
+    }
+    const createdAt = typeof first.created_at === 'string' ? new Date(first.created_at) : undefined;
+    const externalId =
+      typeof first.admin_graphql_api_id === 'string'
+        ? first.admin_graphql_api_id
+        : first.id != null
+          ? String(first.id)
+          : null;
+    return { occurredAt: createdAt, externalFulfillmentId: externalId };
+  }
+
+  /**
+   * Riconcilia un valore `available` osservato su Shopify (webhook o import bulk).
+   * NON sovrascrive Giacenza/Impegnata/Disponibile VestiFlow (policy post-audit §6).
    */
   async applyInventoryLevelFromShopify(
     tenantId: string,
     shopifyInventoryItemId: string,
     shopifyLocationId: string,
     available: number,
-    reason: string,
+    _reason: string,
   ): Promise<'created' | 'updated' | 'unchanged' | 'skipped'> {
-    if (!Number.isFinite(available)) {
-      return 'skipped';
+    const outcome = await this.inventoryReconciliation.reconcileFromShopifyWebhook(
+      tenantId,
+      shopifyInventoryItemId,
+      shopifyLocationId,
+      available,
+    );
+
+    if (outcome === 'mismatch_republish') {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { tenantId, shopifyInventoryItemId },
+        select: { id: true },
+      });
+      const location = await this.prisma.location.findFirst({
+        where: { tenantId, shopifyLocationId },
+        select: { id: true },
+      });
+      if (variant && location) {
+        void this.inventoryPush
+          .pushLevel(tenantId, variant.id, location.id)
+          .catch((error: unknown) => {
+            const message =
+              error instanceof Error ? error.message : 'Ripubblicazione inventario fallita';
+            this.logger.warn(`Caso D ripubblicazione (${tenantId}): ${message}`);
+          });
+      }
+      return 'updated';
     }
 
-    const variant = await this.prisma.productVariant.findFirst({
-      where: { tenantId, shopifyInventoryItemId },
-      select: { id: true, sku: true },
-    });
-    const location = await this.prisma.location.findFirst({
-      where: { tenantId, shopifyLocationId },
-      select: { id: true },
-    });
-
-    if (!variant || !location) {
-      this.logger.debug(
-        `Inventory sync skipped: mapping mancante item=${shopifyInventoryItemId} loc=${shopifyLocationId}`,
-      );
-      return 'skipped';
+    switch (outcome) {
+      case 'reconciled':
+      case 'echo_confirmed':
+        return 'unchanged';
+      case 'deferred':
+        return 'skipped';
+      default:
+        return 'skipped';
     }
-
-    const normalizedAvailable = Math.max(0, Math.trunc(available));
-
-    return this.prisma.$transaction(async (tx) => {
-      const level = await tx.inventoryLevel.findUnique({
-        where: { variantId_locationId: { variantId: variant.id, locationId: location.id } },
-      });
-
-      const before = level?.available ?? 0;
-      const delta = normalizedAvailable - before;
-      if (delta === 0) {
-        return 'unchanged' as const;
-      }
-
-      if (level) {
-        await setInventoryAvailableAbsolute(tx, level.id, normalizedAvailable);
-      } else {
-        await tx.inventoryLevel.create({
-          data: {
-            tenantId,
-            variantId: variant.id,
-            locationId: location.id,
-            onHand: normalizedAvailable,
-            available: normalizedAvailable,
-            minThreshold: 0,
-          },
-        });
-      }
-
-      await tx.stockMovement.create({
-        data: {
-          tenantId,
-          type: delta > 0 ? StockMovementType.return : StockMovementType.sale,
-          origin: MovementOrigin.shopify,
-          variantId: variant.id,
-          sku: variant.sku,
-          locationId: location.id,
-          quantity: Math.abs(delta),
-          reason,
-          externalRef: `inventory_item:${shopifyInventoryItemId}`,
-          createdByName: 'Shopify',
-        },
-      });
-
-      return level ? ('updated' as const) : ('created' as const);
-    });
   }
 
   private async resolveVariantId(

@@ -7,6 +7,8 @@ export interface NavItem {
   readonly icon: string;
   /** Route assoluta di destinazione (es. '/app/dashboard'). */
   readonly route: string;
+  /** Query params della destinazione (es. { type: 'proforma' } sul registro documenti). */
+  readonly queryParams?: Readonly<Record<string, string>>;
   /**
    * Prefisso usato per evidenziare la voce su tutte le sotto-route della sezione
    * (es. '/app/inventory' quando `route` punta a '/app/inventory/lookup').
@@ -14,6 +16,17 @@ export interface NavItem {
   readonly activeRoutePrefix?: string;
   /** Route escluse dall'evidenza (es. '/app/sales/register' per la voce Vendite). */
   readonly activeRouteExclude?: readonly string[];
+  /** Voce non ancora attiva (feature in preparazione): mostrata ma non navigabile. */
+  readonly disabled?: boolean;
   /** Opzioni legacy per evidenziare la voce; preferire activeRoutePrefix. */
   readonly linkActiveOptions?: IsActiveMatchOptions;
+}
+
+/** Gruppo di voci sidebar con intestazione opzionale (es. «Vendite»). */
+export interface NavSection {
+  /** Chiave stabile per il track del template. */
+  readonly id: string;
+  /** Intestazione visibile del gruppo; assente per il gruppo principale. */
+  readonly label?: string;
+  readonly items: readonly NavItem[];
 }

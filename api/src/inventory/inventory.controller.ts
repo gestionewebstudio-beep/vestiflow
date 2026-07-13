@@ -45,8 +45,8 @@ import { ExportInventoryLevelsQueryDto } from './dto/export-inventory-levels.que
 import { ImportInventoryBodyDto } from './dto/import-inventory-body.dto';
 import { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
 import { ListInventoryLevelsQueryDto, ListMovementsQueryDto } from './dto/inventory-queries.dto';
+import { ListReservationsQueryDto } from './dto/list-reservations.query.dto';
 import { RegisterMovementDto } from './dto/register-movement.dto';
-import { RegisterRetailScanDto } from './dto/register-retail-scan.dto';
 import { SetLicensedLocationsDto } from './dto/set-licensed-locations.dto';
 import { UpdateInventoryLevelDto } from './dto/update-inventory-level.dto';
 import { UpdateCountLineDto } from './dto/update-count-line.dto';
@@ -58,8 +58,22 @@ import {
 import { InventoryExportService } from './inventory-export.service';
 import { InventoryImportService } from './inventory-import.service';
 import { InventoryReportService } from './inventory-report.service';
-import { InventoryService, type InventoryLevelWithRefs, type RetailScanResult } from './inventory.service';
+import { InventoryService, type InventoryLevelWithRefs } from './inventory.service';
 import { LocationLicensingService } from './location-licensing.service';
+import { StockReservationService } from '../order-reservations/stock-reservation.service';
+import type { SalesOrderSource } from '@prisma/client';
+
+/** Riga drill-down Impegnata: ordine che compone la quantità impegnata. */
+export interface ReservationListRowDto {
+  readonly id: string;
+  readonly orderNumber: string;
+  readonly channel: SalesOrderSource;
+  readonly quantity: number;
+  readonly sku: string;
+  readonly locationName: string;
+  readonly placedAt: string;
+  readonly createdAt: string;
+}
 
 @Controller('inventory')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -71,6 +85,7 @@ export class InventoryController {
     private readonly inventoryImport: InventoryImportService,
     private readonly inventoryReport: InventoryReportService,
     private readonly locationLicensing: LocationLicensingService,
+    private readonly stockReservations: StockReservationService,
   ) {}
 
   @Get('locations')
@@ -162,6 +177,30 @@ export class InventoryController {
     return this.inventory.listLevels(tenantId, query, user);
   }
 
+  /** Impegni attivi che compongono la Impegnata (drill-down §10 fase 1). */
+  @Get('reservations')
+  @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
+  async listReservations(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ListReservationsQueryDto,
+  ): Promise<ReservationListRowDto[]> {
+    const reservations = await this.stockReservations.listActiveForLevel(
+      tenantId,
+      query.variantId,
+      query.locationId,
+    );
+    return reservations.map((reservation) => ({
+      id: reservation.id,
+      orderNumber: reservation.order.orderNumber,
+      channel: reservation.channel,
+      quantity: reservation.remainingQuantity,
+      sku: reservation.sku,
+      locationName: reservation.location.name,
+      placedAt: reservation.order.placedAt.toISOString(),
+      createdAt: reservation.createdAt.toISOString(),
+    }));
+  }
+
   @Patch('levels/:id')
   @RequirePermissions(TenantPermission.InventoryManage)
   updateLevelMinThreshold(
@@ -191,40 +230,6 @@ export class InventoryController {
     @Body() dto: RegisterMovementDto,
   ): Promise<StockMovement> {
     return this.inventory.registerMovement(tenantId, dto, user.displayName, user.id, user);
-  }
-
-  @Post('retail-scans')
-  @RequirePermissions(TenantPermission.RetailRegister)
-  registerRetailScan(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Body() dto: RegisterRetailScanDto,
-  ): Promise<RetailScanResult> {
-    return this.inventory.registerRetailScan(
-      tenantId,
-      dto,
-      user.displayName,
-      user.id,
-      user,
-      'in_store',
-    );
-  }
-
-  @Post('retail-scans/online')
-  @RequirePermissions(TenantPermission.RetailRegisterOnline)
-  registerOnlineScan(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Body() dto: RegisterRetailScanDto,
-  ): Promise<RetailScanResult> {
-    return this.inventory.registerRetailScan(
-      tenantId,
-      dto,
-      user.displayName,
-      user.id,
-      user,
-      'online',
-    );
   }
 
   @Get('counts')

@@ -54,7 +54,7 @@
   <!-- Sidebar persistente (desktop) / drawer (mobile). -->
   <aside id="shell-sidebar" class="shell__sidebar">
     <app-sidebar
-      [items]="navItems()"
+      [sections]="navSections()"
       [showLogout]="showSidebarLogout()"
       [drawerOpen]="drawerOpen()"
       (closeRequested)="closeDrawer()"

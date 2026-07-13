@@ -44,11 +44,17 @@
   font-weight: var(--font-weight-medium);
 }
 
+// Testo secondario ricorrente (hint, info, trigger di menu).
+.gr-form__po-link-hint,
+.gr-form__autosave-hint,
+.gr-form__scan-hint,
+.gr-form__line-total-gross,
+.gr-form__totals-row--info,
+.gr-form__th-info,
+.gr-form__th-menu-trigger,
 .gr-form__po-link-hint {
   display: block;
   margin-top: var(--space-1);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
 }
 
 .gr-form__import-summary {
@@ -131,10 +137,6 @@
   @include bp.media-up('xl') {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
-}
-
-.gr-form__grid--header-secondary {
-  margin-block-start: 0;
 }
 
 .gr-form__header .gr-form__field {
@@ -262,8 +264,7 @@
   overflow-y: auto;
 }
 
-.gr-form__supplier-actions,
-.gr-form__quick-actions {
+.gr-form__supplier-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
@@ -304,8 +305,6 @@
 
 .gr-form__autosave-hint {
   margin: 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
 
   &--saved {
     color: var(--status-success-fg);
@@ -319,21 +318,10 @@
   word-break: break-word;
 }
 
-.gr-form__cell--code {
+.gr-form__cell--code,
+.gr-form__cell--vat {
   min-inline-size: 0;
   overflow: visible;
-}
-
-.gr-form__linked-variant {
-  margin: 0;
-  font-size: var(--text-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.gr-form__inline-toggle--primary {
-  font-weight: var(--font-weight-medium);
 }
 
 .gr-form__fieldset {
@@ -361,14 +349,6 @@
   box-shadow: inset var(--space-1) 0 0 0 var(--status-warning-border);
 }
 
-.gr-form__table tbody tr.gr-form__table-row--scan {
-  position: sticky;
-  inset-block-end: 0;
-  z-index: 2;
-  background-color: var(--color-surface-muted);
-  box-shadow: 0 calc(var(--border-width) * -1) 0 var(--color-border);
-}
-
 .gr-form__cell--editable {
   background-color: var(--color-surface);
 }
@@ -378,15 +358,33 @@
   color: var(--color-text-muted);
 }
 
-.gr-form__cell--scan {
-  padding: var(--space-2) var(--space-3);
-}
-
 .gr-form__scan-inline {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
+  margin-block-start: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface-muted);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/* Vista mobile (§10.10): card al posto della tabella sotto md. */
+.gr-form__cards {
+  display: none;
+}
+
+@include bp.media-down('md') {
+  .gr-form__table-wrap {
+    display: none;
+  }
+
+  .gr-form__cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
 }
 
 .gr-form__scan-label {
@@ -403,14 +401,10 @@
 .gr-form__scan-hint {
   margin: 0;
   flex: 1 1 100%;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
 }
 
 .gr-form__line-total-gross {
   display: block;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
   text-decoration: line-through;
 }
 
@@ -444,12 +438,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.gr-form__total-struck {
-  margin-inline-end: var(--space-2);
-  color: var(--color-text-muted);
-  text-decoration: line-through;
-}
-
 .gr-form__totals-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -464,10 +452,15 @@
   inline-size: var(--space-16);
 }
 
-.gr-form__totals-row--total {
+// Il riepilogo IVA per Codice (§10.2) riusa le righe dei totali.
+.gr-form__totals-row--total,
+.gr-form__vat-summary {
   margin-block-start: var(--space-1);
   padding-block-start: var(--space-2);
   border-block-start: var(--border-width) solid var(--color-border);
+}
+
+.gr-form__totals-row--total {
   font-size: var(--text-base);
 }
 
@@ -539,8 +532,6 @@
 }
 
 .gr-form__th-info {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
   cursor: help;
 }
 
@@ -555,10 +546,6 @@
 
 .gr-form__num {
   text-align: end;
-}
-
-.gr-form__cell--variant {
-  min-inline-size: calc(var(--space-16) * 2);
 }
 
 .gr-form__cell--check {
@@ -591,10 +578,6 @@
     outline: none;
     box-shadow: none;
   }
-}
-
-.gr-form__quick-row td {
-  background-color: var(--color-surface-sunken);
 }
 
 .gr-form__form--readonly .gr-form__actions app-button[type='submit'] {
@@ -661,6 +644,76 @@
   inline-size: 100%;
 }
 
+// ── Menu di intestazione colonna (modalità costi §11, IVA a tutte le righe §10) ──
+// Il focus visibile arriva dal selettore globale in styles.scss.
+
+.gr-form__th-menu-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  inline-size: 100%;
+
+  .gr-form__th-sort--num {
+    inline-size: auto;
+  }
+}
+
+.gr-form__th-menu-trigger,
+.gr-form__th-menu-item {
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.gr-form__th-menu-trigger {
+  padding: 0 var(--space-1);
+
+  &:hover {
+    color: var(--color-primary);
+  }
+}
+
+.gr-form__th-menu {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-end: 0;
+  z-index: var(--z-dropdown);
+  display: grid;
+  padding: var(--space-1);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.gr-form__th-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-regular);
+  text-align: start;
+  white-space: nowrap;
+  color: var(--color-text);
+
+  &:hover {
+    background-color: var(--color-surface-hover);
+  }
+}
+
+.gr-form__th-menu-check {
+  inline-size: var(--space-3);
+}
+
+.gr-form__menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-dropdown) - 1);
+}
+
 .gr-form__attachments {
   margin-block-start: var(--space-4);
 }
@@ -700,43 +753,6 @@
   position: relative;
 }
 
-.gr-form__line-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.gr-form__line-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.gr-form__line {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  background-color: var(--color-surface-sunken);
-  border-radius: var(--radius-md);
-}
-
-@include bp.media-up('lg') {
-  .gr-form__line {
-    grid-template-columns:
-      minmax(0, 2fr) minmax(0, 2fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 0.7fr)
-      auto minmax(0, 1fr) auto;
-    align-items: start;
-  }
-}
-
-.gr-form__line-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-inline-size: 0;
-}
-
 .gr-form__check {
   display: inline-flex;
   align-items: center;
@@ -744,10 +760,6 @@
   font-size: var(--text-sm);
   color: var(--color-text);
   cursor: pointer;
-}
-
-.gr-form__line-total {
-  font-weight: var(--font-weight-medium);
 }
 
 .gr-form__line-remove,
@@ -798,29 +810,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.gr-form__quick-create {
-  padding: var(--space-4);
-  background-color: var(--color-surface);
-  border: var(--border-width) dashed var(--color-border-strong);
-  border-radius: var(--radius-md);
-}
-
-.gr-form__quick-title {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-base);
-  font-weight: var(--font-weight-semibold);
-}
-
-.gr-form__disclaimer {
-  margin: 0;
-  padding: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  background-color: var(--color-surface-muted);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
 }
 
 .gr-form__textarea {
@@ -1028,11 +1017,6 @@
   }
 }
 
-.gr-form__causal-default {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
 .gr-form__causal-empty {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
@@ -1054,8 +1038,10 @@
   line-height: var(--leading-normal);
 }
 
-.gr-form__causal-new {
+.gr-form__causal-new,
+.gr-form__type-new {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
 
   .gr-form__input {
@@ -1123,4 +1109,29 @@
   &--danger:hover:not(:disabled) {
     color: var(--color-danger);
   }
+}
+
+// Gestione tipi documento fornitore (§6) — riusa il layout del pannello causali.
+.gr-form__type-inactive .gr-form__causal-manage-label {
+  color: var(--color-text-muted);
+}
+
+.gr-form__type-short {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.gr-form__type-edit-fields {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+// Finestra "Nuovo tipo documento fornitore" (§5).
+.gr-form__type-dialog-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
 }

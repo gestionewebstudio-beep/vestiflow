@@ -185,15 +185,16 @@
     </div>
 
     <div class="general-step__field">
-      <span class="general-step__label" id="product-vat-label">IVA predefinita</span>
+      <span class="general-step__label" id="product-vat-label">Codice IVA</span>
       <app-select-menu
-        [options]="vatSelectOptions"
+        [options]="vatSelectOptions()"
         [value]="vatSelectValue()"
-        ariaLabel="Aliquota IVA predefinita"
-        placeholder="22%"
+        ariaLabel="Codice IVA del prodotto"
+        placeholder="Predefinito aziendale"
         [compact]="true"
         [fullWidth]="true"
         [includeEmptyOption]="true"
+        [searchable]="true"
         (valueChange)="onVatSelect($event)"
       />
     </div>

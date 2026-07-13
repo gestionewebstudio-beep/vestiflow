@@ -6,6 +6,7 @@ import type {
   TenantScoped,
   Timestamped,
 } from './common.model';
+import type { PurchaseCostEntryMode, VatSnapshot } from './vat-code.model';
 
 /** Tipo di documento gestionale (§2.1 piano funzionale). */
 export const DocumentType = {
@@ -23,6 +24,9 @@ export const DocumentType = {
   Inventory: 'inventory',
   Proforma: 'proforma',
   InvoiceDraft: 'invoice_draft',
+  // Fase 3: creati solo dal flusso cassa (mai dai form documenti generici).
+  StoreSale: 'store_sale',
+  StoreReturn: 'store_return',
 } as const;
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
 
@@ -53,14 +57,12 @@ export const GoodsReceiptLinkStatus = {
 export type GoodsReceiptLinkStatus =
   (typeof GoodsReceiptLinkStatus)[keyof typeof GoodsReceiptLinkStatus];
 
-/** Tipo riferimento documento fornitore sull'Arrivo merce (§9.3). */
-export const SupplierRefType = {
-  Ddt: 'ddt',
-  Invoice: 'invoice',
-  Return: 'return',
-  Other: 'other',
+/** Modalità causale di carico: generata dal modello o testo manuale (§10). */
+export const CausalGenerationMode = {
+  Auto: 'auto',
+  Manual: 'manual',
 } as const;
-export type SupplierRefType = (typeof SupplierRefType)[keyof typeof SupplierRefType];
+export type CausalGenerationMode = (typeof CausalGenerationMode)[keyof typeof CausalGenerationMode];
 
 /** Fattura registrata collegata a un Arrivo merce. */
 export interface LinkedPurchaseInvoiceInfo {
@@ -93,7 +95,14 @@ export interface DocumentLine {
   readonly quantity: number;
   readonly unitPrice: Money;
   readonly discountPercent: number;
+  /** LEGACY: sostituito da vatCodeId/vatSnapshot; mantenuto per compatibilità. */
   readonly vatRatePercent?: number;
+  /** Codice IVA della riga (tabella vat_codes, §9). */
+  readonly vatCodeId?: EntityId;
+  /** Snapshot IVA salvato alla registrazione (indipendente da modifiche future). */
+  readonly vatSnapshot?: VatSnapshot;
+  /** Costo unitario digitato (unità minori) nella modalità costo del documento. */
+  readonly enteredUnitCostMinor?: number;
   readonly lineTotal: Money;
   /** Flag "carica magazzino": righe spese/servizi non movimentano stock. */
   readonly loadsStock: boolean;
@@ -151,14 +160,22 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly billingCause?: string;
   /** Causale di carico (Arrivo merce, prompt §9.2). */
   readonly causalText?: string;
-  /** Tipo riferimento documento fornitore (Arrivo merce, prompt §9.3). */
-  readonly supplierRefType?: SupplierRefType;
+  /** Modalità causale: auto (dal modello) o manual (testo utente, §10). */
+  readonly causalGenerationMode?: CausalGenerationMode;
+  /** Modello causale usato in modalità auto (snapshot, §13). */
+  readonly causalTemplateSnapshot?: string;
+  /** Tipo documento fornitore (tabella per tenant, §3-4). */
+  readonly externalDocumentTypeId?: EntityId;
+  /** Snapshot etichetta breve del tipo al salvataggio (storico stabile, §13). */
+  readonly externalDocumentTypeSnapshot?: string;
   readonly currency: CurrencyCode;
   readonly subtotal: Money;
   readonly tax: Money;
   readonly total: Money;
   readonly documentDiscountPercent?: number;
   readonly pricesIncludeVat: boolean;
+  /** Modalità costi dell'Arrivo merce: netti o ivati (§11.1). */
+  readonly purchaseCostEntryMode?: PurchaseCostEntryMode;
   readonly createdByName: string;
   readonly confirmedAt?: IsoDateString;
   readonly cancelledAt?: IsoDateString;

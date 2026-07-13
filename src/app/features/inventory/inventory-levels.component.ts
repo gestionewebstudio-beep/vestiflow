@@ -65,8 +65,14 @@ import { TableColumnPickerComponent } from '@shared/components/table-column-pick
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+
 import { InventoryLevelTableComponent } from './components/inventory-level-table/inventory-level-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
+import {
+  reservationChannelLabel,
+  type StockReservationRow,
+} from './models/stock-reservation.model';
 import type { InventoryLevelListItem } from './models/inventory-list.mapper';
 import type { InventoryLevelRow } from './models/inventory-view.model';
 import {
@@ -120,6 +126,7 @@ const EMPTY_META: PageMeta = {
     InventoryLevelTableComponent,
     ShopifySyncFeedbackComponent,
     TableColumnPickerComponent,
+    SlidePanelComponent,
   ],
   templateUrl: './inventory-levels.component.html',
   styleUrl: './inventory-levels.component.scss',
@@ -171,6 +178,14 @@ export class InventoryLevelsComponent {
   );
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
+
+  // Drill-down Impegnata (§10 fase 1): ordini che compongono la quantità.
+  protected readonly reservationsTarget = signal<InventoryLevelRow | null>(null);
+  protected readonly reservationsPanelOpen = computed(() => this.reservationsTarget() !== null);
+  protected readonly reservations = signal<readonly StockReservationRow[]>([]);
+  protected readonly reservationsLoading = signal(false);
+  protected readonly reservationsError = signal<string | null>(null);
+  protected readonly channelLabel = reservationChannelLabel;
 
   protected readonly showShopifyInventorySync = computed(() => {
     const user = this.authService.currentUser();
@@ -318,6 +333,7 @@ export class InventoryLevelsComponent {
         (level): InventoryLevelRow => ({
           id: level.id,
           variantId: level.variantId,
+          locationId: level.locationId,
           sku: level.displaySku,
           title: level.displayTitle,
           locationName:
@@ -408,6 +424,42 @@ export class InventoryLevelsComponent {
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
+  }
+
+  protected openReservations(row: InventoryLevelRow): void {
+    this.reservationsTarget.set(row);
+    this.loadReservations(row);
+  }
+
+  protected closeReservations(): void {
+    this.reservationsTarget.set(null);
+    this.reservations.set([]);
+    this.reservationsError.set(null);
+  }
+
+  protected reloadReservations(): void {
+    const target = this.reservationsTarget();
+    if (target) {
+      this.loadReservations(target);
+    }
+  }
+
+  private loadReservations(row: InventoryLevelRow): void {
+    this.reservationsLoading.set(true);
+    this.reservationsError.set(null);
+    this.inventoryService
+      .getReservations(row.variantId, row.locationId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rows) => {
+          this.reservations.set(rows);
+          this.reservationsLoading.set(false);
+        },
+        error: (err: unknown) => {
+          this.reservationsLoading.set(false);
+          this.reservationsError.set(this.extractErrorMessage(err));
+        },
+      });
   }
 
   protected newMovement(): void {

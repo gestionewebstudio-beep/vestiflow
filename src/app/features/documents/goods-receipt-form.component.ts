@@ -37,12 +37,20 @@ import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard'
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
 import type { LinkedSupplierOrderLineContext } from '@core/models/document.model';
-import { DocumentStatus, DocumentType, SupplierRefType } from '@core/models/document.model';
+import { CausalGenerationMode, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import { ProductStatus } from '@core/models/product.model';
+import {
+  formatVatRate,
+  isPurchaseVatCode,
+  vatCodeOptionLabel,
+  type PurchaseCostEntryMode,
+  type VatCode,
+} from '@core/models/vat-code.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { VatCodeService } from '@core/services/vat-code.service';
 import {
   DEFAULT_CURRENCY,
   formatMoney,
@@ -52,10 +60,7 @@ import {
 } from '@core/utils/money.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
-import {
-  applyDiscountMinor,
-  parseEffectiveDiscountPercent,
-} from '@core/utils/discount-percent.util';
+import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
 import type { Supplier } from '@core/models/supplier.model';
 import { normalizeSku } from '@features/products/models/product-form.validators';
 import { ProductService } from '@features/products/services/product.service';
@@ -85,6 +90,7 @@ import { TableColumnPreferenceService } from '@shared/table-columns/table-column
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import { toIsoDateLocal } from '@shared/utils/calendar.util';
 
 import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
 import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
@@ -92,6 +98,7 @@ import { ProductFormComponent } from '@features/products/product-form.component'
 
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import type { VariantByCodeDto } from '@features/products/models/product.dto';
+import { GoodsReceiptLineCardComponent } from './components/goods-receipt-line-card/goods-receipt-line-card.component';
 import { GoodsReceiptLineCodeCellComponent } from './components/goods-receipt-line-code-cell/goods-receipt-line-code-cell.component';
 import { GoodsReceiptLineProductCellComponent } from './components/goods-receipt-line-product-cell/goods-receipt-line-product-cell.component';
 import { GoodsReceiptProductSearchPanelComponent } from './components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
@@ -108,8 +115,11 @@ import {
   documentStatusDisplayTone,
 } from './models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
+import { renderCausalTemplate } from './models/causal-template.util';
+import type { ExternalDocumentType } from './models/external-document-type.model';
 import type { GoodsReceiptCausal } from './models/goods-receipt-causal.model';
 import { DocumentService } from './services/document.service';
+import { ExternalDocumentTypeService } from './services/external-document-type.service';
 import { GoodsReceiptCausalService } from './services/goods-receipt-causal.service';
 import type { SaveGoodsReceiptBody } from './services/document-api.mapper';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
@@ -124,6 +134,17 @@ import {
   compareGoodsReceiptLines,
   type GoodsReceiptLineSortColumn,
 } from './utils/goods-receipt-line-sort.util';
+import {
+  buildVatSummary,
+  computeVatLineAmounts,
+  entryIncludesVat,
+  grossFromNetMinor,
+  netFromGrossMinor,
+  vatInputFromLegacyRate,
+  vatInputFromVatCode,
+  type VatComputationInput,
+  type VatLineAmounts,
+} from './utils/goods-receipt-vat.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -173,6 +194,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
     HoverTooltipComponent,
     TableColumnResizeDirective,
     DocumentAttachmentsPanelComponent,
+    GoodsReceiptLineCardComponent,
     GoodsReceiptLineCodeCellComponent,
     GoodsReceiptLineProductCellComponent,
     GoodsReceiptProductSearchPanelComponent,
@@ -187,12 +209,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
   private readonly causalService = inject(GoodsReceiptCausalService);
+  private readonly externalTypeService = inject(ExternalDocumentTypeService);
   private readonly supplierService = inject(SupplierService);
   private readonly supplierOrderService = inject(SupplierOrderService);
   private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
+  private readonly vatCodeService = inject(VatCodeService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -200,6 +224,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly listPath = '/app/documents/arrivi-merce';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
+  protected readonly formatVatRate = formatVatRate;
   protected readonly documentTypeLabel = documentTypeLabel;
 
   private readonly columnPreferences = inject(TableColumnPreferenceService);
@@ -296,6 +321,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly receivableOrdersLoading = signal(false);
   protected readonly receivableOrdersError = signal<AppError | null>(null);
   protected readonly csvImportSummary = signal<string | null>(null);
+  protected readonly saveWarnings = signal<readonly string[]>([]);
   protected readonly barcodeScanMode = signal(false);
   protected readonly barcodeScanDraft = signal('');
   protected readonly barcodeScanBusy = signal(false);
@@ -315,6 +341,62 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
     { initialValue: null as TenantFeatureSettings | null },
   );
+
+  // ── Codici IVA e modalità costo (§9–§14) ────────────────────────────────────
+  protected readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+
+  private readonly vatCodeById = computed(
+    () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
+  );
+
+  /** Codici attivi utilizzabili in acquisto, ordinati come in Impostazioni. */
+  private readonly purchaseVatCodes = computed(() =>
+    this.vatCodes().filter((vatCode) => vatCode.isActive && isPurchaseVatCode(vatCode)),
+  );
+
+  protected readonly purchaseVatOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.purchaseVatCodes().map((vatCode) => this.vatOptionFromCode(vatCode)),
+  );
+
+  /** Codice IVA predefinito aziendale (impostazioni → flag isDefault attivo). */
+  private readonly defaultVatCodeId = computed(() => {
+    const codes = this.vatCodes();
+    const settingsId = this.tenantSettings()?.defaultVatCodeId;
+    const fromSettings = settingsId
+      ? codes.find((vatCode) => vatCode.id === settingsId && vatCode.isActive)
+      : undefined;
+    const fallback = codes.find((vatCode) => vatCode.isDefault && vatCode.isActive);
+    return (fromSettings ?? fallback)?.id ?? '';
+  });
+
+  /** Modalità costi del documento (§11.1): unica per l'intero Arrivo merce. */
+  protected readonly costEntryMode = signal<PurchaseCostEntryMode>('vat_excluded');
+  /** True dopo scelta utente o caricamento documento: il default non riapplica. */
+  private costEntryModeTouched = false;
+  protected readonly costModeMenuOpen = signal(false);
+  protected readonly vatHeaderMenuOpen = signal(false);
+  /** Conferma conversione costi al cambio modalità (§12). */
+  protected readonly costModeDialogOpen = signal(false);
+  private readonly pendingCostMode = signal<PurchaseCostEntryMode | null>(null);
+  // Dialog "Imposta IVA a tutte le righe" (§10).
+  protected readonly applyVatDialogOpen = signal(false);
+  protected readonly applyVatCodeId = signal('');
+
+  protected readonly costModeLabel = computed(() =>
+    this.costEntryMode() === 'vat_included' ? 'Costo ivato' : 'Costo netto',
+  );
+
+  /** Copia l'impostazione tenant nei nuovi documenti (mai in quelli caricati). */
+  private readonly costModeDefaultEffect = effect(() => {
+    const settings = this.tenantSettings();
+    if (!settings || this.editDocumentId() || this.costEntryModeTouched) {
+      return;
+    }
+    this.costEntryMode.set(settings.defaultPurchaseCostEntryMode ?? 'vat_excluded');
+  });
 
   protected readonly operationalStatusWarning = computed(() => {
     const status = this.documentStatus();
@@ -484,15 +566,63 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     })),
   );
 
-  // ── Causale di carico (prompt §1.2, §9.3) ──────────────────────────────────
-  protected readonly supplierRefTypeOptions: readonly SelectMenuOption[] = [
-    { value: '', label: '—' },
-    { value: SupplierRefType.Ddt, label: 'DDT' },
-    { value: SupplierRefType.Invoice, label: 'Fattura' },
-    { value: SupplierRefType.Return, label: 'Reso' },
-    { value: SupplierRefType.Other, label: 'Altro' },
-  ];
+  // ── Documento fornitore: tipi per tenant (prompt §3-6) ─────────────────────
+  /** Valore-azione nella tendina: apre la finestra "Nuovo tipo documento". */
+  protected readonly NEW_TYPE_OPTION = '__new-type__';
+  /** Valore-azione nella tendina: apre il pannello "Gestisci tipi documento". */
+  protected readonly MANAGE_TYPES_OPTION = '__manage-types__';
 
+  private readonly externalTypesReload = signal(0);
+  protected readonly externalDocTypes = toSignal(
+    toObservable(this.externalTypesReload).pipe(
+      switchMap(() =>
+        this.externalTypeService
+          .list()
+          .pipe(catchError(() => of([] as readonly ExternalDocumentType[]))),
+      ),
+    ),
+    { initialValue: [] as readonly ExternalDocumentType[] },
+  );
+
+  protected readonly externalDocTypeOptions = computed<readonly SelectMenuOption[]>(() => {
+    const selectedId = this.selectedExternalTypeId();
+    const options: SelectMenuOption[] = [{ value: '', label: '—' }];
+    for (const type of this.externalDocTypes()) {
+      // I tipi disattivati non si propongono, ma restano visibili se già
+      // selezionati sul documento storico (§6).
+      if (type.isActive || type.id === selectedId) {
+        options.push({ value: type.id, label: type.shortLabel || type.name });
+      }
+    }
+    options.push({ value: this.NEW_TYPE_OPTION, label: 'Altro / Nuovo tipo…' });
+    options.push({ value: this.MANAGE_TYPES_OPTION, label: 'Gestisci tipi documento…' });
+    return options;
+  });
+
+  /** Id tipo selezionato (specchio del form control, per computed reattivi). */
+  private readonly selectedExternalTypeId = signal('');
+
+  // Finestra "Nuovo tipo documento fornitore" (§5).
+  protected readonly newTypeDialogOpen = signal(false);
+  protected readonly newTypeName = signal('');
+  protected readonly newTypeShortLabel = signal('');
+  protected readonly newTypeTemplate = signal('');
+  protected readonly newTypeBusy = signal(false);
+  protected readonly newTypeError = signal<string | null>(null);
+
+  // Pannello "Gestisci tipi documento…" (§6).
+  protected readonly typePanelOpen = signal(false);
+  protected readonly typePanelBusy = signal(false);
+  protected readonly typePanelError = signal<string | null>(null);
+  protected readonly addTypeName = signal('');
+  protected readonly addTypeShortLabel = signal('');
+  protected readonly addTypeTemplate = signal('');
+  protected readonly editingTypeId = signal<string | null>(null);
+  protected readonly editingTypeName = signal('');
+  protected readonly editingTypeShortLabel = signal('');
+  protected readonly editingTypeTemplate = signal('');
+
+  // ── Causale di carico (prompt §1.2, §8-11) ─────────────────────────────────
   private readonly causalsReload = signal(0);
   protected readonly causals = toSignal(
     toObservable(this.causalsReload).pipe(
@@ -510,28 +640,48 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly causalPanelBusy = signal(false);
   protected readonly causalPanelError = signal<string | null>(null);
   protected readonly newCausalLabel = signal('');
+  protected readonly newCausalTypeId = signal('');
   protected readonly editingCausalId = signal<string | null>(null);
   protected readonly editingCausalLabel = signal('');
-  /** true dopo una modifica manuale: blocca la rigenerazione automatica. */
-  private causalManuallyEdited = false;
+  protected readonly editingCausalTypeId = signal('');
+
+  /** Opzioni tipo documento per la gestione causali (solo tipi attivi + "—"). */
+  protected readonly causalTypeOptions = computed<readonly SelectMenuOption[]>(() => [
+    { value: '', label: '— nessun tipo' },
+    ...this.externalDocTypes()
+      .filter((type) => type.isActive)
+      .map((type) => ({ value: type.id, label: type.shortLabel || type.name })),
+  ]);
+
+  /**
+   * Modalità causale (§10): AUTO = generata dal modello attivo, MANUAL = testo
+   * dell'utente, mai sovrascritto da tipo/numero/data.
+   */
+  protected readonly causalMode = signal<CausalGenerationMode>(CausalGenerationMode.Auto);
+  /** Modello causale attivo (dal tipo documento o dalla causale scelta). */
+  private readonly causalTemplate = signal<string | null>(null);
+  /** Conferma "Rigenera" quando esiste un testo personalizzato (§10). */
+  protected readonly regenerateDialogOpen = signal(false);
 
   readonly form = this.fb.group({
     type: this.fb.control<DocumentType>(DocumentType.GoodsReceipt, {
       validators: [Validators.required],
     }),
     supplierId: this.fb.control('', { validators: [Validators.required] }),
-    locationId: this.fb.control('', { validators: [Validators.required] }),
-    documentDate: this.fb.control(new Date().toISOString().slice(0, 10), {
+    // Location richiesta solo quando ci sono righe che caricano magazzino
+    // (§9.4): la sola testata si salva anche senza (validazione contestuale).
+    locationId: this.fb.control(''),
+    // Data registrazione: parte da oggi (data locale), modificabile (§2).
+    documentDate: this.fb.control(toIsoDateLocal(new Date()), {
       validators: [Validators.required],
     }),
-    supplierRefType: this.fb.control<SupplierRefType | ''>(''),
+    externalDocumentTypeId: this.fb.control(''),
     externalDocNumber: this.fb.control(''),
     externalDocDate: this.fb.control(''),
     causalText: this.fb.control(''),
     notes: this.fb.control(''),
     internalComment: this.fb.control(''),
     billingCause: this.fb.control(''),
-    externalRef: this.fb.control(''),
     invoicePending: this.fb.control(false),
     documentDiscountPercent: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
@@ -553,15 +703,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.form.controls.documentDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.refreshNumberPreview());
-    this.form.controls.supplierRefType.valueChanges
+    this.form.controls.externalDocumentTypeId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.regenerateCausalFromRefs());
+      .subscribe((typeId) => {
+        this.selectedExternalTypeId.set(typeId);
+        this.applyTemplateFromType(typeId);
+      });
     this.form.controls.externalDocNumber.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.regenerateCausalFromRefs());
+      .subscribe(() => this.regenerateCausalFromTemplate());
     this.form.controls.externalDocDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.regenerateCausalFromRefs());
+      .subscribe(() => this.regenerateCausalFromTemplate());
     this.refreshNumberPreview();
     this.setupAutoSave();
     this.form.controls.supplierId.valueChanges
@@ -571,6 +724,41 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.pinnedVariants();
       this.syncLineCodesFromVariants();
     });
+    effect(() => this.applyDefaultCausalOnCreate());
+  }
+
+  private defaultCausalApplied = false;
+
+  /**
+   * Causale predefinita applicata all'apertura di un nuovo documento (§1.2):
+   * diventa il modello attivo senza segnare il form come modificato.
+   */
+  private applyDefaultCausalOnCreate(): void {
+    const causals = this.activeCausals();
+    if (causals.length === 0 || this.defaultCausalApplied) {
+      return;
+    }
+    this.defaultCausalApplied = true;
+    if (
+      this.editDocumentId() ||
+      this.causalMode() !== CausalGenerationMode.Auto ||
+      this.causalTemplate() !== null ||
+      this.form.controls.causalText.value.trim()
+    ) {
+      return;
+    }
+    const preferred = causals.find((causal) => causal.isDefault);
+    if (!preferred) {
+      return;
+    }
+    if (preferred.externalDocumentTypeId) {
+      this.form.controls.externalDocumentTypeId.setValue(preferred.externalDocumentTypeId, {
+        emitEvent: false,
+      });
+      this.selectedExternalTypeId.set(preferred.externalDocumentTypeId);
+    }
+    this.causalTemplate.set(preferred.label);
+    this.applyGeneratedCausal({ emitEvent: false });
   }
 
   private setupAutoSave(): void {
@@ -584,6 +772,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     if (!this.canPersistAutoSaveDocument()) {
+      // Testata iniziata (es. fornitore scelto) ma non ancora auto-persistita:
+      // segna le modifiche per proporre il salvataggio all'uscita (§9.2).
+      if (!this.editDocumentId() && this.form.controls.supplierId.value) {
+        this.dirtySinceLastSave.set(true);
+      }
       return;
     }
     this.dirtySinceLastSave.set(true);
@@ -594,10 +787,39 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private validateForAutoSave(): boolean {
     return (
       !this.form.controls.supplierId.invalid &&
-      !this.form.controls.locationId.invalid &&
       !this.form.controls.documentDate.invalid &&
-      !this.form.controls.type.invalid
+      !this.form.controls.type.invalid &&
+      (!this.hasStockLoadingLines() || Boolean(this.form.controls.locationId.value))
     );
+  }
+
+  /** Righe persistibili che caricano magazzino: richiedono la location (§9.4). */
+  private hasStockLoadingLines(): boolean {
+    return this.lines.controls.some(
+      (line) => line.controls.loadsStock.value && this.lineHasPersistableData(line),
+    );
+  }
+
+  /** Validazione testata per il salvataggio (§9.2): messaggi contestuali. */
+  private validateHeaderForSave(): AppError | null {
+    if (
+      this.form.controls.supplierId.invalid ||
+      this.form.controls.documentDate.invalid ||
+      this.form.controls.type.invalid
+    ) {
+      return {
+        kind: AppErrorKind.Validation,
+        message: 'Compila fornitore e data documento prima di salvare.',
+      };
+    }
+    if (this.hasStockLoadingLines() && !this.form.controls.locationId.value) {
+      return {
+        kind: AppErrorKind.Validation,
+        message:
+          'Seleziona il magazzino di destinazione: serve per caricare la giacenza delle righe.',
+      };
+    }
+    return null;
   }
 
   protected lineHasLinkedProduct(index: number): boolean {
@@ -1036,21 +1258,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     ];
     const linked = this.lineHasLinkedProduct(index);
     return all.filter((field) => {
+      // La cella IVA è una select custom (§9.2): fuori dal giro Tab/Invio degli input.
+      if (field === 'vat') {
+        return false;
+      }
       if (linked) {
-        if (
-          field === 'quantity' ||
-          field === 'unitCost' ||
-          field === 'discount' ||
-          field === 'vat'
-        ) {
+        if (field === 'quantity' || field === 'unitCost' || field === 'discount') {
           return this.isLineColumnVisible(
-            field === 'quantity'
-              ? 'quantity'
-              : field === 'unitCost'
-                ? 'unitCost'
-                : field === 'discount'
-                  ? 'discount'
-                  : 'vat',
+            field === 'quantity' ? 'quantity' : field === 'unitCost' ? 'unitCost' : 'discount',
           );
         }
         if (field === 'lot' && this.isLineColumnVisible('lot')) {
@@ -1090,9 +1305,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       }
       if (field === 'compareAtPrice') {
         return this.isLineColumnVisible('compareAtPrice');
-      }
-      if (field === 'vat') {
-        return this.isLineColumnVisible('vat');
       }
       if (field === 'lot') {
         return this.isLineColumnVisible('lot');
@@ -1373,18 +1585,27 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected readonly documentTotals = computed(() => {
     this.formValue();
+    this.costEntryMode();
+    this.vatCodes();
     const currency = this.currency;
     let lineSumMinor = 0;
-    const lineTaxParts: { readonly netMinor: number; readonly vatRate: number }[] = [];
+    const lineTaxParts: {
+      readonly netMinor: number;
+      readonly vatMinor: number;
+      readonly vatRate: number;
+      readonly affectsSupplierTotal: boolean;
+    }[] = [];
 
     for (const line of this.lines.controls) {
-      const netMinor = this.lineNetMinor(line);
-      lineSumMinor += netMinor;
-      const vatRaw = line.controls.vatRatePercent.value.trim();
-      const vatRate = vatRaw ? Number(vatRaw) : 0;
-      if (vatRate > 0 && netMinor > 0) {
-        lineTaxParts.push({ netMinor, vatRate });
-      }
+      const vat = this.lineVatInput(line);
+      const amounts = this.lineVatAmounts(line);
+      lineSumMinor += amounts.lineNetMinor;
+      lineTaxParts.push({
+        netMinor: amounts.lineNetMinor,
+        vatMinor: amounts.lineVatMinor,
+        vatRate: vat.ratePercent,
+        affectsSupplierTotal: vat.vatAffectsSupplierTotal,
+      });
     }
 
     const docDiscountPercent = parseEffectiveDiscountPercent(
@@ -1393,14 +1614,25 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const docDiscountAmount = Math.round((lineSumMinor * docDiscountPercent) / 100);
     const discountedLineSum = lineSumMinor - docDiscountAmount;
 
-    const taxMinor =
-      lineSumMinor === 0
-        ? 0
-        : lineTaxParts.reduce((sum, part) => {
-            const share = part.netMinor / lineSumMinor;
-            const discountedNet = Math.round(discountedLineSum * share);
-            return sum + Math.round((discountedNet * part.vatRate) / 100);
-          }, 0);
+    // L'IVA concorre al totale SOLO per i codici con vatAffectsSupplierTotal
+    // (reverse charge e 0% restano fuori); con sconto documento la quota IVA è
+    // ricalcolata sulla ripartizione proporzionale (stessa logica del backend).
+    let taxMinor: number;
+    if (docDiscountPercent === 0 || lineSumMinor === 0) {
+      taxMinor = lineTaxParts.reduce(
+        (sum, part) => sum + (part.affectsSupplierTotal ? part.vatMinor : 0),
+        0,
+      );
+    } else {
+      taxMinor = lineTaxParts.reduce((sum, part) => {
+        if (!part.affectsSupplierTotal || part.vatRate <= 0) {
+          return sum;
+        }
+        const share = part.netMinor / lineSumMinor;
+        const discountedNet = Math.round(discountedLineSum * share);
+        return sum + Math.round((discountedNet * part.vatRate) / 100);
+      }, 0);
+    }
 
     return {
       linesTotal: { amountMinor: lineSumMinor, currencyCode: currency },
@@ -1413,6 +1645,59 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       },
     };
   });
+
+  /** Riepilogo IVA raggruppato per Codice (§10.2), prima dello sconto documento. */
+  protected readonly vatSummary = computed(() => {
+    this.formValue();
+    this.costEntryMode();
+    this.vatCodes();
+    const inputs = this.lines.controls.flatMap((line) => {
+      const amounts = this.lineVatAmounts(line);
+      if (amounts.lineNetMinor === 0 && amounts.lineVatMinor === 0) {
+        return [];
+      }
+      const vatCode = this.vatCodeById().get(line.controls.vatCodeId.value);
+      const vat = this.lineVatInput(line);
+      return [
+        {
+          vatCodeId: vatCode?.id ?? null,
+          code: vatCode?.code ?? formatVatRate(vat.ratePercent),
+          ratePercent: vat.ratePercent,
+          description: vatCode?.description ?? 'Aliquota da riga (senza Codice IVA)',
+          lineNetMinor: amounts.lineNetMinor,
+          lineVatMinor: amounts.lineVatMinor,
+          lineGrossMinor: amounts.lineGrossMinor,
+          reverseChargeVatMinor: amounts.reverseChargeVatMinor,
+          nonDeductibleVatMinor: amounts.nonDeductibleVatMinor,
+        },
+      ];
+    });
+    return buildVatSummary(inputs);
+  });
+
+  protected readonly reverseChargeTotal = computed<Money>(() => ({
+    amountMinor: this.vatSummary().reduce((sum, row) => sum + row.reverseChargeVatMinor, 0),
+    currencyCode: this.currency,
+  }));
+
+  protected readonly nonDeductibleTotal = computed<Money>(() => ({
+    amountMinor: this.vatSummary().reduce((sum, row) => sum + row.nonDeductibleVatMinor, 0),
+    currencyCode: this.currency,
+  }));
+
+  /** Unità minori → Money per il riepilogo IVA nel template. */
+  protected minorToMoney(amountMinor: number): Money {
+    return { amountMinor, currencyCode: this.currency };
+  }
+
+  /** Opzioni per il dialog "Imposta IVA a tutte le righe" (formato esteso §10). */
+  protected readonly applyVatSelectOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.purchaseVatCodes().map((vatCode) => ({
+      value: vatCode.id,
+      label: vatCodeOptionLabel(vatCode),
+      detail: vatCode.nature.label,
+    })),
+  );
 
   protected readonly documentTotal = computed<Money>(() => this.documentTotals().total);
 
@@ -1505,14 +1790,278 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return hasProduct && hasCost;
   }
 
+  /** Valore riga pre-sconto nei termini digitati (per il barrato in colonna Totale). */
   private lineGrossMinor(line: ReturnType<GoodsReceiptFormComponent['createLine']>): number {
     const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
     const qty = Number(line.controls.quantity.value);
     return cost && Number.isFinite(qty) ? cost.amountMinor * qty : 0;
   }
 
+  /** Imponibile riga (netto canonico dopo sconto, con eventuale scorporo IVA). */
   private lineNetMinor(line: ReturnType<GoodsReceiptFormComponent['createLine']>): number {
-    return applyDiscountMinor(this.lineGrossMinor(line), line.controls.discountPercent.value);
+    return this.lineVatAmounts(line).lineNetMinor;
+  }
+
+  /** Dati IVA della riga: Codice IVA se presente, altrimenti aliquota legacy. */
+  private lineVatInput(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): VatComputationInput {
+    const vatCode = this.vatCodeById().get(line.controls.vatCodeId.value);
+    if (vatCode) {
+      return vatInputFromVatCode(vatCode);
+    }
+    const raw = line.controls.vatRatePercent.value.trim();
+    const rate = raw ? Number(raw) : null;
+    return vatInputFromLegacyRate(rate != null && Number.isFinite(rate) ? rate : null);
+  }
+
+  /** Importi IVA della riga secondo la modalità costo corrente (§15). */
+  private lineVatAmounts(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): VatLineAmounts {
+    const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
+    const qtyRaw = Number(line.controls.quantity.value);
+    return computeVatLineAmounts({
+      enteredUnitCostMinor: cost?.amountMinor ?? 0,
+      costEntryMode: this.costEntryMode(),
+      quantity: Number.isFinite(qtyRaw) ? qtyRaw : 0,
+      discountPercent: parseEffectiveDiscountPercent(line.controls.discountPercent.value),
+      vat: this.lineVatInput(line),
+    });
+  }
+
+  // ── Colonna IVA: select riga, tooltip, applica a tutte (§9.2, §10, §13) ────
+
+  private vatOptionFromCode(vatCode: VatCode): SelectMenuOption {
+    return {
+      value: vatCode.id,
+      label: vatCode.code,
+      detail: `${formatVatRate(vatCode.ratePercent)} · ${vatCode.description} · ${vatCode.nature.label}`,
+    };
+  }
+
+  /** Opzioni della riga: codici attivi + eventuale codice storico disattivato. */
+  protected lineVatOptions(index: number): readonly SelectMenuOption[] {
+    const options = this.purchaseVatOptions();
+    const selectedId = this.lines.at(index)?.controls.vatCodeId.value;
+    if (!selectedId || options.some((option) => option.value === selectedId)) {
+      return options;
+    }
+    const selected = this.vatCodeById().get(selectedId);
+    if (!selected) {
+      return options;
+    }
+    return [...options, this.vatOptionFromCode(selected)];
+  }
+
+  protected lineVatValue(index: number): string {
+    this.formValue();
+    return this.lines.at(index)?.controls.vatCodeId.value ?? '';
+  }
+
+  /** Tooltip cella IVA: "22 · 22% · Imponibile 22%" (§9.2). */
+  protected lineVatTooltip(index: number): string {
+    const line = this.lines.at(index);
+    const vatCode = this.vatCodeById().get(line.controls.vatCodeId.value);
+    if (vatCode) {
+      return vatCodeOptionLabel(vatCode);
+    }
+    const raw = line.controls.vatRatePercent.value.trim();
+    return raw ? `IVA ${raw}% (senza Codice IVA)` : 'Nessun Codice IVA';
+  }
+
+  /** Cambio Codice IVA sulla singola riga (§13): il costo digitato resta invariato. */
+  protected onLineVatSelect(index: number, value: string | null): void {
+    const line = this.lines.at(index);
+    if (!line || this.formReadOnly()) {
+      return;
+    }
+    line.controls.vatCodeId.setValue(value ?? '');
+    this.syncLegacyVatRate(line);
+    this.triggerAutoSave();
+  }
+
+  /** Allinea l'aliquota legacy al Codice IVA (ordinamento colonna e fallback). */
+  private syncLegacyVatRate(line: ReturnType<GoodsReceiptFormComponent['createLine']>): void {
+    const vatCode = this.vatCodeById().get(line.controls.vatCodeId.value);
+    if (vatCode) {
+      line.controls.vatRatePercent.setValue(String(vatCode.ratePercent), { emitEvent: false });
+    }
+  }
+
+  /**
+   * Precedenza Codice IVA sulle nuove righe (§9.1): aliquota legacy già
+   * presente → codice imponibile con la stessa aliquota (mai il default, per
+   * non alterare l'IVA voluta); nessuna aliquota → predefinito aziendale.
+   */
+  private ensureLineVatCode(line: ReturnType<GoodsReceiptFormComponent['createLine']>): void {
+    if (line.controls.vatCodeId.value) {
+      return;
+    }
+    const raw = line.controls.vatRatePercent.value.trim();
+    if (raw) {
+      const rate = Number(raw);
+      const matched = Number.isFinite(rate) ? this.vatCodeIdForRate(rate) : '';
+      if (matched) {
+        line.controls.vatCodeId.setValue(matched, { emitEvent: false });
+        this.syncLegacyVatRate(line);
+      }
+      return;
+    }
+    const fallback = this.defaultVatCodeId();
+    if (fallback) {
+      line.controls.vatCodeId.setValue(fallback, { emitEvent: false });
+      this.syncLegacyVatRate(line);
+    }
+  }
+
+  /** Codice imponibile attivo con la stessa aliquota (per migrare aliquote legacy). */
+  private vatCodeIdForRate(ratePercent: number): string {
+    const match = this.purchaseVatCodes().find(
+      (vatCode) =>
+        vatCode.ratePercent === ratePercent &&
+        (vatCode.calculationMode === 'standard' ||
+          (ratePercent === 0 && vatCode.calculationMode === 'zero_rate')),
+    );
+    return match?.id ?? '';
+  }
+
+  // ── "Imposta IVA a tutte le righe…" (§10) ──────────────────────────────────
+
+  protected openApplyVatDialog(): void {
+    this.vatHeaderMenuOpen.set(false);
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.applyVatCodeId.set(this.defaultVatCodeId());
+    this.applyVatDialogOpen.set(true);
+  }
+
+  protected closeApplyVatDialog(): void {
+    this.applyVatDialogOpen.set(false);
+  }
+
+  /** Righe economiche interessate: esclude la riga vuota di inserimento (§10.1). */
+  protected readonly applyVatTargetCount = computed(() => {
+    this.formValue();
+    return this.lines.controls.filter((line) => !this.lineIsEmpty(line)).length;
+  });
+
+  protected readonly applyVatSelectedCode = computed(() => {
+    const id = this.applyVatCodeId();
+    return id ? (this.vatCodeById().get(id) ?? null) : null;
+  });
+
+  /** Testo informativo del dialog coerente con la modalità costo (§14). */
+  protected readonly applyVatModeHint = computed(() =>
+    this.costEntryMode() === 'vat_included'
+      ? 'Il costo ivato resterà invariato. Verranno ricalcolati imponibile e IVA scorporata.'
+      : 'Il costo netto resterà invariato. Verranno ricalcolati IVA e totale.',
+  );
+
+  protected confirmApplyVatToAllLines(): void {
+    const vatCodeId = this.applyVatCodeId();
+    if (!vatCodeId || !this.vatCodeById().has(vatCodeId)) {
+      return;
+    }
+    for (const line of this.lines.controls) {
+      if (this.lineIsEmpty(line)) {
+        continue;
+      }
+      line.controls.vatCodeId.setValue(vatCodeId, { emitEvent: false });
+      this.syncLegacyVatRate(line);
+    }
+    this.applyVatDialogOpen.set(false);
+    // Un solo salvataggio per l'intera operazione: il ricalcolo è atomico (§10.2).
+    this.form.updateValueAndValidity();
+    this.triggerAutoSave();
+  }
+
+  // ── Modalità costi netti / ivati (§11–§12) ─────────────────────────────────
+
+  protected toggleCostModeMenu(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.vatHeaderMenuOpen.set(false);
+    this.costModeMenuOpen.update((open) => !open);
+  }
+
+  protected toggleVatHeaderMenu(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.costModeMenuOpen.set(false);
+    this.vatHeaderMenuOpen.update((open) => !open);
+  }
+
+  protected closeHeaderMenus(): void {
+    this.costModeMenuOpen.set(false);
+    this.vatHeaderMenuOpen.set(false);
+  }
+
+  protected selectCostMode(mode: PurchaseCostEntryMode): void {
+    this.costModeMenuOpen.set(false);
+    if (mode === this.costEntryMode() || this.formReadOnly()) {
+      return;
+    }
+    const hasValuedCosts = this.lines.controls.some((line) => {
+      const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
+      return cost != null && cost.amountMinor > 0;
+    });
+    if (!hasValuedCosts) {
+      this.costEntryModeTouched = true;
+      this.costEntryMode.set(mode);
+      this.triggerAutoSave();
+      return;
+    }
+    this.pendingCostMode.set(mode);
+    this.costModeDialogOpen.set(true);
+  }
+
+  /**
+   * Conversione dei costi già inseriti (§12): il valore mostrato in colonna
+   * viene convertito (netto ⇄ ivato) mantenendo invariati imponibile, IVA e
+   * totale documento. Le righe senza IVA esposta restano invariate.
+   */
+  protected confirmCostModeConversion(): void {
+    const mode = this.pendingCostMode();
+    this.costModeDialogOpen.set(false);
+    this.pendingCostMode.set(null);
+    if (!mode || mode === this.costEntryMode()) {
+      return;
+    }
+    for (const line of this.lines.controls) {
+      const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
+      if (!cost || cost.amountMinor <= 0) {
+        continue;
+      }
+      const vat = this.lineVatInput(line);
+      // Solo i codici con IVA esposta cambiano rappresentazione del valore.
+      if (!entryIncludesVat('vat_included', vat)) {
+        continue;
+      }
+      const converted =
+        mode === 'vat_included'
+          ? grossFromNetMinor(cost.amountMinor, vat.ratePercent)
+          : netFromGrossMinor(cost.amountMinor, vat.ratePercent);
+      line.controls.unitCost.setValue(
+        moneyToDecimalString({ amountMinor: converted, currencyCode: this.currency }).replace(
+          '.',
+          ',',
+        ),
+        { emitEvent: false },
+      );
+    }
+    this.costEntryModeTouched = true;
+    this.costEntryMode.set(mode);
+    this.form.updateValueAndValidity();
+    this.triggerAutoSave();
+  }
+
+  protected cancelCostModeConversion(): void {
+    this.costModeDialogOpen.set(false);
+    this.pendingCostMode.set(null);
   }
 
   private applySupplierDefaultsToLine(
@@ -1536,6 +2085,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         emitEvent: false,
       });
     }
+    this.ensureLineVatCode(line);
   }
 
   protected onTypeSelect(value: string | null): void {
@@ -1562,6 +2112,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             emitEvent: false,
           });
         }
+        this.ensureLineVatCode(line);
       }
     }
     this.triggerAutoSave();
@@ -1572,14 +2123,23 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.form.controls.locationId.markAsTouched();
   }
 
-  // ── Causale di carico ──────────────────────────────────────────────────────
+  // ── Documento fornitore (tipo) e Causale di carico ─────────────────────────
 
-  protected onSupplierRefTypeSelect(value: string | null): void {
-    this.form.controls.supplierRefType.setValue((value ?? '') as SupplierRefType | '');
+  protected onExternalDocTypeSelect(value: string | null): void {
+    if (value === this.NEW_TYPE_OPTION) {
+      this.openNewTypeDialog();
+      return;
+    }
+    if (value === this.MANAGE_TYPES_OPTION) {
+      this.openTypePanel();
+      return;
+    }
+    this.form.controls.externalDocumentTypeId.setValue(value ?? '');
   }
 
+  /** Modifica diretta del testo causale: passa a modalità MANUAL (§10). */
   protected onCausalInput(value: string): void {
-    this.causalManuallyEdited = value.trim().length > 0;
+    this.causalMode.set(CausalGenerationMode.Manual);
     this.form.controls.causalText.setValue(value);
     this.causalDropdownOpen.set(false);
   }
@@ -1595,56 +2155,261 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.causalDropdownOpen.set(false);
   }
 
-  protected pickCausal(label: string): void {
-    this.causalManuallyEdited = true;
-    this.form.controls.causalText.setValue(label);
+  /**
+   * Selezione di un modello causale dall'elenco (§11): diventa il modello
+   * attivo (modalità AUTO) e, se collegato, imposta il tipo documento.
+   */
+  protected pickCausal(causal: GoodsReceiptCausal): void {
     this.causalDropdownOpen.set(false);
+    if (
+      causal.externalDocumentTypeId &&
+      causal.externalDocumentTypeId !== this.form.controls.externalDocumentTypeId.value
+    ) {
+      // emitEvent false: il modello attivo è quello della causale scelta, non
+      // il template del tipo documento associato.
+      this.form.controls.externalDocumentTypeId.setValue(causal.externalDocumentTypeId, {
+        emitEvent: false,
+      });
+      this.selectedExternalTypeId.set(causal.externalDocumentTypeId);
+    }
+    this.causalMode.set(CausalGenerationMode.Auto);
+    this.causalTemplate.set(causal.label);
+    this.applyGeneratedCausal({ emitEvent: true });
   }
 
-  /**
-   * Rigenera la causale da tipo riferimento + numero + data documento fornitore
-   * (prompt §9.3), finché l'utente non la modifica manualmente.
-   */
-  private regenerateCausalFromRefs(): void {
-    if (this.causalManuallyEdited || this.formReadOnly()) {
+  protected get causalIsManual(): boolean {
+    return this.causalMode() === CausalGenerationMode.Manual;
+  }
+
+  /** Comando "Rigenera" (§10): chiede conferma se esiste testo personalizzato. */
+  protected requestRegenerateCausal(): void {
+    if (this.formReadOnly()) {
       return;
     }
-    const generated = this.buildGeneratedCausal();
-    if (generated !== null) {
-      this.form.controls.causalText.setValue(generated, { emitEvent: false });
+    if (this.form.controls.causalText.value.trim()) {
+      this.regenerateDialogOpen.set(true);
+      return;
     }
+    this.executeRegenerateCausal();
   }
 
-  private buildGeneratedCausal(): string | null {
-    const refType = this.form.controls.supplierRefType.value;
-    if (!refType || refType === SupplierRefType.Other) {
+  protected executeRegenerateCausal(): void {
+    this.regenerateDialogOpen.set(false);
+    this.causalMode.set(CausalGenerationMode.Auto);
+    this.causalTemplate.set(this.templateForType(this.form.controls.externalDocumentTypeId.value));
+    this.applyGeneratedCausal({ emitEvent: true });
+  }
+
+  /** Cambio tipo documento in modalità AUTO: applica il modello del tipo (§10). */
+  private applyTemplateFromType(typeId: string): void {
+    if (this.causalMode() === CausalGenerationMode.Manual) {
+      return;
+    }
+    this.causalTemplate.set(this.templateForType(typeId));
+    this.regenerateCausalFromTemplate();
+  }
+
+  private templateForType(typeId: string): string | null {
+    if (!typeId) {
       return null;
     }
-    const prefix =
-      refType === SupplierRefType.Ddt
-        ? 'DDT'
-        : refType === SupplierRefType.Invoice
-          ? 'Fatt.'
-          : 'Reso';
-    const number = this.form.controls.externalDocNumber.value.trim();
-    const dateRaw = this.form.controls.externalDocDate.value;
-    const date = dateRaw ? this.formatItalianDate(dateRaw) : '';
-    let causal = prefix;
-    if (number) {
-      causal += ` ${number}`;
+    const type = this.externalDocTypes().find((item) => item.id === typeId);
+    if (!type) {
+      return null;
     }
-    if (date) {
-      causal += ` del ${date}`;
-    }
-    return causal;
+    return type.causalTemplate ?? `${type.shortLabel || type.name} {numero} del {data}`;
   }
 
-  private formatItalianDate(isoDate: string): string {
-    const [year, month, day] = isoDate.slice(0, 10).split('-');
-    if (!year || !month || !day) {
-      return isoDate;
+  /** Numero/data documento fornitore cambiati: aggiorna la causale in AUTO. */
+  private regenerateCausalFromTemplate(): void {
+    if (this.causalMode() === CausalGenerationMode.Manual || this.formReadOnly()) {
+      return;
     }
-    return `${day}/${month}/${year}`;
+    this.applyGeneratedCausal({ emitEvent: false });
+  }
+
+  private applyGeneratedCausal(options: { readonly emitEvent: boolean }): void {
+    const template = this.causalTemplate();
+    if (template === null) {
+      // Nessun tipo/modello selezionato: la causale generata si svuota solo se
+      // era stata generata (mai toccare un testo manuale, qui mode è AUTO).
+      this.form.controls.causalText.setValue('', { emitEvent: options.emitEvent });
+      return;
+    }
+    const generated = renderCausalTemplate(template, {
+      number: this.form.controls.externalDocNumber.value,
+      dateIso: this.form.controls.externalDocDate.value || undefined,
+    });
+    this.form.controls.causalText.setValue(generated, { emitEvent: options.emitEvent });
+  }
+
+  // ── Nuovo tipo documento fornitore (§5) ────────────────────────────────────
+
+  protected openNewTypeDialog(): void {
+    this.newTypeName.set('');
+    this.newTypeShortLabel.set('');
+    this.newTypeTemplate.set('');
+    this.newTypeError.set(null);
+    this.newTypeDialogOpen.set(true);
+  }
+
+  protected closeNewTypeDialog(): void {
+    this.newTypeDialogOpen.set(false);
+  }
+
+  /** "Salva e usa": crea il tipo, lo seleziona e genera la causale (§5). */
+  protected saveAndUseNewType(): void {
+    const name = this.newTypeName().trim();
+    if (!name || this.newTypeBusy()) {
+      return;
+    }
+    const shortLabel = this.newTypeShortLabel().trim() || name;
+    const causalTemplate = this.newTypeTemplate().trim() || `${shortLabel} {numero} del {data}`;
+    this.newTypeBusy.set(true);
+    this.newTypeError.set(null);
+    this.externalTypeService
+      .create({ name, shortLabel, causalTemplate })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (created) => {
+          this.newTypeBusy.set(false);
+          this.newTypeDialogOpen.set(false);
+          this.externalTypesReload.update((tick) => tick + 1);
+          this.causalMode.set(CausalGenerationMode.Auto);
+          this.form.controls.externalDocumentTypeId.setValue(created.id, { emitEvent: false });
+          this.selectedExternalTypeId.set(created.id);
+          this.causalTemplate.set(created.causalTemplate ?? causalTemplate);
+          this.applyGeneratedCausal({ emitEvent: true });
+        },
+        error: (err: unknown) => {
+          this.newTypeBusy.set(false);
+          this.newTypeError.set(this.toAppError(err).message);
+        },
+      });
+  }
+
+  // ── Gestione tipi documento fornitore (§6) ─────────────────────────────────
+
+  protected openTypePanel(): void {
+    this.typePanelError.set(null);
+    this.typePanelOpen.set(true);
+  }
+
+  protected closeTypePanel(): void {
+    this.typePanelOpen.set(false);
+    this.editingTypeId.set(null);
+    this.addTypeName.set('');
+    this.addTypeShortLabel.set('');
+    this.addTypeTemplate.set('');
+  }
+
+  protected createTypeFromPanel(): void {
+    const name = this.addTypeName().trim();
+    if (!name || this.typePanelBusy()) {
+      return;
+    }
+    const shortLabel = this.addTypeShortLabel().trim() || name;
+    this.runTypeAction(
+      this.externalTypeService.create({
+        name,
+        shortLabel,
+        causalTemplate: this.addTypeTemplate().trim() || `${shortLabel} {numero} del {data}`,
+      }),
+      () => {
+        this.addTypeName.set('');
+        this.addTypeShortLabel.set('');
+        this.addTypeTemplate.set('');
+      },
+    );
+  }
+
+  protected startEditType(type: ExternalDocumentType): void {
+    this.editingTypeId.set(type.id);
+    this.editingTypeName.set(type.name);
+    this.editingTypeShortLabel.set(type.shortLabel);
+    this.editingTypeTemplate.set(type.causalTemplate ?? '');
+  }
+
+  protected cancelEditType(): void {
+    this.editingTypeId.set(null);
+  }
+
+  protected saveEditType(): void {
+    const id = this.editingTypeId();
+    const name = this.editingTypeName().trim();
+    if (!id || !name || this.typePanelBusy()) {
+      return;
+    }
+    this.runTypeAction(
+      this.externalTypeService.update(id, {
+        name,
+        shortLabel: this.editingTypeShortLabel().trim() || name,
+        causalTemplate: this.editingTypeTemplate().trim(),
+      }),
+      () => this.editingTypeId.set(null),
+    );
+  }
+
+  protected duplicateType(type: ExternalDocumentType): void {
+    if (this.typePanelBusy()) {
+      return;
+    }
+    this.runTypeAction(
+      this.externalTypeService.create({
+        name: `${type.name} (copia)`,
+        shortLabel: type.shortLabel,
+        causalTemplate: type.causalTemplate,
+      }),
+    );
+  }
+
+  protected toggleTypeActive(type: ExternalDocumentType): void {
+    if (this.typePanelBusy()) {
+      return;
+    }
+    this.runTypeAction(this.externalTypeService.update(type.id, { isActive: !type.isActive }));
+  }
+
+  protected deleteType(type: ExternalDocumentType): void {
+    if (this.typePanelBusy()) {
+      return;
+    }
+    this.runTypeAction(this.externalTypeService.delete(type.id));
+  }
+
+  protected moveType(type: ExternalDocumentType, direction: -1 | 1): void {
+    if (this.typePanelBusy()) {
+      return;
+    }
+    const ordered = [...this.externalDocTypes()].map((item) => item.id);
+    const index = ordered.indexOf(type.id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= ordered.length) {
+      return;
+    }
+    const swapped = ordered[target];
+    if (swapped === undefined) {
+      return;
+    }
+    ordered[target] = type.id;
+    ordered[index] = swapped;
+    this.runTypeAction(this.externalTypeService.reorder(ordered));
+  }
+
+  private runTypeAction(action$: Observable<unknown>, onSuccess?: () => void): void {
+    this.typePanelBusy.set(true);
+    this.typePanelError.set(null);
+    action$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => {
+        this.typePanelBusy.set(false);
+        onSuccess?.();
+        this.externalTypesReload.update((tick) => tick + 1);
+      },
+      error: (err: unknown) => {
+        this.typePanelBusy.set(false);
+        this.typePanelError.set(this.toAppError(err).message);
+      },
+    });
   }
 
   // ── Gestione causali (finestra dedicata, prompt §1.2) ─────────────────────
@@ -1658,6 +2423,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.causalPanelOpen.set(false);
     this.editingCausalId.set(null);
     this.newCausalLabel.set('');
+    this.newCausalTypeId.set('');
   }
 
   protected createCausal(): void {
@@ -1665,12 +2431,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!label || this.causalPanelBusy()) {
       return;
     }
-    this.runCausalAction(this.causalService.create({ label }), () => this.newCausalLabel.set(''));
+    this.runCausalAction(
+      this.causalService.create({
+        label,
+        externalDocumentTypeId: this.newCausalTypeId() || null,
+      }),
+      () => {
+        this.newCausalLabel.set('');
+        this.newCausalTypeId.set('');
+      },
+    );
   }
 
   protected startEditCausal(causal: GoodsReceiptCausal): void {
     this.editingCausalId.set(causal.id);
     this.editingCausalLabel.set(causal.label);
+    this.editingCausalTypeId.set(causal.externalDocumentTypeId ?? '');
   }
 
   protected cancelEditCausal(): void {
@@ -1683,9 +2459,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!id || !label || this.causalPanelBusy()) {
       return;
     }
-    this.runCausalAction(this.causalService.update(id, { label }), () =>
-      this.editingCausalId.set(null),
+    this.runCausalAction(
+      this.causalService.update(id, {
+        label,
+        externalDocumentTypeId: this.editingCausalTypeId() || null,
+      }),
+      () => this.editingCausalId.set(null),
     );
+  }
+
+  /** Etichetta breve del tipo collegato a una causale (badge in gestione). */
+  protected causalTypeLabel(causal: GoodsReceiptCausal): string | null {
+    if (!causal.externalDocumentTypeId) {
+      return null;
+    }
+    const type = this.externalDocTypes().find((item) => item.id === causal.externalDocumentTypeId);
+    return type ? type.shortLabel || type.name : null;
   }
 
   protected setDefaultCausal(causal: GoodsReceiptCausal): void {
@@ -1759,12 +2548,24 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             moneyToDecimalString(summary.sellingPrice).replace('.', ','),
           );
         }
+        // Precedenza Codice IVA (§9.1): articolo → predefinito aziendale.
+        // La riga già valorizzata (es. da documento origine) non viene toccata.
+        if (!line.controls.vatCodeId.value) {
+          const productVatCode = summary.defaultVatCodeId
+            ? this.vatCodeById().get(summary.defaultVatCodeId)
+            : undefined;
+          if (productVatCode?.isActive && isPurchaseVatCode(productVatCode)) {
+            line.controls.vatCodeId.setValue(productVatCode.id, { emitEvent: false });
+            this.syncLegacyVatRate(line);
+          }
+        }
         if (!line.controls.vatRatePercent.value.trim()) {
           const supplierVat = this.selectedSupplier()?.defaultVatRatePercent;
           if (supplierVat != null) {
             line.controls.vatRatePercent.setValue(String(supplierVat), { emitEvent: false });
           }
         }
+        this.ensureLineVatCode(line);
         if (!line.controls.discountPercent.value.trim()) {
           const supplierDiscount = this.selectedSupplier()?.supplierDiscount?.trim();
           if (supplierDiscount) {
@@ -2303,6 +3104,44 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.triggerAutoSave();
   }
 
+  /**
+   * Duplica una riga sotto quella corrente (§10.3). La copia è una riga NUOVA
+   * (senza id): al salvataggio genera il proprio movimento distinto (caso F).
+   * Seriali e collegamento all'ordine fornitore non vengono copiati.
+   */
+  protected duplicateLine(index: number): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const source = this.lines.at(index).getRawValue();
+    const copy = this.createLine();
+    copy.patchValue(
+      {
+        variantId: source.variantId,
+        sku: source.sku,
+        barcode: source.barcode,
+        supplierSku: source.supplierSku,
+        productName: source.productName,
+        description: source.description,
+        quantity: source.quantity,
+        unitCost: source.unitCost,
+        discountPercent: source.discountPercent,
+        sellingPrice: source.sellingPrice,
+        compareAtPrice: source.compareAtPrice,
+        vatRatePercent: source.vatRatePercent,
+        vatCodeId: source.vatCodeId,
+        loadsStock: source.loadsStock,
+        lotCode: source.lotCode,
+        lotExpiryDate: source.lotExpiryDate,
+      },
+      { emitEvent: false },
+    );
+    this.lines.insert(index + 1, copy);
+    this.syncLineFieldAccess();
+    this.triggerAutoSave();
+    this.focusLineField(index + 1, 'quantity');
+  }
+
   protected fieldInvalid(name: 'supplierId' | 'locationId' | 'documentDate'): boolean {
     const control = this.form.controls[name];
     return control.invalid && (control.touched || control.dirty);
@@ -2361,20 +3200,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.saving()) {
       return false;
     }
-    const hasLineData = this.lines.controls.some((line) =>
-      this.lineHasSignificantProductData(line),
-    );
-    if (!hasLineData) {
-      if (this.dirtySinceLastSave() || this.autoSavePending()) {
-        return globalThis.confirm(
-          'Ci sono modifiche non ancora salvate. Uscire comunque dal documento?',
-        );
-      }
-      return true;
-    }
     if (!this.dirtySinceLastSave() && !this.autoSavePending()) {
       return true;
     }
+    // Modifiche non salvate (anche sola testata, §9.2): dialog
+    // "Salva e chiudi / Chiudi senza salvare / Annulla" (§10.7).
     this.exitDialogOpen.set(true);
     return new Promise<boolean>((resolve) => {
       this.pendingDeactivate = resolve;
@@ -2383,24 +3213,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected confirmExitSaveDocument(): void {
     this.syncActiveFieldBeforeSave();
-    if (!this.validateForAutoSave()) {
-      this._submitState.set({
-        status: 'error',
-        error: {
-          kind: AppErrorKind.Validation,
-          message: 'Compila fornitore, magazzino e data documento prima di salvare.',
-        },
-      });
-      return;
-    }
-    if (!this.lines.controls.some((line) => this.lineHasPersistableData(line))) {
-      this._submitState.set({
-        status: 'error',
-        error: {
-          kind: AppErrorKind.Validation,
-          message: 'Aggiungi almeno una riga prodotto prima di salvare.',
-        },
-      });
+    const headerError = this.validateHeaderForSave();
+    if (headerError) {
+      this._submitState.set({ status: 'error', error: headerError });
       return;
     }
     const stockValidation = this.validateStockLinesForFinalSave();
@@ -2440,27 +3255,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
   }
 
-  protected confirmExitDeleteDocument(): void {
+  /** "Chiudi senza salvare": esce scartando le modifiche non ancora salvate. */
+  protected confirmExitWithoutSaving(): void {
     this.exitDialogOpen.set(false);
-    const id = this.persistedDocumentId();
-    if (!id) {
-      this.resolveExit(true);
-      return;
-    }
-    this._submitState.set({ status: 'saving' });
-    this.documentService
-      .deleteDocument(id)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this._submitState.set({ status: 'idle' });
-          this.resolveExit(true);
-        },
-        error: (err: unknown) => {
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-          this.resolveExit(false);
-        },
-      });
+    this.resolveExit(true);
   }
 
   protected cancelExitDialog(): void {
@@ -2991,6 +3789,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       sellingPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(''),
+      vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
       supplierOrderLineId: this.fb.control(orderLine.id),
       lotCode: this.fb.control(''),
@@ -3092,6 +3891,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       sellingPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(line.vatRatePercentText),
+      vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
@@ -3103,17 +3903,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   private validateForFinalSave(): AppError | null {
-    if (!this.validateForAutoSave()) {
-      return {
-        kind: AppErrorKind.Validation,
-        message: 'Compila fornitore, magazzino e data documento prima di salvare.',
-      };
-    }
-    if (!this.lines.controls.some((line) => this.lineHasPersistableData(line))) {
-      return {
-        kind: AppErrorKind.Validation,
-        message: 'Aggiungi almeno una riga prodotto prima di salvare.',
-      };
+    // La sola testata è salvabile (§9.1-9.2): il documento resta in elenco
+    // con totale 0,00 e senza movimenti finché non ci sono righe valide.
+    const headerError = this.validateHeaderForSave();
+    if (headerError) {
+      return headerError;
     }
     if (this.hasInvalidCost()) {
       this.form.markAllAsTouched();
@@ -3191,7 +3985,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.loadedDocument.set(doc);
           this.pendingSupplierOrderId.set(null);
           this.pendingLinkedSupplierOrderRef.set(null);
-          void this.router.navigate([this.listPath, doc.id]);
+          // "Salva documento" salva e resta nella maschera (§10.7):
+          // si esce solo con "Chiudi".
+          this.editUnlocked.set(true);
+          if (!this.editDocumentId()) {
+            this.preserveEditSession.set(true);
+            void this.router.navigate(['/app/documents', doc.id, 'edit'], { replaceUrl: true });
+          }
+          this.syncLineFieldAccess();
+          this.ensureMinimumOneRow();
+          this.trimDuplicateTrailingEmptyRows();
         },
         error: (err: unknown) => {
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
@@ -3275,26 +4078,36 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const persistableControls = this.lines.controls.filter((line) =>
       this.lineHasPersistableDataFromRaw(line.getRawValue()),
     );
+    // Le righe che vanno in salvataggio ricevono il Codice IVA di precedenza
+    // (§9.1) se ancora mancante (es. riga manuale digitata senza select).
+    for (const control of persistableControls) {
+      this.ensureLineVatCode(control);
+    }
     this.lastSavedLineControls = persistableControls;
     return {
       id: this.persistedDocumentId() ?? undefined,
       type: raw.type,
-      documentDate: new Date(raw.documentDate).toISOString(),
+      // Data solo-giorno inviata così com'è (niente Date/UTC: nessuno
+      // slittamento di giorno per fuso orario, §2/§18 caso 7).
+      documentDate: raw.documentDate,
       supplierId: raw.supplierId || undefined,
       locationId: raw.locationId || undefined,
       currency: this.currency,
       causalText: raw.causalText.trim() || undefined,
-      supplierRefType: raw.supplierRefType || undefined,
+      causalGenerationMode: this.causalMode(),
+      causalTemplateSnapshot:
+        this.causalMode() === CausalGenerationMode.Auto
+          ? (this.causalTemplate() ?? undefined)
+          : undefined,
+      externalDocumentTypeId: raw.externalDocumentTypeId || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
       billingCause: raw.invoicePending ? 'In attesa fattura' : raw.billingCause.trim() || undefined,
-      externalRef: raw.externalRef.trim() || undefined,
       externalDocNumber: raw.externalDocNumber.trim() || undefined,
-      externalDocDate: raw.externalDocDate
-        ? new Date(raw.externalDocDate).toISOString()
-        : undefined,
+      externalDocDate: raw.externalDocDate || undefined,
       ...(supplierOrderId ? { supplierOrderId } : {}),
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
+      purchaseCostEntryMode: this.costEntryMode(),
       lines: persistableControls.map((control) => {
         const line = control.getRawValue();
         const cost = parseMoneyInput(line.unitCost, this.currency);
@@ -3306,8 +4119,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           description: name || line.description.trim() || 'Riga documento',
           quantity: Number(line.quantity),
           unitPriceMinor: cost?.amountMinor ?? 0,
+          enteredUnitCostMinor: cost?.amountMinor ?? 0,
           discountPercent: parseEffectiveDiscountPercent(line.discountPercent ?? ''),
           vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
+          vatCodeId: line.vatCodeId || undefined,
           // Le righe senza articolo collegato non caricano ancora il magazzino:
           // il movimento nasce al salvataggio successivo, quando la riga è valida.
           loadsStock: line.loadsStock && Boolean(line.variantId),
@@ -3335,9 +4150,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       applySupplierPriceUpdates: options?.applySupplierPriceUpdates,
     };
     return this.documentService.saveGoodsReceipt(body).pipe(
-      map((doc) => {
-        this.adoptSavedLineIds(doc);
-        return doc;
+      map(({ document, warnings }) => {
+        this.adoptSavedLineIds(document);
+        this.saveWarnings.set(warnings);
+        return document;
       }),
     );
   }
@@ -3499,6 +4315,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         status: ProductStatus.Active,
         defaultVatRatePercent:
           defaultVat != null && Number.isFinite(defaultVat) ? defaultVat : undefined,
+        defaultVatCodeId: line.controls.vatCodeId.value || undefined,
         options: [],
         variants: [
           {
@@ -3542,26 +4359,38 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     this.supplierOrderLineMap.set(poMap);
 
-    this.causalManuallyEdited = Boolean(doc.causalText?.trim());
     this.form.patchValue({
       type: doc.type,
       supplierId: doc.supplierId ?? '',
       locationId: doc.locationId ?? '',
       documentDate: doc.documentDate.slice(0, 10),
-      supplierRefType: doc.supplierRefType ?? '',
+      externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
       externalDocNumber: doc.externalDocNumber ?? '',
       externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
       causalText: doc.causalText ?? '',
       notes: doc.notes ?? '',
       internalComment: doc.internalComment ?? '',
       billingCause: doc.billingCause === 'In attesa fattura' ? '' : (doc.billingCause ?? ''),
-      externalRef: doc.externalRef ?? '',
       invoicePending: doc.billingCause === 'In attesa fattura',
       documentDiscountPercent:
         doc.documentDiscountPercent != null && doc.documentDiscountPercent > 0
           ? String(doc.documentDiscountPercent)
           : '',
     });
+    // Ripristina modalità e modello causale DOPO il patch (il patch dei campi
+    // numero/data non deve rigenerare sopra il testo storico, §10/§13).
+    this.selectedExternalTypeId.set(doc.externalDocumentTypeId ?? '');
+    this.causalMode.set(
+      doc.causalGenerationMode ??
+        (doc.causalText?.trim() ? CausalGenerationMode.Manual : CausalGenerationMode.Auto),
+    );
+    this.causalTemplate.set(
+      doc.causalTemplateSnapshot ?? this.templateForType(doc.externalDocumentTypeId ?? ''),
+    );
+    this.form.controls.causalText.setValue(doc.causalText ?? '', { emitEvent: false });
+    // Modalità costi del documento (§11.1): mai sovrascritta dal default tenant.
+    this.costEntryMode.set(doc.purchaseCostEntryMode ?? 'vat_excluded');
+    this.costEntryModeTouched = true;
     this.lines.clear();
     for (const line of doc.lines ?? []) {
       this.lines.push(
@@ -3576,13 +4405,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           quantity: this.fb.control(line.quantity, {
             validators: [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)],
           }),
-          unitCost: this.fb.control(moneyToDecimalString(line.unitPrice).replace('.', ',')),
+          // Con costi ivati la colonna mostra il valore digitato (lordo), non
+          // il netto canonico persistito in unitPrice (§11.4).
+          unitCost: this.fb.control(
+            moneyToDecimalString(
+              line.enteredUnitCostMinor != null
+                ? { amountMinor: line.enteredUnitCostMinor, currencyCode: this.currency }
+                : line.unitPrice,
+            ).replace('.', ','),
+          ),
           sellingPrice: this.fb.control(''),
           compareAtPrice: this.fb.control(''),
           discountPercent: this.fb.control(
             line.discountPercent > 0 ? String(line.discountPercent) : '',
           ),
           vatRatePercent: this.fb.control(line.vatRatePercent?.toString() ?? ''),
+          vatCodeId: this.fb.control(line.vatCodeId ?? ''),
           loadsStock: this.fb.control(line.loadsStock),
           supplierOrderLineId: this.fb.control(line.supplierOrderLineId ?? ''),
           lotCode: this.fb.control(line.lotCode ?? ''),
@@ -3616,6 +4454,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       sellingPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(''),
+      vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
@@ -3653,7 +4492,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     const type = this.form.controls.type.value;
-    const year = new Date(this.form.controls.documentDate.value).getFullYear();
+    // La data è "YYYY-MM-DD": l'anno si legge dalla stringa per evitare
+    // slittamenti di fuso orario con new Date().
+    const yearRaw = Number(this.form.controls.documentDate.value.slice(0, 4));
+    const year = Number.isFinite(yearRaw) && yearRaw > 0 ? yearRaw : new Date().getFullYear();
     this.documentService
       .previewDocumentNumber(type, { year })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))

@@ -49,6 +49,7 @@ import {
   isManualUnloadDocumentType,
   isStockOperationDocumentType,
 } from './models/document-stock-operation.util';
+import { isStoreFlowDocumentType } from './models/document-operational.util';
 import {
   isInvoiceDraftDocumentType,
   isProformaDocumentType,
@@ -339,13 +340,21 @@ export class DocumentDetailComponent {
     );
   });
   protected readonly canCancel = computed(() => {
-    const status = this.document()?.status;
-    return this.canManage() && status != null && status !== DocumentStatus.Cancelled;
+    const doc = this.document();
+    if (!doc || isStoreFlowDocumentType(doc.type)) {
+      // Vendite/resi negozio: registro consultabile, gestione solo dalla cassa.
+      return false;
+    }
+    return this.canManage() && doc.status !== DocumentStatus.Cancelled;
   });
   protected readonly canDelete = computed(() => {
-    const status = this.document()?.status;
+    const doc = this.document();
+    if (!doc || isStoreFlowDocumentType(doc.type)) {
+      return false;
+    }
     return (
-      this.canManage() && (status === DocumentStatus.Draft || status === DocumentStatus.Cancelled)
+      this.canManage() &&
+      (doc.status === DocumentStatus.Draft || doc.status === DocumentStatus.Cancelled)
     );
   });
 

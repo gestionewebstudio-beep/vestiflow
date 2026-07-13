@@ -1,0 +1,169 @@
+<article
+  class="gr-card"
+  [class.gr-card--incomplete]="incomplete()"
+  [attr.aria-label]="'Riga ' + (lineIndex() + 1)"
+>
+  <header class="gr-card__header">
+    <div class="gr-card__product">
+      @if (linked()) {
+        <p class="gr-card__name">{{ productLabel() }}</p>
+        @if (codeLabel()) {
+          <p class="gr-card__code tabular-nums">{{ codeLabel() }}</p>
+        }
+      } @else {
+        <input
+          class="gr-card__input gr-card__input--name"
+          type="text"
+          [formControl]="line().controls.productName"
+          placeholder="Nome prodotto…"
+          [attr.aria-label]="'Nome prodotto riga ' + (lineIndex() + 1)"
+          autocomplete="off"
+          (blur)="fieldBlur.emit(lineIndex())"
+        />
+      }
+    </div>
+    <button
+      type="button"
+      class="gr-card__icon-btn"
+      [disabled]="disabled()"
+      aria-label="Cerca articolo"
+      (click)="searchProduct.emit(lineIndex())"
+    >
+      <i class="pi pi-search" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  @if (incomplete()) {
+    <p class="gr-card__warning" role="status">
+      Riga incompleta: collega un articolo e verifica quantità e costo.
+    </p>
+  }
+
+  <div class="gr-card__main">
+    <label class="gr-card__field">
+      <span class="gr-card__label">Quantità</span>
+      <input
+        class="gr-card__input gr-card__input--num"
+        type="number"
+        min="0"
+        step="1"
+        [formControl]="line().controls.quantity"
+        (blur)="fieldBlur.emit(lineIndex())"
+      />
+    </label>
+    <label class="gr-card__field">
+      <span class="gr-card__label">Costo</span>
+      <input
+        class="gr-card__input gr-card__input--num"
+        type="text"
+        inputmode="decimal"
+        [formControl]="line().controls.unitCost"
+        placeholder="0,00"
+        (blur)="fieldBlur.emit(lineIndex())"
+      />
+    </label>
+    <div class="gr-card__field gr-card__field--total">
+      <span class="gr-card__label">Totale riga</span>
+      <span class="gr-card__total tabular-nums">
+        @if (grossLabel(); as gross) {
+          <s class="gr-card__gross">{{ gross }}</s>
+        }
+        {{ totalLabel() }}
+      </span>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    class="gr-card__toggle"
+    [attr.aria-expanded]="detailsOpen()"
+    (click)="toggleDetails()"
+  >
+    <i
+      class="pi"
+      [class.pi-chevron-down]="!detailsOpen()"
+      [class.pi-chevron-up]="detailsOpen()"
+      aria-hidden="true"
+    ></i>
+    Dettagli economici
+  </button>
+
+  @if (detailsOpen()) {
+    <div class="gr-card__details">
+      <label class="gr-card__field">
+        <span class="gr-card__label">Sconto %</span>
+        <input
+          class="gr-card__input gr-card__input--num"
+          type="text"
+          [formControl]="line().controls.discountPercent"
+          placeholder="0%"
+          (blur)="fieldBlur.emit(lineIndex())"
+        />
+      </label>
+      <div class="gr-card__field">
+        <span class="gr-card__label" [id]="'gr-card-vat-' + lineIndex()">IVA</span>
+        <app-select-menu
+          [options]="vatOptions()"
+          [value]="vatValue()"
+          ariaLabel="Codice IVA riga"
+          placeholder="—"
+          [compact]="true"
+          [fullWidth]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="vatChange.emit($event)"
+        />
+      </div>
+      <label class="gr-card__field">
+        <span class="gr-card__label">Prezzo vendita</span>
+        <input
+          class="gr-card__input gr-card__input--num"
+          type="text"
+          inputmode="decimal"
+          [formControl]="line().controls.sellingPrice"
+          placeholder="0,00"
+          (blur)="fieldBlur.emit(lineIndex())"
+        />
+      </label>
+      <label class="gr-card__field">
+        <span class="gr-card__label">Prezzo barrato</span>
+        <input
+          class="gr-card__input gr-card__input--num"
+          type="text"
+          inputmode="decimal"
+          [formControl]="line().controls.compareAtPrice"
+          placeholder="0,00"
+          (blur)="fieldBlur.emit(lineIndex())"
+        />
+      </label>
+      <label class="gr-card__check">
+        <input
+          type="checkbox"
+          [formControl]="line().controls.loadsStock"
+          (change)="fieldBlur.emit(lineIndex())"
+        />
+        Carica magazzino
+      </label>
+    </div>
+  }
+
+  <footer class="gr-card__actions">
+    <button
+      type="button"
+      class="gr-card__action"
+      [disabled]="disabled()"
+      (click)="duplicated.emit(lineIndex())"
+    >
+      <i class="pi pi-clone" aria-hidden="true"></i>
+      Duplica
+    </button>
+    <button
+      type="button"
+      class="gr-card__action gr-card__action--danger"
+      [disabled]="!canRemove()"
+      (click)="removed.emit(lineIndex())"
+    >
+      <i class="pi pi-trash" aria-hidden="true"></i>
+      Elimina
+    </button>
+  </footer>
+</article>

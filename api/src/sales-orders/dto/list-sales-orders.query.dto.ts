@@ -4,11 +4,18 @@ import { IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-vali
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import {
   API_FINANCIAL_VALUES,
+  API_SOURCE_MANUAL,
   API_SOURCE_ONLINE,
   API_SOURCE_POS,
+  API_SOURCE_SHOPIFY,
 } from '../sales-order.enum-mapper';
 
-const SOURCE_VALUES = [API_SOURCE_ONLINE, API_SOURCE_POS] as const;
+const SOURCE_VALUES = [
+  API_SOURCE_ONLINE,
+  API_SOURCE_POS,
+  API_SOURCE_MANUAL,
+  API_SOURCE_SHOPIFY,
+] as const;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 

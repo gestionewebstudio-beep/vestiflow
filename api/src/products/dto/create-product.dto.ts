@@ -8,6 +8,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -149,6 +150,11 @@ export class CreateProductDto {
   @Min(0)
   @Max(100)
   defaultVatRatePercent?: number;
+
+  /** Codice IVA ordinario dell'articolo (§8). Null = predefinito aziendale. */
+  @IsOptional()
+  @IsUUID()
+  defaultVatCodeId?: string;
 
   @IsOptional()
   @IsEnum(InventoryTrackingMode)

@@ -50,7 +50,9 @@ export interface CreateProductDto {
   readonly tags?: readonly string[];
   readonly status: ProductStatus;
   readonly unitOfMeasure?: string;
+  /** LEGACY: sostituito da defaultVatCodeId; mantenuto per compatibilità. */
   readonly defaultVatRatePercent?: number | null;
+  readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;
   readonly managesStock?: boolean;
   readonly options: readonly ProductOptionDto[];
@@ -75,7 +77,9 @@ export interface UpdateProductDto {
   readonly tags?: readonly string[];
   readonly status?: ProductStatus;
   readonly unitOfMeasure?: string;
+  /** LEGACY: sostituito da defaultVatCodeId; mantenuto per compatibilità. */
   readonly defaultVatRatePercent?: number | null;
+  readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;
   readonly managesStock?: boolean;
   readonly options?: readonly ProductOptionDto[];

@@ -13,6 +13,7 @@ import type {
 export interface InventoryLevelRow {
   readonly id: EntityId;
   readonly variantId: EntityId;
+  readonly locationId: EntityId;
   readonly sku: string;
   /** Display completo prodotto + variante. */
   readonly title: string;

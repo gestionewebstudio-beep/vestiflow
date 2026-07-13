@@ -1,10 +1,16 @@
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
 import {
+  CorrispettivoEntryStatus,
+  OnlineSaleInventoryStatus,
   SalesOrderFinancialStatus,
   SalesOrderFulfillmentStatus,
   SalesOrderSource,
 } from '@core/models/sales-order.model';
-import type { SalesOrder, SalesOrderLine } from '@core/models/sales-order.model';
+import type {
+  SalesOrder,
+  SalesOrderLine,
+  SalesOrderOnlineSaleLink,
+} from '@core/models/sales-order.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 
 export interface SalesOrderLineApiRow {
@@ -31,6 +37,10 @@ export interface SalesOrderApiRow {
   readonly subtotalMinor: number;
   readonly totalMinor: number;
   readonly placedAt: IsoDateString;
+  readonly cancelledAt?: IsoDateString | null;
+  readonly fulfilledAt?: IsoDateString | null;
+  readonly requiresReview?: boolean;
+  readonly reviewReason?: string | null;
   readonly shopifyOrderId?: string | null;
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
@@ -42,6 +52,23 @@ export interface SalesOrderApiRow {
     readonly status: string;
   } | null;
   readonly lines?: readonly SalesOrderLineApiRow[];
+  /** Quantità impegnata residua degli impegni attivi (fase 3 §2). */
+  readonly committedQuantity?: number;
+  /** Location principale degli impegni (fase 3 §2-§3). */
+  readonly locationName?: string | null;
+  readonly onlineSale?: {
+    readonly id: EntityId;
+    readonly reference: string;
+    readonly fulfilledAt: IsoDateString;
+    readonly inventoryStatus: string;
+    readonly refundedAt?: IsoDateString | null;
+    readonly corrispettivo?: {
+      readonly id: EntityId;
+      readonly reference: string;
+      readonly fiscalDate: IsoDateString;
+      readonly status: string;
+    } | null;
+  } | null;
 }
 
 function mapFinancialStatus(status: string): SalesOrderFinancialStatus {
@@ -74,7 +101,54 @@ function mapFulfillmentStatus(status: string): SalesOrderFulfillmentStatus {
 }
 
 function mapSource(source: string): SalesOrderSource {
+  if (source === 'manual') {
+    return SalesOrderSource.Manual;
+  }
   return source === 'shopify_pos' ? SalesOrderSource.Pos : SalesOrderSource.Online;
+}
+
+export function mapInventoryStatus(status: string): OnlineSaleInventoryStatus {
+  switch (status) {
+    case 'unloaded':
+      return OnlineSaleInventoryStatus.Unloaded;
+    case 'partially_unloaded':
+      return OnlineSaleInventoryStatus.PartiallyUnloaded;
+    default:
+      return OnlineSaleInventoryStatus.NotApplied;
+  }
+}
+
+export function mapCorrispettivoStatus(status: string): CorrispettivoEntryStatus {
+  switch (status) {
+    case 'included':
+      return CorrispettivoEntryStatus.Included;
+    case 'excluded_invoiced':
+      return CorrispettivoEntryStatus.ExcludedInvoiced;
+    case 'adjusted':
+      return CorrispettivoEntryStatus.Adjusted;
+    case 'refunded':
+      return CorrispettivoEntryStatus.Refunded;
+    default:
+      return CorrispettivoEntryStatus.ToVerify;
+  }
+}
+
+function mapOnlineSale(row: NonNullable<SalesOrderApiRow['onlineSale']>): SalesOrderOnlineSaleLink {
+  return {
+    id: row.id,
+    reference: row.reference,
+    fulfilledAt: row.fulfilledAt,
+    inventoryStatus: mapInventoryStatus(row.inventoryStatus),
+    refundedAt: row.refundedAt ?? undefined,
+    corrispettivo: row.corrispettivo
+      ? {
+          id: row.corrispettivo.id,
+          reference: row.corrispettivo.reference,
+          fiscalDate: row.corrispettivo.fiscalDate,
+          status: mapCorrispettivoStatus(row.corrispettivo.status),
+        }
+      : undefined,
+  };
 }
 
 function mapLine(row: SalesOrderLineApiRow, currency: CurrencyCode): SalesOrderLine {
@@ -106,9 +180,15 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     subtotal: { amountMinor: row.subtotalMinor, currencyCode: currency },
     total: { amountMinor: row.totalMinor, currencyCode: currency },
     placedAt: row.placedAt,
+    cancelledAt: row.cancelledAt ?? undefined,
+    fulfilledAt: row.fulfilledAt ?? undefined,
+    requiresReview: row.requiresReview ?? false,
+    reviewReason: row.reviewReason ?? undefined,
     shopify: row.shopifyOrderId
       ? { status: ShopifySyncStatus.Synced, shopifyId: row.shopifyOrderId }
       : undefined,
+    committedQuantity: row.committedQuantity ?? 0,
+    locationName: row.locationName ?? undefined,
     linkedDocument: row.document
       ? {
           id: row.document.id,
@@ -117,6 +197,7 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
           status: row.document.status,
         }
       : undefined,
+    onlineSale: row.onlineSale ? mapOnlineSale(row.onlineSale) : undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

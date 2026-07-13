@@ -38,17 +38,33 @@ export const onlineSalesRegisterGuard: CanActivateFn = () => {
   return router.createUrlTree(['/app/dashboard']);
 };
 
-/** Storico vendite Shopify: reindirizza il profilo gestionale al banco. */
+/**
+ * Ordini cliente: registro generale multicanale (fase 3 §2), accessibile a
+ * tutti i profili canale. L'utente deve essere autenticato (guard permessi
+ * a valle verifica reports.view).
+ */
 export const salesHistoryGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  if (auth.currentUser()) {
+    return true;
+  }
+
+  return router.createUrlTree(['/app/dashboard']);
+};
+
+/** Ordini Shopify (fase 3 §3): solo profilo canale Shopify. */
+export const shopifyOrdersGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
   const profile = auth.currentUser()?.tenantChannelProfile;
 
-  if (profile !== TenantChannelProfile.Gestionale) {
+  if (profile === TenantChannelProfile.Shopify) {
     return true;
   }
 
-  return router.createUrlTree(['/app/sales/register']);
+  return router.createUrlTree(['/app/sales']);
 };
 
 /** @deprecated Usare retailSalesRegisterGuard */

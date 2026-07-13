@@ -14,7 +14,7 @@ import {
 } from '../inventory/shopify-sale-movement.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { defaultTypeSetting, type ResolvedDocumentTypeSetting } from '../documents/document-defaults';
-import { extractShopifyOrderLocationId } from './shopify-order-location.util';
+import { resolveShopifyOrderLocationId } from './shopify-order-location.util';
 
 interface SyncOrderDocumentInput {
   readonly tenantId: string;
@@ -64,7 +64,8 @@ export class ShopifyOrderDocumentService {
       return null;
     }
 
-    const locationId = await this.resolveLocationId(
+    const locationId = await resolveShopifyOrderLocationId(
+      this.prisma,
       input.tenantId,
       input.orderPayload,
     );
@@ -77,6 +78,14 @@ export class ShopifyOrderDocumentService {
 
     const cancelled = this.isOrderCancelled(order);
 
+    // Fase 2 §9: se la Vendita online ha già scaricato il magazzino, il DDT
+    // NON crea movimenti (nemmeno di audit), non consuma impegni e mostra il
+    // riferimento alla Vendita online. La scelta non è modificabile.
+    const onlineSale = await this.prisma.onlineSale.findFirst({
+      where: { tenantId: input.tenantId, salesOrderId: order.id },
+      select: { id: true, reference: true },
+    });
+
     return this.prisma.$transaction(async (tx) => {
       const documentId = await this.upsertSalesDocument(tx, {
         tenantId: input.tenantId,
@@ -85,6 +94,7 @@ export class ShopifyOrderDocumentService {
         locationId,
         setting,
         cancelled,
+        onlineSale,
       });
 
       if (!documentId) {
@@ -98,7 +108,9 @@ export class ShopifyOrderDocumentService {
         });
       }
 
-      if (cancelled) {
+      if (cancelled || onlineSale) {
+        // Nessun movimento dal DDT: annullato, oppure lo scarico è già stato
+        // effettuato dalla Vendita online collegata (movimenti online_sale).
         await clearShopifySaleMovementsForDocument(tx, input.tenantId, documentId, []);
         return documentId;
       }
@@ -202,9 +214,11 @@ export class ShopifyOrderDocumentService {
       readonly locationId: string;
       readonly setting: ResolvedDocumentTypeSetting;
       readonly cancelled: boolean;
+      readonly onlineSale: { id: string; reference: string } | null;
     },
   ): Promise<string | null> {
-    const { order, tenantId, shopifyOrderId, locationId, setting, cancelled } = params;
+    const { order, tenantId, shopifyOrderId, locationId, setting, cancelled, onlineSale } =
+      params;
     const documentLines = order.lines
       .filter((line) => line.quantity > 0)
       .map((line, index) => ({
@@ -230,7 +244,9 @@ export class ShopifyOrderDocumentService {
       totalMinor: order.totalMinor,
     };
 
-    const internalComment = `Generato automaticamente da ordine Shopify ${order.orderNumber}`;
+    const internalComment = onlineSale
+      ? `Generato automaticamente da ordine Shopify ${order.orderNumber}. La movimentazione del magazzino è già stata effettuata dalla Vendita online collegata (${onlineSale.reference}).`
+      : `Generato automaticamente da ordine Shopify ${order.orderNumber}`;
     const targetStatus = cancelled ? DocumentStatus.cancelled : DocumentStatus.confirmed;
 
     if (order.documentId) {
@@ -254,6 +270,7 @@ export class ShopifyOrderDocumentService {
             customerName: order.customerName,
             locationId,
             externalRef: shopifyOrderId,
+            onlineSaleId: onlineSale?.id ?? null,
             currency: order.currency,
             ...totals,
             internalComment,
@@ -296,6 +313,7 @@ export class ShopifyOrderDocumentService {
         customerName: order.customerName,
         locationId,
         externalRef: shopifyOrderId,
+        onlineSaleId: onlineSale?.id ?? null,
         currency: order.currency,
         pricesIncludeVat: setting.pricesIncludeVat,
         ...totals,
@@ -310,29 +328,6 @@ export class ShopifyOrderDocumentService {
     });
 
     return created.id;
-  }
-
-  private async resolveLocationId(
-    tenantId: string,
-    orderPayload: Record<string, unknown>,
-  ): Promise<string | null> {
-    const shopifyLocationId = extractShopifyOrderLocationId(orderPayload);
-    if (shopifyLocationId) {
-      const mapped = await this.prisma.location.findFirst({
-        where: { tenantId, shopifyLocationId, licensedInVf: true, isActive: true },
-        select: { id: true },
-      });
-      if (mapped) {
-        return mapped.id;
-      }
-    }
-
-    const fallback = await this.prisma.location.findFirst({
-      where: { tenantId, licensedInVf: true, isActive: true },
-      orderBy: { name: 'asc' },
-      select: { id: true },
-    });
-    return fallback?.id ?? null;
   }
 
   private resolveTypeSetting(

@@ -1,0 +1,69 @@
+@use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
+
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('os-table');
+@include rt.data-table-mobile-cards('os-table');
+@include rt.data-table-mobile-title('os-table__number');
+
+.os-table-scroll {
+  inline-size: 100%;
+  max-inline-size: 100%;
+
+  @include bp.media-up('lg') {
+    overflow-x: auto;
+  }
+}
+
+.os-table__head th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-raised);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
+  white-space: nowrap;
+}
+
+.os-table__row {
+  cursor: pointer;
+  transition: background-color var(--transition-fast) var(--ease-standard);
+}
+
+.os-table__row:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.os-table__row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.os-table__row td {
+  padding: var(--space-3) var(--space-4);
+}
+
+.os-table__number {
+  font-weight: var(--font-weight-semibold);
+}
+
+@include bp.media-up('lg') {
+  .os-table tbody td[data-label='Cliente'],
+  .os-table tbody td[data-label='Location'] {
+    max-inline-size: var(--table-cell-max);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .os-table tbody td.os-table__cell--total,
+  .os-table__head th.os-table__cell--total {
+    text-align: end;
+    white-space: nowrap;
+  }
+}
+
+@include bp.media-down('lg') {
+  .os-table__row {
+    border-radius: var(--radius-lg);
+  }
+}

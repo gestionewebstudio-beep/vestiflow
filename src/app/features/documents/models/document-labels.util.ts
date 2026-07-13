@@ -20,6 +20,8 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.Inventory]: 'Inventario',
   [DocumentType.Proforma]: 'Proforma',
   [DocumentType.InvoiceDraft]: 'Bozza fattura',
+  [DocumentType.StoreSale]: 'Vendita negozio',
+  [DocumentType.StoreReturn]: 'Reso vendita negozio',
 };
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {

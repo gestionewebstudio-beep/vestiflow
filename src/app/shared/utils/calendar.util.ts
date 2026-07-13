@@ -35,6 +35,32 @@ export function parseIsoDateLocal(iso: string): Date | null {
   return date;
 }
 
+const ITALIAN_INPUT_DATE = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/;
+
+/**
+ * Interpreta una data digitata in formato italiano (`GG/MM/AAAA`, anche
+ * `G/M/AAAA` o separatori `.`/`-`) e la normalizza in ISO `YYYY-MM-DD`.
+ * Ritorna null per date incomplete o inesistenti (es. 31/02/2026).
+ */
+export function parseItalianDateInput(text: string): string | null {
+  const match = ITALIAN_INPUT_DATE.exec(text.trim());
+  if (!match) {
+    return null;
+  }
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const rawYear = match[3] ?? '';
+  const year = rawYear.length === 2 ? 2000 + Number(rawYear) : Number(rawYear);
+  const date = new Date(year, month - 1, day);
+
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+
+  return toIsoDateLocal(date);
+}
+
 /** Formato compatto it-IT per il trigger (es. 24/06/2026). */
 export function formatItalianInputDate(iso: string): string {
   const date = parseIsoDateLocal(iso);

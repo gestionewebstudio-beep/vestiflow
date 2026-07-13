@@ -18,10 +18,19 @@ describe('SalesOrdersService', () => {
     };
   }
 
-  it('list pagina ordini con filtri', async () => {
+  it('list pagina ordini con filtri e calcola Impegnata/location dalle prenotazioni attive', async () => {
     const prisma = createPrismaMock();
-    const items = [{ id: 'order-1', orderNumber: '1001' }];
-    prisma.salesOrder.findMany.mockResolvedValue(items);
+    prisma.salesOrder.findMany.mockResolvedValue([
+      {
+        id: 'order-1',
+        orderNumber: '1001',
+        onlineSale: null,
+        reservations: [
+          { remainingQuantity: 2, location: { name: 'Negozio Roma' } },
+          { remainingQuantity: 1, location: { name: 'Negozio Roma' } },
+        ],
+      },
+    ]);
     prisma.salesOrder.count.mockResolvedValue(1);
     const service = new SalesOrdersService(prisma as unknown as PrismaService);
 
@@ -33,7 +42,15 @@ describe('SalesOrdersService', () => {
       source: 'shopify',
     });
 
-    expect(result.items).toEqual(items);
+    expect(result.items).toEqual([
+      {
+        id: 'order-1',
+        orderNumber: '1001',
+        onlineSale: null,
+        committedQuantity: 3,
+        locationName: 'Negozio Roma',
+      },
+    ]);
     expect(result.total).toBe(1);
   });
 

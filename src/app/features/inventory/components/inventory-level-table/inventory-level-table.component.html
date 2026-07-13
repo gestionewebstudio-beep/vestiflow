@@ -67,7 +67,18 @@
                 [class.level-table__cell--pinned]="col.pinned"
                 [attr.data-label]="col.label"
               >
-                {{ row.committed }}
+                @if (row.committed > 0) {
+                  <button
+                    type="button"
+                    class="level-table__committed-link tabular-nums"
+                    title="Vedi gli ordini che compongono la quantità impegnata"
+                    (click)="onCommittedClick(row)"
+                  >
+                    {{ row.committed }}
+                  </button>
+                } @else {
+                  {{ row.committed }}
+                }
               </td>
             }
             @case ('incoming') {

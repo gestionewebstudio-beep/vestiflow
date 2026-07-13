@@ -117,10 +117,22 @@ export class DocumentService {
    * Salvataggio unico Arrivo merce (prompt §2.1): testata, righe, totali,
    * movimenti per riga e giacenze in un'unica operazione idempotente.
    */
-  saveGoodsReceipt(body: SaveGoodsReceiptBody): Observable<DocumentRecord> {
+  saveGoodsReceipt(body: SaveGoodsReceiptBody): Observable<{
+    document: DocumentRecord;
+    warnings: readonly string[];
+  }> {
     return this.http
-      .post<DocumentApiRow>(this.url('/documents/goods-receipt/save'), body)
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
+      .post<{
+        document: DocumentApiRow;
+        warnings: string[];
+      }>(this.url('/documents/goods-receipt/save'), body)
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map(({ document, warnings }) => ({
+          document: mapDocumentApiRow(document),
+          warnings,
+        })),
+      );
   }
 
   /** Registrazione fattura fornitore (prompt §5-6): mai movimenti di magazzino. */

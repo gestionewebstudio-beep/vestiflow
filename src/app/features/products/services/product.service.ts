@@ -69,6 +69,7 @@ interface VariantSummaryApiRow {
   readonly stockOnHand?: number | null;
   readonly category?: string | null;
   readonly unitOfMeasure?: string | null;
+  readonly defaultVatCodeId?: string | null;
 }
 
 export interface VariantSummarySearchQuery {
@@ -378,6 +379,7 @@ export class ProductService {
       stockOnHand: row.stockOnHand ?? undefined,
       category: row.category?.trim() || undefined,
       unitOfMeasure: row.unitOfMeasure?.trim() || undefined,
+      defaultVatCodeId: row.defaultVatCodeId ?? undefined,
     };
   }
 

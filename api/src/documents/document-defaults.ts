@@ -18,7 +18,39 @@ export const DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.inventory,
   DocumentType.proforma,
   DocumentType.invoice_draft,
+  DocumentType.store_sale,
+  DocumentType.store_return,
 ];
+
+/**
+ * Tipi documento interni generati SOLO dal dominio (fase 2 vendite online):
+ * mai creabili/modificabili come documenti dagli utenti. Esistono nell'enum
+ * per riusare numeratori (DocumentSequence) e collegamento movimenti
+ * (sourceDocumentType), ma non hanno righe nella tabella documents.
+ */
+export const INTERNAL_ONLY_DOCUMENT_TYPES: readonly DocumentType[] = [
+  DocumentType.online_sale,
+  DocumentType.corrispettivo,
+] as const;
+
+export function isInternalOnlyDocumentType(type: DocumentType): boolean {
+  return (INTERNAL_ONLY_DOCUMENT_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Tipi documento creati SOLO dal flusso dedicato (fase 3: cassa negozio).
+ * Sono documenti reali con righe, ma non passano da POST /documents: la
+ * creazione avviene in StoreSalesService con movimenti nella stessa
+ * transazione. Modifica/annullamento generici bloccati per coerenza stock.
+ */
+export const FLOW_ONLY_DOCUMENT_TYPES: readonly DocumentType[] = [
+  DocumentType.store_sale,
+  DocumentType.store_return,
+] as const;
+
+export function isFlowOnlyDocumentType(type: DocumentType): boolean {
+  return (FLOW_ONLY_DOCUMENT_TYPES as readonly string[]).includes(type);
+}
 
 /** Prefisso numerazione di default per tipo (§2.3). Sovrascrivibile in impostazioni. */
 export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
@@ -36,6 +68,10 @@ export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
   [DocumentType.inventory]: 'INV',
   [DocumentType.proforma]: 'PRO',
   [DocumentType.invoice_draft]: 'BF',
+  [DocumentType.online_sale]: 'VO',
+  [DocumentType.corrispettivo]: 'COR',
+  [DocumentType.store_sale]: 'VN',
+  [DocumentType.store_return]: 'RN',
 };
 
 /** Titolo di stampa di default per tipo (§2.2). Sovrascrivibile in impostazioni. */
@@ -54,6 +90,10 @@ export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
   [DocumentType.inventory]: 'Inventario fisico',
   [DocumentType.proforma]: 'Proforma - documento non fiscale',
   [DocumentType.invoice_draft]: 'Bozza fattura',
+  [DocumentType.online_sale]: 'Vendita online',
+  [DocumentType.corrispettivo]: 'Corrispettivo',
+  [DocumentType.store_sale]: 'Vendita in negozio',
+  [DocumentType.store_return]: 'Reso vendita negozio',
 };
 
 export interface ResolvedDocumentTypeSetting {
@@ -78,7 +118,8 @@ export function defaultTypeSetting(type: DocumentType): ResolvedDocumentTypeSett
     numberPrefix: DEFAULT_NUMBER_PREFIX[type],
     defaultSeries: 'A',
     blockAfterConfirm: false,
-    pricesIncludeVat: false,
+    // Cassa negozio: prezzi al pubblico IVA inclusa (scorporo interno).
+    pricesIncludeVat: isFlowOnlyDocumentType(type),
     defaultNotes: type === DocumentType.proforma ? PROFORMA_DEFAULT_NOTES : null,
   };
 }

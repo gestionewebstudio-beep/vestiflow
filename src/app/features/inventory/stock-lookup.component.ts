@@ -25,12 +25,17 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import type { VariantByCodeDto } from '@features/products/models/product.dto';
 import { ProductService } from '@features/products/services/product.service';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
+import {
+  reservationChannelLabel,
+  type StockReservationRow,
+} from './models/stock-reservation.model';
 import { InventoryService } from './services/inventory.service';
 
 type LookupState =
@@ -45,9 +50,20 @@ type LookupState =
   | { readonly status: 'not-found' }
   | { readonly status: 'error'; readonly error: AppError };
 
+/** Target del drill-down Impegnata: variante × location (fase 3 §6). */
+interface ReservationsTarget {
+  readonly variantId: string;
+  readonly locationId: string;
+  readonly locationName: string;
+  readonly committed: number;
+  readonly sku: string;
+  readonly productName: string;
+}
+
 /**
- * Ricerca rapida SKU/barcode per magazzino mobile (PWA). Mostra giacenze per
- * location e link a movimento o dettaglio prodotto.
+ * Ricerca rapida SKU/barcode per magazzino mobile (PWA). Mostra Giacenza,
+ * Impegnata (espandibile sugli ordini che la compongono) e Disponibile per
+ * location, con link a movimento o dettaglio prodotto.
  */
 @Component({
   selector: 'app-stock-lookup',
@@ -59,6 +75,7 @@ type LookupState =
     BarcodeScannerComponent,
     EmptyStateComponent,
     ErrorStateComponent,
+    SlidePanelComponent,
     TableSkeletonComponent,
     InventoryTabsComponent,
   ],
@@ -81,6 +98,14 @@ export class StockLookupComponent {
   protected readonly canInstallPwa = this.pwaInstall.canInstall;
 
   protected readonly lookupState = signal<LookupState>({ status: 'idle' });
+
+  // Drill-down Impegnata (fase 3 §6): ordini che compongono la quantità.
+  protected readonly reservationsTarget = signal<ReservationsTarget | null>(null);
+  protected readonly reservationsPanelOpen = computed(() => this.reservationsTarget() !== null);
+  protected readonly reservations = signal<readonly StockReservationRow[]>([]);
+  protected readonly reservationsLoading = signal(false);
+  protected readonly reservationsError = signal<string | null>(null);
+  protected readonly channelLabel = reservationChannelLabel;
 
   protected readonly canManageInventory = computed(() =>
     canManageInventory(this.authService.currentUser()),
@@ -132,6 +157,56 @@ export class StockLookupComponent {
   protected onScanned(code: string): void {
     this.searchForm.controls.code.setValue(code);
     this.lookup();
+  }
+
+  protected openReservations(
+    variant: VariantByCodeDto,
+    level: InventoryLevel,
+    locations: readonly Location[],
+  ): void {
+    const target: ReservationsTarget = {
+      variantId: variant.variantId,
+      locationId: level.locationId,
+      locationName: this.locationName(level.locationId, locations),
+      committed: level.committed,
+      sku: variant.sku,
+      productName: variant.productName,
+    };
+    this.reservationsTarget.set(target);
+    this.loadReservations(target);
+  }
+
+  protected closeReservations(): void {
+    this.reservationsTarget.set(null);
+    this.reservations.set([]);
+    this.reservationsError.set(null);
+  }
+
+  protected reloadReservations(): void {
+    const target = this.reservationsTarget();
+    if (target) {
+      this.loadReservations(target);
+    }
+  }
+
+  private loadReservations(target: ReservationsTarget): void {
+    this.reservationsLoading.set(true);
+    this.reservationsError.set(null);
+    this.inventoryService
+      .getReservations(target.variantId, target.locationId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rows) => {
+          this.reservations.set(rows);
+          this.reservationsLoading.set(false);
+        },
+        error: (err: unknown) => {
+          this.reservationsLoading.set(false);
+          this.reservationsError.set(
+            isAppError(err) ? err.message : 'Operazione non riuscita. Riprova.',
+          );
+        },
+      });
   }
 
   protected async installApp(): Promise<void> {

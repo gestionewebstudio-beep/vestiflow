@@ -19,4 +19,6 @@ export interface VariantSummary {
   readonly stockOnHand?: number | null;
   readonly category?: string;
   readonly unitOfMeasure?: string;
+  /** Codice IVA predefinito del prodotto (ereditato dalle righe documento). */
+  readonly defaultVatCodeId?: string;
 }

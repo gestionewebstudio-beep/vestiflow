@@ -1,3 +1,5 @@
+import type { PurchaseCostEntryMode } from '@core/models/vat-code.model';
+
 export type SupplierPriceUpdatePolicy = 'always' | 'ask' | 'never';
 
 export interface TenantFeatureSettings {
@@ -13,7 +15,10 @@ export interface TenantFeatureSettings {
   readonly warnNegativeInventory: boolean;
   readonly blockNegativeInventory: boolean;
   readonly defaultUnitOfMeasure: string;
+  /** LEGACY: sostituito da defaultVatCodeId; mantenuto per compatibilità. */
   readonly defaultVatRatePercent: number;
+  readonly defaultVatCodeId: string | null;
+  readonly defaultPurchaseCostEntryMode: PurchaseCostEntryMode;
 }
 
 export type TenantFeatureSettingsDto = TenantFeatureSettings;

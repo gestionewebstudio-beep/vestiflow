@@ -38,6 +38,8 @@ import type { ProductVariant } from '@core/models/product-variant.model';
 import type { Product, ProductStatus } from '@core/models/product.model';
 import type { ShopifyMetafieldRef } from '@core/models/shopify-product-metadata.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
+import { vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { VatCodeService } from '@core/services/vat-code.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -142,6 +144,7 @@ function shopifyCustomMetafieldLabel(namespace: string, key: string): string {
 })
 export class ProductDetailComponent {
   private readonly service = inject(ProductService);
+  private readonly vatCodeService = inject(VatCodeService);
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -214,6 +217,20 @@ export class ProductDetailComponent {
 
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly notFound = computed(() => this.state().status === 'notFound');
+
+  // Lookup Codici IVA per mostrare "22 · 22% · Imponibile 22%" nei fatti prodotto.
+  private readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+
+  protected vatCodeLabel(vatCodeId: string | null | undefined): string {
+    if (!vatCodeId) {
+      return '—';
+    }
+    const entry = this.vatCodes().find((vatCode) => vatCode.id === vatCodeId);
+    return entry ? vatCodeOptionLabel(entry) : '—';
+  }
 
   protected readonly error = computed(() => {
     const current = this.state();

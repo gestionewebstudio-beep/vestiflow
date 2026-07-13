@@ -113,6 +113,8 @@ export class TenantBackupExportService {
         });
       case 'documentTypeSettings':
         return this.prisma.documentTypeSetting.findMany({ where: { tenantId } });
+      case 'vatCodes':
+        return this.prisma.vatCode.findMany({ where: { tenantId } });
       case 'tenantFeatureSettings': {
         const row = await this.prisma.tenantFeatureSettings.findUnique({ where: { tenantId } });
         return row ? [row] : [];
@@ -157,6 +159,12 @@ export class TenantBackupExportService {
         return this.prisma.salesOrderLine.findMany({
           where: { order: { tenantId } },
         });
+      case 'stockReservations':
+        return this.prisma.stockReservation.findMany({ where: { tenantId } });
+      case 'stockReservationEvents':
+        return this.prisma.stockReservationEvent.findMany({ where: { tenantId } });
+      case 'onlineOrderEvents':
+        return this.prisma.onlineOrderEvent.findMany({ where: { tenantId } });
       case 'corrispettiviDeliveries':
         return this.prisma.corrispettiviDelivery.findMany({ where: { tenantId } });
       case 'documents':

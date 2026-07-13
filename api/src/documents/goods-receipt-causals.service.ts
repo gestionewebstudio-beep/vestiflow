@@ -6,22 +6,27 @@ import {
 } from '@nestjs/common';
 import type { GoodsReceiptCausal } from '@prisma/client';
 
+import { ExternalDocumentTypesService } from './external-document-types.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** Causali di carico iniziali consigliate (prompt §1.2). */
-const DEFAULT_CAUSALS: readonly string[] = [
-  'DDT ... del ...',
-  'DDT ... del ... - C/Lavorazione',
-  'DDT ... del ... - C/Riparazione',
-  'DDT ... del ... - C/Vendita',
-  'DDT ... del ... - C/Visione',
-  'Reso',
-  'Fatt. ... del ...',
-  'Reso da Cliente Conto Visione',
+/**
+ * Causali di carico iniziali (modelli con segnaposto {numero}/{data}, §11).
+ * `typeName` collega la causale al tipo documento fornitore di sistema.
+ */
+const DEFAULT_CAUSALS: readonly { readonly label: string; readonly typeName: string | null }[] = [
+  { label: 'DDT {numero} del {data}', typeName: 'DDT' },
+  { label: 'DDT {numero} del {data} - C/Lavorazione', typeName: 'DDT' },
+  { label: 'DDT {numero} del {data} - C/Riparazione', typeName: 'DDT' },
+  { label: 'DDT {numero} del {data} - C/Vendita', typeName: 'DDT' },
+  { label: 'DDT {numero} del {data} - C/Visione', typeName: 'DDT' },
+  { label: 'Reso {numero} del {data}', typeName: 'Reso' },
+  { label: 'Fatt. {numero} del {data}', typeName: 'Fattura' },
+  { label: 'Reso da Cliente Conto Visione', typeName: 'Reso' },
 ] as const;
 
 export interface UpsertGoodsReceiptCausalInput {
   readonly label: string;
+  readonly externalDocumentTypeId?: string | null;
   readonly isDefault?: boolean;
   readonly isActive?: boolean;
 }
@@ -32,7 +37,10 @@ export interface UpsertGoodsReceiptCausalInput {
  */
 @Injectable()
 export class GoodsReceiptCausalsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly externalTypes: ExternalDocumentTypesService,
+  ) {}
 
   async list(tenantId: string): Promise<GoodsReceiptCausal[]> {
     await this.seedIfEmpty(tenantId);
@@ -60,6 +68,9 @@ export class GoodsReceiptCausalsService {
       where: { tenantId },
       _max: { sortOrder: true },
     });
+    if (input.externalDocumentTypeId) {
+      await this.externalTypes.getById(tenantId, input.externalDocumentTypeId);
+    }
     return this.prisma.$transaction(async (tx) => {
       if (input.isDefault) {
         await tx.goodsReceiptCausal.updateMany({
@@ -71,6 +82,7 @@ export class GoodsReceiptCausalsService {
         data: {
           tenantId,
           label,
+          externalDocumentTypeId: input.externalDocumentTypeId ?? null,
           sortOrder: (last._max.sortOrder ?? 0) + 1,
           isDefault: input.isDefault ?? false,
           isActive: input.isActive ?? true,
@@ -97,6 +109,9 @@ export class GoodsReceiptCausalsService {
         throw new ConflictException('Esiste già una causale con questo testo.');
       }
     }
+    if (input.externalDocumentTypeId) {
+      await this.externalTypes.getById(tenantId, input.externalDocumentTypeId);
+    }
     return this.prisma.$transaction(async (tx) => {
       if (input.isDefault === true) {
         await tx.goodsReceiptCausal.updateMany({
@@ -108,6 +123,9 @@ export class GoodsReceiptCausalsService {
         where: { id },
         data: {
           ...(label !== undefined ? { label } : {}),
+          ...(input.externalDocumentTypeId !== undefined
+            ? { externalDocumentTypeId: input.externalDocumentTypeId }
+            : {}),
           ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
           ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
         },
@@ -153,10 +171,16 @@ export class GoodsReceiptCausalsService {
     if (count > 0) {
       return;
     }
+    // I tipi documento di sistema devono esistere per collegare le causali seed.
+    const types = await this.externalTypes.list(tenantId);
+    const typeIdByName = new Map(types.map((type) => [type.name, type.id]));
     await this.prisma.goodsReceiptCausal.createMany({
-      data: DEFAULT_CAUSALS.map((label, index) => ({
+      data: DEFAULT_CAUSALS.map((causal, index) => ({
         tenantId,
-        label,
+        label: causal.label,
+        externalDocumentTypeId: causal.typeName
+          ? (typeIdByName.get(causal.typeName) ?? null)
+          : null,
         sortOrder: index + 1,
         isDefault: index === 0,
         isActive: true,

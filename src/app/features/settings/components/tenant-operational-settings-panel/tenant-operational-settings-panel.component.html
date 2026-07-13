@@ -48,16 +48,30 @@
           maxlength="16"
         />
       </label>
-      <label class="tenant-ops__field" for="tenant-ops-vat">
-        IVA predefinita (%)
-        <input
-          id="tenant-ops-vat"
-          type="number"
-          min="0"
-          max="100"
-          formControlName="defaultVatRatePercent"
-        />
+      <label class="tenant-ops__field" for="tenant-ops-vat-code">
+        Codice IVA predefinito
+        <select id="tenant-ops-vat-code" formControlName="defaultVatCodeId">
+          @for (opt of vatCodeOptions(); track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
       </label>
+      <a class="tenant-ops__link" routerLink="/settings/codici-iva">Gestisci Codici IVA</a>
+    </fieldset>
+
+    <fieldset class="tenant-ops__group">
+      <legend class="tenant-ops__legend">Arrivi merce</legend>
+      <label class="tenant-ops__field" for="tenant-ops-cost-mode">
+        Modalità costi predefinita negli Arrivi merce
+        <select id="tenant-ops-cost-mode" formControlName="defaultPurchaseCostEntryMode">
+          @for (opt of costEntryModeOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      <p class="tenant-ops__note">
+        La modalità viene copiata nei nuovi Arrivi merce; i documenti esistenti non cambiano.
+      </p>
     </fieldset>
 
     <fieldset class="tenant-ops__group">

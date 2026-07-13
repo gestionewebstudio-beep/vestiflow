@@ -125,7 +125,10 @@ export class InventoryExportService {
       where: {
         tenantId,
         ...locationScopeToMovementFilter(scope),
-        type: { in: [StockMovementType.sale, StockMovementType.return] },
+        // online_sale: scarichi generati dalle Vendite online (fase 2).
+        type: {
+          in: [StockMovementType.sale, StockMovementType.online_sale, StockMovementType.return],
+        },
         ...(query.origin ? { origin: query.origin } : {}),
         ...(query.from || query.to
           ? {

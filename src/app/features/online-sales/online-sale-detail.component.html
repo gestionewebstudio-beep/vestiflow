@@ -1,0 +1,175 @@
+<section class="os-detail">
+  <a class="os-detail__back" [routerLink]="listPath">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Vendite online
+  </a>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-search"
+      title="Vendita online non trovata"
+      description="La vendita richiesta non esiste o è stata rimossa."
+      ctaLabel="Torna al registro"
+      (ctaClick)="goToList()"
+    />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (sale(); as s) {
+    <header class="os-detail__header">
+      <h1 class="os-detail__title tabular-nums">{{ s.reference }}</h1>
+      <p class="os-detail__subtitle">
+        Vendita online generata dall'evasione dell'ordine {{ s.orderNumber }}
+      </p>
+    </header>
+
+    <section class="os-detail__panel" aria-labelledby="os-detail-general">
+      <div class="os-detail__panel-head os-detail__panel-head--split">
+        <h2 id="os-detail-general" class="os-detail__panel-title">Dati vendita</h2>
+        <div class="os-detail__badges">
+          <app-badge [tone]="inventoryTone(s.inventoryStatus)">
+            {{ inventoryLabel(s.inventoryStatus) }}
+          </app-badge>
+          @if (s.corrispettivo) {
+            <app-badge [tone]="corrispettivoTone(s.corrispettivo.status)">
+              Corrispettivo: {{ corrispettivoLabel(s.corrispettivo.status) }}
+            </app-badge>
+          }
+          @if (s.refundedAt) {
+            <app-badge tone="error">Rimborsato dopo l'evasione</app-badge>
+          }
+        </div>
+      </div>
+      @if (s.refundedAt) {
+        <p class="os-detail__note" role="note">
+          Il rimborso non modifica la giacenza: il rientro fisico della merce richiede un evento di
+          reso reale registrato dal canale.
+        </p>
+      }
+      <app-detail-facts [facts]="facts()" />
+    </section>
+
+    <section class="os-detail__panel" aria-labelledby="os-detail-lines">
+      <div class="os-detail__panel-head">
+        <h2 id="os-detail-lines" class="os-detail__panel-title">Righe</h2>
+        <span class="os-detail__count tabular-nums">{{ s.lines.length }}</span>
+      </div>
+
+      <div class="os-detail__table-scroll">
+        <table class="os-lines">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Descrizione</th>
+              <th scope="col">SKU</th>
+              <th scope="col" class="os-lines__cell--num">Qtà</th>
+              <th scope="col" class="os-lines__cell--num">Prezzo</th>
+              <th scope="col" class="os-lines__cell--num">Imponibile</th>
+              <th scope="col" class="os-lines__cell--num">IVA</th>
+              <th scope="col" class="os-lines__cell--num">Imposta</th>
+              <th scope="col" class="os-lines__cell--num">Totale</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of s.lines; track line.id) {
+              <tr>
+                <td class="tabular-nums" data-label="#">{{ line.lineNumber }}</td>
+                <td data-label="Descrizione">{{ line.description }}</td>
+                <td class="tabular-nums" data-label="SKU">{{ line.sku || '—' }}</td>
+                <td class="os-lines__cell--num tabular-nums" data-label="Qtà">
+                  {{ line.quantity }}
+                </td>
+                <td class="os-lines__cell--num tabular-nums" data-label="Prezzo">
+                  {{ money(line.unitPriceMinor) }}
+                </td>
+                <td class="os-lines__cell--num tabular-nums" data-label="Imponibile">
+                  {{ money(line.subtotalMinor) }}
+                </td>
+                <td class="os-lines__cell--num tabular-nums" data-label="IVA">
+                  {{ vatLabel(line.vatRatePercent) }}
+                </td>
+                <td class="os-lines__cell--num tabular-nums" data-label="Imposta">
+                  {{ money(line.taxMinor) }}
+                </td>
+                <td class="os-lines__cell--num tabular-nums" data-label="Totale">
+                  {{ money(line.totalMinor) }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <dl class="os-detail__totals">
+        <div class="os-detail__total-row">
+          <dt>Imponibile</dt>
+          <dd class="tabular-nums">{{ money(s.subtotalMinor) }}</dd>
+        </div>
+        <div class="os-detail__total-row">
+          <dt>Sconti</dt>
+          <dd class="tabular-nums">{{ money(s.discountMinor) }}</dd>
+        </div>
+        <div class="os-detail__total-row">
+          <dt>Spedizione</dt>
+          <dd class="tabular-nums">{{ money(s.shippingMinor) }}</dd>
+        </div>
+        <div class="os-detail__total-row">
+          <dt>IVA</dt>
+          <dd class="tabular-nums">{{ money(s.taxMinor) }}</dd>
+        </div>
+        <div class="os-detail__total-row os-detail__total-row--grand">
+          <dt>Totale</dt>
+          <dd class="tabular-nums">{{ money(s.totalMinor) }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="os-detail__panel" aria-labelledby="os-detail-movements">
+      <div class="os-detail__panel-head">
+        <h2 id="os-detail-movements" class="os-detail__panel-title">
+          Movimenti di magazzino collegati
+        </h2>
+        <span class="os-detail__count tabular-nums">{{ s.movements.length }}</span>
+      </div>
+
+      @if (s.movements.length === 0) {
+        <p class="os-detail__note" role="note">
+          Nessun movimento collegato: la vendita non ha applicato scarichi (es. ordine storico
+          importato senza impegni attivi).
+        </p>
+      } @else {
+        <div class="os-detail__table-scroll">
+          <table class="os-lines">
+            <thead>
+              <tr>
+                <th scope="col">Tipo</th>
+                <th scope="col" class="os-lines__cell--num">Quantità</th>
+                <th scope="col">Location</th>
+                <th scope="col">Data</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (movement of s.movements; track movement.id) {
+                <tr>
+                  <td data-label="Tipo">{{ movementTypeLabel(movement.type) }}</td>
+                  <td class="os-lines__cell--num tabular-nums" data-label="Quantità">
+                    {{ movement.quantity }}
+                  </td>
+                  <td data-label="Location">{{ movement.locationName }}</td>
+                  <td class="tabular-nums" data-label="Data">
+                    {{ formatDate(movement.createdAt) }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="os-detail__hint">
+          Lo scarico consuma gli impegni dell'ordine: Giacenza e Impegnata diminuiscono, la
+          Disponibile resta invariata.
+        </p>
+      }
+    </section>
+  }
+</section>

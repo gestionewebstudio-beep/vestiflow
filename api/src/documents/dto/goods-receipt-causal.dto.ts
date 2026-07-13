@@ -1,9 +1,24 @@
-import { ArrayMaxSize, IsArray, IsBoolean, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  ValidateIf,
+} from 'class-validator';
 
 export class CreateGoodsReceiptCausalDto {
   @IsString()
   @Length(1, 200)
   label!: string;
+
+  /** Tipo documento fornitore associato (null = nessuno). */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  externalDocumentTypeId?: string | null;
 
   @IsOptional()
   @IsBoolean()
@@ -19,6 +34,11 @@ export class UpdateGoodsReceiptCausalDto {
   @IsString()
   @Length(1, 200)
   label?: string;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  externalDocumentTypeId?: string | null;
 
   @IsOptional()
   @IsBoolean()

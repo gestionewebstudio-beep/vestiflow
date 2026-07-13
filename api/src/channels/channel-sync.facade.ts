@@ -8,6 +8,7 @@ import { TikTokProductPushService } from '../tiktok/tiktok-product-push.service'
 /**
  * Orchestrazione push verso canali di vendita collegati.
  * Ogni canale è best-effort e indipendente: un fallimento TikTok non blocca Shopify.
+ * L'inventario viene pubblicato post-commit in modo asincrono (§5 eventi VestiFlow).
  */
 @Injectable()
 export class ChannelSyncFacade {
@@ -28,6 +29,18 @@ export class ChannelSyncFacade {
     void this.tiktokProductPush.enqueuePush(tenantId, productId).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Push prodotto TikTok fallito';
       this.logger.warn(`Push prodotto TikTok non riuscito (${tenantId}): ${message}`);
+    });
+  }
+
+  /** Post-commit: pubblica inventario senza bloccare la transazione locale. */
+  enqueueInventoryPush(
+    tenantId: string,
+    variantId: string,
+    locationIds: readonly string[],
+  ): void {
+    void this.pushInventoryLevels(tenantId, variantId, locationIds).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Push inventario canali fallito';
+      this.logger.warn(`Push inventario canali non riuscito (${tenantId}): ${message}`);
     });
   }
 

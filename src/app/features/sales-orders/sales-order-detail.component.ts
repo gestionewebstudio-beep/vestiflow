@@ -7,7 +7,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
-import { formatDateTime } from '@core/utils/date.util';
+import { formatDate, formatDateTime } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -19,10 +19,14 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { SalesOrderLinesTableComponent } from './components/sales-order-lines-table/sales-order-lines-table.component';
 import {
+  corrispettivoStatusLabel,
+  corrispettivoStatusTone,
   financialStatusLabel,
   financialStatusTone,
   fulfillmentStatusLabel,
   fulfillmentStatusTone,
+  onlineSaleInventoryStatusLabel,
+  onlineSaleInventoryStatusTone,
   sourceLabel,
 } from './models/sales-order-labels.util';
 import { salesOrderShopifyDetailFact } from './models/sales-order-shopify-fact.util';
@@ -63,6 +67,10 @@ export class SalesOrderDetailComponent {
   protected readonly financialTone = financialStatusTone;
   protected readonly fulfillmentLabel = fulfillmentStatusLabel;
   protected readonly fulfillmentTone = fulfillmentStatusTone;
+  protected readonly inventoryStatusLabel = onlineSaleInventoryStatusLabel;
+  protected readonly inventoryStatusTone = onlineSaleInventoryStatusTone;
+  protected readonly corrispettivoLabel = corrispettivoStatusLabel;
+  protected readonly corrispettivoTone = corrispettivoStatusTone;
   protected readonly formatMoney = formatMoney;
 
   private readonly refreshTick = signal(0);
@@ -123,6 +131,36 @@ export class SalesOrderDetailComponent {
         value: order.linkedDocument.reference ?? 'DDT vendita',
         href: `/app/documents/${order.linkedDocument.id}`,
         linkLabel: 'Apri documento',
+      });
+    }
+    return facts;
+  });
+
+  /** Dati della Vendita online generata dall'evasione (fase 2). */
+  protected readonly onlineSaleFacts = computed<readonly DetailFact[]>(() => {
+    const sale = this.order()?.onlineSale;
+    if (!sale) {
+      return [];
+    }
+    const facts: DetailFact[] = [
+      { label: 'Riferimento', value: sale.reference, numeric: true },
+      { label: 'Data evasione', value: formatDateTime(sale.fulfilledAt), numeric: true },
+    ];
+    if (sale.corrispettivo) {
+      facts.push(
+        { label: 'Corrispettivo', value: sale.corrispettivo.reference, numeric: true },
+        {
+          label: 'Data fiscale corrispettivo',
+          value: formatDate(sale.corrispettivo.fiscalDate),
+          numeric: true,
+        },
+      );
+    }
+    if (sale.refundedAt) {
+      facts.push({
+        label: 'Rimborso registrato',
+        value: formatDateTime(sale.refundedAt),
+        numeric: true,
       });
     }
     return facts;

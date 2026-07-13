@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
   IsOptional,
@@ -55,11 +56,26 @@ export class SaveGoodsReceiptLineDto {
   @Max(100)
   discountPercent?: number;
 
+  /** LEGACY: aliquota % intera. Usare vatCodeId; accettata come fallback. */
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(100)
   vatRatePercent?: number;
+
+  /** Codice IVA della riga (tabella vat_codes, §9). */
+  @IsOptional()
+  @IsUUID()
+  vatCodeId?: string;
+
+  /**
+   * Costo unitario digitato in unità minori: netto o ivato secondo la
+   * modalità documento (§11.4). Se assente si usa unitPriceMinor come netto.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  enteredUnitCostMinor?: number;
 
   @IsOptional()
   @IsBoolean()
@@ -120,11 +136,21 @@ export class SaveGoodsReceiptDto {
   @MaxLength(500)
   causalText?: string;
 
-  /** Tipo riferimento documento fornitore: DDT, Fattura, Reso, Altro (§9.3). */
+  /** Modalità causale: auto = generata dal modello, manual = testo utente (§10). */
+  @IsOptional()
+  @IsIn(['auto', 'manual'])
+  causalGenerationMode?: 'auto' | 'manual';
+
+  /** Modello causale usato in modalità auto (snapshot, §13). */
   @IsOptional()
   @IsString()
-  @MaxLength(40)
-  supplierRefType?: string;
+  @MaxLength(200)
+  causalTemplateSnapshot?: string;
+
+  /** Tipo documento fornitore (tabella per tenant, §3-4). */
+  @IsOptional()
+  @IsUUID()
+  externalDocumentTypeId?: string;
 
   @IsOptional()
   @IsString()
@@ -151,11 +177,6 @@ export class SaveGoodsReceiptDto {
   billingCause?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  externalRef?: string;
-
-  @IsOptional()
   @IsUUID()
   supplierOrderId?: string;
 
@@ -169,6 +190,11 @@ export class SaveGoodsReceiptDto {
   @Min(0)
   @Max(100)
   documentDiscountPercent?: number;
+
+  /** Modalità costi del documento: netti o ivati (§11.1). */
+  @IsOptional()
+  @IsIn(['vat_excluded', 'vat_included'])
+  purchaseCostEntryMode?: 'vat_excluded' | 'vat_included';
 
   @IsOptional()
   @IsArray()

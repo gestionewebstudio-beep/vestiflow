@@ -119,7 +119,11 @@
       icon="pi-box"
     />
   } @else {
-    <app-inventory-level-table [rows]="rows()" [columns]="tableColumns()" />
+    <app-inventory-level-table
+      [rows]="rows()"
+      [columns]="tableColumns()"
+      (committedClick)="openReservations($event)"
+    />
     <app-pagination
       label="Paginazione giacenze"
       [meta]="meta()"
@@ -128,4 +132,53 @@
       (pageSizeChange)="onPageSizeChange($event)"
     />
   }
+
+  <app-slide-panel
+    [open]="reservationsPanelOpen()"
+    title="Quantità impegnata"
+    ariaLabel="Ordini che compongono la quantità impegnata"
+    (closed)="closeReservations()"
+  >
+    @if (reservationsTarget(); as target) {
+      <p class="inventory-levels__reservations-context">
+        {{ target.title }} — <span class="tabular-nums">{{ target.sku }}</span>
+        <br />
+        {{ target.locationName }}: <strong class="tabular-nums">{{ target.committed }}</strong>
+        impegnati
+      </p>
+    }
+
+    @if (reservationsLoading()) {
+      <app-table-skeleton [columns]="3" [rows]="3" />
+    } @else if (reservationsError(); as message) {
+      <app-error-state
+        [description]="message"
+        retryLabel="Riprova"
+        (retry)="reloadReservations()"
+      />
+    } @else if (reservations().length === 0) {
+      <app-empty-state
+        title="Nessun impegno attivo"
+        description="Nessun ordine sta impegnando questa variante in questa location."
+        icon="pi-inbox"
+      />
+    } @else {
+      <ul class="inventory-levels__reservations">
+        @for (reservation of reservations(); track reservation.id) {
+          <li class="inventory-levels__reservation">
+            <span class="inventory-levels__reservation-order">
+              {{ channelLabel(reservation.channel) }}
+              <strong class="tabular-nums">{{ reservation.orderNumber }}</strong>
+            </span>
+            <span class="inventory-levels__reservation-qty tabular-nums">
+              {{ reservation.quantity }} {{ reservation.quantity === 1 ? 'pezzo' : 'pezzi' }}
+            </span>
+            <span class="inventory-levels__reservation-location">
+              {{ reservation.locationName }}
+            </span>
+          </li>
+        }
+      </ul>
+    }
+  </app-slide-panel>
 </section>

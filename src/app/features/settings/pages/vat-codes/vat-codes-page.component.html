@@ -1,0 +1,326 @@
+<section class="vat-codes">
+  <header class="vat-codes__header">
+    <div class="vat-codes__heading">
+      <a class="vat-codes__back" routerLink="/settings">
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        Impostazioni
+      </a>
+      <h1 class="vat-codes__title">Codici IVA</h1>
+      <p class="vat-codes__subtitle">
+        Gestisci aliquote, Nature e trattamenti IVA utilizzati negli articoli e nei documenti.
+      </p>
+    </div>
+    <app-button (click)="openCreate()">Nuovo Codice IVA</app-button>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="6" [rows]="8" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare i Codici IVA."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else {
+    <div class="vat-codes__toolbar" role="search">
+      <input
+        class="vat-codes__search"
+        type="search"
+        placeholder="Cerca per codice, descrizione o note…"
+        aria-label="Cerca Codici IVA"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+      />
+      <label class="vat-codes__filter">
+        <span class="vat-codes__filter-label">Natura</span>
+        <select aria-label="Filtra per Natura" (change)="onNatureFilterChange($event)">
+          <option value="" [selected]="natureFilter() === ''">Tutte</option>
+          @for (nature of natures(); track nature.id) {
+            <option [value]="nature.id" [selected]="natureFilter() === nature.id">
+              {{ nature.label }}
+            </option>
+          }
+        </select>
+      </label>
+      <label class="vat-codes__filter">
+        <span class="vat-codes__filter-label">Ambito</span>
+        <select aria-label="Filtra per ambito" (change)="onScopeFilterChange($event)">
+          <option value="" [selected]="scopeFilter() === ''">Tutti</option>
+          @for (opt of usageScopeOptions; track opt.value) {
+            <option [value]="opt.value" [selected]="scopeFilter() === opt.value">
+              {{ opt.label }}
+            </option>
+          }
+        </select>
+      </label>
+      <label class="vat-codes__filter">
+        <span class="vat-codes__filter-label">Stato</span>
+        <select aria-label="Filtra per stato" (change)="onActiveFilterChange($event)">
+          <option value="all" [selected]="activeFilter() === 'all'">Tutte</option>
+          <option value="active" [selected]="activeFilter() === 'active'">Attive</option>
+          <option value="inactive" [selected]="activeFilter() === 'inactive'">Disattivate</option>
+        </select>
+      </label>
+      @if (hasFilters()) {
+        <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
+      }
+    </div>
+
+    @if (groups().length === 0) {
+      <app-empty-state
+        title="Nessun Codice IVA trovato"
+        [description]="
+          hasFilters()
+            ? 'Nessuna voce corrisponde ai filtri correnti.'
+            : 'Crea il primo Codice IVA per usarlo su articoli e documenti.'
+        "
+        icon="pi-percentage"
+        [ctaLabel]="hasFilters() ? 'Azzera filtri' : 'Nuovo Codice IVA'"
+        (ctaClick)="hasFilters() ? resetFilters() : openCreate()"
+      />
+    } @else {
+      @for (group of groups(); track group.nature.id) {
+        <section class="vat-codes__group" [attr.aria-label]="group.nature.label">
+          <button
+            type="button"
+            class="vat-codes__group-toggle"
+            [attr.aria-expanded]="!isCollapsed(group.nature.id)"
+            (click)="toggleGroup(group.nature.id)"
+          >
+            <i
+              class="pi vat-codes__group-icon"
+              [class.pi-chevron-down]="!isCollapsed(group.nature.id)"
+              [class.pi-chevron-right]="isCollapsed(group.nature.id)"
+              aria-hidden="true"
+            ></i>
+            <span class="vat-codes__group-title">{{ group.nature.label }}</span>
+            <span class="vat-codes__group-count tabular-nums">{{ group.codes.length }}</span>
+          </button>
+
+          @if (!isCollapsed(group.nature.id)) {
+            <div class="vat-codes__table-wrap">
+              <table class="vat-codes__table">
+                <thead>
+                  <tr>
+                    <th scope="col">Codice IVA</th>
+                    <th scope="col" class="vat-codes__col-num">Aliquota</th>
+                    <th scope="col" class="vat-codes__col-num">% indetraibile</th>
+                    <th scope="col">Descrizione</th>
+                    <th scope="col" class="vat-codes__col-notes">Note</th>
+                    <th scope="col">Ambito</th>
+                    <th scope="col">Stato</th>
+                    <th scope="col" class="vat-codes__col-actions">
+                      <span class="visually-hidden">Azioni</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (entry of group.codes; track entry.id) {
+                    <tr
+                      class="vat-codes__row"
+                      [class.vat-codes__row--inactive]="!entry.isActive"
+                      tabindex="0"
+                      (click)="openEdit(entry)"
+                      (keydown.enter)="openEdit(entry)"
+                    >
+                      <td data-label="Codice IVA">
+                        <span class="vat-codes__code">{{ entry.code }}</span>
+                        @if (entry.isDefault) {
+                          <app-badge tone="success">Predefinito</app-badge>
+                        }
+                      </td>
+                      <td data-label="Aliquota" class="vat-codes__col-num tabular-nums">
+                        {{ formatRate(entry.ratePercent) }}
+                      </td>
+                      <td data-label="% indetraibile" class="vat-codes__col-num tabular-nums">
+                        @if (entry.nonDeductiblePercent > 0) {
+                          {{ formatRate(entry.nonDeductiblePercent) }}
+                        } @else {
+                          —
+                        }
+                      </td>
+                      <td data-label="Descrizione">{{ entry.description }}</td>
+                      <td data-label="Note" class="vat-codes__col-notes">
+                        {{ entry.notes || '—' }}
+                      </td>
+                      <td data-label="Ambito">{{ scopeLabels[entry.usageScope] }}</td>
+                      <td data-label="Stato">
+                        <app-badge [tone]="entry.isActive ? 'neutral' : 'warning'">
+                          {{ entry.isActive ? 'Attivo' : 'Disattivato' }}
+                        </app-badge>
+                      </td>
+                      <td data-label="Azioni" class="vat-codes__col-actions">
+                        <app-button
+                          variant="ghost"
+                          (click)="$event.stopPropagation(); openDuplicate(entry)"
+                        >
+                          Duplica
+                        </app-button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
+      }
+    }
+  }
+</section>
+
+<app-slide-panel
+  [open]="panelOpen()"
+  [title]="panelTitle()"
+  ariaLabel="Dettaglio Codice IVA"
+  (closed)="closePanel()"
+>
+  <form class="vat-form" [formGroup]="form" (ngSubmit)="save()">
+    <label class="vat-form__field" for="vat-code-code">
+      Codice IVA *
+      <input
+        id="vat-code-code"
+        type="text"
+        formControlName="code"
+        maxlength="16"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      @if (form.controls.code.invalid && form.controls.code.touched) {
+        <span class="vat-form__error">
+          Obbligatorio, max 16 caratteri: lettere, numeri, punti, trattini e underscore.
+        </span>
+      }
+    </label>
+
+    <label class="vat-form__field" for="vat-code-nature">
+      Natura IVA *
+      <select id="vat-code-nature" formControlName="natureId" (change)="onNatureChange($event)">
+        @for (nature of natures(); track nature.id) {
+          <option [value]="nature.id">{{ nature.label }}</option>
+        }
+      </select>
+      @if (form.controls.natureId.invalid && form.controls.natureId.touched) {
+        <span class="vat-form__error">Seleziona la Natura IVA.</span>
+      }
+    </label>
+
+    <div class="vat-form__row">
+      <label class="vat-form__field" for="vat-code-rate">
+        Aliquota (%) *
+        <input
+          id="vat-code-rate"
+          type="number"
+          formControlName="ratePercent"
+          min="0"
+          max="100"
+          step="0.01"
+        />
+        @if (form.controls.ratePercent.invalid && form.controls.ratePercent.touched) {
+          <span class="vat-form__error">Valore tra 0 e 100.</span>
+        }
+      </label>
+      <label class="vat-form__field" for="vat-code-nondeductible">
+        % indetraibile
+        <input
+          id="vat-code-nondeductible"
+          type="number"
+          formControlName="nonDeductiblePercent"
+          min="0"
+          max="100"
+          step="0.01"
+        />
+        @if (
+          form.controls.nonDeductiblePercent.invalid && form.controls.nonDeductiblePercent.touched
+        ) {
+          <span class="vat-form__error">Valore tra 0 e 100.</span>
+        }
+      </label>
+    </div>
+
+    <label class="vat-form__field" for="vat-code-description">
+      Descrizione *
+      <input id="vat-code-description" type="text" formControlName="description" maxlength="120" />
+      @if (form.controls.description.invalid && form.controls.description.touched) {
+        <span class="vat-form__error">Inserisci una descrizione.</span>
+      }
+    </label>
+
+    <label class="vat-form__field" for="vat-code-notes">
+      Note
+      <textarea id="vat-code-notes" formControlName="notes" rows="2" maxlength="500"></textarea>
+    </label>
+
+    <div class="vat-form__row">
+      <label class="vat-form__field" for="vat-code-scope">
+        Ambito di utilizzo
+        <select id="vat-code-scope" formControlName="usageScope">
+          @for (opt of usageScopeOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      <label class="vat-form__field" for="vat-code-mode">
+        Modalità di calcolo
+        <select id="vat-code-mode" formControlName="calculationMode">
+          @for (opt of calculationModeOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    <label class="vat-form__check">
+      <input type="checkbox" formControlName="vatAffectsSupplierTotal" />
+      IVA inclusa nel totale fornitore
+    </label>
+    <label class="vat-form__check">
+      <input type="checkbox" formControlName="isDefault" />
+      Codice IVA predefinito aziendale
+    </label>
+    <label class="vat-form__check">
+      <input type="checkbox" formControlName="isActive" />
+      Attivo (proposto nelle nuove selezioni)
+    </label>
+
+    @if (panelError(); as err) {
+      <p class="vat-form__submit-error" role="alert">{{ err }}</p>
+    }
+
+    <div class="vat-form__actions">
+      <app-button type="submit" [loading]="saving()" [disabled]="saving()">Salva</app-button>
+      @if (panelMode() === 'edit' && editingCode(); as editing) {
+        @if (!editing.isDefault) {
+          <app-button
+            type="button"
+            variant="danger"
+            [disabled]="saving() || deleting()"
+            (click)="requestDelete()"
+          >
+            Elimina
+          </app-button>
+        }
+      }
+      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="closePanel()">
+        Annulla
+      </app-button>
+    </div>
+    @if (panelMode() === 'edit') {
+      <p class="vat-form__hint">
+        Una voce già utilizzata in articoli o documenti non può essere eliminata: disattivala per
+        nasconderla dalle nuove selezioni. I documenti storici continuano a mostrare i dati salvati.
+      </p>
+    }
+  </form>
+</app-slide-panel>
+
+<app-confirm-dialog
+  title="Elimina Codice IVA"
+  message="Il Codice IVA verrà eliminato definitivamente. L'operazione è possibile solo se la voce non è mai stata utilizzata."
+  confirmLabel="Elimina"
+  [danger]="true"
+  [busy]="deleting()"
+  [open]="deleteDialogOpen()"
+  (openChange)="deleteDialogOpen.set($event)"
+  (confirmed)="confirmDelete()"
+/>

@@ -115,6 +115,7 @@ export class StockMovementsComponent {
     { value: StockMovementType.Transfer, label: 'Trasferimento' },
     { value: StockMovementType.Adjustment, label: 'Rettifica' },
     { value: StockMovementType.Sale, label: 'Vendita' },
+    { value: StockMovementType.OnlineSale, label: 'Vendita online' },
     { value: StockMovementType.Return, label: 'Reso' },
   ];
 
@@ -390,7 +391,9 @@ export class StockMovementsComponent {
 
   private isSaleTypeFilter(): boolean {
     return (
-      this.typeFilter() === StockMovementType.Sale || this.typeFilter() === StockMovementType.Return
+      this.typeFilter() === StockMovementType.Sale ||
+      this.typeFilter() === StockMovementType.OnlineSale ||
+      this.typeFilter() === StockMovementType.Return
     );
   }
 
@@ -402,6 +405,7 @@ export class StockMovementsComponent {
         return `+${movement.quantity}`;
       case StockMovementType.Unload:
       case StockMovementType.Sale:
+      case StockMovementType.OnlineSale:
         return `\u2212${movement.quantity}`;
       case StockMovementType.Adjustment:
         return movement.direction === AdjustmentDirection.Decrease

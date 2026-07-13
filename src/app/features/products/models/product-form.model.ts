@@ -24,7 +24,10 @@ export interface ProductGeneralDraft {
   readonly tags: string;
   readonly status: ProductStatus;
   readonly unitOfMeasure: string;
+  /** LEGACY: sostituito da defaultVatCodeId; mantenuto per compatibilità. */
   readonly defaultVatRatePercent: number | null;
+  /** Codice IVA del prodotto ('' = usa il predefinito aziendale). */
+  readonly defaultVatCodeId: string;
   readonly inventoryTracking: InventoryTrackingMode;
   readonly managesStock: boolean;
 }

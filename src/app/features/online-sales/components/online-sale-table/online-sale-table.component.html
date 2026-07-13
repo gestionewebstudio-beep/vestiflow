@@ -1,0 +1,63 @@
+<div class="os-table-scroll">
+  <table class="os-table">
+    <thead class="os-table__head">
+      <tr>
+        <th scope="col">Numero</th>
+        <th scope="col">Canale</th>
+        <th scope="col">Ordine origine</th>
+        <th scope="col">Data evasione</th>
+        <th scope="col">Cliente</th>
+        <th scope="col">Location</th>
+        <th scope="col" class="os-table__cell--total">Totale</th>
+        <th scope="col">Stato magazzino</th>
+        <th scope="col">Corrispettivo</th>
+        <th scope="col">DDT</th>
+        <th scope="col">Rimborso</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (sale of sales(); track sale.id) {
+        <tr
+          class="os-table__row"
+          tabindex="0"
+          [attr.aria-label]="rowLabel(sale)"
+          (click)="rowClick.emit(sale)"
+          (keydown.enter)="rowClick.emit(sale)"
+          (keydown.space)="$event.preventDefault(); rowClick.emit(sale)"
+        >
+          <td class="os-table__number tabular-nums" data-label="Numero">{{ sale.reference }}</td>
+          <td data-label="Canale">{{ sale.channelLabel }}</td>
+          <td class="tabular-nums" data-label="Ordine origine">{{ sale.orderNumber }}</td>
+          <td class="tabular-nums" data-label="Data evasione">
+            {{ formatDate(sale.fulfilledAt) }}
+          </td>
+          <td data-label="Cliente">{{ sale.customerName }}</td>
+          <td data-label="Location">{{ sale.locationName ?? '—' }}</td>
+          <td class="os-table__cell--total tabular-nums" data-label="Totale">
+            {{ total(sale) }}
+          </td>
+          <td data-label="Stato magazzino">
+            <span class="os-table__cell-value">
+              <app-badge [tone]="inventoryTone(sale.inventoryStatus)">
+                {{ inventoryLabel(sale.inventoryStatus) }}
+              </app-badge>
+            </span>
+          </td>
+          <td data-label="Corrispettivo">
+            @if (sale.corrispettivoStatus; as status) {
+              <span class="os-table__cell-value" [attr.title]="sale.corrispettivoReference">
+                <app-badge [tone]="corrispettivoTone(status)">
+                  {{ corrispettivoLabel(status) }}
+                </app-badge>
+              </span>
+            } @else {
+              <span aria-hidden="true">—</span>
+            }
+          </td>
+          <td data-label="DDT">{{ sale.ddtReference ?? '—' }}</td>
+          <td data-label="Rimborso">{{ refundLabel(sale) }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

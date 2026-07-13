@@ -1,6 +1,8 @@
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
+import type { PurchaseCostEntryMode, VatSnapshot } from '@core/models/vat-code.model';
 import type {
   AdjustmentDirection,
+  CausalGenerationMode,
   DocumentAttachment,
   DocumentLine,
   DocumentRecord,
@@ -10,7 +12,6 @@ import type {
   GoodsReceiptLinkStatus,
   LinkedGoodsReceiptInfo,
   LinkedPurchaseInvoiceInfo,
-  SupplierRefType,
 } from '@core/models/document.model';
 
 export interface DocumentLineApiRow {
@@ -23,6 +24,10 @@ export interface DocumentLineApiRow {
   readonly unitPriceMinor: number;
   readonly discountPercent: number;
   readonly vatRatePercent?: number | null;
+  readonly vatCodeId?: EntityId | null;
+  readonly vatSnapshot?: VatSnapshot | null;
+  /** Costo digitato (Decimal serializzato come stringa dal backend). */
+  readonly enteredUnitCost?: string | number | null;
   readonly lineTotalMinor: number;
   readonly loadsStock: boolean;
   readonly supplierOrderLineId?: EntityId | null;
@@ -82,13 +87,17 @@ export interface DocumentApiRow {
   readonly sourceDocumentId?: EntityId | null;
   readonly billingCause?: string | null;
   readonly causalText?: string | null;
-  readonly supplierRefType?: string | null;
+  readonly causalGenerationMode?: string | null;
+  readonly causalTemplateSnapshot?: string | null;
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocumentTypeSnapshot?: string | null;
   readonly currency: CurrencyCode;
   readonly subtotalMinor: number;
   readonly taxMinor: number;
   readonly totalMinor: number;
   readonly documentDiscountPercent?: number;
   readonly pricesIncludeVat: boolean;
+  readonly purchaseCostEntryMode?: PurchaseCostEntryMode | null;
   readonly createdByName: string;
   readonly confirmedAt?: IsoDateString | null;
   readonly cancelledAt?: IsoDateString | null;
@@ -133,6 +142,10 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     unitPrice: { amountMinor: row.unitPriceMinor, currencyCode: currency },
     discountPercent: row.discountPercent,
     vatRatePercent: row.vatRatePercent ?? undefined,
+    vatCodeId: row.vatCodeId ?? undefined,
+    vatSnapshot: row.vatSnapshot ?? undefined,
+    enteredUnitCostMinor:
+      row.enteredUnitCost != null ? Math.round(Number(row.enteredUnitCost) * 100) : undefined,
     lineTotal: { amountMinor: row.lineTotalMinor, currencyCode: currency },
     loadsStock: row.loadsStock,
     supplierOrderLineId: row.supplierOrderLineId ?? undefined,
@@ -210,13 +223,18 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     sourceDocumentId: row.sourceDocumentId ?? undefined,
     billingCause: row.billingCause ?? undefined,
     causalText: row.causalText ?? undefined,
-    supplierRefType: (row.supplierRefType as SupplierRefType | null | undefined) ?? undefined,
+    causalGenerationMode:
+      (row.causalGenerationMode as CausalGenerationMode | null | undefined) ?? undefined,
+    causalTemplateSnapshot: row.causalTemplateSnapshot ?? undefined,
+    externalDocumentTypeId: row.externalDocumentTypeId ?? undefined,
+    externalDocumentTypeSnapshot: row.externalDocumentTypeSnapshot ?? undefined,
     currency: row.currency,
     subtotal: { amountMinor: row.subtotalMinor, currencyCode: row.currency },
     tax: { amountMinor: row.taxMinor, currencyCode: row.currency },
     total: { amountMinor: row.totalMinor, currencyCode: row.currency },
     documentDiscountPercent: row.documentDiscountPercent ?? 0,
     pricesIncludeVat: row.pricesIncludeVat,
+    purchaseCostEntryMode: row.purchaseCostEntryMode ?? undefined,
     createdByName: row.createdByName,
     confirmedAt: row.confirmedAt ?? undefined,
     cancelledAt: row.cancelledAt ?? undefined,
@@ -251,7 +269,11 @@ export interface DocumentLineInputBody {
   readonly quantity: number;
   readonly unitPriceMinor?: number;
   readonly discountPercent?: number;
+  /** LEGACY: il backend lo deriva dal Codice IVA; accettato per compatibilità. */
   readonly vatRatePercent?: number;
+  readonly vatCodeId?: EntityId;
+  /** Costo unitario digitato (unità minori) nella modalità costo del documento. */
+  readonly enteredUnitCostMinor?: number;
   readonly loadsStock?: boolean;
   readonly supplierOrderLineId?: EntityId;
   readonly lotCode?: string;
@@ -299,16 +321,19 @@ export interface SaveGoodsReceiptBody {
   readonly supplierId?: EntityId;
   readonly locationId?: EntityId;
   readonly causalText?: string;
-  readonly supplierRefType?: string;
+  readonly causalGenerationMode?: CausalGenerationMode;
+  readonly causalTemplateSnapshot?: string;
+  readonly externalDocumentTypeId?: EntityId;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
   readonly notes?: string;
   readonly internalComment?: string;
   readonly billingCause?: string;
-  readonly externalRef?: string;
   readonly supplierOrderId?: EntityId;
   readonly currency?: CurrencyCode;
   readonly documentDiscountPercent?: number;
+  /** Modalità costi del documento: netti o ivati (§11.1). */
+  readonly purchaseCostEntryMode?: PurchaseCostEntryMode;
   readonly lines?: readonly SaveGoodsReceiptLineBody[];
   readonly applySupplierPriceUpdates?: boolean;
 }

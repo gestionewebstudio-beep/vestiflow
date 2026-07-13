@@ -35,13 +35,17 @@ import {
 } from './document-supplier-order.util';
 import { applySupplierPriceUpdates } from './document-supplier-price.util';
 import {
-  computeDocumentLines,
-  computeDocumentTotals,
   formatDocumentReference,
   nextDocumentNumber,
-  type ComputedDocumentLine,
 } from './document-totals.util';
+import {
+  computeGoodsReceiptLines,
+  computeGoodsReceiptTotals,
+  type ComputedGoodsReceiptLine,
+} from './goods-receipt-vat.util';
 import { DocumentSettingsService } from './document-settings.service';
+import { ExternalDocumentTypesService } from './external-document-types.service';
+import { VatCodesService, type VatCodeWithNature } from '../vat/vat-codes.service';
 import type { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import type { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
 
@@ -85,6 +89,8 @@ export class GoodsReceiptWorkflowService {
     private readonly prisma: PrismaService,
     private readonly settings: DocumentSettingsService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly externalTypes: ExternalDocumentTypesService,
+    private readonly vatCodes: VatCodesService,
   ) {}
 
   // ── Arrivo merce: salvataggio unico ────────────────────────────────────────
@@ -116,13 +122,35 @@ export class GoodsReceiptWorkflowService {
     await this.assertSupplier(tenantId, dto.supplierId);
     await this.assertLocation(tenantId, dto.locationId);
 
-    const computedLines = computeDocumentLines(dto.lines ?? [], dto.type);
+    // Codici IVA delle righe: risolti una volta, validati per tenant (§9).
+    const costEntryMode = dto.purchaseCostEntryMode ?? 'vat_excluded';
+    const requestedVatCodeIds = [
+      ...new Set(
+        (dto.lines ?? [])
+          .map((line) => line.vatCodeId)
+          .filter((id): id is string => id != null),
+      ),
+    ];
+    const vatCodesById = new Map<string, VatCodeWithNature>();
+    if (requestedVatCodeIds.length > 0) {
+      const found = await this.prisma.vatCode.findMany({
+        where: { tenantId, id: { in: requestedVatCodeIds }, deletedAt: null },
+        include: { nature: true },
+      });
+      for (const vatCode of found) {
+        vatCodesById.set(vatCode.id, vatCode);
+      }
+    }
+
+    const computedLines = computeGoodsReceiptLines({
+      lines: dto.lines ?? [],
+      documentType: dto.type,
+      costEntryMode,
+      vatCodesById,
+      buildSnapshot: (vatCode) => this.vatCodes.buildSnapshot(vatCode),
+    });
     const lineIds = (dto.lines ?? []).map((line) => line.id ?? null);
-    const totals = computeDocumentTotals(
-      computedLines,
-      setting.pricesIncludeVat,
-      dto.documentDiscountPercent ?? 0,
-    );
+    const totals = computeGoodsReceiptTotals(computedLines, dto.documentDiscountPercent ?? 0);
 
     // Validazione righe che caricano magazzino (§2.8): errori chiari, mai tecnici.
     const stockLines = computedLines.filter((line) => line.loadsStock && line.quantity > 0);
@@ -158,6 +186,12 @@ export class GoodsReceiptWorkflowService {
       createdById: user?.id ?? null,
       createdByName: user?.displayName ?? 'API',
     };
+
+    // Tipo documento fornitore: validato per tenant e fotografato in snapshot
+    // (lo storico resta leggibile anche se il tipo viene rinominato, §13).
+    const externalDocumentType = dto.externalDocumentTypeId
+      ? await this.externalTypes.getById(tenantId, dto.externalDocumentTypeId)
+      : null;
 
     const featureSettings = await this.prisma.tenantFeatureSettings.findUnique({
       where: { tenantId },
@@ -231,16 +265,19 @@ export class GoodsReceiptWorkflowService {
         supplierName,
         locationId: dto.locationId ?? null,
         causalText: dto.causalText?.trim() || null,
-        supplierRefType: dto.supplierRefType?.trim() || null,
+        causalGenerationMode: dto.causalGenerationMode ?? null,
+        causalTemplateSnapshot: dto.causalTemplateSnapshot?.trim() || null,
+        externalDocumentTypeId: externalDocumentType?.id ?? null,
+        externalDocumentTypeSnapshot: externalDocumentType?.shortLabel ?? null,
         externalDocNumber: dto.externalDocNumber?.trim() || null,
         externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
         notes: dto.notes ?? existing?.notes ?? setting.defaultNotes,
         internalComment: dto.internalComment?.trim() || null,
         billingCause: dto.billingCause?.trim() || null,
-        externalRef: dto.externalRef?.trim() || null,
         supplierOrderId: dto.supplierOrderId ?? existing?.supplierOrderId ?? null,
         currency: dto.currency ?? existing?.currency ?? 'EUR',
         pricesIncludeVat: setting.pricesIncludeVat,
+        purchaseCostEntryMode: costEntryMode,
         documentDiscountPercent: dto.documentDiscountPercent ?? 0,
         subtotalMinor: totals.subtotalMinor,
         taxMinor: totals.taxMinor,
@@ -276,7 +313,7 @@ export class GoodsReceiptWorkflowService {
       });
 
       for (let index = 0; index < computedLines.length; index += 1) {
-        const line = computedLines[index] as ComputedDocumentLine;
+        const line = computedLines[index] as ComputedGoodsReceiptLine;
         const lineId = lineIds[index];
         const data = {
           lineNumber: line.lineNumber,
@@ -288,6 +325,18 @@ export class GoodsReceiptWorkflowService {
           discountPercent: line.discountPercent,
           vatRatePercent: line.vatRatePercent,
           lineTotalMinor: line.lineTotalMinor,
+          vatCodeId: line.vatCodeId,
+          vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+          enteredUnitCost: line.enteredUnitCost,
+          costEntryModeSnapshot: line.costEntryModeSnapshot,
+          unitCostNet: line.unitCostNet,
+          unitCostGross: line.unitCostGross,
+          unitVatAmount: line.unitVatAmount,
+          lineVatTotalMinor: line.lineVatTotalMinor,
+          lineGrossTotalMinor: line.lineGrossTotalMinor,
+          supplierPayableLineMinor: line.supplierPayableLineMinor,
+          reverseChargeVatMinor: line.reverseChargeVatMinor,
+          nonDeductibleVatMinor: line.nonDeductibleVatMinor,
           loadsStock: line.loadsStock,
           supplierOrderLineId: line.supplierOrderLineId,
           lotCode: line.lotCode,
@@ -352,6 +401,7 @@ export class GoodsReceiptWorkflowService {
         documentType: dto.type,
         locationId: dto.locationId ?? null,
         reason,
+        movementDate: documentDate,
         lines: savedLines,
         actor,
       });

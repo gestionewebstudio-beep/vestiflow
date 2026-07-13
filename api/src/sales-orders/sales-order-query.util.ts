@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 
-import { prismaFinancialFilter, toPrismaSource } from './sales-order.enum-mapper';
+import { prismaFinancialFilter, prismaSourceFilter } from './sales-order.enum-mapper';
 
 export interface SalesOrderListFilters {
   readonly search?: string;
@@ -16,13 +16,13 @@ export function buildSalesOrderWhere(
   query: SalesOrderListFilters,
 ): Prisma.SalesOrderWhereInput {
   const financialFilter = prismaFinancialFilter(query.financialStatus);
-  const prismaSource = toPrismaSource(query.source);
+  const sourceFilter = prismaSourceFilter(query.source);
   const placedAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
 
   return {
     tenantId,
     ...(financialFilter ? { financialStatus: { in: financialFilter } } : {}),
-    ...(prismaSource ? { source: prismaSource } : {}),
+    ...(sourceFilter ? { source: { in: sourceFilter } } : {}),
     ...(placedAt ? { placedAt } : {}),
     ...(query.search
       ? {

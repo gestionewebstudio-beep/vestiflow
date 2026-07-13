@@ -5,35 +5,73 @@ import { TenantPermission } from '@core/models/tenant-permission.model';
 import { REQUIRED_TENANT_PERMISSIONS_KEY } from '@core/permissions/tenant-permissions.util';
 
 import {
-  onlineSalesRegisterGuard,
   retailSalesRegisterGuard,
   salesHistoryGuard,
+  shopifyOrdersGuard,
 } from './guards/retail-sales.guard';
 
 export const salesOrdersRoutes: Routes = [
   {
     path: '',
-    title: 'VestiFlow · Vendite',
+    title: 'VestiFlow · Ordini cliente',
     loadComponent: () =>
       import('./sales-order-list.component').then((m) => m.SalesOrderListComponent),
     canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView,
+      salesListProfile: 'customer-orders',
+    },
+  },
+  {
+    path: 'shopify',
+    title: 'VestiFlow · Ordini Shopify',
+    loadComponent: () =>
+      import('./sales-order-list.component').then((m) => m.SalesOrderListComponent),
+    canActivate: [shopifyOrdersGuard, tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView,
+      salesListProfile: 'shopify-orders',
+    },
+  },
+  {
+    path: 'online',
+    title: 'VestiFlow · Vendite online',
+    loadComponent: () =>
+      import('@features/online-sales/online-sale-list.component').then(
+        (m) => m.OnlineSaleListComponent,
+      ),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+  },
+  {
+    path: 'online/:id',
+    title: 'VestiFlow · Dettaglio vendita online',
+    loadComponent: () =>
+      import('@features/online-sales/online-sale-detail.component').then(
+        (m) => m.OnlineSaleDetailComponent,
+      ),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+  },
+  {
+    path: 'corrispettivi',
+    title: 'VestiFlow · Corrispettivi',
+    loadComponent: () =>
+      import('@features/online-sales/corrispettivi-register.component').then(
+        (m) => m.CorrispettiviRegisterComponent,
+      ),
+    canActivate: [tenantPermissionGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
   },
   {
     path: 'register',
-    title: 'VestiFlow · Registra vendita',
+    title: 'VestiFlow · Vendita negozio',
     canActivate: [retailSalesRegisterGuard],
-    data: { channel: 'in_store' },
+    // Fase 3 §7: cassa a carrello (sostituisce lo scan singolo per il negozio).
     loadComponent: () =>
-      import('./retail-sale-register.component').then((m) => m.RetailSaleRegisterComponent),
-  },
-  {
-    path: 'register-online',
-    title: 'VestiFlow · Registra vendita online',
-    canActivate: [onlineSalesRegisterGuard],
-    data: { channel: 'online' },
-    loadComponent: () =>
-      import('./retail-sale-register.component').then((m) => m.RetailSaleRegisterComponent),
+      import('@features/store-sales/store-sale-register.component').then(
+        (m) => m.StoreSaleRegisterComponent,
+      ),
   },
   {
     path: ':id',

@@ -10,18 +10,12 @@ import {
   StockMovementType,
   type InventoryLevel,
   type Location,
-  type MovementOrigin,
   type StockMovement,
-  type TenantChannelProfile,
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import {
-  onlineSalesReturnReasonLabel,
-  onlineSalesSaleReasonLabel,
-} from '../common/tenant-channel-profile.util';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import { applyInventoryDelta } from './inventory-level-delta.util';
 import {
@@ -37,19 +31,6 @@ import type {
   ListMovementsQueryDto,
 } from './dto/inventory-queries.dto';
 import type { RegisterMovementDto } from './dto/register-movement.dto';
-import { RetailScanAction, type RegisterRetailScanDto } from './dto/register-retail-scan.dto';
-
-export type RetailScanResult = {
-  readonly movement: StockMovement;
-  readonly variantId: string;
-  readonly productId: string;
-  readonly sku: string;
-  readonly productName: string;
-  readonly remainingAvailable: number;
-};
-
-/** Canale di registrazione vendita/storno: negozio (POS) oppure online. */
-export type RetailSaleChannel = 'in_store' | 'online';
 
 export type InventoryLevelWithRefs = InventoryLevel & {
   variant: { sku: string; optionValues: Prisma.JsonValue; product: { name: string } };
@@ -400,113 +381,6 @@ export class InventoryService {
     });
 
     return movement;
-  }
-
-  /**
-   * Registra una vendita o uno storno (doppia scansione), in negozio oppure online.
-   * Ogni scansione produce un movimento `sale` o `return` con origine
-   * `vestiflow_pos` (negozio) o `vestiflow_online` (vendita online esterna/manuale).
-   */
-  async registerRetailScan(
-    tenantId: string,
-    dto: RegisterRetailScanDto,
-    actorDisplayName: string,
-    actorUserId: string | undefined,
-    user: UserProfileDto,
-    channel: RetailSaleChannel = 'in_store',
-  ): Promise<RetailScanResult> {
-    assertUserCanAccessLocation(user, dto.locationId);
-
-    const code = dto.code.trim();
-    if (!code) {
-      throw new NotFoundException('Variante non trovata per SKU o barcode');
-    }
-
-    const variant = await this.prisma.productVariant.findFirst({
-      where: {
-        tenantId,
-        OR: [
-          { sku: { equals: code, mode: 'insensitive' } },
-          { barcode: { equals: code, mode: 'insensitive' } },
-        ],
-      },
-      include: { product: { select: { id: true, name: true } } },
-    });
-    if (!variant) {
-      throw new NotFoundException('Variante non trovata per SKU o barcode');
-    }
-
-    const movementType =
-      dto.action === RetailScanAction.Sale ? StockMovementType.sale : StockMovementType.return;
-    const delta = dto.action === RetailScanAction.Sale ? -1 : 1;
-    const isOnline = channel === 'online';
-    const origin: MovementOrigin = isOnline ? 'vestiflow_online' : 'vestiflow_pos';
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { channelProfile: true },
-    });
-    const reason = this.retailScanReason(
-      dto.action,
-      isOnline,
-      tenant?.channelProfile,
-    );
-
-    const movement = await this.prisma.$transaction(async (tx) => {
-      await this.assertLocationExists(tx, tenantId, dto.locationId);
-      await this.applyDelta(tx, tenantId, variant.id, dto.locationId, delta);
-
-      return tx.stockMovement.create({
-        data: {
-          tenantId,
-          type: movementType,
-          origin,
-          variantId: variant.id,
-          sku: variant.sku,
-          locationId: dto.locationId,
-          quantity: 1,
-          reason,
-          createdById: actorUserId ?? null,
-          createdByName: actorDisplayName.trim() || 'Utente',
-        },
-      });
-    });
-
-    const level = await this.prisma.inventoryLevel.findUnique({
-      where: {
-        variantId_locationId: { variantId: variant.id, locationId: dto.locationId },
-      },
-      select: { available: true },
-    });
-
-    void Promise.resolve(
-      this.channelSync.pushInventoryLevels(tenantId, variant.id, [dto.locationId]),
-    ).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : 'Push inventario canali fallito';
-      this.logger.warn(`Push inventario post-vendita al banco (${tenantId}): ${message}`);
-    });
-
-    return {
-      movement,
-      variantId: variant.id,
-      productId: variant.productId,
-      sku: variant.sku,
-      productName: variant.product.name,
-      remainingAvailable: level?.available ?? 0,
-    };
-  }
-
-  /** Motivo movimento per vendita/storno in base ad azione, canale e profilo tenant. */
-  private retailScanReason(
-    action: RetailScanAction,
-    isOnline: boolean,
-    channelProfile?: TenantChannelProfile | null,
-  ): string {
-    if (action === RetailScanAction.Sale) {
-      return isOnline ? onlineSalesSaleReasonLabel(channelProfile) : 'Vendita negozio';
-    }
-    return isOnline
-      ? onlineSalesReturnReasonLabel(channelProfile)
-      : 'Storno negozio (reso)';
   }
 
   /** Variazione (con segno) da applicare alla location di origine. */

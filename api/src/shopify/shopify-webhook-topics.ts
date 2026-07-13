@@ -3,6 +3,7 @@ export const SHOPIFY_WEBHOOK_TOPICS = [
   'inventory_levels/update',
   'orders/create',
   'orders/updated',
+  'orders/cancelled',
   'customers/create',
   'customers/update',
   'products/create',
@@ -15,6 +16,7 @@ export type ShopifyWebhookTopic = (typeof SHOPIFY_WEBHOOK_TOPICS)[number];
 export const SHOPIFY_PROTECTED_WEBHOOK_TOPICS: ReadonlySet<ShopifyWebhookTopic> = new Set([
   'orders/create',
   'orders/updated',
+  'orders/cancelled',
   'customers/create',
   'customers/update',
 ]);

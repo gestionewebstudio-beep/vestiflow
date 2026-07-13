@@ -8,6 +8,8 @@ export const StockMovementType = {
   Adjustment: 'adjustment',
   Sale: 'sale',
   Return: 'return',
+  /** Scarico generato dalla Vendita online (evasione ordine canale, fase 2). */
+  OnlineSale: 'online_sale',
 } as const;
 export type StockMovementType = (typeof StockMovementType)[keyof typeof StockMovementType];
 

@@ -203,6 +203,9 @@ export class TenantBackupImportService {
       case 'documentTypeSettings':
         await tx.documentTypeSetting.deleteMany({ where: { tenantId } });
         return;
+      case 'vatCodes':
+        await tx.vatCode.deleteMany({ where: { tenantId } });
+        return;
       case 'documentSequences':
         await tx.documentSequence.deleteMany({ where: { tenantId } });
         return;
@@ -244,6 +247,15 @@ export class TenantBackupImportService {
         return;
       case 'salesOrders':
         await tx.salesOrder.deleteMany({ where: { tenantId } });
+        return;
+      case 'stockReservations':
+        await tx.stockReservation.deleteMany({ where: { tenantId } });
+        return;
+      case 'stockReservationEvents':
+        await tx.stockReservationEvent.deleteMany({ where: { tenantId } });
+        return;
+      case 'onlineOrderEvents':
+        await tx.onlineOrderEvent.deleteMany({ where: { tenantId } });
         return;
       case 'corrispettiviDeliveries':
         await tx.corrispettiviDelivery.deleteMany({ where: { tenantId } });
@@ -337,6 +349,9 @@ export class TenantBackupImportService {
       case 'documentTypeSettings':
         await tx.documentTypeSetting.createMany({ data });
         return;
+      case 'vatCodes':
+        await tx.vatCode.createMany({ data });
+        return;
       case 'tenantFeatureSettings':
         await tx.tenantFeatureSettings.createMany({ data });
         return;
@@ -390,6 +405,15 @@ export class TenantBackupImportService {
         return;
       case 'salesOrderLines':
         await tx.salesOrderLine.createMany({ data });
+        return;
+      case 'stockReservations':
+        await tx.stockReservation.createMany({ data });
+        return;
+      case 'stockReservationEvents':
+        await tx.stockReservationEvent.createMany({ data });
+        return;
+      case 'onlineOrderEvents':
+        await tx.onlineOrderEvent.createMany({ data });
         return;
       case 'corrispettiviDeliveries':
         await tx.corrispettiviDelivery.createMany({ data });

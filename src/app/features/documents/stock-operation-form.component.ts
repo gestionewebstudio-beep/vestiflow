@@ -110,7 +110,7 @@ export class StockOperationFormComponent {
   protected readonly pageTitle = computed(() => {
     const adjustment = this.isAdjustment();
     if (!this.isEditMode()) {
-      return adjustment ? 'Nuova rettifica inventario' : 'Nuovo scarico manuale';
+      return adjustment ? 'Nuova rettifica di magazzino' : 'Nuovo scarico manuale';
     }
     if (this.isConfirmedEdit()) {
       return adjustment ? 'Modifica rettifica confermata' : 'Modifica scarico confermato';

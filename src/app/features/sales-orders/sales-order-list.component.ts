@@ -30,7 +30,6 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
-import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -57,11 +56,15 @@ import {
   ReportPeriodPreset,
   resolveReportDateRange,
 } from '@features/reports/models/report-list-query.model';
-import { SalesOrderTableComponent } from './components/sales-order-table/sales-order-table.component';
+import {
+  SalesOrderTableComponent,
+  type SalesOrderTableProfile,
+} from './components/sales-order-table/sales-order-table.component';
 import {
   DEFAULT_SALES_PAGE_SIZE,
   SALES_PAGE_SIZE_OPTIONS,
   parseSalesOrderListQuery,
+  withShopifySourceScope,
 } from './models/sales-order-list-query.model';
 import { SalesOrderService } from './services/sales-order.service';
 
@@ -114,8 +117,21 @@ export class SalesOrderListComponent {
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly skeletonColumns = 7;
+  protected readonly skeletonColumns = 9;
   protected readonly pageSizeOptions = SALES_PAGE_SIZE_OPTIONS;
+
+  private readonly routeData = toSignal(this.route.data, {
+    initialValue: this.route.snapshot.data,
+  });
+
+  /** Vista: registro generale «Ordini cliente» o canale «Ordini Shopify» (fase 3 §2-§3). */
+  protected readonly listProfile = computed(
+    (): SalesOrderTableProfile =>
+      (this.routeData()['salesListProfile'] as SalesOrderTableProfile | undefined) ??
+      'customer-orders',
+  );
+
+  protected readonly isShopifyView = computed(() => this.listProfile() === 'shopify-orders');
 
   protected readonly financialStatusOptions: readonly SelectMenuOption[] = [
     { value: 'pending', label: 'In attesa' },
@@ -124,6 +140,21 @@ export class SalesOrderListComponent {
     { value: 'refunded', label: 'Rimborsato' },
     { value: 'voided', label: 'Annullato' },
   ];
+
+  /** Filtro origine del registro generale (fase 3 §2). */
+  protected readonly sourceOptions = computed((): readonly SelectMenuOption[] => {
+    if (this.isShopifyView()) {
+      return [
+        { value: 'online', label: 'Shopify online' },
+        { value: 'pos', label: 'Shopify POS' },
+      ];
+    }
+    return [
+      { value: 'manual', label: 'Manuale' },
+      { value: 'online', label: 'Shopify online' },
+      { value: 'pos', label: 'Shopify POS' },
+    ];
+  });
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseSalesOrderListQuery(this.queryParams()));
@@ -176,27 +207,34 @@ export class SalesOrderListComponent {
 
   protected readonly showShopifyOrdersSync = computed(
     () =>
+      this.isShopifyView() &&
       isShopifyConnected(this.shopifyConnection()) &&
       canSyncShopifyCustomersOrOrders(this.authService.currentUser()),
   );
 
-  protected readonly canExportData = computed(() =>
-    canExportOperationalData(this.authService.currentUser()),
+  protected readonly canExportData = computed(
+    () => this.isShopifyView() && canExportOperationalData(this.authService.currentUser()),
   );
 
-  /** Titolo pagina: specifica il canale quando il profilo è Shopify/TikTok. */
-  protected readonly pageTitle = computed(() => {
-    const profile = this.authService.currentUser()?.tenantChannelProfile;
-    if (profile === TenantChannelProfile.Shopify) {
-      return 'Vendite Shopify';
-    }
-    if (profile === TenantChannelProfile.TikTokShop) {
-      return 'Vendite TikTok';
-    }
-    return 'Vendite';
-  });
+  protected readonly pageTitle = computed(() =>
+    this.isShopifyView() ? 'Ordini Shopify' : 'Ordini cliente',
+  );
 
-  private readonly request = computed(() => ({ query: this.query(), tick: this.refreshTick() }));
+  protected readonly pageSubtitle = computed(() =>
+    this.isShopifyView()
+      ? 'Tutti gli ordini canonici del canale Shopify, qualunque sia lo stato: evasi, annullati, rimborsati o trasformati in Vendita online.'
+      : 'Registro generale multicanale degli ordini: manuali, Shopify e piattaforme future. Shopify resta la fonte autoritativa dei propri ordini.',
+  );
+
+  /** Query effettiva verso l'API: la vista Shopify limita ai canali Shopify. */
+  private readonly effectiveQuery = computed(() =>
+    this.isShopifyView() ? withShopifySourceScope(this.query()) : this.query(),
+  );
+
+  private readonly request = computed(() => ({
+    query: this.effectiveQuery(),
+    tick: this.refreshTick(),
+  }));
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(
@@ -243,7 +281,7 @@ export class SalesOrderListComponent {
 
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
-    return Boolean(q.search ?? q.financialStatus);
+    return Boolean(q.search ?? q.financialStatus ?? q.source);
   });
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
@@ -277,6 +315,10 @@ export class SalesOrderListComponent {
     this.updateParams({ financialStatus: value, page: null }, true);
   }
 
+  protected onSourceFilterChange(value: string | null): void {
+    this.updateParams({ source: value, page: null }, true);
+  }
+
   protected onCorrispettiviPeriodChange(period: ReportPeriodPreset): void {
     this.uiCorrispettiviPeriod.set(period);
     if (period === ReportPeriodPreset.Custom) {
@@ -303,7 +345,7 @@ export class SalesOrderListComponent {
 
   protected resetFilters(): void {
     this.searchDraft.set('');
-    this.updateParams({ search: null, financialStatus: null, page: null }, true);
+    this.updateParams({ search: null, financialStatus: null, source: null, page: null }, true);
   }
 
   protected goToPage(page: number): void {

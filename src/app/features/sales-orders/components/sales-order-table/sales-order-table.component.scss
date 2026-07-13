@@ -6,12 +6,24 @@
 @include rt.data-table-mobile-cards('sales-table');
 @include rt.data-table-mobile-title('sales-table__number');
 
+// Molte colonne (fase 3 §2-§3): scroll orizzontale controllato su desktop,
+// card impilate su mobile (gestite dal mixin).
+.sales-table-scroll {
+  inline-size: 100%;
+  max-inline-size: 100%;
+
+  @include bp.media-up('lg') {
+    overflow-x: auto;
+  }
+}
+
 .sales-table__head th {
   position: sticky;
   inset-block-start: 0;
   z-index: var(--z-raised);
   padding: var(--space-3) var(--space-4);
   background-color: var(--color-surface);
+  white-space: nowrap;
 }
 
 .sales-table__row {
@@ -36,61 +48,32 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.sales-table__link {
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+}
+
 @include bp.media-up('lg') {
-  .sales-table {
-    table-layout: fixed;
-  }
-
-  .sales-table__col--order {
-    inline-size: 10%;
-  }
-
-  .sales-table__col--date {
-    inline-size: 12%;
-  }
-
-  .sales-table__col--customer {
-    inline-size: 16%;
-  }
-
-  .sales-table__col--items {
-    inline-size: 22%;
-  }
-
-  .sales-table__col--channel {
-    inline-size: 10%;
-  }
-
-  .sales-table__col--payment {
-    inline-size: 12%;
-  }
-
-  .sales-table__col--fulfillment {
-    inline-size: 12%;
-  }
-
-  .sales-table__col--total {
-    inline-size: 10%;
-  }
-
   .sales-table__number,
   .sales-table tbody td[data-label='Cliente'],
-  .sales-table__items {
+  .sales-table tbody td[data-label='Location'] {
+    max-inline-size: var(--table-cell-max);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .sales-table tbody td.sales-table__cell--payment,
-  .sales-table__head th.sales-table__cell--payment,
-  .sales-table tbody td.sales-table__cell--fulfillment,
-  .sales-table__head th.sales-table__cell--fulfillment {
-    padding-inline-start: var(--space-6);
+  .sales-table tbody td.sales-table__cell--total,
+  .sales-table__head th.sales-table__cell--total,
+  .sales-table tbody td.sales-table__cell--qty,
+  .sales-table__head th.sales-table__cell--qty {
+    text-align: end;
+    white-space: nowrap;
   }
 
-  .sales-table tbody td.sales-table__cell--total,
-  .sales-table__head th.sales-table__cell--total {
-    text-align: end;
+  .sales-table tbody td[data-label='Data'],
+  .sales-table tbody td[data-label='Aggiornato'] {
     white-space: nowrap;
   }
 }

@@ -1,0 +1,95 @@
+<section class="os-list">
+  <header class="os-list__header">
+    <div>
+      <h1 class="os-list__title">Vendite online</h1>
+      <p class="os-list__subtitle">
+        Registro delle vendite generate dagli ordini online evasi: scarico magazzino e Corrispettivo
+        collegati. Gli ordini restano consultabili in Ordini cliente.
+      </p>
+    </div>
+  </header>
+
+  <div class="os-list__toolbar">
+    <div class="os-list__search">
+      <i class="pi pi-search os-list__search-icon" aria-hidden="true"></i>
+      <input
+        id="online-sales-search"
+        class="os-list__input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Cerca per numero, ordine, cliente…"
+        aria-label="Cerca vendite online"
+        (input)="onSearchInput($event)"
+      />
+    </div>
+
+    <div class="os-list__filters">
+      <div class="os-list__field">
+        <span class="os-list__label">Canale</span>
+        <app-select-menu
+          [options]="channelOptions"
+          [value]="query().channel ?? ''"
+          ariaLabel="Filtra per canale"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onChannelFilterChange($event)"
+        />
+      </div>
+
+      <div class="os-list__field">
+        <span class="os-list__label">Evase dal</span>
+        <app-date-input
+          inputId="online-sales-from"
+          [value]="query().fulfilledFrom ?? ''"
+          ariaLabel="Data evasione da"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [max]="query().fulfilledTo || undefined"
+          (valueChange)="onFulfilledFromChange($event)"
+        />
+      </div>
+
+      <div class="os-list__field">
+        <span class="os-list__label">al</span>
+        <app-date-input
+          inputId="online-sales-to"
+          [value]="query().fulfilledTo ?? ''"
+          ariaLabel="Data evasione a"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [min]="query().fulfilledFrom || undefined"
+          (valueChange)="onFulfilledToChange($event)"
+        />
+      </div>
+
+      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+        <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        Azzera filtri
+      </app-button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessuna vendita online"
+      description="Le Vendite online vengono create automaticamente quando un ordine online risulta completamente evaso."
+      icon="pi-send"
+    />
+  } @else {
+    <app-online-sale-table [sales]="sales()" (rowClick)="openSale($event)" />
+    <app-pagination
+      label="Paginazione vendite online"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+</section>

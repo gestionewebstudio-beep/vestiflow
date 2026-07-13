@@ -32,10 +32,54 @@
           <app-badge [tone]="fulfillmentTone(o.fulfillmentStatus)">
             {{ fulfillmentLabel(o.fulfillmentStatus) }}
           </app-badge>
+          @if (o.cancelledAt) {
+            <app-badge tone="error">Annullato</app-badge>
+          }
+          @if (o.requiresReview) {
+            <app-badge tone="warning">Richiede verifica</app-badge>
+          }
         </div>
       </div>
+      @if (o.requiresReview && o.reviewReason) {
+        <p class="sales-detail__review-note" role="note">{{ o.reviewReason }}</p>
+      }
       <app-detail-facts [facts]="facts()" />
+      @if (o.linkedDocument && o.onlineSale) {
+        <p class="sales-detail__review-note" role="note">
+          La movimentazione del magazzino è già stata effettuata dalla Vendita online collegata ({{
+            o.onlineSale.reference
+          }}): il documento non genera un secondo scarico.
+        </p>
+      }
     </section>
+
+    @if (o.onlineSale; as sale) {
+      <section class="sales-detail__panel" aria-labelledby="sales-online-sale">
+        <div class="sales-detail__panel-head sales-detail__panel-head--split">
+          <h2 id="sales-online-sale" class="sales-detail__panel-title">Vendita online</h2>
+          <div class="sales-detail__badges">
+            <app-badge [tone]="inventoryStatusTone(sale.inventoryStatus)">
+              {{ inventoryStatusLabel(sale.inventoryStatus) }}
+            </app-badge>
+            @if (sale.corrispettivo) {
+              <app-badge [tone]="corrispettivoTone(sale.corrispettivo.status)">
+                Corrispettivo: {{ corrispettivoLabel(sale.corrispettivo.status) }}
+              </app-badge>
+            }
+            @if (sale.refundedAt) {
+              <app-badge tone="error">Rimborsato dopo l'evasione</app-badge>
+            }
+          </div>
+        </div>
+        @if (sale.refundedAt) {
+          <p class="sales-detail__review-note" role="note">
+            Il rimborso non modifica la giacenza: il rientro fisico della merce richiede un evento
+            di reso reale registrato dal canale.
+          </p>
+        }
+        <app-detail-facts [facts]="onlineSaleFacts()" />
+      </section>
+    }
 
     <section class="sales-detail__panel" aria-labelledby="sales-lines">
       <div class="sales-detail__panel-head">

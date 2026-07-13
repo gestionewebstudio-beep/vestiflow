@@ -36,6 +36,8 @@ import {
   showShopifyIntegration as isShopifyTenantProfile,
 } from '@core/models/tenant-channel-profile.model';
 import type { ProductImage } from '@core/models/product-image.model';
+import type { VatCode } from '@core/models/vat-code.model';
+import { VatCodeService } from '@core/services/vat-code.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -149,6 +151,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
   readonly panelDismissed = output<void>();
 
   private readonly service = inject(ProductService);
+  private readonly vatCodeService = inject(VatCodeService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
@@ -276,6 +279,12 @@ export class ProductFormComponent implements CanComponentDeactivate {
   );
 
   protected readonly categories = computed(() => this.filterOptions()?.categories ?? []);
+
+  // Codici IVA per la tendina "Codice IVA" (su errore si degrada a lista vuota).
+  protected readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
 
   // Validità del formato compareAtPrice (testo libero) riportata dallo step
   private readonly variantsStepValid = signal(true);

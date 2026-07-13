@@ -103,16 +103,41 @@
                 <thead>
                   <tr>
                     <th scope="col">Location</th>
+                    <th scope="col" class="stock-lookup__num">Giacenza</th>
+                    <th scope="col" class="stock-lookup__num">Impegnata</th>
                     <th scope="col" class="stock-lookup__num">Disponibile</th>
-                    <th scope="col" class="stock-lookup__num">In sede</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (level of result.levels; track level.id) {
                     <tr [class.stock-lookup__row--active]="isActiveLocation(level.locationId)">
                       <td>{{ locationName(level.locationId, result.locations) }}</td>
-                      <td class="stock-lookup__num tabular-nums">{{ level.available }}</td>
-                      <td class="stock-lookup__num tabular-nums">{{ level.onHand }}</td>
+                      <td
+                        class="stock-lookup__num tabular-nums"
+                        [class.stock-lookup__num--negative]="level.onHand < 0"
+                      >
+                        {{ level.onHand }}
+                      </td>
+                      <td class="stock-lookup__num tabular-nums">
+                        @if (level.committed > 0) {
+                          <button
+                            type="button"
+                            class="stock-lookup__committed-link tabular-nums"
+                            title="Vedi gli ordini che compongono la quantità impegnata"
+                            (click)="openReservations(result.variant, level, result.locations)"
+                          >
+                            {{ level.committed }}
+                          </button>
+                        } @else {
+                          {{ level.committed }}
+                        }
+                      </td>
+                      <td
+                        class="stock-lookup__num tabular-nums"
+                        [class.stock-lookup__num--negative]="level.available < 0"
+                      >
+                        {{ level.available }}
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -129,4 +154,53 @@
       }
     }
   }
+
+  <app-slide-panel
+    [open]="reservationsPanelOpen()"
+    title="Quantità impegnata"
+    ariaLabel="Ordini che compongono la quantità impegnata"
+    (closed)="closeReservations()"
+  >
+    @if (reservationsTarget(); as target) {
+      <p class="stock-lookup__reservations-context">
+        {{ target.productName }} — <span class="tabular-nums">{{ target.sku }}</span>
+        <br />
+        {{ target.locationName }}: <strong class="tabular-nums">{{ target.committed }}</strong>
+        impegnati
+      </p>
+    }
+
+    @if (reservationsLoading()) {
+      <app-table-skeleton [columns]="3" [rows]="3" />
+    } @else if (reservationsError(); as message) {
+      <app-error-state
+        [description]="message"
+        retryLabel="Riprova"
+        (retry)="reloadReservations()"
+      />
+    } @else if (reservations().length === 0) {
+      <app-empty-state
+        title="Nessun impegno attivo"
+        description="Nessun ordine sta impegnando questa variante in questa location."
+        icon="pi-inbox"
+      />
+    } @else {
+      <ul class="stock-lookup__reservations">
+        @for (reservation of reservations(); track reservation.id) {
+          <li class="stock-lookup__reservation">
+            <span class="stock-lookup__reservation-order">
+              {{ channelLabel(reservation.channel) }}
+              <strong class="tabular-nums">{{ reservation.orderNumber }}</strong>
+            </span>
+            <span class="stock-lookup__reservation-qty tabular-nums">
+              {{ reservation.quantity }} {{ reservation.quantity === 1 ? 'pezzo' : 'pezzi' }}
+            </span>
+            <span class="stock-lookup__reservation-location">
+              {{ reservation.locationName }}
+            </span>
+          </li>
+        }
+      </ul>
+    }
+  </app-slide-panel>
 </section>

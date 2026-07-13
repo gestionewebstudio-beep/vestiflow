@@ -27,6 +27,14 @@
     </p>
   }
 
+  @if (saveWarnings().length > 0) {
+    <div class="gr-form__warning-banner" role="status">
+      @for (warning of saveWarnings(); track warning) {
+        <p>{{ warning }}</p>
+      }
+    </div>
+  }
+
   @if (linkedSupplierOrder(); as po) {
     <p class="gr-form__po-link">
       Collegato all'ordine fornitore
@@ -218,26 +226,26 @@
             </div>
 
             <div class="gr-form__field">
-              <label class="gr-form__label" for="gr-date">Data documento</label>
+              <label class="gr-form__label" for="gr-date">Data registrazione</label>
               <app-date-input
                 inputId="gr-date"
                 formControlName="documentDate"
-                ariaLabel="Data documento"
+                ariaLabel="Data registrazione"
                 [compact]="true"
                 [fullWidth]="true"
               />
             </div>
 
             <div class="gr-form__field">
-              <span class="gr-form__label">Tipo rif. fornitore</span>
+              <span class="gr-form__label">Documento fornitore</span>
               <app-select-menu
-                [options]="supplierRefTypeOptions"
-                [value]="form.controls.supplierRefType.value"
-                ariaLabel="Tipo riferimento documento fornitore"
+                [options]="externalDocTypeOptions()"
+                [value]="form.controls.externalDocumentTypeId.value"
+                ariaLabel="Tipo documento fornitore"
                 placeholder="DDT, Fattura…"
                 [compact]="true"
                 [fullWidth]="true"
-                (valueChange)="onSupplierRefTypeSelect($event)"
+                (valueChange)="onExternalDocTypeSelect($event)"
               />
             </div>
 
@@ -296,9 +304,12 @@
                             class="gr-form__causal-option"
                             role="option"
                             [attr.aria-selected]="form.controls.causalText.value === causal.label"
-                            (click)="pickCausal(causal.label)"
+                            (click)="pickCausal(causal)"
                           >
                             {{ causal.label }}
+                            @if (causalTypeLabel(causal); as typeLabel) {
+                              <span class="gr-form__causal-default">{{ typeLabel }}</span>
+                            }
                             @if (causal.isDefault) {
                               <span class="gr-form__causal-default">predefinita</span>
                             }
@@ -310,6 +321,16 @@
                     </ul>
                   }
                 </div>
+                @if (causalIsManual && !formReadOnly()) {
+                  <button
+                    type="button"
+                    class="gr-form__inline-toggle"
+                    (click)="requestRegenerateCausal()"
+                  >
+                    <i class="pi pi-refresh" aria-hidden="true"></i>
+                    Rigenera
+                  </button>
+                }
                 <button type="button" class="gr-form__inline-toggle" (click)="openCausalPanel()">
                   <i class="pi pi-cog" aria-hidden="true"></i>
                   Gestione causali
@@ -322,17 +343,6 @@
                 <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
                 <span>Seguirà fattura</span>
               </label>
-            </div>
-
-            <div class="gr-form__field">
-              <label class="gr-form__label" for="gr-ext-invoice">Rif. fattura fornitore</label>
-              <input
-                id="gr-ext-invoice"
-                class="gr-form__input"
-                type="text"
-                formControlName="externalRef"
-                placeholder="Es. Fattura 58/2026"
-              />
             </div>
           </div>
         </div>
@@ -673,25 +683,69 @@
                   @if (isLineColumnVisible('unitCost')) {
                     <th
                       scope="col"
-                      class="gr-form__num"
+                      class="gr-form__num gr-form__th--menu"
                       [style.width]="lineColumnWidth('unitCost')"
                     >
-                      <button
-                        type="button"
-                        class="gr-form__th-sort gr-form__th-sort--num"
-                        [attr.aria-label]="lineSortAriaLabel('unitCost', 'Costo')"
-                        (click)="toggleLineSort('unitCost')"
-                      >
-                        Costo
-                        @if (lineSortColumn() === 'unitCost') {
-                          <i
-                            class="pi"
-                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
-                            aria-hidden="true"
-                          ></i>
+                      <span class="gr-form__th-menu-wrap">
+                        <button
+                          type="button"
+                          class="gr-form__th-sort gr-form__th-sort--num"
+                          [attr.aria-label]="lineSortAriaLabel('unitCost', costModeLabel())"
+                          (click)="toggleLineSort('unitCost')"
+                        >
+                          {{ costModeLabel() }}
+                          @if (lineSortColumn() === 'unitCost') {
+                            <i
+                              class="pi"
+                              [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                              [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                              aria-hidden="true"
+                            ></i>
+                          }
+                        </button>
+                        <button
+                          type="button"
+                          class="gr-form__th-menu-trigger"
+                          aria-haspopup="menu"
+                          [attr.aria-expanded]="costModeMenuOpen()"
+                          aria-label="Modalità costi del documento"
+                          (click)="toggleCostModeMenu()"
+                        >
+                          <i class="pi pi-chevron-down" aria-hidden="true"></i>
+                        </button>
+                        @if (costModeMenuOpen()) {
+                          <div class="gr-form__th-menu" role="menu" aria-label="Modalità costi">
+                            <button
+                              type="button"
+                              class="gr-form__th-menu-item"
+                              role="menuitemradio"
+                              [attr.aria-checked]="costEntryMode() === 'vat_excluded'"
+                              (click)="selectCostMode('vat_excluded')"
+                            >
+                              @if (costEntryMode() === 'vat_excluded') {
+                                <i class="pi pi-check" aria-hidden="true"></i>
+                              } @else {
+                                <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                              }
+                              Usa costi netti
+                            </button>
+                            <button
+                              type="button"
+                              class="gr-form__th-menu-item"
+                              role="menuitemradio"
+                              [attr.aria-checked]="costEntryMode() === 'vat_included'"
+                              (click)="selectCostMode('vat_included')"
+                            >
+                              @if (costEntryMode() === 'vat_included') {
+                                <i class="pi pi-check" aria-hidden="true"></i>
+                              } @else {
+                                <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                              }
+                              Usa costi ivati
+                            </button>
+                          </div>
                         }
-                      </button>
+                      </span>
                       <span
                         appTableColumnResize
                         [minWidthPx]="lineColumnMinWidth('unitCost')"
@@ -742,23 +796,52 @@
                     </th>
                   }
                   @if (isLineColumnVisible('vat')) {
-                    <th scope="col" class="gr-form__num" [style.width]="lineColumnWidth('vat')">
-                      <button
-                        type="button"
-                        class="gr-form__th-sort gr-form__th-sort--num"
-                        [attr.aria-label]="lineSortAriaLabel('vat', 'IVA')"
-                        (click)="toggleLineSort('vat')"
-                      >
-                        IVA
-                        @if (lineSortColumn() === 'vat') {
-                          <i
-                            class="pi"
-                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
-                            aria-hidden="true"
-                          ></i>
+                    <th
+                      scope="col"
+                      class="gr-form__num gr-form__th--menu"
+                      [style.width]="lineColumnWidth('vat')"
+                    >
+                      <span class="gr-form__th-menu-wrap">
+                        <button
+                          type="button"
+                          class="gr-form__th-sort gr-form__th-sort--num"
+                          [attr.aria-label]="lineSortAriaLabel('vat', 'IVA')"
+                          (click)="toggleLineSort('vat')"
+                        >
+                          IVA
+                          @if (lineSortColumn() === 'vat') {
+                            <i
+                              class="pi"
+                              [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                              [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                              aria-hidden="true"
+                            ></i>
+                          }
+                        </button>
+                        <button
+                          type="button"
+                          class="gr-form__th-menu-trigger"
+                          aria-haspopup="menu"
+                          [attr.aria-expanded]="vatHeaderMenuOpen()"
+                          aria-label="Azioni colonna IVA"
+                          (click)="toggleVatHeaderMenu()"
+                        >
+                          <i class="pi pi-chevron-down" aria-hidden="true"></i>
+                        </button>
+                        @if (vatHeaderMenuOpen()) {
+                          <div class="gr-form__th-menu" role="menu" aria-label="Azioni colonna IVA">
+                            <button
+                              type="button"
+                              class="gr-form__th-menu-item"
+                              role="menuitem"
+                              (click)="openApplyVatDialog()"
+                            >
+                              <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                              Imposta IVA a tutte le righe…
+                            </button>
+                          </div>
                         }
-                      </button>
+                      </span>
                       <span
                         appTableColumnResize
                         [minWidthPx]="lineColumnMinWidth('vat')"
@@ -1030,18 +1113,22 @@
                       </td>
                     }
                     @if (isLineColumnVisible('vat')) {
-                      <td class="gr-form__cell gr-form__num">
-                        <input
-                          [id]="'gr-vat-' + i"
-                          class="gr-form__input gr-form__input--table gr-form__input--num"
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="1"
-                          formControlName="vatRatePercent"
-                          placeholder="22"
-                          (blur)="onLineOperationalBlur(i)"
-                          (keydown)="onLineFieldKeydown(i, 'vat', $event)"
+                      <td
+                        class="gr-form__cell gr-form__cell--editable gr-form__cell--vat"
+                        [title]="lineVatTooltip(i)"
+                      >
+                        <app-select-menu
+                          [options]="lineVatOptions(i)"
+                          [value]="lineVatValue(i)"
+                          ariaLabel="Codice IVA riga"
+                          placeholder="—"
+                          [compact]="true"
+                          [matchInputHeight]="true"
+                          [includeEmptyOption]="false"
+                          [searchable]="true"
+                          searchPlaceholder="Codice, aliquota, descrizione…"
+                          searchAriaLabel="Cerca Codice IVA"
+                          (valueChange)="onLineVatSelect(i, $event)"
                         />
                       </td>
                     }
@@ -1131,6 +1218,15 @@
                           </button>
                           <button
                             type="button"
+                            class="gr-form__line-move"
+                            [disabled]="formReadOnly()"
+                            aria-label="Duplica riga"
+                            (click)="duplicateLine(i)"
+                          >
+                            <i class="pi pi-clone" aria-hidden="true"></i>
+                          </button>
+                          <button
+                            type="button"
                             class="gr-form__line-remove"
                             [disabled]="lines.length <= 1"
                             aria-label="Rimuovi riga"
@@ -1143,41 +1239,55 @@
                     }
                   </tr>
                 }
-                <tr class="gr-form__table-row gr-form__table-row--scan">
-                  <td
-                    class="gr-form__cell gr-form__cell--scan"
-                    [attr.colspan]="visibleLineColumnCount()"
-                  >
-                    <div
-                      class="gr-form__scan-inline"
-                      role="region"
-                      aria-label="Lettura codici a barre"
-                    >
-                      <label class="gr-form__scan-label" for="gr-barcode-scan">
-                        <i class="pi pi-barcode" aria-hidden="true"></i>
-                        Scansione codice a barre
-                      </label>
-                      <input
-                        #barcodeScanInput
-                        id="gr-barcode-scan"
-                        class="gr-form__input gr-form__scan-input"
-                        type="text"
-                        [value]="barcodeScanDraft()"
-                        [disabled]="formReadOnly() || barcodeScanBusy()"
-                        autocomplete="off"
-                        placeholder="Scansiona o digita codice…"
-                        aria-describedby="gr-barcode-scan-hint"
-                        (input)="onBarcodeScanInput($any($event.target).value)"
-                        (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
-                      />
-                      <p id="gr-barcode-scan-hint" class="gr-form__scan-hint">
-                        Quantità + codice: <kbd>148*</kbd> seguito dal codice a barre.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
               </tbody>
             </table>
+          </div>
+
+          <!-- Vista mobile (§10.10): righe come card editabili, tabella nascosta. -->
+          <div class="gr-form__cards">
+            @for (line of lines.controls; track line; let i = $index) {
+              <app-goods-receipt-line-card
+                [lineIndex]="i"
+                [line]="line"
+                [linked]="lineHasLinkedProduct(i)"
+                [productLabel]="linkedProductLabel(i)"
+                [incomplete]="!lineRowComplete(i)"
+                [totalLabel]="formatMoney(lineMoney(i))"
+                [grossLabel]="lineHasDiscount(i) ? formatMoney(lineGrossMoney(i)) : null"
+                [vatOptions]="lineVatOptions(i)"
+                [vatValue]="lineVatValue(i)"
+                [disabled]="formReadOnly()"
+                [canRemove]="lines.length > 1"
+                (searchProduct)="openLineProductSearch($event)"
+                (vatChange)="onLineVatSelect(i, $event)"
+                (fieldBlur)="onLineOperationalBlur($event)"
+                (duplicated)="duplicateLine($event)"
+                (removed)="removeLine($event)"
+              />
+            }
+          </div>
+
+          <div class="gr-form__scan-inline" role="region" aria-label="Lettura codici a barre">
+            <label class="gr-form__scan-label" for="gr-barcode-scan">
+              <i class="pi pi-barcode" aria-hidden="true"></i>
+              Scansione codice a barre
+            </label>
+            <input
+              #barcodeScanInput
+              id="gr-barcode-scan"
+              class="gr-form__input gr-form__scan-input"
+              type="text"
+              [value]="barcodeScanDraft()"
+              [disabled]="formReadOnly() || barcodeScanBusy()"
+              autocomplete="off"
+              placeholder="Scansiona o digita codice…"
+              aria-describedby="gr-barcode-scan-hint"
+              (input)="onBarcodeScanInput($any($event.target).value)"
+              (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
+            />
+            <p id="gr-barcode-scan-hint" class="gr-form__scan-hint">
+              Quantità + codice: <kbd>148*</kbd> seguito dal codice a barre.
+            </p>
           </div>
 
           <aside class="gr-form__totals-bar" aria-label="Totali documento">
@@ -1217,6 +1327,18 @@
                 <dt>IVA</dt>
                 <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
               </div>
+              @if (reverseChargeTotal().amountMinor > 0) {
+                <div class="gr-form__totals-row gr-form__totals-row--info">
+                  <dt>IVA reverse charge (non dovuta al fornitore)</dt>
+                  <dd class="tabular-nums">{{ formatMoney(reverseChargeTotal()) }}</dd>
+                </div>
+              }
+              @if (nonDeductibleTotal().amountMinor > 0) {
+                <div class="gr-form__totals-row gr-form__totals-row--info">
+                  <dt>di cui IVA indetraibile</dt>
+                  <dd class="tabular-nums">{{ formatMoney(nonDeductibleTotal()) }}</dd>
+                </div>
+              }
               <div class="gr-form__totals-row gr-form__totals-row--total">
                 <dt>Totale</dt>
                 <dd class="tabular-nums">
@@ -1224,6 +1346,26 @@
                 </dd>
               </div>
             </dl>
+            @if (vatSummary().length > 0) {
+              <dl class="gr-form__totals gr-form__vat-summary" aria-label="Riepilogo IVA">
+                <div class="gr-form__totals-row gr-form__totals-row--info">
+                  <dt><strong>Riepilogo IVA</strong></dt>
+                  <dd></dd>
+                </div>
+                @for (row of vatSummary(); track row.vatCodeId ?? row.code) {
+                  <div
+                    class="gr-form__totals-row gr-form__totals-row--info"
+                    [title]="row.description"
+                  >
+                    <dt>{{ row.code }} · {{ formatVatRate(row.ratePercent) }}</dt>
+                    <dd class="tabular-nums">
+                      Imp. {{ formatMoney(minorToMoney(row.netMinor)) }} · IVA
+                      {{ formatMoney(minorToMoney(row.vatMinor)) }}
+                    </dd>
+                  </div>
+                }
+              </dl>
+            }
           </aside>
         </section>
 
@@ -1235,6 +1377,19 @@
             rows="2"
             formControlName="notes"
           ></textarea>
+        </div>
+
+        <div class="gr-form__field">
+          <label class="gr-form__label" for="gr-internal-comment">Commento interno</label>
+          <textarea
+            id="gr-internal-comment"
+            class="gr-form__textarea"
+            rows="2"
+            formControlName="internalComment"
+          ></textarea>
+          <p class="gr-form__hint">
+            Nota interna non stampata: compare nella colonna Commento dell'elenco Arrivi merce.
+          </p>
         </div>
 
         @if (editDocumentId(); as docId) {
@@ -1339,25 +1494,24 @@
 @if (exitDialogOpen()) {
   <div class="gr-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
   <div class="gr-form__exit-dialog" role="dialog" aria-modal="true" aria-labelledby="gr-exit-title">
-    <h2 id="gr-exit-title" class="gr-form__exit-title">Salvare l'arrivo merce?</h2>
+    <h2 id="gr-exit-title" class="gr-form__exit-title">Modifiche non salvate</h2>
     <p class="gr-form__exit-message">
-      Hai inserito dati in questo arrivo merce. Vuoi salvare il documento oppure eliminarlo?
+      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
     </p>
     @if (submitError(); as error) {
       <p class="gr-form__exit-error" role="alert">{{ error.message }}</p>
     }
     <div class="gr-form__exit-actions">
       <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
-        Continua a modificare
+        Annulla
       </app-button>
       <app-button
         type="button"
-        variant="danger"
-        [loading]="saving()"
+        variant="secondary"
         [disabled]="saving()"
-        (click)="confirmExitDeleteDocument()"
+        (click)="confirmExitWithoutSaving()"
       >
-        Elimina documento
+        Chiudi senza salvare
       </app-button>
       <app-button
         type="button"
@@ -1365,7 +1519,7 @@
         [disabled]="saving()"
         (click)="confirmExitSaveDocument()"
       >
-        Salva documento
+        Salva e chiudi
       </app-button>
     </div>
   </div>
@@ -1401,11 +1555,19 @@
         <input
           class="gr-form__input"
           type="text"
-          placeholder="Nuova causale…"
+          placeholder="Nuova causale… (usa {numero} e {data})"
           aria-label="Testo nuova causale"
           [value]="newCausalLabel()"
           (input)="newCausalLabel.set($any($event.target).value)"
           (keydown.enter)="createCausal(); $event.preventDefault()"
+        />
+        <app-select-menu
+          [options]="causalTypeOptions()"
+          [value]="newCausalTypeId()"
+          ariaLabel="Tipo documento associato alla nuova causale"
+          placeholder="Tipo documento"
+          [compact]="true"
+          (valueChange)="newCausalTypeId.set($event ?? '')"
         />
         <app-button
           type="button"
@@ -1429,6 +1591,14 @@
                 (keydown.enter)="saveEditCausal(); $event.preventDefault()"
                 (keydown.escape)="cancelEditCausal()"
               />
+              <app-select-menu
+                [options]="causalTypeOptions()"
+                [value]="editingCausalTypeId()"
+                ariaLabel="Tipo documento associato alla causale"
+                placeholder="Tipo documento"
+                [compact]="true"
+                (valueChange)="editingCausalTypeId.set($event ?? '')"
+              />
               <div class="gr-form__causal-manage-actions">
                 <app-button
                   type="button"
@@ -1445,6 +1615,9 @@
             } @else {
               <span class="gr-form__causal-manage-label">
                 {{ causal.label }}
+                @if (causalTypeLabel(causal); as typeLabel) {
+                  <app-badge tone="neutral">{{ typeLabel }}</app-badge>
+                }
                 @if (causal.isDefault) {
                   <app-badge tone="info">Predefinita</app-badge>
                 }
@@ -1507,6 +1680,330 @@
           </li>
         } @empty {
           <li class="gr-form__causal-empty">Nessuna causale configurata.</li>
+        }
+      </ul>
+    </div>
+  }
+</app-slide-panel>
+
+<app-confirm-dialog
+  [(open)]="regenerateDialogOpen"
+  title="Rigenera causale"
+  message="Rigenerare la causale sostituendo il testo personalizzato?"
+  confirmLabel="Rigenera"
+  (confirmed)="executeRegenerateCausal()"
+/>
+
+<app-confirm-dialog
+  [(open)]="costModeDialogOpen"
+  title="Cambia modalità costi"
+  message="Convertire i costi già inseriti mantenendo invariati imponibile, IVA e totale documento?"
+  confirmLabel="Converti"
+  cancelLabel="Annulla"
+  (confirmed)="confirmCostModeConversion()"
+  (dismissed)="cancelCostModeConversion()"
+/>
+
+@if (applyVatDialogOpen()) {
+  <div class="gr-form__exit-backdrop" aria-hidden="true" (click)="closeApplyVatDialog()"></div>
+  <div
+    class="gr-form__exit-dialog gr-form__apply-vat-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="gr-apply-vat-title"
+  >
+    <h2 id="gr-apply-vat-title" class="gr-form__exit-title">
+      Codice IVA da impostare su tutte le righe
+    </h2>
+    <div class="gr-form__field">
+      <span class="gr-form__label" id="gr-apply-vat-label">Codice IVA</span>
+      <app-select-menu
+        [options]="applyVatSelectOptions()"
+        [value]="applyVatCodeId()"
+        ariaLabel="Codice IVA da applicare a tutte le righe"
+        placeholder="Seleziona un Codice IVA…"
+        [fullWidth]="true"
+        [includeEmptyOption]="false"
+        [searchable]="true"
+        searchPlaceholder="Codice, aliquota, descrizione…"
+        searchAriaLabel="Cerca Codice IVA"
+        (valueChange)="applyVatCodeId.set($event ?? '')"
+      />
+    </div>
+    @if (applyVatSelectedCode(); as selectedCode) {
+      <p class="gr-form__exit-message">
+        {{ selectedCode.description }} — Aliquota {{ formatVatRate(selectedCode.ratePercent) }} —
+        {{ selectedCode.nature.label }}<br />
+        Righe interessate: {{ applyVatTargetCount() }}
+      </p>
+    }
+    <p class="gr-form__hint">{{ applyVatModeHint() }}</p>
+    <div class="gr-form__exit-actions">
+      <app-button type="button" variant="ghost" (click)="closeApplyVatDialog()">Annulla</app-button>
+      <app-button
+        type="button"
+        [disabled]="!applyVatSelectedCode() || applyVatTargetCount() === 0"
+        (click)="confirmApplyVatToAllLines()"
+      >
+        Applica
+      </app-button>
+    </div>
+  </div>
+}
+
+@if (costModeMenuOpen() || vatHeaderMenuOpen()) {
+  <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="closeHeaderMenus()"></div>
+}
+
+@if (newTypeDialogOpen()) {
+  <div class="gr-form__exit-backdrop" aria-hidden="true" (click)="closeNewTypeDialog()"></div>
+  <div
+    class="gr-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="gr-new-type-title"
+  >
+    <h2 id="gr-new-type-title" class="gr-form__exit-title">Nuovo tipo documento fornitore</h2>
+    @if (newTypeError(); as typeError) {
+      <p class="gr-form__submit-error" role="alert">{{ typeError }}</p>
+    }
+    <div class="gr-form__type-dialog-fields">
+      <div class="gr-form__field">
+        <label class="gr-form__label" for="gr-new-type-name">Nome</label>
+        <input
+          id="gr-new-type-name"
+          class="gr-form__input"
+          type="text"
+          placeholder="Es. Documento conto visione"
+          [value]="newTypeName()"
+          (input)="newTypeName.set($any($event.target).value)"
+        />
+      </div>
+      <div class="gr-form__field">
+        <label class="gr-form__label" for="gr-new-type-short">Etichetta breve</label>
+        <input
+          id="gr-new-type-short"
+          class="gr-form__input"
+          type="text"
+          placeholder="Es. Conto visione"
+          [value]="newTypeShortLabel()"
+          (input)="newTypeShortLabel.set($any($event.target).value)"
+        />
+      </div>
+      <div class="gr-form__field">
+        <label class="gr-form__label" for="gr-new-type-template">Modello causale</label>
+        <input
+          id="gr-new-type-template"
+          class="gr-form__input"
+          type="text"
+          placeholder="Es. Conto visione {numero} del {data}"
+          [value]="newTypeTemplate()"
+          (input)="newTypeTemplate.set($any($event.target).value)"
+        />
+        <p class="gr-form__hint">
+          Usa {{ '{' }}numero{{ '}' }} e {{ '{' }}data{{ '}' }} come segnaposto.
+        </p>
+      </div>
+    </div>
+    <div class="gr-form__exit-actions">
+      <app-button
+        type="button"
+        variant="ghost"
+        [disabled]="newTypeBusy()"
+        (click)="closeNewTypeDialog()"
+      >
+        Annulla
+      </app-button>
+      <app-button
+        type="button"
+        [loading]="newTypeBusy()"
+        [disabled]="newTypeBusy() || !newTypeName().trim()"
+        (click)="saveAndUseNewType()"
+      >
+        Salva e usa
+      </app-button>
+    </div>
+  </div>
+}
+
+<app-slide-panel
+  [open]="typePanelOpen()"
+  title="Gestisci tipi documento fornitore"
+  (closed)="closeTypePanel()"
+>
+  @if (typePanelOpen()) {
+    <div class="gr-form__causal-panel">
+      <p class="gr-form__causal-panel-hint">
+        I tipi documento classificano il documento del fornitore (DDT, Fattura…). Un tipo già
+        utilizzato può essere disattivato ma resta visibile nei documenti storici.
+      </p>
+
+      @if (typePanelError(); as panelError) {
+        <p class="gr-form__submit-error" role="alert">{{ panelError }}</p>
+      }
+
+      <div class="gr-form__type-new">
+        <input
+          class="gr-form__input"
+          type="text"
+          placeholder="Nome (es. Bolla doganale)"
+          aria-label="Nome nuovo tipo documento"
+          [value]="addTypeName()"
+          (input)="addTypeName.set($any($event.target).value)"
+          (keydown.enter)="createTypeFromPanel(); $event.preventDefault()"
+        />
+        <input
+          class="gr-form__input"
+          type="text"
+          placeholder="Etichetta breve"
+          aria-label="Etichetta breve nuovo tipo documento"
+          [value]="addTypeShortLabel()"
+          (input)="addTypeShortLabel.set($any($event.target).value)"
+        />
+        <input
+          class="gr-form__input"
+          type="text"
+          placeholder="Modello causale (es. Bolla doganale {numero} del {data})"
+          aria-label="Modello causale nuovo tipo documento"
+          [value]="addTypeTemplate()"
+          (input)="addTypeTemplate.set($any($event.target).value)"
+        />
+        <app-button
+          type="button"
+          [disabled]="typePanelBusy() || !addTypeName().trim()"
+          (click)="createTypeFromPanel()"
+        >
+          Aggiungi
+        </app-button>
+      </div>
+
+      <ul class="gr-form__causal-manage-list">
+        @for (
+          docType of externalDocTypes();
+          track docType.id;
+          let first = $first;
+          let last = $last
+        ) {
+          <li
+            class="gr-form__causal-manage-item"
+            [class.gr-form__type-inactive]="!docType.isActive"
+          >
+            @if (editingTypeId() === docType.id) {
+              <div class="gr-form__type-edit-fields">
+                <input
+                  class="gr-form__input"
+                  type="text"
+                  aria-label="Nome tipo documento"
+                  [value]="editingTypeName()"
+                  (input)="editingTypeName.set($any($event.target).value)"
+                  (keydown.escape)="cancelEditType()"
+                />
+                <input
+                  class="gr-form__input"
+                  type="text"
+                  aria-label="Etichetta breve tipo documento"
+                  [value]="editingTypeShortLabel()"
+                  (input)="editingTypeShortLabel.set($any($event.target).value)"
+                />
+                <input
+                  class="gr-form__input"
+                  type="text"
+                  aria-label="Modello causale tipo documento"
+                  [value]="editingTypeTemplate()"
+                  (input)="editingTypeTemplate.set($any($event.target).value)"
+                />
+              </div>
+              <div class="gr-form__causal-manage-actions">
+                <app-button
+                  type="button"
+                  variant="secondary"
+                  [disabled]="typePanelBusy()"
+                  (click)="saveEditType()"
+                >
+                  Salva
+                </app-button>
+                <app-button type="button" variant="ghost" (click)="cancelEditType()">
+                  Annulla
+                </app-button>
+              </div>
+            } @else {
+              <span class="gr-form__causal-manage-label">
+                {{ docType.name }}
+                @if (docType.shortLabel && docType.shortLabel !== docType.name) {
+                  <span class="gr-form__type-short">({{ docType.shortLabel }})</span>
+                }
+                @if (docType.isSystem) {
+                  <app-badge tone="info">Sistema</app-badge>
+                }
+                @if (!docType.isActive) {
+                  <app-badge tone="warning">Disattivato</app-badge>
+                }
+              </span>
+              <div class="gr-form__causal-manage-actions">
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn"
+                  aria-label="Sposta su"
+                  [disabled]="first || typePanelBusy()"
+                  (click)="moveType(docType, -1)"
+                >
+                  <i class="pi pi-arrow-up" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn"
+                  aria-label="Sposta giù"
+                  [disabled]="last || typePanelBusy()"
+                  (click)="moveType(docType, 1)"
+                >
+                  <i class="pi pi-arrow-down" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn"
+                  [attr.aria-label]="docType.isActive ? 'Disattiva tipo' : 'Riattiva tipo'"
+                  [disabled]="typePanelBusy()"
+                  (click)="toggleTypeActive(docType)"
+                >
+                  <i
+                    class="pi"
+                    [class.pi-eye]="docType.isActive"
+                    [class.pi-eye-slash]="!docType.isActive"
+                    aria-hidden="true"
+                  ></i>
+                </button>
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn"
+                  aria-label="Duplica tipo"
+                  [disabled]="typePanelBusy()"
+                  (click)="duplicateType(docType)"
+                >
+                  <i class="pi pi-copy" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn"
+                  aria-label="Modifica tipo"
+                  [disabled]="typePanelBusy()"
+                  (click)="startEditType(docType)"
+                >
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="gr-form__causal-icon-btn gr-form__causal-icon-btn--danger"
+                  aria-label="Elimina tipo (solo se mai utilizzato)"
+                  [disabled]="typePanelBusy()"
+                  (click)="deleteType(docType)"
+                >
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                </button>
+              </div>
+            }
+          </li>
+        } @empty {
+          <li class="gr-form__causal-empty">Nessun tipo documento configurato.</li>
         }
       </ul>
     </div>

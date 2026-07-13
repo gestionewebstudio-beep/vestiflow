@@ -167,6 +167,58 @@
   font-variant-numeric: tabular-nums;
 }
 
+.stock-lookup__num--negative {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-medium);
+}
+
 .stock-lookup__row--active {
   background-color: var(--color-interactive-subtle);
+}
+
+.stock-lookup__committed-link {
+  padding: 0;
+  font: inherit;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.stock-lookup__reservations-context {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.stock-lookup__reservations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stock-lookup__reservation {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.stock-lookup__reservation-qty {
+  text-align: end;
+  font-weight: var(--font-weight-semibold);
+}
+
+.stock-lookup__reservation-location {
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
 }

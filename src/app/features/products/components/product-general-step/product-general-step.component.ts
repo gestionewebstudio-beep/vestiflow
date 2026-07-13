@@ -18,12 +18,12 @@ import type { Subscription } from 'rxjs';
 
 import { ProductStatus } from '@core/models/product.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
+import { vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import {
   COMMON_UNIT_OF_MEASURE,
-  COMMON_VAT_RATES,
   INVENTORY_TRACKING_LABELS,
   InventoryTrackingMode,
 } from '@core/models/product-catalog.model';
@@ -76,6 +76,8 @@ export class ProductGeneralStepComponent implements OnInit {
   readonly valueChange = output<ProductGeneralDraft>();
 
   readonly categories = input<readonly string[]>([]);
+  /** Codici IVA attivi per la tendina "Codice IVA" (dal parent smart). */
+  readonly vatCodes = input<readonly VatCode[]>([]);
   readonly shopifyConnected = input(false);
   readonly catalogReadOnly = input(false);
   /** In creazione: campi secondari in sezione collassabile. */
@@ -92,9 +94,12 @@ export class ProductGeneralStepComponent implements OnInit {
     (value) => ({ value, label: value }),
   );
 
-  protected readonly vatSelectOptions: readonly SelectMenuOption[] = COMMON_VAT_RATES.map(
-    (value) => ({ value: String(value), label: `${value}%` }),
-  );
+  protected readonly vatSelectOptions = computed((): readonly SelectMenuOption[] => {
+    const currentId = this.value().defaultVatCodeId;
+    return this.vatCodes()
+      .filter((entry) => entry.isActive || entry.id === currentId)
+      .map((entry) => ({ value: entry.id, label: vatCodeOptionLabel(entry) }));
+  });
 
   protected readonly trackingSelectOptions: readonly SelectMenuOption[] = (
     Object.values(InventoryTrackingMode) as InventoryTrackingMode[]
@@ -150,6 +155,7 @@ export class ProductGeneralStepComponent implements OnInit {
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
     unitOfMeasure: this.fb.control('pz'),
     defaultVatRatePercent: this.fb.control<number | null>(22),
+    defaultVatCodeId: this.fb.control(''),
     inventoryTracking: this.fb.control<InventoryTrackingMode>(InventoryTrackingMode.Standard),
     managesStock: this.fb.control(true),
     description: this.fb.control(''),
@@ -207,7 +213,7 @@ export class ProductGeneralStepComponent implements OnInit {
   }
 
   protected onVatSelect(value: string | null): void {
-    this.form.controls.defaultVatRatePercent.setValue(value ? Number(value) : null);
+    this.form.controls.defaultVatCodeId.setValue(value ?? '');
   }
 
   protected onTrackingSelect(value: string | null): void {
@@ -217,8 +223,7 @@ export class ProductGeneralStepComponent implements OnInit {
   }
 
   protected vatSelectValue(): string {
-    const value = this.form.controls.defaultVatRatePercent.value;
-    return value == null ? '' : String(value);
+    return this.form.controls.defaultVatCodeId.value;
   }
 
   protected onCategorySelect(value: string | null): void {

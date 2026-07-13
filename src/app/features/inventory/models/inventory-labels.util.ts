@@ -34,6 +34,7 @@ const MOVEMENT_TYPE_LABELS: Record<StockMovementType, string> = {
   [StockMovementType.Adjustment]: 'Rettifica',
   [StockMovementType.Sale]: 'Vendita',
   [StockMovementType.Return]: 'Reso',
+  [StockMovementType.OnlineSale]: 'Vendita online',
 };
 
 const MOVEMENT_TYPE_TONES: Record<StockMovementType, BadgeTone> = {
@@ -43,6 +44,7 @@ const MOVEMENT_TYPE_TONES: Record<StockMovementType, BadgeTone> = {
   [StockMovementType.Adjustment]: 'neutral',
   [StockMovementType.Sale]: 'info',
   [StockMovementType.Return]: 'success',
+  [StockMovementType.OnlineSale]: 'info',
 };
 
 export function movementTypeLabel(type: StockMovementType): string {

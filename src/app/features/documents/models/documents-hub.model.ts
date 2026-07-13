@@ -13,11 +13,23 @@ export interface DocumentHubGroup {
   readonly items: readonly DocumentHubItem[];
 }
 
-/** Voci hub Documenti (tipologie Danea-style; solo quelle implementate sono cliccabili). */
+/**
+ * Voci hub Documenti riorganizzate per flusso (fase 3 §11): Acquisti e
+ * fornitori, Magazzino, Vendite, Registro. Solo le voci implementate sono
+ * cliccabili.
+ */
 export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
   {
-    title: 'Magazzino',
+    title: 'Acquisti e fornitori',
     items: [
+      {
+        id: 'supplier-orders',
+        label: 'Ordini fornitore',
+        description: 'Gestiti dalla sezione Ordini fornitori.',
+        route: ['/app/orders'],
+        icon: 'pi-shopping-bag',
+        available: true,
+      },
       {
         id: 'goods-receipt',
         label: 'Arrivi merce',
@@ -26,6 +38,20 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         icon: 'pi-box',
         available: true,
       },
+      {
+        id: 'supplier-invoices',
+        label: 'Registrazione fattura',
+        description: 'Collega gli arrivi merce alla fattura ricevuta dal fornitore.',
+        route: ['/app/documents/registro'],
+        queryParams: { type: 'supplier_invoice' },
+        icon: 'pi-book',
+        available: true,
+      },
+    ],
+  },
+  {
+    title: 'Magazzino',
+    items: [
       {
         id: 'transfer',
         label: 'Trasferimenti',
@@ -37,7 +63,7 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
       },
       {
         id: 'adjustment',
-        label: 'Rettifiche inventario',
+        label: 'Rettifiche di magazzino',
         description: 'Rettifiche e conteggi di magazzino.',
         route: ['/app/documents/registro'],
         queryParams: { type: 'adjustment' },
@@ -67,6 +93,32 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
   {
     title: 'Vendite',
     items: [
+      {
+        id: 'store-sale-register',
+        label: 'Vendita negozio',
+        description: 'Cassa a carrello per vendite immediate in negozio.',
+        route: ['/app/sales/register'],
+        icon: 'pi-shopping-bag',
+        available: true,
+      },
+      {
+        id: 'store-sales',
+        label: 'Registro vendite negozio',
+        description: 'Elenco vendite negozio registrate dalla cassa.',
+        route: ['/app/documents/registro'],
+        queryParams: { type: 'store_sale' },
+        icon: 'pi-shopping-cart',
+        available: true,
+      },
+      {
+        id: 'store-returns',
+        label: 'Resi vendita negozio',
+        description: 'Resi collegati alle vendite negozio, con stato vendibile.',
+        route: ['/app/documents/registro'],
+        queryParams: { type: 'store_return' },
+        icon: 'pi-replay',
+        available: true,
+      },
       {
         id: 'proforma',
         label: 'Proforma',
@@ -101,36 +153,6 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         route: [],
         icon: 'pi-file',
         available: false,
-      },
-      {
-        id: 'customer-orders',
-        label: 'Ordini cliente',
-        description: 'In preparazione.',
-        route: [],
-        icon: 'pi-shopping-cart',
-        available: false,
-      },
-    ],
-  },
-  {
-    title: 'Fornitori e acquisti',
-    items: [
-      {
-        id: 'supplier-orders',
-        label: 'Ordini fornitore',
-        description: 'Gestiti dalla sezione Ordini fornitori.',
-        route: ['/app/orders'],
-        icon: 'pi-shopping-bag',
-        available: true,
-      },
-      {
-        id: 'supplier-invoices',
-        label: 'Registrazione fattura',
-        description: 'Collega gli arrivi merce alla fattura ricevuta dal fornitore.',
-        route: ['/app/documents/registro'],
-        queryParams: { type: 'supplier_invoice' },
-        icon: 'pi-book',
-        available: true,
       },
     ],
   },

@@ -12,6 +12,7 @@ const HTTP_TIMEOUT_MS = 15000;
 interface GoodsReceiptCausalApiRow {
   readonly id: EntityId;
   readonly label: string;
+  readonly externalDocumentTypeId?: EntityId | null;
   readonly sortOrder: number;
   readonly isDefault: boolean;
   readonly isActive: boolean;
@@ -19,6 +20,7 @@ interface GoodsReceiptCausalApiRow {
 
 export interface UpsertGoodsReceiptCausalBody {
   readonly label?: string;
+  readonly externalDocumentTypeId?: EntityId | null;
   readonly isDefault?: boolean;
   readonly isActive?: boolean;
 }
@@ -27,6 +29,7 @@ function mapCausal(row: GoodsReceiptCausalApiRow): GoodsReceiptCausal {
   return {
     id: row.id,
     label: row.label,
+    externalDocumentTypeId: row.externalDocumentTypeId ?? undefined,
     sortOrder: row.sortOrder,
     isDefault: row.isDefault,
     isActive: row.isActive,

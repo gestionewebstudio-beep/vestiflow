@@ -18,13 +18,16 @@ import {
   clampIsoDate,
   formatCalendarMonthLabel,
   formatItalianInputDate,
+  parseItalianDateInput,
   toIsoDateLocal,
   viewMonthFromIso,
 } from '@shared/utils/calendar.util';
 
 /**
- * Selettore data custom (Polaris-like), allineato a app-select-menu.
- * Valore ISO `YYYY-MM-DD`; supporta reactive forms via ControlValueAccessor.
+ * Campo data con digitazione manuale (`GG/MM/AAAA`, normalizza `1/7/2026`)
+ * e calendario Polaris-like. Valore ISO `YYYY-MM-DD`; supporta reactive forms
+ * via ControlValueAccessor. Date incomplete o inesistenti mostrano un errore
+ * leggibile senza sporcare il valore del form.
  */
 @Component({
   selector: 'app-date-input',
@@ -52,7 +55,7 @@ export class DateInputComponent implements ControlValueAccessor {
 
   readonly inputId = input<string>();
   readonly ariaLabel = input.required<string>();
-  readonly placeholder = input<string>('Seleziona data');
+  readonly placeholder = input<string>('GG/MM/AAAA');
   readonly compact = input<boolean>(false);
   readonly fullWidth = input<boolean>(false);
   readonly invalid = input<boolean>(false);
@@ -69,17 +72,24 @@ export class DateInputComponent implements ControlValueAccessor {
   protected readonly open = signal(false);
   protected readonly disabled = signal(false);
   private readonly valueState = signal('');
+  /** Testo digitato dall'utente (può divergere dal valore finché non è valido). */
+  protected readonly inputText = signal('');
+  /** true quando il testo digitato non è una data valida (errore leggibile). */
+  protected readonly parseError = signal(false);
   private readonly viewYear = signal(new Date().getFullYear());
   private readonly viewMonthIndex = signal(new Date().getMonth());
 
   protected readonly weekdayLabels = CALENDAR_WEEKDAY_LABELS_IT;
 
-  protected readonly displayLabel = computed(() => {
-    const formatted = formatItalianInputDate(this.valueState());
-    return formatted.length > 0 ? formatted : this.placeholder();
+  protected readonly errorId = computed(() => {
+    const id = this.inputId();
+    return id ? `${id}-parse-error` : 'date-input-parse-error';
   });
 
-  protected readonly isEmpty = computed(() => this.valueState().length === 0);
+  protected readonly describedByIds = computed(() => {
+    const ids = [this.describedBy(), this.parseError() ? this.errorId() : null].filter(Boolean);
+    return ids.length > 0 ? ids.join(' ') : null;
+  });
 
   protected readonly monthLabel = computed(() =>
     formatCalendarMonthLabel(this.viewYear(), this.viewMonthIndex()),
@@ -96,7 +106,7 @@ export class DateInputComponent implements ControlValueAccessor {
     effect(() => {
       const external = this.value();
       if (external !== undefined) {
-        this.valueState.set(external.trim());
+        this.applyExternalValue(external.trim());
       }
     });
 
@@ -108,7 +118,7 @@ export class DateInputComponent implements ControlValueAccessor {
   }
 
   writeValue(value: string | null): void {
-    this.valueState.set(value?.trim() ?? '');
+    this.applyExternalValue(value?.trim() ?? '');
   }
 
   registerOnChange(fn: (value: string) => void): void {
@@ -142,10 +152,22 @@ export class DateInputComponent implements ControlValueAccessor {
 
   protected close(): void {
     this.open.set(false);
-    this.onTouched();
   }
 
-  protected onTriggerBlur(): void {
+  protected onFieldInput(text: string): void {
+    this.inputText.set(text);
+    this.parseError.set(false);
+  }
+
+  protected onFieldKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      this.commitTypedValue();
+    }
+    this.triggerKeydown.emit(event);
+  }
+
+  protected onFieldBlur(): void {
+    this.commitTypedValue();
     this.triggerBlur.emit();
     this.onTouched();
   }
@@ -188,6 +210,33 @@ export class DateInputComponent implements ControlValueAccessor {
     }
   }
 
+  /** Interpreta il testo digitato: vuoto = cancella, valido = normalizza. */
+  private commitTypedValue(): void {
+    const text = this.inputText().trim();
+    if (!text) {
+      this.parseError.set(false);
+      if (this.valueState() !== '') {
+        this.commitValue('');
+      }
+      return;
+    }
+
+    const iso = parseItalianDateInput(text);
+    if (!iso) {
+      this.parseError.set(true);
+      return;
+    }
+
+    this.parseError.set(false);
+    this.commitValue(clampIsoDate(iso, this.min(), this.max()));
+  }
+
+  private applyExternalValue(value: string): void {
+    this.valueState.set(value);
+    this.inputText.set(formatItalianInputDate(value));
+    this.parseError.set(false);
+  }
+
   private shiftMonth(delta: number): void {
     const date = new Date(this.viewYear(), this.viewMonthIndex() + delta, 1);
     this.viewYear.set(date.getFullYear());
@@ -196,6 +245,8 @@ export class DateInputComponent implements ControlValueAccessor {
 
   private commitValue(value: string): void {
     this.valueState.set(value);
+    this.inputText.set(formatItalianInputDate(value));
+    this.parseError.set(false);
     this.onChange(value);
     this.valueChange.emit(value);
   }

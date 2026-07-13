@@ -1,0 +1,132 @@
+@use 'breakpoints' as bp;
+@use 'list-page' as lp;
+@use 'responsive-table' as rt;
+
+:host {
+  display: block;
+}
+
+@include lp.list-page('cor-list');
+@include rt.data-table-desktop('cor-table');
+@include rt.data-table-mobile-cards('cor-table');
+
+.cor-table-scroll {
+  inline-size: 100%;
+  max-inline-size: 100%;
+
+  @include bp.media-up('lg') {
+    overflow-x: auto;
+  }
+}
+
+.cor-table__row {
+  cursor: pointer;
+}
+
+.cor-table__row:hover,
+.cor-table__row:focus-visible {
+  background-color: var(--color-surface-hover);
+}
+
+.cor-table__row--expanded {
+  background-color: var(--color-surface-sunken);
+}
+
+.cor-table__link {
+  color: var(--color-interactive);
+  text-decoration: none;
+}
+
+.cor-table__link:hover {
+  text-decoration: underline;
+}
+
+@include bp.media-up('lg') {
+  .cor-table th.cor-table__cell--num,
+  .cor-table td.cor-table__cell--num {
+    text-align: end;
+    white-space: nowrap;
+  }
+}
+
+// ── Dettaglio espanso (righe analitiche + modifica autorizzata) ─────────────
+
+.cor-table__detail-row td {
+  padding: var(--space-4);
+  background-color: var(--color-surface-sunken);
+}
+
+.cor-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.cor-detail__edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.cor-detail__edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cor-detail__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--field-height);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.cor-detail__feedback {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-success-fg);
+}
+
+.cor-detail__feedback--error {
+  color: var(--status-error-fg);
+}
+
+.cor-detail__reason {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.cor-detail__loading,
+.cor-detail__error {
+  margin: 0;
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.cor-detail__error {
+  color: var(--status-error-fg);
+}
+
+.cor-detail__lines {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.cor-detail__lines th,
+.cor-detail__lines td {
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  border-block-end: var(--border-width) solid var(--color-border);
+}
+
+.cor-detail__lines th {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}

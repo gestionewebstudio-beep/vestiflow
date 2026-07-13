@@ -82,6 +82,7 @@
           <app-product-general-step
             [value]="draft().general"
             [categories]="categories()"
+            [vatCodes]="vatCodes()"
             [shopifyConnected]="shopifyConnected()"
             [catalogReadOnly]="shopifyCatalogLocked()"
             [compactLayout]="mode() === 'create'"

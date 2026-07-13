@@ -1,0 +1,347 @@
+<section class="cor-list">
+  <header class="cor-list__header">
+    <div>
+      <h1 class="cor-list__title">Corrispettivi</h1>
+      <p class="cor-list__subtitle">
+        Registro operativo dei corrispettivi generati dalle Vendite online. Non è una trasmissione
+        fiscale automatica: supporta verifica e riepiloghi per periodo, canale e aliquota.
+      </p>
+    </div>
+  </header>
+
+  <div class="cor-list__toolbar">
+    <div class="cor-list__search">
+      <i class="pi pi-search cor-list__search-icon" aria-hidden="true"></i>
+      <input
+        id="corrispettivi-search"
+        class="cor-list__input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Cerca per numero voce, ordine, vendita online…"
+        aria-label="Cerca corrispettivi"
+        (input)="onSearchInput($event)"
+      />
+    </div>
+
+    <div class="cor-list__filters">
+      <div class="cor-list__field">
+        <span class="cor-list__label">Dal</span>
+        <app-date-input
+          inputId="corrispettivi-from"
+          [value]="query().fiscalFrom ?? ''"
+          ariaLabel="Data fiscale da"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [max]="query().fiscalTo || undefined"
+          (valueChange)="onFiscalFromChange($event)"
+        />
+      </div>
+
+      <div class="cor-list__field">
+        <span class="cor-list__label">al</span>
+        <app-date-input
+          inputId="corrispettivi-to"
+          [value]="query().fiscalTo ?? ''"
+          ariaLabel="Data fiscale a"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [min]="query().fiscalFrom || undefined"
+          (valueChange)="onFiscalToChange($event)"
+        />
+      </div>
+
+      <div class="cor-list__field">
+        <span class="cor-list__label">Canale</span>
+        <app-select-menu
+          [options]="channelOptions"
+          [value]="query().channel ?? ''"
+          ariaLabel="Filtra per canale"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onChannelFilterChange($event)"
+        />
+      </div>
+
+      <div class="cor-list__field">
+        <span class="cor-list__label">Stato</span>
+        <app-select-menu
+          [options]="statusOptions"
+          [value]="query().status ?? ''"
+          ariaLabel="Filtra per stato"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onStatusFilterChange($event)"
+        />
+      </div>
+
+      <div class="cor-list__field">
+        <span class="cor-list__label">Aliquota IVA</span>
+        <app-select-menu
+          [options]="vatRateOptions"
+          [value]="query().vatRatePercent?.toString() ?? ''"
+          ariaLabel="Filtra per aliquota IVA"
+          placeholder="Tutte"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onVatRateFilterChange($event)"
+        />
+      </div>
+
+      <div class="cor-list__field">
+        <span class="cor-list__label">Fattura</span>
+        <app-select-menu
+          [options]="invoicedOptions"
+          [value]="invoicedFilterValue()"
+          ariaLabel="Filtra per fattura emessa"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onInvoicedFilterChange($event)"
+        />
+      </div>
+
+      <div class="cor-list__field">
+        <span class="cor-list__label">Riepilogo</span>
+        <app-select-menu
+          [options]="inclusionOptions"
+          [value]="inclusionFilterValue()"
+          ariaLabel="Filtra per inclusione nel riepilogo"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onInclusionFilterChange($event)"
+        />
+      </div>
+
+      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+        <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        Azzera filtri
+      </app-button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessun corrispettivo"
+      description="Le voci del registro vengono create automaticamente insieme alle Vendite online."
+      icon="pi-receipt"
+    />
+  } @else {
+    <div class="cor-table-scroll">
+      <table class="cor-table">
+        <thead>
+          <tr>
+            <th scope="col">Data fiscale</th>
+            <th scope="col">Numero</th>
+            <th scope="col">Vendita online</th>
+            <th scope="col">Ordine</th>
+            <th scope="col">Canale</th>
+            <th scope="col" class="cor-table__cell--num">Imponibile</th>
+            <th scope="col" class="cor-table__cell--num">IVA</th>
+            <th scope="col" class="cor-table__cell--num">Totale</th>
+            <th scope="col">Stato</th>
+            <th scope="col">Fattura</th>
+            <th scope="col">Riepilogo</th>
+            <th scope="col">Rettifica</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (entry of entries(); track entry.id) {
+            <tr
+              class="cor-table__row"
+              [class.cor-table__row--expanded]="expandedEntryId() === entry.id"
+              tabindex="0"
+              role="button"
+              [attr.aria-expanded]="expandedEntryId() === entry.id"
+              (click)="toggleEntry(entry)"
+              (keydown.enter)="toggleEntry(entry)"
+              (keydown.space)="toggleEntry(entry); $event.preventDefault()"
+            >
+              <td class="tabular-nums" data-label="Data fiscale">
+                {{ formatDate(entry.fiscalDate) }}
+              </td>
+              <td class="tabular-nums" data-label="Numero">{{ entry.reference }}</td>
+              <td class="tabular-nums" data-label="Vendita online">
+                <a
+                  [routerLink]="['/app/sales/online', entry.onlineSaleId]"
+                  class="cor-table__link"
+                  (click)="$event.stopPropagation()"
+                >
+                  {{ entry.onlineSaleReference }}
+                </a>
+              </td>
+              <td class="tabular-nums" data-label="Ordine">
+                <a
+                  [routerLink]="['/app/sales', entry.salesOrderId]"
+                  class="cor-table__link"
+                  (click)="$event.stopPropagation()"
+                >
+                  {{ entry.orderNumber }}
+                </a>
+              </td>
+              <td data-label="Canale">{{ entry.channelLabel }}</td>
+              <td class="cor-table__cell--num tabular-nums" data-label="Imponibile">
+                {{ money(entry.subtotalMinor) }}
+              </td>
+              <td class="cor-table__cell--num tabular-nums" data-label="IVA">
+                {{ money(entry.taxMinor) }}
+              </td>
+              <td class="cor-table__cell--num tabular-nums" data-label="Totale">
+                {{ money(entry.totalMinor) }}
+              </td>
+              <td data-label="Stato">
+                <app-badge [tone]="statusTone(entry.status)">
+                  {{ statusLabel(entry.status) }}
+                </app-badge>
+              </td>
+              <td data-label="Fattura">{{ entry.invoiceIssued ? 'Sì' : 'No' }}</td>
+              <td data-label="Riepilogo">
+                {{ entry.excludedFromSummary ? 'Escluso' : 'Incluso' }}
+              </td>
+              <td data-label="Rettifica">{{ adjustmentLabel(entry) }}</td>
+            </tr>
+
+            @if (expandedEntryId() === entry.id) {
+              <tr class="cor-table__detail-row">
+                <td colspan="12">
+                  @if (entryDetail(); as detail) {
+                    @if (detail.status === 'loading') {
+                      <p class="cor-detail__loading">Caricamento dettaglio…</p>
+                    } @else if (detail.status === 'error') {
+                      <p class="cor-detail__error" role="alert">{{ detail.message }}</p>
+                    } @else {
+                      <div class="cor-detail">
+                        @if (canEditEntries()) {
+                          <div class="cor-detail__edit">
+                            <div class="cor-detail__edit-field">
+                              <span class="cor-list__label">Stato</span>
+                              <app-select-menu
+                                [options]="statusOptions"
+                                [value]="detail.detail.status"
+                                ariaLabel="Stato corrispettivo"
+                                placeholder="Stato"
+                                [includeEmptyOption]="false"
+                                [compact]="true"
+                                (valueChange)="onStatusChange(detail.detail.id, $event)"
+                              />
+                            </div>
+                            <div class="cor-detail__edit-field">
+                              <span class="cor-list__label">Data fiscale</span>
+                              <app-date-input
+                                inputId="cor-fiscal-date"
+                                [value]="detail.detail.fiscalDate.slice(0, 10)"
+                                ariaLabel="Data fiscale"
+                                [compact]="true"
+                                (valueChange)="onFiscalDateChange(detail.detail.id, $event)"
+                              />
+                            </div>
+                            <label class="cor-detail__toggle">
+                              <input
+                                type="checkbox"
+                                [checked]="detail.detail.invoiceIssued"
+                                [disabled]="savePending()"
+                                (change)="onInvoiceIssuedToggle(detail.detail.id, $event)"
+                              />
+                              Fattura emessa
+                            </label>
+                            <label class="cor-detail__toggle">
+                              <input
+                                type="checkbox"
+                                [checked]="detail.detail.excludedFromSummary"
+                                [disabled]="savePending()"
+                                (change)="onExcludedToggle(detail.detail.id, $event)"
+                              />
+                              Escluso dal riepilogo
+                            </label>
+                          </div>
+                          @if (saveFeedback(); as feedback) {
+                            <p
+                              class="cor-detail__feedback"
+                              [class.cor-detail__feedback--error]="feedback.tone === 'error'"
+                              role="status"
+                            >
+                              {{ feedback.message }}
+                            </p>
+                          }
+                        }
+                        @if (detail.detail.exclusionReason) {
+                          <p class="cor-detail__reason">
+                            Motivo esclusione: {{ detail.detail.exclusionReason }}
+                          </p>
+                        }
+                        @if (detail.detail.adjustmentNote) {
+                          <p class="cor-detail__reason">
+                            Nota rettifica: {{ detail.detail.adjustmentNote }}
+                          </p>
+                        }
+
+                        <table class="cor-detail__lines">
+                          <thead>
+                            <tr>
+                              <th scope="col">#</th>
+                              <th scope="col">Voce</th>
+                              <th scope="col" class="cor-table__cell--num">Qtà</th>
+                              <th scope="col" class="cor-table__cell--num">Sconto</th>
+                              <th scope="col" class="cor-table__cell--num">Imponibile</th>
+                              <th scope="col" class="cor-table__cell--num">Aliquota</th>
+                              <th scope="col" class="cor-table__cell--num">Imposta</th>
+                              <th scope="col" class="cor-table__cell--num">Totale</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (line of detail.detail.lines; track line.id) {
+                              <tr>
+                                <td class="tabular-nums">{{ line.lineNumber }}</td>
+                                <td>
+                                  {{ line.isShipping ? 'Spedizione' : line.description }}
+                                </td>
+                                <td class="cor-table__cell--num tabular-nums">
+                                  {{ line.quantity }}
+                                </td>
+                                <td class="cor-table__cell--num tabular-nums">
+                                  {{ money(line.discountMinor) }}
+                                </td>
+                                <td class="cor-table__cell--num tabular-nums">
+                                  {{ money(line.subtotalMinor) }}
+                                </td>
+                                <td class="cor-table__cell--num tabular-nums">
+                                  {{ vatLabel(line.vatRatePercent) }}
+                                </td>
+                                <td class="cor-table__cell--num tabular-nums">
+                                  {{ money(line.taxMinor) }}
+                                </td>
+                                <td class="cor-table__cell--num tabular-nums">
+                                  {{ money(line.totalMinor) }}
+                                </td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    }
+                  }
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <app-pagination
+      label="Paginazione corrispettivi"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+</section>

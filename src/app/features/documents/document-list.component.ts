@@ -213,7 +213,7 @@ export class DocumentListComponent {
     { value: 'purchase-invoice', label: 'Registrazione fattura' },
     { value: 'transfer', label: 'Trasferimento' },
     { value: 'manual-unload', label: 'Scarico manuale' },
-    { value: 'adjustment', label: 'Rettifica inventario' },
+    { value: 'adjustment', label: 'Rettifica di magazzino' },
     { value: 'sales-ddt', label: 'DDT vendita' },
     { value: 'proforma', label: 'Proforma' },
     { value: 'invoice-draft', label: 'Bozza fattura' },
