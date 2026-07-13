@@ -65,6 +65,10 @@ interface VariantSummaryApiRow {
     readonly amountMinor: number;
     readonly currencyCode: string;
   } | null;
+  readonly compareAtPrice?: {
+    readonly amountMinor: number;
+    readonly currencyCode: string;
+  } | null;
   readonly supplierSku?: string | null;
   readonly stockOnHand?: number | null;
   readonly category?: string | null;
@@ -373,6 +377,12 @@ export class ProductService {
         ? {
             amountMinor: row.purchasePrice.amountMinor,
             currencyCode: row.purchasePrice.currencyCode,
+          }
+        : undefined,
+      compareAtPrice: row.compareAtPrice
+        ? {
+            amountMinor: row.compareAtPrice.amountMinor,
+            currencyCode: row.compareAtPrice.currencyCode,
           }
         : undefined,
       supplierSku: row.supplierSku ?? undefined,

@@ -15,6 +15,7 @@ export interface VariantSummary {
   readonly barcode?: string;
   readonly sellingPrice: Money;
   readonly purchasePrice?: Money;
+  readonly compareAtPrice?: Money | null;
   readonly supplierSku?: string;
   readonly stockOnHand?: number | null;
   readonly category?: string;

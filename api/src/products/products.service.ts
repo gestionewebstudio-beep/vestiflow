@@ -215,6 +215,7 @@ export class ProductsService {
           currency: true,
           sellingPriceMinor: true,
           purchasePriceMinor: true,
+          compareAtPriceMinor: true,
           product: {
             select: { name: true, category: true, unitOfMeasure: true, defaultVatCodeId: true },
           },
@@ -266,6 +267,10 @@ export class ProductsService {
         purchasePrice:
           purchaseMinor != null
             ? { amountMinor: purchaseMinor, currencyCode: row.currency }
+            : null,
+        compareAtPrice:
+          row.compareAtPriceMinor != null
+            ? { amountMinor: row.compareAtPriceMinor, currencyCode: row.currency }
             : null,
         supplierSku: supplierLink?.supplierSku ?? null,
         stockOnHand: level?.onHand ?? null,

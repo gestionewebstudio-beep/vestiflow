@@ -129,16 +129,6 @@
   gap: var(--space-1);
 }
 
-.gr-form__grid--header-compact {
-  @include bp.media-up('md') {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  @include bp.media-up('xl') {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
-
 .gr-form__header .gr-form__field {
   gap: 0;
 }
@@ -172,6 +162,20 @@
 @include bp.media-up('md') {
   .gr-form__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+// Testata documento (§14): più colonne per riga oltre md/xl, per ridurre
+// l'altezza occupata dalla testata rispetto alla tabella righe. Dichiarata
+// dopo la regola base di .gr-form__grid perché stessa specificità e stesso
+// breakpoint devono vincere qui (altrimenti resta bloccata a 3 colonne).
+.gr-form__grid--header-compact {
+  @include bp.media-up('md') {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  @include bp.media-up('xl') {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 
@@ -474,7 +478,12 @@
 }
 
 .gr-form__table {
-  inline-size: 100%;
+  /* Le colonne hanno una larghezza dichiarata (config colonne, §7): la
+     tabella si dimensiona sul contenuto invece di comprimere le colonne per
+     entrare nel wrapper, che altrimenti sovrappone le intestazioni quando le
+     colonne visibili non ci stanno (scorrimento orizzontale in .gr-form__table-wrap). */
+  inline-size: auto;
+  min-inline-size: 100%;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--text-sm);
@@ -592,13 +601,14 @@
 }
 
 .gr-form__table-wrap {
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-inline-size: 100%;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   flex: 1 1 auto;
   min-block-size: 0;
   max-block-size: min(60vh, calc(var(--space-8) * 16));
-  overflow-y: auto;
 }
 
 .gr-form__lines-head {
@@ -879,13 +889,6 @@
   background-color: var(--color-surface-muted);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
-}
-
-@include bp.media-down('lg') {
-  .gr-form__table-wrap {
-    overflow-x: auto;
-    max-inline-size: 100%;
-  }
 }
 
 .gr-form__exit-backdrop {

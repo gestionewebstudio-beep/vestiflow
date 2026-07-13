@@ -172,6 +172,16 @@ const AUTO_SAVE_RETRY_DELAY_MS = 5000;
  */
 const SESSION_UNLOCKED_DOC_IDS = new Set<string>();
 
+/**
+ * Documento restituito dal primo autosalvataggio, in attesa che l'istanza
+ * ricreata sulla route `:id/edit` lo consumi: evita un refetch di rete (e il
+ * `loading` che nel frattempo sostituisce l'intera maschera con lo skeleton,
+ * §6) quando il dato è già disponibile perché appena salvato. Consumata una
+ * sola volta: le riaperture successive dello stesso documento passano sempre
+ * dalla GET reale.
+ */
+const JUST_CREATED_DOCS = new Map<string, DocumentRecord>();
+
 /** Modalità payload: l'autosave esclude righe non confermate (query, tentativi). */
 type GoodsReceiptSaveMode = 'auto' | 'explicit';
 
@@ -520,7 +530,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.initDefaultsForCreate();
           return of<'ready' | 'loading' | 'not-found' | 'error'>('ready');
         }
-        return this.documentService.getDocumentById(id).pipe(
+        // Se il documento è quello appena auto-creato (route appena cambiata
+        // da `goods-receipt/new`), il dato è già in mano: evita una GET e il
+        // conseguente skeleton a schermo intero (§6).
+        const justCreated = JUST_CREATED_DOCS.get(id);
+        if (justCreated) {
+          JUST_CREATED_DOCS.delete(id);
+        }
+        const doc$ = justCreated ? of(justCreated) : this.documentService.getDocumentById(id);
+        return doc$.pipe(
           map((doc) => {
             const draftEditable =
               doc.status === DocumentStatus.Draft && isGoodsReceiptDocumentType(doc.type);
@@ -1533,6 +1551,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     for (const line of this.lines.controls) {
       const linked = Boolean(line.controls.variantId.value);
+      // Prezzo al pubblico e Prezzo barrato restano modificabili anche su riga
+      // collegata a un articolo esistente: sono dati economici della riga, non
+      // identificano il prodotto (a differenza di SKU/EAN/nome/lotto/seriali).
       const lockedWhenLinked = [
         line.controls.sku,
         line.controls.barcode,
@@ -1540,8 +1561,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         line.controls.productName,
         line.controls.unitCost,
         line.controls.vatRatePercent,
-        line.controls.sellingPrice,
-        line.controls.compareAtPrice,
         line.controls.lotCode,
         line.controls.lotExpiryDate,
         line.controls.serialNumbersText,
@@ -2197,7 +2216,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected onSupplierSelect(value: string | null): void {
     this.form.controls.supplierId.setValue(value ?? '');
     this.form.controls.supplierId.markAsTouched();
-    this.reloadSupplierVariantLinks(value ?? '');
+    // Il refetch dei collegamenti SKU fornitore parte già dalla subscription
+    // su supplierId.valueChanges (costruttore): non ripeterlo qui, altrimenti
+    // ogni selezione lancia due GET identiche in corsa tra loro.
 
     const supplier = this.suppliers().find((item) => item.id === value);
     if (supplier) {
@@ -2647,6 +2668,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
           line.controls.sellingPrice.setValue(
             moneyToDecimalString(summary.sellingPrice).replace('.', ','),
+          );
+        }
+        if (!line.controls.compareAtPrice.value.trim() && summary.compareAtPrice?.amountMinor) {
+          line.controls.compareAtPrice.setValue(
+            moneyToDecimalString(summary.compareAtPrice).replace('.', ','),
           );
         }
         // Precedenza Codice IVA (§9.1): articolo → predefinito aziendale.
@@ -3528,6 +3554,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
           const label = summary.productName || summary.title;
           line.controls.productName.setValue(label, { emitEvent: false });
+          if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
+            line.controls.sellingPrice.setValue(
+              moneyToDecimalString(summary.sellingPrice).replace('.', ','),
+              { emitEvent: false },
+            );
+          }
+          if (!line.controls.compareAtPrice.value.trim() && summary.compareAtPrice?.amountMinor) {
+            line.controls.compareAtPrice.setValue(
+              moneyToDecimalString(summary.compareAtPrice).replace('.', ','),
+              { emitEvent: false },
+            );
+          }
           this.syncLineFieldAccess();
           this.triggerAutoSave();
         },
@@ -3741,6 +3779,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           if (options?.stayOnPage) {
             if (!hadRouteEditId) {
               this.preserveEditSession.set(true);
+              JUST_CREATED_DOCS.set(doc.id, doc);
               void this.router.navigate(['/app/documents', doc.id, 'edit'], { replaceUrl: true });
             }
             this.syncLineFieldAccess();

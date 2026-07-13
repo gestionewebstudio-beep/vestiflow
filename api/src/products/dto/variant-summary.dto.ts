@@ -13,6 +13,10 @@ export interface VariantSummaryDto {
     readonly amountMinor: number;
     readonly currencyCode: string;
   } | null;
+  readonly compareAtPrice?: {
+    readonly amountMinor: number;
+    readonly currencyCode: string;
+  } | null;
   readonly supplierSku?: string | null;
   readonly stockOnHand?: number | null;
   readonly category?: string | null;
