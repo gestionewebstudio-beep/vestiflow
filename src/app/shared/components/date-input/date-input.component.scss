@@ -33,23 +33,23 @@
   padding-inline-start: var(--space-3);
   inline-size: 100%;
   max-inline-size: 100%;
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
+  background-color: var(--color-input-bg);
+  border: var(--border-width) solid var(--color-input-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
   transition:
     background-color var(--transition-fast) var(--ease-standard),
-    border-color var(--transition-fast) var(--ease-standard);
+    border-color var(--transition-fast) var(--ease-standard),
+    box-shadow var(--transition-fast) var(--ease-standard);
 
   &:focus-within {
     border-color: var(--color-interactive);
-    box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+    box-shadow: var(--field-focus-ring);
   }
 }
 
 .date-input--open .date-input__control {
   border-color: var(--color-interactive);
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .date-input--invalid .date-input__control {

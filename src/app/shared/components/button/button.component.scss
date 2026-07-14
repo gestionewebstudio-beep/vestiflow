@@ -11,9 +11,8 @@
   min-block-size: var(--field-height);
   padding-inline: var(--space-3);
   font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
   border: var(--border-width) solid transparent;
   transition:
     background-color var(--transition-fast) var(--ease-standard),
@@ -30,7 +29,7 @@
   cursor: not-allowed;
 }
 
-// ── Primary ───────────────────────────────────────────────────────────────
+// ── Primary (CTA accento — bg accento, testo bianco 13/600) ─────────────────
 .app-button--primary {
   color: var(--color-primary-fg);
   background-color: var(--color-primary);
@@ -42,38 +41,43 @@
   border-color: var(--color-primary-hover);
 }
 
-// ── Secondary (default Polaris — bianco con bordo) ────────────────────────────
+.app-button--primary:active:not(:disabled) {
+  background-color: var(--color-primary-active);
+  border-color: var(--color-primary-active);
+}
+
+// ── Secondary (surface + bordo forte) ───────────────────────────────────────
 .app-button--secondary {
   color: var(--color-text);
   background-color: var(--color-surface);
-  border-color: var(--color-border);
+  border-color: var(--color-border-strong);
 }
 
 .app-button--secondary:hover:not(:disabled) {
   background-color: var(--color-surface-hover);
 }
 
-// ── Danger (azioni distruttive) ─────────────────────────────────────────────
+// ── Danger (distruttivo: tinta rossa 12% + bordo 35%, testo rosso) ──────────
 .app-button--danger {
-  color: var(--color-danger-fg);
-  background-color: var(--color-danger);
-  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background-color: var(--color-danger-subtle);
+  border-color: var(--color-danger-border);
 }
 
 .app-button--danger:hover:not(:disabled) {
-  background-color: var(--color-danger-hover);
-  border-color: var(--color-danger-hover);
+  color: var(--color-danger-hover);
+  border-color: var(--color-danger);
 }
 
-// ── Ghost (testo) ─────────────────────────────────────────────────────────
+// ── Ghost (solo testo accento) ──────────────────────────────────────────────
 .app-button--ghost {
-  color: var(--color-text);
+  color: var(--color-interactive);
   background-color: transparent;
-  font-weight: var(--font-weight-medium);
 }
 
 .app-button--ghost:hover:not(:disabled) {
-  background-color: var(--color-surface-hover);
+  color: var(--color-interactive-hover);
+  background-color: var(--color-primary-subtle);
 }
 
 .app-button--loading {

@@ -8,9 +8,9 @@
   max-block-size: calc(100dvh - var(--space-8));
   margin: auto;
   padding: var(--space-5);
-  background-color: var(--color-surface);
+  background-color: var(--color-surface-raised);
   color: var(--color-text);
-  border: var(--border-width) solid var(--color-border);
+  border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   overflow-y: auto;

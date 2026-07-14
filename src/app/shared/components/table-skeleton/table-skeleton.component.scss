@@ -14,19 +14,19 @@
   gap: var(--space-3);
   align-items: center;
   padding-block: var(--space-3);
-  border-block-end: var(--border-width) solid var(--color-border);
+  border-block-end: var(--border-width) solid var(--color-table-row-divider);
 }
 
 .table-skeleton__cell {
   block-size: var(--space-4);
   border-radius: var(--radius-sm);
-  background-color: var(--color-surface-sunken);
+  background-color: var(--color-surface-hover);
   animation: table-skeleton-pulse var(--transition-slow) ease-in-out infinite alternate;
 }
 
 .table-skeleton__row--header .table-skeleton__cell {
   block-size: var(--space-3);
-  background-color: var(--color-surface-hover);
+  background-color: var(--color-border);
 }
 
 @keyframes table-skeleton-pulse {

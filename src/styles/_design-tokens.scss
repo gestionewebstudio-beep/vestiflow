@@ -65,6 +65,8 @@
   --color-danger: #d92d2d;
   --color-danger-hover: #b81f1f;
   --color-danger-fg: #ffffff;
+  --color-danger-subtle: rgb(217 45 45 / 0.1);
+  --color-danger-border: rgb(217 45 45 / 0.35);
 
   --color-backdrop: rgb(15 23 42 / 0.45);
 
@@ -227,6 +229,8 @@
   --color-danger: #ff5c5c;
   --color-danger-hover: #ff7a7a;
   --color-danger-fg: #ffffff;
+  --color-danger-subtle: rgb(255 92 92 / 0.12);
+  --color-danger-border: rgb(255 92 92 / 0.35);
 
   /** Sfondo semitrasparente per overlay/drawer (backdrop). */
   --color-backdrop: rgb(0 0 0 / 0.72);
