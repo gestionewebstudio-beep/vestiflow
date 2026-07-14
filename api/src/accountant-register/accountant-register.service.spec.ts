@@ -30,6 +30,8 @@ describe('AccountantRegisterService', () => {
     );
 
     const summary = await service.getSummary(tenantId, {
+      page: 1,
+      pageSize: 20,
       dateFrom: '2026-01-01',
       dateTo: '2026-01-31',
     });

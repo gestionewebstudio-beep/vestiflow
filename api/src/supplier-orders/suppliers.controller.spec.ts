@@ -22,7 +22,7 @@ describe('SuppliersController', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new SuppliersController(suppliers as unknown as SuppliersService);
+    controller = new SuppliersController(suppliers as unknown as SuppliersService, {} as never);
   });
 
   it('listAll delega listAll', async () => {

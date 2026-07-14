@@ -113,6 +113,11 @@ export class BarcodeScannerComponent {
   }
 
   protected stopScan(): void {
+    this.releaseCamera();
+    this.closed.emit();
+  }
+
+  private releaseCamera(): void {
     this.scanning.set(false);
     if (this.rafId !== null) {
       globalThis.cancelAnimationFrame(this.rafId);
@@ -125,10 +130,11 @@ export class BarcodeScannerComponent {
       this.stream = null;
     }
     this.detector = null;
-    this.closed.emit();
   }
 
   constructor() {
-    this.destroyRef.onDestroy(() => this.stopScan());
+    // Alla destroy si rilascia solo la fotocamera: emettere `closed` su un
+    // OutputRef distrutto genererebbe NG0953 a ogni cambio pagina.
+    this.destroyRef.onDestroy(() => this.releaseCamera());
   }
 }

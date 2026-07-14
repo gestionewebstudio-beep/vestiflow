@@ -29,6 +29,7 @@ describe('ProductsController', () => {
     productMedia as unknown as ProductMediaService,
     productsImport as unknown as ProductsImportService,
     productsExport as unknown as ProductsExportService,
+    {} as never,
   );
 
   it('list delega al service', async () => {
@@ -60,7 +61,9 @@ describe('ProductsController', () => {
   });
 
   it('previewImport rifiuta file CSV mancante', () => {
-    expect(() => controller.previewImport(tenantId, undefined)).toThrow(BadRequestException);
+    expect(() => controller.previewImport(tenantId, undefined as never)).toThrow(
+      BadRequestException,
+    );
   });
 
   it('importProducts delega a productsImport.importCsv', async () => {

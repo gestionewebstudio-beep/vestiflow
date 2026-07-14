@@ -45,7 +45,7 @@ describe('ExternalDocumentTypesService', () => {
       await service.list(tenantId);
 
       expect(prisma.externalDocumentType.createMany).toHaveBeenCalledTimes(1);
-      const seeded = prisma.externalDocumentType.createMany.mock.calls[0][0].data;
+      const seeded = prisma.externalDocumentType.createMany.mock.calls[0]![0]!.data;
       expect(seeded.map((t: { name: string }) => t.name)).toEqual(['DDT', 'Fattura', 'Reso']);
       expect(seeded.every((t: { isSystem: boolean }) => t.isSystem)).toBe(true);
       expect(seeded[0].causalTemplate).toBe('DDT {numero} del {data}');
@@ -70,7 +70,7 @@ describe('ExternalDocumentTypesService', () => {
       });
 
       expect(prisma.externalDocumentType.create).toHaveBeenCalledTimes(1);
-      const data = prisma.externalDocumentType.create.mock.calls[0][0].data;
+      const data = prisma.externalDocumentType.create.mock.calls[0]![0]!.data;
       expect(data).toMatchObject({
         tenantId,
         name: 'Bolla doganale',

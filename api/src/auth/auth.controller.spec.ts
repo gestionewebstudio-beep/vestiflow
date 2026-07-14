@@ -7,14 +7,14 @@ import type { UserAvatarService } from './user-avatar.service';
 import { AuthController } from './auth.controller';
 
 describe('AuthController', () => {
-  const user: UserProfileDto = {
+  const user = {
     id: 'user-1',
     email: 'test@example.com',
     displayName: 'Test',
     role: 'owner',
     tenantId: 'tenant-1',
     storeIds: [],
-  };
+  } as unknown as UserProfileDto;
   const supabase = { cleanupUnverifiedTotpFactors: vi.fn() };
   const userAvatar = {
     uploadAvatar: vi.fn(),

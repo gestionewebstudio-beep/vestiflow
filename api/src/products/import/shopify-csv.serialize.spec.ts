@@ -141,7 +141,9 @@ function makeRecord(input: {
       shopifyLastError: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-    },
+      // Il serializzatore legge solo i campi valorizzati sopra: i nuovi campi
+      // del modello (taxonomy, TikTok, IVA...) non servono al test.
+    } as unknown as ProductExportRecord['product'],
     variants: input.variants.map((variant, index) => ({
       id: `33333333-3333-3333-3333-${String(index).padStart(12, '0')}`,
       tenantId,
@@ -157,7 +159,7 @@ function makeRecord(input: {
       shopifyInventoryItemId: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-    })),
+    })) as unknown as ProductExportRecord['variants'],
     images: input.images.map((image, index) => ({
       id: `44444444-4444-4444-4444-${String(index).padStart(12, '0')}`,
       tenantId,

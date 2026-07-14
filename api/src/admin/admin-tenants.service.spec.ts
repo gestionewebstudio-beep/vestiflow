@@ -43,8 +43,10 @@ describe('AdminTenantsService', () => {
       provisionAuthUserForInvite: vi.fn(),
       resendAuthInvite: vi.fn(),
       deleteAuthUser: vi.fn(),
-      ...options?.supabase,
     };
+    // Object.assign preserva i tipi Mock (lo spread di Partial<SupabaseService>
+    // li allargherebbe all'unione con le firme reali, rompendo mockResolvedValue).
+    Object.assign(supabase, options?.supabase);
     const config = {
       get: (key: string) => options?.config?.[key],
     } as ConfigService;

@@ -53,7 +53,7 @@ describe('isImportProductReady', () => {
     expect(
       isImportProductReady({
         issues: [{ level: 'warning', message: 'ok' }, { level: 'error', message: 'bad' }],
-      } as Parameters<typeof isImportProductReady>[0]),
+      } as unknown as Parameters<typeof isImportProductReady>[0]),
     ).toBe(false);
   });
 
@@ -61,7 +61,7 @@ describe('isImportProductReady', () => {
     expect(
       isImportProductReady({
         issues: [{ level: 'warning', message: 'warn' }],
-      } as Parameters<typeof isImportProductReady>[0]),
+      } as unknown as Parameters<typeof isImportProductReady>[0]),
     ).toBe(true);
   });
 });

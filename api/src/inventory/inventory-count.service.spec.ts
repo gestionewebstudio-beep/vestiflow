@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import type { DocumentsService } from '../documents/documents.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { InventoryCountService } from './inventory-count.service';
@@ -22,6 +23,7 @@ describe('InventoryCountService', () => {
         count: vi.fn(),
         findFirst: vi.fn(),
         create: vi.fn(),
+        delete: vi.fn(),
       },
       inventoryCountLine: {
         createMany: vi.fn(),
@@ -33,6 +35,7 @@ describe('InventoryCountService', () => {
     const service = new InventoryCountService(
       prisma as unknown as PrismaService,
       {} as ChannelSyncFacade,
+      {} as DocumentsService,
     );
     return { service, prisma };
   }

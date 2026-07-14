@@ -50,11 +50,11 @@ describe('JwtAuthGuard', () => {
   }
 
   it('consente route pubbliche', async () => {
-    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
+    const spy = vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
 
     await expect(guard.canActivate(context() as never)).resolves.toBe(true);
     expect(jwt.verifyAccessToken).not.toHaveBeenCalled();
-    reflector.getAllAndOverride.mockRestore?.();
+    spy.mockRestore();
   });
 
   it('rifiuta richieste senza Bearer token', async () => {

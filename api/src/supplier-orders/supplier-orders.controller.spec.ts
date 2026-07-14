@@ -16,6 +16,7 @@ describe('SupplierOrdersController', () => {
 
   const controller = new SupplierOrdersController(
     supplierOrders as unknown as SupplierOrdersService,
+    {} as never,
   );
 
   it('list delega al service', async () => {

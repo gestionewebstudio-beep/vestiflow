@@ -49,6 +49,7 @@ describe('ShopifyController', () => {
     shopifyOrdersPull as unknown as ShopifyOrdersPullService,
     shopifyTaxonomy as unknown as ShopifyTaxonomyService,
     shopifyShopChange as unknown as ShopifyShopChangeService,
+    {} as never,
   );
 
   it('getConnection delega al service', async () => {

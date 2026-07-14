@@ -1,4 +1,5 @@
 import { SalesOrderFiscalStatus as PrismaFiscal, SalesOrderSource as PrismaSource } from '@prisma/client';
+import { describe, expect, it } from 'vitest';
 
 import { buildCorrispettiviWhere } from './corrispettivi-query.util';
 

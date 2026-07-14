@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AdminTenantsService } from './admin-tenants.service';
+import type { AdminTenantUsersService } from './admin-tenant-users.service';
 import { AdminTenantsController } from './admin-tenants.controller';
 
 describe('AdminTenantsController', () => {
@@ -12,9 +13,16 @@ describe('AdminTenantsController', () => {
     deleteTenant: vi.fn(),
     grantLocationSelectionChange: vi.fn(),
   };
+  const adminTenantUsers = {
+    listUsers: vi.fn(),
+    createUser: vi.fn(),
+    updateUser: vi.fn(),
+    deleteUser: vi.fn(),
+  };
 
   const controller = new AdminTenantsController(
     adminTenants as unknown as AdminTenantsService,
+    adminTenantUsers as unknown as AdminTenantUsersService,
   );
 
   it('listTenants delega al service', async () => {

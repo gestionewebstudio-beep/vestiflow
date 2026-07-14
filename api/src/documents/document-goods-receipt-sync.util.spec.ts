@@ -130,7 +130,7 @@ describe('syncGoodsReceiptLineMovements — causale e data registrazione (§2, �
     });
 
     expect(tx.stockMovement.create).toHaveBeenCalledTimes(1);
-    const created = tx.stockMovement.create.mock.calls[0][0].data;
+    const created = tx.stockMovement.create.mock.calls[0]![0]!.data;
     expect(created.createdAt).toEqual(movementDate);
     expect(created.reason).toBe('Arrivo merce n. 3 del 08/05/2026 (DDT 145)');
     expect(created.sourceLineId).toBe('line-1');
@@ -153,8 +153,8 @@ describe('syncGoodsReceiptLineMovements — causale e data registrazione (§2, �
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
     expect(tx.stockMovement.delete).not.toHaveBeenCalled();
     expect(tx.stockMovement.update).toHaveBeenCalledTimes(1);
-    expect(tx.stockMovement.update.mock.calls[0][0].where).toEqual({ id: 'mov-1' });
-    expect(tx.stockMovement.update.mock.calls[0][0].data.reason).toContain('C/Lavorazione');
+    expect(tx.stockMovement.update.mock.calls[0]![0]!.where).toEqual({ id: 'mov-1' });
+    expect(tx.stockMovement.update.mock.calls[0]![0]!.data.reason).toContain('C/Lavorazione');
     // Quantità invariata → nessun delta di giacenza applicato.
     expect(tx.inventoryLevel.updateMany).not.toHaveBeenCalled();
   });
@@ -176,7 +176,7 @@ describe('syncGoodsReceiptLineMovements — causale e data registrazione (§2, �
 
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
     expect(tx.stockMovement.update).toHaveBeenCalledTimes(1);
-    const data = tx.stockMovement.update.mock.calls[0][0].data;
+    const data = tx.stockMovement.update.mock.calls[0]![0]!.data;
     expect(data.createdAt).toEqual(newDate);
     expect(data.quantity).toBe(5);
     expect(tx.inventoryLevel.updateMany).not.toHaveBeenCalled();
@@ -233,8 +233,8 @@ describe('syncGoodsReceiptLineMovements — casi A-F del prompt (§2.3)', () => 
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
     expect(tx.stockMovement.delete).not.toHaveBeenCalled();
     expect(tx.stockMovement.update).toHaveBeenCalledTimes(1);
-    expect(tx.stockMovement.update.mock.calls[0][0].where).toEqual({ id: 'mov-1' });
-    expect(tx.stockMovement.update.mock.calls[0][0].data.quantity).toBe(15);
+    expect(tx.stockMovement.update.mock.calls[0]![0]!.where).toEqual({ id: 'mov-1' });
+    expect(tx.stockMovement.update.mock.calls[0]![0]!.data.quantity).toBe(15);
     expect(inventoryDeltas(tx)).toEqual([{ variantId: 'var-1', locationId: 'loc-1', delta: 10 }]);
     expect(result.deltas).toEqual([{ sku: 'SKU-1', delta: 10 }]);
   });
@@ -249,10 +249,10 @@ describe('syncGoodsReceiptLineMovements — casi A-F del prompt (§2.3)', () => 
 
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
     expect(tx.stockMovement.update).toHaveBeenCalledTimes(1);
-    expect(tx.stockMovement.update.mock.calls[0][0].data.quantity).toBe(2);
+    expect(tx.stockMovement.update.mock.calls[0]![0]!.data.quantity).toBe(2);
     expect(inventoryDeltas(tx)).toEqual([{ variantId: 'var-1', locationId: 'loc-1', delta: -3 }]);
     // Policy §3: nessuna condizione `available >= qty` nel where del decremento.
-    expect(tx.inventoryLevel.updateMany.mock.calls[0][0].where).not.toHaveProperty('available');
+    expect(tx.inventoryLevel.updateMany.mock.calls[0]![0]!.where).not.toHaveProperty('available');
   });
 
   it('caso C: riduzione oltre la disponibilità registrata comunque (saldo negativo ammesso §3)', async () => {
@@ -333,7 +333,7 @@ describe('syncGoodsReceiptLineMovements — casi A-F del prompt (§2.3)', () => 
     });
 
     expect(tx.stockMovement.update).toHaveBeenCalledTimes(1);
-    expect(tx.stockMovement.update.mock.calls[0][0].data.variantId).toBe('var-2');
+    expect(tx.stockMovement.update.mock.calls[0]![0]!.data.variantId).toBe('var-2');
     expect(inventoryDeltas(tx)).toEqual([
       { variantId: 'var-1', locationId: 'loc-1', delta: -5 },
       { variantId: 'var-2', locationId: 'loc-1', delta: 5 },
@@ -353,7 +353,7 @@ describe('syncGoodsReceiptLineMovements — casi A-F del prompt (§2.3)', () => 
       { variantId: 'var-1', locationId: 'loc-1', delta: -5 },
       { variantId: 'var-1', locationId: 'loc-2', delta: 5 },
     ]);
-    expect(tx.stockMovement.update.mock.calls[0][0].data.locationId).toBe('loc-2');
+    expect(tx.stockMovement.update.mock.calls[0]![0]!.data.locationId).toBe('loc-2');
   });
 
   it('toggle Mag. sì → no: rimuove il movimento e storna la giacenza (§11)', async () => {
@@ -379,7 +379,7 @@ describe('syncGoodsReceiptLineMovements — casi A-F del prompt (§2.3)', () => 
     });
 
     expect(tx.stockMovement.create).toHaveBeenCalledTimes(1);
-    expect(tx.stockMovement.create.mock.calls[0][0].data.sourceLineId).toBe('line-1');
+    expect(tx.stockMovement.create.mock.calls[0]![0]!.data.sourceLineId).toBe('line-1');
     expect(inventoryDeltas(tx)).toEqual([{ variantId: 'var-1', locationId: 'loc-1', delta: 5 }]);
     expect(result.deltas).toEqual([{ sku: 'SKU-1', delta: 5 }]);
   });

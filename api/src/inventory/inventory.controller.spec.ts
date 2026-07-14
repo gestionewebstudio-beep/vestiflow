@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 
 
-import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 
 import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
 
@@ -59,6 +58,7 @@ describe('InventoryController', () => {
     inventoryCount as unknown as InventoryCountService,
     inventoryExport as unknown as InventoryExportService,
     inventoryImport as unknown as InventoryImportService,
+    {} as never,
     {} as never,
     {} as never,
   );
@@ -179,7 +179,7 @@ describe('InventoryController', () => {
 
   it('previewLevelsImport rifiuta file CSV mancante', () => {
 
-    expect(() => controller.previewLevelsImport(tenantId, undefined)).toThrow(
+    expect(() => controller.previewLevelsImport(tenantId, undefined as never)).toThrow(
 
       'File CSV mancante o vuoto.',
 

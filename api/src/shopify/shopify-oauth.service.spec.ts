@@ -64,6 +64,7 @@ describe('ShopifyOAuthService', () => {
       shopifyAdmin as unknown as ShopifyAdminClient,
       {} as ShopifyConnectionService,
       {} as ShopifyLocationSyncService,
+      {} as never,
     );
 
     return { service, prisma, shopifyConfig, shopifyCrypto, shopifyAdmin };
