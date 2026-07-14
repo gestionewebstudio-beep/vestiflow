@@ -30,9 +30,10 @@ describe('ThemeService', () => {
     TestBed.flushEffects();
   });
 
-  it('applica data-theme light di default con system prefers light', () => {
-    expect(service.resolvedTheme()).toBe('light');
-    expect(doc.documentElement.getAttribute('data-theme')).toBe('light');
+  it('applica data-theme dark di default al primo avvio (dark-first)', () => {
+    expect(service.mode()).toBe('dark');
+    expect(service.resolvedTheme()).toBe('dark');
+    expect(doc.documentElement.getAttribute('data-theme')).toBe('dark');
   });
 
   it('setMode dark aggiorna resolvedTheme e data-theme', () => {

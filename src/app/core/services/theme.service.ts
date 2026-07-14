@@ -4,6 +4,12 @@ import type { ResolvedTheme, ThemeMode } from '@shared/models/theme.model';
 
 const STORAGE_KEY = 'vestiflow-theme';
 const THEME_MODES: readonly ThemeMode[] = ['light', 'dark', 'system'];
+/**
+ * Restyle "Tech Moderno": il tema principale e' DARK. Al primo avvio, senza
+ * preferenza salvata, si parte in dark (non piu' 'system'). L'utente resta
+ * libero di scegliere light o system dal toggle.
+ */
+const DEFAULT_MODE: ThemeMode = 'dark';
 
 /**
  * Gestisce la preferenza tema (light | dark | system) e applica `data-theme`
@@ -68,10 +74,10 @@ export class ThemeService {
   private readStoredMode(): ThemeMode {
     try {
       const stored = this.document.defaultView?.localStorage.getItem(STORAGE_KEY);
-      return THEME_MODES.includes(stored as ThemeMode) ? (stored as ThemeMode) : 'system';
+      return THEME_MODES.includes(stored as ThemeMode) ? (stored as ThemeMode) : DEFAULT_MODE;
     } catch {
       // localStorage non disponibile (private mode / blocco cookie): fallback sicuro.
-      return 'system';
+      return DEFAULT_MODE;
     }
   }
 
