@@ -23,7 +23,7 @@
         [disabled]="disabled()"
         [value]="value()"
         [attr.aria-invalid]="invalid() ? true : null"
-        [attr.aria-expanded]="suggestionsOpen() && suggestions().length > 0"
+        [attr.aria-expanded]="suggestionsOpen()"
         [attr.aria-controls]="listboxId()"
         aria-label="Nome prodotto"
         autocomplete="off"
@@ -44,7 +44,7 @@
         <i class="pi pi-search" aria-hidden="true"></i>
       </button>
     </div>
-    @if (suggestionsOpen() && suggestions().length > 0) {
+    @if (suggestionsOpen()) {
       <ul
         class="gr-product-cell__suggestions"
         role="listbox"
@@ -65,7 +65,13 @@
             <span class="gr-product-cell__suggestion-title">{{ item.title }}</span>
             <span class="gr-product-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
           </li>
+        } @empty {
+          <li class="gr-product-cell__suggestion-empty" role="presentation">
+            Nessun articolo trovato a catalogo.
+          </li>
         }
+        <!-- Punto D: azioni in coda al dropdown — creazione inline con il
+             testo digitato oppure scheda completa prefillata. -->
         <li class="gr-product-cell__suggestion-create">
           <button
             type="button"
@@ -74,7 +80,18 @@
             (click)="requestCreateNew($event)"
           >
             <i class="pi pi-plus" aria-hidden="true"></i>
-            Crea nuovo articolo
+            {{ createActionLabel() }}
+          </button>
+        </li>
+        <li class="gr-product-cell__suggestion-create">
+          <button
+            type="button"
+            class="gr-product-cell__create-btn"
+            (mousedown)="$event.preventDefault()"
+            (click)="openAnagraphic($event)"
+          >
+            <i class="pi pi-external-link" aria-hidden="true"></i>
+            Apri scheda completa…
           </button>
         </li>
       </ul>
@@ -91,16 +108,15 @@
           <i class="pi pi-times" aria-hidden="true"></i>
         </button>
       </span>
-    } @else {
-      <button
-        type="button"
-        class="gr-product-cell__link-action"
-        [disabled]="disabled()"
-        (mousedown)="$event.preventDefault()"
-        (click)="requestCreateNew($event)"
-      >
-        Crea nuovo articolo
-      </button>
+      <label class="gr-product-cell__stock-toggle">
+        <input
+          type="checkbox"
+          [checked]="manageStock()"
+          [disabled]="disabled()"
+          (change)="onManageStockToggle($event)"
+        />
+        Gestito a magazzino
+      </label>
     }
     <button
       type="button"

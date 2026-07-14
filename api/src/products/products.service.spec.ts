@@ -142,7 +142,7 @@ describe('ProductsService', () => {
       productId: 'prod-1',
       sku: 'SKU-1',
       barcode: null,
-      product: { id: 'prod-1', name: 'Giacca' },
+      product: { id: 'prod-1', name: 'Giacca', managesStock: true },
     });
 
     await expect(service.findVariantByCode(tenantId, 'SKU-1')).resolves.toEqual({
@@ -151,6 +151,7 @@ describe('ProductsService', () => {
       sku: 'SKU-1',
       barcode: null,
       productName: 'Giacca',
+      managesStock: true,
     });
   });
 

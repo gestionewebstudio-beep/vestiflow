@@ -76,6 +76,7 @@ interface VariantSummaryApiRow {
   readonly category?: string | null;
   readonly unitOfMeasure?: string | null;
   readonly defaultVatCodeId?: string | null;
+  readonly managesStock?: boolean;
 }
 
 export interface VariantSummarySearchQuery {
@@ -413,6 +414,7 @@ export class ProductService {
       category: row.category?.trim() || undefined,
       unitOfMeasure: row.unitOfMeasure?.trim() || undefined,
       defaultVatCodeId: row.defaultVatCodeId ?? undefined,
+      managesStock: row.managesStock ?? true,
     };
   }
 

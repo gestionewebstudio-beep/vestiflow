@@ -18,6 +18,7 @@ import {
   mapDocumentApiRow,
   type CreateDocumentBody,
   type DocumentApiRow,
+  type GoodsReceiptCreatedProductApiRow,
   type LinkableGoodsReceiptApiRow,
   type SaveAdjustmentBody,
   type SaveGoodsReceiptBody,
@@ -114,17 +115,20 @@ export class DocumentService {
   saveGoodsReceipt(body: SaveGoodsReceiptBody): Observable<{
     document: DocumentRecord;
     warnings: readonly string[];
+    createdProducts: readonly GoodsReceiptCreatedProductApiRow[];
   }> {
     return this.http
       .post<{
         document: DocumentApiRow;
         warnings: string[];
+        createdProducts?: GoodsReceiptCreatedProductApiRow[];
       }>(this.url('/documents/goods-receipt/save'), body)
       .pipe(
         timeout(HTTP_TIMEOUT_MS),
-        map(({ document, warnings }) => ({
+        map(({ document, warnings, createdProducts }) => ({
           document: mapDocumentApiRow(document),
           warnings,
+          createdProducts: createdProducts ?? [],
         })),
       );
   }

@@ -90,6 +90,21 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Seed sincrono dal draft corrente: l'effect di sync nel costruttore
+    // viene flushato solo DOPO il primo change detection, ma emitState()
+    // parte già qui. Senza seed il primo emit rifletterebbe il form vuoto e
+    // cancellerebbe nel parent i prefill di SKU/EAN/prezzo (es. «Crea
+    // articolo rapido» dalla cassa con EAN scansionato).
+    const variant = this.variant();
+    this.form.patchValue(
+      {
+        sku: variant.sku,
+        barcode: variant.barcode,
+        sellingPrice: variant.sellingPrice ?? 0,
+      },
+      { emitEvent: false },
+    );
+
     this.valueChangesSub = this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.emitState());

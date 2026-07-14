@@ -54,6 +54,10 @@ export class GoodsReceiptLineCardComponent {
   /** Suggerimenti ricerca contestuale (§7): stessa sorgente della tabella. */
   readonly suggestions = input<readonly VariantSummary[]>([]);
   readonly suggestionsOpen = input(false);
+  /** True quando la riga è in modalità "Crea nuovo articolo" esplicita (§8). */
+  readonly createMode = input(false);
+  /** Toggle "Gestito a magazzino" del nuovo articolo (punto B, default sì). */
+  readonly manageStock = input(true);
 
   readonly searchProduct = output<number>();
   readonly vatChange = output<string | null>();
@@ -65,6 +69,10 @@ export class GoodsReceiptLineCardComponent {
   readonly nameBlur = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
   readonly createNewRequest = output<number>();
+  readonly createNewCancel = output<number>();
+  readonly manageStockChange = output<boolean>();
+  /** "Apri scheda completa…" dal dropdown (punto D): slide-panel prefillato. */
+  readonly anagraphicOpen = output<number>();
 
   protected readonly detailsOpen = signal(false);
 
@@ -98,5 +106,16 @@ export class GoodsReceiptLineCardComponent {
       return `${sku} · EAN ${barcode}`;
     }
     return sku || (barcode ? `EAN ${barcode}` : '');
+  }
+
+  /** Etichetta azione "Crea «testo»" nel dropdown (punto D). */
+  protected createActionLabel(): string {
+    const term = this.line().controls.productName.value.trim();
+    return term ? `Crea «${term}»` : 'Crea nuovo articolo';
+  }
+
+  protected onManageStockToggle(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.manageStockChange.emit(target.checked);
   }
 }

@@ -945,28 +945,10 @@
   gap: var(--space-2);
 }
 
-// ── Causale di carico: combobox con elenco preimpostato ─────────────────────
+// Punto E: il combobox "Causale di carico" non esiste più (causale generata
+// in silenzio). Le classi gr-form__causal-* residue servono al pannello
+// "Gestisci tipi documento fornitore", che ne riusa la struttura.
 
-.gr-form__causal {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.gr-form__causal-input {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-
-  .gr-form__input {
-    flex: 1;
-    min-inline-size: 0;
-    border-start-end-radius: 0;
-    border-end-end-radius: 0;
-  }
-}
-
-.gr-form__causal-toggle,
 .gr-form__causal-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -975,63 +957,13 @@
   cursor: pointer;
 }
 
-.gr-form__causal-toggle {
-  inline-size: var(--field-height);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-inline-start: none;
-  border-start-end-radius: var(--radius-md);
-  border-end-end-radius: var(--radius-md);
-
-  &:hover {
-    color: var(--color-text);
-  }
-}
-
-.gr-form__causal-list {
-  position: absolute;
-  z-index: var(--z-dropdown);
-  inset-block-start: 100%;
-  inset-inline: 0;
-  margin: var(--space-1) 0 0;
-  padding: var(--space-1);
-  list-style: none;
-  max-block-size: calc(var(--field-height) * 6);
-  overflow-y: auto;
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-}
-
-.gr-form__causal-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  inline-size: 100%;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  text-align: start;
-  color: var(--color-text);
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-
-  &:hover,
-  &:focus-visible {
-    background-color: var(--color-surface-sunken);
-  }
-}
-
 .gr-form__causal-empty {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
-// ── Pannello "Gestione causali" ─────────────────────────────────────────────
+// ── Pannello "Gestisci tipi documento" (struttura condivisa) ────────────────
 
 .gr-form__causal-panel {
   display: flex;
@@ -1046,7 +978,6 @@
   line-height: var(--leading-normal);
 }
 
-.gr-form__causal-new,
 .gr-form__type-new {
   display: flex;
   flex-wrap: wrap;

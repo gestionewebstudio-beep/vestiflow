@@ -220,6 +220,13 @@
   background-color: var(--status-error-bg);
 }
 
+// Azioni di recupero dopo «Articolo non trovato.»: mai righe incomplete.
+.pos__notfound-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .pos__results {
   display: flex;
   flex-direction: column;

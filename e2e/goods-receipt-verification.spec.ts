@@ -57,8 +57,10 @@ test.describe('Arrivo merce — verifica funzionale', () => {
       return;
     }
 
-    // Il dropdown offre sempre anche la creazione esplicita (§8).
-    await expect(listbox.getByRole('button', { name: 'Crea nuovo articolo' })).toBeVisible();
+    // Il dropdown offre sempre anche la creazione esplicita e la scheda
+    // completa (§8, punto D).
+    await expect(listbox.getByRole('button', { name: `Crea «${term}»` })).toBeVisible();
+    await expect(listbox.getByRole('button', { name: 'Apri scheda completa…' })).toBeVisible();
 
     // Esc chiude i suggerimenti senza toccare il testo digitato (§7).
     await nameInput.press('Escape');
@@ -73,12 +75,15 @@ test.describe('Arrivo merce — verifica funzionale', () => {
     const nameInput = page.locator('#gr-product-0');
     await nameInput.click();
     await nameInput.fill('Articolo inesistente E2E');
-    await page.keyboard.press('Escape');
 
-    await page.getByRole('button', { name: 'Crea nuovo articolo' }).first().click();
+    // Punto D: senza risultati il dropdown propone la creazione inline con il
+    // testo digitato e l'apertura della scheda completa.
+    await page.getByRole('button', { name: 'Crea «Articolo inesistente E2E»' }).first().click();
     const badge = page.locator('.gr-product-cell__create-badge').first();
     await expect(badge).toBeVisible();
     await expect(badge).toContainText('Nuovo articolo');
+    // Punto B: la creazione rapida espone il toggle "Gestito a magazzino".
+    await expect(page.locator('.gr-product-cell__stock-toggle').first()).toBeVisible();
 
     await page.getByRole('button', { name: 'Annulla creazione nuovo articolo' }).first().click();
     await expect(badge).toBeHidden();
@@ -153,7 +158,7 @@ test.describe('Arrivo merce — ricerca contestuale su card mobile', () => {
       return;
     }
 
-    await expect(suggestions.getByRole('button', { name: 'Crea nuovo articolo' })).toBeVisible();
+    await expect(suggestions.getByRole('button', { name: `Crea «${term}»` })).toBeVisible();
 
     // Selezione del primo suggerimento: la card passa in stato collegato.
     await suggestions.locator('.gr-card__suggestion').first().click();

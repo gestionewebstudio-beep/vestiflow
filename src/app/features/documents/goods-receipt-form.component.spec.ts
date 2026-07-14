@@ -17,7 +17,6 @@ import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-
 import { GoodsReceiptFormComponent } from './goods-receipt-form.component';
 import { DocumentService } from './services/document.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
-import { GoodsReceiptCausalService } from './services/goods-receipt-causal.service';
 
 const MILANO = { id: 'loc-1', name: 'Milano' };
 const ROMA = { id: 'loc-2', name: 'Roma' };
@@ -43,12 +42,25 @@ function operationalLocationsMock(options?: {
   };
 }
 
+const NON_STOCK_SUMMARY = {
+  variantId: 'var-nostock',
+  productId: 'prod-nostock',
+  sku: 'SRV-1',
+  productName: 'Servizio sartoria',
+  title: 'Servizio sartoria',
+  barcode: undefined,
+  sellingPrice: { amountMinor: 1500, currencyCode: 'EUR' },
+  stockOnHand: null,
+  managesStock: false,
+} as const;
+
 describe('GoodsReceiptFormComponent', () => {
   async function setup(options?: {
     readonly writeLocations?: readonly { id: string; name: string }[];
     readonly defaultLocation?: { id: string; name: string } | null;
+    readonly variantSummaries?: readonly (typeof NON_STOCK_SUMMARY)[];
   }) {
-    await render(GoodsReceiptFormComponent, {
+    return render(GoodsReceiptFormComponent, {
       providers: [
         provideRouter([]),
         {
@@ -68,7 +80,6 @@ describe('GoodsReceiptFormComponent', () => {
             saveGoodsReceipt: vi.fn(),
           },
         },
-        { provide: GoodsReceiptCausalService, useValue: { list: () => of([]) } },
         { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
         { provide: SupplierService, useValue: { getSuppliers: () => of([]) } },
         { provide: SupplierOrderService, useValue: {} },
@@ -76,7 +87,7 @@ describe('GoodsReceiptFormComponent', () => {
         {
           provide: ProductService,
           useValue: {
-            searchVariantSummaries: () => of([]),
+            searchVariantSummaries: () => of(options?.variantSummaries ?? []),
             getSupplierVariantLinks: () => of([]),
           },
         },
@@ -128,5 +139,87 @@ describe('GoodsReceiptFormComponent', () => {
     const milanoIndex = labels.findIndex((label) => label === 'Milano');
     expect(romaIndex).toBeGreaterThanOrEqual(0);
     expect(milanoIndex).toBeGreaterThan(romaIndex);
+  });
+
+  // Punto E: la causale non è più esposta nel form (generata in silenzio).
+  it('non mostra il campo Causale di carico né il comando Rigenera', async () => {
+    await setup();
+
+    expect(screen.queryByText('Causale di carico')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Rigenera/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Gestione causali/ })).toBeNull();
+  });
+
+  // Punto A: la riga createNew serializza `newProduct` nel payload esplicito.
+  it('serializza newProduct sul salvataggio esplicito, mai in autosave (punti A/C)', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const line = component['lines'].at(0);
+    line.controls.productName.setValue('Cintura pelle', { emitEvent: false });
+    line.controls.quantity.setValue(2, { emitEvent: false });
+    line.controls.unitCost.setValue('9,90', { emitEvent: false });
+    line.controls.createNew.setValue(true, { emitEvent: false });
+
+    const explicitBody = component['buildSaveGoodsReceiptBody']('explicit');
+    expect(explicitBody.lines).toHaveLength(1);
+    expect(explicitBody.lines?.[0]?.newProduct).toEqual(
+      expect.objectContaining({ name: 'Cintura pelle', purchasePriceMinor: 990 }),
+    );
+    expect(explicitBody.lines?.[0]?.loadsStock).toBe(true);
+
+    // Autosave passivo: la riga createNew NON viene serializzata (punto C).
+    const autoBody = component['buildSaveGoodsReceiptBody']('auto');
+    expect(autoBody.lines).toHaveLength(0);
+  });
+
+  // Punto B: il toggle "Gestito a magazzino" spento viaggia nel payload e
+  // spegne il carico magazzino della riga.
+  it('newProduct non-stock: managesStock=false e riga senza carico', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const line = component['lines'].at(0);
+    line.controls.productName.setValue('Servizio sartoria', { emitEvent: false });
+    line.controls.quantity.setValue(1, { emitEvent: false });
+    line.controls.createNew.setValue(true, { emitEvent: false });
+    component['onLineNewProductManagesStockChange'](0, false);
+
+    const body = component['buildSaveGoodsReceiptBody']('explicit');
+    expect(body.lines?.[0]?.newProduct?.managesStock).toBe(false);
+    expect(body.lines?.[0]?.loadsStock).toBe(false);
+    expect(line.controls.loadsStock.disabled).toBe(true);
+  });
+
+  // Punto D: senza risultati il dropdown propone le due azioni.
+  it('dropdown senza risultati: mostra "Crea «testo»" e "Apri scheda completa…"', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    const input = screen.getAllByLabelText('Nome prodotto')[0];
+    await user.type(input!, 'maglia');
+
+    const createActions = await screen.findAllByRole('button', { name: 'Crea «maglia»' });
+    expect(createActions.length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Apri scheda completa…' }).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getAllByText('Nessun articolo trovato a catalogo.').length).toBeGreaterThan(0);
+  });
+
+  // Punto B: variante di prodotto non gestito a magazzino → "Mag." spenta e bloccata.
+  it('selezione variante non-stock: carico magazzino disattivato e bloccato', async () => {
+    const { fixture } = await setup({ variantSummaries: [NON_STOCK_SUMMARY] });
+    const component = fixture.componentInstance;
+
+    component['onVariantSelect'](0, 'var-nostock');
+    // Le summary arrivano in modo asincrono (pinnedVariants): attende il sync.
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const line = component['lines'].at(0);
+    expect(line.controls.loadsStock.value).toBe(false);
+    expect(line.controls.loadsStock.disabled).toBe(true);
   });
 });

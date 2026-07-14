@@ -32,8 +32,11 @@ export class GoodsReceiptLineProductCellComponent {
   readonly activeSuggestionIndex = input(0);
   /** True quando la riga è in modalità "Crea nuovo articolo" esplicita (§8). */
   readonly createMode = input(false);
+  /** Toggle "Gestito a magazzino" del nuovo articolo (punto B, default sì). */
+  readonly manageStock = input(true);
 
   readonly valueChange = output<string>();
+  readonly manageStockChange = output<boolean>();
   readonly focused = output<number>();
   readonly blurred = output<number>();
   readonly searchOpen = output<number>();
@@ -100,6 +103,17 @@ export class GoodsReceiptLineProductCellComponent {
   protected cancelCreateNew(event: Event): void {
     event.stopPropagation();
     this.createNewCancel.emit(this.lineIndex());
+  }
+
+  protected onManageStockToggle(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.manageStockChange.emit(target.checked);
+  }
+
+  /** Etichetta azione "Crea «testo»" nel dropdown (punto D). */
+  protected createActionLabel(): string {
+    const term = this.value().trim();
+    return term ? `Crea «${term}»` : 'Crea nuovo articolo';
   }
 
   protected onKeydown(event: KeyboardEvent): void {

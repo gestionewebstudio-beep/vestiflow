@@ -89,6 +89,15 @@
         <p class="pos__feedback pos__feedback--error" role="status">{{ message }}</p>
       }
 
+      @if (unresolvedCode()) {
+        <div class="pos__notfound-actions" role="group" aria-label="Articolo non trovato: azioni">
+          <app-button variant="secondary" (click)="focusManualSearch()">Cerca articolo</app-button>
+          <app-button [loading]="quickAddPending()" (click)="openQuickProductCreate()">
+            Crea articolo rapido
+          </app-button>
+        </div>
+      }
+
       @if (lookupResults(); as results) {
         <ul class="pos__results" aria-label="Risultati ricerca">
           @for (item of results; track item.variantId) {
@@ -303,6 +312,22 @@
       [(open)]="saleConfirmOpen"
       (confirmed)="concludeSale()"
     />
+
+    <app-slide-panel
+      [open]="productPanelOpen()"
+      title="Crea articolo rapido"
+      (closed)="closeProductPanel()"
+    >
+      @if (productPanelOpen()) {
+        <app-product-form
+          [embeddedPanel]="true"
+          [embeddedPrefill]="productPanelPrefill()"
+          (productCreatedWithAttach)="onProductCreatedFromPanel($event)"
+          (productSavedWithoutAttach)="onProductSavedWithoutAttach($event)"
+          (panelDismissed)="closeProductPanel()"
+        />
+      }
+    </app-slide-panel>
   } @else {
     <!-- ── RESO VENDITA NEGOZIO ───────────────────────────────────────── -->
     <section class="pos__panel" aria-labelledby="pos-return-title">

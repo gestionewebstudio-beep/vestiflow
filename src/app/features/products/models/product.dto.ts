@@ -107,6 +107,8 @@ export interface VariantByCodeDto {
   readonly sku: string;
   readonly barcode?: string | null;
   readonly productName: string;
+  /** False = prodotto non gestito a magazzino: le righe documento non caricano giacenza. */
+  readonly managesStock?: boolean;
 }
 
 /** Attributo variante realmente presente (colore, taglia, o altro) per "Genera SKU". */

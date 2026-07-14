@@ -1,8 +1,11 @@
-/** Parsing input lettore barcode Danea-style: `148*8001234567890` → qty 148 + codice. */
-export function parseBarcodeScanInput(raw: string): {
+/** Esito del parsing dell'input scanner: quantità (default 1) + codice. */
+export interface BarcodeScanInput {
   readonly quantity: number;
   readonly code: string;
-} {
+}
+
+/** Parsing input lettore barcode Danea-style: `148*8001234567890` → qty 148 + codice. */
+export function parseBarcodeScanInput(raw: string): BarcodeScanInput {
   const trimmed = raw.trim();
   const match = /^(\d+)\*(.+)$/.exec(trimmed);
   if (match?.[1] && match[2]) {

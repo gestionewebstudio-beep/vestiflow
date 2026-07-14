@@ -194,3 +194,28 @@
   cursor: pointer;
   font-size: var(--text-xs);
 }
+
+/* Messaggio "nessun risultato" nel dropdown (punto D). */
+.gr-product-cell__suggestion-empty {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Toggle "Gestito a magazzino" della creazione rapida (punto B). */
+.gr-product-cell__stock-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  margin-block-start: var(--space-1);
+  padding-inline: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  line-height: var(--line-height-normal);
+
+  input {
+    margin: 0;
+  }
+}

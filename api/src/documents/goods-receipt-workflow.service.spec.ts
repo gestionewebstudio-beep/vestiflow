@@ -1,4 +1,8 @@
-import { ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { DocumentStatus, DocumentType } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -54,8 +58,22 @@ function createPrismaMock() {
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     inventoryLot: { upsert: vi.fn() },
+    product: {
+      create: vi.fn().mockResolvedValue({
+        id: 'prod-new',
+        variants: [{ id: 'var-new', sku: 'SKU-NEW', barcode: null }],
+      }),
+    },
     productVariant: {
-      findMany: vi.fn().mockResolvedValue([{ id: 'var-1' }]),
+      // Echo degli id richiesti: le varianti esistono e gestiscono magazzino.
+      findMany: vi
+        .fn()
+        .mockImplementation(({ where }: { where: { id?: { in?: string[] } } }) =>
+          Promise.resolve(
+            (where.id?.in ?? ['var-1']).map((id) => ({ id, product: { managesStock: true } })),
+          ),
+        ),
+      findFirst: vi.fn().mockResolvedValue(null),
       updateMany: vi.fn(),
     },
     supplier: { findFirst: vi.fn().mockResolvedValue({ id: 'sup-1', name: 'Fornitore A' }) },
@@ -97,7 +115,10 @@ function createService(prisma: ReturnType<typeof createPrismaMock>) {
       defaultNotes: null,
     }),
   };
-  const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+  const channelSync = {
+    pushInventoryLevels: vi.fn().mockResolvedValue(undefined),
+    enqueueProductPush: vi.fn(),
+  };
   const externalTypes = { getById: vi.fn() };
   const vatCodes = { buildSnapshot: vi.fn().mockReturnValue({}) };
   const service = new GoodsReceiptWorkflowService(
@@ -157,7 +178,8 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
     expect(created.subtotalMinor).toBe(0);
     expect(prisma.documentLine.create).not.toHaveBeenCalled();
     expect(prisma.stockMovement.create).not.toHaveBeenCalled();
-    expect(result.id).toBe('doc-1');
+    expect(result.document.id).toBe('doc-1');
+    expect(result.createdProducts).toEqual([]);
   });
 
   it('richiede il fornitore per i tipi arrivo merce', async () => {
@@ -396,6 +418,206 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
     expect(prisma.purchaseInvoiceGoodsReceiptLink.updateMany).not.toHaveBeenCalled();
   });
 
+  describe('creazione atomica articolo da riga (punto A)', () => {
+    const newProductLine = (overrides: Record<string, unknown> = {}) => ({
+      description: 'Cintura pelle',
+      quantity: 2,
+      unitPriceMinor: 1000,
+      loadsStock: true,
+      newProduct: { name: 'Cintura pelle', sku: 'SKU-NEW' },
+      ...overrides,
+    });
+
+    it('crea articolo, riga e movimento in una sola transazione', async () => {
+      const { service } = createService(prisma);
+      const doc = savedDocument();
+      prisma.document.create.mockResolvedValue(doc);
+      prisma.document.findFirstOrThrow.mockResolvedValue(doc);
+      prisma.documentLine.findMany.mockResolvedValue([
+        {
+          id: 'line-1',
+          lineNumber: 1,
+          variantId: 'var-new',
+          sku: 'SKU-NEW',
+          description: 'Cintura pelle',
+          quantity: 2,
+          unitPriceMinor: 1000,
+          discountPercent: 0,
+          lineTotalMinor: 2000,
+          loadsStock: true,
+          lotCode: null,
+          lotExpiryDate: null,
+          serialNumbers: [],
+        },
+      ]);
+
+      const result = await service.saveGoodsReceipt(tenantId, baseDto({ lines: [newProductLine()] }));
+
+      expect(prisma.product.create).toHaveBeenCalledTimes(1);
+      const productData = prisma.product.create.mock.calls[0]?.[0].data;
+      expect(productData.name).toBe('Cintura pelle');
+      expect(productData.managesStock).toBe(true);
+      expect(productData.variants.create[0].sku).toBe('SKU-NEW');
+      // La riga documento nasce già collegata alla variante appena creata.
+      const lineData = prisma.documentLine.create.mock.calls[0]?.[0].data;
+      expect(lineData.variantId).toBe('var-new');
+      expect(lineData.loadsStock).toBe(true);
+      // Il movimento nasce nello stesso salvataggio (stessa transazione).
+      expect(prisma.stockMovement.create).toHaveBeenCalledTimes(1);
+      expect(prisma.stockMovement.create.mock.calls[0]?.[0].data.variantId).toBe('var-new');
+      expect(result.createdProducts).toEqual([
+        {
+          lineIndex: 0,
+          productId: 'prod-new',
+          variantId: 'var-new',
+          sku: 'SKU-NEW',
+          barcode: null,
+        },
+      ]);
+    });
+
+    it('usa il client di transazione per product.create (mai il client radice)', async () => {
+      const { service } = createService(prisma);
+      const txProductCreate = vi.fn().mockResolvedValue({
+        id: 'prod-new',
+        variants: [{ id: 'var-new', sku: 'SKU-NEW', barcode: null }],
+      });
+      prisma.$transaction.mockImplementation((arg: unknown) => {
+        const tx = { ...prisma, product: { create: txProductCreate } };
+        return (arg as (client: typeof tx) => unknown)(tx);
+      });
+      const doc = savedDocument();
+      prisma.document.create.mockResolvedValue(doc);
+      prisma.document.findFirstOrThrow.mockResolvedValue(doc);
+
+      await service.saveGoodsReceipt(tenantId, baseDto({ lines: [newProductLine()] }));
+
+      expect(txProductCreate).toHaveBeenCalledTimes(1);
+      expect(prisma.product.create).not.toHaveBeenCalled();
+    });
+
+    it('fallimento dopo la creazione articolo → l\'errore esce dalla transazione (rollback, nessun orfano)', async () => {
+      const { service } = createService(prisma);
+      const doc = savedDocument();
+      prisma.document.create.mockResolvedValue(doc);
+      prisma.document.findFirstOrThrow.mockResolvedValue(doc);
+      prisma.documentLine.create.mockRejectedValue(new Error('errore riga'));
+
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto({ lines: [newProductLine()] })),
+      ).rejects.toThrow('errore riga');
+      // product.create è avvenuto nella stessa transazione fallita: al
+      // rollback Postgres non resta alcuna anagrafica orfana.
+      expect(prisma.product.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('solo nome senza quantità: crea l\'anagrafica ma nessuna riga documento', async () => {
+      const { service } = createService(prisma);
+      const doc = savedDocument();
+      prisma.document.create.mockResolvedValue(doc);
+      prisma.document.findFirstOrThrow.mockResolvedValue(doc);
+
+      const result = await service.saveGoodsReceipt(
+        tenantId,
+        baseDto({ lines: [newProductLine({ quantity: 0 })] }),
+      );
+
+      expect(prisma.product.create).toHaveBeenCalledTimes(1);
+      expect(prisma.documentLine.create).not.toHaveBeenCalled();
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+      expect(result.createdProducts).toHaveLength(1);
+      expect(result.createdProducts[0]?.lineIndex).toBe(0);
+    });
+
+    it('SKU già presente a catalogo → 409 con messaggio chiaro', async () => {
+      const { service } = createService(prisma);
+      const doc = savedDocument();
+      prisma.document.create.mockResolvedValue(doc);
+      prisma.document.findFirstOrThrow.mockResolvedValue(doc);
+      prisma.productVariant.findFirst.mockResolvedValue({ sku: 'SKU-NEW' });
+
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto({ lines: [newProductLine()] })),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.product.create).not.toHaveBeenCalled();
+    });
+
+    it('nuovo articolo non gestito a magazzino: riga solo economica, nessun movimento (punto B)', async () => {
+      const { service } = createService(prisma);
+      const doc = savedDocument();
+      prisma.document.create.mockResolvedValue(doc);
+      prisma.document.findFirstOrThrow.mockResolvedValue(doc);
+      prisma.product.create.mockResolvedValue({
+        id: 'prod-new',
+        variants: [{ id: 'var-new', sku: null, barcode: null }],
+      });
+      prisma.documentLine.findMany.mockResolvedValue([
+        {
+          id: 'line-1',
+          lineNumber: 1,
+          variantId: 'var-new',
+          sku: null,
+          description: 'Servizio',
+          quantity: 3,
+          unitPriceMinor: 1000,
+          discountPercent: 0,
+          lineTotalMinor: 3000,
+          loadsStock: false,
+          lotCode: null,
+          lotExpiryDate: null,
+          serialNumbers: [],
+        },
+      ]);
+
+      await service.saveGoodsReceipt(
+        tenantId,
+        baseDto({
+          lines: [
+            newProductLine({
+              quantity: 3,
+              newProduct: { name: 'Servizio', managesStock: false },
+            }),
+          ],
+        }),
+      );
+
+      const productData = prisma.product.create.mock.calls[0]?.[0].data;
+      expect(productData.managesStock).toBe(false);
+      const lineData = prisma.documentLine.create.mock.calls[0]?.[0].data;
+      expect(lineData.loadsStock).toBe(false);
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+    });
+
+    it('variante esistente di prodotto non-stock: carico forzato a false, nessun movimento (punto B)', async () => {
+      const { service } = createService(prisma);
+      const doc = savedDocument();
+      prisma.document.create.mockResolvedValue(doc);
+      prisma.document.findFirstOrThrow.mockResolvedValue(doc);
+      prisma.productVariant.findMany.mockResolvedValue([
+        { id: '11111111-1111-4111-8111-111111111111', product: { managesStock: false } },
+      ]);
+
+      await service.saveGoodsReceipt(
+        tenantId,
+        baseDto({
+          lines: [
+            {
+              variantId: '11111111-1111-4111-8111-111111111111',
+              description: 'Buono servizio',
+              quantity: 2,
+              unitPriceMinor: 500,
+              loadsStock: true,
+            },
+          ],
+        }),
+      );
+
+      const lineData = prisma.documentLine.create.mock.calls[0]?.[0].data;
+      expect(lineData.loadsStock).toBe(false);
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('enforcement location (N sedi per utente)', () => {
     it('titolare può salvare un arrivo merce in qualunque sede del tenant', async () => {
       const { service } = createService(prisma);
@@ -404,7 +626,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
 
       await expect(
         service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-qualunque' }), testOwnerUser()),
-      ).resolves.toMatchObject({ id: 'doc-1' });
+      ).resolves.toMatchObject({ document: { id: 'doc-1' } });
     });
 
     it('utente con una sola sede assegnata può salvare in quella sede', async () => {
@@ -415,7 +637,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
 
       await expect(
         service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-1' }), clerk),
-      ).resolves.toMatchObject({ id: 'doc-1' });
+      ).resolves.toMatchObject({ document: { id: 'doc-1' } });
     });
 
     it('utente con una sola sede assegnata riceve 403 su una sede diversa dello stesso tenant', async () => {
@@ -436,7 +658,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
 
       await expect(
         service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-2' }), clerk),
-      ).resolves.toMatchObject({ id: 'doc-1' });
+      ).resolves.toMatchObject({ document: { id: 'doc-1' } });
 
       await expect(
         service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-3' }), clerk),

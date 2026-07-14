@@ -32,6 +32,12 @@ import {
   assertShopifyCatalogUpdateAllowed,
 } from './catalog-origin.util';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
+import {
+  assertVariantBarcodeAvailableInTx,
+  assertVariantSkuAvailableInTx,
+  normalizeBarcodeInput,
+  normalizeOptionalSku,
+} from './quick-product-create.util';
 import type { ListProductsQueryDto } from './dto/list-products.query.dto';
 import type { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
 import type { ProductFacetsDto } from './dto/product-facets.dto';
@@ -221,7 +227,13 @@ export class ProductsService {
           purchasePriceMinor: true,
           compareAtPriceMinor: true,
           product: {
-            select: { name: true, category: true, unitOfMeasure: true, defaultVatCodeId: true },
+            select: {
+              name: true,
+              category: true,
+              unitOfMeasure: true,
+              defaultVatCodeId: true,
+              managesStock: true,
+            },
           },
           ...(query.supplierId
             ? {
@@ -278,6 +290,7 @@ export class ProductsService {
         category: row.product.category?.trim() || null,
         unitOfMeasure: row.product.unitOfMeasure ?? 'pz',
         defaultVatCodeId: row.product.defaultVatCodeId ?? null,
+        managesStock: row.product.managesStock ?? true,
       };
     });
 
@@ -626,6 +639,7 @@ export class ProductsService {
     sku: string | null;
     barcode: string | null;
     productName: string;
+    managesStock: boolean;
   }> {
     const trimmed = code.trim();
     if (!trimmed) {
@@ -640,7 +654,7 @@ export class ProductsService {
           { barcode: { equals: trimmed, mode: 'insensitive' } },
         ],
       },
-      include: { product: { select: { id: true, name: true } } },
+      include: { product: { select: { id: true, name: true, managesStock: true } } },
     });
 
     if (!variant) {
@@ -653,6 +667,7 @@ export class ProductsService {
       sku: variant.sku,
       barcode: variant.barcode,
       productName: variant.product.name,
+      managesStock: variant.product.managesStock ?? true,
     };
   }
 
@@ -696,8 +711,8 @@ export class ProductsService {
     productId: string,
     variant: CreateVariantDto,
   ): Promise<void> {
-    await this.assertSkuAvailable(tx, tenantId, variant.sku);
-    await this.assertBarcodeAvailable(tx, tenantId, variant.barcode);
+    await assertVariantSkuAvailableInTx(tx, tenantId, variant.sku);
+    await assertVariantBarcodeAvailableInTx(tx, tenantId, variant.barcode);
     await tx.productVariant.create({
       data: this.toVariantCreateData(tenantId, productId, variant),
     });
@@ -722,8 +737,8 @@ export class ProductsService {
       throw new NotFoundException(`Variante ${id} non trovata sul prodotto`);
     }
 
-    await this.assertSkuAvailable(tx, tenantId, variant.sku, id);
-    await this.assertBarcodeAvailable(tx, tenantId, variant.barcode, id);
+    await assertVariantSkuAvailableInTx(tx, tenantId, variant.sku, id);
+    await assertVariantBarcodeAvailableInTx(tx, tenantId, variant.barcode, id);
     await tx.productVariant.update({
       where: { id },
       data: {
@@ -763,55 +778,6 @@ export class ProductsService {
 
     await tx.inventoryLevel.deleteMany({ where: { variantId } });
     await tx.productVariant.delete({ where: { id: variantId } });
-  }
-
-  private async assertSkuAvailable(
-    tx: Prisma.TransactionClient,
-    tenantId: string,
-    sku: string | null | undefined,
-    excludeVariantId?: string,
-  ): Promise<void> {
-    const normalized = sku?.trim();
-    if (!normalized) {
-      // SKU facoltativo (specifica cliente §SKU): nessun controllo di unicita'
-      // su valore vuoto/assente, mai bloccante per il salvataggio.
-      return;
-    }
-    const existing = await tx.productVariant.findFirst({
-      where: {
-        tenantId,
-        sku: { equals: normalized, mode: 'insensitive' },
-        ...(excludeVariantId ? { id: { not: excludeVariantId } } : {}),
-      },
-      select: { sku: true },
-    });
-    if (existing) {
-      throw new ConflictException(`SKU già presente a catalogo: ${normalized}`);
-    }
-  }
-
-  private async assertBarcodeAvailable(
-    tx: Prisma.TransactionClient,
-    tenantId: string,
-    barcode: string | null | undefined,
-    excludeVariantId?: string,
-  ): Promise<void> {
-    const normalized = normalizeBarcodeInput(barcode);
-    if (!normalized) {
-      return;
-    }
-
-    const existing = await tx.productVariant.findFirst({
-      where: {
-        tenantId,
-        barcode: { equals: normalized, mode: 'insensitive' },
-        ...(excludeVariantId ? { id: { not: excludeVariantId } } : {}),
-      },
-      select: { barcode: true },
-    });
-    if (existing?.barcode) {
-      throw new ConflictException(`Barcode già presente a catalogo: ${existing.barcode}`);
-    }
   }
 
   private toVariantCreateData(
@@ -1028,13 +994,3 @@ function normalizeListProductRow(item: ProductWithVariants | ProductListRow): Pr
   };
 }
 
-function normalizeBarcodeInput(barcode: string | null | undefined): string | null {
-  const trimmed = barcode?.trim() ?? '';
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-/** SKU facoltativo (specifica cliente §SKU): stringa vuota/assente -> NULL, mai "". */
-function normalizeOptionalSku(sku: string | null | undefined): string | null {
-  const trimmed = sku?.trim() ?? '';
-  return trimmed.length > 0 ? trimmed : null;
-}

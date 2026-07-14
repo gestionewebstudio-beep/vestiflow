@@ -14,13 +14,14 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
-import { catchError, of } from 'rxjs';
+import { catchError, map, of, switchMap, take } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
 import type { Money } from '@core/models/money.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -31,6 +32,11 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import type { ProductEmbeddedCreatePrefill } from '@features/products/models/product-form.mapper';
+import type { VariantSummary } from '@features/products/models/variant-summary.model';
+import { ProductFormComponent } from '@features/products/product-form.component';
+import { ProductService } from '@features/products/services/product.service';
 
 import type {
   RecentStoreSale,
@@ -76,8 +82,20 @@ const PAYMENT_OPTIONS: readonly SelectMenuOption[] = [
   { value: 'other', label: 'Altro' },
 ];
 
+/** Codice non risolto: origine per il prefill di «Crea articolo rapido». */
+interface UnresolvedCode {
+  readonly code: string;
+  /** `barcode` = EAN scansionato (solo cifre); `text` = testo di ricerca manuale. */
+  readonly kind: 'barcode' | 'text';
+}
+
 function lineTotalMinor(line: CartLine): number {
   return Math.round((line.quantity * line.unitPriceMinor * (100 - line.discountPercent)) / 100);
+}
+
+/** EAN/UPC plausibile: solo cifre, 8-14 caratteri (EAN-8 … GTIN-14). */
+function looksLikeBarcode(code: string): boolean {
+  return /^\d{8,14}$/.test(code);
 }
 
 /**
@@ -95,12 +113,16 @@ function lineTotalMinor(line: CartLine): number {
     ButtonComponent,
     ConfirmDialogComponent,
     SelectMenuComponent,
+    SlidePanelComponent,
+    ProductFormComponent,
   ],
   templateUrl: './store-sale-register.component.html',
   styleUrl: './store-sale-register.component.scss',
 })
 export class StoreSaleRegisterComponent {
   private readonly service = inject(StoreSalesService);
+  private readonly barcodeLookup = inject(BarcodeLookupService);
+  private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
   private readonly vatCodeService = inject(VatCodeService);
@@ -121,6 +143,14 @@ export class StoreSaleRegisterComponent {
     this.vatCodes()
       .filter((vatCode) => vatCode.isActive && isSalesVatCode(vatCode))
       .map((vatCode) => ({ value: vatCode.id, label: vatCodeOptionLabel(vatCode) })),
+  );
+
+  /** Codice IVA vendite predefinito del tenant, per il prefill di «Crea articolo rapido». */
+  private readonly defaultSalesVatCodeId = computed(
+    () =>
+      this.vatCodes().find(
+        (vatCode) => vatCode.isDefault && vatCode.isActive && isSalesVatCode(vatCode),
+      )?.id ?? null,
   );
 
   private readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
@@ -168,6 +198,17 @@ export class StoreSaleRegisterComponent {
   protected readonly lookupPending = signal(false);
   protected readonly lookupResults = signal<readonly StoreSaleLookupItem[] | null>(null);
   protected readonly lookupMessage = signal<string | null>(null);
+  /** Codice/testo senza alcun risultato: mostra «Cerca articolo» e «Crea articolo rapido». */
+  protected readonly unresolvedCode = signal<UnresolvedCode | null>(null);
+
+  // ── Crea articolo rapido (ProductFormComponent in slide-panel) ──────────
+
+  protected readonly productPanelOpen = signal(false);
+  protected readonly productPanelPrefill = signal<ProductEmbeddedCreatePrefill | null>(null);
+  protected readonly quickAddPending = signal(false);
+
+  /** AudioContext lazy per il beep di errore scansione (nessun file audio). */
+  private audioContext: AudioContext | null = null;
 
   protected readonly cart = signal<readonly CartLine[]>([]);
   protected readonly paymentMethod = signal<StoreSalePaymentMethod>('cash');
@@ -232,6 +273,7 @@ export class StoreSaleRegisterComponent {
 
   // takeUntilDestroyed() gestisce l'unsubscribe; i campi evitano subscription "ignorate".
   private lookupSubscription: Subscription | null = null;
+  private quickAddSubscription: Subscription | null = null;
   private saleSubscription: Subscription | null = null;
   private recentSubscription: Subscription | null = null;
   private returnSubscription: Subscription | null = null;
@@ -239,6 +281,10 @@ export class StoreSaleRegisterComponent {
   constructor() {
     afterNextRender(() => {
       this.focusSearchInput();
+    });
+    this.destroyRef.onDestroy(() => {
+      void this.audioContext?.close().catch(() => undefined);
+      this.audioContext = null;
     });
   }
 
@@ -266,6 +312,8 @@ export class StoreSaleRegisterComponent {
     // Le disponibilità in carrello si riferiscono alla location: svuota.
     this.cart.set([]);
     this.lookupResults.set(null);
+    this.lookupMessage.set(null);
+    this.unresolvedCode.set(null);
   }
 
   // ── Vendita: ricerca ─────────────────────────────────────────────────────
@@ -276,12 +324,12 @@ export class StoreSaleRegisterComponent {
 
   protected onSearchSubmit(event: Event): void {
     event.preventDefault();
-    this.lookupCode(this.searchDraft().trim());
+    this.commitScan(this.searchDraft());
   }
 
   protected onBarcodeScanned(code: string): void {
     this.searchDraft.set(code);
-    this.lookupCode(code);
+    this.commitScan(code);
   }
 
   protected addResultToCart(item: StoreSaleLookupItem): void {
@@ -291,7 +339,15 @@ export class StoreSaleRegisterComponent {
     this.focusSearchInput();
   }
 
-  private lookupCode(code: string): void {
+  /**
+   * Percorso unico scanner/invio: parsing «N*codice» + risoluzione ESATTA
+   * condivisa (BarcodeLookupService). Match esatto → subito in carrello;
+   * nessun match esatto → ricerca libera (lista risultati); zero risultati →
+   * beep di errore + azioni «Cerca articolo» / «Crea articolo rapido», mai
+   * righe incomplete. Il focus torna SEMPRE al campo scansione.
+   */
+  private commitScan(raw: string): void {
+    const { quantity, code } = this.barcodeLookup.parseScanInput(raw);
     if (!code || this.lookupPending()) {
       return;
     }
@@ -302,46 +358,68 @@ export class StoreSaleRegisterComponent {
     }
     this.lookupPending.set(true);
     this.lookupMessage.set(null);
-    this.lookupSubscription = this.service
-      .lookupItems(code, locationId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+    this.unresolvedCode.set(null);
+    this.lookupSubscription = this.barcodeLookup
+      .resolveVariantIdByCode(code, { locationId })
+      .pipe(
+        switchMap((variantId) =>
+          this.service.lookupItems(code, locationId).pipe(
+            map((items) => ({
+              exact: variantId
+                ? (items.find((item) => item.variantId === variantId) ?? null)
+                : null,
+              items,
+            })),
+          ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
-        next: (items) => {
+        next: ({ exact, items }) => {
           this.lookupPending.set(false);
-          if (items.length === 0) {
-            this.lookupResults.set(null);
-            this.lookupMessage.set('Nessun articolo trovato per questo codice.');
-            return;
-          }
-          const exact = items.find(
-            (item) =>
-              item.sku.toLowerCase() === code.toLowerCase() ||
-              item.barcode?.toLowerCase() === code.toLowerCase(),
-          );
-          if (exact && items.length === 1) {
-            this.addToCart(exact);
+          if (exact) {
+            this.addToCart(exact, quantity);
             this.lookupResults.set(null);
             this.searchDraft.set('');
             this.focusSearchInput();
             return;
           }
+          if (items.length === 0) {
+            this.handleCodeNotFound(code);
+            return;
+          }
           this.lookupResults.set(items);
+          this.focusSearchInput();
         },
         error: (err: unknown) => {
           this.lookupPending.set(false);
           this.lookupMessage.set(this.errorMessage(err));
+          this.focusSearchInput();
         },
       });
   }
 
-  private addToCart(item: StoreSaleLookupItem): void {
+  /** Nessuna riga incompleta: beep non bloccante + azioni di recupero (§spec EAN). */
+  private handleCodeNotFound(code: string): void {
+    this.lookupResults.set(null);
+    this.lookupMessage.set('Articolo non trovato.');
+    this.unresolvedCode.set({ code, kind: looksLikeBarcode(code) ? 'barcode' : 'text' });
+    this.playErrorBeep();
+    this.focusSearchInput(true);
+  }
+
+  private addToCart(item: StoreSaleLookupItem, quantity = 1): void {
     this.saleError.set(null);
     this.lastSaleResult.set(null);
+    this.lookupMessage.set(null);
+    this.unresolvedCode.set(null);
     this.cart.update((lines) => {
       const existing = lines.find((line) => line.variantId === item.variantId);
       if (existing) {
         return lines.map((line) =>
-          line.variantId === item.variantId ? { ...line, quantity: line.quantity + 1 } : line,
+          line.variantId === item.variantId
+            ? { ...line, quantity: line.quantity + quantity }
+            : line,
         );
       }
       const next: CartLine = {
@@ -351,7 +429,7 @@ export class StoreSaleRegisterComponent {
           ? `${item.productName} — ${item.optionSummary}`
           : item.productName,
         unitPriceMinor: item.sellingPriceMinor,
-        quantity: 1,
+        quantity,
         discountPercent: 0,
         vatRatePercent: item.vatRatePercent,
         vatCodeId: item.vatCodeId,
@@ -361,6 +439,158 @@ export class StoreSaleRegisterComponent {
       };
       return [...lines, next];
     });
+  }
+
+  // ── EAN non trovato: azioni di recupero ──────────────────────────────────
+
+  /** «Cerca articolo»: focus sulla ricerca manuale con il codice selezionato. */
+  protected focusManualSearch(): void {
+    this.focusSearchInput(true);
+  }
+
+  /**
+   * «Crea articolo rapido»: ProductFormComponent nel pannello laterale.
+   * Prefill: barcode = EAN scansionato non trovato, nome = testo cercato,
+   * IVA = codice IVA vendite predefinito del tenant. SKU facoltativo.
+   */
+  protected openQuickProductCreate(): void {
+    const unresolved = this.unresolvedCode();
+    this.productPanelPrefill.set({
+      name: unresolved?.kind === 'text' ? unresolved.code : undefined,
+      barcode: unresolved?.kind === 'barcode' ? unresolved.code : undefined,
+      defaultVatCodeId: this.defaultSalesVatCodeId(),
+    });
+    this.productPanelOpen.set(true);
+  }
+
+  protected closeProductPanel(): void {
+    this.productPanelOpen.set(false);
+    this.productPanelPrefill.set(null);
+    this.focusSearchInput();
+  }
+
+  /** Variante appena creata dal pannello: in carrello con quantità 1. */
+  protected onProductCreatedFromPanel(event: { readonly variantId: string }): void {
+    this.productPanelOpen.set(false);
+    this.productPanelPrefill.set(null);
+    this.addCreatedVariantToCart(event.variantId);
+  }
+
+  /** «Salva senza aggiungere»: prodotto creato ma non aggiunto al carrello. */
+  protected onProductSavedWithoutAttach(_event: { readonly variantId: string }): void {
+    this.closeProductPanel();
+  }
+
+  /**
+   * Carica i dati di carrello della variante creata: lookup cassa per
+   * barcode/SKU (prezzo, IVA risolta e disponibilità alla location) con
+   * fallback sul riepilogo variante (articolo nuovo: disponibilità 0).
+   */
+  private addCreatedVariantToCart(variantId: string): void {
+    const locationId = this.selectedLocationId();
+    this.quickAddPending.set(true);
+    this.quickAddSubscription = this.productService
+      .searchVariantSummaries({ variantId })
+      .pipe(
+        take(1),
+        switchMap((rows) => {
+          const row = rows[0];
+          if (!row) {
+            return of<StoreSaleLookupItem | null>(null);
+          }
+          const code = row.barcode?.trim() || row.sku.trim();
+          if (!code || !locationId) {
+            return of(this.lookupItemFromSummary(row));
+          }
+          return this.service.lookupItems(code, locationId).pipe(
+            map(
+              (items) =>
+                items.find((item) => item.variantId === variantId) ??
+                this.lookupItemFromSummary(row),
+            ),
+            catchError(() => of(this.lookupItemFromSummary(row))),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (item) => {
+          this.quickAddPending.set(false);
+          if (item) {
+            this.addToCart(item);
+            this.searchDraft.set('');
+          } else {
+            this.lookupMessage.set(
+              'Articolo creato ma non aggiunto al carrello: cercalo per aggiungerlo.',
+            );
+          }
+          this.focusSearchInput();
+        },
+        error: () => {
+          this.quickAddPending.set(false);
+          this.lookupMessage.set(
+            'Articolo creato ma non aggiunto al carrello: cercalo per aggiungerlo.',
+          );
+          this.focusSearchInput();
+        },
+      });
+  }
+
+  /** Fallback per varianti appena create: nessun livello ⇒ disponibilità 0. */
+  private lookupItemFromSummary(row: VariantSummary): StoreSaleLookupItem {
+    const vatCodeId = row.defaultVatCodeId ?? this.defaultSalesVatCodeId();
+    const vatCode = vatCodeId ? this.vatCodeById().get(vatCodeId) : undefined;
+    const separator = ' — ';
+    const optionSummary = row.title.startsWith(`${row.productName}${separator}`)
+      ? row.title.slice(row.productName.length + separator.length)
+      : '';
+    return {
+      variantId: row.variantId,
+      sku: row.sku,
+      barcode: row.barcode ?? null,
+      productName: row.productName,
+      optionSummary,
+      sellingPriceMinor: row.sellingPrice.amountMinor,
+      currency: row.sellingPrice.currencyCode,
+      vatRatePercent: vatCode ? Math.round(vatCode.ratePercent) : null,
+      vatCodeId: vatCode?.id ?? null,
+      vatCodeLabel: vatCode ? vatCodeOptionLabel(vatCode) : null,
+      onHand: 0,
+      committed: 0,
+      available: 0,
+    };
+  }
+
+  /**
+   * Beep di errore via Web Audio API: oscillatore ~200ms, nessun file audio.
+   * AudioContext creato lazy al primo errore; l'audio mancante non blocca.
+   */
+  private playErrorBeep(): void {
+    try {
+      const AudioContextCtor =
+        window.AudioContext ??
+        (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) {
+        return;
+      }
+      this.audioContext ??= new AudioContextCtor();
+      const context = this.audioContext;
+      if (context.state === 'suspended') {
+        void context.resume().catch(() => undefined);
+      }
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'square';
+      oscillator.frequency.value = 220;
+      gain.gain.value = 0.08;
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      const now = context.currentTime;
+      oscillator.start(now);
+      oscillator.stop(now + 0.2);
+    } catch {
+      // Audio non disponibile (permessi/ambiente): resta il messaggio a video.
+    }
   }
 
   // ── Vendita: carrello ────────────────────────────────────────────────────
@@ -682,7 +912,15 @@ export class StoreSaleRegisterComponent {
     return 'Operazione non riuscita. Riprova.';
   }
 
-  private focusSearchInput(): void {
-    this.searchInputRef()?.nativeElement.focus();
+  /** Il focus torna sempre al campo scansione; `selectText` evidenzia il codice. */
+  private focusSearchInput(selectText = false): void {
+    const input = this.searchInputRef()?.nativeElement;
+    if (!input) {
+      return;
+    }
+    input.focus();
+    if (selectText) {
+      input.select();
+    }
   }
 }

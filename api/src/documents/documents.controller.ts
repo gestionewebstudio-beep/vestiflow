@@ -53,7 +53,10 @@ import { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
 import { SaveTransferDto } from './dto/save-transfer.dto';
 import { SaveAdjustmentDto } from './dto/save-adjustment.dto';
 import { ListLinkableGoodsReceiptsQueryDto } from './dto/list-linkable-goods-receipts.query.dto';
-import { GoodsReceiptWorkflowService } from './goods-receipt-workflow.service';
+import {
+  GoodsReceiptWorkflowService,
+  type GoodsReceiptCreatedProduct,
+} from './goods-receipt-workflow.service';
 import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflow.service';
 
 @Controller('documents')
@@ -101,9 +104,13 @@ export class DocumentsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SaveGoodsReceiptDto,
-  ): Promise<{ document: DocumentDetail; warnings: string[] }> {
+  ): Promise<{
+    document: DocumentDetail;
+    warnings: string[];
+    createdProducts: readonly GoodsReceiptCreatedProduct[];
+  }> {
     const saved = await this.goodsReceiptWorkflow.saveGoodsReceipt(tenantId, dto, user);
-    const document = await this.documents.getById(tenantId, saved.id, user);
+    const document = await this.documents.getById(tenantId, saved.document.id, user);
     const warnings: string[] = [];
     if (document.linkStatus === 'linked') {
       warnings.push(
@@ -111,7 +118,7 @@ export class DocumentsController {
           'Controlla l\'allineamento dei totali sulla registrazione fattura.',
       );
     }
-    return { document, warnings };
+    return { document, warnings, createdProducts: saved.createdProducts };
   }
 
   /** Registrazione fattura fornitore (prompt §5-6): mai movimenti di magazzino. */

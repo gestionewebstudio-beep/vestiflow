@@ -22,4 +22,6 @@ export interface VariantSummary {
   readonly unitOfMeasure?: string;
   /** Codice IVA predefinito del prodotto (ereditato dalle righe documento). */
   readonly defaultVatCodeId?: string;
+  /** False = prodotto non gestito a magazzino: le righe documento non caricano giacenza. */
+  readonly managesStock?: boolean;
 }

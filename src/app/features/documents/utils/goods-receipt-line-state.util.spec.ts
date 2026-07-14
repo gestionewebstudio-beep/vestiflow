@@ -135,6 +135,24 @@ describe('goods-receipt-line-state.util', () => {
       ).toBe(true);
     });
 
+    // Punto A: solo nome senza quantità → al salvataggio esplicito si crea
+    // la sola anagrafica (nessuna riga documento lato server).
+    it('include la riga createNew con nome anche a quantità zero (solo anagrafica)', () => {
+      expect(
+        lineDraftPersistableForExplicitSave(
+          draft({ productName: 'Cintura', quantity: 0, createNew: true }),
+        ),
+      ).toBe(true);
+    });
+
+    it('esclude la riga createNew con nome troppo corto e quantità zero', () => {
+      expect(
+        lineDraftPersistableForExplicitSave(
+          draft({ productName: 'C', quantity: 0, createNew: true }),
+        ),
+      ).toBe(false);
+    });
+
     it('esclude righe con quantità zero senza articolo', () => {
       expect(
         lineDraftPersistableForExplicitSave(
@@ -147,6 +165,16 @@ describe('goods-receipt-line-state.util', () => {
   describe('lineDraftPersistableForAutoSave', () => {
     it('esclude la query di ricerca (testo digitato, nessun articolo, nessun id)', () => {
       expect(lineDraftPersistableForAutoSave(draft({ productName: 'maglia uomo' }))).toBe(false);
+    });
+
+    // Punto C: l'autosave passivo non crea MAI articoli — le righe createNew
+    // senza id/variantId restano fuori dal payload anche se complete.
+    it('esclude la riga createNew completa senza id: nessuna creazione da autosave', () => {
+      expect(
+        lineDraftPersistableForAutoSave(
+          draft({ productName: 'Cintura', quantity: 2, unitCost: '9,90', createNew: true }),
+        ),
+      ).toBe(false);
     });
 
     it('include la riga con articolo collegato', () => {

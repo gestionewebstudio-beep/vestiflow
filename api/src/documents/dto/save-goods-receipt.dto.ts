@@ -19,6 +19,55 @@ import {
 import { DocumentType } from '@prisma/client';
 
 /**
+ * Nuova anagrafica da creare atomicamente con la riga (punto A): quando la
+ * riga non ha `variantId` ma porta `newProduct`, Product + variante tecnica
+ * nascono NELLA STESSA transazione del documento e dei movimenti. Il solo
+ * nome è sufficiente (SKU facoltativo, specifica cliente §SKU); omonimi
+ * ammessi (ID diverso). Con quantità 0 al salvataggio esplicito si crea la
+ * sola anagrafica, senza riga documento.
+ */
+export class SaveGoodsReceiptNewProductDto {
+  @IsString()
+  @Length(1, 200)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  sku?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  barcode?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sellingPriceMinor?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  compareAtPriceMinor?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  purchasePriceMinor?: number;
+
+  /** Codice IVA predefinito del nuovo articolo (validato per tenant). */
+  @IsOptional()
+  @IsUUID()
+  vatCodeId?: string;
+
+  /** False = articolo non gestito a magazzino: la riga resta solo economica (punto B). */
+  @IsOptional()
+  @IsBoolean()
+  managesStock?: boolean;
+}
+
+/**
  * Riga Arrivo merce in salvataggio. L'id è presente per le righe già salvate:
  * preservarlo è essenziale per aggiornare il movimento collegato invece di
  * crearne uno nuovo (prompt §2.3 casi B/C).
@@ -100,6 +149,12 @@ export class SaveGoodsReceiptLineDto {
   @MaxLength(120, { each: true })
   @ArrayMaxSize(500)
   serialNumbers?: string[];
+
+  /** Creazione atomica articolo+riga (punto A): solo per righe senza variantId. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SaveGoodsReceiptNewProductDto)
+  newProduct?: SaveGoodsReceiptNewProductDto;
 }
 
 /**

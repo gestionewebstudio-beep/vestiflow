@@ -307,9 +307,40 @@ export interface CreateDocumentBody {
 /** Body PATCH /documents/:id (bozze e documenti confermati editabili). */
 export type UpdateDocumentBody = Partial<Omit<CreateDocumentBody, 'type'>>;
 
+/**
+ * Nuova anagrafica da creare atomicamente con la riga (punto A): il backend
+ * crea Product + variante NELLA STESSA transazione del documento. Serializzata
+ * solo sui gesti espliciti (mai in autosave passivo, punto C).
+ */
+export interface SaveGoodsReceiptNewProductBody {
+  readonly name: string;
+  readonly sku?: string;
+  readonly barcode?: string;
+  readonly sellingPriceMinor?: number;
+  readonly compareAtPriceMinor?: number;
+  readonly purchasePriceMinor?: number;
+  readonly vatCodeId?: EntityId;
+  /** False = articolo non gestito a magazzino: riga solo economica (punto B). */
+  readonly managesStock?: boolean;
+}
+
 /** Riga Arrivo merce in salvataggio unico: id presente = riga già salvata. */
 export interface SaveGoodsReceiptLineBody extends DocumentLineInputBody {
   readonly id?: EntityId;
+  readonly newProduct?: SaveGoodsReceiptNewProductBody;
+}
+
+/**
+ * Articolo creato atomicamente dal salvataggio (punto A): `lineIndex` è la
+ * posizione della riga nel payload inviato, usata per riadottare
+ * variantId/sku anche per le creazioni solo-anagrafica (quantità 0).
+ */
+export interface GoodsReceiptCreatedProductApiRow {
+  readonly lineIndex: number;
+  readonly productId: EntityId;
+  readonly variantId: EntityId;
+  readonly sku?: string | null;
+  readonly barcode?: string | null;
 }
 
 /** Body POST /documents/goods-receipt/save (prompt §2.1). */

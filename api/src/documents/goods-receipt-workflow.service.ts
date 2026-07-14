@@ -22,6 +22,7 @@ import {
   assertSerialNumbersForDocumentLines,
 } from '../inventory/inventory-serial.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { createQuickProductWithVariant } from '../products/quick-product-create.util';
 import {
   buildGoodsReceiptMovementReason,
   syncGoodsReceiptLineMovements,
@@ -73,6 +74,25 @@ export interface PurchaseInvoiceSaveResult {
   readonly totalsMatch: boolean;
 }
 
+/**
+ * Articolo creato atomicamente da una riga con `newProduct` (punto A).
+ * `lineIndex` è la posizione della riga NEL PAYLOAD: il client la usa per
+ * riadottare variantId/sku anche quando la riga non produce una riga
+ * documento (creazione solo-anagrafica a quantità 0).
+ */
+export interface GoodsReceiptCreatedProduct {
+  readonly lineIndex: number;
+  readonly productId: string;
+  readonly variantId: string;
+  readonly sku: string | null;
+  readonly barcode: string | null;
+}
+
+export interface GoodsReceiptSaveResult {
+  readonly document: Document & { lines: DocumentLine[] };
+  readonly createdProducts: readonly GoodsReceiptCreatedProduct[];
+}
+
 const INVALID_LINE_MESSAGE = (lineNumber: number): string =>
   `La riga ${lineNumber} non può caricare il magazzino perché non è collegata a un ` +
   'articolo valido. Seleziona un articolo o crealo dalla riga.';
@@ -100,7 +120,7 @@ export class GoodsReceiptWorkflowService {
     tenantId: string,
     dto: SaveGoodsReceiptDto,
     user?: UserProfileDto,
-  ): Promise<Document & { lines: DocumentLine[] }> {
+  ): Promise<GoodsReceiptSaveResult> {
     if (!(DOCUMENT_STOCK_LOAD_TYPES as readonly string[]).includes(dto.type)) {
       throw new UnprocessableEntityException(
         'Questo salvataggio è riservato ai documenti di arrivo merce / carico.',
@@ -130,6 +150,7 @@ export class GoodsReceiptWorkflowService {
     }
 
     // Codici IVA delle righe: risolti una volta, validati per tenant (§9).
+    // Include anche i Codici IVA dei nuovi articoli (creazione atomica, punto A).
     const costEntryMode = dto.purchaseCostEntryMode ?? 'vat_excluded';
     const requestedVatCodeIds = [
       ...new Set(
@@ -138,16 +159,31 @@ export class GoodsReceiptWorkflowService {
           .filter((id): id is string => id != null),
       ),
     ];
+    const newProductVatCodeIds = [
+      ...new Set(
+        (dto.lines ?? [])
+          .map((line) => line.newProduct?.vatCodeId)
+          .filter((id): id is string => id != null),
+      ),
+    ];
+    const allVatCodeIds = [...new Set([...requestedVatCodeIds, ...newProductVatCodeIds])];
     const vatCodesById = new Map<string, VatCodeWithNature>();
-    if (requestedVatCodeIds.length > 0) {
+    if (allVatCodeIds.length > 0) {
       const found = await this.prisma.vatCode.findMany({
-        where: { tenantId, id: { in: requestedVatCodeIds }, deletedAt: null },
+        where: { tenantId, id: { in: allVatCodeIds }, deletedAt: null },
         include: { nature: true },
       });
       for (const vatCode of found) {
         vatCodesById.set(vatCode.id, vatCode);
       }
       this.assertPurchaseVatCodes(dto, requestedVatCodeIds, vatCodesById);
+      for (const vatCodeId of newProductVatCodeIds) {
+        if (!vatCodesById.has(vatCodeId)) {
+          throw new UnprocessableEntityException(
+            'Il Codice IVA del nuovo articolo non esiste più. Scegli un altro codice.',
+          );
+        }
+      }
     }
 
     const computedLines = computeGoodsReceiptLines({
@@ -160,7 +196,37 @@ export class GoodsReceiptWorkflowService {
     const lineIds = (dto.lines ?? []).map((line) => line.id ?? null);
     const totals = computeGoodsReceiptTotals(computedLines, dto.documentDiscountPercent ?? 0);
 
-    // Validazione righe che caricano magazzino (§2.8): errori chiari, mai tecnici.
+    // Punto B: un nuovo articolo dichiarato non gestito a magazzino non
+    // carica mai giacenza — la riga resta solo economica, senza movimento.
+    for (const line of computedLines) {
+      if (line.newProduct?.managesStock === false) {
+        line.loadsStock = false;
+      }
+    }
+
+    // Punto B: varianti già a catalogo di prodotti non gestiti a magazzino
+    // → carico forzato a false lato server, qualunque cosa dica il client.
+    const linkedVariantIds = [
+      ...new Set(computedLines.map((line) => line.variantId).filter((id): id is string => id != null)),
+    ];
+    const knownVariants = linkedVariantIds.length
+      ? await this.prisma.productVariant.findMany({
+          where: { tenantId, id: { in: linkedVariantIds } },
+          select: { id: true, product: { select: { managesStock: true } } },
+        })
+      : [];
+    const managesStockByVariantId = new Map(
+      knownVariants.map((variant) => [variant.id, variant.product.managesStock ?? true]),
+    );
+    for (const line of computedLines) {
+      if (line.variantId && managesStockByVariantId.get(line.variantId) === false) {
+        line.loadsStock = false;
+      }
+    }
+
+    // Validazione righe che caricano magazzino (§2.8): errori chiari, mai
+    // tecnici. Le righe con `newProduct` sono valide anche senza variante:
+    // l'articolo nasce DENTRO la transazione (punto A).
     const stockLines = computedLines.filter((line) => line.loadsStock && line.quantity > 0);
     if (stockLines.length > 0) {
       if (!dto.locationId) {
@@ -169,23 +235,12 @@ export class GoodsReceiptWorkflowService {
         );
       }
       for (const line of stockLines) {
-        if (!line.variantId) {
+        if (!line.variantId && !line.newProduct?.name.trim()) {
           throw new UnprocessableEntityException(INVALID_LINE_MESSAGE(line.lineNumber));
         }
-      }
-      const variantIds = [...new Set(stockLines.map((line) => line.variantId as string))];
-      const found = await this.prisma.productVariant.findMany({
-        where: { tenantId, id: { in: variantIds } },
-        select: { id: true },
-      });
-      if (found.length !== variantIds.length) {
-        const foundIds = new Set(found.map((variant) => variant.id));
-        const missingLine = stockLines.find(
-          (line) => line.variantId && !foundIds.has(line.variantId),
-        );
-        throw new UnprocessableEntityException(
-          INVALID_LINE_MESSAGE(missingLine?.lineNumber ?? 1),
-        );
+        if (line.variantId && !managesStockByVariantId.has(line.variantId)) {
+          throw new UnprocessableEntityException(INVALID_LINE_MESSAGE(line.lineNumber));
+        }
       }
     }
 
@@ -210,6 +265,7 @@ export class GoodsReceiptWorkflowService {
       (pricePolicy === 'ask' && dto.applySupplierPriceUpdates === true);
 
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
+    const createdProducts: GoodsReceiptCreatedProduct[] = [];
 
     const saved = await this.prisma.$transaction(async (tx) => {
       let existing: (Document & { lines: DocumentLine[] }) | null = null;
@@ -316,20 +372,73 @@ export class GoodsReceiptWorkflowService {
         documentId = created.id;
       }
 
+      // ── Creazione atomica articoli (punto A): Product + variante tecnica
+      // nascono NELLA STESSA transazione di testata, righe e movimenti. Se un
+      // passo successivo fallisce, il rollback non lascia anagrafiche orfane.
+      const registryOnlyIndexes = new Set<number>();
+      for (let index = 0; index < computedLines.length; index += 1) {
+        const line = computedLines[index] as ComputedGoodsReceiptLine;
+        if (line.variantId || !line.newProduct) {
+          continue;
+        }
+        const created = await createQuickProductWithVariant(tx, tenantId, {
+          name: line.newProduct.name,
+          sku: line.newProduct.sku ?? line.sku,
+          barcode: line.newProduct.barcode,
+          sellingPriceMinor: line.newProduct.sellingPriceMinor,
+          compareAtPriceMinor: line.newProduct.compareAtPriceMinor,
+          purchasePriceMinor: line.newProduct.purchasePriceMinor,
+          vatCodeId: line.newProduct.vatCodeId,
+          managesStock: line.newProduct.managesStock,
+          currency: dto.currency ?? existing?.currency ?? 'EUR',
+        });
+        createdProducts.push({
+          lineIndex: index,
+          productId: created.productId,
+          variantId: created.variantId,
+          sku: created.sku,
+          barcode: created.barcode,
+        });
+        line.variantId = created.variantId;
+        line.sku = created.sku;
+        if (!created.managesStock) {
+          line.loadsStock = false;
+        }
+        // Solo-anagrafica (punto A): quantità 0 al salvataggio esplicito →
+        // l'articolo nasce, ma nessuna riga documento viene scritta.
+        if (line.quantity <= 0) {
+          registryOnlyIndexes.add(index);
+        }
+      }
+
+      const persistedLines: ComputedGoodsReceiptLine[] = [];
+      const persistedLineIds: (string | null)[] = [];
+      for (let index = 0; index < computedLines.length; index += 1) {
+        if (registryOnlyIndexes.has(index)) {
+          continue;
+        }
+        persistedLines.push(computedLines[index] as ComputedGoodsReceiptLine);
+        persistedLineIds.push(lineIds[index] ?? null);
+      }
+      // Rinumerazione progressiva dopo l'esclusione delle righe solo-anagrafica.
+      for (let index = 0; index < persistedLines.length; index += 1) {
+        (persistedLines[index] as ComputedGoodsReceiptLine).lineNumber = index + 1;
+      }
+
       // ── Upsert righe per id: preservare l'id riga è ciò che consente di
       // aggiornare il movimento collegato invece di duplicarlo (§2.3-2.4).
       const existingLineIds = new Set((existing?.lines ?? []).map((line) => line.id));
       const incomingIds = new Set(
-        lineIds.filter((id): id is string => id != null && existingLineIds.has(id)),
+        persistedLineIds.filter((id): id is string => id != null && existingLineIds.has(id)),
       );
 
       await tx.documentLine.deleteMany({
         where: { documentId, id: { notIn: [...incomingIds] } },
       });
 
-      for (let index = 0; index < computedLines.length; index += 1) {
-        const line = computedLines[index] as ComputedGoodsReceiptLine;
-        const lineId = lineIds[index];
+      for (let index = 0; index < persistedLines.length; index += 1) {
+        const line = persistedLines[index] as ComputedGoodsReceiptLine;
+        const lineId = persistedLineIds[index];
         const data = {
           lineNumber: line.lineNumber,
           variantId: line.variantId,
@@ -467,7 +576,12 @@ export class GoodsReceiptWorkflowService {
     });
 
     await this.pushInventory(tenantId, syncTargets);
-    return saved;
+    // Push canali dei nuovi articoli SOLO dopo il commit (mai in transazione):
+    // se il salvataggio fosse fallito non esisterebbe nulla da pubblicare.
+    for (const created of createdProducts) {
+      this.channelSync.enqueueProductPush(tenantId, created.productId);
+    }
+    return { document: saved, createdProducts };
   }
 
   /**

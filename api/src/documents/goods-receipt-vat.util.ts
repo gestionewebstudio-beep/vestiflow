@@ -8,7 +8,10 @@ import {
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { documentTypeDefaultLoadsStock } from './document-type.util';
 import { normalizeSerialNumbers, type DocumentTotals } from './document-totals.util';
-import type { SaveGoodsReceiptLineDto } from './dto/save-goods-receipt.dto';
+import type {
+  SaveGoodsReceiptLineDto,
+  SaveGoodsReceiptNewProductDto,
+} from './dto/save-goods-receipt.dto';
 
 /** Riga Arrivo merce calcolata con Codice IVA e modalità costo (§9–§15). */
 export interface ComputedGoodsReceiptLine {
@@ -42,6 +45,8 @@ export interface ComputedGoodsReceiptLine {
   lotCode: string | null;
   lotExpiryDate: Date | null;
   serialNumbers: string[];
+  /** Passthrough della creazione atomica articolo (punto A): risolto in transazione. */
+  newProduct: SaveGoodsReceiptNewProductDto | null;
 }
 
 /** Conversione unità minori → stringa decimale a 6 cifre per NUMERIC. */
@@ -139,6 +144,7 @@ export function computeGoodsReceiptLines(
       lotCode: line.lotCode?.trim() || null,
       lotExpiryDate: line.lotExpiryDate ? new Date(line.lotExpiryDate) : null,
       serialNumbers: normalizeSerialNumbers(line.serialNumbers),
+      newProduct: line.variantId ? null : (line.newProduct ?? null),
     };
   });
 }

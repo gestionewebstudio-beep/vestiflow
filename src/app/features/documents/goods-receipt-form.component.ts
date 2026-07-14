@@ -25,10 +25,7 @@ import {
   of,
   startWith,
   switchMap,
-  throwError,
   defaultIfEmpty,
-  finalize,
-  shareReplay,
   toArray,
   type Observable,
 } from 'rxjs';
@@ -42,7 +39,6 @@ import type { LinkedSupplierOrderLineContext } from '@core/models/document.model
 import { CausalGenerationMode, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
-import { ProductStatus } from '@core/models/product.model';
 import {
   formatVatRate,
   isPurchaseVatCode,
@@ -50,13 +46,13 @@ import {
   type PurchaseCostEntryMode,
   type VatCode,
 } from '@core/models/vat-code.model';
+import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import {
   DEFAULT_CURRENCY,
   formatMoney,
-  moneyFromMajor,
   moneyToDecimalString,
   parseMoneyInput,
 } from '@core/utils/money.util';
@@ -120,18 +116,19 @@ import {
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { renderCausalTemplate } from './models/causal-template.util';
 import type { ExternalDocumentType } from './models/external-document-type.model';
-import type { GoodsReceiptCausal } from './models/goods-receipt-causal.model';
 import { DocumentService } from './services/document.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
-import { GoodsReceiptCausalService } from './services/goods-receipt-causal.service';
-import type { SaveGoodsReceiptBody } from './services/document-api.mapper';
+import type {
+  GoodsReceiptCreatedProductApiRow,
+  SaveGoodsReceiptBody,
+  SaveGoodsReceiptNewProductBody,
+} from './services/document-api.mapper';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
 import {
   GoodsReceiptCsvParseError,
   parseGoodsReceiptLinesCsv,
   type GoodsReceiptCsvLine,
 } from './utils/goods-receipt-lines-csv.util';
-import { parseBarcodeScanInput } from './utils/parse-barcode-scan-input.util';
 import {
   GOODS_RECEIPT_SORTABLE_LINE_COLUMNS,
   compareGoodsReceiptLines,
@@ -185,8 +182,16 @@ const SESSION_UNLOCKED_DOC_IDS = new Set<string>();
  */
 const JUST_CREATED_DOCS = new Map<string, DocumentRecord>();
 
-/** Modalità payload: l'autosave esclude righe non confermate (query, tentativi). */
-type GoodsReceiptSaveMode = 'auto' | 'explicit';
+/**
+ * Modalità payload (punto C):
+ * - 'auto': autosave passivo (debounce) — mai righe createNew senza id: i
+ *   nuovi articoli non nascono MAI da un salvataggio passivo.
+ * - 'commit': gesto esplicito sulla riga (Invio / aggiungi riga) — include le
+ *   righe createNew serializzando `newProduct`, senza avvisi post-salvataggio.
+ * - 'explicit': "Salva documento" / "Salva e chiudi" — come 'commit', con gli
+ *   avvisi non bloccanti sulle righe senza articolo.
+ */
+type GoodsReceiptSaveMode = 'auto' | 'commit' | 'explicit';
 
 type GoodsReceiptLineFocusField =
   | 'sku'
@@ -204,13 +209,6 @@ type GoodsReceiptLineFocusField =
   | 'serials';
 
 type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
-
-/** Variante risolta dopo la creazione articolo da riga rapida (SKU facoltativo). */
-interface ResolvedNewLineVariant {
-  readonly variantId: string;
-  readonly sku: string | null;
-  readonly barcode: string | null;
-}
 
 /**
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
@@ -249,12 +247,12 @@ interface ResolvedNewLineVariant {
 export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
-  private readonly causalService = inject(GoodsReceiptCausalService);
   private readonly externalTypeService = inject(ExternalDocumentTypeService);
   private readonly supplierService = inject(SupplierService);
   private readonly supplierOrderService = inject(SupplierOrderService);
   private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly productService = inject(ProductService);
+  private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly router = inject(Router);
@@ -691,46 +689,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly editingTypeShortLabel = signal('');
   protected readonly editingTypeTemplate = signal('');
 
-  // ── Causale di carico (prompt §1.2, §8-11) ─────────────────────────────────
-  private readonly causalsReload = signal(0);
-  protected readonly causals = toSignal(
-    toObservable(this.causalsReload).pipe(
-      switchMap(() =>
-        this.causalService.list().pipe(catchError(() => of([] as readonly GoodsReceiptCausal[]))),
-      ),
-    ),
-    { initialValue: [] as readonly GoodsReceiptCausal[] },
-  );
-  protected readonly activeCausals = computed(() =>
-    this.causals().filter((causal) => causal.isActive),
-  );
-  protected readonly causalDropdownOpen = signal(false);
-  protected readonly causalPanelOpen = signal(false);
-  protected readonly causalPanelBusy = signal(false);
-  protected readonly causalPanelError = signal<string | null>(null);
-  protected readonly newCausalLabel = signal('');
-  protected readonly newCausalTypeId = signal('');
-  protected readonly editingCausalId = signal<string | null>(null);
-  protected readonly editingCausalLabel = signal('');
-  protected readonly editingCausalTypeId = signal('');
-
-  /** Opzioni tipo documento per la gestione causali (solo tipi attivi + "—"). */
-  protected readonly causalTypeOptions = computed<readonly SelectMenuOption[]>(() => [
-    { value: '', label: '— nessun tipo' },
-    ...this.externalDocTypes()
-      .filter((type) => type.isActive)
-      .map((type) => ({ value: type.id, label: type.shortLabel || type.name })),
-  ]);
-
+  // ── Causale di carico (punto E: invisibile, sempre generata in silenzio) ───
   /**
-   * Modalità causale (§10): AUTO = generata dal modello attivo, MANUAL = testo
-   * dell'utente, mai sovrascritto da tipo/numero/data.
+   * Modalità causale: AUTO = generata dal modello del tipo documento. La UI
+   * non espone più il campo né la modalità MANUAL (punto E); il valore
+   * MANUAL sopravvive solo per i documenti storici caricati, il cui testo
+   * personalizzato non viene mai sovrascritto.
    */
   protected readonly causalMode = signal<CausalGenerationMode>(CausalGenerationMode.Auto);
-  /** Modello causale attivo (dal tipo documento o dalla causale scelta). */
+  /** Modello causale attivo (dal tipo documento fornitore selezionato). */
   private readonly causalTemplate = signal<string | null>(null);
-  /** Conferma "Rigenera" quando esiste un testo personalizzato (§10). */
-  protected readonly regenerateDialogOpen = signal(false);
 
   readonly form = this.fb.group({
     type: this.fb.control<DocumentType>(DocumentType.GoodsReceipt, {
@@ -792,43 +760,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .subscribe((supplierId) => this.reloadSupplierVariantLinks(supplierId));
     effect(() => {
       this.pinnedVariants();
+      this.searchedVariants();
       this.syncLineCodesFromVariants();
+      // Punto B: le righe collegate a prodotti non-magazzino vanno bloccate
+      // appena le summary sono disponibili (anche in load asincrono).
+      this.syncLineFieldAccess();
     });
-    effect(() => this.applyDefaultCausalOnCreate());
-  }
-
-  private defaultCausalApplied = false;
-
-  /**
-   * Causale predefinita applicata all'apertura di un nuovo documento (§1.2):
-   * diventa il modello attivo senza segnare il form come modificato.
-   */
-  private applyDefaultCausalOnCreate(): void {
-    const causals = this.activeCausals();
-    if (causals.length === 0 || this.defaultCausalApplied) {
-      return;
-    }
-    this.defaultCausalApplied = true;
-    if (
-      this.editDocumentId() ||
-      this.causalMode() !== CausalGenerationMode.Auto ||
-      this.causalTemplate() !== null ||
-      this.form.controls.causalText.value.trim()
-    ) {
-      return;
-    }
-    const preferred = causals.find((causal) => causal.isDefault);
-    if (!preferred) {
-      return;
-    }
-    if (preferred.externalDocumentTypeId) {
-      this.form.controls.externalDocumentTypeId.setValue(preferred.externalDocumentTypeId, {
-        emitEvent: false,
-      });
-      this.selectedExternalTypeId.set(preferred.externalDocumentTypeId);
-    }
-    this.causalTemplate.set(preferred.label);
-    this.applyGeneratedCausal({ emitEvent: false });
   }
 
   private setupAutoSave(): void {
@@ -841,7 +778,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.formReadOnly() || this.saving()) {
       return;
     }
-    if (!this.canPersistAutoSaveDocument()) {
+    if (!this.canPersistDocument('auto')) {
       // Testata iniziata (es. fornitore scelto) ma non ancora auto-persistita:
       // segna le modifiche per proporre il salvataggio all'uscita (§9.2).
       if (!this.editDocumentId() && this.form.controls.supplierId.value) {
@@ -906,8 +843,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants());
   }
 
+  /**
+   * Dropdown suggerimenti aperto (punto D): con risultati mostra l'elenco,
+   * senza risultati resta aperto per proporre le due azioni "Crea «testo»"
+   * e "Apri scheda completa…" (da 2 caratteri digitati in su).
+   */
   protected lineSuggestionsOpen(index: number): boolean {
-    return this.autocompleteLineIndex() === index && this.lineSuggestions(index).length > 0;
+    if (this.autocompleteLineIndex() !== index || this.lineHasLinkedProduct(index)) {
+      return false;
+    }
+    if (this.lineSuggestions(index).length > 0) {
+      return true;
+    }
+    return (this.lines.at(index)?.controls.productName.value.trim().length ?? 0) >= 2;
   }
 
   protected codeSuggestions(
@@ -995,7 +943,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.codeLookupSuggestions.set(results);
     });
 
-  /** Avvio esplicito della creazione articolo dalla riga (§8). */
+  /**
+   * Avvio esplicito della creazione articolo dalla riga (§8, punto D):
+   * il testo digitato resta come nome del nuovo articolo.
+   */
   protected startCreateNewArticle(index: number): void {
     const line = this.lines.at(index);
     if (!line || this.formReadOnly() || line.controls.variantId.value) {
@@ -1008,11 +959,39 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected cancelCreateNewArticle(index: number): void {
-    this.lines.at(index)?.controls.createNew.setValue(false);
+    const line = this.lines.at(index);
+    if (!line) {
+      return;
+    }
+    line.controls.createNew.setValue(false);
+    line.controls.newProductManagesStock.setValue(true, { emitEvent: false });
+    this.syncLineFieldAccess();
   }
 
   protected lineCreateMode(index: number): boolean {
     return Boolean(this.lines.at(index)?.controls.createNew.value);
+  }
+
+  /** Toggle "Gestito a magazzino" del nuovo articolo in creazione rapida (punto B). */
+  protected lineNewProductManagesStock(index: number): boolean {
+    return this.lines.at(index)?.controls.newProductManagesStock.value ?? true;
+  }
+
+  protected onLineNewProductManagesStockChange(index: number, value: boolean): void {
+    const line = this.lines.at(index);
+    if (!line || this.formReadOnly()) {
+      return;
+    }
+    line.controls.newProductManagesStock.setValue(value);
+    // Articolo non gestito a magazzino → la riga resta solo economica: la
+    // spunta "Mag." si disattiva e si blocca (punto B).
+    if (!value) {
+      line.controls.loadsStock.setValue(false, { emitEvent: false });
+      line.controls.loadsStock.disable({ emitEvent: false });
+    } else {
+      line.controls.loadsStock.enable({ emitEvent: false });
+      line.controls.loadsStock.setValue(true, { emitEvent: false });
+    }
   }
 
   /** Esc chiude ricerca contestuale e lookup codici senza toccare i dati (§7). */
@@ -1072,7 +1051,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     if (this.lineHasSignificantProductData(line) || Number(line.controls.quantity.value) > 0) {
-      this.commitLineAndSave(index);
+      // Il blur è un gesto passivo (punto C): collega i codici digitati e
+      // salva in modalità 'auto' — le righe createNew NON creano articoli qui.
+      this.commitLineAndSave(index, undefined, 'auto');
       return;
     }
     this.triggerAutoSave();
@@ -1162,7 +1143,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
               status: 'error',
               error: {
                 kind: AppErrorKind.NotFound,
-                message: `Codice "${value}" non trovato a catalogo. Verifica il codice oppure usa "Crea nuovo articolo" sulla riga.`,
+                message: `Codice "${value}" non trovato a catalogo. Verifica il codice oppure crea l'articolo dal campo Nome prodotto (azione "Crea" nell'elenco).`,
               },
             });
             this.focusNextLineField(index, field);
@@ -1585,6 +1566,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.formReadOnly()) {
       return;
     }
+    // Guardia di inizializzazione: patchFormFromDocument può girare in modo
+    // sincrono (documento appena auto-creato) prima che i signal delle
+    // summary siano istanziati come campi di classe.
+    const summariesReady =
+      typeof this.pinnedVariants === 'function' && typeof this.searchedVariants === 'function';
+    const summaries: readonly VariantSummary[] = summariesReady
+      ? mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants())
+      : [];
     for (const line of this.lines.controls) {
       const linked = Boolean(line.controls.variantId.value);
       // Prezzo al pubblico e Prezzo barrato restano modificabili anche su riga
@@ -1607,6 +1596,33 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         } else {
           control.enable({ emitEvent: false });
         }
+      }
+
+      // Punto B: prodotto non gestito a magazzino (variante collegata o nuovo
+      // articolo con toggle spento) → spunta "Mag." disattivata e bloccata.
+      const variantId = line.controls.variantId.value;
+      const summary = variantId ? summaries.find((row) => row.variantId === variantId) : undefined;
+      let stockLock: 'lock' | 'unlock' | 'keep';
+      if (variantId) {
+        if (summary) {
+          stockLock = summary.managesStock === false ? 'lock' : 'unlock';
+        } else {
+          // Summary non ancora caricata: una riga nata da creazione rapida
+          // non-stock resta bloccata, le altre non vengono toccate.
+          stockLock = line.controls.newProductManagesStock.value ? 'keep' : 'lock';
+        }
+      } else if (line.controls.createNew.value && !line.controls.newProductManagesStock.value) {
+        stockLock = 'lock';
+      } else {
+        stockLock = 'unlock';
+      }
+      if (stockLock === 'lock') {
+        if (line.controls.loadsStock.value) {
+          line.controls.loadsStock.setValue(false, { emitEvent: false });
+        }
+        line.controls.loadsStock.disable({ emitEvent: false });
+      } else if (stockLock === 'unlock' && line.controls.loadsStock.disabled) {
+        line.controls.loadsStock.enable({ emitEvent: false });
       }
     }
   }
@@ -1637,7 +1653,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   /**
    * Creazione articolo SOLO dopo azione esplicita "Crea nuovo articolo" (§8).
    * Lo SKU è facoltativo (chiarimento cliente su audit "Creazione articolo"):
-   * il solo nome è sufficiente per creare Product + variante tecnica.
+   * il solo nome è sufficiente per creare Product + variante tecnica. La
+   * creazione avviene lato server nella stessa transazione del salvataggio
+   * (punto A): qui si decide solo se la riga serializza `newProduct`.
    */
   private lineNeedsProductCreation(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
@@ -1645,11 +1663,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (line.controls.variantId.value || !line.controls.createNew.value) {
       return false;
     }
-    if (Number(line.controls.quantity.value) <= 0) {
-      return false;
-    }
-    const name = line.controls.productName.value.trim();
-    return name.length >= 2;
+    return line.controls.productName.value.trim().length >= 2;
   }
 
   private lineNeedsVariantLink(line: ReturnType<GoodsReceiptFormComponent['createLine']>): boolean {
@@ -1677,13 +1691,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         continue;
       }
       if (!lineDraftPersistableForExplicitSave(draft)) {
-        continue;
-      }
-      if (line.controls.createNew.value && !line.controls.sku.value.trim()) {
-        warnings.push(
-          `Riga ${index + 1}: per creare il nuovo articolo inserisci lo SKU. ` +
-            'La riga è stata salvata senza carico magazzino.',
-        );
         continue;
       }
       warnings.push(
@@ -2299,69 +2306,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.form.controls.externalDocumentTypeId.setValue(value ?? '');
   }
 
-  /** Modifica diretta del testo causale: passa a modalità MANUAL (§10). */
-  protected onCausalInput(value: string): void {
-    this.causalMode.set(CausalGenerationMode.Manual);
-    this.form.controls.causalText.setValue(value);
-    this.causalDropdownOpen.set(false);
-  }
-
-  protected toggleCausalDropdown(): void {
-    if (this.formReadOnly()) {
-      return;
-    }
-    this.causalDropdownOpen.update((open) => !open);
-  }
-
-  protected closeCausalDropdown(): void {
-    this.causalDropdownOpen.set(false);
-  }
-
-  /**
-   * Selezione di un modello causale dall'elenco (§11): diventa il modello
-   * attivo (modalità AUTO) e, se collegato, imposta il tipo documento.
-   */
-  protected pickCausal(causal: GoodsReceiptCausal): void {
-    this.causalDropdownOpen.set(false);
-    if (
-      causal.externalDocumentTypeId &&
-      causal.externalDocumentTypeId !== this.form.controls.externalDocumentTypeId.value
-    ) {
-      // emitEvent false: il modello attivo è quello della causale scelta, non
-      // il template del tipo documento associato.
-      this.form.controls.externalDocumentTypeId.setValue(causal.externalDocumentTypeId, {
-        emitEvent: false,
-      });
-      this.selectedExternalTypeId.set(causal.externalDocumentTypeId);
-    }
-    this.causalMode.set(CausalGenerationMode.Auto);
-    this.causalTemplate.set(causal.label);
-    this.applyGeneratedCausal({ emitEvent: true });
-  }
-
-  protected get causalIsManual(): boolean {
-    return this.causalMode() === CausalGenerationMode.Manual;
-  }
-
-  /** Comando "Rigenera" (§10): chiede conferma se esiste testo personalizzato. */
-  protected requestRegenerateCausal(): void {
-    if (this.formReadOnly()) {
-      return;
-    }
-    if (this.form.controls.causalText.value.trim()) {
-      this.regenerateDialogOpen.set(true);
-      return;
-    }
-    this.executeRegenerateCausal();
-  }
-
-  protected executeRegenerateCausal(): void {
-    this.regenerateDialogOpen.set(false);
-    this.causalMode.set(CausalGenerationMode.Auto);
-    this.causalTemplate.set(this.templateForType(this.form.controls.externalDocumentTypeId.value));
-    this.applyGeneratedCausal({ emitEvent: true });
-  }
-
   /** Cambio tipo documento in modalità AUTO: applica il modello del tipo (§10). */
   private applyTemplateFromType(typeId: string): void {
     if (this.causalMode() === CausalGenerationMode.Manual) {
@@ -2570,120 +2514,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       error: (err: unknown) => {
         this.typePanelBusy.set(false);
         this.typePanelError.set(this.toAppError(err).message);
-      },
-    });
-  }
-
-  // ── Gestione causali (finestra dedicata, prompt §1.2) ─────────────────────
-
-  protected openCausalPanel(): void {
-    this.causalPanelError.set(null);
-    this.causalPanelOpen.set(true);
-  }
-
-  protected closeCausalPanel(): void {
-    this.causalPanelOpen.set(false);
-    this.editingCausalId.set(null);
-    this.newCausalLabel.set('');
-    this.newCausalTypeId.set('');
-  }
-
-  protected createCausal(): void {
-    const label = this.newCausalLabel().trim();
-    if (!label || this.causalPanelBusy()) {
-      return;
-    }
-    this.runCausalAction(
-      this.causalService.create({
-        label,
-        externalDocumentTypeId: this.newCausalTypeId() || null,
-      }),
-      () => {
-        this.newCausalLabel.set('');
-        this.newCausalTypeId.set('');
-      },
-    );
-  }
-
-  protected startEditCausal(causal: GoodsReceiptCausal): void {
-    this.editingCausalId.set(causal.id);
-    this.editingCausalLabel.set(causal.label);
-    this.editingCausalTypeId.set(causal.externalDocumentTypeId ?? '');
-  }
-
-  protected cancelEditCausal(): void {
-    this.editingCausalId.set(null);
-  }
-
-  protected saveEditCausal(): void {
-    const id = this.editingCausalId();
-    const label = this.editingCausalLabel().trim();
-    if (!id || !label || this.causalPanelBusy()) {
-      return;
-    }
-    this.runCausalAction(
-      this.causalService.update(id, {
-        label,
-        externalDocumentTypeId: this.editingCausalTypeId() || null,
-      }),
-      () => this.editingCausalId.set(null),
-    );
-  }
-
-  /** Etichetta breve del tipo collegato a una causale (badge in gestione). */
-  protected causalTypeLabel(causal: GoodsReceiptCausal): string | null {
-    if (!causal.externalDocumentTypeId) {
-      return null;
-    }
-    const type = this.externalDocTypes().find((item) => item.id === causal.externalDocumentTypeId);
-    return type ? type.shortLabel || type.name : null;
-  }
-
-  protected setDefaultCausal(causal: GoodsReceiptCausal): void {
-    if (this.causalPanelBusy()) {
-      return;
-    }
-    this.runCausalAction(this.causalService.update(causal.id, { isDefault: !causal.isDefault }));
-  }
-
-  protected deleteCausal(causal: GoodsReceiptCausal): void {
-    if (this.causalPanelBusy()) {
-      return;
-    }
-    this.runCausalAction(this.causalService.delete(causal.id));
-  }
-
-  protected moveCausal(causal: GoodsReceiptCausal, direction: -1 | 1): void {
-    if (this.causalPanelBusy()) {
-      return;
-    }
-    const ordered = [...this.causals()].map((item) => item.id);
-    const index = ordered.indexOf(causal.id);
-    const target = index + direction;
-    if (index < 0 || target < 0 || target >= ordered.length) {
-      return;
-    }
-    const swapped = ordered[target];
-    if (swapped === undefined) {
-      return;
-    }
-    ordered[target] = causal.id;
-    ordered[index] = swapped;
-    this.runCausalAction(this.causalService.reorder(ordered));
-  }
-
-  private runCausalAction(action$: Observable<unknown>, onSuccess?: () => void): void {
-    this.causalPanelBusy.set(true);
-    this.causalPanelError.set(null);
-    action$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
-        this.causalPanelBusy.set(false);
-        onSuccess?.();
-        this.causalsReload.update((tick) => tick + 1);
-      },
-      error: (err: unknown) => {
-        this.causalPanelBusy.set(false);
-        this.causalPanelError.set(this.toAppError(err).message);
       },
     });
   }
@@ -3085,7 +2915,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!raw) {
       return;
     }
-    const { quantity, code } = parseBarcodeScanInput(raw);
+    const { quantity, code } = this.barcodeLookup.parseScanInput(raw);
     if (!code) {
       return;
     }
@@ -3095,34 +2925,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const supplierId = this.form.controls.supplierId.value || undefined;
     const locationId = this.form.controls.locationId.value || undefined;
 
-    this.productService
-      .findVariantByCode(code)
-      .pipe(
-        take(1),
-        catchError(() => of(null)),
-        switchMap((variant) => {
-          if (variant) {
-            return of(variant.variantId);
-          }
-          const supplierVariantId = this.variantIdBySupplierSku().get(normalizeSku(code));
-          if (supplierVariantId) {
-            return of(supplierVariantId);
-          }
-          return this.productService
-            .searchVariantSummaries({ search: code, pageSize: 5, supplierId, locationId })
-            .pipe(
-              map((rows) => {
-                const exactBarcode = rows.find((row) => row.barcode?.trim() === code);
-                if (exactBarcode) {
-                  return exactBarcode.variantId;
-                }
-                const exactSku = rows.find((row) => normalizeSku(row.sku) === normalizeSku(code));
-                return exactSku?.variantId ?? null;
-              }),
-              catchError(() => of(null)),
-            );
-        }),
-      )
+    this.barcodeLookup
+      .resolveVariantIdByCode(code, {
+        supplierId,
+        locationId,
+        // Fallback proprio dell'Arrivo merce: SKU fornitore → variante nota.
+        localFallback: (value) => this.variantIdBySupplierSku().get(normalizeSku(value)),
+      })
       .subscribe({
         next: (variantId) => {
           this.barcodeScanBusy.set(false);
@@ -3393,7 +3202,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     this.exitDialogOpen.set(false);
     this._submitState.set({ status: 'saving' });
-    this.commitAllLineProducts$()
+    this.linkAllLineCodes$()
       .pipe(
         switchMap(() => this.saveDocument$({ mode: 'explicit' })),
         take(1),
@@ -3794,14 +3603,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     readonly stayOnPage?: boolean;
     readonly onComplete?: () => void;
     readonly onCompleteOnError?: boolean;
+    /** 'commit' = gesto esplicito di riga: include le righe createNew (punto C). */
+    readonly mode?: 'auto' | 'commit';
   }): void {
+    const mode = options?.mode ?? 'auto';
     if (this.saving()) {
       if (options?.onComplete) {
         this.pendingAutoSaveCallbacks.push(options.onComplete);
       }
       return;
     }
-    if (!this.canPersistAutoSaveDocument()) {
+    if (!this.canPersistDocument(mode)) {
       this.autoSavePending.set(false);
       options?.onComplete?.();
       return;
@@ -3809,9 +3621,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this._submitState.set({ status: 'saving' });
 
     const hadRouteEditId = Boolean(this.editDocumentId());
-    this.commitAllLineProducts$()
+    this.linkAllLineCodes$()
       .pipe(
-        switchMap(() => this.saveDocument$({ mode: 'auto' })),
+        switchMap(() => this.saveDocument$({ mode })),
         take(1),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -4000,6 +3812,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
       createNew: this.fb.control(false),
+      newProductManagesStock: this.fb.control(true),
       supplierOrderLineId: this.fb.control(orderLine.id),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),
@@ -4103,6 +3916,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
       createNew: this.fb.control(false),
+      newProductManagesStock: this.fb.control(true),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),
@@ -4177,7 +3991,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.syncActiveFieldBeforeSave();
     this._submitState.set({ status: 'saving' });
     this.submitSubscription?.unsubscribe();
-    this.submitSubscription = this.commitAllLineProducts$()
+    this.submitSubscription = this.linkAllLineCodes$()
       .pipe(
         switchMap(() => this.saveDocument$({ applySupplierPriceUpdates, mode: 'explicit' })),
         take(1),
@@ -4266,24 +4080,32 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Autosave: header valido + almeno una riga auto-persistibile prima del
-   * primo create. Le query di ricerca e i tentativi non confermati non
-   * creano mai il documento (§6/§7).
+   * Salvataggio persistibile: header valido + almeno una riga persistibile
+   * per la modalità richiesta prima del primo create. Le query di ricerca e
+   * i tentativi non confermati non creano mai il documento (§6/§7); le righe
+   * createNew contano solo sui gesti espliciti (punto C).
    */
-  private canPersistAutoSaveDocument(): boolean {
+  private canPersistDocument(mode: GoodsReceiptSaveMode): boolean {
     if (!this.validateForAutoSave()) {
       return false;
     }
     if (this.editDocumentId()) {
       return true;
     }
-    return this.lines.controls.some((line) =>
-      lineDraftPersistableForAutoSave(this.lineDraft(line)),
-    );
+    const predicate =
+      mode === 'auto' ? lineDraftPersistableForAutoSave : lineDraftPersistableForExplicitSave;
+    return this.lines.controls.some((line) => predicate(this.lineDraft(line)));
   }
 
-  /** Righe inviate nell'ultimo salvataggio, per riadottare gli id dal server. */
-  private lastSavedLineControls: ReturnType<GoodsReceiptFormComponent['createLine']>[] = [];
+  /**
+   * Righe inviate nell'ultimo salvataggio, per riadottare id/variante dal
+   * server. `registryOnly` marca le righe createNew a quantità 0: il server
+   * crea la sola anagrafica e NON restituisce una riga documento per esse.
+   */
+  private lastSavedLineEntries: {
+    readonly control: ReturnType<GoodsReceiptFormComponent['createLine']>;
+    readonly registryOnly: boolean;
+  }[] = [];
 
   private buildSaveGoodsReceiptBody(mode: GoodsReceiptSaveMode): SaveGoodsReceiptBody {
     const raw = this.form.getRawValue();
@@ -4300,7 +4122,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     for (const control of persistableControls) {
       this.ensureLineVatCode(control);
     }
-    this.lastSavedLineControls = persistableControls;
+    this.lastSavedLineEntries = persistableControls.map((control) => ({
+      control,
+      registryOnly:
+        this.lineSerializesNewProduct(control, mode) && Number(control.getRawValue().quantity) <= 0,
+    }));
     return {
       id: this.persistedDocumentId() ?? undefined,
       type: raw.type,
@@ -4329,6 +4155,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         const line = control.getRawValue();
         const cost = parseMoneyInput(line.unitCost, this.currency);
         const name = line.productName.trim() || line.description.trim();
+        const newProduct = this.lineSerializesNewProduct(control, mode)
+          ? this.buildNewProductBody(control)
+          : undefined;
         return {
           id: line.id || undefined,
           variantId: line.variantId || undefined,
@@ -4340,17 +4169,50 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           discountPercent: parseEffectiveDiscountPercent(line.discountPercent ?? ''),
           vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
           vatCodeId: line.vatCodeId || undefined,
-          // Le righe senza articolo collegato non caricano ancora il magazzino:
-          // il movimento nasce al salvataggio successivo, quando la riga è valida.
-          loadsStock: line.loadsStock && Boolean(line.variantId),
+          // Le righe senza articolo collegato non caricano ancora il magazzino;
+          // con `newProduct` la variante nasce in transazione e il movimento
+          // parte nello stesso salvataggio (punto A).
+          loadsStock: line.loadsStock && (Boolean(line.variantId) || newProduct != null),
           supplierOrderLineId: line.supplierOrderLineId || undefined,
           lotCode: line.lotCode.trim() || undefined,
           lotExpiryDate: line.lotExpiryDate
             ? new Date(line.lotExpiryDate).toISOString()
             : undefined,
           serialNumbers: parseSerialNumbersText(line.serialNumbersText),
+          newProduct,
         };
       }),
+    };
+  }
+
+  /**
+   * La riga serializza `newProduct` SOLO su gesti espliciti (punto C): mai
+   * in autosave passivo, mai con un articolo già collegato.
+   */
+  private lineSerializesNewProduct(
+    control: ReturnType<GoodsReceiptFormComponent['createLine']>,
+    mode: GoodsReceiptSaveMode,
+  ): boolean {
+    return mode !== 'auto' && this.lineNeedsProductCreation(control);
+  }
+
+  /** Dati del nuovo articolo dalla riga (SKU facoltativo, punto A). */
+  private buildNewProductBody(
+    control: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): SaveGoodsReceiptNewProductBody {
+    const line = control.getRawValue();
+    const purchase = parseMoneyInput(line.unitCost, this.currency);
+    const selling = parseMoneyInput(line.sellingPrice, this.currency);
+    const compareAt = parseMoneyInput(line.compareAtPrice, this.currency);
+    return {
+      name: line.productName.trim(),
+      sku: line.sku.trim() || undefined,
+      barcode: line.barcode.trim() || undefined,
+      sellingPriceMinor: selling?.amountMinor ?? undefined,
+      compareAtPriceMinor: compareAt?.amountMinor || undefined,
+      purchasePriceMinor: purchase?.amountMinor || undefined,
+      vatCodeId: line.vatCodeId || undefined,
+      managesStock: line.newProductManagesStock === false ? false : undefined,
     };
   }
 
@@ -4369,8 +4231,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       applySupplierPriceUpdates: options?.applySupplierPriceUpdates,
     };
     return this.documentService.saveGoodsReceipt(body).pipe(
-      map(({ document, warnings }) => {
-        this.adoptSavedLineIds(document);
+      map(({ document, warnings, createdProducts }) => {
+        this.adoptSavedLineState(document, createdProducts);
         // Al salvataggio esplicito si aggiungono gli avvisi locali sulle
         // righe senza articolo (§13): salvate ma senza carico magazzino.
         this.saveWarnings.set(
@@ -4382,19 +4244,49 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Riassegna gli id riga dal documento salvato ai form group inviati: le
-   * righe tornano nello stesso ordine (lineNumber progressivo sul payload).
+   * Riassegna id riga e articoli creati dal salvataggio ai form group
+   * inviati. Le righe tornano nello stesso ordine (lineNumber progressivo sul
+   * payload), MA le righe solo-anagrafica (createNew a quantità 0) non hanno
+   * una riga documento nella risposta: vanno saltate nello zip. I prodotti
+   * creati in transazione (punto A) arrivano in `createdProducts` indicizzati
+   * sulla posizione della riga nel payload: la riga adotta variantId/sku.
    */
-  private adoptSavedLineIds(doc: DocumentRecord): void {
+  private adoptSavedLineState(
+    doc: DocumentRecord,
+    createdProducts: readonly GoodsReceiptCreatedProductApiRow[] | undefined,
+  ): void {
     const savedLines = doc.lines ?? [];
-    for (let index = 0; index < this.lastSavedLineControls.length; index += 1) {
-      const control = this.lastSavedLineControls[index];
-      const saved = savedLines[index];
-      if (control && saved && this.lines.controls.includes(control)) {
-        control.controls.id.setValue(saved.id, { emitEvent: false });
+    const createdByIndex = new Map((createdProducts ?? []).map((row) => [row.lineIndex, row]));
+    let savedIndex = 0;
+    let adoptedVariant = false;
+    for (let index = 0; index < this.lastSavedLineEntries.length; index += 1) {
+      const entry = this.lastSavedLineEntries[index];
+      if (!entry) {
+        continue;
+      }
+      const stillPresent = this.lines.controls.includes(entry.control);
+      const created = createdByIndex.get(index);
+      if (created && stillPresent) {
+        entry.control.controls.variantId.setValue(created.variantId, { emitEvent: false });
+        entry.control.controls.sku.setValue(created.sku ?? '', { emitEvent: false });
+        entry.control.controls.barcode.setValue(created.barcode ?? '', { emitEvent: false });
+        entry.control.controls.createNew.setValue(false, { emitEvent: false });
+        adoptedVariant = true;
+      }
+      if (entry.registryOnly) {
+        // Nessuna riga documento corrispondente nella risposta del server.
+        continue;
+      }
+      const saved = savedLines[savedIndex];
+      savedIndex += 1;
+      if (stillPresent && saved) {
+        entry.control.controls.id.setValue(saved.id, { emitEvent: false });
       }
     }
-    this.lastSavedLineControls = [];
+    this.lastSavedLineEntries = [];
+    if (adoptedVariant) {
+      this.syncLineFieldAccess();
+    }
   }
 
   private syncActiveFieldBeforeSave(): void {
@@ -4404,16 +4296,31 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
   }
 
-  private commitLineAndSave(index: number, after?: () => void): void {
+  /**
+   * Gesto esplicito sulla riga (Invio / aggiungi riga / scansione): collega
+   * eventuali codici digitati e salva. In modalità 'commit' le righe
+   * createNew vengono persistite con `newProduct` (punto C); il blur passivo
+   * usa 'auto' e non crea mai articoli.
+   */
+  private commitLineAndSave(
+    index: number,
+    after?: () => void,
+    mode: 'auto' | 'commit' = 'commit',
+  ): void {
     if (this.formReadOnly()) {
       after?.();
       return;
     }
-    this.commitLineProducts$([index])
+    this.linkLineCodes$([index])
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.persistAutoSave({ stayOnPage: true, onComplete: after, onCompleteOnError: true });
+          this.persistAutoSave({
+            stayOnPage: true,
+            onComplete: after,
+            onCompleteOnError: true,
+            mode,
+          });
         },
         error: (err: unknown) => {
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
@@ -4422,33 +4329,23 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
   }
 
-  private commitAllLineProducts$() {
+  /** Collega per SKU/EAN le righe con codice digitato ma senza articolo. */
+  private linkAllLineCodes$() {
     const indices = this.lines.controls
       .map((_, lineIndex) => lineIndex)
-      .filter((lineIndex) => {
-        const line = this.lines.at(lineIndex);
-        return this.lineNeedsProductCreation(line) || this.lineNeedsVariantLink(line);
-      });
-    return this.commitLineProducts$(indices);
+      .filter((lineIndex) => this.lineNeedsVariantLink(this.lines.at(lineIndex)));
+    return this.linkLineCodes$(indices);
   }
 
-  private commitLineProducts$(lineIndices: readonly number[]) {
+  private linkLineCodes$(lineIndices: readonly number[]) {
     const pending = lineIndices
       .map((index) => ({ line: this.lines.at(index), index }))
-      .filter(
-        ({ line }) =>
-          line != null && (this.lineNeedsProductCreation(line) || this.lineNeedsVariantLink(line)),
-      );
+      .filter(({ line }) => line != null && this.lineNeedsVariantLink(line));
     if (pending.length === 0) {
       return of(undefined);
     }
     return from(pending).pipe(
-      concatMap(({ line, index }) => {
-        if (this.lineNeedsProductCreation(line)) {
-          return this.createProductForLine(line, index);
-        }
-        return this.linkLineByCode(line, index);
-      }),
+      concatMap(({ line, index }) => this.linkLineByCode(line, index)),
       defaultIfEmpty(undefined),
       last(),
     );
@@ -4484,115 +4381,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         return of(undefined);
       }),
     );
-  }
-
-  /**
-   * Creazioni articolo in corso, per riga. Invio riga, autosave e "Salva
-   * documento" possono sovrapporsi: senza questa mappa la stessa riga
-   * genererebbe POST /products concorrenti (409/500 sul vincolo SKU).
-   */
-  private readonly pendingLineCreates = new Map<
-    ReturnType<GoodsReceiptFormComponent['createLine']>,
-    Observable<undefined>
-  >();
-
-  private createProductForLine(
-    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
-    _index: number,
-  ) {
-    const pending = this.pendingLineCreates.get(line);
-    if (pending) {
-      return pending;
-    }
-    const name = line.controls.productName.value.trim();
-    if (name.length < 2) {
-      return throwError(() => ({
-        kind: AppErrorKind.Validation,
-        message: 'Per creare questo articolo inserisci il nome prodotto.',
-      }));
-    }
-    // Lo SKU è facoltativo (chiarimento cliente su audit "Creazione
-    // articolo"): il solo nome basta a creare Product + variante tecnica.
-    const sku = line.controls.sku.value.trim() || undefined;
-    const purchase = parseMoneyInput(line.controls.unitCost.value, this.currency);
-    const selling =
-      parseMoneyInput(line.controls.sellingPrice.value, this.currency) ??
-      moneyFromMajor(0, this.currency);
-    const compareAt = parseMoneyInput(line.controls.compareAtPrice.value, this.currency);
-    const barcode = line.controls.barcode.value.trim() || undefined;
-
-    const create$ = this.productService
-      .createProduct({
-        name,
-        status: ProductStatus.Active,
-        defaultVatCodeId: line.controls.vatCodeId.value || undefined,
-        options: [],
-        variants: [
-          {
-            sku,
-            optionValues: [],
-            sellingPrice: selling,
-            purchasePrice: purchase?.amountMinor ? purchase : undefined,
-            compareAtPrice: compareAt?.amountMinor ? compareAt : undefined,
-            barcode,
-          },
-        ],
-      })
-      .pipe(
-        // Senza SKU non c'è più nulla su cui cercare la variante appena
-        // creata: si rilegge direttamente dal prodotto (il suo id è già
-        // disponibile dalla risposta di creazione).
-        switchMap(
-          (product): Observable<ResolvedNewLineVariant> =>
-            this.productService.getProductVariants(product.id).pipe(
-              map((variants) => {
-                const variant = variants[0];
-                if (!variant) {
-                  throw Object.assign(new Error('Articolo creato ma variante non trovata.'), {
-                    kind: AppErrorKind.Unknown,
-                  });
-                }
-                return {
-                  variantId: variant.id,
-                  sku: variant.sku ?? null,
-                  barcode: variant.barcode ?? null,
-                };
-              }),
-            ),
-        ),
-        // Se la creazione fallisce ma la variante esiste già (richiesta
-        // concorrente o tentativo precedente riuscito a metà), la riga si
-        // riaggancia invece di restare bloccata a ogni salvataggio. Possibile
-        // solo se è stato specificato uno SKU: senza, non c'è modo di
-        // ritrovare la variante del tentativo fallito.
-        catchError((err: unknown) => {
-          if (!sku) {
-            return throwError(() => err);
-          }
-          return this.productService.findVariantByCode(sku).pipe(
-            map(
-              (variant): ResolvedNewLineVariant => ({
-                variantId: variant.variantId,
-                sku: variant.sku ?? null,
-                barcode: variant.barcode ?? null,
-              }),
-            ),
-            catchError(() => throwError(() => err)),
-          );
-        }),
-        map((resolved) => {
-          line.controls.variantId.setValue(resolved.variantId, { emitEvent: false });
-          line.controls.sku.setValue(resolved.sku ?? '', { emitEvent: false });
-          line.controls.barcode.setValue(resolved.barcode ?? '', { emitEvent: false });
-          line.controls.createNew.setValue(false, { emitEvent: false });
-          this.syncLineFieldAccess();
-          return undefined;
-        }),
-        finalize(() => this.pendingLineCreates.delete(line)),
-        shareReplay(1),
-      );
-    this.pendingLineCreates.set(line, create$);
-    return create$;
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
@@ -4682,6 +4470,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           // default attivo, così al collegamento dell'articolo il carico parte (§11).
           loadsStock: this.fb.control(line.variantId ? line.loadsStock : true),
           createNew: this.fb.control(false),
+          newProductManagesStock: this.fb.control(true),
           supplierOrderLineId: this.fb.control(line.supplierOrderLineId ?? ''),
           lotCode: this.fb.control(line.lotCode ?? ''),
           lotExpiryDate: this.fb.control(line.lotExpiryDate ? line.lotExpiryDate.slice(0, 10) : ''),
@@ -4718,6 +4507,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       loadsStock: this.fb.control(true),
       // Creazione nuovo articolo SOLO su azione esplicita dell'utente (§8).
       createNew: this.fb.control(false),
+      // Toggle "Gestito a magazzino" del nuovo articolo (punto B, default sì).
+      newProductManagesStock: this.fb.control(true),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),

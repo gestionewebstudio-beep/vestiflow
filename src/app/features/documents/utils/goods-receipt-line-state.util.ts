@@ -119,16 +119,28 @@ export function lineDraftIsSearchQueryOnly(draft: GoodsReceiptLineDraft): boolea
 }
 
 /**
- * Persistibilità al salvataggio esplicito ("Salva documento" / uscita):
- * righe con articolo e quantità, righe in creazione esplicita, oppure righe
- * parziali con dati significativi oltre il solo nome (persistite come righe
- * economiche senza movimento, specifica §5/§13). Le query di ricerca sono
- * sempre escluse.
+ * Nome sufficiente per la creazione esplicita dell'articolo dalla riga
+ * (punto A): il solo nome basta, lo SKU è facoltativo (specifica §SKU).
+ */
+export function lineDraftHasCreatableName(draft: GoodsReceiptLineDraft): boolean {
+  return draft.productName.trim().length >= 2;
+}
+
+/**
+ * Persistibilità al salvataggio esplicito ("Salva documento" / uscita /
+ * Invio-aggiungi riga): righe con articolo e quantità, righe in creazione
+ * esplicita con nome valido (anche a quantità 0: creano la sola anagrafica,
+ * punto A), oppure righe parziali con dati significativi oltre il solo nome
+ * (persistite come righe economiche senza movimento, specifica §5/§13).
+ * Le query di ricerca sono sempre escluse.
  */
 export function lineDraftPersistableForExplicitSave(draft: GoodsReceiptLineDraft): boolean {
   const qty = draftQuantity(draft);
   if (draft.variantId) {
     return qty > 0;
+  }
+  if (draft.createNew && lineDraftHasCreatableName(draft)) {
+    return true;
   }
   if (qty <= 0) {
     return false;
@@ -140,15 +152,16 @@ export function lineDraftPersistableForExplicitSave(draft: GoodsReceiptLineDraft
 }
 
 /**
- * Persistibilità in autosave: solo righe con articolo collegato oppure righe
- * già persistite (id assegnato dal server). Una query di ricerca o un
- * tentativo di riga non confermato non devono mai auto-persistersi (§6/§7).
- * Le righe già persistite restano nel payload finché sono ancora persistibili
- * (ometterle le cancellerebbe sul server).
+ * Persistibilità in autosave passivo (debounce): SOLO righe con articolo
+ * collegato oppure righe già persistite (id assegnato dal server). Le righe
+ * in creazione esplicita (createNew) NON si auto-persistono mai: l'articolo
+ * nasce solo sui gesti espliciti — Invio/aggiungi riga, Salva documento,
+ * Salva e chiudi (punto C). Le righe già persistite restano nel payload
+ * finché sono ancora persistibili (ometterle le cancellerebbe sul server).
  */
 export function lineDraftPersistableForAutoSave(draft: GoodsReceiptLineDraft): boolean {
-  if (!lineDraftPersistableForExplicitSave(draft)) {
+  if (!draft.variantId && !draft.id) {
     return false;
   }
-  return Boolean(draft.variantId) || Boolean(draft.id);
+  return lineDraftPersistableForExplicitSave(draft);
 }

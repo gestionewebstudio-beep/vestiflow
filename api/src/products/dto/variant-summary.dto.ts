@@ -22,4 +22,6 @@ export interface VariantSummaryDto {
   readonly category?: string | null;
   readonly unitOfMeasure?: string | null;
   readonly defaultVatCodeId?: string | null;
+  /** False = prodotto non gestito a magazzino: le righe documento non caricano giacenza. */
+  readonly managesStock?: boolean;
 }

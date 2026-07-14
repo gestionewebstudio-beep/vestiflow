@@ -30,16 +30,21 @@ export async function searchAndPickLineVariant(
   return true;
 }
 
-/** Creazione esplicita di un nuovo articolo dalla riga (§8): nome + SKU. */
+/**
+ * Creazione esplicita di un nuovo articolo dalla riga (§8, punto D): il
+ * dropdown del campo Nome prodotto offre l'azione "Crea «testo»".
+ */
 export async function createLineArticleExplicit(page: Page, lineIndex = 0): Promise<string> {
   const sku = `E2E-GR-${Date.now()}`;
+  const name = `Articolo E2E ${sku}`;
   const nameInput = page.locator(`#gr-product-${lineIndex}`);
   await nameInput.click();
-  await nameInput.fill(`Articolo E2E ${sku}`);
-  // Chiude eventuali suggerimenti prima di avviare la creazione esplicita.
-  await page.keyboard.press('Escape');
+  await nameInput.fill(name);
 
-  await page.getByRole('button', { name: 'Crea nuovo articolo' }).first().click();
+  await page
+    .getByRole('button', { name: `Crea «${name}»` })
+    .first()
+    .click();
   await expect(page.locator('.gr-product-cell__create-badge').first()).toBeVisible();
 
   await page.locator(`#gr-sku-${lineIndex}`).fill(sku);
