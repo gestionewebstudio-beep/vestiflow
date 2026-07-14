@@ -528,8 +528,6 @@ model Product {
   tiktokLastError                 String?                 @map("tiktok_last_error")
   /// Unità di misura (es. pz, kg, conf). Default pezzi.
   unitOfMeasure                   String                  @default("pz") @map("unit_of_measure")
-  /// LEGACY: aliquota IVA % intera, sostituita da defaultVatCodeId (§7).
-  defaultVatRatePercent           Int?                    @map("default_vat_rate_percent")
   /// Codice IVA ordinario dell'articolo. Null = usa il predefinito aziendale.
   defaultVatCodeId                String?                 @map("default_vat_code_id") @db.Uuid
   /// Tracciamento inventario: standard, lotti, seriali o nessuno.
@@ -769,8 +767,8 @@ model Supplier {
   paymentTerms String?  @map("payment_terms")
   /// Sconto fornitore (es. "10%" o "4+10%" — applicazione a cascata).
   supplierDiscount       String? @map("supplier_discount")
-  /// Aliquota IVA predefinita per documenti di questo fornitore.
-  defaultVatRatePercent  Int?    @map("default_vat_rate_percent")
+  /// Codice IVA predefinito per documenti di questo fornitore. Null = usa il predefinito aziendale.
+  defaultVatCodeId       String? @map("default_vat_code_id") @db.Uuid
   /// Incaricato trasporto (es. "Vettore", "Mittente").
   transportResponsible   String? @map("transport_responsible")
   /// Porto (es. "Franco", "Assegnato").
@@ -787,6 +785,7 @@ model Supplier {
   documents      Document[]
   attachments    SupplierAttachment[]
   variantLinks   SupplierVariantLink[]
+  defaultVatCode VatCode?              @relation(fields: [defaultVatCodeId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1175,10 +1174,14 @@ model OnlineSaleLine {
   discountMinor    Int      @default(0) @map("discount_minor")
   /// Imponibile riga (dopo sconto, prima IVA).
   subtotalMinor    Int      @default(0) @map("subtotal_minor")
-  /// Aliquota IVA % quando derivabile dal canale; null se non disponibile.
-  vatRatePercent   Int?     @map("vat_rate_percent")
   taxMinor         Int      @default(0) @map("tax_minor")
   totalMinor       Int      @default(0) @map("total_minor")
+  /// Codice IVA riconosciuto per corrispondenza inversa con l'aliquota
+  /// derivata dal canale. Null se nessuna corrispondenza attiva per il tenant.
+  vatCodeId        String?  @map("vat_code_id") @db.Uuid
+  /// Snapshot IVA al momento dell'evasione: Codice IVA se riconosciuto,
+  /// altrimenti solo l'aliquota derivata dal canale (§7).
+  vatSnapshot      Json?    @map("vat_snapshot")
   /// Riga ordine origine (snapshot: la vendita non dipende da modifiche future).
   salesOrderLineId String?  @map("sales_order_line_id") @db.Uuid
   /// Impegno consumato da questa riga (traccia del consumo, §3).
@@ -1190,6 +1193,7 @@ model OnlineSaleLine {
   tenant     Tenant          @relation(fields: [tenantId], references: [id])
   onlineSale OnlineSale      @relation(fields: [onlineSaleId], references: [id], onDelete: Cascade)
   variant    ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  vatCode    VatCode?        @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
 
   @@index([onlineSaleId])
   @@index([tenantId])
@@ -1255,13 +1259,19 @@ model CorrispettivoEntryLine {
   quantity       Int      @default(1)
   discountMinor  Int      @default(0) @map("discount_minor")
   subtotalMinor  Int      @default(0) @map("subtotal_minor")
-  vatRatePercent Int?     @map("vat_rate_percent")
   taxMinor       Int      @default(0) @map("tax_minor")
   totalMinor     Int      @default(0) @map("total_minor")
+  /// Codice IVA riconosciuto per corrispondenza inversa con l'aliquota
+  /// derivata dal canale. Null se nessuna corrispondenza attiva per il tenant.
+  vatCodeId      String?  @map("vat_code_id") @db.Uuid
+  /// Snapshot IVA al momento della registrazione: Codice IVA se riconosciuto,
+  /// altrimenti solo l'aliquota derivata dal canale (§7).
+  vatSnapshot    Json?    @map("vat_snapshot")
   createdAt      DateTime @default(now()) @map("created_at")
 
   tenant Tenant             @relation(fields: [tenantId], references: [id])
   entry  CorrispettivoEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  vatCode VatCode?          @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
 
   @@index([entryId])
   @@index([tenantId])
@@ -1453,9 +1463,7 @@ model TenantFeatureSettings {
   warnNegativeInventory       Boolean                   @default(true) @map("warn_negative_inventory")
   blockNegativeInventory      Boolean                   @default(false) @map("block_negative_inventory")
   defaultUnitOfMeasure          String                    @default("pz") @map("default_unit_of_measure")
-  /// LEGACY: sostituito da defaultVatCodeId. Mantenuto fino a verifica migrazione (§7.1).
-  defaultVatRatePercent         Int                       @default(22) @map("default_vat_rate_percent")
-  /// Codice IVA predefinito aziendale (sostituisce defaultVatRatePercent).
+  /// Codice IVA predefinito aziendale.
   defaultVatCodeId              String?                   @map("default_vat_code_id") @db.Uuid
   /// Modalità costi predefinita nei nuovi Arrivi merce (§11.1).
   defaultPurchaseCostEntryMode  PurchaseCostEntryMode     @default(vat_excluded) @map("default_purchase_cost_entry_mode")
@@ -1611,9 +1619,6 @@ model DocumentLine {
   /// confronto prezzi fornitore, storico costi e valorizzazione).
   unitPriceMinor  Int      @default(0) @map("unit_price_minor")
   discountPercent Int      @default(0) @map("discount_percent")
-  /// LEGACY: aliquota IVA % intera. Sostituita da vatCodeId + vatSnapshot;
-  /// mantenuta valorizzata per compatibilità e migrazione (§7.2).
-  vatRatePercent  Int?     @map("vat_rate_percent")
   /// Imponibile riga in unità minori (dopo sconto riga, prima IVA).
   lineTotalMinor  Int      @default(0) @map("line_total_minor")
   /// Codice IVA della riga. Null su righe storiche non migrate.
@@ -1753,6 +1758,9 @@ model VatCode {
   products      Product[]
   documentLines DocumentLine[]
   featureSettingsDefault TenantFeatureSettings[]
+  suppliers                Supplier[]
+  onlineSaleLines          OnlineSaleLine[]
+  corrispettivoEntryLines  CorrispettivoEntryLine[]
 
   @@unique([tenantId, code])
   @@index([tenantId, sortOrder])

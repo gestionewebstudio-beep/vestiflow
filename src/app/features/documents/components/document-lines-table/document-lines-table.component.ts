@@ -16,7 +16,8 @@ export class DocumentLinesTableComponent {
   protected readonly formatMoney = formatMoney;
 
   protected vatLabel(line: DocumentLine): string {
-    return line.vatRatePercent != null ? `${line.vatRatePercent}%` : '—';
+    const rate = line.vatSnapshot?.ratePercent;
+    return rate != null ? `${rate}%` : '—';
   }
 
   protected discountLabel(line: DocumentLine): string {

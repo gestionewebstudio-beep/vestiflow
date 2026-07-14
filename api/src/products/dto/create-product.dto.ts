@@ -5,13 +5,10 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
   IsUUID,
-  Max,
   MaxLength,
-  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -143,13 +140,6 @@ export class CreateProductDto {
   @MinLength(1)
   @MaxLength(20)
   unitOfMeasure?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  defaultVatRatePercent?: number;
 
   /** Codice IVA ordinario dell'articolo (§8). Null = predefinito aziendale. */
   @IsOptional()

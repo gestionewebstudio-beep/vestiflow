@@ -23,7 +23,6 @@ import {
   canSyncShopifyOperationalData,
   canViewCustomers,
   canViewReports,
-  hasTenantRoutePermission,
   isTenantAdmin,
   isTenantManager,
 } from './tenant-permissions.util';
@@ -49,8 +48,6 @@ function userWithRole(role: User['role'], overrides: Partial<User> = {}): User {
     ...overrides,
   };
 }
-
-const ALL_ROLES = [UserRole.Owner, UserRole.Admin, UserRole.Manager, UserRole.Clerk] as const;
 
 describe('tenant-permissions.util', () => {
   it('isTenantAdmin consente owner e admin', () => {
@@ -164,21 +161,6 @@ describe('tenant-permissions.util', () => {
     expect(canManageMfa(platformAdmin)).toBe(true);
   });
 
-  it('hasTenantRoutePermission rispecchia admin e manager per ogni ruolo', () => {
-    const matrix: Record<User['role'], { admin: boolean; manager: boolean }> = {
-      [UserRole.Owner]: { admin: true, manager: true },
-      [UserRole.Admin]: { admin: true, manager: true },
-      [UserRole.Manager]: { admin: false, manager: true },
-      [UserRole.Clerk]: { admin: false, manager: true },
-    };
-
-    for (const role of ALL_ROLES) {
-      const user = userWithRole(role);
-      expect(hasTenantRoutePermission(user, 'admin')).toBe(matrix[role].admin);
-      expect(hasTenantRoutePermission(user, 'manager')).toBe(matrix[role].manager);
-    }
-  });
-
   it('ritorna false con utente null per ogni helper', () => {
     expect(isTenantAdmin(null)).toBe(false);
     expect(isTenantManager(undefined)).toBe(false);
@@ -187,7 +169,6 @@ describe('tenant-permissions.util', () => {
     expect(canManageSupplierOrders(null)).toBe(false);
     expect(canViewReports(null)).toBe(false);
     expect(canViewCustomers(null)).toBe(false);
-    expect(hasTenantRoutePermission(null, 'manager')).toBe(false);
   });
 
   it('canViewReports e canViewCustomers rispettano permessi espliciti', () => {

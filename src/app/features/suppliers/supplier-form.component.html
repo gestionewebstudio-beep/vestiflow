@@ -20,6 +20,7 @@
         idPrefix="supplier-page"
         [formGroup]="form"
         [showCodeField]="isEdit()"
+        [vatCodes]="vatCodes()"
       />
 
       @if (saveError(); as message) {

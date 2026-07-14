@@ -128,6 +128,7 @@
                 <th scope="col" class="pos-cart__cell--num">Qtà</th>
                 <th scope="col" class="pos-cart__cell--num">Prezzo</th>
                 <th scope="col" class="pos-cart__cell--num">Sconto %</th>
+                <th scope="col" class="pos-cart__cell--num">IVA</th>
                 <th scope="col" class="pos-cart__cell--num">Totale</th>
                 <th scope="col"><span class="sr-only">Azioni</span></th>
               </tr>
@@ -196,6 +197,16 @@
                       [value]="line.discountPercent"
                       [attr.aria-label]="'Sconto percentuale ' + line.sku"
                       (change)="onDiscountInput(line.variantId, $event)"
+                    />
+                  </td>
+                  <td class="pos-cart__cell--num pos-cart__vat" data-label="IVA">
+                    <app-select-menu
+                      [options]="lineVatOptions(line)"
+                      [value]="line.vatCodeId"
+                      [ariaLabel]="'Codice IVA ' + line.sku"
+                      placeholder="Predefinito"
+                      [compact]="true"
+                      (valueChange)="onLineVatSelect(line.variantId, $event)"
                     />
                   </td>
                   <td class="pos-cart__cell--num tabular-nums" data-label="Totale">

@@ -154,8 +154,15 @@ export class OnlineSaleDetailComponent {
     return formatMoney(money);
   }
 
-  protected vatLabel(vatRatePercent: number | null): string {
-    return vatRatePercent == null ? '—' : `${vatRatePercent}%`;
+  /** Etichetta Codice IVA riconosciuto per corrispondenza inversa, altrimenti solo l'aliquota grezza. */
+  protected vatLabel(line: {
+    readonly vatCodeLabel: string | null;
+    readonly vatRatePercent: number | null;
+  }): string {
+    if (line.vatCodeLabel) {
+      return line.vatCodeLabel;
+    }
+    return line.vatRatePercent == null ? '—' : `${line.vatRatePercent}%`;
   }
 
   protected movementTypeLabel(type: string): string {

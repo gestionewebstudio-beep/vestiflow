@@ -444,6 +444,11 @@ function createFakeDb() {
         return Promise.resolve({ count: data.length });
       },
     },
+    vatCode: {
+      // Nessun Codice IVA attivo nei test: la corrispondenza inversa resta
+      // null e lo snapshot conserva solo l'aliquota derivata dal canale.
+      findMany: () => Promise.resolve([]),
+    },
   };
 
   const takeSnapshot = () => ({
@@ -813,7 +818,6 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
       subtotalMinor: 2459,
       taxMinor: 541,
       totalMinor: 3000,
-      vatRatePercent: 22,
     });
 
     // Un movimento per riga, negativo (tipo online_sale), collegato a vendita e riga.

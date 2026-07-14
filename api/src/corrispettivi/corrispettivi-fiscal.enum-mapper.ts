@@ -11,8 +11,6 @@ export const API_FISCAL_STATUS_VALUES = [
   'invoiced',
 ] as const;
 
-export type ApiSalesOrderFiscalStatus = (typeof API_FISCAL_STATUS_VALUES)[number];
-
 export function toPrismaFiscalStatus(status?: string): PrismaFiscal | undefined {
   switch (status) {
     case 'pending_registration':

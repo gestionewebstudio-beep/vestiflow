@@ -27,6 +27,8 @@ import {
   switchMap,
   throwError,
   defaultIfEmpty,
+  finalize,
+  shareReplay,
   toArray,
   type Observable,
 } from 'rxjs';
@@ -924,6 +926,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected onLineSkuChange(index: number, value: string): void {
     this.lines.at(index).controls.sku.setValue(value);
+    this.codesNotFound.clear();
     this.clearProductAutocomplete();
     // Ricerca contestuale live anche sul codice (§7): da 3 caratteri in su.
     const term = value.trim();
@@ -997,6 +1000,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected onLineBarcodeChange(index: number, value: string): void {
     this.lines.at(index).controls.barcode.setValue(value);
+    this.codesNotFound.clear();
     this.clearCodeLookup();
     this.triggerAutoSave();
   }
@@ -1129,6 +1133,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
               return;
             }
             this.clearCodeLookup();
+            // Nessun articolo per il codice digitato: senza feedback l'utente
+            // crede di aver collegato l'articolo e il salvataggio "non salva".
+            this._submitState.set({
+              status: 'error',
+              error: {
+                kind: AppErrorKind.NotFound,
+                message: `Codice "${value}" non trovato a catalogo. Verifica il codice oppure usa "Crea nuovo articolo" sulla riga.`,
+              },
+            });
             this.focusNextLineField(index, field);
           });
       });
@@ -2199,11 +2212,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         emitEvent: false,
       });
     }
-    if (!line.controls.vatRatePercent.value.trim() && supplier.defaultVatRatePercent != null) {
-      line.controls.vatRatePercent.setValue(String(supplier.defaultVatRatePercent), {
-        emitEvent: false,
-      });
-    }
     this.ensureLineVatCode(line);
   }
 
@@ -2228,10 +2236,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             emitEvent: false,
           });
         }
-        if (!line.controls.vatRatePercent.value.trim() && supplier.defaultVatRatePercent != null) {
-          line.controls.vatRatePercent.setValue(String(supplier.defaultVatRatePercent), {
-            emitEvent: false,
-          });
+        // Precedenza Codice IVA fornitore (§9.1, Fase IVA §7): Codice IVA
+        // predefinito del fornitore se attivo/acquisto, altrimenti predefinito
+        // aziendale (risolto da ensureLineVatCode).
+        if (!line.controls.vatCodeId.value) {
+          const supplierVatCode = supplier.defaultVatCodeId
+            ? this.vatCodeById().get(supplier.defaultVatCodeId)
+            : undefined;
+          if (supplierVatCode?.isActive && isPurchaseVatCode(supplierVatCode)) {
+            line.controls.vatCodeId.setValue(supplierVatCode.id, { emitEvent: false });
+            this.syncLegacyVatRate(line);
+          }
         }
         this.ensureLineVatCode(line);
       }
@@ -2675,8 +2690,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             moneyToDecimalString(summary.compareAtPrice).replace('.', ','),
           );
         }
-        // Precedenza Codice IVA (§9.1): articolo → predefinito aziendale.
-        // La riga già valorizzata (es. da documento origine) non viene toccata.
+        // Precedenza Codice IVA (§9.1, Fase IVA §7): articolo → Codice IVA
+        // predefinito del fornitore (se attivo/acquisto) → predefinito
+        // aziendale (risolto da ensureLineVatCode). La riga già valorizzata
+        // (es. da documento origine) non viene toccata.
         if (!line.controls.vatCodeId.value) {
           const productVatCode = summary.defaultVatCodeId
             ? this.vatCodeById().get(summary.defaultVatCodeId)
@@ -2686,10 +2703,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             this.syncLegacyVatRate(line);
           }
         }
-        if (!line.controls.vatRatePercent.value.trim()) {
-          const supplierVat = this.selectedSupplier()?.defaultVatRatePercent;
-          if (supplierVat != null) {
-            line.controls.vatRatePercent.setValue(String(supplierVat), { emitEvent: false });
+        if (!line.controls.vatCodeId.value) {
+          const supplierVatCode = this.selectedSupplier()?.defaultVatCodeId
+            ? this.vatCodeById().get(this.selectedSupplier()!.defaultVatCodeId!)
+            : undefined;
+          if (supplierVatCode?.isActive && isPurchaseVatCode(supplierVatCode)) {
+            line.controls.vatCodeId.setValue(supplierVatCode.id, { emitEvent: false });
+            this.syncLegacyVatRate(line);
           }
         }
         this.ensureLineVatCode(line);
@@ -2728,7 +2748,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
     const selling = parseMoneyInput(line.controls.sellingPrice.value, this.currency);
     const compareAt = parseMoneyInput(line.controls.compareAtPrice.value, this.currency);
-    const vatRaw = line.controls.vatRatePercent.value.trim();
     return {
       name,
       description: line.controls.description.value.trim() || undefined,
@@ -2737,7 +2756,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       purchasePriceMajor: cost ? cost.amountMinor / 100 : null,
       sellingPriceMajor: selling ? selling.amountMinor / 100 : null,
       compareAtPriceMajor: compareAt ? compareAt.amountMinor / 100 : null,
-      defaultVatRatePercent: vatRaw ? Number(vatRaw) : null,
+      defaultVatCodeId: line.controls.vatCodeId.value.trim() || null,
     };
   });
 
@@ -4403,12 +4422,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     );
   }
 
+  /**
+   * Codici già cercati e assenti a catalogo: evita di ripetere la stessa
+   * lookup (404) a ogni autosave/salvataggio. Si svuota quando l'utente
+   * modifica un codice riga.
+   */
+  private readonly codesNotFound = new Set<string>();
+
   private linkLineByCode(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
     index: number,
   ): Observable<void> {
     const code = line.controls.sku.value.trim() || line.controls.barcode.value.trim();
-    if (!code) {
+    if (!code || this.codesNotFound.has(code)) {
       return of(undefined);
     }
     return this.productService.findVariantByCode(code).pipe(
@@ -4419,14 +4445,33 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         this.onVariantSelect(index, variant.variantId);
         return of(undefined);
       }),
-      catchError(() => of(undefined)),
+      catchError((err: unknown) => {
+        if ((err as { kind?: AppErrorKind })?.kind === AppErrorKind.NotFound) {
+          this.codesNotFound.add(code);
+        }
+        return of(undefined);
+      }),
     );
   }
+
+  /**
+   * Creazioni articolo in corso, per riga. Invio riga, autosave e "Salva
+   * documento" possono sovrapporsi: senza questa mappa la stessa riga
+   * genererebbe POST /products concorrenti (409/500 sul vincolo SKU).
+   */
+  private readonly pendingLineCreates = new Map<
+    ReturnType<GoodsReceiptFormComponent['createLine']>,
+    Observable<undefined>
+  >();
 
   private createProductForLine(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
     _index: number,
   ) {
+    const pending = this.pendingLineCreates.get(line);
+    if (pending) {
+      return pending;
+    }
     const name = line.controls.productName.value.trim();
     const sku = line.controls.sku.value.trim();
     if (!sku) {
@@ -4447,15 +4492,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       moneyFromMajor(0, this.currency);
     const compareAt = parseMoneyInput(line.controls.compareAtPrice.value, this.currency);
     const barcode = line.controls.barcode.value.trim() || undefined;
-    const vatRaw = line.controls.vatRatePercent.value.trim();
-    const defaultVat = vatRaw ? Number(vatRaw) : undefined;
 
-    return this.productService
+    const create$ = this.productService
       .createProduct({
         name,
         status: ProductStatus.Active,
-        defaultVatRatePercent:
-          defaultVat != null && Number.isFinite(defaultVat) ? defaultVat : undefined,
         defaultVatCodeId: line.controls.vatCodeId.value || undefined,
         options: [],
         variants: [
@@ -4471,6 +4512,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       })
       .pipe(
         switchMap(() => this.productService.findVariantByCode(sku)),
+        // Se la creazione fallisce ma la variante esiste (richiesta concorrente
+        // o tentativo precedente riuscito a metà), la riga si riaggancia invece
+        // di restare bloccata su "SKU già presenti a catalogo" a ogni salvataggio.
+        catchError((err: unknown) =>
+          this.productService.findVariantByCode(sku).pipe(catchError(() => throwError(() => err))),
+        ),
         map((variant) => {
           line.controls.variantId.setValue(variant.variantId, { emitEvent: false });
           line.controls.sku.setValue(variant.sku, { emitEvent: false });
@@ -4480,8 +4527,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.syncLineFieldAccess();
           return undefined;
         }),
-        catchError((err: unknown) => throwError(() => err)),
+        finalize(() => this.pendingLineCreates.delete(line)),
+        shareReplay(1),
       );
+    this.pendingLineCreates.set(line, create$);
+    return create$;
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
@@ -4564,7 +4614,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           discountPercent: this.fb.control(
             line.discountPercent > 0 ? String(line.discountPercent) : '',
           ),
-          vatRatePercent: this.fb.control(line.vatRatePercent?.toString() ?? ''),
+          vatRatePercent: this.fb.control(line.vatSnapshot?.ratePercent?.toString() ?? ''),
           vatCodeId: this.fb.control(line.vatCodeId ?? ''),
           // Le righe senza articolo persistono loadsStock=false come artefatto
           // tecnico (nessun movimento possibile): in UI il flag resta al

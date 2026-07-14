@@ -104,15 +104,6 @@ export function resolveReportDateRange(
   }
 }
 
-export function reportHasActiveFilters(query: ReportListQuery): boolean {
-  return Boolean(query.source) || Boolean(query.financialStatus);
-}
-
-/** True se il periodo corrispettivi diverge dal default (solo preset/data). */
-export function reportPeriodHasCustomSelection(query: ReportListQuery): boolean {
-  return query.period !== DEFAULT_REPORT_PERIOD || Boolean(query.dateFrom) || Boolean(query.dateTo);
-}
-
 export function formatReportPeriodLabel(
   query: ReportListQuery,
   referenceDate: Date = new Date(),
@@ -137,24 +128,6 @@ function formatItalianDate(isoDate: string): string {
   return new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium' }).format(
     new Date(`${isoDate}T12:00:00.000Z`),
   );
-}
-
-export function toSalesOrderListFilters(
-  query: ReportListQuery,
-  referenceDate: Date = new Date(),
-): {
-  readonly placedFrom: string;
-  readonly placedTo: string;
-  readonly source?: SalesOrderSource;
-  readonly financialStatus?: SalesOrderFinancialStatus;
-} {
-  const range = resolveReportDateRange(query, referenceDate);
-  return {
-    placedFrom: range.placedFrom,
-    placedTo: range.placedTo,
-    source: query.source,
-    financialStatus: query.financialStatus,
-  };
 }
 
 /** Periodo corrispettivi su route vendite (`corrPeriod`, `corrFrom`, `corrTo`). */

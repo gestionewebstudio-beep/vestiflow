@@ -57,7 +57,7 @@ type SupplierWriteData = {
   countryCode?: string | null;
   paymentTerms?: string | null;
   supplierDiscount?: string | null;
-  defaultVatRatePercent?: number | null;
+  defaultVatCodeId?: string | null;
   transportResponsible?: string | null;
   freightTerms?: string | null;
   documentCreationNote?: string | null;
@@ -126,6 +126,7 @@ export class SuppliersService {
       data.code = await this.allocateNextSupplierCode(tenantId);
     }
     await this.assertCodeAvailable(tenantId, data.code ?? null);
+    await this.assertVatCodeBelongsToTenant(tenantId, data.defaultVatCodeId);
     const supplier = await this.prisma.supplier.create({
       data: { tenantId, ...data, name: data.name },
     });
@@ -146,6 +147,7 @@ export class SuppliersService {
     if (data.code !== undefined) {
       await this.assertCodeAvailable(tenantId, data.code, id);
     }
+    await this.assertVatCodeBelongsToTenant(tenantId, data.defaultVatCodeId);
     await this.prisma.supplier.update({
       where: { id },
       data,
@@ -324,11 +326,28 @@ export class SuppliersService {
       }
     }
 
-    if ('defaultVatRatePercent' in dto && dto.defaultVatRatePercent !== undefined) {
-      result.defaultVatRatePercent = dto.defaultVatRatePercent;
+    if ('defaultVatCodeId' in dto && dto.defaultVatCodeId !== undefined) {
+      result.defaultVatCodeId = dto.defaultVatCodeId;
     }
 
     return result;
+  }
+
+  /** Il Codice IVA predefinito, se impostato, deve appartenere al tenant (isolamento). */
+  private async assertVatCodeBelongsToTenant(
+    tenantId: string,
+    vatCodeId: string | null | undefined,
+  ): Promise<void> {
+    if (!vatCodeId) {
+      return;
+    }
+    const found = await this.prisma.vatCode.findFirst({
+      where: { id: vatCodeId, tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!found) {
+      throw new UnprocessableEntityException('Il Codice IVA selezionato non esiste o non è più disponibile.');
+    }
   }
 
   private async assertCodeAvailable(

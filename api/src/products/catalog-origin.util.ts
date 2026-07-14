@@ -89,28 +89,6 @@ export function shouldSkipShopifyCatalogImport(snapshot: CatalogOriginProductSna
   return isVestiflowCatalogOwner(snapshot);
 }
 
-/**
- * Promuove a shopify i prodotti importati prima dell'introduzione di catalogOrigin/linkKind.
- */
-export function shouldBackfillShopifyCatalogOrigin(snapshot: CatalogOriginProductSnapshot): boolean {
-  if (snapshot.catalogOrigin === CatalogOrigin.shopify) {
-    return false;
-  }
-  if (snapshot.shopifyCatalogLinkKind === ShopifyCatalogLinkKind.pushed) {
-    return false;
-  }
-  if (snapshot.shopifyCatalogLinkKind === ShopifyCatalogLinkKind.imported) {
-    return true;
-  }
-  if (!snapshot.shopifyProductId) {
-    return false;
-  }
-  if (hasLocalCatalogMedia(snapshot.images)) {
-    return false;
-  }
-  return wasShopifyLinkedAtProductCreation(snapshot);
-}
-
 export function resolveCatalogOriginForShopifyImport(
   snapshot: CatalogOriginProductSnapshot,
 ): CatalogOrigin {

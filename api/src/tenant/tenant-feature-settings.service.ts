@@ -18,7 +18,6 @@ const DEFAULTS: Omit<TenantFeatureSettings, 'id' | 'tenantId' | 'createdAt' | 'u
   warnNegativeInventory: true,
   blockNegativeInventory: false,
   defaultUnitOfMeasure: 'pz',
-  defaultVatRatePercent: 22,
   defaultVatCodeId: null,
   defaultPurchaseCostEntryMode: 'vat_excluded',
 };
@@ -62,7 +61,6 @@ export class TenantFeatureSettingsService {
       warnNegativeInventory: row.warnNegativeInventory,
       blockNegativeInventory: row.blockNegativeInventory,
       defaultUnitOfMeasure: row.defaultUnitOfMeasure,
-      defaultVatRatePercent: row.defaultVatRatePercent,
       defaultVatCodeId: row.defaultVatCodeId,
       defaultPurchaseCostEntryMode: row.defaultPurchaseCostEntryMode,
     };

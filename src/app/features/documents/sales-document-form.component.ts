@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -36,13 +37,17 @@ import {
   parseEffectiveDiscountPercent,
 } from '@core/utils/discount-percent.util';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
+import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { VatCodeService } from '@core/services/vat-code.service';
 import { CustomerService } from '@features/customers/services/customer.service';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
+import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
+import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -61,6 +66,7 @@ import {
 } from './models/document-sales.util';
 import { DocumentService } from './services/document.service';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
+import { pickVatCodeId, toVatCodeById } from './utils/vat-code-resolution.util';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
@@ -94,6 +100,8 @@ export class SalesDocumentFormComponent {
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
+  private readonly vatCodeService = inject(VatCodeService);
+  private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -175,6 +183,14 @@ export class SalesDocumentFormComponent {
     lines: this.fb.array([this.createLine()]),
   });
 
+  // Snapshot reattivo del form: i totali stimati (lineTotals) leggono valori dai
+  // FormControl, che non sono signal. Senza questa dipendenza il computed
+  // resterebbe memoizzato e i totali non si aggiornerebbero digitando quantità,
+  // prezzo o sconto (stesso pattern di goods-receipt-form.documentTotals).
+  private readonly formValue = toSignal(this.form.valueChanges, {
+    initialValue: this.form.getRawValue(),
+  });
+
   private readonly selectedCustomer = signal<Customer | null>(null);
 
   protected readonly confirmDialogOpen = signal(false);
@@ -248,6 +264,38 @@ export class SalesDocumentFormComponent {
     })),
   );
 
+  // ── Codice IVA (§Piano IVA fase 3): stessa risoluzione di Arrivo merce, ma
+  // lato vendita (Codici IVA usageScope 'sales'/'both', nessun fornitore). ──
+  protected readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+
+  private readonly vatCodeById = computed(() => toVatCodeById(this.vatCodes()));
+
+  /** Codici attivi utilizzabili in vendita, ordinati come in Impostazioni. */
+  protected readonly salesVatOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.vatCodes()
+      .filter((vatCode) => vatCode.isActive && isSalesVatCode(vatCode))
+      .map((vatCode) => ({ value: vatCode.id, label: vatCodeOptionLabel(vatCode) })),
+  );
+
+  private readonly tenantSettings = toSignal(
+    this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
+    { initialValue: null as TenantFeatureSettings | null },
+  );
+
+  /** Codice IVA predefinito aziendale (impostazioni → flag isDefault attivo). */
+  private readonly tenantDefaultVatCodeId = computed(() => {
+    const codes = this.vatCodes();
+    const settingsId = this.tenantSettings()?.defaultVatCodeId;
+    const fromSettings = settingsId
+      ? codes.find((vatCode) => vatCode.id === settingsId && vatCode.isActive)
+      : undefined;
+    const fallback = codes.find((vatCode) => vatCode.isDefault && vatCode.isActive);
+    return (fromSettings ?? fallback)?.id ?? '';
+  });
+
   protected readonly variantSearchDraft = signal('');
 
   private readonly searchedVariants = toSignal(
@@ -288,6 +336,7 @@ export class SalesDocumentFormComponent {
   });
 
   protected readonly lineTotals = computed(() => {
+    this.formValue();
     let subtotalMinor = 0;
     let taxMinor = 0;
     for (const line of this.lines.controls) {
@@ -316,6 +365,21 @@ export class SalesDocumentFormComponent {
       hasDocumentDiscount: docDiscount > 0,
     };
   });
+
+  constructor() {
+    // Applica il Codice IVA predefinito alle righe ancora senza scelta non
+    // appena i Codici IVA sono disponibili (caricamento asincrono): copre la
+    // riga iniziale in creazione, senza toccare righe già valorizzate da un
+    // documento caricato o da una scelta esplicita dell'utente.
+    effect(() => {
+      if (this.vatCodes().length === 0) {
+        return;
+      }
+      for (const line of this.lines.controls) {
+        this.ensureLineVatCode(line);
+      }
+    });
+  }
 
   protected get lines(): FormArray<ReturnType<SalesDocumentFormComponent['createLine']>> {
     return this.form.controls.lines;
@@ -375,6 +439,87 @@ export class SalesDocumentFormComponent {
     if (match) {
       line.controls.description.setValue(match.productName);
       line.controls.unitPrice.setValue(moneyToDecimalString(match.sellingPrice).replace('.', ','));
+      // Precedenza Codice IVA (§Piano IVA fase 3): articolo → aliquota legacy
+      // già presente (reverse-match) → predefinito aziendale.
+      if (!line.controls.vatCodeId.value) {
+        const productVatCodeId = pickVatCodeId(
+          [match.defaultVatCodeId],
+          this.vatCodeById(),
+          isSalesVatCode,
+        );
+        if (productVatCodeId) {
+          line.controls.vatCodeId.setValue(productVatCodeId, { emitEvent: false });
+          this.syncLegacyVatRate(line);
+        }
+      }
+      this.ensureLineVatCode(line);
+    }
+  }
+
+  /** Opzioni della riga: codici attivi + eventuale codice storico disattivato. */
+  protected lineVatOptions(index: number): readonly SelectMenuOption[] {
+    const options = this.salesVatOptions();
+    const selectedId = this.lines.at(index)?.controls.vatCodeId.value;
+    if (!selectedId || options.some((option) => option.value === selectedId)) {
+      return options;
+    }
+    const selected = this.vatCodeById().get(selectedId);
+    if (!selected) {
+      return options;
+    }
+    return [...options, { value: selected.id, label: vatCodeOptionLabel(selected) }];
+  }
+
+  protected onLineVatSelect(index: number, value: string | null): void {
+    const line = this.lines.at(index);
+    if (!line) {
+      return;
+    }
+    line.controls.vatCodeId.setValue(value ?? '');
+    this.syncLegacyVatRate(line);
+  }
+
+  /** Allinea l'aliquota legacy al Codice IVA (dual-write, §Piano IVA fase 2). */
+  private syncLegacyVatRate(line: ReturnType<SalesDocumentFormComponent['createLine']>): void {
+    const vatCode = this.vatCodeById().get(line.controls.vatCodeId.value);
+    if (vatCode) {
+      line.controls.vatRatePercent.setValue(String(vatCode.ratePercent), { emitEvent: false });
+    }
+  }
+
+  /**
+   * Precedenza Codice IVA sulle righe senza scelta esplicita (§Piano IVA
+   * fase 3): aliquota legacy già presente → codice imponibile con la stessa
+   * aliquota (mai il default, per non alterare l'IVA voluta); altrimenti
+   * predefinito aziendale.
+   */
+  private ensureLineVatCode(line: ReturnType<SalesDocumentFormComponent['createLine']>): void {
+    if (line.controls.vatCodeId.value) {
+      return;
+    }
+    const raw = line.controls.vatRatePercent.value.trim();
+    if (raw) {
+      const rate = Number(raw);
+      const matched = Number.isFinite(rate)
+        ? this.vatCodes().find(
+            (vatCode) =>
+              isSalesVatCode(vatCode) &&
+              vatCode.isActive &&
+              vatCode.ratePercent === rate &&
+              (vatCode.calculationMode === 'standard' ||
+                (rate === 0 && vatCode.calculationMode === 'zero_rate')),
+          )
+        : undefined;
+      if (matched) {
+        line.controls.vatCodeId.setValue(matched.id, { emitEvent: false });
+        this.syncLegacyVatRate(line);
+      }
+      return;
+    }
+    const fallback = this.tenantDefaultVatCodeId();
+    if (fallback) {
+      line.controls.vatCodeId.setValue(fallback, { emitEvent: false });
+      this.syncLegacyVatRate(line);
     }
   }
 
@@ -384,6 +529,7 @@ export class SalesDocumentFormComponent {
     if (discount) {
       line.controls.discountPercent.setValue(discount, { emitEvent: false });
     }
+    this.ensureLineVatCode(line);
     this.lines.push(line);
   }
 
@@ -475,6 +621,7 @@ export class SalesDocumentFormComponent {
             quantity: Number(line.quantity),
             unitPriceMinor: price?.amountMinor ?? 0,
             vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
+            vatCodeId: line.vatCodeId || undefined,
             discountPercent: parseEffectiveDiscountPercent(line.discountPercent),
             loadsStock: loadsStockLines && Boolean(line.variantId),
             serialNumbers: loadsStockLines
@@ -536,7 +683,8 @@ export class SalesDocumentFormComponent {
             validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
           }),
           unitPrice: this.fb.control(moneyToDecimalString(line.unitPrice).replace('.', ',')),
-          vatRatePercent: this.fb.control(line.vatRatePercent?.toString() ?? '22'),
+          vatRatePercent: this.fb.control(line.vatSnapshot?.ratePercent?.toString() ?? ''),
+          vatCodeId: this.fb.control(line.vatCodeId ?? ''),
           discountPercent: this.fb.control(
             line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
           ),
@@ -558,6 +706,7 @@ export class SalesDocumentFormComponent {
       }),
       unitPrice: this.fb.control(''),
       vatRatePercent: this.fb.control('22'),
+      vatCodeId: this.fb.control(''),
       discountPercent: this.fb.control(''),
       serialNumbersText: this.fb.control(''),
     });

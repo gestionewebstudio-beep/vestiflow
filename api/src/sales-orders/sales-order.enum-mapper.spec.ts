@@ -11,8 +11,6 @@ import {
   API_SOURCE_ONLINE,
   API_SOURCE_POS,
   financialStatusDisplayLabel,
-  fromPrismaFinancial,
-  fromPrismaFulfillment,
   fromPrismaSource,
   fulfillmentStatusDisplayLabel,
   prismaFinancialFilter,
@@ -41,29 +39,6 @@ describe('sales-order.enum-mapper', () => {
 
     it('ritorna undefined per filtro sconosciuto', () => {
       expect(prismaFinancialFilter('invalid')).toBeUndefined();
-    });
-  });
-
-  describe('fromPrismaFinancial', () => {
-    for (const [prisma, api] of [
-      [PrismaFinancial.paid, 'paid'],
-      [PrismaFinancial.partially_refunded, 'partially_refunded'],
-      [PrismaFinancial.refunded, 'refunded'],
-      [PrismaFinancial.voided, 'voided'],
-      [PrismaFinancial.pending, 'pending'],
-      [PrismaFinancial.authorized, 'pending'],
-    ] as const) {
-      it(`mappa ${prisma} -> ${api}`, () => {
-        expect(fromPrismaFinancial(prisma)).toBe(api);
-      });
-    }
-  });
-
-  describe('fromPrismaFulfillment', () => {
-    it('mappa stati evasione', () => {
-      expect(fromPrismaFulfillment(PrismaFulfillment.fulfilled)).toBe('fulfilled');
-      expect(fromPrismaFulfillment(PrismaFulfillment.partially_fulfilled)).toBe('partial');
-      expect(fromPrismaFulfillment(PrismaFulfillment.unfulfilled)).toBe('unfulfilled');
     });
   });
 

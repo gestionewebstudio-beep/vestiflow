@@ -40,10 +40,13 @@ export interface OnlineSaleLineRow {
   readonly quantity: number;
   readonly unitPriceMinor: number;
   readonly subtotalMinor: number;
+  /** Aliquota % derivata dallo snapshot IVA congelato sulla riga (solo display). */
   readonly vatRatePercent: number | null;
   readonly taxMinor: number;
   readonly totalMinor: number;
   readonly locationId: EntityId | null;
+  readonly vatCodeId: EntityId | null;
+  readonly vatCodeLabel: string | null;
 }
 
 export interface OnlineSaleMovementRow {
@@ -112,9 +115,12 @@ export interface CorrispettivoEntryLineRow {
   readonly quantity: number;
   readonly discountMinor: number;
   readonly subtotalMinor: number;
+  /** Aliquota % derivata dallo snapshot IVA congelato sulla riga (solo display). */
   readonly vatRatePercent: number | null;
   readonly taxMinor: number;
   readonly totalMinor: number;
+  readonly vatCodeId: EntityId | null;
+  readonly vatCodeLabel: string | null;
 }
 
 export interface CorrispettivoEntryDetail extends CorrispettivoEntryRow {

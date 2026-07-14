@@ -8,6 +8,7 @@ import type { Prisma, VatCode, VatNature } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { VAT_CODE_SEED, VAT_NATURE_SEED } from './vat-code-seed.data';
+import { buildVatCodeSnapshot } from './vat-snapshot.util';
 
 /** Codice IVA con la Natura inclusa (per liste e snapshot). */
 export type VatCodeWithNature = VatCode & { nature: VatNature };
@@ -257,18 +258,7 @@ export class VatCodesService {
 
   /** Snapshot JSON per le righe documento (§9). */
   buildSnapshot(vatCode: VatCodeWithNature): Prisma.InputJsonObject {
-    return {
-      code: vatCode.code,
-      natureKey: vatCode.nature.key,
-      natureLabel: vatCode.nature.label,
-      officialCode: vatCode.nature.officialCode,
-      ratePercent: Number(vatCode.ratePercent),
-      description: vatCode.description,
-      notes: vatCode.notes,
-      nonDeductiblePercent: Number(vatCode.nonDeductiblePercent),
-      calculationMode: vatCode.calculationMode,
-      vatAffectsSupplierTotal: vatCode.vatAffectsSupplierTotal,
-    };
+    return buildVatCodeSnapshot(vatCode);
   }
 
   private normalizeCode(raw: string): string {
@@ -374,24 +364,10 @@ export class VatCodesService {
       skipDuplicates: true,
     });
 
-    // "22" predefinita iniziale (§4.1), salvo impostazione legacy diversa.
-    const settings = await this.prisma.tenantFeatureSettings.findUnique({
-      where: { tenantId },
-      select: { defaultVatRatePercent: true },
+    // "22" predefinita iniziale (§4.1).
+    const preferred = await this.prisma.vatCode.findFirst({
+      where: { tenantId, deletedAt: null, code: '22' },
     });
-    const legacyRate = settings?.defaultVatRatePercent ?? 22;
-    const preferred =
-      (await this.prisma.vatCode.findFirst({
-        where: {
-          tenantId,
-          deletedAt: null,
-          calculationMode: 'standard',
-          ratePercent: legacyRate,
-        },
-      })) ??
-      (await this.prisma.vatCode.findFirst({
-        where: { tenantId, deletedAt: null, code: '22' },
-      }));
     if (preferred) {
       await this.prisma.vatCode.update({
         where: { id: preferred.id },

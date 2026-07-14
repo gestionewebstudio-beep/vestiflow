@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateSupplierDto {  @IsOptional()
   @IsString()
@@ -85,11 +85,10 @@ export class UpdateSupplierDto {  @IsOptional()
   @MaxLength(50)
   supplierDiscount?: string;
 
+  /** Codice IVA predefinito per documenti di questo fornitore. Null rimuove l'override. */
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  defaultVatRatePercent?: number;
+  @IsUUID()
+  defaultVatCodeId?: string | null;
 
   @IsOptional()
   @IsString()

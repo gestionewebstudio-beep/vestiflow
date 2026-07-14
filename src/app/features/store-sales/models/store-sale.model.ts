@@ -14,7 +14,10 @@ export interface StoreSaleLookupItem {
   readonly optionSummary: string;
   readonly sellingPriceMinor: number;
   readonly currency: CurrencyCode;
+  /** Aliquota % del Codice IVA risolto (solo display). */
   readonly vatRatePercent: number | null;
+  readonly vatCodeId: EntityId | null;
+  readonly vatCodeLabel: string | null;
   readonly onHand: number;
   readonly committed: number;
   readonly available: number;
@@ -25,7 +28,7 @@ export interface StoreSaleLineInput {
   readonly quantity: number;
   readonly unitPriceMinor: number;
   readonly discountPercent?: number;
-  readonly vatRatePercent?: number;
+  readonly vatCodeId?: EntityId;
 }
 
 export interface CreateStoreSalePayload {

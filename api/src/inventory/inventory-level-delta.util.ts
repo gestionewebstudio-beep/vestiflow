@@ -36,23 +36,3 @@ export async function applyInventoryDelta(
     data: { onHand: { increment: delta }, available: { increment: delta } },
   });
 }
-
-/**
- * Imposta `available` a un valore ASSOLUTO (es. allineamento autoritativo da
- * Shopify) adeguando `onHand` del delta calcolato ATOMICAMENTE sul valore
- * corrente nel DB al momento della scrittura. Evita il lost update su `onHand`
- * che il pattern read-modify-write produceva con webhook concorrenti.
- */
-export async function setInventoryAvailableAbsolute(
-  tx: Prisma.TransactionClient,
-  levelId: string,
-  targetAvailable: number,
-): Promise<void> {
-  await tx.$executeRaw`
-    UPDATE inventory_levels
-    SET on_hand = on_hand + (${targetAvailable} - available),
-        available = ${targetAvailable},
-        updated_at = now()
-    WHERE id = ${levelId}::uuid
-  `;
-}

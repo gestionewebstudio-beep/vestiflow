@@ -154,7 +154,6 @@ export class ProductGeneralStepComponent implements OnInit {
     tags: this.fb.control(''),
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
     unitOfMeasure: this.fb.control('pz'),
-    defaultVatRatePercent: this.fb.control<number | null>(22),
     defaultVatCodeId: this.fb.control(''),
     inventoryTracking: this.fb.control<InventoryTrackingMode>(InventoryTrackingMode.Standard),
     managesStock: this.fb.control(true),

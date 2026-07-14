@@ -25,7 +25,6 @@ export type ApiSalesOrderSource =
   | typeof API_SOURCE_ONLINE
   | typeof API_SOURCE_POS
   | typeof API_SOURCE_MANUAL;
-export type ApiSalesOrderFinancialStatus = (typeof API_FINANCIAL_VALUES)[number];
 
 export function toPrismaSource(source?: string): PrismaSource | undefined {
   switch (source) {
@@ -70,37 +69,6 @@ export function prismaFinancialFilter(status?: string): PrismaFinancial[] | unde
       return [PrismaFinancial.voided];
     default:
       return undefined;
-  }
-}
-
-export function fromPrismaFinancial(status: PrismaFinancial): ApiSalesOrderFinancialStatus {
-  switch (status) {
-    case PrismaFinancial.paid:
-      return 'paid';
-    case PrismaFinancial.partially_refunded:
-      return 'partially_refunded';
-    case PrismaFinancial.refunded:
-      return 'refunded';
-    case PrismaFinancial.voided:
-      return 'voided';
-    case PrismaFinancial.authorized:
-    case PrismaFinancial.pending:
-    default:
-      return 'pending';
-  }
-}
-
-export function fromPrismaFulfillment(
-  status: PrismaFulfillment,
-): 'unfulfilled' | 'partial' | 'fulfilled' {
-  switch (status) {
-    case PrismaFulfillment.partially_fulfilled:
-      return 'partial';
-    case PrismaFulfillment.fulfilled:
-      return 'fulfilled';
-    case PrismaFulfillment.unfulfilled:
-    default:
-      return 'unfulfilled';
   }
 }
 

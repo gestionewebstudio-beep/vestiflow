@@ -219,6 +219,12 @@ export class MovementFormComponent {
   private readonly _phase = signal<'edit' | 'review'>('edit');
   protected readonly phase = this._phase.asReadonly();
 
+  // Incrementato ad ogni ingresso in fase «review»: forza il ricalcolo del
+  // riepilogo dai valori correnti del form. `form.getRawValue()` non e' un
+  // signal, quindi senza questa dipendenza il computed `review` resterebbe
+  // memoizzato e mostrerebbe quantita'/impatto della revisione precedente.
+  private readonly _reviewRevision = signal(0);
+
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
   protected readonly submitState = this._submitState.asReadonly();
   protected readonly saving = computed(() => this._submitState().status === 'saving');
@@ -234,6 +240,7 @@ export class MovementFormComponent {
 
   /** Riepilogo per la fase di conferma (snapshot leggibile + impatto atteso). */
   protected readonly review = computed(() => {
+    this._reviewRevision();
     const raw = this.form.getRawValue();
     const variant = this.pinnedVariant();
     const locationName = this.locationName(raw.locationId);
@@ -329,6 +336,7 @@ export class MovementFormComponent {
       return;
     }
     this._submitState.set({ status: 'idle' });
+    this._reviewRevision.update((revision) => revision + 1);
     this._phase.set('review');
   }
 

@@ -19,8 +19,10 @@ import {
   type CreateDocumentBody,
   type DocumentApiRow,
   type LinkableGoodsReceiptApiRow,
+  type SaveAdjustmentBody,
   type SaveGoodsReceiptBody,
   type SavePurchaseInvoiceBody,
+  type SaveTransferBody,
   type UpdateDocumentBody,
 } from './document-api.mapper';
 
@@ -133,6 +135,30 @@ export class DocumentService {
           warnings,
         })),
       );
+  }
+
+  /**
+   * Salvataggio dedicato di un Trasferimento GIÀ CONFERMATO: preserva gli id
+   * riga stabili così i movimenti per riga si aggiornano invece di
+   * duplicarsi (mirror saveGoodsReceipt, ma solo per l'edit di un documento
+   * confermato — creazione e prima conferma restano sul flusso generico).
+   */
+  saveTransfer(body: SaveTransferBody): Observable<DocumentRecord> {
+    return this.http
+      .post<DocumentApiRow>(this.url('/documents/transfer/save'), body)
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
+  }
+
+  /**
+   * Salvataggio dedicato di una Rettifica GIÀ CONFERMATA: preserva gli id
+   * riga stabili così i movimenti per riga si aggiornano invece di
+   * duplicarsi (mirror saveGoodsReceipt, ma solo per l'edit di un documento
+   * confermato — creazione e prima conferma restano sul flusso generico).
+   */
+  saveAdjustment(body: SaveAdjustmentBody): Observable<DocumentRecord> {
+    return this.http
+      .post<DocumentApiRow>(this.url('/documents/adjustment/save'), body)
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
   /** Registrazione fattura fornitore (prompt §5-6): mai movimenti di magazzino. */

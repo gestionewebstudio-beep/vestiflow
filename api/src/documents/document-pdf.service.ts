@@ -13,6 +13,7 @@ import {
   type PdfTableColumn,
 } from '../common/pdf/pdf-layout.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import { PROFORMA_FISCAL_DISCLAIMER } from './document-type.util';
 import { DEFAULT_PRINT_TITLE } from './document-defaults';
 import {
@@ -268,6 +269,7 @@ export class DocumentPdfService {
       if (serials.length > 0) {
         articleParts.push(`Seriali: ${serials.join(', ')}`);
       }
+      const vatRatePercent = vatSnapshotRatePercent(line.vatSnapshot);
 
       return [
         String(line.lineNumber),
@@ -275,7 +277,7 @@ export class DocumentPdfService {
         String(line.quantity),
         formatMinorAmount(line.unitPriceMinor, currency),
         line.discountPercent > 0 ? `${line.discountPercent}%` : '—',
-        line.vatRatePercent != null ? `${line.vatRatePercent}%` : '—',
+        vatRatePercent != null ? `${vatRatePercent}%` : '—',
         formatMinorAmount(line.lineTotalMinor, currency),
       ];
     });

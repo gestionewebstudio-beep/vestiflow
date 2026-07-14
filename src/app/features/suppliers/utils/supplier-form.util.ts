@@ -27,7 +27,7 @@ export function createSupplierFormGroup(fb: NonNullableFormBuilder) {
     countryCode: fb.control('IT'),
     paymentTerms: fb.control(''),
     supplierDiscount: fb.control(''),
-    defaultVatRatePercent: fb.control(''),
+    defaultVatCodeId: fb.control(''),
     transportResponsible: fb.control(''),
     freightTerms: fb.control(''),
     documentCreationNote: fb.control(''),
@@ -39,7 +39,6 @@ export function createSupplierFormGroup(fb: NonNullableFormBuilder) {
 export type SupplierFormGroup = ReturnType<typeof createSupplierFormGroup>;
 
 export function mapSupplierFormToInput(raw: SupplierFormGroup['value']): SupplierInput {
-  const vatRaw = raw.defaultVatRatePercent?.trim();
   return {
     code: trimOptional(raw.code),
     name: raw.name?.trim() ?? '',
@@ -58,7 +57,7 @@ export function mapSupplierFormToInput(raw: SupplierFormGroup['value']): Supplie
     countryCode: trimOptional(raw.countryCode),
     paymentTerms: trimOptional(raw.paymentTerms),
     supplierDiscount: trimOptional(raw.supplierDiscount),
-    defaultVatRatePercent: vatRaw ? Number(vatRaw) : undefined,
+    defaultVatCodeId: trimOptional(raw.defaultVatCodeId),
     transportResponsible: trimOptional(raw.transportResponsible),
     freightTerms: trimOptional(raw.freightTerms),
     documentCreationNote: trimOptional(raw.documentCreationNote),
@@ -86,8 +85,7 @@ export function patchSupplierFormGroup(form: SupplierFormGroup, supplier: Suppli
     countryCode: supplier.countryCode ?? 'IT',
     paymentTerms: supplier.paymentTerms ?? '',
     supplierDiscount: supplier.supplierDiscount ?? '',
-    defaultVatRatePercent:
-      supplier.defaultVatRatePercent != null ? String(supplier.defaultVatRatePercent) : '',
+    defaultVatCodeId: supplier.defaultVatCodeId ?? '',
     transportResponsible: supplier.transportResponsible ?? '',
     freightTerms: supplier.freightTerms ?? '',
     documentCreationNote: supplier.documentCreationNote ?? '',
@@ -115,7 +113,7 @@ export function resetSupplierFormGroup(form: SupplierFormGroup): void {
     countryCode: 'IT',
     paymentTerms: '',
     supplierDiscount: '',
-    defaultVatRatePercent: '',
+    defaultVatCodeId: '',
     transportResponsible: '',
     freightTerms: '',
     documentCreationNote: '',

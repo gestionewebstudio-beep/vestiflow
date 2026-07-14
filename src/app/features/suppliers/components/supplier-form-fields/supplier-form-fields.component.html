@@ -184,13 +184,13 @@
     </div>
     <div class="supplier-fields__field">
       <label class="supplier-fields__label" [for]="idPrefix() + '-default-vat'"
-        >Aliquota IVA predefinita</label
+        >Codice IVA predefinito</label
       >
       <app-select-menu
-        [options]="vatSelectOptions"
-        [value]="formGroup().controls.defaultVatRatePercent.value"
-        ariaLabel="Aliquota IVA predefinita"
-        placeholder="Seleziona IVA…"
+        [options]="vatSelectOptions()"
+        [value]="formGroup().controls.defaultVatCodeId.value"
+        ariaLabel="Codice IVA predefinito"
+        placeholder="Predefinito aziendale…"
         [fullWidth]="true"
         [includeEmptyOption]="true"
         (valueChange)="onVatSelect($event)"

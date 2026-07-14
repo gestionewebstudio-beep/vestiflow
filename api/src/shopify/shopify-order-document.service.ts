@@ -12,7 +12,11 @@ import {
   clearShopifySaleMovementsForDocument,
   recordShopifySaleMovement,
 } from '../inventory/shopify-sale-movement.util';
+import { allocateProportional, deriveVatRatePercent } from '../order-reservations/online-sale-money.util';
 import { PrismaService } from '../prisma/prisma.service';
+import type { VatCodeWithNature } from '../vat/vat-codes.service';
+import { findVatCodeForDerivedRate } from '../vat/vat-reverse-match.util';
+import { buildUnmatchedRateSnapshot, buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
 import { defaultTypeSetting, type ResolvedDocumentTypeSetting } from '../documents/document-defaults';
 import { resolveShopifyOrderLocationId } from './shopify-order-location.util';
 
@@ -219,9 +223,38 @@ export class ShopifyOrderDocumentService {
   ): Promise<string | null> {
     const { order, tenantId, shopifyOrderId, locationId, setting, cancelled, onlineSale } =
       params;
-    const documentLines = order.lines
-      .filter((line) => line.quantity > 0)
-      .map((line, index) => ({
+    const stockLines = order.lines.filter((line) => line.quantity > 0);
+    if (stockLines.length === 0) {
+      return null;
+    }
+
+    // Aliquota per riga: nessun dettaglio IVA per riga dal canale, quindi si
+    // alloca proporzionalmente l'imposta ordine (stessa tecnica di
+    // OnlineSaleFulfillmentService.computeSaleLines) e si tenta una
+    // corrispondenza inversa con un Codice IVA attivo vendita/entrambi del
+    // tenant. Nessuna voce fittizia se non c'è corrispondenza (§ reverse-match).
+    const weights = stockLines.map((line) => line.totalMinor);
+    if (order.shippingMinor > 0) {
+      weights.push(order.shippingMinor);
+    }
+    const taxShares = allocateProportional(order.taxMinor, weights);
+    const salesVatCodes: VatCodeWithNature[] = await tx.vatCode.findMany({
+      where: { tenantId, deletedAt: null, isActive: true, usageScope: { in: ['sales', 'both'] } },
+      include: { nature: true },
+    });
+
+    const documentLines = stockLines.map((line, index) => {
+      const lineTax = taxShares[index] ?? 0;
+      const lineSubtotal = line.totalMinor - lineTax;
+      const vatRatePercent = deriveVatRatePercent(lineSubtotal, lineTax);
+      const matched = findVatCodeForDerivedRate(vatRatePercent, salesVatCodes);
+      const vatSnapshot =
+        matched != null
+          ? buildVatCodeSnapshot(matched)
+          : vatRatePercent != null
+            ? buildUnmatchedRateSnapshot(vatRatePercent)
+            : null;
+      return {
         lineNumber: index + 1,
         variantId: line.variantId,
         sku: line.sku,
@@ -229,14 +262,12 @@ export class ShopifyOrderDocumentService {
         quantity: line.quantity,
         unitPriceMinor: line.unitPriceMinor,
         discountPercent: 0,
-        vatRatePercent: null as number | null,
         lineTotalMinor: line.totalMinor,
+        vatCodeId: matched?.id ?? null,
+        vatSnapshot,
         loadsStock: false,
-      }));
-
-    if (documentLines.length === 0) {
-      return null;
-    }
+      };
+    });
 
     const totals = {
       subtotalMinor: order.subtotalMinor,
@@ -277,7 +308,7 @@ export class ShopifyOrderDocumentService {
             status: targetStatus,
             cancelledAt: cancelled ? new Date() : null,
             lines: {
-              create: documentLines.map((line) => ({ ...line, tenantId })),
+              create: documentLines.map((line) => ({ ...line, tenantId, vatSnapshot: line.vatSnapshot ?? Prisma.DbNull })),
             },
           },
         });
@@ -321,7 +352,7 @@ export class ShopifyOrderDocumentService {
         cancelledAt: cancelled ? new Date() : null,
         createdByName: 'Shopify',
         lines: {
-          create: documentLines.map((line) => ({ ...line, tenantId })),
+          create: documentLines.map((line) => ({ ...line, tenantId, vatSnapshot: line.vatSnapshot ?? Prisma.DbNull })),
         },
       },
       select: { id: true },

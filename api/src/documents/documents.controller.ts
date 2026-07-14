@@ -51,8 +51,11 @@ import {
 } from './documents.service';
 import { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
+import { SaveTransferDto } from './dto/save-transfer.dto';
+import { SaveAdjustmentDto } from './dto/save-adjustment.dto';
 import { ListLinkableGoodsReceiptsQueryDto } from './dto/list-linkable-goods-receipts.query.dto';
 import { GoodsReceiptWorkflowService } from './goods-receipt-workflow.service';
+import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflow.service';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -62,6 +65,7 @@ export class DocumentsController {
     private readonly attachments: DocumentAttachmentsService,
     private readonly documentPdf: DocumentPdfService,
     private readonly goodsReceiptWorkflow: GoodsReceiptWorkflowService,
+    private readonly transferAdjustmentWorkflow: TransferAdjustmentWorkflowService,
   ) {}
 
   @Get()
@@ -129,6 +133,40 @@ export class DocumentsController {
       receiptsTotalMinor: result.receiptsTotalMinor,
       totalsMatch: result.totalsMatch,
     };
+  }
+
+  /**
+   * Salvataggio dedicato di un Trasferimento GIÀ CONFERMATO: preserva gli id
+   * riga stabili così i movimenti per riga si aggiornano invece di
+   * duplicarsi. La creazione e la prima conferma restano sul flusso generico
+   * (POST /documents + POST /documents/:id/confirm).
+   */
+  @Post('transfer/save')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  async saveTransfer(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Body() dto: SaveTransferDto,
+  ): Promise<DocumentDetail> {
+    const saved = await this.transferAdjustmentWorkflow.saveTransfer(tenantId, dto, user);
+    return this.documents.getById(tenantId, saved.id);
+  }
+
+  /**
+   * Salvataggio dedicato di una Rettifica GIÀ CONFERMATA: preserva gli id
+   * riga stabili così i movimenti per riga si aggiornano invece di
+   * duplicarsi. La creazione e la prima conferma restano sul flusso generico
+   * (POST /documents + POST /documents/:id/confirm).
+   */
+  @Post('adjustment/save')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  async saveAdjustment(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Body() dto: SaveAdjustmentDto,
+  ): Promise<DocumentDetail> {
+    const saved = await this.transferAdjustmentWorkflow.saveAdjustment(tenantId, dto, user);
+    return this.documents.getById(tenantId, saved.id);
   }
 
   @Get('preview-number')

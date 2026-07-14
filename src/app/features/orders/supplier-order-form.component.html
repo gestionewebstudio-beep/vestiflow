@@ -91,7 +91,11 @@
       @if (showSupplierForm()) {
         <div class="po-form__supplier-box">
           <h2 class="po-form__subtitle">Nuovo fornitore</h2>
-          <app-supplier-form-fields idPrefix="po-new-supplier" [formGroup]="supplierForm" />
+          <app-supplier-form-fields
+            idPrefix="po-new-supplier"
+            [formGroup]="supplierForm"
+            [vatCodes]="vatCodes()"
+          />
           <div class="po-form__supplier-actions">
             <app-button
               type="button"

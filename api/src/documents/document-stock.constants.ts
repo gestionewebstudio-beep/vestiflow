@@ -47,12 +47,3 @@ export function documentTypeTransfersStockOnConfirm(type: DocumentType): boolean
 export function documentTypeAdjustsStockOnConfirm(type: DocumentType): boolean {
   return (DOCUMENT_STOCK_ADJUSTMENT_TYPES as readonly string[]).includes(type);
 }
-
-export function documentTypeAffectsStockOnConfirm(type: DocumentType): boolean {
-  return (
-    documentTypeLoadsStockOnConfirm(type) ||
-    documentTypeUnloadsStockOnConfirm(type) ||
-    documentTypeTransfersStockOnConfirm(type) ||
-    documentTypeAdjustsStockOnConfirm(type)
-  );
-}

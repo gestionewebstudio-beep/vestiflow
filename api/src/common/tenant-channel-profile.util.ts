@@ -22,22 +22,6 @@ export function onlineSalesChannelLabel(
     : 'Vendita online esterna';
 }
 
-/** Motivo movimento vendita online manuale. */
-export function onlineSalesSaleReasonLabel(
-  profile: TenantChannelProfile | null | undefined,
-): string {
-  return onlineSalesChannelLabel(profile);
-}
-
-/** Motivo movimento reso online manuale. */
-export function onlineSalesReturnReasonLabel(
-  profile: TenantChannelProfile | null | undefined,
-): string {
-  return profile === TenantChannelProfile.gestionale
-    ? 'Storno online (reso)'
-    : 'Storno online esterna (reso)';
-}
-
 export async function assertTenantChannelProfile(
   prisma: PrismaService,
   tenantId: string,

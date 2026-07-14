@@ -23,7 +23,6 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   tags: '',
   status: ProductStatus.Draft,
   unitOfMeasure: 'pz',
-  defaultVatRatePercent: 22,
   defaultVatCodeId: '',
   inventoryTracking: InventoryTrackingMode.Standard,
   managesStock: true,

@@ -14,7 +14,3 @@ export const ROLES_KEY = 'roles';
  */
 export const Roles = (...roles: UserRole[]): MethodDecorator & ClassDecorator =>
   SetMetadata(ROLES_KEY, roles);
-
-/** Scorciatoie semantiche per non ripetere gli array nei controller. */
-export const ADMIN_ROLES: UserRole[] = ['owner', 'admin'];
-export const MANAGER_ROLES: UserRole[] = ['owner', 'admin', 'manager'];

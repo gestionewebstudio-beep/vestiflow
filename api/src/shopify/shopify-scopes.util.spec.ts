@@ -10,7 +10,6 @@ import {
   shopifyHasProductReadScope,
   shopifyInventoryReadScopeError,
   shopifyOrdersReadScopeError,
-  shopifyProductReadScopeError,
 } from './shopify-scopes.util';
 
 describe('shopify-scopes.util', () => {
@@ -35,12 +34,6 @@ describe('shopify-scopes.util', () => {
   });
 
   describe('scope error messages', () => {
-    it('shopifyProductReadScopeError distingue write-only', () => {
-      expect(shopifyProductReadScopeError(['read_products'])).toBeNull();
-      expect(shopifyProductReadScopeError(['write_products'])).toContain('incompleto');
-      expect(shopifyProductReadScopeError([])).toContain('Mancano i permessi');
-    });
-
     it('shopifyInventoryReadScopeError distingue write-only inventory', () => {
       expect(shopifyInventoryReadScopeError(['read_inventory'])).toBeNull();
       expect(shopifyInventoryReadScopeError(['write_inventory'])).toContain('leggerle');

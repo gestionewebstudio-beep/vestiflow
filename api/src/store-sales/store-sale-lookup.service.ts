@@ -14,7 +14,11 @@ export interface StoreSaleItemLookupResult {
   readonly optionSummary: string;
   readonly sellingPriceMinor: number;
   readonly currency: string;
+  /** Aliquota % del Codice IVA risolto (solo display, derivata da vatCodeId). */
   readonly vatRatePercent: number | null;
+  /** Codice IVA risolto (predefinito articolo, altrimenti predefinito aziendale). */
+  readonly vatCodeId: string | null;
+  readonly vatCodeLabel: string | null;
   readonly onHand: number;
   readonly committed: number;
   readonly available: number;
@@ -77,8 +81,32 @@ export class StoreSaleLookupService {
     });
     const levelByVariant = new Map(levels.map((level) => [level.variantId, level]));
 
+    // Codice IVA: predefinito articolo, altrimenti predefinito aziendale (§Piano IVA fase 2).
+    const tenantSettings = await this.prisma.tenantFeatureSettings.findUnique({
+      where: { tenantId },
+      select: { defaultVatCodeId: true },
+    });
+    const tenantDefaultVatCodeId = tenantSettings?.defaultVatCodeId ?? null;
+    const idsToFetch = new Set<string>();
+    for (const row of rows) {
+      if (row.product.defaultVatCodeId) idsToFetch.add(row.product.defaultVatCodeId);
+    }
+    if (tenantDefaultVatCodeId) idsToFetch.add(tenantDefaultVatCodeId);
+    const vatCodesById = new Map<string, { id: string; code: string; ratePercent: Prisma.Decimal }>();
+    if (idsToFetch.size > 0) {
+      const found = await this.prisma.vatCode.findMany({
+        where: { tenantId, id: { in: [...idsToFetch] }, deletedAt: null },
+        select: { id: true, code: true, ratePercent: true },
+      });
+      for (const vatCode of found) {
+        vatCodesById.set(vatCode.id, vatCode);
+      }
+    }
+
     return rows.map((row) => {
       const level = levelByVariant.get(row.id);
+      const resolvedVatCodeId = row.product.defaultVatCodeId ?? tenantDefaultVatCodeId;
+      const vatCode = resolvedVatCodeId ? (vatCodesById.get(resolvedVatCodeId) ?? null) : null;
       return {
         variantId: row.id,
         sku: row.sku,
@@ -87,7 +115,9 @@ export class StoreSaleLookupService {
         optionSummary: this.optionSummary(row.optionValues),
         sellingPriceMinor: row.sellingPriceMinor,
         currency: row.currency,
-        vatRatePercent: row.product.defaultVatRatePercent,
+        vatRatePercent: vatCode ? Math.round(Number(vatCode.ratePercent)) : null,
+        vatCodeId: vatCode?.id ?? null,
+        vatCodeLabel: vatCode ? vatCode.code : null,
         onHand: level?.onHand ?? 0,
         committed: level?.committed ?? 0,
         available: level?.available ?? 0,
@@ -104,7 +134,9 @@ export class StoreSaleLookupService {
         optionValues: true,
         sellingPriceMinor: true,
         currency: true,
-        product: { select: { name: true, defaultVatRatePercent: true } },
+        product: {
+          select: { name: true, defaultVatCodeId: true },
+        },
       },
     } as const;
   }

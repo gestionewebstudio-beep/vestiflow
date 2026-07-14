@@ -9,7 +9,6 @@ import {
   isVestiflowCatalogOwner,
   resolveCatalogOriginForShopifyImport,
   resolveShopifyCatalogLinkKindForImport,
-  shouldBackfillShopifyCatalogOrigin,
   shouldSkipShopifyCatalogImport,
   SHOPIFY_CATALOG_LOCKED_MESSAGE,
 } from './catalog-origin.util';
@@ -105,7 +104,6 @@ describe('catalog-origin.util', () => {
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(true);
     expect(shouldSkipShopifyCatalogImport(snapshot)).toBe(true);
-    expect(shouldBackfillShopifyCatalogOrigin(snapshot)).toBe(false);
   });
 
   it('considera owner VestiFlow prodotti con upload locali collegati a Shopify', () => {
@@ -119,7 +117,6 @@ describe('catalog-origin.util', () => {
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(true);
     expect(shouldSkipShopifyCatalogImport(snapshot)).toBe(true);
-    expect(shouldBackfillShopifyCatalogOrigin(snapshot)).toBe(false);
   });
 
   it('promuove import legacy Shopify collegati alla create', () => {
@@ -133,7 +130,6 @@ describe('catalog-origin.util', () => {
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(false);
     expect(shouldSkipShopifyCatalogImport(snapshot)).toBe(false);
-    expect(shouldBackfillShopifyCatalogOrigin(snapshot)).toBe(true);
     expect(resolveCatalogOriginForShopifyImport(snapshot)).toBe(CatalogOrigin.shopify);
     expect(resolveShopifyCatalogLinkKindForImport(snapshot)).toBe(ShopifyCatalogLinkKind.imported);
   });
@@ -148,29 +144,5 @@ describe('catalog-origin.util', () => {
       images: [{ storagePath: null }],
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(true);
-    expect(shouldBackfillShopifyCatalogOrigin(snapshot)).toBe(false);
-  });
-
-  it('non backfill prodotti già shopify o senza collegamento Shopify', () => {
-    expect(
-      shouldBackfillShopifyCatalogOrigin({
-        catalogOrigin: CatalogOrigin.shopify,
-        shopifyProductId: '123',
-        shopifyCatalogLinkKind: ShopifyCatalogLinkKind.imported,
-        createdAt,
-        shopifyLastSyncAt: syncedAtCreate,
-        images: [],
-      }),
-    ).toBe(false);
-    expect(
-      shouldBackfillShopifyCatalogOrigin({
-        catalogOrigin: CatalogOrigin.vestiflow,
-        shopifyProductId: null,
-        shopifyCatalogLinkKind: null,
-        createdAt,
-        shopifyLastSyncAt: null,
-        images: [],
-      }),
-    ).toBe(false);
   });
 });

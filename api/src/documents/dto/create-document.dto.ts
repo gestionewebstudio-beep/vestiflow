@@ -47,12 +47,17 @@ export class DocumentLineInputDto {
   @Max(100)
   discountPercent?: number;
 
-  /** Aliquota IVA in percentuale intera (es. 22). */
+  /** LEGACY: aliquota IVA in percentuale intera (es. 22). Sostituita da vatCodeId. */
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(100)
   vatRatePercent?: number;
+
+  /** Codice IVA della riga. Se assente, risolto da articolo/fornitore/tenant. */
+  @IsOptional()
+  @IsUUID()
+  vatCodeId?: string;
 
   /** Flag "carica magazzino" (§3.2). Default true. */
   @IsOptional()

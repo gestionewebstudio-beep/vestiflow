@@ -35,13 +35,11 @@ describe('TenantFeatureSettingsService', () => {
       warnNegativeInventory: true,
       blockNegativeInventory: false,
       defaultUnitOfMeasure: 'pz',
-      defaultVatRatePercent: 22,
     });
 
     await expect(service.getOrCreate(tenantId)).resolves.toMatchObject({
       lotsEnabled: false,
       updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.ask,
-      defaultVatRatePercent: 22,
     });
     expect(prisma.tenantFeatureSettings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -67,7 +65,6 @@ describe('TenantFeatureSettingsService', () => {
       warnNegativeInventory: true,
       blockNegativeInventory: false,
       defaultUnitOfMeasure: 'kg',
-      defaultVatRatePercent: 10,
     });
 
     await expect(
@@ -76,14 +73,12 @@ describe('TenantFeatureSettingsService', () => {
         serialsEnabled: true,
         updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.always,
         defaultUnitOfMeasure: 'kg',
-        defaultVatRatePercent: 10,
       }),
     ).resolves.toMatchObject({
       lotsEnabled: true,
       serialsEnabled: true,
       updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.always,
       defaultUnitOfMeasure: 'kg',
-      defaultVatRatePercent: 10,
     });
 
     expect(prisma.tenantFeatureSettings.update).toHaveBeenCalledWith({
@@ -93,7 +88,6 @@ describe('TenantFeatureSettingsService', () => {
         serialsEnabled: true,
         updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.always,
         defaultUnitOfMeasure: 'kg',
-        defaultVatRatePercent: 10,
       },
     });
   });

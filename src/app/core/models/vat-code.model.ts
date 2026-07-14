@@ -97,3 +97,8 @@ export function vatCodeOptionLabel(vatCode: {
 export function isPurchaseVatCode(vatCode: VatCode): boolean {
   return vatCode.usageScope === 'purchase' || vatCode.usageScope === 'both';
 }
+
+/** Codici IVA utilizzabili nei documenti di vendita (DDT, Fattura, Proforma…). */
+export function isSalesVatCode(vatCode: VatCode): boolean {
+  return vatCode.usageScope === 'sales' || vatCode.usageScope === 'both';
+}

@@ -3,18 +3,21 @@ import {
   DocumentType,
   MovementOrigin,
   OnlineSaleInventoryStatus,
+  Prisma,
   ReservationStatus,
   SalesOrderSource,
   StockMovementType,
   CorrispettivoStatus,
   type Customer,
-  type Prisma,
   type SalesOrder,
   type SalesOrderLine,
   type StockReservation,
 } from '@prisma/client';
 
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
+import type { VatCodeWithNature } from '../vat/vat-codes.service';
+import { findVatCodeForDerivedRate } from '../vat/vat-reverse-match.util';
+import { buildUnmatchedRateSnapshot, buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
 
 import { allocateProportional, deriveVatRatePercent } from './online-sale-money.util';
 import { StockReservationService } from './stock-reservation.service';
@@ -41,11 +44,15 @@ interface ComputedSaleLine {
   readonly quantity: number;
   readonly unitPriceMinor: number;
   readonly subtotalMinor: number;
+  /** Aliquota derivata dal canale (solo calcolo interno, non persistita: §7). */
   readonly vatRatePercent: number | null;
   readonly taxMinor: number;
   readonly totalMinor: number;
   readonly salesOrderLineId: string;
   readonly reservation: StockReservation | null;
+  /** Codice IVA riconosciuto per corrispondenza inversa con l'aliquota derivata dal canale. */
+  readonly vatCodeId: string | null;
+  readonly vatSnapshot: Prisma.InputJsonObject | null;
 }
 
 /**
@@ -102,7 +109,8 @@ export class OnlineSaleFulfillmentService {
     }
 
     const fulfilledAt = event.occurredAt ?? new Date();
-    const computedLines = await this.computeSaleLines(tx, order);
+    const salesVatCodes = await this.loadSalesVatCodes(tx, event.tenantId);
+    const computedLines = await this.computeSaleLines(tx, order, salesVatCodes);
     const headerLocationId =
       computedLines.find((line) => line.reservation)?.reservation?.locationId ??
       event.locationId ??
@@ -164,9 +172,10 @@ export class OnlineSaleFulfillmentService {
           quantity: line.quantity,
           unitPriceMinor: line.unitPriceMinor,
           subtotalMinor: line.subtotalMinor,
-          vatRatePercent: line.vatRatePercent,
           taxMinor: line.taxMinor,
           totalMinor: line.totalMinor,
+          vatCodeId: line.vatCodeId,
+          vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
           salesOrderLineId: line.salesOrderLineId,
           reservationId: line.reservation?.id ?? null,
           locationId: line.reservation?.locationId ?? null,
@@ -259,6 +268,7 @@ export class OnlineSaleFulfillmentService {
       fulfilledAt,
       order,
       lines: computedLines,
+      salesVatCodes,
     });
 
     this.logger.log(
@@ -381,10 +391,40 @@ export class OnlineSaleFulfillmentService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
+  /**
+   * Codici IVA attivi vendita/entrambi del tenant, per la corrispondenza
+   * inversa con l'aliquota derivata dal canale (§Piano IVA fase 2, punto 3).
+   */
+  private async loadSalesVatCodes(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+  ): Promise<VatCodeWithNature[]> {
+    return tx.vatCode.findMany({
+      where: { tenantId, deletedAt: null, isActive: true, usageScope: { in: ['sales', 'both'] } },
+      include: { nature: true },
+    });
+  }
+
+  /** Risolve Codice IVA + snapshot per un'aliquota derivata da dati reali del canale. */
+  private resolveDerivedVat(
+    ratePercent: number | null,
+    salesVatCodes: readonly VatCodeWithNature[],
+  ): { vatCodeId: string | null; vatSnapshot: Prisma.InputJsonObject | null } {
+    if (ratePercent == null) {
+      return { vatCodeId: null, vatSnapshot: null };
+    }
+    const matched = findVatCodeForDerivedRate(ratePercent, salesVatCodes);
+    return {
+      vatCodeId: matched?.id ?? null,
+      vatSnapshot: matched ? buildVatCodeSnapshot(matched) : buildUnmatchedRateSnapshot(ratePercent),
+    };
+  }
+
   /** Snapshot righe vendita con allocazione proporzionale dell'IVA ordine. */
   private async computeSaleLines(
     tx: Prisma.TransactionClient,
     order: OrderWithContext,
+    salesVatCodes: readonly VatCodeWithNature[],
   ): Promise<ComputedSaleLine[]> {
     const lines = order.lines.filter((line) => line.quantity > 0);
 
@@ -423,6 +463,8 @@ export class OnlineSaleFulfillmentService {
     return lines.map((line, index) => {
       const taxMinor = taxShares[index] ?? 0;
       const subtotalMinor = line.totalMinor - taxMinor;
+      const vatRatePercent = deriveVatRatePercent(subtotalMinor, taxMinor);
+      const { vatCodeId, vatSnapshot } = this.resolveDerivedVat(vatRatePercent, salesVatCodes);
       return {
         lineNumber: index + 1,
         variantId: line.variantId,
@@ -434,11 +476,13 @@ export class OnlineSaleFulfillmentService {
         quantity: line.quantity,
         unitPriceMinor: line.unitPriceMinor,
         subtotalMinor,
-        vatRatePercent: deriveVatRatePercent(subtotalMinor, taxMinor),
+        vatRatePercent,
         taxMinor,
         totalMinor: line.totalMinor,
         salesOrderLineId: line.id,
         reservation: reservationByLineId.get(line.id) ?? null,
+        vatCodeId,
+        vatSnapshot,
       };
     });
   }
@@ -453,6 +497,7 @@ export class OnlineSaleFulfillmentService {
       readonly fulfilledAt: Date;
       readonly order: OrderWithContext;
       readonly lines: readonly ComputedSaleLine[];
+      readonly salesVatCodes: readonly VatCodeWithNature[];
     },
   ): Promise<void> {
     const year = params.fulfilledAt.getFullYear();
@@ -493,7 +538,7 @@ export class OnlineSaleFulfillmentService {
       params.order.taxMinor -
       params.lines.reduce((acc, line) => acc + line.taxMinor, 0);
 
-    const lineRows = params.lines.map((line) => ({
+    const lineRows: Prisma.CorrispettivoEntryLineCreateManyInput[] = params.lines.map((line) => ({
       tenantId: params.tenantId,
       entryId: entry.id,
       lineNumber: line.lineNumber,
@@ -501,13 +546,16 @@ export class OnlineSaleFulfillmentService {
       description: line.description,
       quantity: line.quantity,
       subtotalMinor: line.subtotalMinor,
-      vatRatePercent: line.vatRatePercent,
       taxMinor: line.taxMinor,
       totalMinor: line.totalMinor,
+      vatCodeId: line.vatCodeId,
+      vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
     }));
 
     if (params.order.shippingMinor > 0) {
       const shippingSubtotal = params.order.shippingMinor - shippingTax;
+      const shippingVatRate = deriveVatRatePercent(shippingSubtotal, shippingTax);
+      const shippingVat = this.resolveDerivedVat(shippingVatRate, params.salesVatCodes);
       lineRows.push({
         tenantId: params.tenantId,
         entryId: entry.id,
@@ -516,9 +564,10 @@ export class OnlineSaleFulfillmentService {
         description: 'Spedizione',
         quantity: 1,
         subtotalMinor: shippingSubtotal,
-        vatRatePercent: deriveVatRatePercent(shippingSubtotal, shippingTax),
         taxMinor: shippingTax,
         totalMinor: params.order.shippingMinor,
+        vatCodeId: shippingVat.vatCodeId,
+        vatSnapshot: shippingVat.vatSnapshot ?? Prisma.DbNull,
       });
     }
 

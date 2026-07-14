@@ -97,8 +97,6 @@ export interface DocumentLine {
   readonly quantity: number;
   readonly unitPrice: Money;
   readonly discountPercent: number;
-  /** LEGACY: sostituito da vatCodeId/vatSnapshot; mantenuto per compatibilità. */
-  readonly vatRatePercent?: number;
   /** Codice IVA della riga (tabella vat_codes, §9). */
   readonly vatCodeId?: EntityId;
   /** Snapshot IVA salvato alla registrazione (indipendente da modifiche future). */

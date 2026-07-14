@@ -16,5 +16,3 @@ export const INVENTORY_TRACKING_LABELS: Readonly<Record<InventoryTrackingMode, s
 };
 
 export const COMMON_UNIT_OF_MEASURE = ['pz', 'conf', 'kg', 'g', 'lt', 'm'] as const;
-
-export const COMMON_VAT_RATES = [22, 10, 4, 0] as const;

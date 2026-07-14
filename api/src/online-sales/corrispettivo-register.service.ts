@@ -9,6 +9,7 @@ import {
   toPrismaSource,
   type ApiSalesOrderSource,
 } from '../sales-orders/sales-order.enum-mapper';
+import { vatSnapshotDisplayLabel, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import type { ListCorrispettivoEntriesQueryDto } from './dto/list-corrispettivo-entries.query.dto';
 import type { UpdateCorrispettivoEntryDto } from './dto/update-corrispettivo-entry.dto';
 
@@ -45,9 +46,13 @@ export interface CorrispettivoEntryLineRow {
   readonly quantity: number;
   readonly discountMinor: number;
   readonly subtotalMinor: number;
+  /** Aliquota % derivata dallo snapshot IVA congelato sulla riga (solo display). */
   readonly vatRatePercent: number | null;
   readonly taxMinor: number;
   readonly totalMinor: number;
+  readonly vatCodeId: string | null;
+  /** Etichetta Codice IVA risolta (o solo aliquota se nessun codice ha fatto match). */
+  readonly vatCodeLabel: string | null;
 }
 
 export interface CorrispettivoEntryDetail extends CorrispettivoEntryRow {
@@ -194,14 +199,28 @@ export class CorrispettivoRegisterService {
       byChannel.set(channel, channelAgg);
     }
 
-    const vatGroups =
+    // Nessuna colonna aliquota grezza persistita: l'aggregazione per aliquota
+    // rilegge lo snapshot IVA congelato per riga e raggruppa in memoria (il
+    // groupBy Prisma non filtra/raggruppa su campi JSON annidati).
+    const vatLines =
       entries.length > 0
-        ? await this.prisma.corrispettivoEntryLine.groupBy({
-            by: ['vatRatePercent'],
+        ? await this.prisma.corrispettivoEntryLine.findMany({
             where: { tenantId, entryId: { in: entries.map((entry) => entry.id) } },
-            _sum: { subtotalMinor: true, taxMinor: true, totalMinor: true },
+            select: { vatSnapshot: true, subtotalMinor: true, taxMinor: true, totalMinor: true },
           })
         : [];
+    const vatRateAgg = new Map<
+      number | null,
+      { subtotalMinor: number; taxMinor: number; totalMinor: number }
+    >();
+    for (const line of vatLines) {
+      const rate = vatSnapshotRatePercent(line.vatSnapshot);
+      const agg = vatRateAgg.get(rate) ?? { subtotalMinor: 0, taxMinor: 0, totalMinor: 0 };
+      agg.subtotalMinor += line.subtotalMinor;
+      agg.taxMinor += line.taxMinor;
+      agg.totalMinor += line.totalMinor;
+      vatRateAgg.set(rate, agg);
+    }
 
     return {
       entryCount: entries.length,
@@ -227,13 +246,13 @@ export class CorrispettivoRegisterService {
         taxMinor: agg.tax,
         totalMinor: agg.total,
       })),
-      byVatRate: vatGroups
-        .sort((a, b) => (a.vatRatePercent ?? -1) - (b.vatRatePercent ?? -1))
-        .map((group) => ({
-          vatRatePercent: group.vatRatePercent,
-          subtotalMinor: group._sum.subtotalMinor ?? 0,
-          taxMinor: group._sum.taxMinor ?? 0,
-          totalMinor: group._sum.totalMinor ?? 0,
+      byVatRate: [...vatRateAgg.entries()]
+        .sort(([a], [b]) => (a ?? -1) - (b ?? -1))
+        .map(([vatRatePercent, agg]) => ({
+          vatRatePercent,
+          subtotalMinor: agg.subtotalMinor,
+          taxMinor: agg.taxMinor,
+          totalMinor: agg.totalMinor,
         })),
     };
   }
@@ -260,9 +279,11 @@ export class CorrispettivoRegisterService {
         quantity: line.quantity,
         discountMinor: line.discountMinor,
         subtotalMinor: line.subtotalMinor,
-        vatRatePercent: line.vatRatePercent,
+        vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
         taxMinor: line.taxMinor,
         totalMinor: line.totalMinor,
+        vatCodeId: line.vatCodeId,
+        vatCodeLabel: vatSnapshotDisplayLabel(line.vatSnapshot),
       })),
     };
   }
@@ -344,7 +365,11 @@ export class CorrispettivoRegisterService {
       where.excludedFromSummary = query.excludedFromSummary;
     }
     if (query.vatRatePercent !== undefined) {
-      where.lines = { some: { vatRatePercent: query.vatRatePercent } };
+      // Nessuna colonna aliquota grezza persistita: filtro sullo snapshot IVA
+      // congelato per riga (§9), unica fonte stabile dell'aliquota effettiva.
+      where.lines = {
+        some: { vatSnapshot: { path: ['ratePercent'], equals: query.vatRatePercent } },
+      };
     }
     const search = query.search?.trim();
     if (search) {

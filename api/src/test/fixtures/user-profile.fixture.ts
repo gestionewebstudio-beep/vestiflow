@@ -23,15 +23,3 @@ export function testOwnerUser(overrides: Partial<UserProfileDto> = {}): UserProf
     ...overrides,
   };
 }
-
-export function testClerkUser(overrides: Partial<UserProfileDto> = {}): UserProfileDto {
-  return testOwnerUser({
-    id: 'user-clerk',
-    email: 'clerk@test.it',
-    displayName: 'Clerk Test',
-    role: UserRole.clerk,
-    assignedLocationId: 'loc-1',
-    assignedLocationName: 'Negozio',
-    ...overrides,
-  });
-}

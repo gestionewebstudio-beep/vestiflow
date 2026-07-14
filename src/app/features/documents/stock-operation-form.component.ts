@@ -363,6 +363,61 @@ export class StockOperationFormComponent {
       return;
     }
     const raw = this.form.getRawValue();
+    const editId = this.editDocumentId();
+    const confirmedEdit = this.isConfirmedEdit();
+    this._submitState.set({ status: 'saving' });
+
+    // Rettifica già confermata: la modifica righe deve preservare gli id
+    // stabili, così i movimenti per riga si aggiornano invece di duplicarsi
+    // (mirror arrivo merce — vedi POST /documents/adjustment/save). Lo
+    // scarico manuale NON fa parte di questa migrazione: resta sempre sul
+    // flusso generico, anche a documento confermato.
+    const request$ =
+      confirmedEdit && this.isAdjustment()
+        ? this.documentService.saveAdjustment({
+            id: editId!,
+            documentDate: new Date(raw.documentDate).toISOString(),
+            locationId: raw.locationId,
+            adjustmentDirection: raw.adjustmentDirection,
+            notes: raw.notes.trim() || undefined,
+            internalComment: raw.internalComment.trim(),
+            lines: raw.lines
+              .filter((line) => line.variantId || line.description.trim())
+              .map((line) => ({
+                id: line.id || undefined,
+                variantId: line.variantId || undefined,
+                sku: line.sku.trim() || undefined,
+                description: line.description.trim() || 'Riga rettifica',
+                quantity: Number(line.quantity),
+                loadsStock: Boolean(line.variantId),
+                serialNumbers: parseSerialNumbersText(line.serialNumbersText),
+              })),
+          })
+        : this.persistDraftOrConfirm(editId, raw, confirmAfterSave, confirmedEdit);
+
+    this.submitSubscription?.unsubscribe();
+    this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (doc) => {
+        this._submitState.set({ status: 'idle' });
+        void this.router.navigate([this.listPath, doc.id]);
+      },
+      error: (err: unknown) => {
+        this._submitState.set({ status: 'error', error: this.toAppError(err) });
+      },
+    });
+  }
+
+  /**
+   * Bozza (creazione o modifica pre-conferma) o scarico manuale (fuori da
+   * questa migrazione, sempre sul flusso generico): nessun movimento per
+   * riga da preservare, resta su create/update (+ confirm se richiesto).
+   */
+  private persistDraftOrConfirm(
+    editId: string | null,
+    raw: ReturnType<StockOperationFormComponent['form']['getRawValue']>,
+    confirmAfterSave: boolean,
+    confirmedEdit: boolean,
+  ) {
     const docType = this.documentType();
     const body = {
       type: docType,
@@ -386,29 +441,13 @@ export class StockOperationFormComponent {
         })),
     };
 
-    const editId = this.editDocumentId();
-    const confirmedEdit = this.isConfirmedEdit();
-    this._submitState.set({ status: 'saving' });
-
     const save$ = editId
       ? this.documentService.updateDocument(editId, body)
       : this.documentService.createDocument(body);
 
-    const request$ =
-      confirmAfterSave && !confirmedEdit
-        ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
-        : save$;
-
-    this.submitSubscription?.unsubscribe();
-    this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (doc) => {
-        this._submitState.set({ status: 'idle' });
-        void this.router.navigate([this.listPath, doc.id]);
-      },
-      error: (err: unknown) => {
-        this._submitState.set({ status: 'error', error: this.toAppError(err) });
-      },
-    });
+    return confirmAfterSave && !confirmedEdit
+      ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
+      : save$;
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
@@ -423,6 +462,10 @@ export class StockOperationFormComponent {
     for (const line of doc.lines ?? []) {
       this.lines.push(
         this.fb.group({
+          // Id riga esistente: preservato (mai esposto in UI) per consentire
+          // al salvataggio dedicato rettifica di aggiornare il movimento
+          // collegato invece di duplicarlo (POST /documents/adjustment/save).
+          id: this.fb.control<string | null>(line.id ?? null),
           variantId: this.fb.control(line.variantId ?? '', {
             validators: line.loadsStock ? [Validators.required] : [],
           }),
@@ -442,6 +485,7 @@ export class StockOperationFormComponent {
 
   private createLine() {
     return this.fb.group({
+      id: this.fb.control<string | null>(null),
       variantId: this.fb.control('', { validators: [Validators.required] }),
       sku: this.fb.control(''),
       description: this.fb.control('', { validators: [Validators.required] }),

@@ -350,7 +350,11 @@
         @if (showSupplierForm()) {
           <div class="gr-form__supplier-box">
             <h2 class="gr-form__subtitle">Nuovo fornitore</h2>
-            <app-supplier-form-fields idPrefix="gr-new-supplier" [formGroup]="supplierForm" />
+            <app-supplier-form-fields
+              idPrefix="gr-new-supplier"
+              [formGroup]="supplierForm"
+              [vatCodes]="vatCodes()"
+            />
             <div class="gr-form__supplier-actions">
               <app-button
                 type="button"

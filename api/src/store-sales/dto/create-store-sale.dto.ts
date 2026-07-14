@@ -38,12 +38,10 @@ export class StoreSaleLineInputDto {
   @Max(100)
   discountPercent?: number;
 
-  /** Aliquota IVA % intera (per scorporo interno); opzionale. */
+  /** Codice IVA della riga. Se assente, risolto da articolo/predefinito aziendale. */
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  vatRatePercent?: number;
+  @IsUUID()
+  vatCodeId?: string;
 }
 
 export class CreateStoreSaleDto {

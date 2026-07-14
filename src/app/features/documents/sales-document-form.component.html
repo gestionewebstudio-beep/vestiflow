@@ -189,14 +189,15 @@
                   />
                 </div>
                 <div class="gr-form__line-field gr-form__line-field--vat">
-                  <label class="gr-form__label" [for]="'sd-vat-' + i">IVA %</label>
-                  <input
-                    [id]="'sd-vat-' + i"
-                    class="gr-form__input"
-                    type="number"
-                    min="0"
-                    max="100"
-                    formControlName="vatRatePercent"
+                  <span class="gr-form__label">Codice IVA</span>
+                  <app-select-menu
+                    [options]="lineVatOptions(i)"
+                    [value]="line.controls.vatCodeId.value"
+                    ariaLabel="Codice IVA riga"
+                    placeholder="Predefinito…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    (valueChange)="onLineVatSelect(i, $event)"
                   />
                 </div>
                 @if (isSalesDdt()) {

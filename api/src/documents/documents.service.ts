@@ -33,11 +33,21 @@ import {
   transferInventorySerialsFromDocumentLines,
 } from '../inventory/inventory-serial.util';
 import { PrismaService } from '../prisma/prisma.service';
+import type { VatCodeWithNature } from '../vat/vat-codes.service';
+import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
 import {
   buildGoodsReceiptMovementReason,
   syncGoodsReceiptLineMovements,
 } from './document-goods-receipt-sync.util';
+import {
+  buildAdjustmentMovementReason,
+  syncAdjustmentLineMovements,
+} from './document-stock-adjustment-sync.util';
+import {
+  buildTransferMovementReason,
+  syncTransferLineMovements,
+} from './document-stock-transfer-sync.util';
 import {
   INVOICE_LINKABLE_RECEIPT_TYPES,
   documentTypeAdjustsStockOnConfirm,
@@ -50,7 +60,6 @@ import {
   isProformaConvertTarget,
 } from './document-type.util';
 import {
-  applyDocumentStockAdjustments,
   reconcileDocumentStockAdjustment,
   reverseDocumentStockAdjustment,
 } from './document-stock-adjustment.util';
@@ -60,7 +69,6 @@ import {
   reverseDocumentStockManualUnload,
 } from './document-stock-manual-unload.util';
 import {
-  applyDocumentStockTransfers,
   reconcileDocumentStockTransfer,
   reverseDocumentStockTransfer,
 } from './document-stock-transfer.util';
@@ -181,13 +189,24 @@ interface ComputedLine {
   quantity: number;
   unitPriceMinor: number;
   discountPercent: number;
+  /// Dual-write: rispecchia il Codice IVA risolto (o l'aliquota legacy se
+  /// nessun Codice IVA è stato risolto). §Piano IVA fase 2.
   vatRatePercent: number | null;
   lineTotalMinor: number;
+  vatCodeId: string | null;
+  vatSnapshot: Prisma.InputJsonObject | null;
   loadsStock: boolean;
   supplierOrderLineId: string | null;
   lotCode: string | null;
   lotExpiryDate: Date | null;
   serialNumbers: string[];
+}
+
+/** Contesto di risoluzione Codice IVA riga, precaricato una volta per documento. */
+interface LineVatContext {
+  readonly vatCodesById: ReadonlyMap<string, VatCodeWithNature>;
+  readonly productDefaultByVariantId: ReadonlyMap<string, string | null>;
+  readonly fallbackDefaultVatCodeId: string | null;
 }
 
 interface DocumentTotals {
@@ -561,7 +580,8 @@ export class DocumentsService {
     }
 
     const documentDate = new Date(dto.documentDate);
-    const lines = this.computeLines(dto.lines ?? [], dto.type);
+    const vatContext = await this.buildLineVatContext(tenantId, dto.supplierId, dto.lines ?? []);
+    const lines = this.computeLines(dto.lines ?? [], dto.type, vatContext);
     const totals = this.computeTotals(
       lines,
       setting.pricesIncludeVat,
@@ -598,7 +618,7 @@ export class DocumentsService {
         ...totals,
         createdById: user?.id ?? null,
         createdByName: user?.displayName ?? 'API',
-        lines: { create: lines.map((line) => ({ ...line, tenantId })) },
+        lines: { create: lines.map((line) => this.toLineCreateData(line, tenantId)) },
       },
       include: { lines: { orderBy: { lineNumber: 'asc' } } },
     });
@@ -694,7 +714,16 @@ export class DocumentsService {
     const setting = await this.settings.getResolved(tenantId, doc.type);
     const documentDate = dto.documentDate ? new Date(dto.documentDate) : doc.documentDate;
 
-    const lines = dto.lines !== undefined ? this.computeLines(dto.lines, doc.type) : null;
+    const effectiveSupplierIdForVat =
+      dto.supplierId !== undefined ? dto.supplierId : doc.supplierId;
+    const lines =
+      dto.lines !== undefined
+        ? this.computeLines(
+            dto.lines,
+            doc.type,
+            await this.buildLineVatContext(tenantId, effectiveSupplierIdForVat, dto.lines),
+          )
+        : null;
 
     if (lines) {
       const hasPerLineMovements =
@@ -858,7 +887,7 @@ export class DocumentsService {
       data.subtotalMinor = totals.subtotalMinor;
       data.taxMinor = totals.taxMinor;
       data.totalMinor = totals.totalMinor;
-      data.lines = { create: lines.map((line) => ({ ...line, tenantId })) };
+      data.lines = { create: lines.map((line) => this.toLineCreateData(line, tenantId)) };
     } else if (dto.documentDiscountPercent !== undefined) {
       const totals = this.computeTotals(
         this.computeLines(
@@ -869,7 +898,7 @@ export class DocumentsService {
             quantity: line.quantity,
             unitPriceMinor: line.unitPriceMinor,
             discountPercent: line.discountPercent,
-            vatRatePercent: line.vatRatePercent ?? undefined,
+            vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot) ?? undefined,
             loadsStock: line.loadsStock,
             supplierOrderLineId: line.supplierOrderLineId ?? undefined,
             lotCode: line.lotCode ?? undefined,
@@ -930,6 +959,22 @@ export class DocumentsService {
           where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
         })) > 0;
 
+      // Stesso principio per Trasferimento/Rettifica (§ post-audit): una volta
+      // che il documento ha movimenti per riga (creati da confirm() o dal
+      // salvataggio dedicato POST transfer|adjustment/save), il PATCH generico
+      // NON deve più riconciliare in modo aggregato — bypassato esattamente
+      // come per l'arrivo merce, mirror del gate sopra.
+      const hasTransferLineMovements =
+        documentTypeTransfersStockOnConfirm(doc.type) &&
+        (await tx.stockMovement.count({
+          where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
+        })) > 0;
+      const hasAdjustmentLineMovements =
+        documentTypeAdjustsStockOnConfirm(doc.type) &&
+        (await tx.stockMovement.count({
+          where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
+        })) > 0;
+
       if (reconcilesLoadStock && doc.locationId && !hasLineMovements) {
         const newLinesComputed =
           lines ??
@@ -941,7 +986,7 @@ export class DocumentsService {
             quantity: line.quantity,
             unitPriceMinor: line.unitPriceMinor,
             discountPercent: line.discountPercent,
-            vatRatePercent: line.vatRatePercent,
+            vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
@@ -1012,7 +1057,7 @@ export class DocumentsService {
             quantity: line.quantity,
             unitPriceMinor: line.unitPriceMinor,
             discountPercent: line.discountPercent,
-            vatRatePercent: line.vatRatePercent,
+            vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
@@ -1076,7 +1121,7 @@ export class DocumentsService {
             quantity: line.quantity,
             unitPriceMinor: line.unitPriceMinor,
             discountPercent: line.discountPercent,
-            vatRatePercent: line.vatRatePercent,
+            vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
@@ -1133,7 +1178,8 @@ export class DocumentsService {
         isConfirmedEdit &&
         documentTypeTransfersStockOnConfirm(doc.type) &&
         doc.locationId &&
-        doc.targetLocationId
+        doc.targetLocationId &&
+        !hasTransferLineMovements
       ) {
         const newLinesComputed =
           lines ??
@@ -1145,7 +1191,7 @@ export class DocumentsService {
             quantity: line.quantity,
             unitPriceMinor: line.unitPriceMinor,
             discountPercent: line.discountPercent,
-            vatRatePercent: line.vatRatePercent,
+            vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
@@ -1212,7 +1258,8 @@ export class DocumentsService {
         isConfirmedEdit &&
         documentTypeAdjustsStockOnConfirm(doc.type) &&
         doc.locationId &&
-        doc.adjustmentDirection
+        doc.adjustmentDirection &&
+        !hasAdjustmentLineMovements
       ) {
         const newLinesComputed =
           lines ??
@@ -1224,7 +1271,7 @@ export class DocumentsService {
             quantity: line.quantity,
             unitPriceMinor: line.unitPriceMinor,
             discountPercent: line.discountPercent,
-            vatRatePercent: line.vatRatePercent,
+            vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
@@ -1641,21 +1688,23 @@ export class DocumentsService {
         } else {
           await assertSerialNumbersForDocumentLines(tx, tenantId, doc.lines);
         }
-        await applyDocumentStockAdjustments(tx, {
+        // Movimenti per riga (mirror arrivo merce): un movimento per riga con
+        // sourceLineId, mai aggregato per variante.
+        const adjustmentReason = buildAdjustmentMovementReason({
+          reference,
+          reason: doc.internalComment?.trim() || 'Rettifica inventario',
+        });
+        const adjustmentSync = await syncAdjustmentLineMovements(tx, {
           tenantId,
           documentId: doc.id,
-          reference,
+          documentType: doc.type,
           locationId: doc.locationId!,
           direction: doc.adjustmentDirection!,
-          reason: doc.internalComment?.trim() || 'Rettifica inventario',
+          reason: adjustmentReason,
           lines: doc.lines,
           actor: { createdById: actorId, createdByName: actorName },
         });
-        for (const line of doc.lines) {
-          if (line.variantId && line.loadsStock && line.quantity > 0) {
-            syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
-          }
-        }
+        syncTargets.push(...adjustmentSync.syncTargets);
         if (doc.adjustmentDirection === AdjustmentDirection.decrease) {
           await consumeInventorySerialsFromDocumentLines(
             tx,
@@ -1689,23 +1738,20 @@ export class DocumentsService {
             );
           }
         }
-        await applyDocumentStockTransfers(tx, {
+        // Movimenti per riga (mirror arrivo merce): un movimento per riga con
+        // sourceLineId, mai aggregato per variante.
+        const transferReason = buildTransferMovementReason({ reference });
+        const transferSync = await syncTransferLineMovements(tx, {
           tenantId,
           documentId: doc.id,
-          reference,
-          locations: {
-            originLocationId: doc.locationId!,
-            targetLocationId: doc.targetLocationId!,
-          },
+          documentType: doc.type,
+          originLocationId: doc.locationId!,
+          targetLocationId: doc.targetLocationId!,
+          reason: transferReason,
           lines: doc.lines,
           actor: { createdById: actorId, createdByName: actorName },
         });
-        for (const line of doc.lines) {
-          if (line.variantId && line.loadsStock && line.quantity > 0) {
-            syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
-            syncTargets.push({ variantId: line.variantId, locationId: doc.targetLocationId! });
-          }
-        }
+        syncTargets.push(...transferSync.syncTargets);
         await transferInventorySerialsFromDocumentLines(
           tx,
           tenantId,
@@ -1801,7 +1847,7 @@ export class DocumentsService {
         quantity: line.quantity,
         unitPriceMinor: line.unitPriceMinor,
         discountPercent: line.discountPercent,
-        vatRatePercent: line.vatRatePercent ?? undefined,
+        vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot) ?? undefined,
         loadsStock: dto.targetType === DocumentType.sales_ddt,
       })),
     };
@@ -2037,20 +2083,43 @@ export class DocumentsService {
       }
 
       if (wasStockAdjusted) {
-        const reversed = await reverseDocumentStockAdjustment(tx, {
-          tenantId,
-          documentId: id,
-          reference: doc.reference,
-          reason: doc.internalComment?.trim() || 'Rettifica inventario',
-          locationId: doc.locationId!,
-          direction: doc.adjustmentDirection!,
-          lines: doc.lines,
-          actor,
-        });
-        stockDeltas = reversed.deltas;
-        for (const line of doc.lines) {
-          if (line.variantId && line.loadsStock) {
-            syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
+        // Mirror arrivo merce: se il documento ha (o ha avuto) movimenti
+        // collegati, la rimozione passa dal sync per riga — che storna anche
+        // gli eventuali movimenti legacy aggregati — invece del reverse
+        // aggregato "una tantum".
+        const hasAnyMovements =
+          (await tx.stockMovement.count({
+            where: { tenantId, sourceDocumentId: id },
+          })) > 0;
+        if (hasAnyMovements) {
+          const sync = await syncAdjustmentLineMovements(tx, {
+            tenantId,
+            documentId: id,
+            documentType: doc.type,
+            locationId: doc.locationId!,
+            direction: doc.adjustmentDirection!,
+            reason: '',
+            lines: [],
+            actor,
+          });
+          stockDeltas = sync.deltas;
+          syncTargets.push(...sync.syncTargets);
+        } else {
+          const reversed = await reverseDocumentStockAdjustment(tx, {
+            tenantId,
+            documentId: id,
+            reference: doc.reference,
+            reason: doc.internalComment?.trim() || 'Rettifica inventario',
+            locationId: doc.locationId!,
+            direction: doc.adjustmentDirection!,
+            lines: doc.lines,
+            actor,
+          });
+          stockDeltas = reversed.deltas;
+          for (const line of doc.lines) {
+            if (line.variantId && line.loadsStock) {
+              syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
+            }
           }
         }
         const summary = buildRevisionSummary(false, stockDeltas, true);
@@ -2071,22 +2140,45 @@ export class DocumentsService {
       }
 
       if (wasStockTransferred) {
-        const reversed = await reverseDocumentStockTransfer(tx, {
-          tenantId,
-          documentId: id,
-          reference: doc.reference,
-          locations: {
-            originLocationId: doc.locationId!,
-            targetLocationId: doc.targetLocationId!,
-          },
-          lines: doc.lines,
-          actor,
-        });
-        stockDeltas = reversed.deltas;
-        for (const line of doc.lines) {
-          if (line.variantId && line.loadsStock) {
-            syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
-            syncTargets.push({ variantId: line.variantId, locationId: doc.targetLocationId! });
+        // Mirror arrivo merce: se il documento ha (o ha avuto) movimenti
+        // collegati, la rimozione passa dal sync per riga — che storna anche
+        // gli eventuali movimenti legacy aggregati — invece del reverse
+        // aggregato "una tantum".
+        const hasAnyMovements =
+          (await tx.stockMovement.count({
+            where: { tenantId, sourceDocumentId: id },
+          })) > 0;
+        if (hasAnyMovements) {
+          const sync = await syncTransferLineMovements(tx, {
+            tenantId,
+            documentId: id,
+            documentType: doc.type,
+            originLocationId: doc.locationId,
+            targetLocationId: doc.targetLocationId,
+            reason: '',
+            lines: [],
+            actor,
+          });
+          stockDeltas = sync.deltas;
+          syncTargets.push(...sync.syncTargets);
+        } else {
+          const reversed = await reverseDocumentStockTransfer(tx, {
+            tenantId,
+            documentId: id,
+            reference: doc.reference,
+            locations: {
+              originLocationId: doc.locationId!,
+              targetLocationId: doc.targetLocationId!,
+            },
+            lines: doc.lines,
+            actor,
+          });
+          stockDeltas = reversed.deltas;
+          for (const line of doc.lines) {
+            if (line.variantId && line.loadsStock) {
+              syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
+              syncTargets.push({ variantId: line.variantId, locationId: doc.targetLocationId! });
+            }
           }
         }
         const summary = buildRevisionSummary(false, stockDeltas, true);
@@ -2429,6 +2521,7 @@ export class DocumentsService {
   private computeLines(
     input: readonly DocumentLineInputDto[],
     documentType: DocumentType,
+    vatContext?: LineVatContext,
   ): ComputedLine[] {
     const defaultLoadsStock = documentTypeDefaultLoadsStock(documentType);
     return input.map((line, index) => {
@@ -2438,6 +2531,29 @@ export class DocumentsService {
       const lineTotalMinor = Math.round(
         (quantity * unitPriceMinor * (100 - discountPercent)) / 100,
       );
+
+      // Risoluzione Codice IVA (§Piano IVA fase 2): (1) vatCodeId esplicito
+      // sulla riga (origine documento o override manuale, entrambi vincono
+      // sempre), (2) Codice IVA predefinito dell'articolo, (3) predefinito
+      // fornitore (acquisto) o predefinito aziendale altrimenti. Se nessun
+      // Codice IVA si risolve, resta il fallback legacy (aliquota grezza).
+      let vatCodeId: string | null = null;
+      let vatSnapshot: Prisma.InputJsonObject | null = null;
+      let vatRatePercent = line.vatRatePercent ?? null;
+      if (vatContext) {
+        const explicitId = line.vatCodeId ?? null;
+        const productDefaultId = line.variantId
+          ? (vatContext.productDefaultByVariantId.get(line.variantId) ?? null)
+          : null;
+        const resolvedId = explicitId ?? productDefaultId ?? vatContext.fallbackDefaultVatCodeId;
+        const vatCode = resolvedId ? (vatContext.vatCodesById.get(resolvedId) ?? null) : null;
+        if (vatCode) {
+          vatCodeId = vatCode.id;
+          vatSnapshot = buildVatCodeSnapshot(vatCode);
+          vatRatePercent = Math.round(Number(vatCode.ratePercent));
+        }
+      }
+
       return {
         lineNumber: index + 1,
         variantId: line.variantId ?? null,
@@ -2446,8 +2562,10 @@ export class DocumentsService {
         quantity,
         unitPriceMinor,
         discountPercent,
-        vatRatePercent: line.vatRatePercent ?? null,
+        vatRatePercent,
         lineTotalMinor,
+        vatCodeId,
+        vatSnapshot,
         loadsStock: line.loadsStock ?? defaultLoadsStock,
         supplierOrderLineId: line.supplierOrderLineId ?? null,
         lotCode: line.lotCode?.trim() || null,
@@ -2455,6 +2573,86 @@ export class DocumentsService {
         serialNumbers: normalizeSerialNumbers(line.serialNumbers),
       };
     });
+  }
+
+  /**
+   * Precarica il contesto di risoluzione Codice IVA per un set di righe
+   * (§Piano IVA fase 2): Codici IVA richiesti esplicitamente, predefinito per
+   * articolo (via variante → prodotto) e predefinito di fallback (fornitore
+   * per i flussi acquisto, altrimenti predefinito aziendale).
+   */
+  private async buildLineVatContext(
+    tenantId: string,
+    supplierId: string | null | undefined,
+    lines: readonly DocumentLineInputDto[],
+  ): Promise<LineVatContext> {
+    const variantIds = [
+      ...new Set(lines.map((line) => line.variantId).filter((id): id is string => !!id)),
+    ];
+
+    const [variants, supplier, tenantSettings] = await Promise.all([
+      variantIds.length > 0
+        ? this.prisma.productVariant.findMany({
+            where: { tenantId, id: { in: variantIds } },
+            select: { id: true, product: { select: { defaultVatCodeId: true } } },
+          })
+        : Promise.resolve([]),
+      supplierId
+        ? this.prisma.supplier.findFirst({
+            where: { id: supplierId, tenantId },
+            select: { defaultVatCodeId: true },
+          })
+        : Promise.resolve(null),
+      this.prisma.tenantFeatureSettings.findUnique({
+        where: { tenantId },
+        select: { defaultVatCodeId: true },
+      }),
+    ]);
+
+    const productDefaultByVariantId = new Map<string, string | null>(
+      variants.map((variant) => [variant.id, variant.product.defaultVatCodeId]),
+    );
+    const fallbackDefaultVatCodeId =
+      supplier?.defaultVatCodeId ?? tenantSettings?.defaultVatCodeId ?? null;
+
+    const idsToFetch = new Set<string>();
+    for (const line of lines) {
+      if (line.vatCodeId) idsToFetch.add(line.vatCodeId);
+    }
+    for (const id of productDefaultByVariantId.values()) {
+      if (id) idsToFetch.add(id);
+    }
+    if (fallbackDefaultVatCodeId) idsToFetch.add(fallbackDefaultVatCodeId);
+
+    const vatCodesById = new Map<string, VatCodeWithNature>();
+    if (idsToFetch.size > 0) {
+      const found = await this.prisma.vatCode.findMany({
+        where: { tenantId, id: { in: [...idsToFetch] }, deletedAt: null },
+        include: { nature: true },
+      });
+      for (const vatCode of found) {
+        vatCodesById.set(vatCode.id, vatCode);
+      }
+    }
+
+    for (const line of lines) {
+      if (line.vatCodeId && !vatCodesById.has(line.vatCodeId)) {
+        throw new UnprocessableEntityException(
+          'Il Codice IVA selezionato per una riga non esiste o non è più disponibile.',
+        );
+      }
+    }
+
+    return { vatCodesById, productDefaultByVariantId, fallbackDefaultVatCodeId };
+  }
+
+  /** Converte una riga calcolata in dati Prisma: null JS su vatSnapshot deve
+   * scrivere NULL SQL, non il letterale JSON "null" (Prisma.DbNull). vatRatePercent
+   * è solo un valore calcolato interno (calcolo IVA totali): non esiste più come
+   * colonna persistita, va escluso dal payload di scrittura. */
+  private toLineCreateData(line: ComputedLine, tenantId: string) {
+    const { vatRatePercent: _vatRatePercent, ...rest } = line;
+    return { ...rest, tenantId, vatSnapshot: line.vatSnapshot ?? Prisma.DbNull };
   }
 
   private async assertSupplierOrderReceivable(

@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsOptional()
@@ -85,11 +85,10 @@ export class CreateSupplierDto {
   @MaxLength(50)
   supplierDiscount?: string;
 
+  /** Codice IVA predefinito per documenti di questo fornitore. */
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  defaultVatRatePercent?: number;
+  @IsUUID()
+  defaultVatCodeId?: string;
 
   @IsOptional()
   @IsString()

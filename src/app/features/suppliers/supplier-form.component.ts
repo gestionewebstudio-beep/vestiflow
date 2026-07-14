@@ -14,6 +14,8 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Supplier } from '@core/models/supplier.model';
+import type { VatCode } from '@core/models/vat-code.model';
+import { VatCodeService } from '@core/services/vat-code.service';
 import { SupplierFormFieldsComponent } from '@features/suppliers/components/supplier-form-fields/supplier-form-fields.component';
 import {
   createSupplierFormGroup,
@@ -43,6 +45,7 @@ import { SupplierService } from './services/supplier.service';
 export class SupplierFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly service = inject(SupplierService);
+  private readonly vatCodeService = inject(VatCodeService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -50,6 +53,12 @@ export class SupplierFormComponent {
   protected readonly listPath = '/app/suppliers';
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
+
+  // Codici IVA per la tendina "Codice IVA predefinito".
+  protected readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly supplierId = computed(() => this.params().get('id'));

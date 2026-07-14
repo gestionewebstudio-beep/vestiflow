@@ -30,7 +30,7 @@ export interface Supplier extends TenantScoped, Timestamped {
   readonly countryCode?: string | null;
   readonly paymentTerms?: string | null;
   readonly supplierDiscount?: string | null;
-  readonly defaultVatRatePercent?: number | null;
+  readonly defaultVatCodeId?: string | null;
   readonly transportResponsible?: string | null;
   readonly freightTerms?: string | null;
   readonly documentCreationNote?: string | null;
@@ -57,16 +57,13 @@ export interface SupplierInput {
   readonly countryCode?: string;
   readonly paymentTerms?: string;
   readonly supplierDiscount?: string;
-  readonly defaultVatRatePercent?: number;
+  readonly defaultVatCodeId?: string | null;
   readonly transportResponsible?: string;
   readonly freightTerms?: string;
   readonly documentCreationNote?: string;
   readonly notes?: string;
   readonly alsoCustomer?: boolean;
 }
-
-/** @deprecated Usa SupplierInput */
-export type CreateSupplierInput = SupplierInput;
 
 /** Collegamento variante ↔ fornitore. */
 export interface SupplierVariantLink {

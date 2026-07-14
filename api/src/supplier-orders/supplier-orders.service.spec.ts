@@ -129,7 +129,7 @@ describe('SupplierOrdersService', () => {
     prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
     prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
     prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
-    prisma.supplierOrder.count.mockResolvedValue(0);
+    prisma.supplierOrder.findMany.mockResolvedValue([]);
     prisma.supplierOrder.create.mockResolvedValue({
       id: 'po-new',
       reference: 'PO-2026-0001',
@@ -144,6 +144,38 @@ describe('SupplierOrdersService', () => {
         lines: [{ variantId: 'var-1', orderedQuantity: 5, unitCostMinor: 1000 }],
       }),
     ).resolves.toMatchObject({ id: 'po-new', reference: 'PO-2026-0001' });
+  });
+
+  it('create genera un riferimento oltre il massimo esistente (nessuna collisione dopo eliminazione)', async () => {
+    // Arrange: gli ordini 0001 e 0003 esistono (0002 eliminato). Un
+    // numeratore basato sul conteggio (2 → 0003) collicerebbe con 0003 e
+    // violerebbe @@unique([tenantId, reference]); il massimo + 1 → 0004.
+    const prisma = createPrismaMock();
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
+    prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
+    prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
+    prisma.supplierOrder.findMany.mockResolvedValue([
+      { reference: 'PO-2026-0001' },
+      { reference: 'PO-2026-0003' },
+    ]);
+    prisma.supplierOrder.create.mockImplementation((args: { data: { reference: string } }) =>
+      Promise.resolve({ id: 'po-new', reference: args.data.reference, lines: [] }),
+    );
+    const service = createService(prisma);
+
+    // Act
+    await service.create(tenantId, {
+      supplierId: 'sup-1',
+      destinationLocationId: 'loc-1',
+      lines: [{ variantId: 'var-1', orderedQuantity: 5, unitCostMinor: 1000 }],
+    });
+
+    // Assert
+    expect(prisma.supplierOrder.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reference: 'PO-2026-0004' }),
+      }),
+    );
   });
 
   it('getById restituisce ordine con righe', async () => {
@@ -275,6 +307,7 @@ describe('SupplierOrdersService', () => {
     const service = new SupplierOrdersService(
       prisma as unknown as PrismaService,
       channelSync as unknown as ChannelSyncFacade,
+      {} as never,
     );
 
     await expect(

@@ -66,7 +66,9 @@ function createPrismaMock() {
         sku: 'SKU-1',
         product: { inventoryTracking: 'standard' },
       }),
+      findMany: vi.fn().mockResolvedValue([]),
     },
+    vatCode: { findMany: vi.fn().mockResolvedValue([]) },
     inventoryLevel: { upsert: vi.fn(), updateMany: vi.fn(), findUnique: vi.fn() },
     inventoryLot: { upsert: vi.fn() },
     inventorySerial: {
@@ -76,7 +78,19 @@ function createPrismaMock() {
       findFirst: vi.fn().mockResolvedValue(null),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
-    stockMovement: { create: vi.fn(), count: vi.fn().mockResolvedValue(0) },
+    stockMovement: {
+      create: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
+      // Usato da syncTransferLineMovements/syncAdjustmentLineMovements
+      // (mirror sync arrivo merce): prima query = conversione legacy
+      // (sourceLineId: null, sempre vuota nei test), seconda = movimenti
+      // per-riga esistenti (nessuno di default: ogni riga crea un movimento
+      // nuovo, come nel flusso reale alla prima conferma).
+      findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     supplier: { findFirst: vi.fn() },
     customer: { findFirst: vi.fn() },
     location: { findFirst: vi.fn() },
@@ -189,7 +203,7 @@ describe('DocumentsService', () => {
         ],
       });
 
-      const data = prisma.document.create.mock.calls[0][0].data;
+      const data = prisma.document.create.mock.calls[0]![0]!.data;
       // Riga 1: 2 * 1000 = 2000 (IVA 22% -> 440). Riga 2: 5000 * 90% = 4500 (no IVA).
       expect(data.subtotalMinor).toBe(6500);
       expect(data.taxMinor).toBe(440);
@@ -211,7 +225,7 @@ describe('DocumentsService', () => {
         lines: [{ description: 'Capo', quantity: 1, unitPriceMinor: 1220, vatRatePercent: 22 }],
       });
 
-      const data = prisma.document.create.mock.calls[0][0].data;
+      const data = prisma.document.create.mock.calls[0]![0]!.data;
       // 1220 lordo, IVA 22% -> imponibile 1000, IVA 220, totale 1220.
       expect(data.totalMinor).toBe(1220);
       expect(data.taxMinor).toBe(220);
@@ -238,7 +252,7 @@ describe('DocumentsService', () => {
 
       await service.confirm(tenantId, 'doc-1');
 
-      const data = prisma.document.update.mock.calls[0][0].data;
+      const data = prisma.document.update.mock.calls[0]![0]!.data;
       expect(data.status).toBe(DocumentStatus.confirmed);
       expect(data.number).toBe(7);
       expect(data.reference).toBe('DDT-2026-0007');
@@ -263,7 +277,7 @@ describe('DocumentsService', () => {
       await service.confirm(tenantId, 'doc-1');
 
       expect(prisma.documentSequence.upsert).not.toHaveBeenCalled();
-      const data = prisma.document.update.mock.calls[0][0].data;
+      const data = prisma.document.update.mock.calls[0]![0]!.data;
       expect(data.number).toBe(3);
     });
 
@@ -616,6 +630,106 @@ describe('DocumentsService', () => {
         }),
       );
     });
+
+    it('transfer: due righe con la stessa variante producono due movimenti distinti con sourceLineId', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.transfer, numberPrefix: 'TR' }),
+      );
+      prisma.document.findFirst.mockResolvedValue({
+        id: 'doc-tr',
+        tenantId,
+        type: DocumentType.transfer,
+        status: DocumentStatus.draft,
+        series: 'A',
+        year: 2026,
+        number: null,
+        reference: null,
+        locationId: 'loc-a',
+        targetLocationId: 'loc-b',
+        lines: [
+          {
+            id: 'l1',
+            lineNumber: 1,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            quantity: 2,
+            loadsStock: true,
+          },
+          {
+            id: 'l2',
+            lineNumber: 2,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            quantity: 3,
+            loadsStock: true,
+          },
+        ],
+      });
+      prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 2 });
+      prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
+      prisma.inventoryLevel.upsert.mockResolvedValue({});
+      prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
+      prisma.stockMovement.create.mockResolvedValue({});
+      prisma.document.update.mockResolvedValue({ id: 'doc-tr', lines: [] });
+
+      await service.confirm(tenantId, 'doc-tr');
+
+      expect(prisma.stockMovement.create).toHaveBeenCalledTimes(2);
+      const created = prisma.stockMovement.create.mock.calls.map((call) => call[0]!.data);
+      expect(created.map((data) => data.sourceLineId)).toEqual(['l1', 'l2']);
+      expect(created.every((data) => data.type === 'transfer')).toBe(true);
+    });
+
+    it('adjustment: due righe con la stessa variante producono due movimenti distinti con sourceLineId', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.adjustment, numberPrefix: 'RET' }),
+      );
+      prisma.document.findFirst.mockResolvedValue({
+        id: 'doc-ret',
+        tenantId,
+        type: DocumentType.adjustment,
+        status: DocumentStatus.draft,
+        series: 'A',
+        year: 2026,
+        number: null,
+        reference: null,
+        locationId: 'loc-1',
+        adjustmentDirection: 'increase',
+        internalComment: 'Inventario fisico',
+        lines: [
+          {
+            id: 'l1',
+            lineNumber: 1,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            quantity: 2,
+            loadsStock: true,
+          },
+          {
+            id: 'l2',
+            lineNumber: 2,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            quantity: 6,
+            loadsStock: true,
+          },
+        ],
+      });
+      prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 1 });
+      prisma.inventoryLevel.upsert.mockResolvedValue({});
+      prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
+      prisma.stockMovement.create.mockResolvedValue({});
+      prisma.document.update.mockResolvedValue({ id: 'doc-ret', lines: [] });
+
+      await service.confirm(tenantId, 'doc-ret');
+
+      expect(prisma.stockMovement.create).toHaveBeenCalledTimes(2);
+      const created = prisma.stockMovement.create.mock.calls.map((call) => call[0]!.data);
+      expect(created.map((data) => data.sourceLineId)).toEqual(['l1', 'l2']);
+      expect(created.every((data) => data.type === 'adjustment')).toBe(true);
+    });
   });
 
   describe('transizioni di stato', () => {
@@ -630,7 +744,7 @@ describe('DocumentsService', () => {
 
       await service.markPrinted(tenantId, 'doc-1');
 
-      expect(prisma.document.update.mock.calls[0][0].data.status).toBe(DocumentStatus.printed);
+      expect(prisma.document.update.mock.calls[0]![0]!.data.status).toBe(DocumentStatus.printed);
     });
 
     it('markPrinted rifiuta il passaggio da bozza', async () => {
@@ -657,7 +771,7 @@ describe('DocumentsService', () => {
 
       await service.markSent(tenantId, 'doc-1');
 
-      expect(prisma.document.update.mock.calls[0][0].data.status).toBe(DocumentStatus.sent);
+      expect(prisma.document.update.mock.calls[0]![0]!.data.status).toBe(DocumentStatus.sent);
     });
 
     it('registerExternal registra data e riferimenti esterni', async () => {
@@ -678,7 +792,7 @@ describe('DocumentsService', () => {
         note: 'commercialista',
       });
 
-      const data = prisma.document.update.mock.calls[0][0].data;
+      const data = prisma.document.update.mock.calls[0]![0]!.data;
       expect(data.status).toBe(DocumentStatus.externally_registered);
       expect(data.externalDocNumber).toBe('FT-99');
       expect(data.externalRef).toBe('commercialista');
@@ -818,6 +932,219 @@ describe('DocumentsService', () => {
         }),
       );
       expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
+    });
+
+    it('cancel transfer legacy (senza movimenti per riga): usa il reverse aggregato', async () => {
+      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.transfer }));
+      const doc = {
+        id: 'doc-tr',
+        tenantId,
+        type: DocumentType.transfer,
+        status: DocumentStatus.confirmed,
+        reference: 'TR-2026-0004',
+        locationId: 'loc-a',
+        targetLocationId: 'loc-b',
+        series: 'A',
+        documentDate: new Date(),
+        currency: 'EUR',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lines: [
+          {
+            id: 'l1',
+            lineNumber: 1,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            quantity: 4,
+            loadsStock: true,
+            description: 'x',
+            unitPriceMinor: 0,
+            discountPercent: 0,
+            lineTotalMinor: 0,
+            documentId: 'doc-tr',
+            tenantId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      };
+      prisma.document.findFirst.mockResolvedValue(doc);
+      // Nessun movimento con sourceLineId: documento pre-migrazione, ancora
+      // sul modello aggregato legacy.
+      prisma.stockMovement.count.mockResolvedValue(0);
+      prisma.documentRevision.findFirst.mockResolvedValue(null);
+      prisma.inventoryLevel.upsert.mockResolvedValue({});
+      prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
+      prisma.inventoryLevel.findUnique.mockResolvedValue({ onHand: 10, available: 10 });
+      prisma.stockMovement.create.mockResolvedValue({});
+      prisma.document.update.mockResolvedValue({ ...doc, status: DocumentStatus.cancelled });
+
+      await service.cancel(tenantId, 'doc-tr');
+
+      // reverseDocumentStockTransfer: storna verso l'origine invertendo le location.
+      expect(prisma.stockMovement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'transfer',
+            locationId: 'loc-b',
+            targetLocationId: 'loc-a',
+            quantity: 4,
+          }),
+        }),
+      );
+      expect(prisma.stockMovement.delete).not.toHaveBeenCalled();
+    });
+
+    it('cancel transfer con movimenti per riga: rimuove i movimenti collegati invece di crearne di nuovi', async () => {
+      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.transfer }));
+      const doc = {
+        id: 'doc-tr-pl',
+        tenantId,
+        type: DocumentType.transfer,
+        status: DocumentStatus.confirmed,
+        reference: 'TR-2026-0005',
+        locationId: 'loc-a',
+        targetLocationId: 'loc-b',
+        series: 'A',
+        documentDate: new Date(),
+        currency: 'EUR',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lines: [
+          {
+            id: 'l1',
+            lineNumber: 1,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            quantity: 4,
+            loadsStock: true,
+            description: 'x',
+            unitPriceMinor: 0,
+            discountPercent: 0,
+            lineTotalMinor: 0,
+            documentId: 'doc-tr-pl',
+            tenantId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      };
+      prisma.document.findFirst.mockResolvedValue(doc);
+      prisma.stockMovement.count.mockResolvedValue(1);
+      prisma.stockMovement.findMany.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) => {
+          if (where.sourceLineId === null) {
+            return Promise.resolve([]);
+          }
+          return Promise.resolve([
+            {
+              id: 'mov-1',
+              variantId: 'var-1',
+              sku: 'SKU-1',
+              locationId: 'loc-a',
+              targetLocationId: 'loc-b',
+              quantity: 4,
+              sourceLineId: 'l1',
+              createdAt: new Date(),
+            },
+          ]);
+        },
+      );
+      prisma.documentRevision.findFirst.mockResolvedValue(null);
+      prisma.inventoryLevel.upsert.mockResolvedValue({});
+      prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
+      prisma.document.update.mockResolvedValue({ ...doc, status: DocumentStatus.cancelled });
+
+      await service.cancel(tenantId, 'doc-tr-pl');
+
+      expect(prisma.stockMovement.delete).toHaveBeenCalledWith({ where: { id: 'mov-1' } });
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+      // Storno: +4 all'origine, -4 alla destinazione.
+      expect(prisma.inventoryLevel.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ locationId: 'loc-a' }),
+          data: expect.objectContaining({ onHand: { increment: 4 } }),
+        }),
+      );
+      expect(prisma.inventoryLevel.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ locationId: 'loc-b' }),
+          data: expect.objectContaining({ onHand: { increment: -4 } }),
+        }),
+      );
+    });
+
+    it('cancel adjustment con movimenti per riga: rimuove i movimenti collegati invece di crearne di nuovi', async () => {
+      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.adjustment }));
+      const doc = {
+        id: 'doc-ret-pl',
+        tenantId,
+        type: DocumentType.adjustment,
+        status: DocumentStatus.confirmed,
+        reference: 'RET-2026-0002',
+        locationId: 'loc-1',
+        adjustmentDirection: 'increase',
+        internalComment: 'Conteggio',
+        series: 'A',
+        documentDate: new Date(),
+        currency: 'EUR',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lines: [
+          {
+            id: 'l1',
+            lineNumber: 1,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            quantity: 6,
+            loadsStock: true,
+            description: 'x',
+            unitPriceMinor: 0,
+            discountPercent: 0,
+            lineTotalMinor: 0,
+            documentId: 'doc-ret-pl',
+            tenantId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      };
+      prisma.document.findFirst.mockResolvedValue(doc);
+      prisma.stockMovement.count.mockResolvedValue(1);
+      prisma.stockMovement.findMany.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) => {
+          if (where.sourceLineId === null) {
+            return Promise.resolve([]);
+          }
+          return Promise.resolve([
+            {
+              id: 'mov-1',
+              variantId: 'var-1',
+              sku: 'SKU-1',
+              locationId: 'loc-1',
+              quantity: 6,
+              direction: 'increase',
+              sourceLineId: 'l1',
+              createdAt: new Date(),
+            },
+          ]);
+        },
+      );
+      prisma.documentRevision.findFirst.mockResolvedValue(null);
+      prisma.inventoryLevel.upsert.mockResolvedValue({});
+      prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
+      prisma.document.update.mockResolvedValue({ ...doc, status: DocumentStatus.cancelled });
+
+      await service.cancel(tenantId, 'doc-ret-pl');
+
+      expect(prisma.stockMovement.delete).toHaveBeenCalledWith({ where: { id: 'mov-1' } });
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+      expect(prisma.inventoryLevel.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ locationId: 'loc-1' }),
+          data: expect.objectContaining({ onHand: { increment: -6 } }),
+        }),
+      );
     });
   });
 
@@ -962,7 +1289,6 @@ describe('DocumentsService', () => {
             quantity: 3,
             unitPriceMinor: 1000,
             discountPercent: 0,
-            vatRatePercent: 22,
             lineTotalMinor: 3000,
             loadsStock: true,
             documentId: 'doc-gr-draft',
@@ -1030,7 +1356,6 @@ describe('DocumentsService', () => {
             quantity: 5,
             unitPriceMinor: 1000,
             discountPercent: 0,
-            vatRatePercent: 22,
             lineTotalMinor: 5000,
             loadsStock: true,
             documentId: 'doc-gr',
@@ -1122,7 +1447,6 @@ describe('DocumentsService', () => {
             quantity: 5,
             unitPriceMinor: 2000,
             discountPercent: 0,
-            vatRatePercent: 22,
             lineTotalMinor: 10000,
             loadsStock: true,
             documentId: 'doc-ddt',
@@ -1204,7 +1528,6 @@ describe('DocumentsService', () => {
             quantity: 2,
             unitPriceMinor: 0,
             discountPercent: 0,
-            vatRatePercent: null,
             lineTotalMinor: 0,
             loadsStock: true,
             documentId: 'doc-tr',
@@ -1281,7 +1604,6 @@ describe('DocumentsService', () => {
             quantity: 2,
             unitPriceMinor: 0,
             discountPercent: 0,
-            vatRatePercent: null,
             lineTotalMinor: 0,
             loadsStock: true,
             documentId: 'doc-sca',
@@ -1355,7 +1677,6 @@ describe('DocumentsService', () => {
             quantity: 2,
             unitPriceMinor: 0,
             discountPercent: 0,
-            vatRatePercent: null,
             lineTotalMinor: 0,
             loadsStock: true,
             documentId: 'doc-ret',
@@ -1397,6 +1718,142 @@ describe('DocumentsService', () => {
         }),
       );
       expect(prisma.documentRevision.create).toHaveBeenCalled();
+    });
+
+    it('rifiuta PATCH con righe se un trasferimento ha già movimenti per riga (bypass generico, mirror arrivo merce)', async () => {
+      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.transfer }));
+      prisma.document.findFirst.mockResolvedValue({
+        id: 'doc-tr-lines',
+        tenantId,
+        type: DocumentType.transfer,
+        status: DocumentStatus.confirmed,
+        lines: [],
+        series: 'A',
+        documentDate: new Date('2026-01-01'),
+        currency: 'EUR',
+        supplierId: null,
+        customerId: null,
+        locationId: 'loc-a',
+        targetLocationId: 'loc-b',
+        notes: null,
+        internalComment: null,
+        externalDocNumber: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      // Almeno un movimento con sourceLineId: mirror del gate arrivo merce,
+      // type-agnostico su documents.service.ts (§ verifica esplicita).
+      prisma.stockMovement.count.mockResolvedValue(1);
+
+      await expect(
+        service.update(tenantId, 'doc-tr-lines', {
+          lines: [
+            {
+              description: 'Riga',
+              sku: 'SKU-1',
+              quantity: 2,
+              unitPriceMinor: 0,
+              loadsStock: true,
+            },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.document.update).not.toHaveBeenCalled();
+    });
+
+    it('rifiuta PATCH con righe se una rettifica ha già movimenti per riga (bypass generico, mirror arrivo merce)', async () => {
+      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.adjustment }));
+      prisma.document.findFirst.mockResolvedValue({
+        id: 'doc-ret-lines',
+        tenantId,
+        type: DocumentType.adjustment,
+        status: DocumentStatus.confirmed,
+        lines: [],
+        series: 'A',
+        documentDate: new Date('2026-01-01'),
+        currency: 'EUR',
+        supplierId: null,
+        customerId: null,
+        locationId: 'loc-1',
+        targetLocationId: null,
+        adjustmentDirection: 'increase',
+        notes: null,
+        internalComment: 'Conteggio',
+        externalDocNumber: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.stockMovement.count.mockResolvedValue(1);
+
+      await expect(
+        service.update(tenantId, 'doc-ret-lines', {
+          lines: [
+            {
+              description: 'Riga',
+              sku: 'SKU-1',
+              quantity: 2,
+              unitPriceMinor: 0,
+              loadsStock: true,
+            },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.document.update).not.toHaveBeenCalled();
+    });
+
+    it('trasferimento con movimenti per riga esistenti: PATCH senza righe non riconcilia in modo aggregato', async () => {
+      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.transfer }));
+      const doc = {
+        id: 'doc-tr-hdr',
+        tenantId,
+        type: DocumentType.transfer,
+        status: DocumentStatus.confirmed,
+        series: 'A',
+        year: 2026,
+        reference: 'TR-2026-0003',
+        documentDate: new Date('2026-03-01'),
+        currency: 'EUR',
+        supplierId: null,
+        customerId: null,
+        locationId: 'loc-a',
+        targetLocationId: 'loc-b',
+        adjustmentDirection: null,
+        internalComment: null,
+        externalDocNumber: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lines: [
+          {
+            id: 'l1',
+            lineNumber: 1,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            description: 'Maglia',
+            quantity: 2,
+            unitPriceMinor: 0,
+            discountPercent: 0,
+            lineTotalMinor: 0,
+            loadsStock: true,
+            documentId: 'doc-tr-hdr',
+            tenantId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      };
+      prisma.document.findFirst
+        .mockResolvedValueOnce(doc)
+        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+      // Il documento ha già movimenti per riga (creati da confirm() o dal
+      // salvataggio dedicato): il PATCH generico, pur senza righe, NON deve
+      // ri-generare movimenti aggregati.
+      prisma.stockMovement.count.mockResolvedValue(1);
+      prisma.documentRevision.findFirst.mockResolvedValue(null);
+      prisma.document.update.mockResolvedValue({ ...doc, internalComment: 'nuova nota interna' });
+
+      await service.update(tenantId, 'doc-tr-hdr', { internalComment: 'nuova nota interna' });
+
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
     });
   });
 

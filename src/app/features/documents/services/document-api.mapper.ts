@@ -23,7 +23,6 @@ export interface DocumentLineApiRow {
   readonly quantity: number;
   readonly unitPriceMinor: number;
   readonly discountPercent: number;
-  readonly vatRatePercent?: number | null;
   readonly vatCodeId?: EntityId | null;
   readonly vatSnapshot?: VatSnapshot | null;
   /** Costo digitato (Decimal serializzato come stringa dal backend). */
@@ -142,7 +141,6 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     quantity: row.quantity,
     unitPrice: { amountMinor: row.unitPriceMinor, currencyCode: currency },
     discountPercent: row.discountPercent,
-    vatRatePercent: row.vatRatePercent ?? undefined,
     vatCodeId: row.vatCodeId ?? undefined,
     vatSnapshot: row.vatSnapshot ?? undefined,
     enteredUnitCostMinor:
@@ -338,6 +336,50 @@ export interface SaveGoodsReceiptBody {
   readonly purchaseCostEntryMode?: PurchaseCostEntryMode;
   readonly lines?: readonly SaveGoodsReceiptLineBody[];
   readonly applySupplierPriceUpdates?: boolean;
+}
+
+/**
+ * Riga Trasferimento/Rettifica in salvataggio dedicato: l'id è presente per
+ * le righe già salvate, preservarlo è essenziale per aggiornare il movimento
+ * collegato invece di crearne uno nuovo (mirror SaveGoodsReceiptLineBody).
+ */
+export interface SaveTransferOrAdjustmentLineBody {
+  readonly id?: EntityId;
+  readonly variantId?: EntityId;
+  readonly sku?: string;
+  readonly description: string;
+  readonly quantity: number;
+  readonly loadsStock?: boolean;
+  readonly serialNumbers?: readonly string[];
+}
+
+/**
+ * Body POST /documents/transfer/save. Riservato alla modifica di un
+ * Trasferimento GIÀ CONFERMATO (mirror goods-receipt/save, ma solo per
+ * l'edit: creazione e prima conferma restano sul flusso generico).
+ */
+export interface SaveTransferBody {
+  readonly id: EntityId;
+  readonly documentDate: IsoDateString;
+  readonly locationId: EntityId;
+  readonly targetLocationId: EntityId;
+  readonly notes?: string;
+  readonly internalComment?: string;
+  readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
+}
+
+/**
+ * Body POST /documents/adjustment/save. Riservato alla modifica di una
+ * Rettifica GIÀ CONFERMATA (mirror goods-receipt/save, ma solo per l'edit).
+ */
+export interface SaveAdjustmentBody {
+  readonly id: EntityId;
+  readonly documentDate: IsoDateString;
+  readonly locationId: EntityId;
+  readonly adjustmentDirection: AdjustmentDirection;
+  readonly notes?: string;
+  readonly internalComment: string;
+  readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
 }
 
 /** Body POST /documents/purchase-invoice/save (prompt §5-6). */

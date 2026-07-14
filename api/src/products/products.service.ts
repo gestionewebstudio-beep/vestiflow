@@ -5,7 +5,14 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { CatalogOrigin, Prisma, ShopifyCatalogLinkKind, type Product, type ProductImage, type ProductVariant } from '@prisma/client';
+import {
+  CatalogOrigin,
+  Prisma,
+  ShopifyCatalogLinkKind,
+  type Product,
+  type ProductImage,
+  type ProductVariant,
+} from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -74,7 +81,6 @@ const PRODUCT_LIST_SELECT = {
   tiktokLastSyncAt: true,
   tiktokLastError: true,
   unitOfMeasure: true,
-  defaultVatRatePercent: true,
   defaultVatCodeId: true,
   inventoryTracking: true,
   managesStock: true,
@@ -135,9 +141,7 @@ export class ProductsService {
     return {
       items: items.map((item) =>
         withReadableShopifyErrors(
-          this.taxonomyLocalization.localizeProductForResponseSync(
-            normalizeListProductRow(item),
-          ),
+          this.taxonomyLocalization.localizeProductForResponseSync(normalizeListProductRow(item)),
         ),
       ),
       total,
@@ -251,8 +255,7 @@ export class ProductsService {
     const items: VariantSummaryDto[] = rows.map((row) => {
       const supplierLink = 'supplierLinks' in row ? row.supplierLinks?.[0] : undefined;
       const level = 'inventoryLevels' in row ? row.inventoryLevels?.[0] : undefined;
-      const purchaseMinor =
-        supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null;
+      const purchaseMinor = supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null;
       return {
         variantId: row.id,
         productId: row.productId,
@@ -265,9 +268,7 @@ export class ProductsService {
           currencyCode: row.currency,
         },
         purchasePrice:
-          purchaseMinor != null
-            ? { amountMinor: purchaseMinor, currencyCode: row.currency }
-            : null,
+          purchaseMinor != null ? { amountMinor: purchaseMinor, currencyCode: row.currency } : null,
         compareAtPrice:
           row.compareAtPriceMinor != null
             ? { amountMinor: row.compareAtPriceMinor, currencyCode: row.currency }
@@ -313,35 +314,46 @@ export class ProductsService {
     );
     this.assertSingleCurrency(dto.variants);
 
-    const created = await this.prisma.product.create({
-      data: {
-        tenantId,
-        catalogOrigin: CatalogOrigin.vestiflow,
-        shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
-        name: dto.name,
-        description: normalizeProductDescription(dto.description),
-        brand: dto.brand,
-        category: dto.category,
-        shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
-        shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
-        shopifyCategoryMetafields: (dto.shopifyCategoryMetafields ??
-          []) as unknown as Prisma.InputJsonValue,
-        tiktokCategoryId: dto.tiktokCategoryId?.trim() || null,
-        season: dto.season,
-        tags: this.normalizeTags(dto.tags),
-        status: dto.status,
-        unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
-        defaultVatRatePercent: dto.defaultVatRatePercent ?? null,
-        defaultVatCodeId: dto.defaultVatCodeId ?? null,
-        inventoryTracking: dto.inventoryTracking ?? undefined,
-        managesStock: dto.managesStock ?? true,
-        options: dto.options as unknown as Prisma.InputJsonValue,
-        variants: {
-          create: dto.variants.map((variant) => this.toVariantCreateInput(tenantId, variant)),
+    // Il pre-check assertSkusAvailable non copre le richieste concorrenti:
+    // il vincolo unico (tenant_id, sku) può comunque scattare qui e deve
+    // restare un 409 coerente, non un 500.
+    const created = await this.prisma.product
+      .create({
+        data: {
+          tenantId,
+          catalogOrigin: CatalogOrigin.vestiflow,
+          shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
+          name: dto.name,
+          description: normalizeProductDescription(dto.description),
+          brand: dto.brand,
+          category: dto.category,
+          shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
+          shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
+          shopifyCategoryMetafields: (dto.shopifyCategoryMetafields ??
+            []) as unknown as Prisma.InputJsonValue,
+          tiktokCategoryId: dto.tiktokCategoryId?.trim() || null,
+          season: dto.season,
+          tags: this.normalizeTags(dto.tags),
+          status: dto.status,
+          unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
+          defaultVatCodeId: dto.defaultVatCodeId ?? null,
+          inventoryTracking: dto.inventoryTracking ?? undefined,
+          managesStock: dto.managesStock ?? true,
+          options: dto.options as unknown as Prisma.InputJsonValue,
+          variants: {
+            create: dto.variants.map((variant) => this.toVariantCreateInput(tenantId, variant)),
+          },
         },
-      },
-      include: PRODUCT_INCLUDE,
-    });
+        include: PRODUCT_INCLUDE,
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new ConflictException(
+            `SKU già presenti a catalogo: ${dto.variants.map((variant) => variant.sku).join(', ')}`,
+          );
+        }
+        throw error;
+      });
 
     await this.pushProductToShopifySafe(tenantId, created.id);
     return this.getById(tenantId, created.id);
@@ -389,12 +401,7 @@ export class ProductsService {
           ...(dto.unitOfMeasure !== undefined
             ? { unitOfMeasure: dto.unitOfMeasure.trim() || 'pz' }
             : {}),
-          ...(dto.defaultVatRatePercent !== undefined
-            ? { defaultVatRatePercent: dto.defaultVatRatePercent }
-            : {}),
-          ...(dto.defaultVatCodeId !== undefined
-            ? { defaultVatCodeId: dto.defaultVatCodeId }
-            : {}),
+          ...(dto.defaultVatCodeId !== undefined ? { defaultVatCodeId: dto.defaultVatCodeId } : {}),
           ...(dto.inventoryTracking !== undefined
             ? { inventoryTracking: dto.inventoryTracking }
             : {}),
@@ -866,9 +873,7 @@ function withReadableShopifyErrors(product: ProductWithVariants): ProductWithVar
 }
 
 /** Allinea righe lista (senza join varianti/immagini) al tipo ProductWithVariants. */
-function normalizeListProductRow(
-  item: ProductWithVariants | ProductListRow,
-): ProductWithVariants {
+function normalizeListProductRow(item: ProductWithVariants | ProductListRow): ProductWithVariants {
   if ('variants' in item && Array.isArray(item.variants)) {
     return item;
   }

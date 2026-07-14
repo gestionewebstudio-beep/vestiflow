@@ -156,13 +156,7 @@
         <div class="product-detail__fact">
           <dt class="product-detail__term">Codice IVA</dt>
           <dd class="product-detail__value tabular-nums">
-            {{
-              p.defaultVatCodeId
-                ? vatCodeLabel(p.defaultVatCodeId)
-                : p.defaultVatRatePercent !== null && p.defaultVatRatePercent !== undefined
-                  ? p.defaultVatRatePercent + '%'
-                  : '—'
-            }}
+            {{ p.defaultVatCodeId ? vatCodeLabel(p.defaultVatCodeId) : '—' }}
           </dd>
         </div>
         <div class="product-detail__fact">

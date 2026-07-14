@@ -11,40 +11,6 @@ export interface DocumentTransferLocations {
   readonly targetLocationId: string;
 }
 
-/** Applica trasferimenti per tutte le righe stock del documento. */
-export async function applyDocumentStockTransfers(
-  tx: Parameters<typeof applyStockTransfer>[0],
-  params: {
-    readonly tenantId: string;
-    readonly documentId: string;
-    readonly reference: string | null;
-    readonly locations: DocumentTransferLocations;
-    readonly lines: readonly DocumentLine[];
-    readonly actor: StockMovementActor;
-    readonly reasonSuffix?: string;
-  },
-): Promise<void> {
-  const reasonBase = params.reference
-    ? `Trasferimento ${params.reference}`
-    : 'Trasferimento interno';
-  const reason = params.reasonSuffix ? `${reasonBase}${params.reasonSuffix}` : reasonBase;
-  const map = aggregateStockLines(params.lines);
-
-  for (const entry of map.values()) {
-    await applyStockTransfer(tx, {
-      tenantId: params.tenantId,
-      variantId: entry.variantId,
-      sku: entry.sku,
-      locationId: params.locations.originLocationId,
-      targetLocationId: params.locations.targetLocationId,
-      quantity: entry.quantity,
-      reason,
-      externalRef: params.documentId,
-      actor: params.actor,
-    });
-  }
-}
-
 /**
  * Riconcilia trasferimenti dopo modifica documento confermato.
  * Delta nel risultato = variazione netta sulla location origine (negativo = più uscita).

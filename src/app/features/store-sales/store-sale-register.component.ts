@@ -10,16 +10,20 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
+
+import { catchError, of } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
 import type { Money } from '@core/models/money.model';
+import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { VatCodeService } from '@core/services/vat-code.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney, moneyToDecimalString, parseMoneyInput } from '@core/utils/money.util';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
@@ -46,7 +50,10 @@ interface CartLine {
   readonly unitPriceMinor: number;
   readonly quantity: number;
   readonly discountPercent: number;
+  /** Aliquota % del Codice IVA risolto (solo display, da vatCodeId). */
   readonly vatRatePercent: number | null;
+  /** Codice IVA risolto silenziosamente da articolo/predefinito aziendale; override manuale sempre possibile. */
+  readonly vatCodeId: string | null;
   readonly onHand: number;
   readonly committed: number;
   readonly available: number;
@@ -96,8 +103,25 @@ export class StoreSaleRegisterComponent {
   private readonly service = inject(StoreSalesService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
+  private readonly vatCodeService = inject(VatCodeService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
+
+  // Codici IVA attivi vendita/entrambi: override compatto per riga carrello
+  // (§Piano IVA fase 3 — cassa veloce: risoluzione silenziosa, override
+  // sempre possibile ma mai un passaggio obbligato).
+  private readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+  private readonly vatCodeById = computed(
+    () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
+  );
+  protected readonly vatSelectOptions = computed((): readonly SelectMenuOption[] =>
+    this.vatCodes()
+      .filter((vatCode) => vatCode.isActive && isSalesVatCode(vatCode))
+      .map((vatCode) => ({ value: vatCode.id, label: vatCodeOptionLabel(vatCode) })),
+  );
 
   private readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
@@ -330,6 +354,7 @@ export class StoreSaleRegisterComponent {
         quantity: 1,
         discountPercent: 0,
         vatRatePercent: item.vatRatePercent,
+        vatCodeId: item.vatCodeId,
         onHand: item.onHand,
         committed: item.committed,
         available: item.available,
@@ -386,6 +411,26 @@ export class StoreSaleRegisterComponent {
 
   protected removeLine(variantId: EntityId): void {
     this.cart.update((lines) => lines.filter((line) => line.variantId !== variantId));
+  }
+
+  /** Override manuale del Codice IVA riga (compatto: la risoluzione di default resta silenziosa). */
+  protected onLineVatSelect(variantId: EntityId, value: string | null): void {
+    this.cart.update((lines) =>
+      lines.map((line) => (line.variantId === variantId ? { ...line, vatCodeId: value } : line)),
+    );
+  }
+
+  /** Opzioni riga: codici attivi + eventuale codice risolto ora disattivato. */
+  protected lineVatOptions(line: CartLine): readonly SelectMenuOption[] {
+    const options = this.vatSelectOptions();
+    if (!line.vatCodeId || options.some((option) => option.value === line.vatCodeId)) {
+      return options;
+    }
+    const selected = this.vatCodeById().get(line.vatCodeId);
+    if (!selected) {
+      return options;
+    }
+    return [...options, { value: selected.id, label: vatCodeOptionLabel(selected) }];
   }
 
   protected lineTotal(line: CartLine): string {
@@ -452,7 +497,7 @@ export class StoreSaleRegisterComponent {
           quantity: line.quantity,
           unitPriceMinor: line.unitPriceMinor,
           discountPercent: line.discountPercent || undefined,
-          vatRatePercent: line.vatRatePercent ?? undefined,
+          vatCodeId: line.vatCodeId ?? undefined,
         })),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))

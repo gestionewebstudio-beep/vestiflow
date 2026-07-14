@@ -269,13 +269,29 @@ export class SupplierOrdersService {
     return resolved;
   }
 
-  /** Riferimento progressivo per anno: PO-YYYY-NNNN, univoco per tenant. */
+  /**
+   * Riferimento progressivo per anno: PO-YYYY-NNNN, univoco per tenant.
+   *
+   * Il prossimo numero deriva dal MASSIMO suffisso esistente + 1, non dal
+   * conteggio: dopo l'eliminazione di un ordine annullato il conteggio cala e
+   * un `count + 1` rigenererebbe un riferimento già presente, violando
+   * `@@unique([tenantId, reference])` (P2002 → 500 permanente). Il massimo è
+   * stabile rispetto ai buchi lasciati dalle eliminazioni.
+   */
   private async nextReference(tenantId: string): Promise<string> {
     const prefix = `PO-${new Date().getFullYear()}-`;
-    const count = await this.prisma.supplierOrder.count({
+    const existing = await this.prisma.supplierOrder.findMany({
       where: { tenantId, reference: { startsWith: prefix } },
+      select: { reference: true },
     });
-    return `${prefix}${String(count + 1).padStart(4, '0')}`;
+    let max = 0;
+    for (const { reference } of existing) {
+      const suffix = reference.slice(prefix.length);
+      if (/^\d+$/.test(suffix)) {
+        max = Math.max(max, Number.parseInt(suffix, 10));
+      }
+    }
+    return `${prefix}${String(max + 1).padStart(4, '0')}`;
   }
 
   async list(

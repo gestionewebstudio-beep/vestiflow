@@ -54,8 +54,6 @@ export interface Product extends TenantScoped, Timestamped {
   /** Provenienza catalogo: determina quali campi sono editabili in gestionale. */
   readonly catalogOrigin: CatalogOrigin;
   readonly unitOfMeasure?: string;
-  /** LEGACY: sostituito da defaultVatCodeId; mantenuto per compatibilità. */
-  readonly defaultVatRatePercent?: number | null;
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;
   readonly managesStock?: boolean;

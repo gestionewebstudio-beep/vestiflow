@@ -41,14 +41,6 @@ export const PRODUCT_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 export const DEFAULT_PRODUCT_SORT: ProductSortField = 'name';
 export const DEFAULT_PRODUCT_ORDER: SortOrder = 'asc';
 
-/** Query iniziale: prima pagina, ordinata per nome. */
-export const DEFAULT_PRODUCT_QUERY: ProductListQuery = {
-  page: 1,
-  pageSize: DEFAULT_PRODUCT_PAGE_SIZE,
-  sort: DEFAULT_PRODUCT_SORT,
-  order: DEFAULT_PRODUCT_ORDER,
-};
-
 const SORT_FIELDS: readonly ProductSortField[] = [
   'name',
   'brand',

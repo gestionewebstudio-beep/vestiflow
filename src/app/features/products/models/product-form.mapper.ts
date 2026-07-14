@@ -128,7 +128,6 @@ export interface ProductEmbeddedCreatePrefill {
   readonly purchasePriceMajor?: number | null;
   readonly sellingPriceMajor?: number | null;
   readonly compareAtPriceMajor?: number | null;
-  readonly defaultVatRatePercent?: number | null;
   readonly defaultVatCodeId?: string | null;
 }
 
@@ -146,7 +145,6 @@ export function productFormDraftFromEmbeddedPrefill(
         ...base.general,
         name,
         description: prefill.description?.trim() || base.general.description,
-        defaultVatRatePercent: prefill.defaultVatRatePercent ?? base.general.defaultVatRatePercent,
         defaultVatCodeId: prefill.defaultVatCodeId ?? base.general.defaultVatCodeId,
       },
       variants: [
@@ -184,7 +182,6 @@ export function emptyProductFormDraft(): ProductFormDraft {
       tags: '',
       status: ProductStatus.Draft,
       unitOfMeasure: 'pz',
-      defaultVatRatePercent: 22,
       defaultVatCodeId: '',
       inventoryTracking: InventoryTrackingMode.Standard,
       managesStock: true,
@@ -264,7 +261,6 @@ function generalToDto(
     tags: parseTagsInput(general.tags),
     status: general.status,
     unitOfMeasure: general.unitOfMeasure.trim() || 'pz',
-    defaultVatRatePercent: general.defaultVatRatePercent,
     defaultVatCodeId: general.defaultVatCodeId || null,
     inventoryTracking: general.inventoryTracking,
     managesStock: general.managesStock,
@@ -337,7 +333,6 @@ export function productToFormDraft(
     tags: formatTagsInput(product.tags),
     status: product.status,
     unitOfMeasure: product.unitOfMeasure ?? 'pz',
-    defaultVatRatePercent: product.defaultVatRatePercent ?? 22,
     defaultVatCodeId: product.defaultVatCodeId ?? '',
     inventoryTracking: product.inventoryTracking ?? InventoryTrackingMode.Standard,
     managesStock: product.managesStock ?? true,

@@ -9,6 +9,7 @@ import {
   toPrismaSource,
   type ApiSalesOrderSource,
 } from '../sales-orders/sales-order.enum-mapper';
+import { vatSnapshotDisplayLabel, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import type { ListOnlineSalesQueryDto } from './dto/list-online-sales.query.dto';
 
 export interface OnlineSaleRow {
@@ -44,10 +45,14 @@ export interface OnlineSaleLineRow {
   readonly quantity: number;
   readonly unitPriceMinor: number;
   readonly subtotalMinor: number;
+  /** Aliquota % derivata dallo snapshot IVA congelato sulla riga (solo display). */
   readonly vatRatePercent: number | null;
   readonly taxMinor: number;
   readonly totalMinor: number;
   readonly locationId: string | null;
+  readonly vatCodeId: string | null;
+  /** Etichetta Codice IVA risolta (o solo aliquota se nessun codice ha fatto match). */
+  readonly vatCodeLabel: string | null;
 }
 
 export interface OnlineSaleMovementRow {
@@ -164,10 +169,12 @@ export class OnlineSalesService {
         quantity: line.quantity,
         unitPriceMinor: line.unitPriceMinor,
         subtotalMinor: line.subtotalMinor,
-        vatRatePercent: line.vatRatePercent,
+        vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
         taxMinor: line.taxMinor,
         totalMinor: line.totalMinor,
         locationId: line.locationId,
+        vatCodeId: line.vatCodeId,
+        vatCodeLabel: vatSnapshotDisplayLabel(line.vatSnapshot),
       })),
       movements: movements.map((movement) => ({
         id: movement.id,

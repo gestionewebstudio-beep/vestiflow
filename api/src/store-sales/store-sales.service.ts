@@ -17,9 +17,11 @@ import {
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import { assertUserCanAccessLocation } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
+import type { VatCodeWithNature } from '../vat/vat-codes.service';
+import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
 
 import type { CreateStoreReturnDto } from './dto/create-store-return.dto';
-import type { CreateStoreSaleDto } from './dto/create-store-sale.dto';
+import type { CreateStoreSaleDto, StoreSaleLineInputDto } from './dto/create-store-sale.dto';
 
 /** Esito della registrazione vendita/reso per la UI di cassa. */
 export interface StoreSaleResult {
@@ -42,7 +44,7 @@ interface ResolvedVariant {
   readonly barcode: string | null;
   readonly productName: string;
   readonly optionSummary: string;
-  readonly vatRatePercent: number | null;
+  readonly defaultVatCodeId: string | null;
 }
 
 /**
@@ -75,6 +77,7 @@ export class StoreSalesService {
       tenantId,
       dto.lines.map((line) => line.variantId),
     );
+    const vatContext = await this.resolveVatContext(tenantId, dto.lines, variants);
 
     const customerName = dto.customerId
       ? await this.snapshotCustomerName(tenantId, dto.customerId)
@@ -106,7 +109,8 @@ export class StoreSalesService {
         const grossTotal = Math.round(
           (line.quantity * line.unitPriceMinor * (100 - discountPercent)) / 100,
         );
-        const vatRate = line.vatRatePercent ?? variant.vatRatePercent;
+        const resolved = this.resolveLineVatCode(line, variant, vatContext);
+        const vatRate = resolved.vatRatePercent;
         const tax =
           vatRate && vatRate > 0
             ? grossTotal - Math.round((grossTotal * 100) / (100 + vatRate))
@@ -119,7 +123,8 @@ export class StoreSalesService {
           quantity: line.quantity,
           unitPriceMinor: line.unitPriceMinor,
           discountPercent,
-          vatRatePercent: vatRate,
+          vatCodeId: resolved.vatCodeId,
+          vatSnapshot: resolved.vatSnapshot,
           lineTotalMinor: grossTotal,
           lineVatTotalMinor: tax,
           lineGrossTotalMinor: grossTotal,
@@ -159,7 +164,11 @@ export class StoreSalesService {
           createdById: actor.createdById,
           createdByName: actor.createdByName,
           lines: {
-            create: computedLines.map((line) => ({ ...line, tenantId })),
+            create: computedLines.map((line) => ({
+              ...line,
+              tenantId,
+              vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+            })),
           },
         },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -419,7 +428,9 @@ export class StoreSalesService {
         sku: true,
         barcode: true,
         optionValues: true,
-        product: { select: { name: true, defaultVatRatePercent: true } },
+        product: {
+          select: { name: true, defaultVatCodeId: true },
+        },
       },
     });
     const map = new Map<string, ResolvedVariant>(
@@ -431,7 +442,7 @@ export class StoreSalesService {
           barcode: row.barcode,
           productName: row.product.name,
           optionSummary: this.optionSummary(row.optionValues),
-          vatRatePercent: row.product.defaultVatRatePercent,
+          defaultVatCodeId: row.product.defaultVatCodeId,
         },
       ]),
     );
@@ -440,6 +451,73 @@ export class StoreSalesService {
       throw new NotFoundException('Una o più varianti non sono state trovate.');
     }
     return map;
+  }
+
+  /**
+   * Precarica i Codici IVA necessari a risolvere le righe del carrello
+   * (§Piano IVA fase 2): predefinito per articolo (variante → prodotto),
+   * override esplicito di riga, predefinito aziendale come fallback finale.
+   */
+  private async resolveVatContext(
+    tenantId: string,
+    lines: readonly StoreSaleLineInputDto[],
+    variants: ReadonlyMap<string, ResolvedVariant>,
+  ): Promise<{
+    readonly vatCodesById: ReadonlyMap<string, VatCodeWithNature>;
+    readonly tenantDefaultVatCodeId: string | null;
+  }> {
+    const tenantSettings = await this.prisma.tenantFeatureSettings.findUnique({
+      where: { tenantId },
+      select: { defaultVatCodeId: true },
+    });
+    const tenantDefaultVatCodeId = tenantSettings?.defaultVatCodeId ?? null;
+
+    const idsToFetch = new Set<string>();
+    for (const line of lines) {
+      if (line.vatCodeId) idsToFetch.add(line.vatCodeId);
+    }
+    for (const variant of variants.values()) {
+      if (variant.defaultVatCodeId) idsToFetch.add(variant.defaultVatCodeId);
+    }
+    if (tenantDefaultVatCodeId) idsToFetch.add(tenantDefaultVatCodeId);
+
+    const vatCodesById = new Map<string, VatCodeWithNature>();
+    if (idsToFetch.size > 0) {
+      const found = await this.prisma.vatCode.findMany({
+        where: { tenantId, id: { in: [...idsToFetch] }, deletedAt: null },
+        include: { nature: true },
+      });
+      for (const vatCode of found) {
+        vatCodesById.set(vatCode.id, vatCode);
+      }
+    }
+    return { vatCodesById, tenantDefaultVatCodeId };
+  }
+
+  /** Precedenza: override esplicito di riga > predefinito articolo > predefinito aziendale. */
+  private resolveLineVatCode(
+    line: StoreSaleLineInputDto,
+    variant: ResolvedVariant,
+    vatContext: {
+      readonly vatCodesById: ReadonlyMap<string, VatCodeWithNature>;
+      readonly tenantDefaultVatCodeId: string | null;
+    },
+  ): {
+    readonly vatCodeId: string | null;
+    readonly vatSnapshot: Prisma.InputJsonObject | null;
+    readonly vatRatePercent: number | null;
+  } {
+    const resolvedId =
+      line.vatCodeId ?? variant.defaultVatCodeId ?? vatContext.tenantDefaultVatCodeId;
+    const vatCode = resolvedId ? (vatContext.vatCodesById.get(resolvedId) ?? null) : null;
+    if (!vatCode) {
+      return { vatCodeId: null, vatSnapshot: null, vatRatePercent: null };
+    }
+    return {
+      vatCodeId: vatCode.id,
+      vatSnapshot: buildVatCodeSnapshot(vatCode),
+      vatRatePercent: Math.round(Number(vatCode.ratePercent)),
+    };
   }
 
   private optionSummary(optionValues: Prisma.JsonValue): string {

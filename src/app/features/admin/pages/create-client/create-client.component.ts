@@ -86,14 +86,14 @@ export class CreateClientComponent {
   }));
   protected readonly tenantChannelProfileLabel = tenantChannelProfileLabel;
   protected readonly selectedChannelProfileDescription = computed(() => {
-    const value = this.form.controls.channelProfile.value;
+    const value = this.channelProfileValue();
     return (
       TENANT_CHANNEL_PROFILE_OPTIONS.find((option) => option.value === value)?.description ?? ''
     );
   });
 
   protected readonly isShopifyChannelProfile = computed(
-    () => this.form.controls.channelProfile.value === TenantChannelProfile.Shopify,
+    () => this.channelProfileValue() === TenantChannelProfile.Shopify,
   );
 
   protected readonly tenantsLoading = signal(true);
@@ -135,6 +135,13 @@ export class CreateClientComponent {
         Validators.max(TENANT_LICENSED_LOCATION_MAX),
       ],
     }),
+  });
+
+  // Valore reattivo di channelProfile: i computed derivati (hint del profilo,
+  // toggle dei campi Shopify) leggono dal FormControl, che non e' un signal.
+  // Senza questo signal resterebbero memoizzati sul profilo iniziale.
+  private readonly channelProfileValue = toSignal(this.form.controls.channelProfile.valueChanges, {
+    initialValue: this.form.controls.channelProfile.value,
   });
 
   constructor() {

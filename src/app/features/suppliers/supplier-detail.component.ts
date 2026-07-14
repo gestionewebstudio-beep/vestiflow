@@ -8,6 +8,8 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Supplier, SupplierVariantLink } from '@core/models/supplier.model';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
+import { vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { VatCodeService } from '@core/services/vat-code.service';
 import { formatMoney } from '@core/utils/money.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
@@ -46,9 +48,24 @@ type DetailState =
 })
 export class SupplierDetailComponent {
   private readonly service = inject(SupplierService);
+  private readonly vatCodeService = inject(VatCodeService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
+
+  // Lookup Codici IVA per mostrare "22 · 22% · Imponibile 22%" nei fatti fornitore.
+  private readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+
+  protected vatCodeLabel(vatCodeId: string | null | undefined): string {
+    if (!vatCodeId) {
+      return '—';
+    }
+    const entry = this.vatCodes().find((vatCode) => vatCode.id === vatCodeId);
+    return entry ? vatCodeOptionLabel(entry) : '—';
+  }
 
   protected readonly listPath = '/app/suppliers';
   protected readonly skeletonColumns = 3;
@@ -121,10 +138,7 @@ export class SupplierDetailComponent {
       { label: 'Indirizzo', value: this.formatAddress(s) },
       { label: 'Pagamento', value: s.paymentTerms ?? '—' },
       { label: 'Sconto fornitore', value: s.supplierDiscount ?? '—' },
-      {
-        label: 'IVA predefinita',
-        value: s.defaultVatRatePercent != null ? `${s.defaultVatRatePercent}%` : '—',
-      },
+      { label: 'Codice IVA predefinito', value: this.vatCodeLabel(s.defaultVatCodeId) },
       { label: 'Incaricato trasporto', value: s.transportResponsible ?? '—' },
       { label: 'Porto', value: s.freightTerms ?? '—' },
       { label: 'Nota creazione documento', value: s.documentCreationNote ?? '—' },

@@ -66,6 +66,3 @@ export const shopifyOrdersGuard: CanActivateFn = () => {
 
   return router.createUrlTree(['/app/sales']);
 };
-
-/** @deprecated Usare retailSalesRegisterGuard */
-export const gestionaleRetailGuard = retailSalesRegisterGuard;

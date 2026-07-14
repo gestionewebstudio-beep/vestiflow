@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   documentTypeAdjustsStockOnConfirm,
-  documentTypeAffectsStockOnConfirm,
   documentTypeLoadsStockOnConfirm,
   documentTypeTransfersStockOnConfirm,
   documentTypeUnloadsStockOnConfirm,
@@ -31,14 +30,5 @@ describe('document-stock.constants', () => {
   it('identifica i tipi con trasferimento alla conferma', () => {
     expect(documentTypeTransfersStockOnConfirm(DocumentType.transfer)).toBe(true);
     expect(documentTypeTransfersStockOnConfirm(DocumentType.goods_receipt)).toBe(false);
-  });
-
-  it('documentTypeAffectsStockOnConfirm unisce carico, scarico, trasferimento e rettifica', () => {
-    expect(documentTypeAffectsStockOnConfirm(DocumentType.goods_receipt)).toBe(true);
-    expect(documentTypeAffectsStockOnConfirm(DocumentType.sales_ddt)).toBe(true);
-    expect(documentTypeAffectsStockOnConfirm(DocumentType.manual_unload)).toBe(true);
-    expect(documentTypeAffectsStockOnConfirm(DocumentType.adjustment)).toBe(true);
-    expect(documentTypeAffectsStockOnConfirm(DocumentType.transfer)).toBe(true);
-    expect(documentTypeAffectsStockOnConfirm(DocumentType.proforma)).toBe(false);
   });
 });

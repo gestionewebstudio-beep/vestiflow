@@ -34,6 +34,8 @@ import {
   zeroMoney,
 } from '@core/utils/money.util';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { VatCodeService } from '@core/services/vat-code.service';
+import type { VatCode } from '@core/models/vat-code.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -105,6 +107,7 @@ export class SupplierOrderFormComponent {
   private readonly productService = inject(ProductService);
   private readonly inventoryService = inject(InventoryService);
   private readonly operationalLocations = inject(OperationalLocationsService);
+  private readonly vatCodeService = inject(VatCodeService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -159,6 +162,12 @@ export class SupplierOrderFormComponent {
   protected readonly hasSuppliers = computed(() => this.suppliers().length > 0);
   protected readonly supplierOptions = computed<readonly SelectMenuOption[]>(() =>
     this.suppliers().map((supplier) => ({ value: supplier.id, label: supplier.name })),
+  );
+
+  // Codici IVA per la tendina "Codice IVA predefinito" nel form nuovo fornitore.
+  protected readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
   );
 
   protected readonly variantSearchDraft = signal('');

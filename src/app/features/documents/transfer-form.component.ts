@@ -130,6 +130,14 @@ export class TransferFormComponent {
     { validators: [distinctLocations] },
   );
 
+  // Snapshot reattivo del form: alcuni computed (opzioni destinazione, conflitto
+  // location) leggono valori/stato dai FormControl, che non sono signal. Senza
+  // questa dipendenza resterebbero memoizzati e non reagirebbero al cambio di
+  // origine o allo stato di validazione.
+  private readonly formValue = toSignal(this.form.valueChanges, {
+    initialValue: this.form.getRawValue(),
+  });
+
   protected readonly confirmDialogOpen = signal(false);
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
   protected readonly saving = computed(() => this._submitState().status === 'saving');
@@ -184,6 +192,7 @@ export class TransferFormComponent {
   );
 
   protected readonly targetLocationOptions = computed<readonly SelectMenuOption[]>(() => {
+    this.formValue();
     const origin = this.form.controls.locationId.value;
     return this.operationalLocations
       .transferTargetLocations()
@@ -290,9 +299,10 @@ export class TransferFormComponent {
     return control.invalid && (control.touched || control.dirty);
   }
 
-  protected readonly locationsConflict = computed(
-    () => this.form.hasError('sameLocation') && this.form.touched,
-  );
+  protected readonly locationsConflict = computed(() => {
+    this.formValue();
+    return this.form.hasError('sameLocation') && this.form.touched;
+  });
 
   protected lineFieldInvalid(
     index: number,
@@ -360,6 +370,57 @@ export class TransferFormComponent {
       return;
     }
     const raw = this.form.getRawValue();
+    const editId = this.editDocumentId();
+    const confirmedEdit = this.isConfirmedEdit();
+    this._submitState.set({ status: 'saving' });
+
+    // Documento già confermato: la modifica righe deve preservare gli id
+    // stabili, così i movimenti per riga si aggiornano invece di duplicarsi
+    // (mirror arrivo merce — vedi POST /documents/transfer/save).
+    const request$ = confirmedEdit
+      ? this.documentService.saveTransfer({
+          id: editId!,
+          documentDate: new Date(raw.documentDate).toISOString(),
+          locationId: raw.locationId,
+          targetLocationId: raw.targetLocationId,
+          notes: raw.notes.trim() || undefined,
+          internalComment: raw.internalComment.trim() || undefined,
+          lines: raw.lines
+            .filter((line) => line.variantId || line.description.trim())
+            .map((line) => ({
+              id: line.id || undefined,
+              variantId: line.variantId || undefined,
+              sku: line.sku.trim() || undefined,
+              description: line.description.trim() || 'Riga trasferimento',
+              quantity: Number(line.quantity),
+              loadsStock: Boolean(line.variantId),
+              serialNumbers: parseSerialNumbersText(line.serialNumbersText),
+            })),
+        })
+      : this.persistDraftOrConfirm(editId, raw, confirmAfterSave);
+
+    this.submitSubscription?.unsubscribe();
+    this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (doc) => {
+        this._submitState.set({ status: 'idle' });
+        void this.router.navigate([this.listPath, doc.id]);
+      },
+      error: (err: unknown) => {
+        this._submitState.set({ status: 'error', error: this.toAppError(err) });
+      },
+    });
+  }
+
+  /**
+   * Bozza (creazione o modifica pre-conferma): nessun movimento esiste ancora,
+   * quindi la stabilità degli id riga non ha conseguenze — resta sul flusso
+   * generico create/update (+ confirm se richiesto).
+   */
+  private persistDraftOrConfirm(
+    editId: string | null,
+    raw: ReturnType<TransferFormComponent['form']['getRawValue']>,
+    confirmAfterSave: boolean,
+  ) {
     const body = {
       type: DocumentType.Transfer,
       documentDate: new Date(raw.documentDate).toISOString(),
@@ -381,29 +442,13 @@ export class TransferFormComponent {
         })),
     };
 
-    const editId = this.editDocumentId();
-    const confirmedEdit = this.isConfirmedEdit();
-    this._submitState.set({ status: 'saving' });
-
     const save$ = editId
       ? this.documentService.updateDocument(editId, body)
       : this.documentService.createDocument(body);
 
-    const request$ =
-      confirmAfterSave && !confirmedEdit
-        ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
-        : save$;
-
-    this.submitSubscription?.unsubscribe();
-    this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (doc) => {
-        this._submitState.set({ status: 'idle' });
-        void this.router.navigate([this.listPath, doc.id]);
-      },
-      error: (err: unknown) => {
-        this._submitState.set({ status: 'error', error: this.toAppError(err) });
-      },
-    });
+    return confirmAfterSave
+      ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
+      : save$;
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
@@ -418,6 +463,10 @@ export class TransferFormComponent {
     for (const line of doc.lines ?? []) {
       this.lines.push(
         this.fb.group({
+          // Id riga esistente: preservato (mai esposto in UI) per consentire
+          // al salvataggio dedicato di aggiornare il movimento collegato
+          // invece di duplicarlo (POST /documents/transfer/save).
+          id: this.fb.control<string | null>(line.id ?? null),
           variantId: this.fb.control(line.variantId ?? '', {
             validators: line.loadsStock ? [Validators.required] : [],
           }),
@@ -437,6 +486,7 @@ export class TransferFormComponent {
 
   private createLine() {
     return this.fb.group({
+      id: this.fb.control<string | null>(null),
       variantId: this.fb.control('', { validators: [Validators.required] }),
       sku: this.fb.control(''),
       description: this.fb.control('', { validators: [Validators.required] }),

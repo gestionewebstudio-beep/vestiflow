@@ -12,41 +12,6 @@ function oppositeDirection(direction: AdjustmentDirection): AdjustmentDirection 
     : AdjustmentDirection.increase;
 }
 
-/** Applica rettifiche per tutte le righe stock del documento. */
-export async function applyDocumentStockAdjustments(
-  tx: Parameters<typeof applyStockAdjustment>[0],
-  params: {
-    readonly tenantId: string;
-    readonly documentId: string;
-    readonly reference: string | null;
-    readonly locationId: string;
-    readonly direction: AdjustmentDirection;
-    readonly reason: string;
-    readonly lines: readonly DocumentLine[];
-    readonly actor: StockMovementActor;
-  },
-): Promise<void> {
-  const reasonBase = params.reference
-    ? `Rettifica ${params.reference}`
-    : 'Rettifica inventario';
-  const reason = `${reasonBase}: ${params.reason}`;
-  const map = aggregateStockLines(params.lines);
-
-  for (const entry of map.values()) {
-    await applyStockAdjustment(tx, {
-      tenantId: params.tenantId,
-      variantId: entry.variantId,
-      sku: entry.sku,
-      locationId: params.locationId,
-      quantity: entry.quantity,
-      direction: params.direction,
-      reason,
-      externalRef: params.documentId,
-      actor: params.actor,
-    });
-  }
-}
-
 export async function reconcileDocumentStockAdjustment(
   tx: Parameters<typeof applyStockAdjustment>[0],
   params: {

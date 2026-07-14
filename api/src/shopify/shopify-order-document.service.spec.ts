@@ -73,6 +73,7 @@ describe('ShopifyOrderDocumentService', () => {
           update: vi.fn(),
           deleteMany: stockMovementDeleteMany,
         },
+        vatCode: { findMany: vi.fn().mockResolvedValue([]) },
       }),
     );
 
@@ -147,6 +148,7 @@ describe('ShopifyOrderDocumentService', () => {
           update: vi.fn(),
           deleteMany: stockMovementDeleteMany,
         },
+        vatCode: { findMany: vi.fn().mockResolvedValue([]) },
       }),
     );
 

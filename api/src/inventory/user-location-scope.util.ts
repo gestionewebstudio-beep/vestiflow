@@ -47,14 +47,6 @@ export function applyWriteLocationScope(
   return applyAssignedLocationScope(licensedScope, user);
 }
 
-/** @deprecated Usare applyReadLocationScope o applyWriteLocationScope. */
-export function applyUserLocationScope(
-  licensedScope: LicensedLocationScope,
-  user: Pick<UserProfileDto, 'role' | 'assignedLocationId' | 'supportSession' | 'permissions'>,
-): LicensedLocationScope | null {
-  return applyWriteLocationScope(licensedScope, user);
-}
-
 function applyAssignedLocationScope(
   licensedScope: LicensedLocationScope,
   user: Pick<UserProfileDto, 'assignedLocationId'>,

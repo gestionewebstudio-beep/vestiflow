@@ -255,20 +255,3 @@ export function canManageMfa(user: User | null | undefined): boolean {
   }
   return hasFullTenantAccess(user) || user.isPlatformAdmin;
 }
-
-export type TenantRoutePermission = 'admin' | 'manager';
-
-export const TENANT_ROUTE_PERMISSION_KEY = 'tenantPermission';
-
-export function hasTenantRoutePermission(
-  user: User | null | undefined,
-  permission: TenantRoutePermission,
-): boolean {
-  if (permission === 'admin') {
-    return (
-      hasFullTenantAccess(user) ||
-      (user?.role === UserRole.Admin && hasTenantPermission(user, TenantPermission.SettingsCompany))
-    );
-  }
-  return isTenantManager(user);
-}

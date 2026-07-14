@@ -156,7 +156,10 @@ function createFakePrisma(db: FakeDb): PrismaService {
               sku: VARIANTS[id]!.sku,
               barcode: null,
               optionValues: [],
-              product: { name: VARIANTS[id]!.productName, defaultVatRatePercent: 22 },
+              product: {
+                name: VARIANTS[id]!.productName,
+                defaultVatCodeId: null,
+              },
             })),
         ),
     },
@@ -312,6 +315,12 @@ function createFakePrisma(db: FakeDb): PrismaService {
         db.movements.push({ ...data });
         return Promise.resolve({ ...data });
       },
+    },
+    tenantFeatureSettings: {
+      findUnique: () => Promise.resolve({ defaultVatCodeId: null }),
+    },
+    vatCode: {
+      findMany: () => Promise.resolve([]),
     },
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
       const snapshot = structuredClone({

@@ -1,5 +1,3 @@
-import type { Money } from '@core/models/common.model';
-
 export interface BusinessAnalyticsPeriod {
   readonly from: string;
   readonly to: string;
@@ -79,12 +77,4 @@ export interface BusinessAnalyticsQuery {
   readonly from?: string;
   readonly to?: string;
   readonly locationId?: string;
-}
-
-export interface BusinessAnalyticsChannelDisplayRow extends BusinessAnalyticsChannelRow {
-  readonly revenue: Money;
-}
-
-export interface BusinessAnalyticsTopProductDisplayRow extends BusinessAnalyticsTopProduct {
-  readonly revenue: Money;
 }
