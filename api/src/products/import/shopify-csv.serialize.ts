@@ -85,7 +85,7 @@ function productToCsvRows(
 
   const options = parseProductOptions(product.options);
   const sortedVariants = [...variants].sort((left, right) =>
-    left.sku.localeCompare(right.sku, 'it'),
+    (left.sku ?? '').localeCompare(right.sku ?? '', 'it'),
   );
   const sortedImages = [...images].sort((left, right) => left.sortOrder - right.sortOrder);
 
@@ -142,7 +142,7 @@ function buildProductRow(
   row['Option3 Value'] = optionColumns.option3Value;
 
   if (variant) {
-    row['Variant SKU'] = variant.sku;
+    row['Variant SKU'] = variant.sku ?? '';
     row['Variant Price'] = minorToShopifyDecimal(variant.sellingPriceMinor);
     row['Variant Compare-at Price'] =
       variant.compareAtPriceMinor != null ? minorToShopifyDecimal(variant.compareAtPriceMinor) : '';

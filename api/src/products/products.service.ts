@@ -259,7 +259,7 @@ export class ProductsService {
       return {
         variantId: row.id,
         productId: row.productId,
-        sku: row.sku,
+        sku: row.sku ?? '',
         productName: row.product.name,
         title: buildVariantTitle(row.product.name, row.optionValues),
         barcode: row.barcode,
@@ -348,8 +348,13 @@ export class ProductsService {
       })
       .catch((error: unknown) => {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          const skus = dto.variants
+            .map((variant) => variant.sku?.trim())
+            .filter((sku): sku is string => Boolean(sku));
           throw new ConflictException(
-            `SKU già presenti a catalogo: ${dto.variants.map((variant) => variant.sku).join(', ')}`,
+            skus.length > 0
+              ? `SKU già presenti a catalogo: ${skus.join(', ')}`
+              : 'Uno o più codici (SKU/barcode) risultano già presenti a catalogo.',
           );
         }
         throw error;
@@ -357,6 +362,115 @@ export class ProductsService {
 
     await this.pushProductToShopifySafe(tenantId, created.id);
     return this.getById(tenantId, created.id);
+  }
+
+  /**
+   * Duplica un'anagrafica prodotto (audit cliente §"Duplica articolo"): nuovo
+   * id interno, stesso nome con suffisso "(copia)", stesse varianti/prezzi/
+   * categoria/immagini. SKU e barcode sono univoci per tenant (vincolo
+   * schema): lo SKU della copia riceve il suffisso incrementale "-COPIA[-n]"
+   * (non può restare vuoto, il campo è obbligatorio), il barcode nasce vuoto
+   * (nullable: l'utente lo assegna se serve, nessun barcode duplicato).
+   * Nessun collegamento canale ereditato (Shopify/TikTok): la copia è un
+   * articolo nuovo, mai sincronizzato, e non viene pushata automaticamente
+   * per evitare di pubblicare online una scheda ancora da rivedere.
+   */
+  async duplicateProduct(tenantId: string, id: string): Promise<ProductWithVariants> {
+    const original = await this.prisma.product.findFirst({
+      where: { id, tenantId },
+      include: PRODUCT_INCLUDE,
+    });
+    if (!original) {
+      throw new NotFoundException('Prodotto non trovato');
+    }
+
+    const variantsData: Prisma.ProductVariantCreateWithoutProductInput[] = [];
+    for (const variant of original.variants) {
+      const sku = await this.buildDuplicateSku(tenantId, variant.sku);
+      variantsData.push({
+        tenant: { connect: { id: tenantId } },
+        sku,
+        optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
+        barcode: null,
+        currency: variant.currency,
+        sellingPriceMinor: variant.sellingPriceMinor,
+        purchasePriceMinor: variant.purchasePriceMinor,
+        compareAtPriceMinor: variant.compareAtPriceMinor,
+      });
+    }
+
+    const created = await this.prisma.product.create({
+      data: {
+        tenantId,
+        catalogOrigin: CatalogOrigin.vestiflow,
+        shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
+        name: `${original.name} (copia)`,
+        description: original.description,
+        brand: original.brand,
+        category: original.category,
+        shopifyTaxonomyCategoryId: original.shopifyTaxonomyCategoryId,
+        shopifyTaxonomyCategoryFullName: original.shopifyTaxonomyCategoryFullName,
+        shopifyCategoryMetafields: original.shopifyCategoryMetafields as Prisma.InputJsonValue,
+        tiktokCategoryId: original.tiktokCategoryId,
+        season: original.season,
+        tags: [...original.tags],
+        seoTitle: original.seoTitle,
+        seoDescription: original.seoDescription,
+        status: original.status,
+        unitOfMeasure: original.unitOfMeasure,
+        defaultVatCodeId: original.defaultVatCodeId,
+        inventoryTracking: original.inventoryTracking,
+        managesStock: original.managesStock,
+        options: original.options as Prisma.InputJsonValue,
+        variants: { create: variantsData },
+        images: {
+          create: original.images.map((image) => ({
+            tenantId,
+            url: image.url,
+            storagePath: image.storagePath,
+            altText: image.altText,
+            sortOrder: image.sortOrder,
+            // shopifyImageId non copiato: l'immagine Shopify appartiene al
+            // prodotto originale, la copia non è ancora sincronizzata.
+          })),
+        },
+      },
+      include: PRODUCT_INCLUDE,
+    });
+
+    return this.getById(tenantId, created.id);
+  }
+
+  /**
+   * SKU univoco per tenant: suffisso "-COPIA[-n]" finché non è libero. Lo SKU
+   * è facoltativo (§audit "Creazione articolo"): se la variante originale non
+   * ne ha uno, la copia resta senza SKU (il vincolo unique tenant+sku ammette
+   * più righe NULL, nessuna deduplicazione necessaria).
+   */
+  private async buildDuplicateSku(
+    tenantId: string,
+    sourceSku: string | null,
+  ): Promise<string | null> {
+    if (!sourceSku || !sourceSku.trim()) {
+      return null;
+    }
+    const base = `${sourceSku}-COPIA`;
+    let candidate = base;
+    let attempt = 1;
+    // Limite difensivo: evita loop infiniti in scenari patologici (migliaia
+    // di copie dello stesso SKU sullo stesso tenant).
+    while (attempt <= 1000) {
+      const existing = await this.prisma.productVariant.findFirst({
+        where: { tenantId, sku: { equals: candidate, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      if (!existing) {
+        return candidate;
+      }
+      attempt += 1;
+      candidate = `${base}-${attempt}`;
+    }
+    throw new ConflictException("Impossibile generare uno SKU univoco per la copia dell'articolo.");
   }
 
   async update(tenantId: string, id: string, dto: UpdateProductDto): Promise<ProductWithVariants> {
@@ -509,7 +623,7 @@ export class ProductsService {
   ): Promise<{
     variantId: string;
     productId: string;
-    sku: string;
+    sku: string | null;
     barcode: string | null;
     productName: string;
   }> {
@@ -613,7 +727,7 @@ export class ProductsService {
     await tx.productVariant.update({
       where: { id },
       data: {
-        sku: variant.sku.trim(),
+        sku: normalizeOptionalSku(variant.sku),
         optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
         barcode: normalizeBarcodeInput(variant.barcode),
         currency: variant.sellingPrice.currency,
@@ -654,10 +768,15 @@ export class ProductsService {
   private async assertSkuAvailable(
     tx: Prisma.TransactionClient,
     tenantId: string,
-    sku: string,
+    sku: string | null | undefined,
     excludeVariantId?: string,
   ): Promise<void> {
-    const normalized = sku.trim();
+    const normalized = sku?.trim();
+    if (!normalized) {
+      // SKU facoltativo (specifica cliente §SKU): nessun controllo di unicita'
+      // su valore vuoto/assente, mai bloccante per il salvataggio.
+      return;
+    }
     const existing = await tx.productVariant.findFirst({
       where: {
         tenantId,
@@ -667,7 +786,7 @@ export class ProductsService {
       select: { sku: true },
     });
     if (existing) {
-      throw new ConflictException(`SKU già presente a catalogo: ${existing.sku}`);
+      throw new ConflictException(`SKU già presente a catalogo: ${normalized}`);
     }
   }
 
@@ -703,7 +822,7 @@ export class ProductsService {
     return {
       tenantId,
       productId,
-      sku: variant.sku.trim(),
+      sku: normalizeOptionalSku(variant.sku),
       optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
       barcode: normalizeBarcodeInput(variant.barcode),
       currency: variant.sellingPrice.currency,
@@ -719,7 +838,7 @@ export class ProductsService {
   ): Prisma.ProductVariantCreateWithoutProductInput {
     return {
       tenant: { connect: { id: tenantId } },
-      sku: variant.sku.trim(),
+      sku: normalizeOptionalSku(variant.sku),
       optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
       barcode: normalizeBarcodeInput(variant.barcode),
       currency: variant.sellingPrice.currency,
@@ -751,14 +870,22 @@ export class ProductsService {
     }
   }
 
-  /** Duplicati nel payload stesso → errore di validazione (422). */
+  /**
+   * Duplicati nel payload stesso → errore di validazione (422). Gli SKU
+   * vuoti/assenti sono ignorati: non sono un "duplicato", sono varianti che
+   * non hanno ancora uno SKU (specifica cliente §SKU).
+   */
   private assertNoDuplicateSkusInPayload(variants: readonly CreateVariantDto[]): void {
     const seen = new Set<string>();
     const duplicates = new Set<string>();
     for (const variant of variants) {
-      const key = variant.sku.trim().toLowerCase();
+      const trimmed = variant.sku?.trim();
+      if (!trimmed) {
+        continue;
+      }
+      const key = trimmed.toLowerCase();
       if (seen.has(key)) {
-        duplicates.add(variant.sku.trim());
+        duplicates.add(trimmed);
       }
       seen.add(key);
     }
@@ -799,16 +926,33 @@ export class ProductsService {
     }
   }
 
-  /** Conflitto con SKU già a catalogo → 409. */
-  private async assertSkusAvailable(tenantId: string, skus: readonly string[]): Promise<void> {
-    const normalized = skus.map((sku) => sku.trim());
+  /**
+   * Conflitto con SKU già a catalogo → 409. Gli SKU vuoti/assenti sono
+   * ignorati: nessun controllo di unicità su un valore non ancora scelto.
+   */
+  private async assertSkusAvailable(
+    tenantId: string,
+    skus: readonly (string | undefined)[],
+  ): Promise<void> {
+    const normalized = [
+      ...new Set(
+        skus.map((sku) => sku?.trim()).filter((sku): sku is string => Boolean(sku)),
+      ),
+    ];
+    if (normalized.length === 0) {
+      return;
+    }
+
     const existing = await this.prisma.productVariant.findMany({
       where: { tenantId, sku: { in: normalized, mode: 'insensitive' } },
       select: { sku: true },
     });
     if (existing.length > 0) {
       throw new ConflictException(
-        `SKU già presenti a catalogo: ${existing.map((variant) => variant.sku).join(', ')}`,
+        `SKU già presenti a catalogo: ${existing
+          .map((variant) => variant.sku)
+          .filter((sku): sku is string => sku !== null)
+          .join(', ')}`,
       );
     }
   }
@@ -886,5 +1030,11 @@ function normalizeListProductRow(item: ProductWithVariants | ProductListRow): Pr
 
 function normalizeBarcodeInput(barcode: string | null | undefined): string | null {
   const trimmed = barcode?.trim() ?? '';
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/** SKU facoltativo (specifica cliente §SKU): stringa vuota/assente -> NULL, mai "". */
+function normalizeOptionalSku(sku: string | null | undefined): string | null {
+  const trimmed = sku?.trim() ?? '';
   return trimmed.length > 0 ? trimmed : null;
 }

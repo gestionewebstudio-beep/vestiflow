@@ -16,6 +16,32 @@ export interface DocumentLabelLineInput {
 }
 
 /**
+ * Numero di copie etichetta per articolo: sempre almeno 1, mai oltre 500
+ * (limite foglio). Esportata per test unitari mirati (vedi spec).
+ */
+export function clampLabelCopies(quantity: number): number {
+  return Math.min(Math.max(Math.floor(quantity), 1), 500);
+}
+
+/** Ripete ogni etichetta il numero di copie richiesto (default 1 = nessuna ripetizione). */
+export function expandLabelCopies(
+  labels: readonly ProductLabelViewModel[],
+  copies: number,
+): readonly ProductLabelViewModel[] {
+  const count = clampLabelCopies(copies);
+  if (count <= 1) {
+    return labels;
+  }
+  const expanded: ProductLabelViewModel[] = [];
+  for (const label of labels) {
+    for (let i = 0; i < count; i += 1) {
+      expanded.push(label);
+    }
+  }
+  return expanded;
+}
+
+/**
  * Stampa etichette dalla lista prodotti. Apre subito una finestra di stampa
  * (gesto utente) e carica lì le etichette, senza passare dalla pagina anteprima.
  */
@@ -32,13 +58,26 @@ export class ProductLabelPrintService {
     this.destroyRef.onDestroy(() => this.closePrintWindow());
   }
 
-  /** Chiamare direttamente dal click sull'icona stampa in tabella. */
-  triggerDirectPrint(productId: string, variantId?: string): void {
-    this.triggerDirectPrintMany([productId], variantId).pipe(take(1)).subscribe();
+  /**
+   * Chiamare direttamente dal click sull'icona stampa in tabella. `copies`
+   * permette di stampare più etichette per lo stesso articolo/variante in
+   * un colpo solo (es. "5 etichette per questo SKU"), default 1.
+   */
+  triggerDirectPrint(productId: string, variantId?: string, copies = 1): void {
+    this.triggerDirectPrintMany([productId], variantId, copies).pipe(take(1)).subscribe();
   }
 
-  /** Stampa etichette per più prodotti in un unico documento (gesto utente). */
-  triggerDirectPrintMany(productIds: readonly string[], variantId?: string): Observable<void> {
+  /**
+   * Stampa etichette per uno o più prodotti in un unico documento (gesto
+   * utente). `copiesPerItem` ripete ogni etichetta risolta (articolo o
+   * singola variante se `variantId` è indicato) lo stesso numero di volte:
+   * caso particolare copiesPerItem=1 (default) per un solo articolo.
+   */
+  triggerDirectPrintMany(
+    productIds: readonly string[],
+    variantId?: string,
+    copiesPerItem = 1,
+  ): Observable<void> {
     const uniqueIds = [...new Set(productIds.filter((id) => id.trim().length > 0))];
     if (uniqueIds.length === 0) {
       return of(undefined);
@@ -48,8 +87,17 @@ export class ProductLabelPrintService {
 
     const printWindow = globalThis.open('', '_blank');
     if (!printWindow) {
+      // Popup bloccato: fallback sulla pagina anteprima, portando con sé le
+      // stesse copie richieste (query param letto da ProductLabelPrintComponent).
+      const queryParams: Record<string, string | number> = {};
+      if (variantId) {
+        queryParams['variantId'] = variantId;
+      }
+      if (clampLabelCopies(copiesPerItem) > 1) {
+        queryParams['copies'] = clampLabelCopies(copiesPerItem);
+      }
       void this.router.navigate(['/app/products', uniqueIds[0], 'print-label'], {
-        queryParams: variantId ? { variantId } : undefined,
+        queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined,
       });
       return of(undefined);
     }
@@ -73,8 +121,11 @@ export class ProductLabelPrintService {
         from(
           this.printLabelsInWindow(
             printWindow,
-            results.flatMap((result) =>
-              toProductLabelViewModels(result.product, result.variants, variantId),
+            expandLabelCopies(
+              results.flatMap((result) =>
+                toProductLabelViewModels(result.product, result.variants, variantId),
+              ),
+              copiesPerItem,
             ),
           ),
         ),
@@ -143,7 +194,7 @@ export class ProductLabelPrintService {
           if (!label) {
             continue;
           }
-          const copies = Math.min(Math.max(Math.floor(line.quantity), 1), 500);
+          const copies = clampLabelCopies(line.quantity);
           for (let i = 0; i < copies; i += 1) {
             expanded.push(label);
           }

@@ -209,19 +209,37 @@
 
             <div class="gr-form__field">
               <span class="gr-form__label">Location destinazione</span>
-              <app-select-menu
-                [options]="locationOptions()"
-                [value]="form.controls.locationId.value"
-                ariaLabel="Location di destinazione"
-                placeholder="Seleziona location…"
-                [compact]="true"
-                [fullWidth]="true"
-                [invalid]="fieldInvalid('locationId')"
-                describedBy="gr-location-error"
-                (valueChange)="onLocationSelect($event)"
-              />
+              @if (locationOptions().length > 0) {
+                <app-select-menu
+                  [options]="locationOptions()"
+                  [value]="form.controls.locationId.value"
+                  ariaLabel="Location di destinazione"
+                  placeholder="Seleziona location…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca location…"
+                  searchAriaLabel="Cerca location"
+                  [invalid]="fieldInvalid('locationId')"
+                  describedBy="gr-location-error"
+                  (valueChange)="onLocationSelect($event)"
+                />
+              } @else {
+                <p class="gr-form__error" role="alert">
+                  Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
+                  dell'account.
+                </p>
+              }
               @if (fieldInvalid('locationId')) {
                 <p id="gr-location-error" class="gr-form__error">Seleziona la location.</p>
+              }
+              @if (suggestedLocation(); as suggested) {
+                @if (!form.controls.locationId.value && !formReadOnly()) {
+                  <app-location-suggestion-hint
+                    [locationName]="suggested.name"
+                    (applied)="applySuggestedLocation()"
+                  />
+                }
               }
             </div>
 
@@ -1046,10 +1064,17 @@
                         <input
                           [id]="'gr-qty-' + i"
                           class="gr-form__input gr-form__input--table gr-form__input--num"
+                          [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
                           type="number"
                           min="0"
                           step="1"
                           formControlName="quantity"
+                          [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
+                          [title]="
+                            lineFieldInvalid(i, 'quantity')
+                              ? 'Inserisci una quantità maggiore di zero.'
+                              : null
+                          "
                           (blur)="onLineOperationalBlur(i)"
                           (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
                         />
@@ -1072,10 +1097,13 @@
                         <input
                           [id]="'gr-cost-' + i"
                           class="gr-form__input gr-form__input--table gr-form__input--num"
+                          [class.gr-form__input--invalid]="unitCostInvalid(i)"
                           type="text"
                           inputmode="decimal"
                           formControlName="unitCost"
                           placeholder="0,00"
+                          [attr.aria-invalid]="unitCostInvalid(i) ? 'true' : null"
+                          [title]="unitCostInvalid(i) ? 'Il costo inserito non è valido.' : null"
                           (blur)="onLineOperationalBlur(i)"
                           (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
                         />

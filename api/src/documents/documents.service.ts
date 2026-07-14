@@ -10,7 +10,6 @@ import {
   DocumentStatus,
   DocumentType,
   Prisma,
-  StockMovementType,
   SupplierOrderStatus,
   type Document,
   type DocumentLine,
@@ -19,8 +18,14 @@ import {
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
-import { applyStockLoad, applyStockSale } from '../inventory/inventory-movement.util';
-import { applyInventoryLotsFromDocumentLines } from '../inventory/inventory-lot.util';
+import { applyStockSale } from '../inventory/inventory-movement.util';
+import {
+  assertLocationInUserScope,
+  assertLocationReadableInUserScope,
+} from '../inventory/user-location-scope.util';
+import {
+  resolveReadableListLocationScope,
+} from '../inventory/licensed-location-scope.util';
 import {
   applyInventorySerialsFromDocumentLines,
   assertSerialNumbersForDocumentLines,
@@ -37,7 +42,6 @@ import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
 import {
-  buildGoodsReceiptMovementReason,
   syncGoodsReceiptLineMovements,
 } from './document-goods-receipt-sync.util';
 import {
@@ -74,27 +78,23 @@ import {
 } from './document-stock-transfer.util';
 import {
   buildRevisionSummary,
-  reconcileDocumentStockLoad,
   reconcileDocumentStockUnload,
   reverseDocumentStockLoad,
   reverseDocumentStockUnload,
 } from './document-stock-reconcile.util';
 import {
-  applySupplierOrderReceipt,
-  assertSupplierOrderReceiptQuantities,
-  enrichReceiptLinesWithSupplierOrderLineIds,
-  forceCloseSupplierOrder,
-  reconcileSupplierOrderReceipt,
   reverseSupplierOrderReceipt,
 } from './document-supplier-order.util';
 import {
-  applySupplierPriceUpdates,
   findSupplierPriceDiffs,
 } from './document-supplier-price.util';
 import { DocumentSettingsService } from './document-settings.service';
-import { isFlowOnlyDocumentType, isInternalOnlyDocumentType } from './document-defaults';
+import {
+  isDedicatedWorkflowDocumentType,
+  isFlowOnlyDocumentType,
+  isInternalOnlyDocumentType,
+} from './document-defaults';
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
-import type { CreateGoodsReceiptFromSupplierOrderDto } from './dto/create-goods-receipt-from-supplier-order.dto';
 import type { ConvertDocumentDto } from './dto/convert-document.dto';
 import type { CreateDocumentDto, DocumentLineInputDto } from './dto/create-document.dto';
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
@@ -232,7 +232,28 @@ export class DocumentsService {
   async list(
     tenantId: string,
     query: ListDocumentsQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<DocumentListRow>> {
+    const locationScope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
+    if (locationScope === null) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
+    // Il filtro location dell'utente e la ricerca libera usano entrambi una
+    // clausola OR: vanno composti in AND separati per non sovrascriversi
+    // (un solo `OR` per livello nel `where` di Prisma).
+    const andClauses: Prisma.DocumentWhereInput[] = [];
+    if (query.search) {
+      andClauses.push({ OR: this.buildSearchClauses(query.search) });
+    }
+    if (locationScope !== 'unrestricted') {
+      // I documenti senza sede (fatture, corrispettivi, ecc.) restano sempre
+      // visibili: lo scope si applica solo ai documenti con locationId valorizzato.
+      andClauses.push({
+        OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }],
+      });
+    }
+
     const where: Prisma.DocumentWhereInput = {
       tenantId,
       ...(query.types?.length
@@ -249,13 +270,15 @@ export class DocumentsService {
             },
           }
         : {}),
-      ...(query.search ? { OR: this.buildSearchClauses(query.search) } : {}),
       ...(query.supplierOrderId ? { supplierOrderId: query.supplierOrderId } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.locationId ? { locationId: query.locationId } : {}),
       ...(query.causal
         ? { causalText: { contains: query.causal, mode: 'insensitive' } }
+        : {}),
+      ...(query.externalDocumentTypeId
+        ? { externalDocumentTypeId: query.externalDocumentTypeId }
         : {}),
       ...this.buildLinkStatusClause(query.linkStatus),
       ...(query.accountant ? { type: { in: [...ACCOUNTANT_DOCUMENT_TYPES] } } : {}),
@@ -273,6 +296,7 @@ export class DocumentsService {
             },
           }
         : {}),
+      ...(andClauses.length > 0 ? { AND: andClauses } : {}),
     };
 
     const [rows, total] = await this.prisma.$transaction([
@@ -314,6 +338,57 @@ export class DocumentsService {
     );
 
     return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /**
+   * Verifica di lettura per l'apertura diretta di un documento per id
+   * (delegata all'helper condiviso): documenti senza locationId (fatture,
+   * corrispettivi, ecc.) non sono soggetti a questo controllo.
+   */
+  private assertDocumentLocationReadable(
+    user: UserProfileDto | undefined,
+    locationId: string | null,
+  ): void {
+    assertLocationReadableInUserScope(
+      user,
+      locationId,
+      'Non sei autorizzato ad accedere a questo documento.',
+    );
+  }
+
+  /**
+   * Gate di SCRITTURA per le mutazioni di un documento legato a una sede:
+   * l'utente deve poter operare sulla sede del documento (e, per i
+   * trasferimenti, la destinazione segue la regola 'transferDestination').
+   * Documenti senza locationId (fatture, corrispettivi, ecc.) passano sempre.
+   */
+  private assertDocumentLocationWritable(
+    user: UserProfileDto | undefined,
+    doc: Pick<Document, 'locationId' | 'targetLocationId'>,
+  ): void {
+    if (!user) {
+      return;
+    }
+    if (doc.locationId) {
+      assertLocationInUserScope(user, doc.locationId, 'write');
+    }
+    if (doc.targetLocationId) {
+      assertLocationInUserScope(user, doc.targetLocationId, 'transferDestination');
+    }
+  }
+
+  /**
+   * Gate riusabile dai controller (es. allegati): carica il documento con lo
+   * scope di lettura dell'utente e applica il gate di scrittura sulla sede.
+   */
+  async assertWritableById(
+    tenantId: string,
+    id: string,
+    user: UserProfileDto | undefined,
+  ): Promise<DocumentDetail> {
+    const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentLocationWritable(user, doc);
+    return doc;
   }
 
   /** Ricerca libera lista: numero, fornitore/cliente, causale, commento, fattura collegata, totale. */
@@ -410,7 +485,11 @@ export class DocumentsService {
     return { linkStatus: 'suspended', linkedPurchaseInvoice: null };
   }
 
-  async getById(tenantId: string, id: string): Promise<DocumentDetail> {
+  async getById(
+    tenantId: string,
+    id: string,
+    user?: UserProfileDto,
+  ): Promise<DocumentDetail> {
     const doc = await this.prisma.document.findFirst({
       where: { id, tenantId },
       include: {
@@ -470,6 +549,7 @@ export class DocumentsService {
     if (!doc) {
       throw new NotFoundException('Documento non trovato');
     }
+    this.assertDocumentLocationReadable(user, doc.locationId);
     const setting = await this.settings.getResolved(tenantId, doc.type);
     const { salesOrder, supplierOrder, purchaseInvoiceLinks, goodsReceiptLinks, ...rest } = doc;
     const linkedSupplierOrderLines =
@@ -494,8 +574,8 @@ export class DocumentsService {
   }
 
   /** Differenze costo vs ultimo prezzo fornitore (§13) per dialog pre-conferma. */
-  async listSupplierPriceDiffs(tenantId: string, documentId: string) {
-    const doc = await this.getById(tenantId, documentId);
+  async listSupplierPriceDiffs(tenantId: string, documentId: string, user?: UserProfileDto) {
+    const doc = await this.getById(tenantId, documentId, user);
     if (!documentTypeLoadsStockOnConfirm(doc.type)) {
       return { items: [] as const, policy: 'never' as const };
     }
@@ -544,14 +624,21 @@ export class DocumentsService {
     };
   }
 
-  async listRevisions(tenantId: string, documentId: string) {
-    await this.getById(tenantId, documentId);
+  async listRevisions(tenantId: string, documentId: string, user?: UserProfileDto) {
+    await this.getById(tenantId, documentId, user);
     return this.prisma.documentRevision.findMany({
       where: { tenantId, documentId },
       orderBy: { revisionNumber: 'desc' },
     });
   }
 
+  /**
+   * Creazione documento generica (POST /documents), usata dal registro
+   * documenti per i tipi non gestiti da un flusso dedicato. I tipi con un
+   * flusso dedicato (cassa negozio, arrivo merce/carico) sono bloccati qui:
+   * usa `createDocumentRecord` internamente per i pochi casi legittimi di
+   * creazione interna (es. bozza arrivo merce da ordine fornitore).
+   */
   async create(
     tenantId: string,
     dto: CreateDocumentDto,
@@ -567,6 +654,26 @@ export class DocumentsService {
         'Vendite e resi negozio si registrano dalla cassa (Vendita negozio), non dal registro documenti.',
       );
     }
+    if (isDedicatedWorkflowDocumentType(dto.type)) {
+      throw new UnprocessableEntityException(
+        'Arrivi merce e documenti di carico si registrano con «Salva documento» (Arrivo merce), non dal registro documenti generico.',
+      );
+    }
+    return this.createDocumentRecord(tenantId, dto, user);
+  }
+
+  /**
+   * Logica di creazione effettiva, senza i controlli sui tipi riservati a un
+   * flusso dedicato: da usare SOLO per creazioni interne al dominio che non
+   * passano dall'endpoint pubblico generico (es. bozza arrivo merce da
+   * ordine fornitore, che l'utente completa e conferma con il flusso
+   * dedicato `GoodsReceiptWorkflowService.saveGoodsReceipt`).
+   */
+  private async createDocumentRecord(
+    tenantId: string,
+    dto: CreateDocumentDto,
+    user?: UserProfileDto,
+  ): Promise<DocumentWithLines> {
     const setting = await this.settings.getResolved(tenantId, dto.type);
     if (!setting.enabled) {
       throw new UnprocessableEntityException(
@@ -624,58 +731,135 @@ export class DocumentsService {
     });
   }
 
-  /** Crea bozza arrivo merce collegata a ordine fornitore (§10.1). */
-  async createGoodsReceiptFromSupplierOrder(
+  /**
+   * Duplica un documento (audit cliente §"Duplica documento": lista Arrivi
+   * merce e registro generale). La copia nasce SEMPRE come bozza indipendente:
+   *  - Nuovo id; nessun numero/riferimento copiato (assegnati al salvataggio
+   *    esplicito o alla conferma, come un documento nuovo).
+   *  - Data documento = oggi (data di creazione della copia, non quella
+   *    dell'originale: l'utente la corregge se serve).
+   *  - Stato SEMPRE draft, anche se l'originale è confermato: alcuni tipi
+   *    (Arrivo merce, Registrazione fattura — DOCUMENT_STOCK_LOAD_TYPES e
+   *    supplier_invoice) vengono salvati già "confermati" al primo
+   *    salvataggio applicativo (saveGoodsReceipt/savePurchaseInvoice),
+   *    generando subito i movimenti di magazzino collegati. Partire sempre da
+   *    bozza garantisce che la duplicazione NON generi mai movimenti: verranno
+   *    creati solo quando l'utente salva esplicitamente la copia.
+   *  - Nessun collegamento all'originale: supplierOrderId, sourceDocumentId,
+   *    onlineSaleId ed externalRef (riferimenti a ordini fornitore, fatture
+   *    registrate, conversioni e canali esterni) sono azzerati. Le righe non
+   *    ereditano il collegamento a righe ordine fornitore o a un arrivo merce
+   *    riepilogato.
+   */
+  async duplicateDocument(
     tenantId: string,
-    supplierOrderId: string,
-    dto: CreateGoodsReceiptFromSupplierOrderDto,
+    id: string,
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
-    const order = await this.prisma.supplierOrder.findFirst({
-      where: { id: supplierOrderId, tenantId },
-      include: { lines: true },
+    const original = await this.prisma.document.findFirst({
+      where: { id, tenantId },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
     });
-    if (!order) {
-      throw new NotFoundException('Ordine fornitore non trovato');
+    if (!original) {
+      throw new NotFoundException('Documento non trovato');
     }
-    await this.assertSupplierOrderReceivable(tenantId, supplierOrderId, order.status);
-
-    if (!order.destinationLocationId) {
+    if (isInternalOnlyDocumentType(original.type)) {
       throw new UnprocessableEntityException(
-        'Impossibile registrare l\'arrivo: l\'ordine non ha una location di destinazione.',
+        'Questo tipo documento è generato automaticamente dal sistema e non può essere duplicato.',
+      );
+    }
+    if (isFlowOnlyDocumentType(original.type)) {
+      throw new UnprocessableEntityException(
+        'Le vendite e i resi negozio non si duplicano: si registrano dalla cassa.',
+      );
+    }
+    const setting = await this.settings.getResolved(tenantId, original.type);
+    if (!setting.enabled) {
+      throw new UnprocessableEntityException(
+        `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
       );
     }
 
-    const receivableLines = order.lines.filter(
-      (line) => line.orderedQuantity - line.receivedQuantity > 0,
-    );
-    if (receivableLines.length === 0) {
-      throw new UnprocessableEntityException(
-        'Nessuna quantità residua da ricevere su questo ordine fornitore.',
-      );
-    }
+    // Data odierna come stringa ISO (solo giorno): stesso parsing usato per
+    // dto.documentDate altrove, nessuno slittamento di fuso orario.
+    const documentDate = new Date(new Date().toISOString().slice(0, 10));
 
-    const type = dto.type ?? DocumentType.goods_receipt;
-    const createDto: CreateDocumentDto = {
-      type,
-      documentDate: dto.documentDate ?? new Date().toISOString(),
-      supplierId: order.supplierId,
-      locationId: order.destinationLocationId,
-      supplierOrderId: order.id,
-      currency: order.currency,
-      internalComment: `Da ordine fornitore ${order.reference}`,
-      lines: receivableLines.map((line) => ({
-        variantId: line.variantId,
-        sku: line.sku,
-        description: line.sku,
-        quantity: line.orderedQuantity - line.receivedQuantity,
-        unitPriceMinor: line.unitCostMinor,
-        loadsStock: true,
-        supplierOrderLineId: line.id,
-      })),
-    };
+    const created = await this.prisma.document.create({
+      data: {
+        tenantId,
+        type: original.type,
+        status: DocumentStatus.draft,
+        series: original.series,
+        year: documentDate.getFullYear(),
+        documentDate,
+        printTitle: setting.printTitle,
+        notes: original.notes,
+        internalComment: original.internalComment,
+        supplierId: original.supplierId,
+        supplierName: original.supplierName,
+        customerId: original.customerId,
+        customerName: original.customerName,
+        locationId: original.locationId,
+        targetLocationId: original.targetLocationId,
+        adjustmentDirection: original.adjustmentDirection,
+        externalDocNumber: original.externalDocNumber,
+        externalDocDate: original.externalDocDate,
+        externalDocumentTypeId: original.externalDocumentTypeId,
+        externalDocumentTypeSnapshot: original.externalDocumentTypeSnapshot,
+        billingCause: original.billingCause,
+        causalText: original.causalText,
+        causalGenerationMode: original.causalGenerationMode,
+        causalTemplateSnapshot: original.causalTemplateSnapshot,
+        currency: original.currency,
+        // Totali copiati direttamente: le righe sono cloni esatti (stessi
+        // prezzi/quantità/sconti), niente da ricalcolare.
+        subtotalMinor: original.subtotalMinor,
+        taxMinor: original.taxMinor,
+        totalMinor: original.totalMinor,
+        documentDiscountPercent: original.documentDiscountPercent,
+        // pricesIncludeVat/purchaseCostEntryMode copiati (non dalla impostazione
+        // corrente): le righe clonate restano coerenti con l'interpretazione
+        // netta/lorda con cui sono stati calcolati i loro importi.
+        pricesIncludeVat: original.pricesIncludeVat,
+        purchaseCostEntryMode: original.purchaseCostEntryMode,
+        createdById: user?.id ?? null,
+        createdByName: user?.displayName ?? 'API',
+        lines: {
+          create: original.lines.map((line) => ({
+            tenantId,
+            lineNumber: line.lineNumber,
+            variantId: line.variantId,
+            sku: line.sku,
+            description: line.description,
+            quantity: line.quantity,
+            unitPriceMinor: line.unitPriceMinor,
+            discountPercent: line.discountPercent,
+            lineTotalMinor: line.lineTotalMinor,
+            vatCodeId: line.vatCodeId,
+            vatSnapshot: (line.vatSnapshot as Prisma.InputJsonValue | null) ?? Prisma.DbNull,
+            enteredUnitCost: line.enteredUnitCost,
+            costEntryModeSnapshot: line.costEntryModeSnapshot,
+            unitCostNet: line.unitCostNet,
+            unitCostGross: line.unitCostGross,
+            unitVatAmount: line.unitVatAmount,
+            lineVatTotalMinor: line.lineVatTotalMinor,
+            lineGrossTotalMinor: line.lineGrossTotalMinor,
+            supplierPayableLineMinor: line.supplierPayableLineMinor,
+            reverseChargeVatMinor: line.reverseChargeVatMinor,
+            nonDeductibleVatMinor: line.nonDeductibleVatMinor,
+            loadsStock: line.loadsStock,
+            lotCode: line.lotCode,
+            lotExpiryDate: line.lotExpiryDate,
+            serialNumbers: (line.serialNumbers ?? []) as Prisma.InputJsonValue,
+            // Non copiati: supplierOrderLineId, linkedGoodsReceiptId — nessun
+            // collegamento a righe ordine fornitore o ad arrivi merce riepilogati.
+          })),
+        },
+      } as Prisma.DocumentUncheckedCreateInput,
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
+    });
 
-    return this.create(tenantId, createDto, user);
+    return created;
   }
 
   async update(
@@ -684,16 +868,24 @@ export class DocumentsService {
     dto: UpdateDocumentDto,
     user?: UserProfileDto,
   ): Promise<DocumentDetail> {
-    const doc = await this.getById(tenantId, id);
+    const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
         'Vendite e resi negozio non sono modificabili: registra un reso o una nuova vendita dalla cassa.',
       );
     }
+    // Percorso unico Arrivo merce: la famiglia carico si modifica SOLO con
+    // «Salva documento» (goods-receipt/save), mai col PATCH generico — vale
+    // anche per le bozze (es. residui storici), altrimenti si aggirano le
+    // validazioni e lo scope location del flusso dedicato.
+    if (isDedicatedWorkflowDocumentType(doc.type)) {
+      throw new ConflictException(
+        'Gli arrivi merce si modificano con «Salva documento» (Arrivo merce), non dal registro documenti generico.',
+      );
+    }
     const isDraft = doc.status === DocumentStatus.draft;
     const isConfirmedEdit = CONFIRMED_EDITABLE_STATUSES.includes(doc.status);
-    const reconcilesLoadStock =
-      (isDraft || isConfirmedEdit) && documentTypeLoadsStockOnConfirm(doc.type);
 
     if (!isDraft && !isConfirmedEdit) {
       throw new ConflictException('Questo documento non può essere modificato.');
@@ -732,7 +924,7 @@ export class DocumentsService {
         })) > 0;
       if (hasPerLineMovements) {
         throw new ConflictException(
-          'Questo documento usa movimenti per riga: aggiornalo con «Salva documento» (arrivo merce), non con PATCH.',
+          'Questo documento usa movimenti per riga: aggiornalo dal suo flusso dedicato, non con PATCH.',
         );
       }
     }
@@ -767,19 +959,6 @@ export class DocumentsService {
           updatedAt: doc.updatedAt,
         })) ?? base.lines,
     });
-
-    if (reconcilesLoadStock) {
-      const mergedForValidation = mergedLinesForValidation(doc);
-      // In bozza consentiamo righe con Mag. attivo ma senza variantId (compilazione progressiva).
-      if (isConfirmedEdit) {
-        this.assertStockLoadDocument(mergedForValidation);
-      }
-      if (!newLocationId) {
-        throw new UnprocessableEntityException(
-          'Location di destinazione obbligatoria per documenti con carico magazzino.',
-        );
-      }
-    }
 
     if (isConfirmedEdit && doc.type === DocumentType.sales_ddt) {
       this.assertStockUnloadDocument(mergedLinesForValidation(doc));
@@ -951,15 +1130,7 @@ export class DocumentsService {
         }
       }
 
-      // Documenti con movimenti per-riga (nuovo flusso Arrivo merce): il sync
-      // avviene DOPO il salvataggio righe, sui loro id definitivi.
-      const hasLineMovements =
-        reconcilesLoadStock &&
-        (await tx.stockMovement.count({
-          where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
-        })) > 0;
-
-      // Stesso principio per Trasferimento/Rettifica (§ post-audit): una volta
+      // Principio per Trasferimento/Rettifica (§ post-audit): una volta
       // che il documento ha movimenti per riga (creati da confirm() o dal
       // salvataggio dedicato POST transfer|adjustment/save), il PATCH generico
       // NON deve più riconciliare in modo aggregato — bypassato esattamente
@@ -974,70 +1145,6 @@ export class DocumentsService {
         (await tx.stockMovement.count({
           where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
         })) > 0;
-
-      if (reconcilesLoadStock && doc.locationId && !hasLineMovements) {
-        const newLinesComputed =
-          lines ??
-          doc.lines.map((line) => ({
-            lineNumber: line.lineNumber,
-            variantId: line.variantId,
-            sku: line.sku,
-            description: line.description,
-            quantity: line.quantity,
-            unitPriceMinor: line.unitPriceMinor,
-            discountPercent: line.discountPercent,
-            vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
-            lineTotalMinor: line.lineTotalMinor,
-            loadsStock: line.loadsStock,
-            supplierOrderLineId: line.supplierOrderLineId ?? null,
-            lotCode: line.lotCode ?? null,
-            lotExpiryDate: line.lotExpiryDate ?? null,
-            serialNumbers: line.serialNumbers,
-          }));
-        const reconcile = await reconcileDocumentStockLoad(tx, {
-          tenantId,
-          documentId: id,
-          reference: doc.reference,
-          oldLocationId: doc.locationId,
-          newLocationId: newLocationId!,
-          oldLines: doc.lines,
-          newLines: newLinesComputed.map((line, index) => ({
-            id: `tmp-${index}`,
-            documentId: id,
-            tenantId,
-            lineNumber: line.lineNumber,
-            variantId: line.variantId,
-            sku: line.sku,
-            description: line.description,
-            quantity: line.quantity,
-            unitPriceMinor: line.unitPriceMinor,
-            discountPercent: line.discountPercent,
-            vatRatePercent: line.vatRatePercent,
-            lineTotalMinor: line.lineTotalMinor,
-            loadsStock: line.loadsStock,
-            supplierOrderLineId: line.supplierOrderLineId ?? null,
-            lotCode: line.lotCode ?? null,
-            lotExpiryDate: line.lotExpiryDate ?? null,
-            serialNumbers: line.serialNumbers,
-            linkedGoodsReceiptId: null,
-            ...EMPTY_LINE_VAT_FIELDS,
-            createdAt: doc.createdAt,
-            updatedAt: doc.updatedAt,
-          })),
-          actor,
-        });
-        stockDeltas = reconcile.deltas;
-        const variantIds = new Set([
-          ...doc.lines.map((l) => l.variantId).filter(Boolean),
-          ...newLinesComputed.map((l) => l.variantId).filter(Boolean),
-        ] as string[]);
-        for (const variantId of variantIds) {
-          syncTargets.push({ variantId, locationId: newLocationId! });
-          if (doc.locationId !== newLocationId) {
-            syncTargets.push({ variantId, locationId: doc.locationId });
-          }
-        }
-      }
 
       // Il DDT collegato a Vendita online non ha movimenti propri (fase 2 §9):
       // nessuna riconciliazione scarico in modifica.
@@ -1327,36 +1434,6 @@ export class DocumentsService {
         }
       }
 
-      if (reconcilesLoadStock && doc.supplierOrderId) {
-        const newLinesForPo =
-          lines?.map((line, index) => ({
-            id: `new-${index}`,
-            documentId: id,
-            tenantId,
-            lineNumber: line.lineNumber,
-            variantId: line.variantId,
-            sku: line.sku,
-            description: line.description,
-            quantity: line.quantity,
-            unitPriceMinor: line.unitPriceMinor,
-            discountPercent: line.discountPercent,
-            vatRatePercent: line.vatRatePercent,
-            lineTotalMinor: line.lineTotalMinor,
-            loadsStock: line.loadsStock,
-            supplierOrderLineId: line.supplierOrderLineId,
-            createdAt: doc.createdAt,
-            updatedAt: doc.updatedAt,
-          })) ?? doc.lines;
-        await reconcileSupplierOrderReceipt(
-          tx,
-          doc.supplierOrderId,
-          doc.lines,
-          newLinesForPo,
-          doc.locationId ?? undefined,
-          tenantId,
-        );
-      }
-
       if (lines) {
         await tx.documentLine.deleteMany({ where: { documentId: id } });
       }
@@ -1366,27 +1443,6 @@ export class DocumentsService {
         data,
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
-
-      if (hasLineMovements && saved.locationId) {
-        const reason = buildGoodsReceiptMovementReason({
-          number: saved.number,
-          reference: saved.reference,
-          documentDate: saved.documentDate,
-          causalText: saved.causalText,
-        });
-        const sync = await syncGoodsReceiptLineMovements(tx, {
-          tenantId,
-          documentId: id,
-          documentType: saved.type,
-          locationId: saved.locationId,
-          reason,
-          movementDate: saved.documentDate,
-          lines: saved.lines,
-          actor,
-        });
-        stockDeltas = sync.deltas;
-        syncTargets.push(...sync.syncTargets);
-      }
 
       if (isConfirmedEdit && lines && saved.lines.length > 0) {
         if (documentTypeUnloadsStockOnConfirm(saved.type) && saved.locationId) {
@@ -1467,15 +1523,11 @@ export class DocumentsService {
     return refreshed;
   }
 
-  /** Conferma: bozza → confermato, assegna numero e (se arrivo merce) carica magazzino. */
+  /** Conferma: bozza → confermato, assegna numero e applica gli effetti stock del tipo. */
   async confirm(
     tenantId: string,
     id: string,
     user?: UserProfileDto,
-    options?: {
-      readonly applySupplierPriceUpdates?: boolean;
-      readonly closeLinkedSupplierOrder?: boolean;
-    },
   ): Promise<DocumentWithLines> {
     const actorName = user?.displayName ?? 'API';
     const actorId = user?.id ?? null;
@@ -1490,9 +1542,18 @@ export class DocumentsService {
       if (!doc) {
         throw new NotFoundException('Documento non trovato');
       }
+      this.assertDocumentLocationWritable(user, doc);
       if (isFlowOnlyDocumentType(doc.type)) {
         // Cassa negozio: creati già confermati con movimenti in transazione.
         throw new ConflictException('Le vendite e i resi negozio sono già registrati alla conclusione.');
+      }
+      // Percorso unico Arrivo merce: la conferma dal registro generico
+      // eseguirebbe un motore di carico parallelo (aggregato) invece del sync
+      // per riga del flusso dedicato — vietato anche per le bozze residue.
+      if (isDedicatedWorkflowDocumentType(doc.type)) {
+        throw new ConflictException(
+          'Gli arrivi merce si confermano con «Salva documento» (Arrivo merce), non dal registro documenti generico.',
+        );
       }
       if (doc.status !== DocumentStatus.draft) {
         throw new ConflictException('Solo i documenti in bozza possono essere confermati.');
@@ -1501,18 +1562,6 @@ export class DocumentsService {
         throw new UnprocessableEntityException('Impossibile confermare un documento senza righe.');
       }
 
-      let receiptLines = doc.lines;
-      if (doc.supplierOrderId && documentTypeLoadsStockOnConfirm(doc.type)) {
-        receiptLines = await enrichReceiptLinesWithSupplierOrderLineIds(
-          tx,
-          doc.supplierOrderId,
-          doc.lines,
-        );
-      }
-
-      if (documentTypeLoadsStockOnConfirm(doc.type)) {
-        this.assertStockLoadDocument({ ...doc, lines: receiptLines });
-      }
       if (doc.type === DocumentType.sales_ddt) {
         this.assertStockUnloadDocument(doc);
       }
@@ -1526,19 +1575,6 @@ export class DocumentsService {
         this.assertStockTransferDocument(doc);
       }
 
-      if (
-        doc.supplierOrderId &&
-        documentTypeLoadsStockOnConfirm(doc.type)
-      ) {
-        await assertSupplierOrderReceiptQuantities(tx, doc.supplierOrderId, receiptLines);
-      }
-
-      const featureSettings = await tx.tenantFeatureSettings.findUnique({ where: { tenantId } });
-      const pricePolicy = featureSettings?.updateSupplierPriceOnLoad ?? 'ask';
-      const shouldApplySupplierPrices =
-        pricePolicy === 'always' ||
-        (pricePolicy === 'ask' && options?.applySupplierPriceUpdates === true);
-
       const setting = await this.settings.getResolved(tenantId, doc.type);
 
       let number = doc.number;
@@ -1546,77 +1582,6 @@ export class DocumentsService {
       if (setting.autoNumbering && number == null) {
         number = await this.nextNumber(tx, tenantId, doc.type, doc.series, doc.year);
         reference = this.formatReference(setting.numberPrefix, doc.year, number);
-      }
-
-      if (documentTypeLoadsStockOnConfirm(doc.type)) {
-        await assertSerialNumbersForDocumentLines(tx, tenantId, receiptLines);
-        const stockAlreadyApplied =
-          (await tx.stockMovement.count({
-            where: { tenantId, externalRef: doc.id, type: StockMovementType.load },
-          })) > 0;
-        if (!stockAlreadyApplied) {
-          const reason = reference
-            ? `Arrivo merce ${reference}`
-            : `Arrivo merce ${doc.type}`;
-          for (const line of receiptLines) {
-            if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
-              continue;
-            }
-            const variant = await tx.productVariant.findFirst({
-              where: { id: line.variantId, tenantId },
-              select: { id: true, sku: true },
-            });
-            if (!variant) {
-              throw new UnprocessableEntityException(
-                `Variante non trovata per la riga ${line.lineNumber}.`,
-              );
-            }
-            await applyStockLoad(tx, {
-              tenantId,
-              variantId: variant.id,
-              sku: line.sku ?? variant.sku,
-              locationId: doc.locationId!,
-              quantity: line.quantity,
-              reason,
-              externalRef: doc.id,
-              actor: { createdById: actorId, createdByName: actorName },
-            });
-            syncTargets.push({ variantId: variant.id, locationId: doc.locationId! });
-          }
-        }
-        await applyInventoryLotsFromDocumentLines(
-          tx,
-          tenantId,
-          doc.locationId!,
-          receiptLines,
-        );
-        await applyInventorySerialsFromDocumentLines(
-          tx,
-          tenantId,
-          doc.locationId!,
-          receiptLines,
-        );
-        await applySupplierPriceUpdates(
-          tx,
-          tenantId,
-          doc.supplierId,
-          receiptLines,
-          pricePolicy,
-          shouldApplySupplierPrices,
-        );
-
-        if (doc.supplierOrderId && !stockAlreadyApplied) {
-          await applySupplierOrderReceipt(
-            tx,
-            doc.supplierOrderId,
-            receiptLines,
-            doc.locationId!,
-            tenantId,
-          );
-          if (options?.closeLinkedSupplierOrder) {
-            await forceCloseSupplierOrder(tx, doc.supplierOrderId);
-          }
-        }
       }
 
       // Fase 2 §9: DDT collegato a una Vendita online che ha GIÀ scaricato il
@@ -1641,7 +1606,7 @@ export class DocumentsService {
           await applyStockSale(tx, {
             tenantId,
             variantId: variant.id,
-            sku: line.sku ?? variant.sku,
+            sku: line.sku ?? variant.sku ?? '',
             locationId: doc.locationId!,
             quantity: line.quantity,
             reason,
@@ -1796,7 +1761,8 @@ export class DocumentsService {
       throw new UnprocessableEntityException('Tipo di conversione non supportato.');
     }
 
-    const source = await this.getById(tenantId, id);
+    const source = await this.getById(tenantId, id, user);
+    this.assertDocumentLocationWritable(user, source);
     if (source.type !== DocumentType.proforma) {
       throw new ConflictException('Solo le proforme possono essere convertite con questa azione.');
     }
@@ -1855,19 +1821,32 @@ export class DocumentsService {
     return this.create(tenantId, createDto, user);
   }
 
-  async markPrinted(tenantId: string, id: string): Promise<DocumentWithLines> {
-    return this.transition(tenantId, id, DocumentStatus.printed, [
-      DocumentStatus.confirmed,
-      DocumentStatus.sent,
-      DocumentStatus.externally_registered,
-    ]);
+  async markPrinted(
+    tenantId: string,
+    id: string,
+    user?: UserProfileDto,
+  ): Promise<DocumentWithLines> {
+    return this.transition(
+      tenantId,
+      id,
+      DocumentStatus.printed,
+      [DocumentStatus.confirmed, DocumentStatus.sent, DocumentStatus.externally_registered],
+      user,
+    );
   }
 
-  async markSent(tenantId: string, id: string): Promise<DocumentWithLines> {
-    return this.transition(tenantId, id, DocumentStatus.sent, [
-      DocumentStatus.confirmed,
-      DocumentStatus.printed,
-    ]);
+  async markSent(
+    tenantId: string,
+    id: string,
+    user?: UserProfileDto,
+  ): Promise<DocumentWithLines> {
+    return this.transition(
+      tenantId,
+      id,
+      DocumentStatus.sent,
+      [DocumentStatus.confirmed, DocumentStatus.printed],
+      user,
+    );
   }
 
   /** Segna emissione fattura esterna su bozza fattura (§9.2, B6). */
@@ -1875,8 +1854,10 @@ export class DocumentsService {
     tenantId: string,
     id: string,
     dto: MarkExternallyIssuedDto,
+    user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
-    const doc = await this.getById(tenantId, id);
+    const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentLocationWritable(user, doc);
     if (doc.type !== DocumentType.invoice_draft) {
       throw new UnprocessableEntityException(
         'Solo le bozze fattura possono essere marcate come emesse esternamente.',
@@ -1909,8 +1890,10 @@ export class DocumentsService {
     tenantId: string,
     id: string,
     dto: RegisterExternalDto,
+    user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
-    const doc = await this.getById(tenantId, id);
+    const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentLocationWritable(user, doc);
     if (
       doc.status !== DocumentStatus.confirmed &&
       doc.status !== DocumentStatus.printed &&
@@ -1943,7 +1926,8 @@ export class DocumentsService {
     id: string,
     user?: UserProfileDto,
   ): Promise<DocumentDetail> {
-    const doc = await this.getById(tenantId, id);
+    const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
         'Le vendite negozio non si annullano: registra un Reso vendita negozio per il rientro della merce.',
@@ -2225,11 +2209,12 @@ export class DocumentsService {
       }
     }
 
-    return this.getById(tenantId, id);
+    return this.getById(tenantId, id, user);
   }
 
-  async delete(tenantId: string, id: string): Promise<void> {
-    const doc = await this.getById(tenantId, id);
+  async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
+    const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
         'Le vendite e i resi negozio non si eliminano: fanno parte dello storico movimenti.',
@@ -2437,47 +2422,15 @@ export class DocumentsService {
     }
   }
 
-  private assertStockLoadDocument(doc: Document & { lines: DocumentLine[] }): void {
-    const supplierRequiredTypes: readonly DocumentType[] = [
-      DocumentType.goods_receipt,
-      DocumentType.supplier_ddt,
-      DocumentType.supplier_invoice_accompanying,
-    ];
-    if (
-      (supplierRequiredTypes as readonly string[]).includes(doc.type) &&
-      !doc.supplierId
-    ) {
-      throw new UnprocessableEntityException(
-        'Seleziona un fornitore prima di confermare l\'arrivo merce.',
-      );
-    }
-    if (!doc.locationId) {
-      throw new UnprocessableEntityException(
-        'Seleziona la location di destinazione prima di confermare.',
-      );
-    }
-    const stockLines = doc.lines.filter((line) => line.loadsStock && line.quantity > 0);
-    if (stockLines.length === 0) {
-      throw new UnprocessableEntityException(
-        'Aggiungi almeno una riga che carica magazzino con quantità maggiore di zero.',
-      );
-    }
-    for (const line of stockLines) {
-      if (!line.variantId) {
-        throw new UnprocessableEntityException(
-          `La riga ${line.lineNumber} carica magazzino ma non ha una variante associata.`,
-        );
-      }
-    }
-  }
-
   private async transition(
     tenantId: string,
     id: string,
     next: DocumentStatus,
     allowedFrom: readonly DocumentStatus[],
+    user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
-    const doc = await this.getById(tenantId, id);
+    const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentLocationWritable(user, doc);
     if (!allowedFrom.includes(doc.status)) {
       throw new ConflictException('Transizione di stato non consentita per questo documento.');
     }

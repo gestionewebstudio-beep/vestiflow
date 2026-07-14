@@ -12,9 +12,14 @@ export function normalizeSku(sku: string): string {
   return sku.trim().toUpperCase();
 }
 
-/** Verifica formale dello SKU (non l'unicita'). */
+/**
+ * Verifica formale dello SKU (non l'unicita'). Lo SKU è facoltativo: una
+ * stringa vuota è sempre valida (nessun `if SKU is empty -> non creabile`,
+ * per specifica cliente). Se valorizzato, deve rispettare il formato.
+ */
 export function isValidSku(sku: string): boolean {
-  return SKU_PATTERN.test(sku.trim());
+  const trimmed = sku.trim();
+  return trimmed.length === 0 || SKU_PATTERN.test(trimmed);
 }
 
 /**

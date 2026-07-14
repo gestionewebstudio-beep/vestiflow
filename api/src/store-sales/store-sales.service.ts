@@ -15,6 +15,10 @@ import {
   nextDocumentNumber,
 } from '../documents/document-totals.util';
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
+import {
+  INVENTORY_VIEW_SCOPE_MODE,
+  resolveOperationalLocationScope,
+} from '../inventory/licensed-location-scope.util';
 import { assertUserCanAccessLocation } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
@@ -366,11 +370,22 @@ export class StoreSalesService {
       }[];
     }[]
   > {
+    const scope = await resolveOperationalLocationScope(
+      this.prisma,
+      tenantId,
+      user,
+      undefined,
+      INVENTORY_VIEW_SCOPE_MODE,
+    );
+    if (!scope) {
+      return [];
+    }
+
     const docs = await this.prisma.document.findMany({
       where: {
         tenantId,
         type: DocumentType.store_sale,
-        ...(user.assignedLocationId ? { locationId: user.assignedLocationId } : {}),
+        locationId: scope.length === 1 ? scope[0] : { in: [...scope] },
         ...(search
           ? {
               OR: [
@@ -438,7 +453,7 @@ export class StoreSalesService {
         row.id,
         {
           id: row.id,
-          sku: row.sku,
+          sku: row.sku ?? '',
           barcode: row.barcode,
           productName: row.product.name,
           optionSummary: this.optionSummary(row.optionValues),

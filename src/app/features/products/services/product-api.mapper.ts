@@ -18,7 +18,10 @@ function toApiMoney(money: Money): ApiMoneyDto {
 
 function toApiVariant(variant: CreateProductVariantDto): Record<string, unknown> {
   return {
-    sku: variant.sku,
+    // Facoltativo (specifica cliente §SKU): trim + stringa vuota -> non
+    // inviato, cosi' il backend riceve `undefined` invece di "" (che
+    // fallirebbe la validazione @MinLength(1) quando presente).
+    sku: variant.sku?.trim() || undefined,
     optionValues: variant.optionValues,
     sellingPrice: toApiMoney(variant.sellingPrice),
     purchasePrice: variant.purchasePrice ? toApiMoney(variant.purchasePrice) : undefined,

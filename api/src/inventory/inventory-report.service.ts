@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { InventoryLocationReportRowDto } from './dto/inventory-location-report.dto';
-import { resolveLicensedLocationScope } from './licensed-location-scope.util';
+import {
+  INVENTORY_VIEW_SCOPE_MODE,
+  resolveOperationalLocationScope,
+} from './licensed-location-scope.util';
 
 type LocationReportQueryRow = {
   readonly location_id: string;
@@ -19,8 +23,17 @@ type LocationReportQueryRow = {
 export class InventoryReportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async locationSummary(tenantId: string): Promise<readonly InventoryLocationReportRowDto[]> {
-    const scope = await resolveLicensedLocationScope(this.prisma, tenantId);
+  async locationSummary(
+    tenantId: string,
+    user?: UserProfileDto,
+  ): Promise<readonly InventoryLocationReportRowDto[]> {
+    const scope = await resolveOperationalLocationScope(
+      this.prisma,
+      tenantId,
+      user,
+      undefined,
+      INVENTORY_VIEW_SCOPE_MODE,
+    );
     if (!scope) {
       return [];
     }

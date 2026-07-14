@@ -271,6 +271,39 @@ describe('ProductsService', () => {
     expect(channelSync.enqueueProductPush).toHaveBeenCalledWith(tenantId, 'prod-new');
   });
 
+  it('create persiste prodotto senza SKU (creazione rapida: solo nome)', async () => {
+    const { service, prisma } = createService();
+    const created = {
+      id: 'prod-new',
+      name: 'Maglietta base',
+      description: null,
+      variants: [{ id: 'var-1', sku: null }],
+      images: [],
+    };
+    prisma.productVariant.findMany.mockResolvedValue([]);
+    prisma.product.create.mockResolvedValue(created);
+    prisma.product.findFirst.mockResolvedValue(created);
+
+    await expect(
+      service.create(tenantId, {
+        name: 'Maglietta base',
+        status: 'active',
+        options: [],
+        variants: [
+          {
+            sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
+            optionValues: {},
+          },
+        ],
+      } as never),
+    ).resolves.toMatchObject({ id: 'prod-new', name: 'Maglietta base' });
+
+    // Nessuna verifica di unicita' ne' errore per SKU assente: mai bloccante.
+    expect(prisma.productVariant.findMany).not.toHaveBeenCalled();
+    const createCall = prisma.product.create.mock.calls[0]?.[0];
+    expect(createCall.data.variants.create[0].sku).toBeNull();
+  });
+
   it('findVariantByCode rifiuta codice vuoto', async () => {
     const { service } = createService();
 
@@ -439,5 +472,146 @@ describe('ProductsService', () => {
       .where;
     expect(where.tenantId).toBe(tenantId);
     expect(where.id).toBe('var-9');
+  });
+
+  describe('duplicateProduct', () => {
+    it('lancia NotFoundException se il prodotto originale non esiste', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValueOnce(null);
+
+      await expect(service.duplicateProduct(tenantId, 'missing')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(prisma.product.create).not.toHaveBeenCalled();
+    });
+
+    it(
+      'crea un nuovo prodotto con nome "(copia)", SKU con suffisso -COPIA, ' +
+        'barcode vuoto e nessun collegamento canale ereditato',
+      async () => {
+        const { service, prisma, channelSync } = createService();
+        const original = {
+          id: 'prod-1',
+          name: 'Maglietta Basic',
+          description: 'Descrizione',
+          brand: 'Brand X',
+          category: 'T-shirt',
+          shopifyTaxonomyCategoryId: null,
+          shopifyTaxonomyCategoryFullName: null,
+          shopifyCategoryMetafields: [],
+          tiktokCategoryId: null,
+          season: 'estate',
+          tags: ['estate', 'donna'],
+          seoTitle: null,
+          seoDescription: null,
+          status: 'active',
+          unitOfMeasure: 'pz',
+          defaultVatCodeId: null,
+          inventoryTracking: 'standard',
+          managesStock: true,
+          options: [],
+          shopifyProductId: 'gid://shopify/Product/1',
+          variants: [
+            {
+              id: 'var-1',
+              sku: 'SKU-1',
+              optionValues: [],
+              barcode: '8001234567890',
+              currency: 'EUR',
+              sellingPriceMinor: 1990,
+              purchasePriceMinor: 990,
+              compareAtPriceMinor: null,
+            },
+          ],
+          images: [
+            {
+              id: 'img-1',
+              url: 'https://cdn.example.com/img.jpg',
+              storagePath: 'products/img.jpg',
+              altText: 'Maglietta',
+              sortOrder: 0,
+              shopifyImageId: 'gid://shopify/Image/1',
+            },
+          ],
+        };
+        prisma.product.findFirst
+          .mockResolvedValueOnce(original) // lookup originale in duplicateProduct
+          .mockResolvedValueOnce({ ...original, id: 'prod-copy', name: 'Maglietta Basic (copia)' }); // getById finale
+
+        prisma.productVariant.findFirst.mockResolvedValue(null); // "SKU-1-COPIA" libero
+        prisma.product.create.mockResolvedValue({ id: 'prod-copy' });
+
+        await service.duplicateProduct(tenantId, 'prod-1');
+
+        const data = prisma.product.create.mock.calls[0]![0]!.data;
+        expect(data.name).toBe('Maglietta Basic (copia)');
+        expect(data.catalogOrigin).toBe('vestiflow');
+        expect(data.shopifyProductId).toBeUndefined();
+        expect(data.variants.create).toHaveLength(1);
+        expect(data.variants.create[0].sku).toBe('SKU-1-COPIA');
+        expect(data.variants.create[0].barcode).toBeNull();
+        expect(data.variants.create[0].sellingPriceMinor).toBe(1990);
+        expect(data.images.create).toHaveLength(1);
+        expect(data.images.create[0]).toMatchObject({
+          url: 'https://cdn.example.com/img.jpg',
+          altText: 'Maglietta',
+        });
+        expect(data.images.create[0].shopifyImageId).toBeUndefined();
+        // Nessun push automatico a Shopify dopo la duplicazione.
+        expect(channelSync.enqueueProductPush).not.toHaveBeenCalled();
+      },
+    );
+
+    it('incrementa il suffisso "-COPIA-n" se lo SKU è già occupato', async () => {
+      const { service, prisma } = createService();
+      const original = {
+        id: 'prod-1',
+        name: 'Pantalone',
+        description: null,
+        brand: null,
+        category: null,
+        shopifyTaxonomyCategoryId: null,
+        shopifyTaxonomyCategoryFullName: null,
+        shopifyCategoryMetafields: [],
+        tiktokCategoryId: null,
+        season: null,
+        tags: [],
+        seoTitle: null,
+        seoDescription: null,
+        status: 'draft',
+        unitOfMeasure: 'pz',
+        defaultVatCodeId: null,
+        inventoryTracking: 'standard',
+        managesStock: true,
+        options: [],
+        variants: [
+          {
+            id: 'var-1',
+            sku: 'SKU-9',
+            optionValues: [],
+            barcode: null,
+            currency: 'EUR',
+            sellingPriceMinor: 2990,
+            purchasePriceMinor: null,
+            compareAtPriceMinor: null,
+          },
+        ],
+        images: [],
+      };
+      prisma.product.findFirst
+        .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce({ ...original, id: 'prod-copy' });
+
+      // "SKU-9-COPIA" già occupato, "SKU-9-COPIA-2" libero.
+      prisma.productVariant.findFirst
+        .mockResolvedValueOnce({ id: 'other-variant' })
+        .mockResolvedValueOnce(null);
+      prisma.product.create.mockResolvedValue({ id: 'prod-copy' });
+
+      await service.duplicateProduct(tenantId, 'prod-1');
+
+      const data = prisma.product.create.mock.calls[0]![0]!.data;
+      expect(data.variants.create[0].sku).toBe('SKU-9-COPIA-2');
+    });
   });
 });

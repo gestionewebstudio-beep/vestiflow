@@ -3,7 +3,11 @@ import type { Prisma } from '@prisma/client';
 import type { PrismaService } from '../prisma/prisma.service';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { applyReadLocationScope, applyWriteLocationScope } from './user-location-scope.util';
+import {
+  applyReadLocationScope,
+  applyWriteLocationScope,
+  hasUnrestrictedReadLocationAccess,
+} from './user-location-scope.util';
 
 export type LicensedLocationScope = readonly string[];
 
@@ -68,6 +72,28 @@ export async function resolveOperationalLocationScope(
   return mode === 'write'
     ? applyWriteLocationScope(licensed, user)
     : applyReadLocationScope(licensed, user);
+}
+
+/**
+ * Scope location per le LISTE di risorse legate a una sede (documenti, ordini
+ * fornitore): 'unrestricted' = nessun filtro da applicare (nessun utente,
+ * titolare, hasAllLocationsAccess o permesso view_all_locations); un array =
+ * solo quelle sedi (intersezione sedi assegnate ∩ licenziate); null = nessuna
+ * sede in scope, lista vuota.
+ */
+export async function resolveReadableListLocationScope(
+  db: LocationReader,
+  tenantId: string,
+  user: UserProfileDto | undefined,
+): Promise<LicensedLocationScope | 'unrestricted' | null> {
+  if (!user || hasUnrestrictedReadLocationAccess(user)) {
+    return 'unrestricted';
+  }
+  const licensed = await resolveLicensedLocationScope(db, tenantId);
+  if (!licensed) {
+    return null;
+  }
+  return applyReadLocationScope(licensed, user);
 }
 
 export function locationScopeToInventoryLevelFilter(

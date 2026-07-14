@@ -34,8 +34,8 @@ import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
-import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
@@ -91,7 +91,6 @@ export class TransferFormComponent {
   private readonly documentService = inject(DocumentService);
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
-  private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -185,10 +184,10 @@ export class TransferFormComponent {
   protected readonly notEditable = computed(() => this.loadState() === 'not-found');
 
   protected readonly originLocationOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.operationalLocations.writeLocations().map((loc) => ({
-      value: loc.id,
-      label: loc.name,
-    })),
+    toLocationSelectOptions(
+      this.operationalLocations.writeLocations(),
+      this.operationalLocations.defaultLocation()?.id ?? null,
+    ),
   );
 
   protected readonly targetLocationOptions = computed<readonly SelectMenuOption[]>(() => {
@@ -337,17 +336,16 @@ export class TransferFormComponent {
   }
 
   private initDefaultsForCreate(): void {
-    const active = this.locationContext.activeLocationId();
+    // La sede predefinita dell'utente può precompilare SOLO l'origine (se
+    // autorizzata); mono-location: preselezionabile l'unica sede scrivibile.
+    // Mai fallback "prima location disponibile". La destinazione non viene
+    // MAI autocompilata (specifica cliente «sede predefinita»).
     const writable = this.operationalLocations.writeLocations();
-    const defaultLoc =
-      active && writable.some((l) => l.id === active) ? active : (writable[0]?.id ?? '');
-    if (defaultLoc && !this.form.controls.locationId.value) {
-      this.form.controls.locationId.setValue(defaultLoc);
-    }
-    const targets = this.operationalLocations.transferTargetLocations();
-    const defaultTarget = targets.find((l) => l.id !== defaultLoc)?.id ?? '';
-    if (defaultTarget && !this.form.controls.targetLocationId.value) {
-      this.form.controls.targetLocationId.setValue(defaultTarget);
+    const preferredOrigin =
+      this.operationalLocations.defaultLocation()?.id ??
+      (writable.length === 1 ? (writable[0]?.id ?? '') : '');
+    if (preferredOrigin && !this.form.controls.locationId.value) {
+      this.form.controls.locationId.setValue(preferredOrigin);
     }
   }
 

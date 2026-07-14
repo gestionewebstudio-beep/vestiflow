@@ -75,6 +75,37 @@ export class ProductLabelPrintComponent {
   private readonly variantFilterId = computed(() => this.queryParamMap().get('variantId'));
   protected readonly autoPrint = computed(() => this.queryParamMap().get('autoPrint') === '1');
 
+  /** Copie per etichetta (default 1, o valore passato dal fallback popup bloccato). */
+  protected readonly quantity = signal(this.readInitialQuantity());
+
+  private readInitialQuantity(): number {
+    const raw = Number(this.route.snapshot.queryParamMap.get('copies'));
+    return Number.isFinite(raw) ? Math.min(Math.max(Math.floor(raw), 1), 500) : 1;
+  }
+
+  /** Etichette da stampare/mostrare, ripetute per il numero di copie richiesto. */
+  protected readonly expandedLabels = computed((): readonly ProductLabelViewModel[] => {
+    const base = this.labels();
+    const copies = this.quantity();
+    if (copies <= 1) {
+      return base;
+    }
+    const expanded: ProductLabelViewModel[] = [];
+    for (const label of base) {
+      for (let i = 0; i < copies; i += 1) {
+        expanded.push(label);
+      }
+    }
+    return expanded;
+  });
+
+  protected setQuantity(value: number): void {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    this.quantity.set(Math.min(Math.max(Math.floor(value), 1), 500));
+  }
+
   constructor() {
     effect(() => {
       if (!this.autoPrint()) {

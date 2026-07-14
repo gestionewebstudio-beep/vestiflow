@@ -21,6 +21,8 @@ import type { VariantSummary } from '../models/variant-summary.model';
 import type {
   BarcodeAvailabilityResult,
   CreateProductDto,
+  GenerateSkuRequestDto,
+  GenerateSkuResultDto,
   SkuAvailabilityResult,
   UpdateProductDto,
   VariantByCodeDto,
@@ -220,6 +222,18 @@ export class ProductService {
     );
   }
 
+  /**
+   * Anteprima "Genera SKU" (specifica cliente §SKU): il backend calcola un
+   * codice prevedibile e ne risolve già l'unicità nel tenant. Non salva
+   * nulla: l'utente può ancora modificare il codice proposto prima di
+   * salvare il prodotto.
+   */
+  generateSku(payload: GenerateSkuRequestDto): Observable<GenerateSkuResultDto> {
+    return this.http
+      .post<GenerateSkuResultDto>(this.url('/products/sku/generate'), payload)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   checkBarcodeAvailability(
     barcodes: readonly string[],
     excludeProductId?: EntityId,
@@ -273,6 +287,15 @@ export class ProductService {
     return this.http.delete<void>(this.url(`/products/${id}`)).pipe(
       timeout(HTTP_TIMEOUT_MS),
       tap(() => this.invalidateVariantSummariesCache()),
+    );
+  }
+
+  /** Duplica anagrafica prodotto: nuovo id, SKU con suffisso "-COPIA", barcode vuoto. */
+  duplicateProduct(id: EntityId): Observable<Product> {
+    return this.http.post<ProductApiRow>(this.url(`/products/${id}/duplicate`), {}).pipe(
+      timeout(HTTP_TIMEOUT_MS),
+      tap(() => this.invalidateVariantSummariesCache()),
+      map(mapProductApiRow),
     );
   }
 

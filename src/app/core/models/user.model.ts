@@ -28,9 +28,14 @@ export interface User extends TenantScoped, Timestamped {
   readonly role: UserRole;
   /** Negozi a cui l'utente ha accesso. */
   readonly storeIds: readonly EntityId[];
-  /** Sede operativa fissa (manager/commesso). Null = tutte le sedi attive. */
-  readonly assignedLocationId: EntityId | null;
-  readonly assignedLocationName: string | null;
+  /** Admin con accesso a tutte le sedi (titolare: sempre pieno, ignora questo campo). */
+  readonly hasAllLocationsAccess: boolean;
+  /** Sedi operative assegnate (manager/commesso, o admin senza hasAllLocationsAccess). Vuoto = nessun accesso operativo. */
+  readonly assignedLocationIds: readonly EntityId[];
+  readonly assignedLocations: readonly { readonly id: EntityId; readonly name: string }[];
+  /** Sede predefinita: SUGGERIMENTO nei form (mai fallback automatico); null se non impostata. */
+  readonly defaultLocationId: EntityId | null;
+  readonly defaultLocation: { readonly id: EntityId; readonly name: string } | null;
   /** Permessi granulari (titolare: ignorati, accesso pieno). */
   readonly permissions: readonly string[];
   readonly isActive: boolean;

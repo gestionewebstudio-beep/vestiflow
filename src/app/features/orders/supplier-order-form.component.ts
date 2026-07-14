@@ -18,6 +18,7 @@ import {
   of,
   startWith,
   switchMap,
+  take,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
@@ -42,6 +43,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -54,7 +56,9 @@ import {
   SUPPLIER_ORDER_LINES_VIEW,
 } from './models/supplier-order-line-columns.config';
 
+import type { ProductEmbeddedCreatePrefill } from '@features/products/models/product-form.mapper';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
+import { ProductFormComponent } from '@features/products/product-form.component';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
@@ -96,6 +100,8 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
     TableColumnPickerComponent,
     TableColumnResizeDirective,
     SupplierFormFieldsComponent,
+    SlidePanelComponent,
+    ProductFormComponent,
   ],
   templateUrl: './supplier-order-form.component.html',
   styleUrl: './supplier-order-form.component.scss',
@@ -262,9 +268,18 @@ export class SupplierOrderFormComponent {
   private readonly _savingSupplier = signal(false);
   protected readonly savingSupplier = this._savingSupplier.asReadonly();
 
+  // Pannello "Crea nuovo articolo" (stesso pattern del form Arrivo merce):
+  // ProductFormComponent embedded in slide-panel, prefill dal testo di ricerca
+  // digitato e dal costo unitario della riga. La creazione avviene subito via
+  // POST /products, quindi al salvataggio ordine la riga ha già la variante.
+  protected readonly productPanelOpen = signal(false);
+  protected readonly productPanelLineIndex = signal<number | null>(null);
+  protected readonly productPanelPrefill = signal<ProductEmbeddedCreatePrefill | null>(null);
+
   // takeUntilDestroyed() gestisce l'unsubscribe; i campi evitano subscription "ignorate".
   private supplierSubscription: Subscription | null = null;
   private submitSubscription: Subscription | null = null;
+  private variantCostSubscription: Subscription | null = null;
 
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
   protected readonly saving = computed(() => this._submitState().status === 'saving');
@@ -326,6 +341,66 @@ export class SupplierOrderFormComponent {
 
   protected addLine(): void {
     this.lines.push(this.createLine());
+  }
+
+  /**
+   * Apre il pannello anagrafica prodotto per la riga: prefill con l'ultimo
+   * testo cercato (nome prodotto) e il costo unitario della riga come prezzo
+   * d'acquisto. Snapshot al click, così il pannello resta stabile.
+   */
+  protected openProductCreate(index: number): void {
+    const line = this.lines.at(index);
+    if (!line) {
+      return;
+    }
+    const searchText = this.variantSearchDraft().trim();
+    const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
+    this.productPanelPrefill.set({
+      name: searchText || undefined,
+      purchasePriceMajor: cost && cost.amountMinor > 0 ? cost.amountMinor / 100 : null,
+    });
+    this.productPanelLineIndex.set(index);
+    this.productPanelOpen.set(true);
+  }
+
+  protected closeProductPanel(): void {
+    this.productPanelOpen.set(false);
+    this.productPanelLineIndex.set(null);
+    this.productPanelPrefill.set(null);
+  }
+
+  /** Variante appena creata dal pannello: la collega alla riga di origine. */
+  protected onProductCreatedFromPanel(event: { readonly variantId: string }): void {
+    const lineIndex = this.productPanelLineIndex();
+    if (lineIndex != null) {
+      this.attachVariantToLine(lineIndex, event.variantId);
+    }
+    this.closeProductPanel();
+  }
+
+  /** "Salva senza aggiungere": prodotto creato ma non collegato alla riga. */
+  protected onProductSavedWithoutAttach(_event: { readonly variantId: string }): void {
+    this.closeProductPanel();
+  }
+
+  private attachVariantToLine(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    const line = this.lines.at(index);
+    if (!line || line.controls.unitCost.value.trim()) {
+      return;
+    }
+    // Riga senza costo: usa il prezzo d'acquisto della variante creata (se presente).
+    this.variantCostSubscription = this.productService
+      .searchVariantSummaries({ variantId })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rows) => {
+          const purchase = rows[0]?.purchasePrice;
+          if (purchase && purchase.amountMinor > 0 && !line.controls.unitCost.value.trim()) {
+            line.controls.unitCost.setValue(moneyToDecimalString(purchase).replace('.', ','));
+          }
+        },
+      });
   }
 
   protected removeLine(index: number): void {

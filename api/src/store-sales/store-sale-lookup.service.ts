@@ -109,7 +109,7 @@ export class StoreSaleLookupService {
       const vatCode = resolvedVatCodeId ? (vatCodesById.get(resolvedVatCodeId) ?? null) : null;
       return {
         variantId: row.id,
-        sku: row.sku,
+        sku: row.sku ?? '',
         barcode: row.barcode,
         productName: row.product.name,
         optionSummary: this.optionSummary(row.optionValues),

@@ -17,6 +17,7 @@ import {
   of,
   startWith,
   switchMap,
+  take,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
@@ -31,6 +32,7 @@ import { OperationalLocationsService } from '@core/services/operational-location
 import { CustomerService } from '@features/customers/services/customer.service';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -46,8 +48,13 @@ import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { DocumentTableComponent } from './components/document-table/document-table.component';
-import { GOODS_RECEIPT_DOCUMENT_TYPES } from './models/document-goods-receipt.util';
+import type { DocumentTableActionEvent } from './components/document-table/document-table.component';
+import {
+  GOODS_RECEIPT_DOCUMENT_TYPES,
+  isGoodsReceiptDocumentType,
+} from './models/document-goods-receipt.util';
 import { documentStatusLabel, documentTypeLabel } from './models/document-labels.util';
+import { documentEditPath } from './models/document-routing.util';
 import {
   DOCUMENT_LIST_COLUMN_DEFS,
   DOCUMENT_LIST_COLUMN_PRESETS,
@@ -62,6 +69,7 @@ import {
   type DocumentListQuery,
 } from './models/document-list-query.model';
 import { DocumentService } from './services/document.service';
+import { ExternalDocumentTypeService } from './services/external-document-type.service';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -92,6 +100,7 @@ type DocumentListState =
   imports: [
     RouterLink,
     ButtonComponent,
+    ConfirmDialogComponent,
     DateInputComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -114,6 +123,7 @@ export class DocumentListComponent {
   private readonly customerService = inject(CustomerService);
   private readonly supplierService = inject(SupplierService);
   private readonly operationalLocations = inject(OperationalLocationsService);
+  private readonly externalDocumentTypeService = inject(ExternalDocumentTypeService);
 
   private readonly routeData = toSignal(this.route.data, {
     initialValue: this.route.snapshot.data,
@@ -172,14 +182,22 @@ export class DocumentListComponent {
     { value: 'cancelled', label: 'Annullati' },
   ];
 
-  /** Filtro causale: ricerca testuale sul testo causale (prompt §4). */
-  protected readonly causalFilterOptions: readonly SelectMenuOption[] = [
-    { value: 'DDT', label: 'DDT' },
-    { value: 'Fatt', label: 'Fattura' },
-    { value: 'Reso', label: 'Reso' },
-    { value: 'Visione', label: 'Conto visione' },
-    { value: 'Lavorazione', label: 'Conto lavorazione' },
-  ];
+  /**
+   * Filtro "Documento fornitore": tipo documento fornitore realmente
+   * configurato dal tenant (DDT/Fattura/Reso/…), non più una whitelist fissa
+   * di parole chiave sulla causale libera (audit cliente §3).
+   */
+  protected readonly externalDocTypeOptions = toSignal(
+    this.externalDocumentTypeService.list().pipe(
+      map((types) =>
+        types
+          .filter((type) => type.isActive)
+          .map((type): SelectMenuOption => ({ value: type.id, label: type.name })),
+      ),
+      catchError(() => of([] as readonly SelectMenuOption[])),
+    ),
+    { initialValue: [] as readonly SelectMenuOption[] },
+  );
 
   protected readonly tableViewId = computed(() =>
     this.isGoodsReceiptList() ? TableViewId.GoodsReceiptDocumentsList : TableViewId.DocumentsList,
@@ -239,6 +257,12 @@ export class DocumentListComponent {
 
   private readonly refreshTick = signal(0);
 
+  /** Azioni dal menu "···" della riga (§1): errore generico, dialog elimina, download PDF in corso. */
+  protected readonly actionError = signal<AppError | null>(null);
+  protected readonly deleteDialogOpen = signal(false);
+  protected readonly downloadingPdfId = signal<string | null>(null);
+  private pendingDeleteDoc: DocumentRecord | null = null;
+
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
 
   private readonly request = computed(() => ({ query: this.apiQuery(), tick: this.refreshTick() }));
@@ -296,7 +320,7 @@ export class DocumentListComponent {
         q.locationId ??
         q.supplierId ??
         q.linkStatus ??
-        q.causal,
+        q.externalDocumentTypeId,
       );
     }
     return Boolean(
@@ -389,8 +413,8 @@ export class DocumentListComponent {
     this.updateParams({ linkStatus: value, page: null }, true);
   }
 
-  protected onCausalFilterChange(value: string | null): void {
-    this.updateParams({ causal: value, page: null }, true);
+  protected onExternalDocTypeFilterChange(value: string | null): void {
+    this.updateParams({ externalDocumentTypeId: value, page: null }, true);
   }
 
   protected onCreateDocumentType(value: string | null): void {
@@ -437,7 +461,7 @@ export class DocumentListComponent {
         locationId: null,
         supplierId: null,
         linkStatus: null,
-        causal: null,
+        externalDocumentTypeId: null,
         accountant: null,
         pendingInvoice: null,
         page: null,
@@ -462,7 +486,10 @@ export class DocumentListComponent {
   }
 
   protected openDocument(doc: DocumentRecord): void {
-    if (this.isGoodsReceiptList()) {
+    // Percorso unico Arrivo merce: anche dal registro generico la famiglia
+    // carico si apre nel form dedicato (mai nel dettaglio generico, che non
+    // può confermarla né modificarla).
+    if (this.isGoodsReceiptList() || isGoodsReceiptDocumentType(doc.type)) {
       void this.router.navigate(['/app/documents', doc.id, 'edit']);
       return;
     }
@@ -471,6 +498,117 @@ export class DocumentListComponent {
       return;
     }
     void this.router.navigate(['/app/documents', doc.id]);
+  }
+
+  /** Dispatch delle azioni del menu "···" di riga (§1 audit cliente). */
+  protected onTableAction(event: DocumentTableActionEvent): void {
+    this.actionError.set(null);
+    switch (event.action) {
+      case 'open':
+        this.openDocument(event.doc);
+        break;
+      case 'duplicate':
+        this.duplicateDocument(event.doc);
+        break;
+      case 'delete':
+        this.requestDeleteDocument(event.doc);
+        break;
+      case 'print':
+        this.downloadDocumentPdf(event.doc);
+        break;
+      case 'labels':
+        this.openDocumentDetail(event.doc);
+        break;
+      case 'attachments':
+        this.openDocumentDetail(event.doc, 'doc-detail-attachments');
+        break;
+    }
+  }
+
+  /** Duplica documento (§2a): naviga alla copia appena creata, subito modificabile. */
+  protected duplicateDocument(doc: DocumentRecord): void {
+    this.service
+      .duplicateDocument(doc.id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (created) => {
+          void this.router.navigateByUrl(documentEditPath(created));
+        },
+        error: (err: unknown) => {
+          this.actionError.set(this.toAppError(err));
+        },
+      });
+  }
+
+  protected requestDeleteDocument(doc: DocumentRecord): void {
+    this.pendingDeleteDoc = doc;
+    this.deleteDialogOpen.set(true);
+  }
+
+  protected confirmDeleteDocument(): void {
+    const doc = this.pendingDeleteDoc;
+    this.deleteDialogOpen.set(false);
+    if (!doc) {
+      return;
+    }
+    this.service
+      .deleteDocument(doc.id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.pendingDeleteDoc = null;
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this.pendingDeleteDoc = null;
+          this.actionError.set(this.toAppError(err));
+        },
+      });
+  }
+
+  protected cancelDeleteDocument(): void {
+    this.pendingDeleteDoc = null;
+  }
+
+  /** Stampa (§1): scarica il PDF direttamente dalla lista, senza aprire il documento. */
+  protected downloadDocumentPdf(doc: DocumentRecord): void {
+    if (this.downloadingPdfId()) {
+      return;
+    }
+    this.downloadingPdfId.set(doc.id);
+    this.service
+      .exportPdf(doc.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          this.downloadingPdfId.set(null);
+          const stamp = doc.documentDate.slice(0, 10);
+          this.downloadBlob(blob, `documento-${doc.reference ?? doc.id}-${stamp}.pdf`);
+        },
+        error: (err: unknown) => {
+          this.downloadingPdfId.set(null);
+          this.actionError.set(this.toAppError(err));
+        },
+      });
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename.replace(/[^\w\s.-]/g, '-');
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Etichette/Allegati (§1): naviga al dettaglio documento invece di
+   * duplicare pannello di stampa/allegati nella lista — il dettaglio li
+   * espone già entrambi (Stampa etichette condizionata al tipo, pannello
+   * allegati sempre). Il fragment posiziona la vista sulla sezione allegati.
+   */
+  private openDocumentDetail(doc: DocumentRecord, fragment?: string): void {
+    void this.router.navigate(['/app/documents', doc.id], fragment ? { fragment } : {});
   }
 
   protected openHub(): void {

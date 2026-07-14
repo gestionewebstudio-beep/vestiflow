@@ -186,6 +186,17 @@
           @if (showColumn('actions')) {
             <td class="product-table__cell--actions" [attr.data-label]="columnLabel('actions')">
               <span class="product-table__cell-value">
+                @if (canManage()) {
+                  <button
+                    type="button"
+                    class="product-table__print-link"
+                    [attr.aria-label]="'Duplica ' + product.name"
+                    [attr.title]="'Duplica articolo'"
+                    (click)="onDuplicateClick($event, product)"
+                  >
+                    <i class="pi pi-copy" aria-hidden="true"></i>
+                  </button>
+                }
                 <button
                   type="button"
                   class="product-table__print-link"

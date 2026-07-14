@@ -44,6 +44,7 @@ export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'counterparty', label: 'Soggetto', defaultVisible: true },
   { id: 'linkStatus', label: 'Stato', defaultVisible: true },
   { id: 'causal', label: 'Causale carico', defaultVisible: true },
+  { id: 'externalDocNumber', label: 'Doc. fornitore', defaultVisible: false },
   { id: 'notes', label: 'Commento', defaultVisible: false },
   { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
   { id: 'total', label: 'Tot. documento', numeric: true, defaultVisible: true },

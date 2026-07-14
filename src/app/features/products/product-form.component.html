@@ -52,8 +52,9 @@
       </div>
       @if (creationMode() === 'quick') {
         <p class="product-form__mode-hint">
-          Nome, SKU e prezzo vendita bastano per creare il prodotto. Brand, categoria e altri
-          dettagli restano disponibili e li puoi completare in seguito.
+          Nome e prezzo vendita bastano per creare il prodotto. Lo SKU è facoltativo: puoi lasciarlo
+          vuoto, scriverlo a mano o generarlo. Brand, categoria e altri dettagli restano disponibili
+          e li puoi completare in seguito.
         </p>
       }
     }
@@ -91,11 +92,12 @@
           @if (isQuickCreate() && quickVariant(); as variant) {
             <app-product-quick-variant-fields
               [variant]="variant"
+              [productName]="draft().general.name"
+              [category]="draft().general.category"
               [takenSkus]="takenSkus()"
               [takenBarcodes]="takenBarcodes()"
               [disabled]="submitting()"
               (variantChange)="onQuickVariantChange($event)"
-              (skuEdited)="onQuickSkuEdited()"
               (validChange)="onQuickVariantValidChange($event)"
             />
           }
@@ -122,6 +124,8 @@
         @case ('variants') {
           <app-product-variants-step
             [variants]="draft().variants"
+            [productName]="draft().general.name"
+            [category]="draft().general.category"
             [takenSkus]="takenSkus()"
             [takenBarcodes]="takenBarcodes()"
             [catalogReadOnly]="shopifyCatalogLocked()"

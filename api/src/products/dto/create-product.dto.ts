@@ -44,10 +44,17 @@ export class VariantOptionValueDto {
 }
 
 export class CreateVariantDto {
+  /**
+   * Facoltativo (specifica cliente §SKU): puo' restare vuoto alla creazione,
+   * essere inserito a mano, o generato via `POST products/sku/generate`.
+   * MAI reso obbligatorio qui: la validazione "SKU vuoto -> non creabile" e'
+   * esplicitamente vietata dalla specifica.
+   */
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(100)
-  sku!: string;
+  sku?: string;
 
   @IsArray()
   @ArrayMaxSize(3)

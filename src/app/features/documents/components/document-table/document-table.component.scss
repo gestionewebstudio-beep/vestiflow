@@ -79,6 +79,12 @@
     text-align: end;
     white-space: nowrap;
   }
+
+  .doc-table tbody td.doc-table__cell--actions,
+  .doc-table__head th.doc-table__cell--actions {
+    text-align: end;
+    white-space: nowrap;
+  }
 }
 
 @include bp.media-down('lg') {

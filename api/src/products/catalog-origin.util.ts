@@ -157,7 +157,8 @@ function variantCatalogEqual(
   payload: UpdateVariantDto,
 ): boolean {
   return (
-    current.sku.trim().toLowerCase() === payload.sku.trim().toLowerCase() &&
+    normalizeOptionalString(current.sku)?.toLowerCase() ===
+      normalizeOptionalString(payload.sku)?.toLowerCase() &&
     jsonEqual(current.optionValues, payload.optionValues) &&
     normalizeOptionalString(current.barcode) === normalizeOptionalString(payload.barcode) &&
     current.currency === payload.sellingPrice.currency &&

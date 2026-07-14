@@ -43,10 +43,10 @@ import {
 } from './models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { isPrintableDocumentType } from './models/document-print.util';
+import { documentEditPath } from './models/document-routing.util';
 import { isTransferDocumentType } from './models/document-transfer.util';
 import {
   isAdjustmentDocumentType,
-  isManualUnloadDocumentType,
   isStockOperationDocumentType,
 } from './models/document-stock-operation.util';
 import { isStoreFlowDocumentType } from './models/document-operational.util';
@@ -276,9 +276,17 @@ export class DocumentDetailComponent {
 
   protected readonly canManage = computed(() => canManageDocuments(this.authService.currentUser()));
 
-  protected readonly canConfirm = computed(
-    () => this.canManage() && this.document()?.status === DocumentStatus.Draft,
-  );
+  // Percorso unico Arrivo merce: la famiglia carico si conferma SOLO con
+  // «Salva documento» nel form dedicato (il backend rifiuta comunque il
+  // confirm generico per questi tipi).
+  protected readonly canConfirm = computed(() => {
+    const doc = this.document();
+    return (
+      this.canManage() &&
+      doc?.status === DocumentStatus.Draft &&
+      !isGoodsReceiptDocumentType(doc.type)
+    );
+  });
   protected readonly canPrint = computed(() => {
     const status = this.document()?.status;
     return (
@@ -356,6 +364,12 @@ export class DocumentDetailComponent {
       this.canManage() &&
       (doc.status === DocumentStatus.Draft || doc.status === DocumentStatus.Cancelled)
     );
+  });
+
+  /** Duplica documento (§2a): disponibile per tutti i tipi tranne vendite/resi negozio. */
+  protected readonly canDuplicate = computed(() => {
+    const doc = this.document();
+    return this.canManage() && doc != null && !isStoreFlowDocumentType(doc.type);
   });
 
   protected readonly canEdit = computed(() => {
@@ -497,23 +511,7 @@ export class DocumentDetailComponent {
     if (!doc) {
       return;
     }
-    if (isSalesFormDocumentType(doc.type)) {
-      void this.router.navigate(['/app/documents/sales', doc.id, 'edit']);
-      return;
-    }
-    if (isTransferDocumentType(doc.type)) {
-      void this.router.navigate(['/app/documents/transfer', doc.id, 'edit']);
-      return;
-    }
-    if (isManualUnloadDocumentType(doc.type)) {
-      void this.router.navigate(['/app/documents/manual-unload', doc.id, 'edit']);
-      return;
-    }
-    if (isAdjustmentDocumentType(doc.type)) {
-      void this.router.navigate(['/app/documents/adjustment', doc.id, 'edit']);
-      return;
-    }
-    void this.router.navigate(['/app/documents', doc.id, 'edit']);
+    void this.router.navigateByUrl(documentEditPath(doc));
   }
 
   protected openPrintPreview(): void {
@@ -673,6 +671,27 @@ export class DocumentDetailComponent {
   protected cancelDocument(): void {
     this.cancelDialogOpen.set(false);
     this.runAction((id) => this.service.cancelDocument(id));
+  }
+
+  /** Duplica documento (§2a): naviga alla copia appena creata, subito modificabile. */
+  protected duplicateDocument(): void {
+    const doc = this.document();
+    if (!doc || this.actionSaving()) {
+      return;
+    }
+    this._actionState.set({ status: 'saving' });
+    this.actionSubscription = this.service
+      .duplicateDocument(doc.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (created) => {
+          this._actionState.set({ status: 'idle' });
+          void this.router.navigateByUrl(documentEditPath(created));
+        },
+        error: (err: unknown) => {
+          this._actionState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
   }
 
   protected deleteDocument(): void {

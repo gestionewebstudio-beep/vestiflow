@@ -81,7 +81,10 @@ export class JwtAuthGuard implements CanActivate {
       include: {
         stores: true,
         tenant: { select: { name: true, channelProfile: true } },
-        assignedLocation: { select: { id: true, name: true } },
+        locations: {
+          include: { location: { select: { id: true, name: true } } },
+        },
+        defaultLocation: { select: { id: true, name: true } },
       },
     });
     if (!user || !user.isActive) {

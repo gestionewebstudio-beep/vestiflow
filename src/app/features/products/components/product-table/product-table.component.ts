@@ -42,9 +42,13 @@ export class ProductTableComponent {
   readonly allOnPageSelected = input(false);
   readonly someOnPageSelected = input(false);
 
+  /** Azioni Duplica/Elimina mostrate solo con permesso di gestione catalogo. */
+  readonly canManage = input(false);
+
   readonly rowClick = output<Product>();
   readonly sortChange = output<ProductSortField>();
   readonly printLabel = output<Product>();
+  readonly duplicate = output<Product>();
   readonly selectionToggle = output<{ readonly productId: string; readonly selected: boolean }>();
   readonly selectAllToggle = output<boolean>();
 
@@ -112,6 +116,12 @@ export class ProductTableComponent {
     event.stopPropagation();
     event.preventDefault();
     this.printLabel.emit(product);
+  }
+
+  protected onDuplicateClick(event: Event, product: Product): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.duplicate.emit(product);
   }
 
   protected isSelected(product: Product): boolean {

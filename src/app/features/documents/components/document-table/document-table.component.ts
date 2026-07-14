@@ -1,11 +1,15 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
+import { DocumentStatus } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
+import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.component';
+import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
+import { isGoodsReceiptDocumentType } from '../../models/document-goods-receipt.util';
 import {
   documentReferenceLabel,
   documentStatusDisplayLabel,
@@ -14,23 +18,44 @@ import {
   goodsReceiptLinkStatusLabel,
   goodsReceiptLinkStatusTone,
 } from '../../models/document-labels.util';
+import { isStoreFlowDocumentType } from '../../models/document-operational.util';
+import { isPrintableDocumentType } from '../../models/document-print.util';
+
+/** Azioni disponibili dal menu "···" della riga (audit cliente §1: azioni dalla lista). */
+export type DocumentTableActionId =
+  | 'open'
+  | 'duplicate'
+  | 'delete'
+  | 'print'
+  | 'labels'
+  | 'attachments';
+
+export interface DocumentTableActionEvent {
+  readonly action: DocumentTableActionId;
+  readonly doc: DocumentRecord;
+}
 
 /**
  * Tabella registro documenti (dumb puro). Row click verso il dettaglio; importi
- * a destra in tabular-nums; mobile come card impilate.
+ * a destra in tabular-nums; mobile come card impilate. Colonna Azioni sempre
+ * presente (non fa parte delle colonne configurabili): mostra solo le voci
+ * realmente disponibili per tipo/stato della riga, mai voci disabilitate.
  */
 @Component({
   selector: 'app-document-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BadgeComponent],
+  imports: [ActionMenuComponent, BadgeComponent],
   templateUrl: './document-table.component.html',
   styleUrl: './document-table.component.scss',
 })
 export class DocumentTableComponent {
   readonly documents = input.required<readonly DocumentRecord[]>();
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+  /** Azioni di gestione (duplica/elimina) mostrate solo con permesso DocumentsManage. */
+  readonly canManage = input<boolean>(false);
 
   readonly rowClick = output<DocumentRecord>();
+  readonly action = output<DocumentTableActionEvent>();
 
   protected readonly typeLabel = documentTypeLabel;
   protected readonly formatMoney = formatMoney;
@@ -59,8 +84,15 @@ export class DocumentTableComponent {
     return doc.locationName ?? '—';
   }
 
+  /** "DDT 145 del 08/05/2026" quando tipo/data documento fornitore sono noti. */
   protected externalDocLabel(doc: DocumentRecord): string {
-    return doc.externalDocNumber?.trim() || doc.externalRef?.trim() || '—';
+    const number = doc.externalDocNumber?.trim();
+    if (!number) {
+      return doc.externalRef?.trim() || '—';
+    }
+    const typePrefix = doc.externalDocumentTypeSnapshot?.trim();
+    const label = typePrefix ? `${typePrefix} ${number}` : number;
+    return doc.externalDocDate ? `${label} del ${formatDate(doc.externalDocDate)}` : label;
   }
 
   protected billingCauseLabel(doc: DocumentRecord): string {
@@ -89,5 +121,41 @@ export class DocumentTableComponent {
 
   protected rowLabel(doc: DocumentRecord): string {
     return `Apri documento ${this.referenceLabel(doc)} (${this.typeLabel(doc.type)})`;
+  }
+
+  /**
+   * Voci del menu Azioni per la riga: solo quelle realmente disponibili per
+   * questo tipo/stato documento — mai voci disabilitate silenziosamente.
+   */
+  protected rowActions(doc: DocumentRecord): readonly ActionMenuItem[] {
+    const items: ActionMenuItem[] = [{ id: 'open', label: 'Apri / Modifica', icon: 'pi-pencil' }];
+
+    if (this.canManage() && !isStoreFlowDocumentType(doc.type)) {
+      items.push({ id: 'duplicate', label: 'Duplica', icon: 'pi-copy' });
+    }
+    if (isPrintableDocumentType(doc.type)) {
+      items.push({ id: 'print', label: 'Stampa PDF', icon: 'pi-print' });
+    }
+    if (
+      isGoodsReceiptDocumentType(doc.type) &&
+      doc.status !== DocumentStatus.Cancelled &&
+      doc.status !== DocumentStatus.Draft &&
+      (doc.lineCount ?? 0) > 0
+    ) {
+      items.push({ id: 'labels', label: 'Etichette', icon: 'pi-tag' });
+    }
+    items.push({ id: 'attachments', label: 'Allegati', icon: 'pi-paperclip' });
+    if (
+      this.canManage() &&
+      !isStoreFlowDocumentType(doc.type) &&
+      (doc.status === DocumentStatus.Draft || doc.status === DocumentStatus.Cancelled)
+    ) {
+      items.push({ id: 'delete', label: 'Elimina', icon: 'pi-trash', danger: true });
+    }
+    return items;
+  }
+
+  protected onAction(actionId: string, doc: DocumentRecord): void {
+    this.action.emit({ action: actionId as DocumentTableActionId, doc });
   }
 }

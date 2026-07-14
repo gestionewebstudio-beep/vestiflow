@@ -145,6 +145,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
     location: {
       findFirst: ({ where }: { where: { id: string } }) =>
         Promise.resolve(where.id === LOCATION ? { id: LOCATION } : null),
+      findMany: () => Promise.resolve([{ id: LOCATION }]),
     },
     productVariant: {
       findMany: ({ where }: { where: { id: { in: string[] } } }) =>
@@ -304,7 +305,29 @@ function createFakePrisma(db: FakeDb): PrismaService {
         );
         return Promise.resolve(found ? { reference: found.reference } : null);
       },
-      findMany: () => Promise.resolve([]),
+      findMany: ({
+        where,
+      }: {
+        where: {
+          tenantId: string;
+          type: DocumentType;
+          locationId?: string | { in: string[] };
+        };
+      }) =>
+        Promise.resolve(
+          db.documents.filter((doc) => {
+            if (doc.tenantId !== where.tenantId || doc.type !== where.type) {
+              return false;
+            }
+            if (where.locationId === undefined) {
+              return true;
+            }
+            if (typeof where.locationId === 'string') {
+              return doc.locationId === where.locationId;
+            }
+            return doc.locationId != null && where.locationId.in.includes(doc.locationId);
+          }),
+        ),
     },
     stockMovement: {
       create: ({ data }: { data: FakeMovement }) => {
@@ -382,8 +405,9 @@ const user: UserProfileDto = {
   storeIds: [],
   isActive: true,
   isPlatformAdmin: false,
-  assignedLocationId: null,
-  assignedLocationName: null,
+  hasAllLocationsAccess: false,
+  assignedLocationIds: [],
+  assignedLocations: [],
   permissions: [],
   createdAt: '',
   updatedAt: '',
@@ -637,5 +661,43 @@ describe('StoreSalesService (fase 3 §12)', () => {
     // Push asincrono: attende il microtask successivo.
     await Promise.resolve();
     expect(pushed).toEqual([VARIANT_A]);
+  });
+
+  it('listRecentSales rispetta lo scope location dell’utente (gap chiuso: niente più bypass manuale)', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'other',
+        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      },
+      user,
+    );
+
+    // Titolare: vede la vendita registrata (scope illimitato).
+    const asOwner = await service.listRecentSales(TENANT, undefined, user);
+    expect(asOwner).toHaveLength(1);
+
+    // Commesso senza sede assegnata: nessuna sede in scope ⇒ lista vuota, non 500/errore.
+    const clerkWithoutLocation: UserProfileDto = {
+      ...user,
+      role: UserRole.clerk,
+      hasAllLocationsAccess: false,
+      assignedLocationIds: [],
+      permissions: [],
+    };
+    const asClerkNoScope = await service.listRecentSales(TENANT, undefined, clerkWithoutLocation);
+    expect(asClerkNoScope).toEqual([]);
+
+    // Commesso con la sede corretta assegnata: vede la vendita.
+    const clerkWithLocation: UserProfileDto = {
+      ...clerkWithoutLocation,
+      assignedLocationIds: [LOCATION],
+    };
+    const asClerkScoped = await service.listRecentSales(TENANT, undefined, clerkWithLocation);
+    expect(asClerkScoped).toHaveLength(1);
   });
 });

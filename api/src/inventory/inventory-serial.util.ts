@@ -37,7 +37,7 @@ async function isSerialTrackedVariant(
     return null;
   }
   return {
-    sku: variant.sku,
+    sku: variant.sku ?? '',
     serial: variant.product?.inventoryTracking === InventoryTrackingMode.serial,
   };
 }

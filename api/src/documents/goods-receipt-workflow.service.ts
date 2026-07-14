@@ -16,6 +16,7 @@ import {
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { applyInventoryLotsFromDocumentLines } from '../inventory/inventory-lot.util';
+import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
 import {
   applyInventorySerialsFromDocumentLines,
   assertSerialNumbersForDocumentLines,
@@ -121,6 +122,12 @@ export class GoodsReceiptWorkflowService {
 
     await this.assertSupplier(tenantId, dto.supplierId);
     await this.assertLocation(tenantId, dto.locationId);
+    // La sede di destinazione (creazione, o nuova sede su modifica) deve
+    // essere nello scope dell'utente: titolare/hasAllLocationsAccess sempre
+    // ammessi, altrimenti solo le sedi esplicitamente assegnate.
+    if (user && dto.locationId) {
+      assertLocationInUserScope(user, dto.locationId, 'write');
+    }
 
     // Codici IVA delle righe: risolti una volta, validati per tenant (§9).
     const costEntryMode = dto.purchaseCostEntryMode ?? 'vat_excluded';
@@ -238,6 +245,13 @@ export class GoodsReceiptWorkflowService {
           throw new ConflictException(
             'Questo documento è già collegato a un altro ordine fornitore.',
           );
+        }
+        // Modifica di un arrivo merce esistente: l'utente deve poter operare
+        // anche sulla sede attuale del documento (non solo sulla nuova),
+        // altrimenti potrebbe alterare un documento fuori dal proprio scope
+        // limitandosi a non cambiarne la location.
+        if (user && existing.locationId) {
+          assertLocationInUserScope(user, existing.locationId, 'write');
         }
       }
 

@@ -59,7 +59,7 @@ describe('product-form.mapper', () => {
   });
 
   describe('ensureQuickModeDraft', () => {
-    it('crea una variante unica con SKU suggerito dal nome', () => {
+    it('crea una variante unica con SKU vuoto: mai generato in automatico dal nome', () => {
       const draft = ensureQuickModeDraft({
         ...emptyProductFormDraft(),
         general: { ...emptyProductFormDraft().general, name: 'Maglietta Basic' },
@@ -67,7 +67,30 @@ describe('product-form.mapper', () => {
 
       expect(draft.variants).toHaveLength(1);
       expect(draft.variants[0]?.optionValues).toEqual([]);
-      expect(draft.variants[0]?.sku).toBe('MB');
+      expect(draft.variants[0]?.sku).toBe('');
+    });
+
+    it('con preserveSku=true mantiene lo SKU gia presente (es. prefill esplicito)', () => {
+      const withSku = {
+        ...emptyProductFormDraft(),
+        general: { ...emptyProductFormDraft().general, name: 'Maglietta Basic' },
+        variants: [
+          {
+            key: '',
+            optionValues: [],
+            sku: 'PREFILL-001',
+            sellingPrice: 0,
+            purchasePrice: null,
+            compareAtPrice: null,
+            barcode: '',
+            included: true,
+          },
+        ],
+      };
+
+      const draft = ensureQuickModeDraft(withSku, true);
+
+      expect(draft.variants[0]?.sku).toBe('PREFILL-001');
     });
   });
 
@@ -113,6 +136,28 @@ describe('product-form.mapper', () => {
         amountMinor: 9990,
         currencyCode: DEFAULT_CURRENCY,
       });
+    });
+
+    it('SKU vuoto non viene inviato (undefined, mai stringa vuota): creazione senza SKU', () => {
+      const draft = {
+        ...emptyProductFormDraft(),
+        general: { ...emptyProductFormDraft().general, name: 'Solo nome' },
+        variants: [
+          {
+            key: 'k1',
+            optionValues: [],
+            sku: '  ',
+            sellingPrice: 10,
+            purchasePrice: null,
+            compareAtPrice: null,
+            barcode: '',
+            included: true,
+          },
+        ],
+      };
+
+      const dto = toCreateProductDto(draft);
+      expect(dto.variants[0]?.sku).toBeUndefined();
     });
   });
 

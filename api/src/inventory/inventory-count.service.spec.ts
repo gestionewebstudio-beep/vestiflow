@@ -1,10 +1,10 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { DocumentsService } from '../documents/documents.service';
 import type { PrismaService } from '../prisma/prisma.service';
-import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { InventoryCountService } from './inventory-count.service';
 
 describe('InventoryCountService', () => {
@@ -53,7 +53,39 @@ describe('InventoryCountService', () => {
     const { service, prisma } = createService();
     prisma.inventoryCountSession.findFirst.mockResolvedValue(null);
 
-    await expect(service.getById(tenantId, 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getById(tenantId, 'missing', ownerUser)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('getById blocca lettura di una sessione su sede non autorizzata (gap chiuso)', async () => {
+    const { service, prisma } = createService();
+    prisma.inventoryCountSession.findFirst.mockResolvedValue({
+      id: 'count-1',
+      locationId: 'loc-other',
+      location: { name: 'Altra sede' },
+      lines: [],
+    });
+
+    const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+    await expect(service.getById(tenantId, 'count-1', clerk)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('getById consente lettura di una sessione sulla sede assegnata', async () => {
+    const { service, prisma } = createService();
+    prisma.inventoryCountSession.findFirst.mockResolvedValue({
+      id: 'count-1',
+      locationId: 'loc-1',
+      location: { name: 'Sede 1' },
+      lines: [],
+    });
+
+    const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+    await expect(service.getById(tenantId, 'count-1', clerk)).resolves.toMatchObject({
+      id: 'count-1',
+    });
   });
 
   it('create rifiuta location inesistente', async () => {

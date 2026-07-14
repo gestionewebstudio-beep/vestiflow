@@ -60,4 +60,61 @@ describe('mapHttpErrorToAppError', () => {
     expect(result.kind).toBe(AppErrorKind.Unknown);
     expect(result.message).toContain('imprevisto');
   });
+
+  describe('seconda linea di difesa: messaggi tecnici residui', () => {
+    it('sostituisce un messaggio di validazione grezzo (class-validator) con quello generico', () => {
+      const result = mapHttpErrorToAppError(
+        new HttpErrorResponse({
+          status: 400,
+          error: { message: 'property unexpectedField should not exist' },
+        }),
+      );
+      expect(result.message).not.toContain('unexpectedField');
+      expect(result.message).not.toContain('property');
+      expect(result.message).not.toContain('should not exist');
+    });
+
+    it('sostituisce un vincolo "must be" grezzo con il messaggio generico', () => {
+      const result = mapHttpErrorToAppError(
+        new HttpErrorResponse({
+          status: 400,
+          error: { message: 'quantity must be an integer number' },
+        }),
+      );
+      expect(result.message).not.toContain('quantity');
+      expect(result.message).not.toContain('must be');
+    });
+
+    it("sostituisce il nome di un'eccezione tecnica (es. Prisma) con il messaggio generico", () => {
+      const result = mapHttpErrorToAppError(
+        new HttpErrorResponse({
+          status: 500,
+          error: { message: 'PrismaClientKnownRequestError: Unique constraint failed' },
+        }),
+      );
+      expect(result.message).not.toContain('Prisma');
+      expect(result.message).not.toContain('Unique constraint');
+    });
+
+    it('sostituisce una traccia di stack residua con il messaggio generico', () => {
+      const result = mapHttpErrorToAppError(
+        new HttpErrorResponse({
+          status: 500,
+          error: { message: 'Error: boom\n    at Object.<anonymous> (/app/src/foo.ts:12:34)' },
+        }),
+      );
+      expect(result.message).not.toContain('boom');
+      expect(result.message).not.toContain('.ts:12:34');
+    });
+
+    it('lascia passare inalterato un messaggio di dominio ben scritto in italiano', () => {
+      const result = mapHttpErrorToAppError(
+        new HttpErrorResponse({
+          status: 400,
+          error: { message: "Seleziona un fornitore prima di salvare l'arrivo merce." },
+        }),
+      );
+      expect(result.message).toBe("Seleziona un fornitore prima di salvare l'arrivo merce.");
+    });
+  });
 });

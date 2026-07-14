@@ -5,6 +5,7 @@ import type { ProductMediaService } from './product-media.service';
 import type { ProductsExportService } from './products-export.service';
 import type { ProductsImportService } from './products-import.service';
 import type { ProductsService } from './products.service';
+import type { SkuGeneratorService } from './sku-generator.service';
 import { ProductsController } from './products.controller';
 
 describe('ProductsController', () => {
@@ -23,6 +24,7 @@ describe('ProductsController', () => {
   const productMedia = { uploadImage: vi.fn(), deleteImage: vi.fn() };
   const productsImport = { previewCsv: vi.fn(), importCsv: vi.fn() };
   const productsExport = { exportCsv: vi.fn().mockResolvedValue('name,sku\n') };
+  const skuGenerator = { previewSku: vi.fn() };
 
   const controller = new ProductsController(
     products as unknown as ProductsService,
@@ -30,6 +32,7 @@ describe('ProductsController', () => {
     productsImport as unknown as ProductsImportService,
     productsExport as unknown as ProductsExportService,
     {} as never,
+    skuGenerator as unknown as SkuGeneratorService,
   );
 
   it('list delega al service', async () => {
@@ -58,6 +61,24 @@ describe('ProductsController', () => {
     await expect(
       controller.checkBarcode(tenantId, { barcode: '8001234567890' }),
     ).resolves.toEqual({ barcode: '8001234567890', available: true });
+  });
+
+  it('generateSku delega a SkuGeneratorService.previewSku e ritorna solo lo SKU', async () => {
+    skuGenerator.previewSku.mockResolvedValue('MAG-BASIC-00125');
+
+    await expect(
+      controller.generateSku(tenantId, {
+        productName: 'Maglia girocollo Basic',
+        category: 'Maglie',
+      }),
+    ).resolves.toEqual({ sku: 'MAG-BASIC-00125' });
+
+    expect(skuGenerator.previewSku).toHaveBeenCalledWith(tenantId, {
+      productName: 'Maglia girocollo Basic',
+      category: 'Maglie',
+      modelCode: undefined,
+      optionValues: undefined,
+    });
   });
 
   it('previewImport rifiuta file CSV mancante', () => {

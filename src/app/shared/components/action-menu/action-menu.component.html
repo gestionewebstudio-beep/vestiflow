@@ -1,0 +1,33 @@
+<div class="action-menu" [class.action-menu--open]="open()">
+  <button
+    type="button"
+    class="action-menu__trigger"
+    [attr.aria-label]="ariaLabel()"
+    [attr.aria-expanded]="open()"
+    aria-haspopup="menu"
+    (click)="toggle($event)"
+  >
+    <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+  </button>
+
+  @if (open()) {
+    <ul class="action-menu__panel" role="menu" [attr.aria-label]="ariaLabel()">
+      @for (item of items(); track item.id) {
+        <li class="action-menu__item" role="none">
+          <button
+            type="button"
+            role="menuitem"
+            class="action-menu__item-btn"
+            [class.action-menu__item-btn--danger]="item.danger"
+            (click)="onSelect($event, item.id)"
+          >
+            @if (item.icon) {
+              <i class="pi {{ item.icon }}" aria-hidden="true"></i>
+            }
+            <span>{{ item.label }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</div>

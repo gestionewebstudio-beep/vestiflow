@@ -34,7 +34,29 @@
 .label-print__actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.label-print__quantity {
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.label-print__quantity-input {
+  inline-size: 4.5rem;
+  block-size: var(--field-height);
+  padding-inline: var(--space-2);
+  font-size: var(--text-base);
+  font-family: inherit;
+  color: var(--color-text);
+  text-align: center;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
 }
 
 .label-print__hint {

@@ -162,7 +162,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   /** In creazione: rapido (1 SKU) o wizard completo con opzioni. */
   protected readonly creationMode = signal<ProductCreationMode>('quick');
-  private readonly skuManuallyEdited = signal(false);
   private readonly quickVariantStepValid = signal(false);
 
   protected readonly steps = computed(() => {
@@ -226,15 +225,11 @@ export class ProductFormComponent implements CanComponentDeactivate {
         if (!id) {
           this.catalogOrigin.set(CatalogOrigin.VestiFlow);
           this.creationMode.set('quick');
-          this.skuManuallyEdited.set(false);
           const prefill = this.embeddedPrefill();
           const initialDraft = prefill
             ? productFormDraftFromEmbeddedPrefill(prefill)
             : ensureQuickModeDraft(emptyProductFormDraft());
           this.resetDraft(initialDraft);
-          if (prefill?.sku?.trim()) {
-            this.skuManuallyEdited.set(true);
-          }
           return of<FormLoadState>({ status: 'ready' });
         }
         return forkJoin({
@@ -453,23 +448,14 @@ export class ProductFormComponent implements CanComponentDeactivate {
     }
   });
 
+  // Lo SKU non dipende MAI dal nome/categoria (specifica cliente §SKU): un
+  // cambio dei dati generali aggiorna solo `general`, mai la variante.
   protected onGeneralChange(value: ProductGeneralDraft): void {
-    this.draft.update((draft) => {
-      const nextGeneral = value;
-      let next = { ...draft, general: nextGeneral };
-      if (this.isQuickCreate() && !this.skuManuallyEdited()) {
-        next = ensureQuickModeDraft(next, false);
-      }
-      return next;
-    });
+    this.draft.update((draft) => ({ ...draft, general: value }));
   }
 
   protected onQuickVariantChange(variant: VariantDraft): void {
     this.draft.update((draft) => ({ ...draft, variants: [variant] }));
-  }
-
-  protected onQuickSkuEdited(): void {
-    this.skuManuallyEdited.set(true);
   }
 
   protected onQuickVariantValidChange(valid: boolean): void {
@@ -483,7 +469,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
     this.creationMode.set(mode);
     this._currentStep.set(0);
     if (mode === 'quick') {
-      this.skuManuallyEdited.set(false);
       this.draft.update((draft) => ensureQuickModeDraft(draft, false));
     }
   }

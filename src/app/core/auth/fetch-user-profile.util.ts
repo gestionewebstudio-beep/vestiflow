@@ -25,8 +25,11 @@ export interface UserProfileApi {
   readonly avatarUrl?: string | null;
   readonly role: string;
   readonly storeIds: readonly string[];
-  readonly assignedLocationId?: string | null;
-  readonly assignedLocationName?: string | null;
+  readonly hasAllLocationsAccess?: boolean;
+  readonly assignedLocationIds?: readonly string[];
+  readonly assignedLocations?: readonly { readonly id: string; readonly name: string }[];
+  readonly defaultLocationId?: string | null;
+  readonly defaultLocation?: { readonly id: string; readonly name: string } | null;
   readonly permissions?: readonly string[];
   readonly isActive: boolean;
   readonly isPlatformAdmin: boolean;
@@ -46,8 +49,11 @@ export function mapUserProfileFromApi(row: UserProfileApi): User {
     avatarUrl: row.avatarUrl ?? null,
     role: row.role as UserRole,
     storeIds: row.storeIds,
-    assignedLocationId: row.assignedLocationId ?? null,
-    assignedLocationName: row.assignedLocationName ?? null,
+    hasAllLocationsAccess: row.hasAllLocationsAccess ?? false,
+    assignedLocationIds: row.assignedLocationIds ?? [],
+    assignedLocations: row.assignedLocations ?? [],
+    defaultLocationId: row.defaultLocationId ?? null,
+    defaultLocation: row.defaultLocation ?? null,
     permissions: row.permissions ?? [],
     isActive: row.isActive,
     isPlatformAdmin: row.isPlatformAdmin,

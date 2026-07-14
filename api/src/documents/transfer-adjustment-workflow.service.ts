@@ -26,6 +26,7 @@ import {
   transferInventorySerialsFromDocumentLines,
 } from '../inventory/inventory-serial.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
 import {
   buildAdjustmentMovementReason,
   syncAdjustmentLineMovements,
@@ -119,6 +120,13 @@ export class TransferAdjustmentWorkflowService {
     }
     await this.assertLocation(tenantId, dto.locationId);
     await this.assertLocation(tenantId, dto.targetLocationId);
+    // Origine: sede operativa vera e propria (deve essere assegnata
+    // all'utente). Destinazione: come nel modulo inventory, una sede
+    // licenziata qualunque è ammessa come target di un trasferimento.
+    if (user) {
+      assertLocationInUserScope(user, dto.locationId, 'write');
+      assertLocationInUserScope(user, dto.targetLocationId, 'transferDestination');
+    }
 
     const setting = await this.settings.getResolved(tenantId, DocumentType.transfer);
     const documentDate = new Date(dto.documentDate);
@@ -175,6 +183,13 @@ export class TransferAdjustmentWorkflowService {
 
       const oldLocationId = existing.locationId;
       const oldTargetLocationId = existing.targetLocationId;
+
+      // Modifica di un trasferimento esistente: l'utente deve poter operare
+      // anche sulle sedi attuali del documento, non solo su quelle nuove.
+      if (user) {
+        assertLocationInUserScope(user, oldLocationId, 'write');
+        assertLocationInUserScope(user, oldTargetLocationId, 'transferDestination');
+      }
 
       // ── Upsert righe per id: preservare l'id riga è ciò che consente di
       // aggiornare il movimento collegato invece di duplicarlo.
@@ -286,6 +301,9 @@ export class TransferAdjustmentWorkflowService {
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
     await this.assertLocation(tenantId, dto.locationId);
+    if (user) {
+      assertLocationInUserScope(user, dto.locationId, 'write');
+    }
 
     const setting = await this.settings.getResolved(tenantId, DocumentType.adjustment);
     const documentDate = new Date(dto.documentDate);
@@ -339,6 +357,9 @@ export class TransferAdjustmentWorkflowService {
       }
       if (!existing.locationId || !existing.adjustmentDirection) {
         throw new ConflictException('Rettifica priva di location o direzione.');
+      }
+      if (user) {
+        assertLocationInUserScope(user, existing.locationId, 'write');
       }
 
       await this.assertVariantsExist(tx, tenantId, stockLines);

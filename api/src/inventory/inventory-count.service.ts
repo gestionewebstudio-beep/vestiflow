@@ -169,7 +169,7 @@ export class InventoryCountService {
             tenantId,
             sessionId: created.id,
             variantId: level.variantId,
-            sku: level.variant.sku,
+            sku: level.variant.sku ?? '',
             productName: level.variant.product.name,
             systemQuantity: level.onHand,
           })),
@@ -179,10 +179,14 @@ export class InventoryCountService {
       return created;
     });
 
-    return this.getById(tenantId, session.id);
+    return this.getById(tenantId, session.id, user);
   }
 
-  async getById(tenantId: string, id: string): Promise<InventoryCountSessionDetail> {
+  async getById(
+    tenantId: string,
+    id: string,
+    user: UserProfileDto,
+  ): Promise<InventoryCountSessionDetail> {
     const session = await this.prisma.inventoryCountSession.findFirst({
       where: { id, tenantId },
       include: {
@@ -193,6 +197,7 @@ export class InventoryCountService {
     if (!session) {
       throw new NotFoundException('Sessione inventario non trovata');
     }
+    assertUserCanAccessLocation(user, session.locationId, 'write');
     return session;
   }
 
@@ -241,7 +246,7 @@ export class InventoryCountService {
       data: { status: InventoryCountStatus.review },
     });
 
-    return this.getById(tenantId, sessionId);
+    return this.getById(tenantId, sessionId, user);
   }
 
   async finalize(
@@ -345,7 +350,7 @@ export class InventoryCountService {
       });
     }
 
-    return this.getById(tenantId, sessionId);
+    return this.getById(tenantId, sessionId, user);
   }
 
   async cancel(
@@ -372,7 +377,7 @@ export class InventoryCountService {
       data: { status: InventoryCountStatus.cancelled },
     });
 
-    return this.getById(tenantId, sessionId);
+    return this.getById(tenantId, sessionId, user);
   }
 
   async deleteCancelled(

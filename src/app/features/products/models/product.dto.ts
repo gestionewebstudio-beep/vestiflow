@@ -19,9 +19,13 @@ export interface SelectedOptionDto {
   readonly value: string;
 }
 
-/** Variante in creazione. Lo SKU e' obbligatorio e univoco (vincolo server). */
+/**
+ * Variante in creazione. Lo SKU è FACOLTATIVO (specifica cliente §SKU): può
+ * essere inserito a mano, generato con "Genera SKU", o lasciato vuoto e
+ * completato dopo. Se valorizzato deve comunque essere univoco (vincolo server).
+ */
 export interface CreateProductVariantDto {
-  readonly sku: string;
+  readonly sku?: string;
   /** Valori opzione (1-3 assi), es. [{Taglia,M},{Colore,Rosso}]. */
   readonly optionValues: readonly SelectedOptionDto[];
   readonly sellingPrice: Money;
@@ -103,4 +107,26 @@ export interface VariantByCodeDto {
   readonly sku: string;
   readonly barcode?: string | null;
   readonly productName: string;
+}
+
+/** Attributo variante realmente presente (colore, taglia, o altro) per "Genera SKU". */
+export interface GenerateSkuOptionValueDto {
+  readonly name: string;
+  readonly value: string;
+}
+
+/**
+ * Payload per l'anteprima "Genera SKU" (POST products/sku/generate). Calcola
+ * un codice prevedibile (categoria + nome/modello + attributi variante) e ne
+ * risolve già l'unicità nel tenant, senza salvare nulla.
+ */
+export interface GenerateSkuRequestDto {
+  readonly productName: string;
+  readonly category?: string;
+  readonly modelCode?: string;
+  readonly optionValues?: readonly GenerateSkuOptionValueDto[];
+}
+
+export interface GenerateSkuResultDto {
+  readonly sku: string;
 }

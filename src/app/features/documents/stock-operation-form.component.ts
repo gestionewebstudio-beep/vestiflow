@@ -27,8 +27,8 @@ import { AdjustmentDirection, DocumentStatus, DocumentType } from '@core/models/
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
-import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
@@ -78,7 +78,6 @@ export class StockOperationFormComponent {
   private readonly documentService = inject(DocumentService);
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
-  private readonly locationContext = inject(LocationContextService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -193,10 +192,10 @@ export class StockOperationFormComponent {
   protected readonly notEditable = computed(() => this.loadState() === 'not-found');
 
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.operationalLocations.writeLocations().map((loc) => ({
-      value: loc.id,
-      label: loc.name,
-    })),
+    toLocationSelectOptions(
+      this.operationalLocations.writeLocations(),
+      this.operationalLocations.defaultLocation()?.id ?? null,
+    ),
   );
 
   protected readonly directionOptions: readonly SelectMenuOption[] = [
@@ -335,12 +334,12 @@ export class StockOperationFormComponent {
   }
 
   private initDefaultsForCreate(): void {
-    const active = this.locationContext.activeLocationId();
+    // Nessuna autoselezione: la predefinita è solo suggerita (prima in lista,
+    // etichettata). Unica eccezione ammessa: utente mono-location, dove la
+    // scelta è obbligata. Mai fallback "prima location disponibile".
     const writable = this.operationalLocations.writeLocations();
-    const defaultLoc =
-      active && writable.some((l) => l.id === active) ? active : (writable[0]?.id ?? '');
-    if (defaultLoc && !this.form.controls.locationId.value) {
-      this.form.controls.locationId.setValue(defaultLoc);
+    if (writable.length === 1 && !this.form.controls.locationId.value) {
+      this.form.controls.locationId.setValue(writable[0]?.id ?? '');
     }
   }
 

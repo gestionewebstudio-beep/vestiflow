@@ -19,7 +19,6 @@ import type {
   ProductOptionsDraft,
   VariantDraft,
 } from './product-form.model';
-import { suggestVariantSku } from './product-sku.util';
 import { cartesianOptionValues, comboKey, selectedOptionValue } from './product-variant.util';
 
 /** Assi di default per la creazione (UX conservativa: Taglia + Colore vuoti). */
@@ -37,12 +36,15 @@ function defaultOptionAxes(): OptionAxisDraft[] {
  * sui soli assi attivi correnti: cosi' il rename di un asse (i valori non
  * cambiano) conserva i dati, e la rimozione di un asse collassa le combinazioni
  * sulla coppia rimanente conservando la PRIMA in ordine di generazione. Le
- * combinazioni nuove ricevono uno SKU suggerito non bloccante; quelle non piu'
- * presenti vengono scartate.
+ * combinazioni nuove nascono con SKU vuoto (mai suggerito/generato in
+ * automatico: solo inserimento manuale o pulsante "Genera SKU", specifica
+ * cliente §SKU); quelle non piu' presenti vengono scartate.
  */
 export function generateVariantDrafts(
   options: ProductOptionsDraft,
-  productName: string,
+  // Mantenuto per compatibilita' con i chiamanti esistenti; non piu' usato
+  // per suggerire uno SKU (rimosso: mai generato in automatico).
+  _productName: string,
   existing: readonly VariantDraft[] = [],
 ): VariantDraft[] {
   const activeNames = options.axes
@@ -71,10 +73,9 @@ export function generateVariantDrafts(
     return {
       key,
       optionValues,
-      sku: suggestVariantSku(
-        productName,
-        optionValues.map((option) => option.value),
-      ),
+      // Mai generato in automatico: l'utente lo inserisce a mano o con
+      // "Genera SKU" (specifica cliente §SKU).
+      sku: '',
       sellingPrice: 0,
       purchasePrice: null,
       compareAtPrice: null,
@@ -84,15 +85,18 @@ export function generateVariantDrafts(
   });
 }
 
-/** Bozza variante unica per inserimento rapido (senza opzioni taglia/colore). */
+/**
+ * Bozza variante unica per inserimento rapido (senza opzioni taglia/colore).
+ * Lo SKU non viene MAI suggerito/generato in automatico (specifica cliente
+ * §SKU): con `preserveSku` true mantiene il valore già presente (es. da un
+ * prefill esplicito), altrimenti riparte vuoto — mai un valore ricalcolato
+ * dal nome.
+ */
 export function createSingleVariantDraft(
-  productName: string,
   existing?: VariantDraft,
   preserveSku = false,
 ): VariantDraft {
-  const suggestedSku = suggestVariantSku(productName, []);
-  const sku =
-    preserveSku && existing?.sku.trim() ? existing.sku.trim() : suggestedSku || existing?.sku || '';
+  const sku = preserveSku ? (existing?.sku.trim() ?? '') : '';
 
   return {
     key: existing?.key ?? '',
@@ -115,7 +119,7 @@ export function ensureQuickModeDraft(
   return {
     ...draft,
     options: { axes: defaultOptionAxes() },
-    variants: [createSingleVariantDraft(draft.general.name, draft.variants[0], preserveSku)],
+    variants: [createSingleVariantDraft(draft.variants[0], preserveSku)],
   };
 }
 
@@ -206,7 +210,9 @@ function toVariantBase(variant: VariantDraft): CreateProductVariantDto {
   // Ponte form->dominio: i prezzi del form sono in unità maggiori (number);
   // qui diventano Money (unità minori) nella valuta di default.
   return {
-    sku: variant.sku.trim(),
+    // Facoltativo (specifica cliente §SKU): stringa vuota -> non inviato,
+    // mai bloccante per il salvataggio.
+    sku: trimmedOrUndefined(variant.sku),
     optionValues: variant.optionValues.map((option) => ({
       name: option.name,
       value: option.value,

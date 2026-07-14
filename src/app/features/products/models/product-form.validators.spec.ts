@@ -24,8 +24,12 @@ describe('isValidSku', () => {
     expect(isValidSku('1ABC')).toBe(true);
   });
 
-  it('rifiuta spazi, vuoto e primo carattere non alfanumerico', () => {
-    expect(isValidSku('')).toBe(false);
+  it('accetta lo SKU vuoto: facoltativo, mai bloccante (specifica cliente)', () => {
+    expect(isValidSku('')).toBe(true);
+    expect(isValidSku('   ')).toBe(true);
+  });
+
+  it('se valorizzato rifiuta spazi e primo carattere non alfanumerico', () => {
     expect(isValidSku('TS 001')).toBe(false);
     expect(isValidSku('-TS001')).toBe(false);
   });

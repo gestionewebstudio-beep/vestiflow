@@ -19,6 +19,7 @@ import {
 } from './supplier-order-api.mapper';
 
 const HTTP_TIMEOUT_MS = 15000;
+const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
 /**
  * Accesso HTTP agli ordini fornitori (NestJS). Ricezione merce via POST receive.
@@ -90,6 +91,13 @@ export class SupplierOrderService {
     return this.http
       .post<SupplierOrderApiRow>(this.url(`/supplier-orders/${id}/cancel`), {})
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
+  }
+
+  /** PDF dell'ordine come blob (stesso pattern di DocumentService.exportPdf). */
+  exportPdf(id: EntityId): Observable<Blob> {
+    return this.http
+      .get(this.url(`/supplier-orders/${id}/export/pdf`), { responseType: 'blob' })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 
   deleteOrder(id: EntityId): Observable<void> {

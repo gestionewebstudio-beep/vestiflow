@@ -115,8 +115,13 @@ export class InventoryImportService {
         select: { id: true, name: true },
       }),
     ]);
+    // Varianti senza SKU (specifica cliente §SKU: facoltativo) non sono
+    // abbinabili per codice: nessuna riga CSV puo' puntare a una variante
+    // che non ha ancora uno SKU assegnato.
     const variantBySku = new Map(
-      variants.map((variant) => [variant.sku.trim().toLowerCase(), variant]),
+      variants
+        .filter((variant): variant is typeof variant & { sku: string } => Boolean(variant.sku))
+        .map((variant) => [variant.sku.trim().toLowerCase(), variant]),
     );
     const locationByName = new Map(
       locations.map((location) => [location.name.trim().toLowerCase(), location]),
@@ -254,8 +259,14 @@ export class InventoryImportService {
       }),
     ]);
 
+    // Varianti senza SKU (facoltativo alla creazione) non sono abbinabili per
+    // codice: il CSV di import giacenze richiede comunque lo SKU per riga
+    // (vedi controllo "SKU mancante" sotto), quindi restano semplicemente
+    // fuori dalla mappa di lookup.
     const variantBySku = new Map(
-      variants.map((variant) => [variant.sku.trim().toLowerCase(), variant]),
+      variants
+        .filter((variant): variant is typeof variant & { sku: string } => Boolean(variant.sku))
+        .map((variant) => [variant.sku.trim().toLowerCase(), variant]),
     );
     const locationByName = new Map(
       locations.map((location) => [location.name.trim().toLowerCase(), location]),

@@ -12,6 +12,7 @@
           {{ col.label }}
         </th>
       }
+      <th scope="col" class="doc-table__cell--actions">Azioni</th>
     </tr>
   </thead>
 
@@ -126,6 +127,13 @@
             }
           }
         }
+        <td class="doc-table__cell--actions" data-label="Azioni" (click)="$event.stopPropagation()">
+          <app-action-menu
+            [items]="rowActions(doc)"
+            [ariaLabel]="'Azioni su ' + referenceLabel(doc)"
+            (actionSelected)="onAction($event, doc)"
+          />
+        </td>
       </tr>
     }
   </tbody>

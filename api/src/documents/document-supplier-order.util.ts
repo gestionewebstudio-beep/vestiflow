@@ -75,17 +75,6 @@ async function recalculateSupplierOrderStatus(
   });
 }
 
-/** Imposta l'ordine fornitore come ricevuto (chiusura forzata dopo ricezione parziale). */
-export async function forceCloseSupplierOrder(
-  tx: Prisma.TransactionClient,
-  orderId: string,
-): Promise<void> {
-  await tx.supplierOrder.update({
-    where: { id: orderId },
-    data: { status: SupplierOrderStatus.received },
-  });
-}
-
 /** Collega righe documento alle righe ordine fornitore per variante se manca supplierOrderLineId. */
 export async function enrichReceiptLinesWithSupplierOrderLineIds(
   tx: Prisma.TransactionClient,
@@ -107,64 +96,6 @@ export async function enrichReceiptLinesWithSupplierOrderLineIds(
     }
     return { ...line, supplierOrderLineId: orderLineId };
   });
-}
-
-/** Verifica che le quantità documento non superino il residuo ordine fornitore. */
-export async function assertSupplierOrderReceiptQuantities(
-  tx: Prisma.TransactionClient,
-  supplierOrderId: string,
-  lines: readonly ReceiptLine[],
-): Promise<void> {
-  const aggregated = aggregateReceiptByOrderLine(lines);
-  if (aggregated.size === 0) {
-    return;
-  }
-
-  const orderLines = await tx.supplierOrderLine.findMany({
-    where: { orderId: supplierOrderId, id: { in: [...aggregated.keys()] } },
-  });
-  const lineById = new Map(orderLines.map((line) => [line.id, line]));
-
-  for (const [lineId, entry] of aggregated) {
-    const orderLine = lineById.get(lineId);
-    if (!orderLine) {
-      throw new UnprocessableEntityException(`Riga ordine fornitore non trovata: ${lineId}`);
-    }
-    if (orderLine.variantId !== entry.variantId) {
-      throw new UnprocessableEntityException(
-        `Variante non coerente con la riga ordine ${orderLine.sku}.`,
-      );
-    }
-    const remaining = orderLine.orderedQuantity - orderLine.receivedQuantity;
-    if (entry.quantity > remaining) {
-      throw new UnprocessableEntityException(
-        `Quantità eccessiva per SKU ${orderLine.sku}: rimangono ${remaining} da ricevere sull'ordine.`,
-      );
-    }
-  }
-}
-
-/** Incrementa receivedQuantity sull'ordine fornitore (conferma documento collegato). */
-export async function applySupplierOrderReceipt(
-  tx: Prisma.TransactionClient,
-  supplierOrderId: string,
-  lines: readonly ReceiptLine[],
-  locationId?: string,
-  tenantId?: string,
-): Promise<void> {
-  const aggregated = aggregateReceiptByOrderLine(lines);
-  for (const [lineId, entry] of aggregated) {
-    await tx.supplierOrderLine.update({
-      where: { id: lineId },
-      data: { receivedQuantity: { increment: entry.quantity } },
-    });
-  }
-  if (aggregated.size > 0) {
-    await recalculateSupplierOrderStatus(tx, supplierOrderId);
-  }
-  if (locationId && tenantId) {
-    await applyIncomingDeltaForReceipt(tx, tenantId, locationId, lines, -1);
-  }
 }
 
 /** Decrementa receivedQuantity (annullamento documento collegato). */

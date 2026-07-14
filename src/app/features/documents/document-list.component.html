@@ -150,15 +150,15 @@
             </div>
 
             <div class="doc-list__field">
-              <span class="doc-list__label">Causale</span>
+              <span class="doc-list__label">Documento fornitore</span>
               <app-select-menu
-                [options]="causalFilterOptions"
-                [value]="query().causal ?? ''"
-                ariaLabel="Filtra per causale di carico"
-                placeholder="Tutte"
+                [options]="externalDocTypeOptions()"
+                [value]="query().externalDocumentTypeId ?? ''"
+                ariaLabel="Filtra per tipo documento fornitore"
+                placeholder="Tutti"
                 [compact]="true"
                 [fullWidth]="true"
-                (valueChange)="onCausalFilterChange($event)"
+                (valueChange)="onExternalDocTypeFilterChange($event)"
               />
             </div>
 
@@ -256,10 +256,15 @@
       (ctaClick)="openNewGoodsReceipt()"
     />
   } @else {
+    @if (actionError(); as err) {
+      <app-error-state [description]="err.message" />
+    }
     <app-document-table
       [documents]="documents()"
       [columns]="tableColumns()"
+      [canManage]="canManageDocuments()"
       (rowClick)="openDocument($event)"
+      (action)="onTableAction($event)"
     />
     <app-pagination
       label="Paginazione documenti"
@@ -270,3 +275,13 @@
     />
   }
 </section>
+
+<app-confirm-dialog
+  [(open)]="deleteDialogOpen"
+  title="Elimina documento"
+  message="Il documento verrà eliminato definitivamente. Procedere?"
+  confirmLabel="Elimina"
+  [danger]="true"
+  (confirmed)="confirmDeleteDocument()"
+  (dismissed)="cancelDeleteDocument()"
+/>

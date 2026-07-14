@@ -2,6 +2,7 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AllExceptionsFilter } from './all-exceptions.filter';
@@ -54,5 +55,30 @@ describe('AllExceptionsFilter', () => {
     const error = new InternalServerErrorException('fail');
 
     expect(() => filter.catch(error, host as never)).not.toThrow();
+  });
+
+  it('maschera un errore Prisma non gestito (es. vincolo unique) come 500 generico', () => {
+    const filter = new AllExceptionsFilter();
+    const { host, status, json } = createHost();
+
+    // Simula un errore Prisma non intercettato da nessun service (es. vincolo
+    // unique violato a livello DB): non deve mai raggiungere il client come
+    // testo grezzo Postgres/Prisma.
+    const prismaError = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed on the fields: (`tenantId`,`sku`)',
+      { code: 'P2002', clientVersion: '6.19.3', meta: { target: ['tenantId', 'sku'] } },
+    );
+
+    filter.catch(prismaError, host as never);
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({
+      statusCode: 500,
+      message: 'Errore interno del server',
+    });
+    const payload = json.mock.calls[0]?.[0] as { message: string };
+    expect(payload.message).not.toContain('Unique constraint');
+    expect(payload.message).not.toContain('Prisma');
+    expect(payload.message).not.toContain('P2002');
   });
 });

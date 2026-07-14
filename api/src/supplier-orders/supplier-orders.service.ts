@@ -14,6 +14,14 @@ import {
   type SupplierOrderLine,
 } from '@prisma/client';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import {
+  resolveReadableListLocationScope,
+} from '../inventory/licensed-location-scope.util';
+import {
+  assertLocationInUserScope,
+  assertLocationReadableInUserScope,
+} from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
@@ -54,7 +62,11 @@ export class SupplierOrdersService {
    * Crea un ordine fornitore: snapshot di nome fornitore e SKU, totale calcolato
    * server-side. Nessun impatto su giacenze finché non si riceve la merce.
    */
-  async create(tenantId: string, dto: CreateSupplierOrderDto): Promise<SupplierOrderWithLines> {
+  async create(
+    tenantId: string,
+    dto: CreateSupplierOrderDto,
+    user?: UserProfileDto,
+  ): Promise<SupplierOrderWithLines> {
     const supplier = await this.prisma.supplier.findFirst({
       where: { id: dto.supplierId, tenantId },
     });
@@ -68,6 +80,9 @@ export class SupplierOrdersService {
     });
     if (!location) {
       throw new NotFoundException('Location di destinazione non trovata');
+    }
+    if (user) {
+      assertLocationInUserScope(user, dto.destinationLocationId, 'write');
     }
 
     const variantIds = dto.lines.map((line) => line.variantId);
@@ -131,10 +146,18 @@ export class SupplierOrdersService {
     tenantId: string,
     id: string,
     dto: UpdateSupplierOrderDto,
+    user?: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
+    // Nota: niente controllo location qui su getById (lettura interna): la
+    // sede attuale dell'ordine viene verificata sotto, insieme alla nuova.
     const order = await this.getById(tenantId, id);
     if (order.status !== SupplierOrderStatus.draft) {
       throw new ConflictException('Solo gli ordini in bozza possono essere modificati.');
+    }
+    if (user) {
+      // L'utente deve poter operare sia sulla sede attuale dell'ordine sia
+      // (se cambia) sulla nuova destinazione.
+      assertLocationInUserScope(user, order.destinationLocationId, 'write');
     }
 
     const supplier = await this.prisma.supplier.findFirst({
@@ -151,6 +174,9 @@ export class SupplierOrdersService {
     });
     if (!location) {
       throw new NotFoundException('Location di destinazione non trovata');
+    }
+    if (user) {
+      assertLocationInUserScope(user, destinationLocationId, 'write');
     }
 
     const variantIds = dto.lines.map((line) => line.variantId);
@@ -201,8 +227,15 @@ export class SupplierOrdersService {
   }
 
   /** Annulla un ordine in bozza o inviato (non ancora ricevuto). */
-  async cancel(tenantId: string, id: string): Promise<SupplierOrderWithLines> {
+  async cancel(
+    tenantId: string,
+    id: string,
+    user?: UserProfileDto,
+  ): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id);
+    if (user) {
+      assertLocationInUserScope(user, order.destinationLocationId, 'write');
+    }
     if (
       order.status !== SupplierOrderStatus.draft &&
       order.status !== SupplierOrderStatus.sent
@@ -229,8 +262,11 @@ export class SupplierOrdersService {
   }
 
   /** Elimina definitivamente un ordine annullato (righe in cascade). */
-  async delete(tenantId: string, id: string): Promise<void> {
+  async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
     const order = await this.getById(tenantId, id);
+    if (user) {
+      assertLocationInUserScope(user, order.destinationLocationId, 'write');
+    }
     if (order.status !== SupplierOrderStatus.cancelled) {
       throw new ConflictException('Solo gli ordini annullati possono essere eliminati.');
     }
@@ -238,8 +274,15 @@ export class SupplierOrdersService {
   }
 
   /** Transizione bozza → inviato (rende l'ordine ricevibile). */
-  async send(tenantId: string, id: string): Promise<SupplierOrderWithLines> {
+  async send(
+    tenantId: string,
+    id: string,
+    user?: UserProfileDto,
+  ): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id);
+    if (user) {
+      assertLocationInUserScope(user, order.destinationLocationId, 'write');
+    }
     if (order.status !== SupplierOrderStatus.draft) {
       throw new ConflictException('Solo gli ordini in bozza possono essere inviati.');
     }
@@ -297,11 +340,20 @@ export class SupplierOrdersService {
   async list(
     tenantId: string,
     query: ListSupplierOrdersQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<SupplierOrderListRow>> {
+    const locationScope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
+    if (locationScope === null) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
     const where: Prisma.SupplierOrderWhereInput = {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
+      ...(locationScope !== 'unrestricted'
+        ? { destinationLocationId: { in: [...locationScope] } }
+        : {}),
       ...(query.search
         ? {
             OR: [
@@ -332,7 +384,11 @@ export class SupplierOrdersService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getById(tenantId: string, id: string): Promise<SupplierOrderWithLines> {
+  async getById(
+    tenantId: string,
+    id: string,
+    user?: UserProfileDto,
+  ): Promise<SupplierOrderWithLines> {
     const order = await this.prisma.supplierOrder.findFirst({
       where: { id, tenantId },
       include: { lines: true },
@@ -340,6 +396,11 @@ export class SupplierOrdersService {
     if (!order) {
       throw new NotFoundException('Ordine fornitore non trovato');
     }
+    assertLocationReadableInUserScope(
+      user,
+      order.destinationLocationId,
+      'Non sei autorizzato ad accedere a questo ordine fornitore.',
+    );
     return order;
   }
 

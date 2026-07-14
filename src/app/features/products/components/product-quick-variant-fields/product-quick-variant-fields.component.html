@@ -1,30 +1,42 @@
 <form class="quick-variant" [formGroup]="form" novalidate>
   <p class="quick-variant__intro">
-    Prodotto con una sola variante. Lo SKU si aggiorna dal nome finché non lo modifichi manualmente.
+    Prodotto con una sola variante. Lo SKU è facoltativo: lascialo vuoto, scrivilo a mano oppure
+    generane uno con "Genera SKU".
   </p>
 
   <div class="quick-variant__grid">
     <div class="quick-variant__field">
-      <label class="quick-variant__label" for="quick-variant-sku">SKU</label>
-      <input
-        id="quick-variant-sku"
-        class="quick-variant__control"
-        type="text"
-        formControlName="sku"
-        autocomplete="off"
-        [attr.aria-invalid]="showSkuError() || isSkuTaken(form.controls.sku.value) ? true : null"
-        (input)="onSkuInput()"
-      />
+      <label class="quick-variant__label" for="quick-variant-sku">
+        SKU <span class="quick-variant__optional">(opzionale)</span>
+      </label>
+      <div class="quick-variant__barcode">
+        <input
+          id="quick-variant-sku"
+          class="quick-variant__control quick-variant__control--barcode"
+          type="text"
+          formControlName="sku"
+          autocomplete="off"
+          [attr.aria-invalid]="showSkuError() || isSkuTaken(form.controls.sku.value) ? true : null"
+        />
+        <app-button
+          type="button"
+          variant="secondary"
+          [loading]="generatingSku()"
+          [disabled]="!productName().trim()"
+          [attr.aria-label]="'Genera SKU'"
+          (click)="generateSku()"
+        >
+          Genera SKU
+        </app-button>
+      </div>
       @if (showSkuError()) {
         <p class="quick-variant__error" role="alert">
-          @if (form.controls.sku.hasError('required')) {
-            Inserisci uno SKU.
-          } @else {
-            Formato non valido (lettere, numeri e trattini).
-          }
+          Formato non valido (lettere, numeri e trattini).
         </p>
       } @else if (isSkuTaken(form.controls.sku.value)) {
         <p class="quick-variant__error" role="alert">SKU già in uso da un altro prodotto.</p>
+      } @else if (generateSkuError(); as error) {
+        <p class="quick-variant__error" role="alert">{{ error }}</p>
       }
     </div>
 

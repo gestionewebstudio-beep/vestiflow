@@ -1,5 +1,3 @@
-import { UnprocessableEntityException } from '@nestjs/common';
-import { SupplierOrderStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../inventory/inventory-incoming.util', () => ({
@@ -9,8 +7,6 @@ vi.mock('../inventory/inventory-incoming.util', () => ({
 import { applyIncomingDelta } from '../inventory/inventory-incoming.util';
 
 import {
-  applySupplierOrderReceipt,
-  assertSupplierOrderReceiptQuantities,
   enrichReceiptLinesWithSupplierOrderLineIds,
   reconcileSupplierOrderReceipt,
   reverseSupplierOrderReceipt,
@@ -70,38 +66,6 @@ describe('document-supplier-order.util', () => {
     vi.mocked(applyIncomingDelta).mockReset();
   });
 
-  it('assertSupplierOrderReceiptQuantities rifiuta quantità oltre il residuo', async () => {
-    await expect(
-      assertSupplierOrderReceiptQuantities(tx as never, 'order-1', [
-        {
-          variantId: 'variant-1',
-          sku: 'SKU-1',
-          quantity: 9,
-          loadsStock: true,
-          supplierOrderLineId: 'line-1',
-        },
-      ]),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
-  });
-
-  it('applySupplierOrderReceipt incrementa receivedQuantity e aggiorna lo stato ordine', async () => {
-    await applySupplierOrderReceipt(tx as never, 'order-1', [
-      {
-        variantId: 'variant-1',
-        sku: 'SKU-1',
-        quantity: 3,
-        loadsStock: true,
-        supplierOrderLineId: 'line-1',
-      },
-    ]);
-
-    expect(tx._lines.get('line-1')?.receivedQuantity).toBe(5);
-    expect(tx.supplierOrder.update).toHaveBeenCalledWith({
-      where: { id: 'order-1' },
-      data: { status: SupplierOrderStatus.partially_received },
-    });
-  });
-
   it('reverseSupplierOrderReceipt decrementa receivedQuantity', async () => {
     await reverseSupplierOrderReceipt(tx as never, 'order-1', [
       {
@@ -114,32 +78,6 @@ describe('document-supplier-order.util', () => {
     ]);
 
     expect(tx._lines.get('line-1')?.receivedQuantity).toBe(0);
-  });
-
-  it('applySupplierOrderReceipt decrementa incoming quando location e tenant sono forniti', async () => {
-    await applySupplierOrderReceipt(
-      tx as never,
-      'order-1',
-      [
-        {
-          variantId: 'variant-1',
-          sku: 'SKU-1',
-          quantity: 3,
-          loadsStock: true,
-          supplierOrderLineId: 'line-1',
-        },
-      ],
-      'loc-1',
-      'tenant-1',
-    );
-
-    expect(applyIncomingDelta).toHaveBeenCalledWith(
-      tx,
-      'tenant-1',
-      'variant-1',
-      'loc-1',
-      -3,
-    );
   });
 
   it('reverseSupplierOrderReceipt incrementa incoming al annullamento', async () => {

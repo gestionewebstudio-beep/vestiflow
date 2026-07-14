@@ -172,6 +172,16 @@ async function resolveTenantResources(tenantId) {
   return { tenantId, storeId: store.id, assignedLocationId: location?.id ?? null, locationName: location?.name ?? null };
 }
 
+/** Sincronizza le righe UserLocation dell'utente con l'unica sede assegnata (o nessuna). */
+async function syncAssignedLocation(tenantId, userId, locationId) {
+  await prisma.userLocation.deleteMany({ where: { userId } });
+  if (locationId) {
+    await prisma.userLocation.create({
+      data: { userId, locationId, tenantId },
+    });
+  }
+}
+
 async function upsertTenantUser({
   tenantId,
   storeId,
@@ -196,11 +206,13 @@ async function upsertTenantUser({
         authUserId,
         displayName,
         role: UserRole.clerk,
-        assignedLocationId,
+        // Commesso E2E: mai accesso a tutte le sedi, sempre assegnazione esplicita.
+        hasAllLocationsAccess: false,
         permissions,
         isActive: true,
       },
     });
+    await syncAssignedLocation(tenantId, user.id, assignedLocationId);
     await prisma.userStore.upsert({
       where: { userId_storeId: { userId: user.id, storeId } },
       update: {},
@@ -216,12 +228,13 @@ async function upsertTenantUser({
       email: normalizedEmail,
       displayName,
       role: UserRole.clerk,
-      assignedLocationId,
+      hasAllLocationsAccess: false,
       permissions,
       isActive: true,
       stores: { create: { storeId } },
     },
   });
+  await syncAssignedLocation(tenantId, user.id, assignedLocationId);
   return user;
 }
 

@@ -108,6 +108,18 @@ describe('SupplierOrderService (HTTP)', () => {
     expect(result.lines[0]?.receivedQuantity).toBe(5);
   });
 
+  it('exportPdf richiede il blob PDF', async () => {
+    const promise = firstValueFrom(service.exportPdf('ord-1'));
+
+    const req = httpMock.expectOne(`${API_BASE}/supplier-orders/ord-1/export/pdf`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['%PDF-test'], { type: 'application/pdf' }));
+
+    const blob = await promise;
+    expect(blob.type).toBe('application/pdf');
+  });
+
   it('deleteOrder invia DELETE', async () => {
     const promise = firstValueFrom(service.deleteOrder('ord-1'));
 

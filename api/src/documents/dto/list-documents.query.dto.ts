@@ -63,6 +63,11 @@ export class ListDocumentsQueryDto extends PaginationQueryDto {
   @IsString()
   causal?: string;
 
+  /** Filtro tipo documento fornitore strutturato (DDT/Fattura/Reso/…, Arrivi merce). */
+  @IsOptional()
+  @IsUUID()
+  externalDocumentTypeId?: string;
+
   @IsOptional()
   @Transform(({ value }) => value === '1' || value === 'true' || value === true)
   @IsBoolean()

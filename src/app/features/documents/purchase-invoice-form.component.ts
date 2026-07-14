@@ -129,9 +129,6 @@ export class PurchaseInvoiceFormComponent {
     return state.status === 'error' ? state.error : null;
   });
 
-  /** Esito controllo totali dopo il salvataggio (avviso non bloccante, §5.3). */
-  protected readonly savedTotalsWarning = signal<string | null>(null);
-
   private readonly suppliers = toSignal(
     this.supplierService.getSuppliers().pipe(catchError(() => of([]))),
     { initialValue: [] },
@@ -140,14 +137,15 @@ export class PurchaseInvoiceFormComponent {
     this.suppliers().map((supplier) => ({ value: supplier.id, label: supplier.name })),
   );
 
-  private readonly totalDraft = toSignal(
-    this.form.controls.totalText.valueChanges.pipe(startWith(this.form.controls.totalText.value)),
-    { requireSync: true },
-  );
-
-  protected readonly enteredTotal = computed<Money | null>(() =>
-    parseMoneyInput(this.totalDraft(), this.currency),
-  );
+  /**
+   * Ultimo importo scritto automaticamente nel campo "Totale fattura" come
+   * comodo default (somma degli arrivi inclusi). Distingue un default non
+   * ancora toccato da un valore inserito a mano, che va sempre rispettato:
+   * il confronto/controllo tra i due totali non è un requisito (il totale
+   * fattura reale può legittimamente differire per sconti, spese o
+   * arrotondamenti non presenti sugli arrivi).
+   */
+  private readonly autoFilledTotalMinor = signal<number | null>(null);
 
   protected readonly receiptsTotal = computed<Money>(() => ({
     amountMinor: this.includedReceipts().reduce((sum, row) => sum + row.total.amountMinor, 0),
@@ -163,23 +161,6 @@ export class PurchaseInvoiceFormComponent {
     amountMinor: this.includedReceipts().reduce((sum, row) => sum + row.tax.amountMinor, 0),
     currencyCode: this.currency,
   }));
-
-  /** Confronto totali live: null finché il totale fattura non è compilato. */
-  protected readonly totalsComparison = computed<'match' | 'mismatch' | null>(() => {
-    const entered = this.enteredTotal();
-    if (entered === null || this.includedReceipts().length === 0) {
-      return null;
-    }
-    return entered.amountMinor === this.receiptsTotal().amountMinor ? 'match' : 'mismatch';
-  });
-
-  protected readonly totalsDifference = computed<Money>(() => {
-    const entered = this.enteredTotal();
-    return {
-      amountMinor: (entered?.amountMinor ?? 0) - this.receiptsTotal().amountMinor,
-      currencyCode: this.currency,
-    };
-  });
 
   private readonly loadTick = signal(0);
   private readonly loadState = toSignal(
@@ -234,6 +215,7 @@ export class PurchaseInvoiceFormComponent {
     if (previous && previous !== value && this.includedReceipts().length > 0) {
       // Gli arrivi inclusi appartengono al fornitore precedente: non più validi.
       this.includedReceipts.set([]);
+      this.syncAutoTotal();
     }
   }
 
@@ -314,10 +296,12 @@ export class PurchaseInvoiceFormComponent {
       ),
     ]);
     this.includePanelOpen.set(false);
+    this.syncAutoTotal();
   }
 
   protected removeReceipt(id: string): void {
     this.includedReceipts.update((current) => current.filter((row) => row.id !== id));
+    this.syncAutoTotal();
   }
 
   /** Riga riepilogativa (§5.2): "Arrivo merce n. 3 del 30/05/2026 - DDT 145…". */
@@ -325,6 +309,37 @@ export class PurchaseInvoiceFormComponent {
     const number = row.number != null ? `n. ${row.number}` : (row.reference ?? '');
     const base = `Arrivo merce ${number} del ${formatDate(row.documentDate)}`.trim();
     return row.causalText?.trim() ? `${base} - ${row.causalText.trim()}` : base;
+  }
+
+  /**
+   * Precompila il campo "Totale fattura" con la somma degli arrivi inclusi
+   * (comodo default), ma solo finché l'utente non lo ha modificato a mano:
+   * il valore digitato manualmente non viene mai sovrascritto, perché è
+   * l'importo reale della fattura del fornitore che deve arrivare ai report.
+   */
+  private syncAutoTotal(): void {
+    if (!this.isTotalTextAutoSafe()) {
+      return;
+    }
+    const sumMinor = this.includedReceipts().reduce((sum, row) => sum + row.total.amountMinor, 0);
+    this.autoFilledTotalMinor.set(sumMinor);
+    this.form.controls.totalText.setValue(
+      this.moneyToInputText({ amountMinor: sumMinor, currencyCode: this.currency }),
+    );
+  }
+
+  /** True se il campo totale è ancora "vergine" oppure coincide con l'ultimo default scritto da noi. */
+  private isTotalTextAutoSafe(): boolean {
+    const control = this.form.controls.totalText;
+    if (control.dirty) {
+      return false;
+    }
+    const raw = control.value.trim();
+    if (raw === '') {
+      return true;
+    }
+    const parsed = parseMoneyInput(raw, this.currency);
+    return parsed !== null && parsed.amountMinor === this.autoFilledTotalMinor();
   }
 
   // ── Salvataggio ─────────────────────────────────────────────────────────────
@@ -358,7 +373,6 @@ export class PurchaseInvoiceFormComponent {
 
     const raw = this.form.getRawValue();
     this._submitState.set({ status: 'saving' });
-    this.savedTotalsWarning.set(null);
     this.documentService
       .savePurchaseInvoice({
         id: this.editDocumentId() ?? this.loadedDocument()?.id ?? undefined,
@@ -375,21 +389,12 @@ export class PurchaseInvoiceFormComponent {
       })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ document, receiptsTotalMinor, totalsMatch }) => {
+        // Il totale fattura inserito a mano è sempre quello registrato: il
+        // confronto con la somma degli arrivi è puramente informativo (vedi
+        // tfoot della tabella arrivi inclusi) e non blocca né condiziona il
+        // salvataggio.
+        next: ({ document }) => {
           this._submitState.set({ status: 'idle' });
-          if (!totalsMatch && this.includedReceipts().length > 0) {
-            // Avviso non bloccante (§5.3): il documento è comunque salvato.
-            const diff = formatMoney({
-              amountMinor: total.amountMinor - receiptsTotalMinor,
-              currencyCode: this.currency,
-            });
-            this.savedTotalsWarning.set(
-              `Registrazione salvata. Attenzione: il totale fattura non coincide con la somma degli arrivi inclusi (differenza ${diff}).`,
-            );
-            this.loadedDocument.set(document);
-            this.patchFormFromDocument(document);
-            return;
-          }
           void this.router.navigate(['/app/documents', document.id]);
         },
         error: (err: unknown) => {

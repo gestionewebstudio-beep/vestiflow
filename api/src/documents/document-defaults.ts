@@ -1,5 +1,6 @@
 import { DocumentType } from '@prisma/client';
 
+import { DOCUMENT_STOCK_LOAD_TYPES } from './document-stock.constants';
 import { PROFORMA_DEFAULT_NOTES } from './document-type.util';
 
 /** Tutti i tipi documento gestiti, in ordine di presentazione. */
@@ -50,6 +51,23 @@ export const FLOW_ONLY_DOCUMENT_TYPES: readonly DocumentType[] = [
 
 export function isFlowOnlyDocumentType(type: DocumentType): boolean {
   return (FLOW_ONLY_DOCUMENT_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Tipi documento "arrivo merce / carico" (§10) gestiti dal flusso dedicato
+ * `GoodsReceiptWorkflowService.saveGoodsReceipt` (POST documents/goods-receipt/save),
+ * che copre sia la creazione sia la modifica con le validazioni corrette
+ * (fornitore obbligatorio per i tipi collegabili a fattura, location di
+ * carico, codici IVA, ecc.) in un'unica transazione con i movimenti di
+ * magazzino. Il percorso generico POST /documents li blocca per evitare un
+ * secondo percorso di creazione che bypassa queste validazioni (bozze prive
+ * di fornitore/location valide). Riusa lo stesso elenco di
+ * `document-stock.constants` per non duplicare la lista dei tipi.
+ */
+export const DEDICATED_WORKFLOW_DOCUMENT_TYPES: readonly DocumentType[] = DOCUMENT_STOCK_LOAD_TYPES;
+
+export function isDedicatedWorkflowDocumentType(type: DocumentType): boolean {
+  return (DEDICATED_WORKFLOW_DOCUMENT_TYPES as readonly string[]).includes(type);
 }
 
 /** Prefisso numerazione di default per tipo (§2.3). Sovrascrivibile in impostazioni. */

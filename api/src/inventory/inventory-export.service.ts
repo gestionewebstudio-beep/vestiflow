@@ -210,7 +210,7 @@ export class InventoryExportService {
 
     const rows: Record<InventoryExportHeader, string>[] = filtered.map((level) => ({
       Variante: buildVariantTitle(level.variant.product.name, level.variant.optionValues),
-      SKU: level.variant.sku,
+      SKU: level.variant.sku ?? '',
       Location: level.location.name,
       Disponibile: String(level.available),
       Fisico: String(level.onHand),

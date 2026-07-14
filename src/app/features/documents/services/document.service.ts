@@ -53,7 +53,9 @@ export class DocumentService {
     if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.supplierId) params = params.set('supplierId', query.supplierId);
     if (query.linkStatus) params = params.set('linkStatus', query.linkStatus);
-    if (query.causal) params = params.set('causal', query.causal);
+    if (query.externalDocumentTypeId) {
+      params = params.set('externalDocumentTypeId', query.externalDocumentTypeId);
+    }
     if (query.accountant) params = params.set('accountant', '1');
     if (query.pendingInvoice) params = params.set('pendingInvoice', '1');
 
@@ -102,16 +104,6 @@ export class DocumentService {
   createDocument(body: CreateDocumentBody): Observable<DocumentRecord> {
     return this.http
       .post<DocumentApiRow>(this.url('/documents'), body)
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
-  }
-
-  /** Crea bozza arrivo merce da ordine fornitore (§10.1). */
-  createGoodsReceiptFromSupplierOrder(
-    supplierOrderId: EntityId,
-    body: { type?: DocumentType; documentDate?: string } = {},
-  ): Observable<DocumentRecord> {
-    return this.http
-      .post<DocumentApiRow>(this.url(`/supplier-orders/${supplierOrderId}/goods-receipt`), body)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
@@ -220,15 +212,9 @@ export class DocumentService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
-  confirmDocument(
-    id: EntityId,
-    body: {
-      applySupplierPriceUpdates?: boolean;
-      closeLinkedSupplierOrder?: boolean;
-    } = {},
-  ): Observable<DocumentRecord> {
+  confirmDocument(id: EntityId): Observable<DocumentRecord> {
     return this.http
-      .post<DocumentApiRow>(this.url(`/documents/${id}/confirm`), body)
+      .post<DocumentApiRow>(this.url(`/documents/${id}/confirm`), {})
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
@@ -312,6 +298,13 @@ export class DocumentService {
 
   deleteDocument(id: EntityId): Observable<void> {
     return this.http.delete<void>(this.url(`/documents/${id}`)).pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /** Duplica documento: nuova bozza indipendente, nessun movimento generato. */
+  duplicateDocument(id: EntityId): Observable<DocumentRecord> {
+    return this.http
+      .post<DocumentApiRow>(this.url(`/documents/${id}/duplicate`), {})
+      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
   private action(id: EntityId, path: string): Observable<DocumentRecord> {

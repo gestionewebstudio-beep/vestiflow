@@ -41,7 +41,6 @@ import { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import { MarkExternallyIssuedDto } from './dto/mark-externally-issued.dto';
 import { RegisterExternalDto } from './dto/register-external.dto';
 import { PreviewDocumentNumberQueryDto } from './dto/preview-document-number.query.dto';
-import { ConfirmDocumentDto } from './dto/confirm-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import {
   DocumentsService,
@@ -72,9 +71,10 @@ export class DocumentsController {
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListDocumentsQueryDto,
   ): Promise<Paginated<DocumentListRow>> {
-    return this.documents.list(tenantId, query);
+    return this.documents.list(tenantId, query, user);
   }
 
   /** Arrivi merce includibili in una registrazione fattura (prompt §5.1). */
@@ -103,7 +103,7 @@ export class DocumentsController {
     @Body() dto: SaveGoodsReceiptDto,
   ): Promise<{ document: DocumentDetail; warnings: string[] }> {
     const saved = await this.goodsReceiptWorkflow.saveGoodsReceipt(tenantId, dto, user);
-    const document = await this.documents.getById(tenantId, saved.id);
+    const document = await this.documents.getById(tenantId, saved.id, user);
     const warnings: string[] = [];
     if (document.linkStatus === 'linked') {
       warnings.push(
@@ -127,7 +127,7 @@ export class DocumentsController {
     totalsMatch: boolean;
   }> {
     const result = await this.goodsReceiptWorkflow.savePurchaseInvoice(tenantId, dto, user);
-    const document = await this.documents.getById(tenantId, result.document.id);
+    const document = await this.documents.getById(tenantId, result.document.id, user);
     return {
       document,
       receiptsTotalMinor: result.receiptsTotalMinor,
@@ -149,7 +149,7 @@ export class DocumentsController {
     @Body() dto: SaveTransferDto,
   ): Promise<DocumentDetail> {
     const saved = await this.transferAdjustmentWorkflow.saveTransfer(tenantId, dto, user);
-    return this.documents.getById(tenantId, saved.id);
+    return this.documents.getById(tenantId, saved.id, user);
   }
 
   /**
@@ -166,7 +166,7 @@ export class DocumentsController {
     @Body() dto: SaveAdjustmentDto,
   ): Promise<DocumentDetail> {
     const saved = await this.transferAdjustmentWorkflow.saveAdjustment(tenantId, dto, user);
-    return this.documents.getById(tenantId, saved.id);
+    return this.documents.getById(tenantId, saved.id, user);
   }
 
   @Get('preview-number')
@@ -187,29 +187,35 @@ export class DocumentsController {
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   listRevisions(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.documents.listRevisions(tenantId, id);
+    return this.documents.listRevisions(tenantId, id, user);
   }
 
   @Get(':id/attachments')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
-  listAttachments(
+  async listAttachments(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
+    // Gate di lettura: stesso scope location dell'apertura diretta del documento.
+    await this.documents.getById(tenantId, id, user);
     return this.attachments.listAttachments(tenantId, id);
   }
 
   @Post(':id/attachments')
   @RequirePermissions(TenantPermission.DocumentsManage)
   @UseInterceptors(FileInterceptor('file', documentAttachmentUploadMulterOptions))
-  uploadAttachment(
+  async uploadAttachment(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    // Gate di scrittura: la sede del documento deve essere nello scope utente.
+    await this.documents.assertWritableById(tenantId, id, user);
     return this.attachments.uploadAttachment(tenantId, id, file, user.displayName);
   }
 
@@ -218,9 +224,12 @@ export class DocumentsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteAttachment(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
   ): Promise<void> {
+    // Gate di scrittura: la sede del documento deve essere nello scope utente.
+    await this.documents.assertWritableById(tenantId, id, user);
     await this.attachments.deleteAttachment(tenantId, id, attachmentId);
   }
 
@@ -229,9 +238,10 @@ export class DocumentsController {
   @Header('Content-Type', 'application/pdf')
   async exportPdf(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<StreamableFile> {
-    const document = await this.documents.getById(tenantId, id);
+    const document = await this.documents.getById(tenantId, id, user);
     const { buffer, filename } = await this.documentPdf.exportPdf(tenantId, document);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
@@ -243,18 +253,20 @@ export class DocumentsController {
   @RequirePermissions(TenantPermission.DocumentsView)
   listSupplierPriceDiffs(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.documents.listSupplierPriceDiffs(tenantId, id);
+    return this.documents.listSupplierPriceDiffs(tenantId, id, user);
   }
 
   @Get(':id')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<DocumentDetail> {
-    return this.documents.getById(tenantId, id);
+    return this.documents.getById(tenantId, id, user);
   }
 
   @Post()
@@ -278,18 +290,25 @@ export class DocumentsController {
     return this.documents.update(tenantId, id, dto, user);
   }
 
+  /** Duplica documento (audit cliente): nuova bozza indipendente, mai movimenti. */
+  @Post(':id/duplicate')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  duplicate(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<DocumentWithLines> {
+    return this.documents.duplicateDocument(tenantId, id, user);
+  }
+
   @Post(':id/confirm')
   @RequirePermissions(TenantPermission.DocumentsManage)
   confirm(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: ConfirmDocumentDto,
   ): Promise<DocumentWithLines> {
-    return this.documents.confirm(tenantId, id, user, {
-      applySupplierPriceUpdates: dto.applySupplierPriceUpdates,
-      closeLinkedSupplierOrder: dto.closeLinkedSupplierOrder,
-    });
+    return this.documents.confirm(tenantId, id, user);
   }
 
   @Post(':id/convert')
@@ -307,38 +326,42 @@ export class DocumentsController {
   @RequirePermissions(TenantPermission.DocumentsManage)
   markPrinted(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<DocumentWithLines> {
-    return this.documents.markPrinted(tenantId, id);
+    return this.documents.markPrinted(tenantId, id, user);
   }
 
   @Post(':id/send')
   @RequirePermissions(TenantPermission.DocumentsManage)
   markSent(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<DocumentWithLines> {
-    return this.documents.markSent(tenantId, id);
+    return this.documents.markSent(tenantId, id, user);
   }
 
   @Post(':id/register-external')
   @RequirePermissions(TenantPermission.DocumentsManage)
   registerExternal(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RegisterExternalDto,
   ): Promise<DocumentWithLines> {
-    return this.documents.registerExternal(tenantId, id, dto);
+    return this.documents.registerExternal(tenantId, id, dto, user);
   }
 
   @Post(':id/mark-externally-issued')
   @RequirePermissions(TenantPermission.DocumentsManage)
   markExternallyIssued(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: MarkExternallyIssuedDto,
   ): Promise<DocumentWithLines> {
-    return this.documents.markExternallyIssued(tenantId, id, dto);
+    return this.documents.markExternallyIssued(tenantId, id, dto, user);
   }
 
   @Post(':id/cancel')
@@ -355,8 +378,9 @@ export class DocumentsController {
   @RequirePermissions(TenantPermission.DocumentsManage)
   delete(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
-    return this.documents.delete(tenantId, id);
+    return this.documents.delete(tenantId, id, user);
   }
 }

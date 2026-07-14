@@ -97,7 +97,9 @@ export class AdminTenantUsersPanelComponent {
       validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
     }),
     role: this.fb.control<UserRole>(UserRole.Clerk, { validators: [Validators.required] }),
-    assignedLocationId: this.fb.control(''),
+    hasAllLocationsAccess: this.fb.control(true),
+    assignedLocationIds: this.fb.control<readonly string[]>([]),
+    defaultLocationId: this.fb.control(''),
   });
 
   constructor() {
@@ -110,12 +112,75 @@ export class AdminTenantUsersPanelComponent {
     });
   }
 
-  protected createRequiresLocation(): boolean {
-    return tenantUserRequiresAssignedLocation(this.createForm.controls.role.value);
+  /** Toggle "tutte le sedi" visibile solo per admin (owner: sempre pieno; manager/clerk: mai). */
+  protected createShowsAllLocationsToggle(): boolean {
+    return this.createForm.controls.role.value === UserRole.Admin;
   }
 
-  protected rowRequiresLocation(role: UserRole): boolean {
-    return tenantUserRequiresAssignedLocation(role);
+  /** Multi-select sedi richiesto: manager/clerk sempre, admin solo se il toggle è disattivato. */
+  protected createRequiresLocation(): boolean {
+    const role = this.createForm.controls.role.value;
+    if (tenantUserRequiresAssignedLocation(role)) {
+      return true;
+    }
+    return role === UserRole.Admin && !this.createForm.controls.hasAllLocationsAccess.value;
+  }
+
+  protected rowShowsAllLocationsToggle(role: UserRole): boolean {
+    return role === UserRole.Admin;
+  }
+
+  protected rowRequiresLocation(user: TenantUser): boolean {
+    if (tenantUserRequiresAssignedLocation(user.role)) {
+      return true;
+    }
+    return user.role === UserRole.Admin && !user.hasAllLocationsAccess;
+  }
+
+  /** Opzioni "Sede predefinita" nel form di creazione: sedi assegnate, o tutte con accesso pieno. */
+  protected createDefaultLocationOptions(): readonly { value: string; label: string }[] {
+    if (this.createUserHasFullLocationAccess()) {
+      return this.locationOptions();
+    }
+    const assigned = new Set(this.createForm.controls.assignedLocationIds.value);
+    return this.locationOptions().filter((option) => assigned.has(option.value));
+  }
+
+  private createUserHasFullLocationAccess(): boolean {
+    const role = this.createForm.controls.role.value;
+    if (role === UserRole.Owner) {
+      return true;
+    }
+    return role === UserRole.Admin && this.createForm.controls.hasAllLocationsAccess.value;
+  }
+
+  /** Se la predefinita scelta non è più tra le opzioni valide, si azzera (mai forzarne un'altra). */
+  private syncCreateDefaultLocation(): void {
+    const current = this.createForm.controls.defaultLocationId.value;
+    if (!current) {
+      return;
+    }
+    const valid = this.createDefaultLocationOptions().some((option) => option.value === current);
+    if (!valid) {
+      this.createForm.controls.defaultLocationId.setValue('');
+    }
+  }
+
+  /** Opzioni "Sede predefinita" per la riga utente: sedi assegnate, o tutte con accesso pieno. */
+  protected rowDefaultLocationOptions(
+    user: TenantUser,
+  ): readonly { value: string; label: string }[] {
+    if (this.rowUserHasFullLocationAccess(user)) {
+      return this.locationOptions();
+    }
+    const assigned = new Set(user.assignedLocationIds);
+    return this.locationOptions().filter((option) => assigned.has(option.value));
+  }
+
+  private rowUserHasFullLocationAccess(user: TenantUser): boolean {
+    return (
+      user.role === UserRole.Owner || (user.role === UserRole.Admin && user.hasAllLocationsAccess)
+    );
   }
 
   protected isOwnerRole(role: UserRole): boolean {
@@ -215,13 +280,42 @@ export class AdminTenantUsersPanelComponent {
     }
     this.createForm.controls.role.setValue(value);
     this.createPermissions.set([...defaultPermissionsForRole(value)]);
-    if (!tenantUserRequiresAssignedLocation(value)) {
-      this.createForm.controls.assignedLocationId.setValue('');
+
+    if (value === UserRole.Owner) {
+      // Titolare: sempre tutte le sedi, nessun controllo sedi da mostrare.
+      this.createForm.controls.hasAllLocationsAccess.setValue(true);
+      this.createForm.controls.assignedLocationIds.setValue([]);
+      this.syncCreateDefaultLocation();
+      return;
     }
+    if (value === UserRole.Admin) {
+      // Admin: se resta su "tutte le sedi" non serve una selezione pendente.
+      if (this.createForm.controls.hasAllLocationsAccess.value) {
+        this.createForm.controls.assignedLocationIds.setValue([]);
+      }
+      this.syncCreateDefaultLocation();
+      return;
+    }
+    // Manager/Clerk: il toggle non si applica, valore irrilevante ma coerente.
+    this.createForm.controls.hasAllLocationsAccess.setValue(true);
+    this.syncCreateDefaultLocation();
   }
 
-  protected onCreateLocationSelect(value: string | null): void {
-    this.createForm.controls.assignedLocationId.setValue(value ?? '');
+  protected onCreateAllLocationsAccessToggle(checked: boolean): void {
+    this.createForm.controls.hasAllLocationsAccess.setValue(checked);
+    if (checked) {
+      this.createForm.controls.assignedLocationIds.setValue([]);
+    }
+    this.syncCreateDefaultLocation();
+  }
+
+  protected onCreateLocationsSelect(values: readonly string[]): void {
+    this.createForm.controls.assignedLocationIds.setValue([...values]);
+    this.syncCreateDefaultLocation();
+  }
+
+  protected onCreateDefaultLocationSelect(value: string | null): void {
+    this.createForm.controls.defaultLocationId.setValue(value ?? '');
   }
 
   protected onCreatePermissionsChange(permissions: readonly TenantPermissionKey[]): void {
@@ -238,8 +332,23 @@ export class AdminTenantUsersPanelComponent {
     });
   }
 
-  protected onRowLocationSelect(user: TenantUser, value: string | null): void {
-    this.saveUser(user, { assignedLocationId: value ?? null });
+  protected onRowAllLocationsAccessToggle(user: TenantUser, checked: boolean): void {
+    this.saveUser(user, {
+      hasAllLocationsAccess: checked,
+      assignedLocationIds: checked ? [] : [...user.assignedLocationIds],
+    });
+  }
+
+  protected onRowLocationsSelect(user: TenantUser, values: readonly string[]): void {
+    this.saveUser(user, { assignedLocationIds: [...values] });
+  }
+
+  protected onRowDefaultLocationSelect(user: TenantUser, value: string | null): void {
+    const next = value || null;
+    if (next === user.defaultLocationId) {
+      return;
+    }
+    this.saveUser(user, { defaultLocationId: next });
   }
 
   protected onRowPermissionsChange(
@@ -256,7 +365,11 @@ export class AdminTenantUsersPanelComponent {
     }
 
     const raw = this.createForm.getRawValue();
-    const assignedLocationId = raw.assignedLocationId.trim() || undefined;
+    const requiresLocations = this.createRequiresLocation();
+    if (requiresLocations && raw.assignedLocationIds.length === 0) {
+      this.createError.set('Seleziona almeno una sede operativa.');
+      return;
+    }
 
     this.createLoading.set(true);
     this.createError.set(null);
@@ -268,8 +381,15 @@ export class AdminTenantUsersPanelComponent {
         email: raw.email.trim(),
         password: raw.password,
         role: raw.role,
-        ...(assignedLocationId ? { assignedLocationId } : {}),
-        ...(raw.role !== UserRole.Owner ? { permissions: [...this.createPermissions()] } : {}),
+        ...(raw.defaultLocationId ? { defaultLocationId: raw.defaultLocationId } : {}),
+        ...(raw.role !== UserRole.Owner
+          ? {
+              hasAllLocationsAccess:
+                raw.role === UserRole.Admin ? raw.hasAllLocationsAccess : false,
+              assignedLocationIds: requiresLocations ? [...raw.assignedLocationIds] : [],
+              permissions: [...this.createPermissions()],
+            }
+          : {}),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -283,7 +403,9 @@ export class AdminTenantUsersPanelComponent {
             email: '',
             password: '',
             role: UserRole.Clerk,
-            assignedLocationId: '',
+            hasAllLocationsAccess: true,
+            assignedLocationIds: [],
+            defaultLocationId: '',
           });
           this.loadUsers(this.tenantId());
         },
@@ -298,7 +420,9 @@ export class AdminTenantUsersPanelComponent {
     user: TenantUser,
     patch: {
       role?: UserRole;
-      assignedLocationId?: string | null;
+      hasAllLocationsAccess?: boolean;
+      assignedLocationIds?: readonly string[];
+      defaultLocationId?: string | null;
       permissions?: readonly TenantPermissionKey[];
     },
   ): void {

@@ -45,6 +45,11 @@
             editButtonLabel()
           }}</app-button>
         }
+        @if (canDuplicate()) {
+          <app-button variant="secondary" [disabled]="actionSaving()" (click)="duplicateDocument()">
+            Duplica
+          </app-button>
+        }
         @if (canConvert()) {
           <app-button
             variant="secondary"
@@ -130,7 +135,9 @@
       }
     </div>
 
-    <app-document-attachments-panel [documentId]="doc.id" [canManage]="canManage()" />
+    <section id="doc-detail-attachments">
+      <app-document-attachments-panel [documentId]="doc.id" [canManage]="canManage()" />
+    </section>
 
     @if (hasRevisions()) {
       <section class="doc-detail__revisions">

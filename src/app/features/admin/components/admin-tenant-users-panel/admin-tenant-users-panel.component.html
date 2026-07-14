@@ -1,9 +1,9 @@
 <section class="admin-users" aria-labelledby="admin-users-title">
   <h3 id="admin-users-title" class="admin-users__title">Utenti del cliente</h3>
   <p class="admin-users__hint">
-    Il titolare ha sempre accesso completo (puoi crearne più di uno). Per gli altri ruoli scegli
-    sede operativa e permessi: ad esempio un commesso può vedere tutte le giacenze ma intervenire
-    solo sulla propria sede.
+    Il titolare ha sempre accesso completo (puoi crearne più di uno). Per gli altri ruoli scegli una
+    o più sedi operative e i permessi: ad esempio un commesso può vedere tutte le giacenze ma
+    intervenire solo sulle sedi assegnate.
   </p>
 
   @if (loading()) {
@@ -43,19 +43,42 @@
                   (valueChange)="onRowRoleSelect(user, $event)"
                 />
               </td>
-              <td class="admin-users__cell-select">
-                @if (rowRequiresLocation(user.role)) {
-                  <app-select-menu
-                    [options]="locationOptions()"
-                    [value]="user.assignedLocationId ?? ''"
-                    ariaLabel="Sede operativa utente"
-                    placeholder="Seleziona sede"
-                    [compact]="true"
-                    [includeEmptyOption]="false"
-                    (valueChange)="onRowLocationSelect(user, $event)"
-                  />
-                } @else {
+              <td class="admin-users__cell-select admin-users__cell-locations">
+                @if (isOwnerRole(user.role)) {
                   <span class="admin-users__all-locations">Tutte le sedi</span>
+                } @else {
+                  @if (rowShowsAllLocationsToggle(user.role)) {
+                    <label class="admin-users__check">
+                      <input
+                        type="checkbox"
+                        [checked]="user.hasAllLocationsAccess"
+                        (change)="onRowAllLocationsAccessToggle(user, $any($event.target).checked)"
+                      />
+                      <span>Tutte le sedi</span>
+                    </label>
+                  }
+                  @if (rowRequiresLocation(user)) {
+                    <app-select-menu
+                      [options]="locationOptions()"
+                      [multiple]="true"
+                      [values]="user.assignedLocationIds"
+                      ariaLabel="Sedi operative utente"
+                      placeholder="Seleziona sedi"
+                      [compact]="true"
+                      [includeEmptyOption]="false"
+                      (valuesChange)="onRowLocationsSelect(user, $event)"
+                    />
+                  }
+                }
+                @if (rowDefaultLocationOptions(user).length > 0) {
+                  <app-select-menu
+                    [options]="rowDefaultLocationOptions(user)"
+                    [value]="user.defaultLocationId ?? ''"
+                    ariaLabel="Sede predefinita utente"
+                    placeholder="Predefinita: nessuna"
+                    [compact]="true"
+                    (valueChange)="onRowDefaultLocationSelect(user, $event)"
+                  />
                 }
               </td>
               <td>
@@ -199,20 +222,49 @@
                   (valueChange)="onCreateRoleSelect($event)"
                 />
               </div>
+              @if (createShowsAllLocationsToggle()) {
+                <div class="admin-users__field">
+                  <label class="admin-users__check">
+                    <input
+                      type="checkbox"
+                      [checked]="createForm.controls.hasAllLocationsAccess.value"
+                      (change)="onCreateAllLocationsAccessToggle($any($event.target).checked)"
+                    />
+                    <span>Accesso a tutte le sedi</span>
+                  </label>
+                </div>
+              }
               @if (createRequiresLocation()) {
                 <div class="admin-users__field">
                   <span class="admin-users__label" id="create-user-location-label"
-                    >Sede operativa</span
+                    >Sedi operative</span
                   >
                   <app-select-menu
                     [options]="locationOptions()"
-                    [value]="createForm.controls.assignedLocationId.value"
-                    ariaLabel="Sede operativa nuovo utente"
-                    placeholder="Seleziona sede"
+                    [multiple]="true"
+                    [values]="createForm.controls.assignedLocationIds.value"
+                    ariaLabel="Sedi operative nuovo utente"
+                    placeholder="Seleziona sedi"
                     [fullWidth]="true"
                     [matchInputHeight]="true"
                     [includeEmptyOption]="false"
-                    (valueChange)="onCreateLocationSelect($event)"
+                    (valuesChange)="onCreateLocationsSelect($event)"
+                  />
+                </div>
+              }
+              @if (createDefaultLocationOptions().length > 0) {
+                <div class="admin-users__field">
+                  <span class="admin-users__label" id="create-user-default-location-label"
+                    >Sede predefinita (facoltativa)</span
+                  >
+                  <app-select-menu
+                    [options]="createDefaultLocationOptions()"
+                    [value]="createForm.controls.defaultLocationId.value"
+                    ariaLabel="Sede predefinita nuovo utente"
+                    placeholder="Nessuna"
+                    [fullWidth]="true"
+                    [matchInputHeight]="true"
+                    (valueChange)="onCreateDefaultLocationSelect($event)"
                   />
                 </div>
               }

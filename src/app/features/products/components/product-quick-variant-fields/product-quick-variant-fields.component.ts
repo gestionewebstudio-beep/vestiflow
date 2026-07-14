@@ -7,9 +7,11 @@ import {
   input,
   OnInit,
   output,
+  signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { catchError, of, take } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -22,6 +24,12 @@ import {
   normalizeSku,
   SKU_PATTERN,
 } from '../../models/product-form.validators';
+import { ProductService } from '../../services/product.service';
+
+/** Avviso mostrato prima di sovrascrivere uno SKU già presente nel campo. */
+const OVERWRITE_SKU_WARNING =
+  "Stai per sostituire lo SKU attuale. Se l'articolo ha già movimenti o documenti registrati, " +
+  'lo SKU storico resterà comunque quello usato in quei documenti. Continuare?';
 
 @Component({
   selector: 'app-product-quick-variant-fields',
@@ -33,23 +41,29 @@ import {
 export class ProductQuickVariantFieldsComponent implements OnInit {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly productService = inject(ProductService);
 
   readonly variant = input.required<VariantDraft>();
+  /** Nome e categoria correnti del prodotto: input per "Genera SKU". */
+  readonly productName = input('');
+  readonly category = input('');
   readonly takenSkus = input<readonly string[]>([]);
   readonly takenBarcodes = input<readonly string[]>([]);
   readonly disabled = input(false);
 
   readonly variantChange = output<VariantDraft>();
-  readonly skuEdited = output<void>();
   readonly validChange = output<boolean>();
 
   protected readonly form = this.fb.group({
-    sku: this.fb.control('', {
-      validators: [Validators.required, Validators.pattern(SKU_PATTERN)],
-    }),
+    // Facoltativo (specifica cliente §SKU): nessun Validators.required. Se
+    // valorizzato deve comunque rispettare il formato.
+    sku: this.fb.control('', { validators: [Validators.pattern(SKU_PATTERN)] }),
     barcode: this.fb.control(''),
     sellingPrice: this.fb.control(0, { validators: [Validators.required, Validators.min(0)] }),
   });
+
+  protected readonly generatingSku = signal(false);
+  protected readonly generateSkuError = signal<string | null>(null);
 
   private valueChangesSub: Subscription | null = null;
 
@@ -112,16 +126,47 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
     return normalized.length > 0 && this.takenBarcodes().includes(normalized);
   }
 
-  protected onSkuInput(): void {
-    this.skuEdited.emit();
-  }
-
   protected generateBarcode(): void {
     const raw = this.form.getRawValue();
     const barcode = generateDistinctEan13Barcode(raw.sku, raw.barcode, ...this.takenBarcodes());
     this.form.controls.barcode.setValue(barcode);
     this.form.controls.barcode.markAsDirty();
     this.form.controls.barcode.markAsTouched();
+  }
+
+  /**
+   * Genera un'anteprima SKU prevedibile (categoria + nome + progressivo,
+   * vedi backend `SkuGeneratorService`) e la propone nel campo, editabile
+   * prima del salvataggio. Se il campo ha già un valore, chiede conferma
+   * prima di sovrascriverlo (specifica cliente §SKU: mai in automatico).
+   */
+  protected generateSku(): void {
+    const current = this.form.controls.sku.value.trim();
+    if (current && !window.confirm(OVERWRITE_SKU_WARNING)) {
+      return;
+    }
+
+    this.generateSkuError.set(null);
+    this.generatingSku.set(true);
+    this.productService
+      .generateSku({ productName: this.productName(), category: this.category() || undefined })
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.generateSkuError.set('Impossibile generare lo SKU: riprova o inseriscilo a mano.');
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((result) => {
+        this.generatingSku.set(false);
+        if (!result) {
+          return;
+        }
+        this.form.controls.sku.setValue(result.sku);
+        this.form.controls.sku.markAsDirty();
+        this.form.controls.sku.markAsTouched();
+      });
   }
 
   private emitState(): void {

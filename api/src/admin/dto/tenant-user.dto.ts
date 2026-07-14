@@ -31,10 +31,27 @@ export class CreateTenantUserDto {
   @IsEnum(UserRole)
   readonly role!: UserRole;
 
-  /** Obbligatoria per manager/commesso se esistono sedi attive. */
+  /** Ignorato per titolare (sempre true). Per admin: default true se omesso. */
+  @IsOptional()
+  @IsBoolean()
+  readonly hasAllLocationsAccess?: boolean;
+
+  /** Obbligatoria per manager/commesso e per admin con hasAllLocationsAccess=false. */
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(100)
+  @IsUUID(undefined, { each: true })
+  readonly assignedLocationIds?: string[];
+
+  /**
+   * Sede predefinita (suggerimento nei form, mai fallback automatico).
+   * Deve essere tra le sedi assegnate; con accesso pieno vale qualunque
+   * sede licenziata e attiva del tenant. Facoltativa.
+   */
   @IsOptional()
   @IsUUID()
-  readonly assignedLocationId?: string;
+  readonly defaultLocationId?: string | null;
 
   /** Ignorato per titolare (accesso pieno). Default = preset del ruolo se omesso. */
   @IsOptional()
@@ -58,8 +75,20 @@ export class UpdateTenantUserDto {
   readonly role?: UserRole;
 
   @IsOptional()
+  @IsBoolean()
+  readonly hasAllLocationsAccess?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(100)
+  @IsUUID(undefined, { each: true })
+  readonly assignedLocationIds?: string[];
+
+  /** Sede predefinita: uuid autorizzato per l'utente, oppure null per azzerarla. */
+  @IsOptional()
   @IsUUID()
-  readonly assignedLocationId?: string | null;
+  readonly defaultLocationId?: string | null;
 
   @IsOptional()
   @IsBoolean()
@@ -79,8 +108,11 @@ export interface TenantUserDto {
   readonly email: string;
   readonly displayName: string;
   readonly role: UserRole;
-  readonly assignedLocationId: string | null;
-  readonly assignedLocationName: string | null;
+  readonly hasAllLocationsAccess: boolean;
+  readonly assignedLocationIds: readonly string[];
+  readonly assignedLocations: readonly { readonly id: string; readonly name: string }[];
+  /** Sede predefinita (suggerimento nei form); null se non impostata. */
+  readonly defaultLocationId: string | null;
   readonly permissions: readonly string[];
   readonly isActive: boolean;
   readonly createdAt: string;

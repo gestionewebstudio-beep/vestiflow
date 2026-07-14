@@ -100,6 +100,11 @@
             <p id="pi-total-error" class="pi-form__error">Inserisci un importo valido.</p>
           } @else if (fieldInvalid('totalText')) {
             <p id="pi-total-error" class="pi-form__error">Il totale fattura è obbligatorio.</p>
+          } @else {
+            <p class="pi-form__hint">
+              Precompilato con la somma degli arrivi inclusi: sovrascrivilo con l'importo esatto
+              della fattura del fornitore, usato per i report.
+            </p>
           }
         </div>
       </div>
@@ -175,20 +180,6 @@
             </table>
           </div>
         }
-
-        @if (totalsComparison() === 'match') {
-          <p class="pi-form__totals-check pi-form__totals-check--ok" role="status">
-            <i class="pi pi-check-circle" aria-hidden="true"></i>
-            Totali allineati.
-          </p>
-        } @else if (totalsComparison() === 'mismatch') {
-          <p class="pi-form__totals-check pi-form__totals-check--warn" role="status">
-            <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-            Il totale degli arrivi selezionati non coincide con il totale della fattura (differenza
-            {{ formatMoney(totalsDifference()) }}). Controlla importi, spese o documenti inclusi.
-            Puoi salvare comunque.
-          </p>
-        }
       </section>
 
       <div class="pi-form__field">
@@ -196,13 +187,6 @@
         <textarea id="pi-notes" class="pi-form__textarea" rows="2" formControlName="notes">
         </textarea>
       </div>
-
-      @if (savedTotalsWarning(); as warning) {
-        <p class="pi-form__totals-check pi-form__totals-check--warn" role="status">
-          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-          {{ warning }}
-        </p>
-      }
 
       @if (submitError(); as appError) {
         <p class="pi-form__submit-error" role="alert">{{ appError.message }}</p>

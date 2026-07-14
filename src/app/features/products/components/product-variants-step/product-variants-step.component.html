@@ -1,8 +1,12 @@
 <form [formGroup]="form" class="variants-step">
   <p class="variants-step__intro">
-    Completa i dati di ogni variante. Lo SKU è precompilato ma modificabile; i valori delle opzioni
-    derivano dallo step precedente.
+    Completa i dati di ogni variante. Lo SKU è facoltativo: lascialo vuoto, scrivilo a mano oppure
+    generane uno per ogni variante con "Genera SKU"; i valori delle opzioni derivano dallo step
+    precedente.
   </p>
+  @if (generateSkuError(); as error) {
+    <p class="variants-step__error" role="alert">{{ error }}</p>
+  }
 
   @if (variantsArray.length > 0) {
     <div class="variants-step__table-scroll">
@@ -32,27 +36,37 @@
               }
               <td data-label="SKU">
                 <div class="variants-step__field">
-                  <input
-                    class="variants-step__input variants-step__input--sku"
-                    type="text"
-                    formControlName="sku"
-                    autocomplete="off"
-                    [attr.aria-invalid]="
-                      isInvalid(group, 'sku') ||
-                      isDuplicateSku(group.controls.sku.value) ||
-                      isSkuTaken(group.controls.sku.value)
-                        ? true
-                        : null
-                    "
-                    [attr.aria-label]="'SKU per ' + rowTitle(i)"
-                  />
+                  <div class="variants-step__inline">
+                    <input
+                      class="variants-step__input variants-step__input--sku variants-step__input--inline"
+                      type="text"
+                      formControlName="sku"
+                      autocomplete="off"
+                      [attr.aria-invalid]="
+                        isInvalid(group, 'sku') ||
+                        isDuplicateSku(group.controls.sku.value) ||
+                        isSkuTaken(group.controls.sku.value)
+                          ? true
+                          : null
+                      "
+                      [attr.aria-label]="'SKU per ' + rowTitle(i)"
+                    />
+                    @if (!catalogReadOnly()) {
+                      <app-button
+                        type="button"
+                        variant="secondary"
+                        [loading]="isGeneratingSku(i)"
+                        [disabled]="!productName().trim()"
+                        [attr.aria-label]="'Genera SKU (' + rowTitle(i) + ')'"
+                        (click)="generateSku(i)"
+                      >
+                        Genera SKU
+                      </app-button>
+                    }
+                  </div>
                   @if (isInvalid(group, 'sku')) {
                     <p class="variants-step__error" role="alert">
-                      @if (group.controls.sku.hasError('required')) {
-                        Inserisci uno SKU.
-                      } @else {
-                        Formato SKU non valido (lettere, numeri e trattini).
-                      }
+                      Formato SKU non valido (lettere, numeri e trattini).
                     </p>
                   } @else if (isDuplicateSku(group.controls.sku.value)) {
                     <p class="variants-step__error" role="alert">SKU duplicato tra le varianti.</p>

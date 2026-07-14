@@ -188,6 +188,16 @@
                       @if (lineFieldInvalid(i, 'variantId')) {
                         <p class="po-form__error">Seleziona la variante.</p>
                       }
+                      @if (!line.controls.variantId.value) {
+                        <button
+                          type="button"
+                          class="po-form__inline-toggle"
+                          (click)="openProductCreate(i)"
+                        >
+                          <i class="pi pi-plus" aria-hidden="true"></i>
+                          Crea nuovo articolo
+                        </button>
+                      }
                     </td>
                   }
                   @if (isLineColumnVisible('quantity')) {
@@ -287,3 +297,15 @@
     </form>
   }
 </section>
+
+<app-slide-panel [open]="productPanelOpen()" title="Nuovo articolo" (closed)="closeProductPanel()">
+  @if (productPanelOpen()) {
+    <app-product-form
+      [embeddedPanel]="true"
+      [embeddedPrefill]="productPanelPrefill()"
+      (productCreatedWithAttach)="onProductCreatedFromPanel($event)"
+      (productSavedWithoutAttach)="onProductSavedWithoutAttach($event)"
+      (panelDismissed)="closeProductPanel()"
+    />
+  }
+</app-slide-panel>

@@ -632,7 +632,7 @@ export class ShopifyProductPushService {
       const byName = new Map(optionValues.map((entry) => [entry.name, entry.value]));
 
       const row: Record<string, unknown> = {
-        sku: variant.sku,
+        sku: variant.sku ?? undefined,
         price: minorToShopifyDecimal(variant.sellingPriceMinor),
         barcode: variant.barcode ?? undefined,
         inventory_management: 'shopify',
@@ -726,6 +726,12 @@ export class ShopifyProductPushService {
     );
 
     const variantUpdates = product.variants.flatMap((variant) => {
+      // Varianti senza SKU locale (facoltativo alla creazione) non sono
+      // abbinabili per codice al risultato Shopify: restano senza
+      // shopifyVariantId collegato finche' non ricevono uno SKU.
+      if (!variant.sku) {
+        return [];
+      }
       const shopifyVariant = variantsBySku.get(variant.sku.toLowerCase());
       if (!shopifyVariant) {
         return [];

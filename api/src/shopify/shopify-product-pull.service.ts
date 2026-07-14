@@ -387,11 +387,14 @@ export class ShopifyProductPullService {
     const rows = await this.prisma.productVariant.findMany({
       where: {
         tenantId,
+        sku: { not: null },
         ...(excludeProductId ? { productId: { not: excludeProductId } } : {}),
       },
       select: { sku: true },
     });
-    return new Set(rows.map((row) => row.sku.toLowerCase()));
+    return new Set(
+      rows.map((row) => row.sku).filter((sku): sku is string => Boolean(sku)).map((sku) => sku.toLowerCase()),
+    );
   }
 
   private resolveImportSku(

@@ -57,7 +57,12 @@ export class UserAvatarService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { stores: true, tenant: { select: { name: true, channelProfile: true } } },
+      include: {
+        stores: true,
+        tenant: { select: { name: true, channelProfile: true } },
+        locations: { include: { location: { select: { id: true, name: true } } } },
+        defaultLocation: { select: { id: true, name: true } },
+      },
     });
     if (!user) {
       throw new BadRequestException('Utente non trovato');
@@ -90,7 +95,12 @@ export class UserAvatarService {
         avatarUrl: publicUrl,
         avatarStoragePath: storagePath,
       },
-      include: { stores: true, tenant: { select: { name: true, channelProfile: true } } },
+      include: {
+        stores: true,
+        tenant: { select: { name: true, channelProfile: true } },
+        locations: { include: { location: { select: { id: true, name: true } } } },
+        defaultLocation: { select: { id: true, name: true } },
+      },
     });
 
     this.profileCache.invalidate(authUserId);
@@ -100,7 +110,12 @@ export class UserAvatarService {
   async removeAvatar(userId: string, authUserId: string): Promise<UserProfileDto> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { stores: true, tenant: { select: { name: true, channelProfile: true } } },
+      include: {
+        stores: true,
+        tenant: { select: { name: true, channelProfile: true } },
+        locations: { include: { location: { select: { id: true, name: true } } } },
+        defaultLocation: { select: { id: true, name: true } },
+      },
     });
     if (!user) {
       throw new BadRequestException('Utente non trovato');
@@ -119,7 +134,12 @@ export class UserAvatarService {
         avatarUrl: null,
         avatarStoragePath: null,
       },
-      include: { stores: true, tenant: { select: { name: true, channelProfile: true } } },
+      include: {
+        stores: true,
+        tenant: { select: { name: true, channelProfile: true } },
+        locations: { include: { location: { select: { id: true, name: true } } } },
+        defaultLocation: { select: { id: true, name: true } },
+      },
     });
 
     this.profileCache.invalidate(authUserId);

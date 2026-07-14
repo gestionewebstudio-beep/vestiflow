@@ -160,6 +160,10 @@ export class ProductListComponent {
   protected readonly shopifySyncError = signal<string | null>(null);
   protected readonly bulkPrintLoading = signal(false);
   protected readonly selectedProductIds = signal<ReadonlySet<string>>(new Set<string>());
+  protected readonly duplicatingProductId = signal<string | null>(null);
+  protected readonly duplicateError = signal<string | null>(null);
+  /** Copie per articolo alla stampa etichette: sia per la riga singola sia per la selezione multipla. */
+  protected readonly labelCopies = signal(1);
 
   protected readonly selectedCount = computed(() => this.selectedProductIds().size);
 
@@ -359,7 +363,36 @@ export class ProductListComponent {
   }
 
   protected printProductLabels(product: Product): void {
-    this.labelPrintService.triggerDirectPrint(product.id);
+    this.labelPrintService.triggerDirectPrint(product.id, undefined, this.labelCopies());
+  }
+
+  /** Copie per articolo scelte dall'utente prima di stampare (min 1, max 500). */
+  protected setLabelCopies(value: number): void {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    this.labelCopies.set(Math.min(Math.max(Math.floor(value), 1), 500));
+  }
+
+  /** Duplica articolo (audit cliente §2b): naviga alla copia per rifinire SKU/campi. */
+  protected duplicateProduct(product: Product): void {
+    if (this.duplicatingProductId()) {
+      return;
+    }
+    this.duplicatingProductId.set(product.id);
+    this.service
+      .duplicateProduct(product.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (created) => {
+          this.duplicatingProductId.set(null);
+          void this.router.navigate(['/app/products', created.id, 'edit']);
+        },
+        error: (err: unknown) => {
+          this.duplicatingProductId.set(null);
+          this.duplicateError.set(this.extractErrorMessage(err));
+        },
+      });
   }
 
   protected toggleProductSelection(productId: string, selected: boolean): void {
@@ -401,7 +434,7 @@ export class ProductListComponent {
 
     this.bulkPrintLoading.set(true);
     this.labelPrintService
-      .triggerDirectPrintMany(productIds)
+      .triggerDirectPrintMany(productIds, undefined, this.labelCopies())
       .pipe(
         finalize(() => this.bulkPrintLoading.set(false)),
         takeUntilDestroyed(this.destroyRef),

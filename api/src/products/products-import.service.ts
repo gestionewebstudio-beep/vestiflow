@@ -150,10 +150,12 @@ export class ProductsImportService {
 
   private async loadTenantSkus(tenantId: string): Promise<Set<string>> {
     const rows = await this.prisma.productVariant.findMany({
-      where: { tenantId },
+      where: { tenantId, sku: { not: null } },
       select: { sku: true },
     });
-    return new Set(rows.map((row) => row.sku.toLowerCase()));
+    return new Set(
+      rows.map((row) => row.sku).filter((sku): sku is string => Boolean(sku)).map((sku) => sku.toLowerCase()),
+    );
   }
 
   private async loadTenantBarcodes(tenantId: string): Promise<Set<string>> {
@@ -260,7 +262,7 @@ export class ProductsImportService {
   ): Prisma.ProductVariantCreateWithoutProductInput {
     return {
       tenant: { connect: { id: tenantId } },
-      sku: variant.sku.trim(),
+      sku: this.requireImportSku(variant.sku),
       optionValues: variant.optionValues as unknown as Prisma.InputJsonValue,
       barcode: this.dedupeBarcode(variant.barcode, usedBarcodes),
       currency: variant.sellingPrice.currency,
@@ -293,11 +295,28 @@ export class ProductsImportService {
   private assertNoDuplicateSkusInPayload(variants: readonly CreateVariantDto[]): void {
     const seen = new Set<string>();
     for (const variant of variants) {
-      const key = variant.sku.trim().toLowerCase();
+      const key = this.requireImportSku(variant.sku).toLowerCase();
       if (seen.has(key)) {
         throw new UnprocessableEntityException(`SKU duplicati nel prodotto: ${variant.sku}`);
       }
       seen.add(key);
     }
+  }
+
+  /**
+   * Nel flusso di import CSV Shopify lo SKU è sempre risolto a monte da
+   * `resolveCsvImportSku` (mai vuoto: righe senza SKU ricevono un codice
+   * assegnato, vedi shopify-csv.mapper.ts) — a differenza della creazione
+   * manuale da anagrafica, dove lo SKU resta facoltativo (specifica cliente
+   * §SKU). Qui un valore assente è un'anomalia dei dati di import, non un
+   * caso d'uso valido: fallisce in modo esplicito invece di importare in
+   * silenzio una variante senza codice.
+   */
+  private requireImportSku(sku: string | null | undefined): string {
+    const trimmed = sku?.trim();
+    if (!trimmed) {
+      throw new UnprocessableEntityException('SKU mancante in una riga import CSV.');
+    }
+    return trimmed;
   }
 }

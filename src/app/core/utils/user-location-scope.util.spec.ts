@@ -61,11 +61,22 @@ describe('user-location-scope.util', () => {
     expect(canSwitchOperationalLocation(clerkWithViewAll)).toBe(true);
   });
 
+  it('canSwitchOperationalLocation falso per admin con hasAllLocationsAccess false e permessi espliciti senza view_all', () => {
+    const restrictedAdmin = {
+      role: UserRole.Admin,
+      hasAllLocationsAccess: false,
+      assignedLocationIds: ['loc-rom'],
+      permissions: [TenantPermission.InventoryManage],
+    } as never;
+
+    expect(canSwitchOperationalLocation(restrictedAdmin)).toBe(false);
+  });
+
   it('filterLocationsForRead limita alla sede assegnata senza view_all_locations', () => {
     expect(
       filterLocationsForRead(locations, {
         role: UserRole.Clerk,
-        assignedLocationId: 'loc-rom',
+        assignedLocationIds: ['loc-rom'],
         permissions: [],
       } as never),
     ).toEqual([locations[1]]);
@@ -75,7 +86,7 @@ describe('user-location-scope.util', () => {
     expect(
       filterLocationsForRead(locations, {
         role: UserRole.Clerk,
-        assignedLocationId: 'loc-rom',
+        assignedLocationIds: ['loc-rom'],
         permissions: ['inventory.view_all_locations'],
       } as never),
     ).toHaveLength(2);
@@ -85,11 +96,29 @@ describe('user-location-scope.util', () => {
     expect(
       resolveFixedOperationalLocationId({
         role: UserRole.Clerk,
-        assignedLocationId: 'loc-rom',
+        assignedLocationIds: ['loc-rom'],
       } as never),
     ).toBe('loc-rom');
     expect(
-      isFixedSingleStoreUser({ role: UserRole.Clerk, assignedLocationId: 'loc-rom' } as never),
+      isFixedSingleStoreUser({
+        role: UserRole.Clerk,
+        assignedLocationIds: ['loc-rom'],
+      } as never),
     ).toBe(true);
+  });
+
+  it('resolveFixedOperationalLocationId con 2 sedi assegnate non è a sede fissa', () => {
+    expect(
+      resolveFixedOperationalLocationId({
+        role: UserRole.Clerk,
+        assignedLocationIds: ['loc-rom', 'loc-nap'],
+      } as never),
+    ).toBeNull();
+    expect(
+      isFixedSingleStoreUser({
+        role: UserRole.Clerk,
+        assignedLocationIds: ['loc-rom', 'loc-nap'],
+      } as never),
+    ).toBe(false);
   });
 });

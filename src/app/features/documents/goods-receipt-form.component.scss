@@ -230,6 +230,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.gr-form__input--invalid {
+  border-color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+}
+
 .gr-form__input:focus-visible,
 .gr-form__textarea:focus-visible {
   border-color: var(--color-interactive);

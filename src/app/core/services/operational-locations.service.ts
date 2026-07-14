@@ -130,6 +130,33 @@ export class OperationalLocationsService {
   /** Alias esplicito per form e liste operative magazzino. */
   readonly actionLocations = this.writeLocations;
 
+  /**
+   * Sede predefinita dell'utente: valorizzata SOLO se è tra le sedi su cui può
+   * agire (writeLocations), altrimenti null. È un SUGGERIMENTO per i form:
+   * mai usarla come fallback automatico "prima location disponibile".
+   */
+  readonly defaultLocation = computed<Location | null>(() => {
+    const defaultId = this.authService.currentUser()?.defaultLocationId;
+    if (!defaultId) {
+      return null;
+    }
+    return this.writeLocations().find((location) => location.id === defaultId) ?? null;
+  });
+
+  /**
+   * Sede suggerita nei form operativi: la predefinita se autorizzata, altrimenti
+   * l'unica sede scrivibile quando l'utente è mono-location. Solo suggerimento,
+   * mai autoselezione.
+   */
+  readonly suggestedWriteLocation = computed<Location | null>(() => {
+    const preferred = this.defaultLocation();
+    if (preferred) {
+      return preferred;
+    }
+    const writable = this.writeLocations();
+    return writable.length === 1 ? (writable[0] ?? null) : null;
+  });
+
   readonly isFixedSingleStore = computed(() =>
     isFixedSingleStoreUser(this.authService.currentUser()),
   );
@@ -138,9 +165,10 @@ export class OperationalLocationsService {
     resolveFixedOperationalLocationId(this.authService.currentUser()),
   );
 
-  readonly fixedSingleStoreLabel = computed(
-    () => this.authService.currentUser()?.assignedLocationName ?? null,
-  );
+  readonly fixedSingleStoreLabel = computed(() => {
+    const locations = this.authService.currentUser()?.assignedLocations ?? [];
+    return locations.length === 1 ? (locations[0]?.name ?? null) : null;
+  });
 
   /** Commesso/manager: se il filtro Shopify restituisce vuoto, usa la sede assegnata licenziata. */
   private withAssignedLocationFallback(

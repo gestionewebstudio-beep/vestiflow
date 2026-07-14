@@ -39,6 +39,7 @@ import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard'
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { GenerateSkuDto } from './dto/generate-sku.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -46,6 +47,7 @@ import { ProductMediaService } from './product-media.service';
 import { ProductsExportService } from './products-export.service';
 import { ProductsImportService } from './products-import.service';
 import { ProductsService, type ProductWithVariants } from './products.service';
+import { SkuGeneratorService } from './sku-generator.service';
 import { ExportProductsQueryDto } from './dto/export-products.query.dto';
 import { ImportProductsBodyDto } from './dto/import-products-body.dto';
 import { SuppliersService } from '../supplier-orders/suppliers.service';
@@ -88,6 +90,7 @@ export class ProductsController {
     private readonly productsImport: ProductsImportService,
     private readonly productsExport: ProductsExportService,
     private readonly suppliers: SuppliersService,
+    private readonly skuGenerator: SkuGeneratorService,
   ) {}
 
   @Get()
@@ -123,6 +126,30 @@ export class ProductsController {
     return this.products.checkSkuAvailability(tenantId, query.sku, query.excludeProductId);
   }
 
+  /**
+   * Anteprima "Genera SKU" (specifica cliente §SKU): calcola un codice
+   * prevedibile (categoria + nome/modello + attributi variante presenti +
+   * progressivo) e ne risolve gia' l'unicita' nel tenant. NON salva nulla:
+   * l'utente puo' ancora modificare il codice proposto prima del submit, e
+   * l'unicita' viene riverificata al salvataggio (vincolo DB + controllo
+   * applicativo in ProductsService).
+   */
+  @Post('sku/generate')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  generateSku(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: GenerateSkuDto,
+  ): Promise<{ sku: string }> {
+    return this.skuGenerator
+      .previewSku(tenantId, {
+        productName: dto.productName,
+        category: dto.category,
+        modelCode: dto.modelCode,
+        optionValues: dto.optionValues,
+      })
+      .then((sku) => ({ sku }));
+  }
+
   @Get('barcode-availability')
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   checkBarcode(
@@ -144,7 +171,7 @@ export class ProductsController {
   ): Promise<{
     variantId: string;
     productId: string;
-    sku: string;
+    sku: string | null;
     barcode: string | null;
     productName: string;
   }> {
@@ -224,6 +251,16 @@ export class ProductsController {
     @Body() dto: UpdateProductDto,
   ): Promise<ProductWithVariants> {
     return this.products.update(tenantId, id, dto);
+  }
+
+  /** Duplica anagrafica prodotto (audit cliente): nuovo id, SKU/barcode univoci. */
+  @Post(':id/duplicate')
+  @RequirePermissions(TenantPermission.CatalogManage)
+  duplicate(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ProductWithVariants> {
+    return this.products.duplicateProduct(tenantId, id);
   }
 
   @Post(':id/sync-shopify')

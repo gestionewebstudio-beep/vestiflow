@@ -24,8 +24,8 @@ export interface DocumentListQuery {
   readonly supplierId?: string;
   /** Stato collegamento fattura (solo liste Arrivi merce). */
   readonly linkStatus?: GoodsReceiptLinkStatus;
-  /** Filtro testuale sulla causale di carico. */
-  readonly causal?: string;
+  /** Filtro tipo documento fornitore strutturato (DDT/Fattura/Reso/…, solo Arrivi merce). */
+  readonly externalDocumentTypeId?: string;
   readonly accountant?: boolean;
   readonly pendingInvoice?: boolean;
 }
@@ -48,7 +48,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
   const locationId = params.get('locationId') ?? '';
   const supplierId = params.get('supplierId') ?? '';
   const linkStatus = params.get('linkStatus') ?? '';
-  const causal = params.get('causal')?.trim();
+  const externalDocumentTypeId = params.get('externalDocumentTypeId') ?? '';
 
   return {
     page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -67,7 +67,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
     linkStatus: LINK_STATUS_VALUES.has(linkStatus)
       ? (linkStatus as GoodsReceiptLinkStatus)
       : undefined,
-    causal: causal || undefined,
+    externalDocumentTypeId: isUuid(externalDocumentTypeId) ? externalDocumentTypeId : undefined,
     accountant: params.get('accountant') === '1',
     pendingInvoice: params.get('pendingInvoice') === '1',
   };

@@ -8,10 +8,17 @@ import { ProductsController } from './products.controller';
 import { ProductsExportService } from './products-export.service';
 import { ProductsImportService } from './products-import.service';
 import { ProductsService } from './products.service';
+import { SkuGeneratorService } from './sku-generator.service';
 
 @Module({
   imports: [ChannelsModule, ShopifyModule, SupplierOrdersModule],
   controllers: [ProductsController],
-  providers: [ProductsService, ProductMediaService, ProductsImportService, ProductsExportService],
+  providers: [
+    ProductsService,
+    ProductMediaService,
+    ProductsImportService,
+    ProductsExportService,
+    SkuGeneratorService,
+  ],
 })
 export class ProductsModule {}

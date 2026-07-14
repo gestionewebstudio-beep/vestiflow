@@ -25,6 +25,7 @@ import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { LocationContextService } from '@core/services/location-context.service';
+import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { AdjustmentDirection, StockMovementType } from '@core/models/stock-movement.model';
@@ -116,11 +117,13 @@ export class MovementFormComponent {
     { initialValue: [] as readonly VariantSummary[] },
   );
 
+  // Sede predefinita: solo suggerimento — prima nelle opzioni, etichettata
+  // "(predefinita)", mai autoselezionata (mono-location gestita dall'effect).
   protected readonly locationSelectOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.operationalLocations.actionLocations().map((location) => ({
-      value: location.id,
-      label: location.name,
-    })),
+    toLocationSelectOptions(
+      this.operationalLocations.actionLocations(),
+      this.operationalLocations.defaultLocation()?.id ?? null,
+    ),
   );
 
   protected readonly targetLocationSelectOptions = computed<readonly SelectMenuOption[]>(() => {
@@ -154,12 +157,18 @@ export class MovementFormComponent {
   constructor() {
     effect(() => {
       const fixedId = this.operationalLocations.fixedSingleStoreLocationId();
-      if (!fixedId) {
+      if (fixedId) {
+        this.form.controls.locationId.setValue(fixedId);
+        if (this.locationContext.activeLocationId() !== fixedId) {
+          this.locationContext.setActiveLocation(fixedId);
+        }
         return;
       }
-      this.form.controls.locationId.setValue(fixedId);
-      if (this.locationContext.activeLocationId() !== fixedId) {
-        this.locationContext.setActiveLocation(fixedId);
+      // Mono-location (es. titolare con una sola sede attiva): preselezione
+      // ammessa perché la scelta è obbligata. Mai con 2+ sedi.
+      const selectable = this.operationalLocations.actionLocations();
+      if (selectable.length === 1 && !this.form.controls.locationId.value) {
+        this.form.controls.locationId.setValue(selectable[0]?.id ?? '');
       }
     });
 

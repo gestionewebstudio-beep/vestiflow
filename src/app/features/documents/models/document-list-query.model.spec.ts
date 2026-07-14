@@ -56,4 +56,15 @@ describe('parseDocumentListQuery', () => {
     const query = parseDocumentListQuery(paramMap({ customerId: 'mario-rossi' }));
     expect(query.customerId).toBeUndefined();
   });
+
+  it('parsa externalDocumentTypeId valido', () => {
+    const externalDocumentTypeId = 'd0011111-1111-4111-8111-111111111001';
+    const query = parseDocumentListQuery(paramMap({ externalDocumentTypeId }));
+    expect(query.externalDocumentTypeId).toBe(externalDocumentTypeId);
+  });
+
+  it('ignora externalDocumentTypeId non UUID', () => {
+    const query = parseDocumentListQuery(paramMap({ externalDocumentTypeId: 'ddt' }));
+    expect(query.externalDocumentTypeId).toBeUndefined();
+  });
 });

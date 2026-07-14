@@ -367,15 +367,20 @@ model User {
   avatarUrl          String?  @map("avatar_url")
   avatarStoragePath  String?  @map("avatar_storage_path")
   isActive           Boolean  @default(true) @map("is_active")
-  /// Sede operativa fissa (manager/commesso). Null = tutte le sedi attive (titolare/admin).
-  assignedLocationId String?  @map("assigned_location_id") @db.Uuid
+  /// Accesso a tutte le sedi del tenant indipendentemente dalle righe UserLocation
+  /// (titolare ha sempre accesso pieno via hasFullTenantAccess, invariante rispetto a questo flag).
+  hasAllLocationsAccess Boolean @default(false) @map("has_all_locations_access")
+  /// Sede operativa predefinita: SUGGERIMENTO nei form (mai fallback automatico).
+  /// Deve essere una sede autorizzata per l'utente; azzerata se l'assegnazione cambia.
+  defaultLocationId  String?  @map("default_location_id") @db.Uuid
   /// Permessi granulari (chiavi). Il titolare ignora l'array (accesso pieno).
   permissions        String[] @default([]) @map("permissions")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   tenant                    Tenant           @relation(fields: [tenantId], references: [id])
-  assignedLocation          Location?        @relation("UserAssignedLocation", fields: [assignedLocationId], references: [id], onDelete: SetNull)
+  defaultLocation           Location?        @relation("UserDefaultLocation", fields: [defaultLocationId], references: [id], onDelete: SetNull)
+  locations                 UserLocation[]
   stores                    UserStore[]
   supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
   tableViewPreferences      UserTableViewPreference[]
@@ -431,6 +436,23 @@ model UserStore {
   @@map("user_stores")
 }
 
+/// Assegnazione utente → sede operativa (N location per utente). Se l'utente
+/// ha hasAllLocationsAccess = true (o è titolare), queste righe sono ignorate.
+model UserLocation {
+  userId     String   @map("user_id") @db.Uuid
+  locationId String   @map("location_id") @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, locationId])
+  @@index([tenantId])
+  @@index([locationId])
+  @@map("user_locations")
+}
+
 // ── Location (porta l'inventario, semantica Shopify) ────────────────────────
 
 model Location {
@@ -465,7 +487,8 @@ model Location {
   incomingTransfers StockMovement[]         @relation("MovementTargetLocation")
   supplierOrders    SupplierOrder[]
   inventoryCounts   InventoryCountSession[]
-  usersAssigned     User[]                  @relation("UserAssignedLocation")
+  userLocations     UserLocation[]
+  defaultForUsers   User[]                  @relation("UserDefaultLocation")
   documents         Document[]              @relation("DocumentLocation")
   incomingDocuments Document[]              @relation("DocumentTargetLocation")
   inventoryLots     InventoryLot[]
@@ -576,10 +599,12 @@ model ProductVariant {
   id                     String   @id @default(uuid()) @db.Uuid
   tenantId               String   @map("tenant_id") @db.Uuid
   productId              String   @map("product_id") @db.Uuid
-  /// Univoco per tenant: regola interna del gestionale. In import da Shopify
-  /// gli SKU duplicati/vuoti NON rompono il sync: vanno gestiti come anomalie
-  /// PRIMA dell'insert (regole-gestionale, clausola di realtà).
-  sku                    String
+  /// Univoco per tenant quando valorizzato (regola interna del gestionale).
+  /// Facoltativo alla creazione (specifica cliente §SKU): puo' restare NULL
+  /// finche' non viene inserito a mano o generato (Genera SKU). In import da
+  /// Shopify gli SKU duplicati/vuoti NON rompono il sync: vanno gestiti come
+  /// anomalie PRIMA dell'insert (regole-gestionale, clausola di realtà).
+  sku                    String?
   /// Valori opzione (forma Shopify selectedOptions): [{ name, value }]
   optionValues           Json     @default("[]") @map("option_values")
   barcode                String?

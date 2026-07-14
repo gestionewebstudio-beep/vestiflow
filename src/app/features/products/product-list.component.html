@@ -66,6 +66,18 @@
 
   <div class="product-list__columns">
     <app-table-column-picker [viewId]="productListView" />
+    <label class="product-list__label-copies">
+      Copie per etichetta
+      <input
+        class="product-list__label-copies-input"
+        type="number"
+        min="1"
+        max="500"
+        step="1"
+        [value]="labelCopies()"
+        (change)="setLabelCopies($any($event.target).valueAsNumber)"
+      />
+    </label>
   </div>
 
   @if (scanFeedback(); as message) {
@@ -99,9 +111,15 @@
           >
             <i class="pi pi-print" aria-hidden="true"></i>
             Stampa etichette selezionate
+            @if (labelCopies() > 1) {
+              ({{ labelCopies() }} copie cad.)
+            }
           </app-button>
         </div>
       </div>
+    }
+    @if (duplicateError(); as message) {
+      <app-error-state [description]="message" />
     }
     <app-product-table
       [products]="products()"
@@ -112,8 +130,10 @@
       [selectedProductIds]="selectedProductIds()"
       [allOnPageSelected]="allOnPageSelected()"
       [someOnPageSelected]="someOnPageSelected()"
+      [canManage]="canManageCatalog()"
       (rowClick)="openProduct($event)"
       (printLabel)="printProductLabels($event)"
+      (duplicate)="duplicateProduct($event)"
       (selectionToggle)="toggleProductSelection($event.productId, $event.selected)"
       (selectAllToggle)="toggleSelectAllOnPage($event)"
       (sortChange)="onSortChange($event)"

@@ -105,7 +105,9 @@ describe('InventoryService', () => {
 
   it('listLevels pagina risultati senza ricerca', async () => {
     const prisma = createPrismaMock();
-    const items = [{ id: 'lvl-1', available: 3 }];
+    const items = [
+      { id: 'lvl-1', available: 3, variant: { sku: 'SKU-1', product: { name: 'Maglietta' } } },
+    ];
     prisma.inventoryLevel.findMany.mockResolvedValue(items);
     prisma.inventoryLevel.count.mockResolvedValue(1);
     const service = new InventoryService(

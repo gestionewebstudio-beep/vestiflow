@@ -22,6 +22,18 @@
         Torna al prodotto
       </a>
       <div class="label-print__actions">
+        <label class="label-print__quantity">
+          Copie per etichetta
+          <input
+            class="label-print__quantity-input"
+            type="number"
+            min="1"
+            max="500"
+            step="1"
+            [value]="quantity()"
+            (change)="setQuantity($any($event.target).valueAsNumber)"
+          />
+        </label>
         <app-button variant="secondary" (click)="print()">
           <i class="pi pi-print" aria-hidden="true"></i>
           Stampa etichetta
@@ -41,7 +53,7 @@
       />
     } @else {
       <div class="label-print__sheet" aria-label="Etichette prodotto">
-        @for (label of labels(); track label.variantId) {
+        @for (label of expandedLabels(); track label.variantId + '-' + $index) {
           <app-product-label
             [productName]="label.productName"
             [brand]="label.brand"

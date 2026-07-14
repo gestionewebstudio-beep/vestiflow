@@ -716,10 +716,16 @@ export class SalesDocumentFormComponent {
     if (!this.isSalesDdt()) {
       return;
     }
+    // Mai fallback "prima location disponibile" (specifica «sede predefinita»):
+    // restano solo la location attiva scelta in topbar e la mono-location.
     const active = this.locationContext.activeLocationId();
     const writable = this.operationalLocations.writeLocations();
     const defaultLoc =
-      active && writable.some((l) => l.id === active) ? active : (writable[0]?.id ?? '');
+      active && writable.some((l) => l.id === active)
+        ? active
+        : writable.length === 1
+          ? (writable[0]?.id ?? '')
+          : '';
     if (defaultLoc && !this.form.controls.locationId.value) {
       this.form.controls.locationId.setValue(defaultLoc);
     }

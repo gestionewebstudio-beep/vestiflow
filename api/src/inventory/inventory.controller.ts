@@ -163,8 +163,11 @@ export class InventoryController {
 
   @Get('reports/location-summary')
   @RequirePermissions(TenantPermission.ReportsView)
-  locationInventoryReport(@CurrentTenant() tenantId: string) {
-    return this.inventoryReport.locationSummary(tenantId);
+  locationInventoryReport(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+  ) {
+    return this.inventoryReport.locationSummary(tenantId, user);
   }
 
   @Get('levels')
@@ -256,9 +259,10 @@ export class InventoryController {
   @RequirePermissions(TenantPermission.InventoryManage)
   getCount(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id') id: string,
   ): Promise<InventoryCountSessionDetail> {
-    return this.inventoryCount.getById(tenantId, id);
+    return this.inventoryCount.getById(tenantId, id, user);
   }
 
   @Patch('counts/:sessionId/lines/:lineId')

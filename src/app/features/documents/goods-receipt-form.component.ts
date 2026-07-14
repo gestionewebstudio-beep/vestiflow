@@ -50,9 +50,9 @@ import {
   type PurchaseCostEntryMode,
   type VatCode,
 } from '@core/models/vat-code.model';
-import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import {
   DEFAULT_CURRENCY,
   formatMoney,
@@ -87,6 +87,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
+import { LocationSuggestionHintComponent } from '@shared/components/location-suggestion-hint/location-suggestion-hint.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -204,6 +205,13 @@ type GoodsReceiptLineFocusField =
 
 type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
 
+/** Variante risolta dopo la creazione articolo da riga rapida (SKU facoltativo). */
+interface ResolvedNewLineVariant {
+  readonly variantId: string;
+  readonly sku: string | null;
+  readonly barcode: string | null;
+}
+
 /**
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
  * rapida articolo dalla riga, conferma con carico magazzino server-side.
@@ -233,6 +241,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
     SlidePanelComponent,
     ProductFormComponent,
     SupplierFormFieldsComponent,
+    LocationSuggestionHintComponent,
   ],
   templateUrl: './goods-receipt-form.component.html',
   styleUrl: './goods-receipt-form.component.scss',
@@ -247,7 +256,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
-  private readonly locationContext = inject(LocationContextService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -606,11 +614,26 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   );
 
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.operationalLocations.writeLocations().map((loc) => ({
-      value: loc.id,
-      label: loc.name,
-    })),
+    toLocationSelectOptions(
+      this.operationalLocations.writeLocations(),
+      this.operationalLocations.defaultLocation()?.id ?? null,
+    ),
   );
+
+  /**
+   * Sede suggerita (predefinita utente, o unica autorizzata): mostrata come
+   * hint cliccabile sotto il campo — MAI autoselezionata (specifica cliente:
+   * anche mono-location la conferma resta esplicita).
+   */
+  protected readonly suggestedLocation = this.operationalLocations.suggestedWriteLocation;
+
+  protected applySuggestedLocation(): void {
+    const suggested = this.suggestedLocation();
+    if (!suggested || this.formReadOnly()) {
+      return;
+    }
+    this.onLocationSelect(suggested.id);
+  }
 
   // ── Documento fornitore: tipi per tenant (prompt §3-6) ─────────────────────
   /** Valore-azione nella tendina: apre la finestra "Nuovo tipo documento". */
@@ -1611,7 +1634,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return lineDraftPersistableForExplicitSave(this.lineDraft(line));
   }
 
-  /** Creazione articolo SOLO dopo azione esplicita "Crea nuovo articolo" (§8). */
+  /**
+   * Creazione articolo SOLO dopo azione esplicita "Crea nuovo articolo" (§8).
+   * Lo SKU è facoltativo (chiarimento cliente su audit "Creazione articolo"):
+   * il solo nome è sufficiente per creare Product + variante tecnica.
+   */
   private lineNeedsProductCreation(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
   ): boolean {
@@ -1621,9 +1648,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (Number(line.controls.quantity.value) <= 0) {
       return false;
     }
-    const sku = line.controls.sku.value.trim();
     const name = line.controls.productName.value.trim();
-    return sku.length > 0 && name.length >= 2;
+    return name.length >= 2;
   }
 
   private lineNeedsVariantLink(line: ReturnType<GoodsReceiptFormComponent['createLine']>): boolean {
@@ -3747,15 +3773,21 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   private initDefaultsForCreate(): void {
-    const active = this.locationContext.activeLocationId();
-    const writable = this.operationalLocations.writeLocations();
-    const defaultLoc =
-      active && writable.some((l) => l.id === active) ? active : (writable[0]?.id ?? '');
-    if (defaultLoc && !this.form.controls.locationId.value) {
-      this.form.controls.locationId.setValue(defaultLoc);
-    }
+    // Nessuna autoselezione della sede (specifica cliente «sede predefinita»):
+    // il campo parte vuoto e l'utente conferma esplicitamente — la predefinita
+    // è solo suggerita (prima nelle opzioni + hint cliccabile), anche quando
+    // l'utente ha UNA sola sede autorizzata.
     this.ensureMinimumOneRow();
     this.scheduleInitialLineFocus();
+
+    // Arrivo da ordine fornitore (percorso unico): il dettaglio ordine apre
+    // questo form con ?supplierOrderId=… e le righe residue vengono copiate
+    // client-side — nessuna bozza pre-creata dal backend. Il collegamento
+    // all'ordine viaggia nel payload di «Salva documento».
+    const supplierOrderId = this.route.snapshot.queryParamMap.get('supplierOrderId');
+    if (supplierOrderId) {
+      this.includeSupplierOrder(supplierOrderId);
+    }
   }
 
   private persistAutoSave(options?: {
@@ -4473,19 +4505,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return pending;
     }
     const name = line.controls.productName.value.trim();
-    const sku = line.controls.sku.value.trim();
-    if (!sku) {
-      return throwError(() => ({
-        kind: AppErrorKind.Validation,
-        message: 'Per creare questo articolo devi inserire anche lo SKU.',
-      }));
-    }
     if (name.length < 2) {
       return throwError(() => ({
         kind: AppErrorKind.Validation,
         message: 'Per creare questo articolo inserisci il nome prodotto.',
       }));
     }
+    // Lo SKU è facoltativo (chiarimento cliente su audit "Creazione
+    // articolo"): il solo nome basta a creare Product + variante tecnica.
+    const sku = line.controls.sku.value.trim() || undefined;
     const purchase = parseMoneyInput(line.controls.unitCost.value, this.currency);
     const selling =
       parseMoneyInput(line.controls.sellingPrice.value, this.currency) ??
@@ -4511,18 +4539,51 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         ],
       })
       .pipe(
-        switchMap(() => this.productService.findVariantByCode(sku)),
-        // Se la creazione fallisce ma la variante esiste (richiesta concorrente
-        // o tentativo precedente riuscito a metà), la riga si riaggancia invece
-        // di restare bloccata su "SKU già presenti a catalogo" a ogni salvataggio.
-        catchError((err: unknown) =>
-          this.productService.findVariantByCode(sku).pipe(catchError(() => throwError(() => err))),
+        // Senza SKU non c'è più nulla su cui cercare la variante appena
+        // creata: si rilegge direttamente dal prodotto (il suo id è già
+        // disponibile dalla risposta di creazione).
+        switchMap(
+          (product): Observable<ResolvedNewLineVariant> =>
+            this.productService.getProductVariants(product.id).pipe(
+              map((variants) => {
+                const variant = variants[0];
+                if (!variant) {
+                  throw Object.assign(new Error('Articolo creato ma variante non trovata.'), {
+                    kind: AppErrorKind.Unknown,
+                  });
+                }
+                return {
+                  variantId: variant.id,
+                  sku: variant.sku ?? null,
+                  barcode: variant.barcode ?? null,
+                };
+              }),
+            ),
         ),
-        map((variant) => {
-          line.controls.variantId.setValue(variant.variantId, { emitEvent: false });
-          line.controls.sku.setValue(variant.sku, { emitEvent: false });
-          line.controls.barcode.setValue(variant.barcode ?? '', { emitEvent: false });
-          line.controls.productName.setValue(variant.productName, { emitEvent: false });
+        // Se la creazione fallisce ma la variante esiste già (richiesta
+        // concorrente o tentativo precedente riuscito a metà), la riga si
+        // riaggancia invece di restare bloccata a ogni salvataggio. Possibile
+        // solo se è stato specificato uno SKU: senza, non c'è modo di
+        // ritrovare la variante del tentativo fallito.
+        catchError((err: unknown) => {
+          if (!sku) {
+            return throwError(() => err);
+          }
+          return this.productService.findVariantByCode(sku).pipe(
+            map(
+              (variant): ResolvedNewLineVariant => ({
+                variantId: variant.variantId,
+                sku: variant.sku ?? null,
+                barcode: variant.barcode ?? null,
+              }),
+            ),
+            catchError(() => throwError(() => err)),
+          );
+        }),
+        map((resolved) => {
+          line.controls.variantId.setValue(resolved.variantId, { emitEvent: false });
+          line.controls.sku.setValue(resolved.sku ?? '', { emitEvent: false });
+          line.controls.barcode.setValue(resolved.barcode ?? '', { emitEvent: false });
           line.controls.createNew.setValue(false, { emitEvent: false });
           this.syncLineFieldAccess();
           return undefined;

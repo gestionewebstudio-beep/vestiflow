@@ -113,7 +113,11 @@ export class ShellLayoutComponent {
     if (canSwitchOperationalLocation(user)) {
       return null;
     }
-    return user?.assignedLocationName ?? null;
+    // Scelta di design: 1 sede -> nome; 0 -> null (nessuna etichetta, gestito
+    // altrove come "nessun accesso"); 2+ -> nomi separati da virgola (spazio
+    // topbar limitato, non serve un conteggio per pochi elementi tipici).
+    const names = (user?.assignedLocations ?? []).map((location) => location.name);
+    return names.length > 0 ? names.join(', ') : null;
   });
 
   private readonly pinFixedOperationalLocation = effect(() => {

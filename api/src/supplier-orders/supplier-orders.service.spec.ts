@@ -1,9 +1,16 @@
-import { ConflictException, GoneException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  GoneException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { SupplierOrdersService } from './supplier-orders.service';
 import type { SuppliersService } from './suppliers.service';
 
@@ -32,7 +39,10 @@ describe('SupplierOrdersService', () => {
         create: vi.fn(),
         findFirst: vi.fn(),
       },
-      location: { findFirst: vi.fn() },
+      location: {
+        findFirst: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       productVariant: { findMany: vi.fn() },
       supplierOrder: {
         findMany: vi.fn(),
@@ -419,5 +429,178 @@ describe('SupplierOrdersService', () => {
     const service = createService(prisma);
 
     await expect(service.delete(tenantId, 'po-1')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  describe('enforcement location (N sedi per utente)', () => {
+    it('titolare può creare un ordine fornitore in qualunque sede del tenant', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
+      prisma.location.findFirst.mockResolvedValue({ id: 'loc-qualunque' });
+      prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
+      prisma.supplierOrder.findMany.mockResolvedValue([]);
+      prisma.supplierOrder.create.mockResolvedValue({ id: 'po-new', lines: [] });
+      const service = createService(prisma);
+
+      await expect(
+        service.create(
+          tenantId,
+          {
+            supplierId: 'sup-1',
+            destinationLocationId: 'loc-qualunque',
+            lines: [{ variantId: 'var-1', orderedQuantity: 5, unitCostMinor: 1000 }],
+          },
+          testOwnerUser(),
+        ),
+      ).resolves.toMatchObject({ id: 'po-new' });
+    });
+
+    it('utente con una sola sede assegnata riceve 403 su una sede diversa dello stesso tenant', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
+      prisma.location.findFirst.mockResolvedValue({ id: 'loc-2' });
+      const service = createService(prisma);
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+
+      await expect(
+        service.create(
+          tenantId,
+          {
+            supplierId: 'sup-1',
+            destinationLocationId: 'loc-2',
+            lines: [{ variantId: 'var-1', orderedQuantity: 5, unitCostMinor: 1000 }],
+          },
+          clerk,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.supplierOrder.create).not.toHaveBeenCalled();
+    });
+
+    it('utente senza alcuna sede assegnata non può creare ordini fornitore', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
+      prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
+      const service = createService(prisma);
+      const clerk = testClerkUser({ hasAllLocationsAccess: false, assignedLocationIds: [] });
+
+      await expect(
+        service.create(
+          tenantId,
+          {
+            supplierId: 'sup-1',
+            destinationLocationId: 'loc-1',
+            lines: [{ variantId: 'var-1', orderedQuantity: 5, unitCostMinor: 1000 }],
+          },
+          clerk,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('list esclude gli ordini di sedi non autorizzate per l’utente corrente', async () => {
+      const prisma = createPrismaMock();
+      prisma.location.findMany.mockResolvedValue([{ id: 'loc-1' }, { id: 'loc-2' }]);
+      prisma.supplierOrder.findMany.mockResolvedValue([]);
+      prisma.supplierOrder.count.mockResolvedValue(0);
+      const service = createService(prisma);
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+
+      await service.list(tenantId, { page: 1, pageSize: 10 }, clerk);
+
+      expect(prisma.supplierOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ destinationLocationId: { in: ['loc-1'] } }),
+        }),
+      );
+    });
+
+    it('getById rifiuta l’apertura diretta su una sede non autorizzata', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplierOrder.findFirst.mockResolvedValue({
+        id: 'po-1',
+        status: SupplierOrderStatus.draft,
+        destinationLocationId: 'loc-9',
+        lines: [],
+      });
+      const service = createService(prisma);
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+
+      await expect(service.getById(tenantId, 'po-1', clerk)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('send rifiuta con 403 un ordine con destinazione fuori dalle sedi assegnate', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplierOrder.findFirst.mockResolvedValue({
+        id: 'po-1',
+        status: SupplierOrderStatus.draft,
+        destinationLocationId: 'loc-9',
+        lines: [],
+      });
+      const service = createService(prisma);
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+
+      await expect(service.send(tenantId, 'po-1', clerk)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('cancel rifiuta con 403 un ordine con destinazione fuori dalle sedi assegnate', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplierOrder.findFirst.mockResolvedValue({
+        id: 'po-1',
+        status: SupplierOrderStatus.sent,
+        destinationLocationId: 'loc-9',
+        lines: [],
+      });
+      const service = createService(prisma);
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+
+      await expect(service.cancel(tenantId, 'po-1', clerk)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('delete rifiuta con 403 un ordine con destinazione fuori dalle sedi assegnate', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplierOrder.findFirst.mockResolvedValue({
+        id: 'po-1',
+        status: SupplierOrderStatus.cancelled,
+        destinationLocationId: 'loc-9',
+        lines: [],
+      });
+      const service = createService(prisma);
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+
+      await expect(service.delete(tenantId, 'po-1', clerk)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.supplierOrder.delete).not.toHaveBeenCalled();
+    });
+
+    it('send consente al titolare qualunque destinazione, al commesso la sede assegnata', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplierOrder.findFirst.mockResolvedValue({
+        id: 'po-1',
+        status: SupplierOrderStatus.draft,
+        destinationLocationId: 'loc-1',
+        lines: [],
+      });
+      prisma.supplierOrder.update.mockResolvedValue({
+        id: 'po-1',
+        status: SupplierOrderStatus.sent,
+        destinationLocationId: 'loc-1',
+        lines: [],
+      });
+      const service = createService(prisma);
+
+      await expect(service.send(tenantId, 'po-1', testOwnerUser())).resolves.toMatchObject({
+        status: SupplierOrderStatus.sent,
+      });
+      await expect(
+        service.send(tenantId, 'po-1', testClerkUser({ assignedLocationIds: ['loc-1'] })),
+      ).resolves.toMatchObject({ status: SupplierOrderStatus.sent });
+    });
   });
 });

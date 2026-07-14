@@ -150,11 +150,25 @@ export class TikTokProductPushService {
   ): Promise<TikTokCreateProductPayload> {
     const stockByVariant = await this.loadAvailableStock(product);
 
+    // Varianti senza SKU (facoltativo alla creazione, specifica cliente §SKU)
+    // non sono pubblicabili su TikTok Shop: il catalogo esterno richiede un
+    // seller_sku identificativo. Restano escluse dal push finche' non ne
+    // ricevono uno (manuale o via "Genera SKU"), invece di inviare un
+    // seller_sku vuoto che l'API TikTok rifiuterebbe comunque.
+    const skuVariants = product.variants.filter(
+      (variant): variant is typeof variant & { sku: string } => Boolean(variant.sku),
+    );
+    if (skuVariants.length === 0) {
+      throw new Error(
+        'Nessuna variante con SKU: assegna uno SKU ad almeno una variante prima del push TikTok.',
+      );
+    }
+
     return {
       title: product.name,
       description: product.description?.trim() || product.name,
       category_id: categoryId,
-      skus: product.variants.map((variant) => ({
+      skus: skuVariants.map((variant) => ({
         seller_sku: variant.sku,
         price: {
           amount: (variant.sellingPriceMinor / 100).toFixed(2),
@@ -198,6 +212,9 @@ export class TikTokProductPushService {
 
     const skuToId = new Map(createdSkus.map((row) => [row.seller_sku, row.id]));
     for (const variant of product.variants) {
+      if (!variant.sku) {
+        continue;
+      }
       const tiktokSkuId = skuToId.get(variant.sku);
       if (!tiktokSkuId) {
         continue;

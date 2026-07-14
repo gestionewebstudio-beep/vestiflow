@@ -16,12 +16,14 @@ const LOCATIONS = [
   { id: 'loc-2', name: 'Roma' },
 ];
 
-function operationalLocationsMock() {
+function operationalLocationsMock(defaultLocation: { id: string; name: string } | null = null) {
   return {
     locations: () => LOCATIONS,
     writeLocations: () => LOCATIONS,
     actionLocations: () => LOCATIONS,
     transferTargetLocations: () => LOCATIONS,
+    defaultLocation: () => defaultLocation,
+    suggestedWriteLocation: () => defaultLocation,
     isFixedSingleStore: () => false,
     fixedSingleStoreLocationId: () => null,
     fixedSingleStoreLabel: () => null,
@@ -29,7 +31,9 @@ function operationalLocationsMock() {
 }
 
 describe('TransferFormComponent', () => {
-  async function setup() {
+  async function setup(options?: {
+    readonly defaultLocation?: { id: string; name: string } | null;
+  }) {
     await render(TransferFormComponent, {
       providers: [
         provideRouter([]),
@@ -37,7 +41,10 @@ describe('TransferFormComponent', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { data: {} }, paramMap: of(convertToParamMap({})) },
         },
-        { provide: OperationalLocationsService, useValue: operationalLocationsMock() },
+        {
+          provide: OperationalLocationsService,
+          useValue: operationalLocationsMock(options?.defaultLocation ?? null),
+        },
         {
           provide: LocationContextService,
           useValue: { activeLocationId: () => null, setActiveLocation: vi.fn() },
@@ -71,5 +78,30 @@ describe('TransferFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Location di destinazione' }));
     expect(screen.getByRole('option', { name: 'Milano' })).toBeVisible();
     expect(screen.queryByRole('option', { name: 'Roma' })).toBeNull();
+  });
+
+  // Specifica «sede predefinita»: puo' precompilare SOLO l'origine; la
+  // destinazione non viene MAI autocompilata.
+  it('precompila la sola origine con la sede predefinita; destinazione mai autocompilata', async () => {
+    await setup({ defaultLocation: LOCATIONS[0] });
+
+    const origin = screen.getByRole('button', { name: 'Location di origine' });
+    expect(origin).toHaveTextContent('Milano (predefinita)');
+
+    const target = screen.getByRole('button', { name: 'Location di destinazione' });
+    expect(target).toHaveTextContent('Seleziona destinazione…');
+  });
+
+  // Senza predefinita (utente multi-sede): nessun fallback "prima location
+  // disponibile", entrambi i campi partono vuoti.
+  it('senza sede predefinita non autoseleziona origine ne destinazione', async () => {
+    await setup();
+
+    expect(screen.getByRole('button', { name: 'Location di origine' })).toHaveTextContent(
+      'Seleziona origine…',
+    );
+    expect(screen.getByRole('button', { name: 'Location di destinazione' })).toHaveTextContent(
+      'Seleziona destinazione…',
+    );
   });
 });

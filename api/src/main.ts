@@ -6,6 +6,7 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { createValidationExceptionFactory } from './common/validation/validation-exception.factory';
 import { SUPPORT_SESSION_HEADER } from './support/support-session.constants';
 
 async function bootstrap(): Promise<void> {
@@ -41,12 +42,17 @@ async function bootstrap(): Promise<void> {
 
   // Validazione payload globale: whitelist (campi sconosciuti rimossi),
   // forbidNonWhitelisted (payload sospetti rifiutati), transform per i DTO.
+  // exceptionFactory: mai esporre al client nomi di proprietà/vincoli tecnici
+  // del DTO (es. "property xyz should not exist") — solo un messaggio
+  // generico in italiano. Il dettaglio originale resta nei log server-side
+  // (vedi common/validation/validation-exception.factory.ts).
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: false },
+      exceptionFactory: createValidationExceptionFactory(),
     }),
   );
 

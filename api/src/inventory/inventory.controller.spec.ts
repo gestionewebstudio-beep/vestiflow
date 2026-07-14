@@ -277,7 +277,9 @@ describe('InventoryController', () => {
 
 
 
-    await expect(controller.getCount(tenantId, 'count-1')).resolves.toEqual({ id: 'count-1' });
+    await expect(controller.getCount(tenantId, user, 'count-1')).resolves.toEqual({ id: 'count-1' });
+
+    expect(inventoryCount.getById).toHaveBeenCalledWith(tenantId, 'count-1', user);
 
   });
 

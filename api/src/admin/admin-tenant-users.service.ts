@@ -13,14 +13,19 @@ import { AuthProfileCacheService } from '../auth/auth-profile-cache.service';
 import { SupabaseService } from '../auth/supabase.service';
 import { PlatformAdminService } from '../common/platform-admin/platform-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  hasUnrestrictedLocationAccess,
-  requiresAssignedLocation,
-} from '../inventory/user-location-scope.util';
 import { normalizeStoredPermissions } from '../auth/user-permissions.util';
 import { isTenantPermissionKey } from '../auth/tenant-permission.constants';
 
 import type { CreateTenantUserDto, TenantUserDto, UpdateTenantUserDto } from './dto/tenant-user.dto';
+
+const USER_LOCATIONS_INCLUDE = {
+  locations: { include: { location: { select: { id: true, name: true } } } },
+} as const;
+
+interface LocationAssignment {
+  readonly hasAllLocationsAccess: boolean;
+  readonly assignedLocationIds: readonly string[];
+}
 
 @Injectable()
 export class AdminTenantUsersService {
@@ -40,9 +45,7 @@ export class AdminTenantUsersService {
     const users = await this.prisma.user.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'asc' },
-      include: {
-        assignedLocation: { select: { id: true, name: true } },
-      },
+      include: USER_LOCATIONS_INCLUDE,
     });
 
     return users.map((user) => this.toDto(user));
@@ -69,10 +72,14 @@ export class AdminTenantUsersService {
       throw new ConflictException('Esiste già un utente con questa email');
     }
 
-    const assignedLocationId = await this.resolveAssignedLocationId(
+    const locationAssignment = await this.resolveLocationAssignment(tenantId, dto.role, {
+      hasAllLocationsAccess: dto.hasAllLocationsAccess,
+      assignedLocationIds: dto.assignedLocationIds,
+    });
+    const defaultLocationId = await this.resolveDefaultLocationId(
       tenantId,
-      dto.role,
-      dto.assignedLocationId ?? null,
+      locationAssignment,
+      dto.defaultLocationId ?? null,
     );
     const permissions = this.resolvePermissions(dto.role, dto.permissions);
 
@@ -98,20 +105,35 @@ export class AdminTenantUsersService {
     }
 
     try {
-      const user = await this.prisma.user.create({
-        data: {
-          tenantId,
-          authUserId,
-          email,
-          displayName: dto.displayName.trim(),
-          role: dto.role,
-          assignedLocationId,
-          permissions,
-          stores: { create: { storeId: store.id } },
-        },
-        include: {
-          assignedLocation: { select: { id: true, name: true } },
-        },
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            tenantId,
+            authUserId,
+            email,
+            displayName: dto.displayName.trim(),
+            role: dto.role,
+            hasAllLocationsAccess: locationAssignment.hasAllLocationsAccess,
+            defaultLocationId,
+            permissions,
+            stores: { create: { storeId: store.id } },
+          },
+        });
+
+        if (locationAssignment.assignedLocationIds.length > 0) {
+          await tx.userLocation.createMany({
+            data: locationAssignment.assignedLocationIds.map((locationId) => ({
+              userId: created.id,
+              locationId,
+              tenantId,
+            })),
+          });
+        }
+
+        return tx.user.findUniqueOrThrow({
+          where: { id: created.id },
+          include: USER_LOCATIONS_INCLUDE,
+        });
       });
       return this.toDto(user);
     } catch (error) {
@@ -129,28 +151,37 @@ export class AdminTenantUsersService {
 
     const existing = await this.prisma.user.findFirst({
       where: { id: userId, tenantId },
-      include: { assignedLocation: { select: { id: true, name: true } } },
+      include: USER_LOCATIONS_INCLUDE,
     });
     if (!existing) {
       throw new NotFoundException('Utente non trovato');
     }
 
     const nextRole = dto.role ?? existing.role;
-    let assignedLocationId = existing.assignedLocationId;
-    if (dto.assignedLocationId !== undefined) {
-      assignedLocationId = await this.resolveAssignedLocationId(
-        tenantId,
-        nextRole,
-        dto.assignedLocationId,
-      );
-    } else if (dto.role !== undefined && hasUnrestrictedLocationAccess({ role: nextRole })) {
-      assignedLocationId = null;
-    } else if (dto.role !== undefined && requiresAssignedLocation({ role: nextRole })) {
-      assignedLocationId = await this.resolveAssignedLocationId(
-        tenantId,
-        nextRole,
-        existing.assignedLocationId,
-      );
+    const existingAssignedLocationIds = existing.locations.map((row) => row.locationId);
+
+    const locationInputProvided =
+      dto.hasAllLocationsAccess !== undefined || dto.assignedLocationIds !== undefined;
+
+    let locationAssignment: LocationAssignment;
+    if (locationInputProvided) {
+      locationAssignment = await this.resolveLocationAssignment(tenantId, nextRole, {
+        hasAllLocationsAccess: dto.hasAllLocationsAccess,
+        assignedLocationIds: dto.assignedLocationIds,
+      });
+    } else if (dto.role !== undefined) {
+      // Cambio ruolo senza nuovo input sedi: rivalida la sede attuale nel
+      // contesto del nuovo ruolo (es. da admin con tutte le sedi a manager
+      // richiede assegnazione esplicita).
+      locationAssignment = await this.resolveLocationAssignment(tenantId, nextRole, {
+        hasAllLocationsAccess: existing.hasAllLocationsAccess,
+        assignedLocationIds: existingAssignedLocationIds,
+      });
+    } else {
+      locationAssignment = {
+        hasAllLocationsAccess: existing.hasAllLocationsAccess,
+        assignedLocationIds: existingAssignedLocationIds,
+      };
     }
 
     const permissions =
@@ -158,18 +189,53 @@ export class AdminTenantUsersService {
         ? this.resolvePermissions(nextRole, dto.permissions ?? existing.permissions)
         : existing.permissions;
 
-    const user = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(dto.displayName !== undefined ? { displayName: dto.displayName.trim() } : {}),
-        ...(dto.role !== undefined ? { role: dto.role } : {}),
-        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
-        assignedLocationId,
-        permissions,
-      },
-      include: {
-        assignedLocation: { select: { id: true, name: true } },
-      },
+    // Sede predefinita: input esplicito validato contro la nuova assegnazione;
+    // senza input, quella esistente sopravvive SOLO se ancora autorizzata
+    // (cambio assegnazioni/ruolo che la esclude -> azzerata, mai errore).
+    let defaultLocationId: string | null;
+    if (dto.defaultLocationId !== undefined) {
+      defaultLocationId = await this.resolveDefaultLocationId(
+        tenantId,
+        locationAssignment,
+        dto.defaultLocationId,
+      );
+    } else {
+      const stillAuthorized = await this.isDefaultLocationAuthorized(
+        tenantId,
+        locationAssignment,
+        existing.defaultLocationId,
+      );
+      defaultLocationId = stillAuthorized ? existing.defaultLocationId : null;
+    }
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          ...(dto.displayName !== undefined ? { displayName: dto.displayName.trim() } : {}),
+          ...(dto.role !== undefined ? { role: dto.role } : {}),
+          ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+          hasAllLocationsAccess: locationAssignment.hasAllLocationsAccess,
+          defaultLocationId,
+          permissions,
+        },
+      });
+
+      await tx.userLocation.deleteMany({ where: { userId } });
+      if (locationAssignment.assignedLocationIds.length > 0) {
+        await tx.userLocation.createMany({
+          data: locationAssignment.assignedLocationIds.map((locationId) => ({
+            userId,
+            locationId,
+            tenantId,
+          })),
+        });
+      }
+
+      return tx.user.findUniqueOrThrow({
+        where: { id: userId },
+        include: USER_LOCATIONS_INCLUDE,
+      });
     });
 
     if (user.authUserId) {
@@ -229,41 +295,109 @@ export class AdminTenantUsersService {
     return this.config.get<string>('SUPABASE_USER_AVATARS_BUCKET') ?? 'user-avatars';
   }
 
-  private async resolveAssignedLocationId(
+  /**
+   * Deriva l'assegnazione sedi definitiva per un utente in base al ruolo:
+   * - owner: sempre tutte le sedi, nessuna riga UserLocation.
+   * - admin: tutte le sedi salvo `hasAllLocationsAccess === false` esplicito,
+   *   nel qual caso richiede assegnazioni esplicite valide.
+   * - manager/clerk: mai tutte le sedi, richiede sempre assegnazioni esplicite valide.
+   */
+  private async resolveLocationAssignment(
     tenantId: string,
     role: UserRole,
-    assignedLocationId: string | null | undefined,
-  ): Promise<string | null> {
-    if (hasUnrestrictedLocationAccess({ role })) {
-      return null;
+    input: { hasAllLocationsAccess?: boolean; assignedLocationIds?: readonly string[] },
+  ): Promise<LocationAssignment> {
+    if (role === UserRole.owner) {
+      return { hasAllLocationsAccess: true, assignedLocationIds: [] };
     }
 
-    if (!assignedLocationId) {
+    if (role === UserRole.admin && input.hasAllLocationsAccess !== false) {
+      return { hasAllLocationsAccess: true, assignedLocationIds: [] };
+    }
+
+    const assignedLocationIds = await this.requireValidAssignedLocationIds(
+      tenantId,
+      input.assignedLocationIds,
+    );
+    return { hasAllLocationsAccess: false, assignedLocationIds };
+  }
+
+  /**
+   * Valida un elenco di sedi da assegnare: devono esistere, appartenere al
+   * tenant ed essere licenziate/attive. Richiede almeno una sede, a meno che
+   * il tenant non abbia ancora nessuna sede attiva nel piano (in quel caso
+   * non blocca il provisioning: non c'è nulla da assegnare).
+   */
+  private async requireValidAssignedLocationIds(
+    tenantId: string,
+    assignedLocationIds: readonly string[] | undefined,
+  ): Promise<string[]> {
+    const unique = [...new Set(assignedLocationIds ?? [])];
+
+    if (unique.length === 0) {
       const activeCount = await this.prisma.location.count({
         where: { tenantId, licensedInVf: true, isActive: true },
       });
       if (activeCount > 0) {
-        throw new BadRequestException(
-          'Assegna una sede operativa per manager e commesso.',
-        );
+        throw new BadRequestException('Assegna almeno una sede operativa per questo ruolo.');
       }
-      return null;
+      return [];
     }
 
-    const location = await this.prisma.location.findFirst({
+    const found = await this.prisma.location.findMany({
       where: {
-        id: assignedLocationId,
+        id: { in: unique },
         tenantId,
         licensedInVf: true,
         isActive: true,
       },
       select: { id: true },
     });
-    if (!location) {
-      throw new BadRequestException('Sede non valida o non attiva nel piano del cliente.');
+    if (found.length !== unique.length) {
+      throw new BadRequestException('Una o più sedi non sono valide o non attive nel piano del cliente.');
     }
 
-    return assignedLocationId;
+    return unique;
+  }
+
+  /**
+   * Valida la sede predefinita richiesta: deve essere autorizzata per l'utente
+   * (tra le assegnate; con accesso pieno qualunque sede licenziata e attiva del
+   * tenant). `null` = nessuna predefinita. Input non autorizzato -> 400.
+   */
+  private async resolveDefaultLocationId(
+    tenantId: string,
+    assignment: LocationAssignment,
+    requested: string | null,
+  ): Promise<string | null> {
+    if (!requested) {
+      return null;
+    }
+    const authorized = await this.isDefaultLocationAuthorized(tenantId, assignment, requested);
+    if (!authorized) {
+      throw new BadRequestException(
+        'La sede predefinita deve essere una sede autorizzata per questo utente.',
+      );
+    }
+    return requested;
+  }
+
+  /** True se la sede è utilizzabile come predefinita per l'assegnazione data. */
+  private async isDefaultLocationAuthorized(
+    tenantId: string,
+    assignment: LocationAssignment,
+    locationId: string | null,
+  ): Promise<boolean> {
+    if (!locationId) {
+      return false;
+    }
+    if (!assignment.hasAllLocationsAccess) {
+      return assignment.assignedLocationIds.includes(locationId);
+    }
+    const count = await this.prisma.location.count({
+      where: { id: locationId, tenantId, licensedInVf: true, isActive: true },
+    });
+    return count > 0;
   }
 
   private resolvePermissions(
@@ -292,19 +426,23 @@ export class AdminTenantUsersService {
     email: string;
     displayName: string;
     role: UserRole;
-    assignedLocationId: string | null;
+    hasAllLocationsAccess: boolean;
+    defaultLocationId?: string | null;
     permissions: string[];
     isActive: boolean;
     createdAt: Date;
-    assignedLocation?: { id: string; name: string } | null;
+    locations?: readonly { location: { id: string; name: string } }[];
   }): TenantUserDto {
+    const assignedLocations = (user.locations ?? []).map((row) => row.location);
     return {
       id: user.id,
       email: user.email,
       displayName: user.displayName,
       role: user.role,
-      assignedLocationId: user.assignedLocationId,
-      assignedLocationName: user.assignedLocation?.name ?? null,
+      hasAllLocationsAccess: user.hasAllLocationsAccess,
+      assignedLocationIds: assignedLocations.map((location) => location.id),
+      assignedLocations,
+      defaultLocationId: user.defaultLocationId ?? null,
       permissions: (user.permissions ?? []).filter(isTenantPermissionKey),
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),

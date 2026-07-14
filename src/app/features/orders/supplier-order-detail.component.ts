@@ -199,7 +199,10 @@ export class SupplierOrderDetailComponent {
   protected readonly cancelDialogOpen = signal(false);
   protected readonly deleteDialogOpen = signal(false);
 
+  protected readonly downloadingPdf = signal(false);
+
   private actionSubscription: Subscription | null = null;
+  private pdfSubscription: Subscription | null = null;
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
@@ -213,25 +216,56 @@ export class SupplierOrderDetailComponent {
     this.goodsReceiptDialogOpen.set(true);
   }
 
+  /**
+   * L'ordine fornitore è un documento solo commerciale: nessuna bozza
+   * pre-creata lato server. Si apre un nuovo Arrivo merce con l'ordine
+   * pre-selezionato; righe (residui) e testata vengono copiate dal form,
+   * e tutto passa dal flusso dedicato «Salva documento».
+   */
   protected registerGoodsReceipt(): void {
     this.goodsReceiptDialogOpen.set(false);
     const order = this.order();
-    if (!order || this.actionSaving()) {
+    if (!order) {
       return;
     }
-    this._actionState.set({ status: 'saving' });
-    this.actionSubscription = this.documentService
-      .createGoodsReceiptFromSupplierOrder(order.id)
+    void this.router.navigate(['/app/documents/goods-receipt/new'], {
+      queryParams: { supplierOrderId: order.id },
+    });
+  }
+
+  /**
+   * Scarica il PDF dell'ordine (stesso pattern blob-download dei documenti).
+   * Disponibile in ogni stato, bozza inclusa: il PDF riflette solo dati reali
+   * già visibili a chi ha il permesso di vista, quindi nessuna restrizione.
+   */
+  protected downloadPdf(): void {
+    const order = this.order();
+    if (!order || this.downloadingPdf()) {
+      return;
+    }
+    this.downloadingPdf.set(true);
+    this.pdfSubscription = this.service
+      .exportPdf(order.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (doc) => {
-          this._actionState.set({ status: 'idle' });
-          void this.router.navigateByUrl(`/app/documents/${doc.id}/edit`);
+        next: (blob) => {
+          this.downloadingPdf.set(false);
+          this.downloadBlob(blob, `ordine-fornitore-${order.reference}.pdf`);
         },
         error: (err: unknown) => {
+          this.downloadingPdf.set(false);
           this._actionState.set({ status: 'error', error: this.toAppError(err) });
         },
       });
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename.replace(/[^\w\s.-]/g, '-');
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   protected goToEdit(): void {

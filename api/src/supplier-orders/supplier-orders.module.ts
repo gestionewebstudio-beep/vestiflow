@@ -4,6 +4,7 @@ import { ChannelsModule } from '../channels/channels.module';
 import { CustomersModule } from '../customers/customers.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { SupplierMediaService } from './supplier-media.service';
+import { SupplierOrderPdfService } from './supplier-order-pdf.service';
 import { SupplierOrdersController } from './supplier-orders.controller';
 import { SupplierOrdersService } from './supplier-orders.service';
 import { SuppliersController } from './suppliers.controller';
@@ -12,7 +13,7 @@ import { SuppliersService } from './suppliers.service';
 @Module({
   imports: [ChannelsModule, CustomersModule, DocumentsModule],
   controllers: [SupplierOrdersController, SuppliersController],
-  providers: [SupplierOrdersService, SuppliersService, SupplierMediaService],
+  providers: [SupplierOrdersService, SuppliersService, SupplierMediaService, SupplierOrderPdfService],
   exports: [SuppliersService],
 })
 export class SupplierOrdersModule {}

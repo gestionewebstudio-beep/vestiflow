@@ -124,7 +124,7 @@ export class DashboardService {
       levels: levels.map((level) => ({
         variantId: level.variantId,
         locationId: level.locationId,
-        sku: level.variant.sku,
+        sku: level.variant.sku ?? '',
         title: this.buildTitle(level.variant.product.name, level.variant.optionValues),
         available: level.available,
         minThreshold: level.minThreshold,

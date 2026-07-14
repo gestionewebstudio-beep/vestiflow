@@ -17,6 +17,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import { catchError, of, take } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
 import type { EntityId } from '@core/models/common.model';
@@ -39,6 +40,12 @@ import {
   variantOptionNames,
   variantTitle,
 } from '../../models/product-variant.util';
+import { ProductService } from '../../services/product.service';
+
+/** Avviso mostrato prima di sovrascrivere uno SKU già presente nel campo. */
+const OVERWRITE_SKU_WARNING =
+  "Stai per sostituire lo SKU attuale. Se l'articolo ha già movimenti o documenti registrati, " +
+  'lo SKU storico resterà comunque quello usato in quei documenti. Continuare?';
 
 interface VariantRowControls {
   sku: FormControl<string>;
@@ -75,8 +82,12 @@ const EMPTY_META: VariantRowMeta = { key: '', optionValues: [] };
 export class ProductVariantsStepComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly productService = inject(ProductService);
 
   readonly variants = input.required<readonly VariantDraft[]>();
+  /** Nome e categoria correnti del prodotto: input per "Genera SKU" per riga. */
+  readonly productName = input('');
+  readonly category = input('');
   /** SKU gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
   readonly takenSkus = input<readonly string[]>([]);
   /** Barcode gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
@@ -176,7 +187,8 @@ export class ProductVariantsStepComponent {
 
   private buildRow(variant: VariantDraft): FormGroup<VariantRowControls> {
     return this.fb.group<VariantRowControls>({
-      sku: this.fb.control(variant.sku, [Validators.required, Validators.pattern(SKU_PATTERN)]),
+      // Facoltativo (specifica cliente §SKU): nessun Validators.required.
+      sku: this.fb.control(variant.sku, [Validators.pattern(SKU_PATTERN)]),
       sellingPrice: this.fb.control(variant.sellingPrice, [Validators.required, Validators.min(0)]),
       purchasePrice: this.fb.control<number | null>(variant.purchasePrice, [Validators.min(0)]),
       compareAtPrice: this.fb.control<number | null>(variant.compareAtPrice, [Validators.min(0)]),
@@ -267,6 +279,60 @@ export class ProductVariantsStepComponent {
     group.controls.barcode.setValue(barcode);
     group.controls.barcode.markAsDirty();
     group.controls.barcode.markAsTouched();
+  }
+
+  /** Indice della riga per cui e' in corso una generazione SKU (per il loading del bottone). */
+  protected readonly generatingSkuIndex = signal<number | null>(null);
+  protected readonly generateSkuError = signal<string | null>(null);
+
+  protected isGeneratingSku(index: number): boolean {
+    return this.generatingSkuIndex() === index;
+  }
+
+  /**
+   * Genera un'anteprima SKU per la singola variante (categoria + nome +
+   * attributi REALMENTE presenti sulla combinazione, vedi backend
+   * `SkuGeneratorService`). Se il campo ha gia' un valore, chiede conferma
+   * prima di sovrascriverlo (specifica cliente §SKU: mai in automatico).
+   */
+  protected generateSku(index: number): void {
+    const group = this.variantsArray.at(index);
+    if (!group) {
+      return;
+    }
+    const current = group.controls.sku.value.trim();
+    if (current && !window.confirm(OVERWRITE_SKU_WARNING)) {
+      return;
+    }
+
+    this.generateSkuError.set(null);
+    this.generatingSkuIndex.set(index);
+    this.productService
+      .generateSku({
+        productName: this.productName(),
+        category: this.category() || undefined,
+        optionValues: this.meta(index).optionValues.map((option) => ({
+          name: option.name,
+          value: option.value,
+        })),
+      })
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.generateSkuError.set('Impossibile generare lo SKU: riprova o inseriscilo a mano.');
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((result) => {
+        this.generatingSkuIndex.set(null);
+        if (!result) {
+          return;
+        }
+        group.controls.sku.setValue(result.sku);
+        group.controls.sku.markAsDirty();
+        group.controls.sku.markAsTouched();
+      });
   }
 
   /** Esito della regola compareAtPrice per la riga (delegata all'helper puro). */

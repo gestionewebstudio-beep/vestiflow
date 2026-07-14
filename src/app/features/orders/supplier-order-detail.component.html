@@ -23,6 +23,15 @@
         <p class="po-detail__supplier">{{ o.supplierName }}</p>
       </div>
       <div class="po-detail__header-actions">
+        <app-button
+          variant="ghost"
+          [loading]="downloadingPdf()"
+          [disabled]="downloadingPdf()"
+          (click)="downloadPdf()"
+        >
+          <i class="pi pi-file-pdf" aria-hidden="true"></i>
+          Scarica PDF
+        </app-button>
         @if (canEdit()) {
           <app-button variant="ghost" (click)="goToEdit()">
             <i class="pi pi-pencil" aria-hidden="true"></i>

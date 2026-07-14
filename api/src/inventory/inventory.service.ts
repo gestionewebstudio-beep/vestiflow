@@ -53,6 +53,17 @@ const LEVEL_VARIANT_INCLUDE = {
 
 const LEVEL_LOCATION_INCLUDE = { name: true } as const;
 
+/**
+ * Lo SKU variante e' facoltativo lato dominio (specifica cliente §SKU), ma le
+ * viste giacenze/movimenti restano una stringa (mai null): finche' non viene
+ * assegnato uno SKU, mostrano una cella vuota invece di "null".
+ */
+function withDisplaySku<T extends { variant: { sku: string | null } }>(
+  level: T,
+): T & { variant: T['variant'] & { sku: string } } {
+  return { ...level, variant: { ...level.variant, sku: level.variant.sku ?? '' } };
+}
+
 @Injectable()
 export class InventoryService {
   private readonly logger = new Logger(InventoryService.name);
@@ -121,7 +132,7 @@ export class InventoryService {
       this.prisma.inventoryLevel.count({ where }),
     ]);
 
-    return { items, total, page: query.page, pageSize: query.pageSize };
+    return { items: items.map(withDisplaySku), total, page: query.page, pageSize: query.pageSize };
   }
 
   /**
@@ -180,17 +191,19 @@ export class InventoryService {
     }
 
     const variantIds = variants.map((variant) => variant.id);
-    const existingLevels = await this.prisma.inventoryLevel.findMany({
-      where: {
-        tenantId,
-        variantId: { in: variantIds },
-        ...locationScopeToInventoryLevelFilter(scope),
-      },
-      include: {
-        variant: { select: LEVEL_VARIANT_INCLUDE },
-        location: { select: { name: true } },
-      },
-    });
+    const existingLevels = (
+      await this.prisma.inventoryLevel.findMany({
+        where: {
+          tenantId,
+          variantId: { in: variantIds },
+          ...locationScopeToInventoryLevelFilter(scope),
+        },
+        include: {
+          variant: { select: LEVEL_VARIANT_INCLUDE },
+          location: { select: { name: true } },
+        },
+      })
+    ).map(withDisplaySku);
 
     const levelByKey = new Map(
       existingLevels.map((level) => [`${level.variantId}|${level.locationId}`, level]),
@@ -228,7 +241,12 @@ export class InventoryService {
 
   private buildVirtualInventoryLevel(
     tenantId: string,
-    variant: { id: string; sku: string; optionValues?: Prisma.JsonValue; product: { name: string } },
+    variant: {
+      id: string;
+      sku: string | null;
+      optionValues?: Prisma.JsonValue;
+      product: { name: string };
+    },
     location: { id: string; name: string },
   ): InventoryLevelWithRefs {
     return {
@@ -244,7 +262,7 @@ export class InventoryService {
       minThreshold: 0,
       updatedAt: new Date(0),
       variant: {
-        sku: variant.sku,
+        sku: variant.sku ?? '',
         optionValues: variant.optionValues ?? [],
         product: { name: variant.product.name },
       },
@@ -373,7 +391,7 @@ export class InventoryService {
           type: dto.type,
           origin: 'manual',
           variantId: dto.variantId,
-          sku: variant.sku,
+          sku: variant.sku ?? '',
           locationId: dto.locationId,
           targetLocationId: dto.targetLocationId,
           quantity: dto.quantity,
@@ -454,14 +472,16 @@ export class InventoryService {
     if (user) {
       assertUserCanAccessLocation(user, level.locationId);
     }
-    return this.prisma.inventoryLevel.update({
-      where: { id },
-      data: { minThreshold },
-      include: {
-        variant: { select: LEVEL_VARIANT_INCLUDE },
-        location: { select: { name: true } },
-      },
-    });
+    return this.prisma.inventoryLevel
+      .update({
+        where: { id },
+        data: { minThreshold },
+        include: {
+          variant: { select: LEVEL_VARIANT_INCLUDE },
+          location: { select: { name: true } },
+        },
+      })
+      .then(withDisplaySku);
   }
 
   /** Vincoli per tipo, prima di toccare il DB. */

@@ -1,4 +1,4 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
 import { DocumentStatus, DocumentType } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,6 +6,7 @@ import { GoodsReceiptWorkflowService } from './goods-receipt-workflow.service';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import type { DocumentSettingsService } from './document-settings.service';
 import type { ExternalDocumentTypesService } from './external-document-types.service';
 import type { VatCodesService } from '../vat/vat-codes.service';
@@ -58,7 +59,11 @@ function createPrismaMock() {
       updateMany: vi.fn(),
     },
     supplier: { findFirst: vi.fn().mockResolvedValue({ id: 'sup-1', name: 'Fornitore A' }) },
-    location: { findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }) },
+    location: {
+      findFirst: vi.fn().mockImplementation(({ where }: { where: { id: string } }) =>
+        Promise.resolve({ id: where.id }),
+      ),
+    },
     vatCode: { findMany: vi.fn().mockResolvedValue([]) },
     tenantFeatureSettings: { findUnique: vi.fn().mockResolvedValue(null) },
     supplierVariantLink: { findUnique: vi.fn(), upsert: vi.fn() },
@@ -389,5 +394,79 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
     await service.saveGoodsReceipt(tenantId, baseDto({ id: 'doc-1' }));
 
     expect(prisma.purchaseInvoiceGoodsReceiptLink.updateMany).not.toHaveBeenCalled();
+  });
+
+  describe('enforcement location (N sedi per utente)', () => {
+    it('titolare può salvare un arrivo merce in qualunque sede del tenant', async () => {
+      const { service } = createService(prisma);
+      prisma.document.create.mockResolvedValue(savedDocument());
+      prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument());
+
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-qualunque' }), testOwnerUser()),
+      ).resolves.toMatchObject({ id: 'doc-1' });
+    });
+
+    it('utente con una sola sede assegnata può salvare in quella sede', async () => {
+      const { service } = createService(prisma);
+      prisma.document.create.mockResolvedValue(savedDocument());
+      prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument());
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-1' }), clerk),
+      ).resolves.toMatchObject({ id: 'doc-1' });
+    });
+
+    it('utente con una sola sede assegnata riceve 403 su una sede diversa dello stesso tenant', async () => {
+      const { service } = createService(prisma);
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-2' }), clerk),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.document.create).not.toHaveBeenCalled();
+    });
+
+    it('utente con più sedi assegnate può scegliere solo tra quelle assegnate', async () => {
+      const { service } = createService(prisma);
+      prisma.document.create.mockResolvedValue(savedDocument());
+      prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument());
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1', 'loc-2'] });
+
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-2' }), clerk),
+      ).resolves.toMatchObject({ id: 'doc-1' });
+
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-3' }), clerk),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('utente senza alcuna sede assegnata non può creare arrivi merce (nessun fallback a tutte le sedi)', async () => {
+      const { service } = createService(prisma);
+      const clerk = testClerkUser({ hasAllLocationsAccess: false, assignedLocationIds: [] });
+
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-1' }), clerk),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.document.create).not.toHaveBeenCalled();
+    });
+
+    it('modifica di un arrivo esistente: blocca se la sede ATTUALE del documento è fuori scope, anche spostandolo su una sede autorizzata', async () => {
+      const { service } = createService(prisma);
+      // Documento esistente sulla sede loc-9, fuori dallo scope del commesso.
+      const existing = savedDocument({ locationId: 'loc-9' });
+      prisma.document.findFirst.mockResolvedValue(existing);
+      const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
+
+      // La nuova location (loc-1) è autorizzata, ma il documento appartiene
+      // oggi a loc-9: il commesso non deve poter "spostarlo" senza avere
+      // anche accesso alla sede di provenienza.
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto({ id: 'doc-1', locationId: 'loc-1' }), clerk),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.document.update).not.toHaveBeenCalled();
+    });
   });
 });
