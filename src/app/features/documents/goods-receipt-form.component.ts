@@ -167,8 +167,10 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
 /**
  * Documenti sbloccati nella sessione di lavoro corrente (§9): vive a livello
  * di modulo perché il componente viene distrutto/ricreato quando la route
- * passa da `goods-receipt/new` a `:id/edit`. Finché l'utente resta nell'app,
- * i ricaricamenti della maschera non devono ribloccare il documento.
+ * passa da `goods-receipt/new` a `:id/edit`, e quel passaggio non deve
+ * ribloccare il documento. Regola severa: uscendo dalla maschera gli id
+ * sbloccati vengono rilasciati (vedi onDestroy), così ogni riapertura del
+ * documento ripresenta il blocco.
  */
 const SESSION_UNLOCKED_DOC_IDS = new Set<string>();
 
@@ -312,9 +314,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly preserveEditSession = signal(false);
   protected readonly unlockDialogOpen = signal(false);
 
+  /** Id sbloccati da QUESTA istanza: rilasciati all'uscita (riblocco alla riapertura). */
+  private readonly unlockedByThisInstance = new Set<string>();
+
   private markSessionUnlocked(docId: string | null | undefined): void {
     if (docId) {
       SESSION_UNLOCKED_DOC_IDS.add(docId);
+      this.unlockedByThisInstance.add(docId);
     }
   }
   protected readonly productPanelOpen = signal(false);
@@ -746,6 +752,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       GOODS_RECEIPT_LINE_COLUMNS,
       GOODS_RECEIPT_LINE_PRESETS,
     );
+
+    // Regola severa: lo sblocco vale solo finché si lavora nella maschera.
+    // All'uscita gli id sbloccati da questa istanza vengono rilasciati e il
+    // documento torna protetto alla riapertura. Il passaggio di route
+    // new → :id/edit (preserveEditSession) non è un'uscita: lo sblocco deve
+    // sopravvivere per l'istanza ricreata.
+    this.destroyRef.onDestroy(() => {
+      if (this.preserveEditSession()) {
+        return;
+      }
+      for (const id of this.unlockedByThisInstance) {
+        SESSION_UNLOCKED_DOC_IDS.delete(id);
+      }
+    });
     this.syncSupplierRequirement(this.form.controls.type.value);
     this.form.controls.type.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -4488,12 +4508,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.editUnlocked.set(true);
       return;
     }
-    // Lo sblocco vale per l'intera sessione di lavoro sul documento (§9):
-    // i salvataggi intermedi (status confirmed) non devono ribloccare la maschera.
-    if (doc.status === DocumentStatus.Draft || SESSION_UNLOCKED_DOC_IDS.has(doc.id)) {
+    // Lo sblocco vale per la sessione di lavoro sul documento (§9): i
+    // salvataggi intermedi (status confirmed) non devono ribloccare la
+    // maschera. Se lo sblocco arriva dal set condiviso (istanza ricreata dal
+    // passaggio new → edit), questa istanza lo adotta: sarà lei a rilasciarlo
+    // all'uscita, rimettendo il blocco alla prossima riapertura.
+    if (SESSION_UNLOCKED_DOC_IDS.has(doc.id)) {
+      this.unlockedByThisInstance.add(doc.id);
       this.editUnlocked.set(true);
     } else {
-      this.editUnlocked.set(false);
+      this.editUnlocked.set(doc.status === DocumentStatus.Draft);
     }
     const poMap = new Map<string, LinkedSupplierOrderLineContext>();
     for (const line of doc.linkedSupplierOrderLines ?? []) {
