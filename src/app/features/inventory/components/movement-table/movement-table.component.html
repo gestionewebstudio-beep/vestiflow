@@ -48,7 +48,12 @@
                 </td>
               }
               @case ('product') {
-                <td [class.movement-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                <td
+                  class="movement-table__product"
+                  [class.movement-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                  [title]="row.productTitle ?? ''"
+                >
                   {{ row.productTitle ?? '—' }}
                 </td>
               }

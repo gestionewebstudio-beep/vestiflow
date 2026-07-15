@@ -7,9 +7,12 @@ import { TableViewPresetId as PresetId } from '@shared/table-columns/table-colum
 
 export const GOODS_RECEIPT_LINES_VIEW = TableViewId.GoodsReceiptLines;
 
+// Larghezze per CONTENUTO (v4): un campo e' largo quanto il dato che ospita
+// — l'IVA porta due cifre, non le serve piu' di 72px; SKU/EAN devono invece
+// respirare. Con `table-layout: fixed` attivo questi default sono rispettati.
 export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
-  { id: 'sku', label: 'SKU', defaultWidthPx: 72, minWidthPx: 56 },
-  { id: 'barcode', label: 'EAN', defaultWidthPx: 88, minWidthPx: 72 },
+  { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
+  { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
   {
     id: 'supplierCode',
     label: 'Cod. fornitore',
@@ -49,7 +52,7 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
     defaultWidthPx: 48,
     minWidthPx: 40,
   },
-  { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 52, minWidthPx: 44 },
+  { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 56, minWidthPx: 44 },
   {
     id: 'stockAvailable',
     label: 'Q.tà disp.',
@@ -65,7 +68,7 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
     defaultWidthPx: 44,
     minWidthPx: 36,
   },
-  { id: 'unitCost', label: 'Costo', numeric: true, defaultWidthPx: 64, minWidthPx: 52 },
+  { id: 'unitCost', label: 'Costo', numeric: true, defaultWidthPx: 84, minWidthPx: 56 },
   {
     id: 'discount',
     label: 'Sconto',
@@ -88,12 +91,12 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
     defaultWidthPx: 96,
     minWidthPx: 72,
   },
-  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 44, minWidthPx: 40 },
+  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 72, minWidthPx: 56 },
   { id: 'lot', label: 'Lotto', defaultVisible: false, defaultWidthPx: 88, minWidthPx: 64 },
   { id: 'expiry', label: 'Scadenza', defaultVisible: false, defaultWidthPx: 104, minWidthPx: 88 },
   { id: 'serials', label: 'Seriali', defaultVisible: false, defaultWidthPx: 112, minWidthPx: 88 },
-  { id: 'loadsStock', label: 'Mag.', defaultWidthPx: 36, minWidthPx: 32 },
-  { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 72, minWidthPx: 56 },
+  { id: 'loadsStock', label: 'Mag.', defaultWidthPx: 48, minWidthPx: 40 },
+  { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
   { id: 'actions', label: 'Azioni', defaultWidthPx: 116, minWidthPx: 96 },
 ];
 

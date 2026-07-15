@@ -17,7 +17,14 @@
   transition:
     background-color var(--transition-fast) var(--ease-standard),
     border-color var(--transition-fast) var(--ease-standard),
-    color var(--transition-fast) var(--ease-standard);
+    color var(--transition-fast) var(--ease-standard),
+    box-shadow var(--transition-fast) var(--ease-standard),
+    translate var(--transition-fast) var(--ease-standard);
+}
+
+// Micro-feedback tattile (polish v2): press visibile su tutti i bottoni.
+.app-button:active:not(:disabled) {
+  translate: 0 1px;
 }
 
 .app-button--block {
@@ -39,6 +46,7 @@
 .app-button--primary:hover:not(:disabled) {
   background-color: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
+  box-shadow: 0 0 0 var(--focus-ring-offset) var(--color-focus-ring-alpha);
 }
 
 .app-button--primary:active:not(:disabled) {

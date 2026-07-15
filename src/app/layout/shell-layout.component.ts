@@ -29,6 +29,8 @@ import {
 import type { EntityId } from '@core/models/common.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
+import { BreadcrumbsComponent } from './breadcrumbs/breadcrumbs.component';
+import { GlobalSearchComponent } from './global-search/global-search.component';
 import { AppSidebarComponent } from '@shared/components/app-sidebar/app-sidebar.component';
 import { AppTopbarComponent } from '@shared/components/app-topbar/app-topbar.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -68,11 +70,16 @@ import {
     RouterOutlet,
     AppSidebarComponent,
     AppTopbarComponent,
+    BreadcrumbsComponent,
     ConfirmDialogComponent,
+    GlobalSearchComponent,
     PwaUpdateBannerComponent,
   ],
   templateUrl: './shell-layout.component.html',
   styleUrl: './shell-layout.component.scss',
+  host: {
+    '(window:keydown)': 'onWindowKeydown($event)',
+  },
 })
 export class ShellLayoutComponent {
   private readonly document = inject(DOCUMENT);
@@ -98,6 +105,20 @@ export class ShellLayoutComponent {
   readonly showSupportSessionBanner = computed(() => hasActiveSupportSession(this.currentUser()));
 
   readonly supportSessionEndLoading = signal(false);
+
+  /** Palette di ricerca globale (⌘K / Ctrl+K o click sul campo in topbar). */
+  readonly globalSearchOpen = signal(false);
+
+  openGlobalSearch(): void {
+    this.globalSearchOpen.set(true);
+  }
+
+  onWindowKeydown(event: KeyboardEvent): void {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      this.globalSearchOpen.set(true);
+    }
+  }
 
   readonly showSidebarLogout = computed(() => this.currentUser() != null);
 

@@ -51,6 +51,7 @@
     <div class="analytics-panel__kpis">
       <app-stat-card
         label="Fatturato"
+        icon="pi-euro"
         [value]="revenueLabel()"
         tone="success"
         [hint]="revenueHint()"
@@ -59,6 +60,7 @@
       />
       <app-stat-card
         label="Margine lordo"
+        icon="pi-percentage"
         [value]="marginLabel()"
         [valueSuffix]="marginPercentSuffix() ?? undefined"
         tone="info"
@@ -66,24 +68,28 @@
       />
       <app-stat-card
         label="Pezzi venduti"
+        icon="pi-shopping-bag"
         [value]="unitsSoldLabel()"
         tone="neutral"
         [hint]="transactionCountLabel() + ' transazioni · ticket medio ' + avgTicketLabel()"
       />
       <app-stat-card
         label="Previsione mese"
+        icon="pi-chart-line"
         [value]="projectedRevenueLabel()"
         tone="warning"
         [hint]="forecastHintText()"
       />
       <app-stat-card
         label="Valore magazzino"
+        icon="pi-database"
         [value]="stockValueLabel()"
         tone="info"
         hint="Disponibile a prezzo di vendita (snapshot)"
       />
       <app-stat-card
         label="Margine stock"
+        icon="pi-chart-bar"
         [value]="stockMarginLabel()"
         [valueSuffix]="stockMarginPercentSuffix() ?? undefined"
         tone="success"
@@ -91,12 +97,14 @@
       />
       <app-stat-card
         label="Pezzi disponibili"
+        icon="pi-box"
         [value]="availableUnitsLabel()"
         tone="neutral"
         hint="Su location in scope"
       />
       <app-stat-card
         label="Sotto soglia"
+        icon="pi-exclamation-triangle"
         [value]="lowStockCountLabel()"
         tone="warning"
         hint="Varianti da riordinare"

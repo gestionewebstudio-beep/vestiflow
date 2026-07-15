@@ -54,12 +54,14 @@
     <div class="dashboard__kpis dashboard__kpis--operational">
       <app-stat-card
         label="Prodotti a catalogo"
+        icon="pi-tag"
         [value]="productCountLabel()"
         tone="neutral"
         hint="Attivi nel tenant"
       />
       <app-stat-card
         label="Ordini in arrivo"
+        icon="pi-truck"
         [value]="incomingOrdersLabel()"
         tone="neutral"
         hint="Ordini fornitore inviati o parziali"
@@ -67,6 +69,7 @@
       @if (showRecentShopifySales()) {
         <app-stat-card
           label="Vendite da evadere"
+          icon="pi-send"
           [value]="toFulfillLabel()"
           tone="info"
           [accent]="true"

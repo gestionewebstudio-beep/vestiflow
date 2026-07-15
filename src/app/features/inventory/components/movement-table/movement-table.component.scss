@@ -13,14 +13,13 @@
 .movement-table {
   inline-size: 100%;
   min-inline-size: 100%;
-  border-collapse: collapse;
 }
 
 .movement-table__head th {
   position: sticky;
   inset-block-start: 0;
   z-index: var(--z-raised);
-  background-color: var(--color-surface);
+  background-color: var(--color-table-header-bg);
 }
 
 .movement-table__date {
@@ -37,44 +36,39 @@
 
 .movement-table__head .movement-table__cell--pinned {
   z-index: calc(var(--z-raised) + 2);
+  background-color: var(--color-table-header-bg);
 }
 
+// Layout automatico (v4): colonne dimensionate dal contenuto — il codice non
+// viene piu' troncato a un settimo della pagina; oltre il limite scrolla il
+// wrapper. SKU in mono con ellipsis oltre --table-cell-max.
 @include bp.media-up('lg') {
-  .movement-table {
-    table-layout: fixed;
-    width: 100%;
-  }
-
-  .movement-table__col {
-    width: calc(100% / 7);
-  }
-
-  .movement-table__sku {
+  .movement-table__product {
+    max-inline-size: var(--table-cell-max);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .movement-table__head th.movement-table__cell--sku,
-  .movement-table__row td.movement-table__sku {
-    padding-block: var(--space-3);
-    padding-inline-end: var(--space-2);
+  .movement-table__sku {
+    max-inline-size: var(--table-cell-max);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
   }
 
   .movement-table__head th.movement-table__cell--qty,
   .movement-table__row td.movement-table__cell--qty {
-    text-align: start;
+    text-align: end;
     white-space: nowrap;
-    padding-block: var(--space-3);
-    padding-inline-end: var(--space-8);
   }
 
   .movement-table__head th.movement-table__cell--location,
   .movement-table__row td.movement-table__cell--location {
     text-align: start;
-    padding-block: var(--space-3);
-    padding-inline-end: var(--space-12);
-    padding-inline-end: var(--space-4);
+    white-space: nowrap;
   }
 }
 

@@ -361,6 +361,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly barcodeScanInputRef =
     viewChild<ElementRef<HTMLInputElement>>('barcodeScanInput');
 
+  /** Input scanner del dock mobile: stesso flusso, visibile solo sotto md. */
+  private readonly barcodeScanDockInputRef =
+    viewChild<ElementRef<HTMLInputElement>>('barcodeScanDockInput');
+
   private readonly tenantSettings = toSignal(
     this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
     { initialValue: null as TenantFeatureSettings | null },
@@ -1979,6 +1983,26 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return hasProduct && hasCost;
   }
 
+  /** Righe compilate e valide: contatore per testata righe e barra azioni. */
+  protected validLinesCount(): number {
+    return this.lines.controls.reduce(
+      (count, line, index) =>
+        count + (!this.lineIsEmpty(line) && this.lineRowComplete(index) ? 1 : 0),
+      0,
+    );
+  }
+
+  /** Pezzi totali sulle righe non vuote (somma delle quantità). */
+  protected totalPiecesCount(): number {
+    return this.lines.controls.reduce((sum, line) => {
+      if (this.lineIsEmpty(line)) {
+        return sum;
+      }
+      const qty = Number(line.controls.quantity.value);
+      return sum + (Number.isFinite(qty) && qty > 0 ? qty : 0);
+    }, 0);
+  }
+
   /** Valore riga pre-sconto nei termini digitati (per il barrato in colonna Totale). */
   private lineGrossMinor(line: ReturnType<GoodsReceiptFormComponent['createLine']>): number {
     const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
@@ -3079,7 +3103,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   private focusBarcodeScanInput(): void {
-    this.barcodeScanInputRef()?.nativeElement.focus();
+    // Due input scanner (inline desktop, dock mobile): il focus va a quello
+    // effettivamente visibile nel viewport corrente.
+    const candidates = [this.barcodeScanInputRef(), this.barcodeScanDockInputRef()];
+    for (const ref of candidates) {
+      const el = ref?.nativeElement;
+      if (el && el.offsetParent !== null) {
+        el.focus();
+        return;
+      }
+    }
   }
 
   private scheduleInitialLineFocus(): void {

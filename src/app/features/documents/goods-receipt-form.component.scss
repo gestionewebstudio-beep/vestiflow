@@ -26,10 +26,21 @@
   color: var(--color-text);
 }
 
+// Titolo + stato/riferimento sulla stessa riga; il back e' il chip standard
+// con testo, identico a tutte le altre pagine (v5.1).
+.gr-form__head-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-inline-size: 0;
+}
+
 .gr-form__title {
   margin: 0;
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-tight);
   color: var(--color-text);
 }
 
@@ -126,28 +137,107 @@
   gap: var(--space-1);
 }
 
+// Testata a CELLE UNITE (v4, dal riferimento): griglia con bordi interni,
+// label piccola sopra, input nudo dentro la cella; il focus tinge la cella
+// e accende una linea accento sul bordo inferiore.
 .gr-form__grid--header {
-  gap: var(--space-1);
+  gap: 0;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  // Niente overflow: hidden — i pannelli dei select devono poter uscire.
 }
 
 .gr-form__header .gr-form__field {
   gap: 0;
+  position: relative;
+  min-inline-size: 0;
+  padding: var(--space-2) var(--space-3);
+  border-block-end: var(--border-width) solid var(--color-border);
+  border-inline-end: var(--border-width) solid var(--color-border);
+  transition: background-color var(--transition-fast) var(--ease-standard);
+}
+
+// Ultima colonna della riga senza bordo destro, per ogni breakpoint della
+// griglia compatta (1 col base, 4 col md, 6 col xl).
+.gr-form__header .gr-form__field {
+  @include bp.media-down('md') {
+    border-inline-end: 0;
+  }
+}
+
+// Fornitore largo il doppio (come il riferimento) e ultima cella di ogni
+// riga senza bordo destro — classi esplicite, robuste rispetto agli span.
+@include bp.media-up('md') {
+  .gr-form__grid--header-compact .gr-form__field--span2 {
+    grid-column: span 2;
+  }
+
+  .gr-form__grid--header-compact .gr-form__field--fill {
+    grid-column: 1 / -1;
+  }
+
+  .gr-form__grid--header-compact .gr-form__field--end-md,
+  .gr-form__grid--header-compact .gr-form__field--fill {
+    border-inline-end: 0;
+  }
+}
+
+@include bp.media-up('xl') {
+  .gr-form__grid--header-compact .gr-form__field--end-md {
+    border-inline-end: var(--border-width) solid var(--color-border);
+  }
+
+  .gr-form__grid--header-compact .gr-form__field--fill {
+    grid-column: span 4;
+  }
+
+  .gr-form__grid--header-compact .gr-form__field--end-xl {
+    border-inline-end: 0;
+  }
+}
+
+.gr-form__header .gr-form__field:focus-within {
+  background-color: var(--color-primary-subtle);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--color-primary);
+}
+
+.gr-form__header .gr-form__label {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-subtle);
 }
 
 .gr-form__header .gr-form__input {
-  block-size: var(--field-height);
-  min-block-size: var(--field-height);
-  padding-inline: var(--space-2);
+  block-size: var(--space-6);
+  min-block-size: var(--space-6);
+  padding-inline: 0;
   font-size: var(--text-sm);
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.gr-form__header .gr-form__input:focus-visible {
+  box-shadow: none;
+}
+
+// I componenti select/data dentro le celle perdono il proprio bordo: la
+// cornice la disegna la cella (i token cascadono nei figli).
+.gr-form__header .gr-form__field app-select-menu,
+.gr-form__header .gr-form__field app-date-input {
+  --color-input-bg: transparent;
+  --color-input-border: transparent;
+  --field-height: 1.625rem;
 }
 
 .gr-form__header .gr-form__readonly {
-  min-block-size: var(--field-height);
+  min-block-size: var(--space-6);
   font-size: var(--text-sm);
 }
 
 .gr-form__header .gr-form__check--block {
-  min-block-size: var(--field-height);
+  min-block-size: var(--space-6);
 }
 
 .gr-form__header .gr-form__inline-toggle {
@@ -391,16 +481,15 @@
   color: var(--color-text-muted);
 }
 
+// Scanner INLINE nella riga strumenti (v4): icona tinta brand + input che
+// riempie lo spazio tra il titolo e i bottoni, hint in coda.
 .gr-form__scan-inline {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
-  margin-block-start: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background-color: var(--color-surface-muted);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
+  gap: var(--space-2);
+  min-inline-size: 0;
+  flex: 1 1 auto;
 }
 
 /* Vista mobile (§10.10): card al posto della tabella sotto md. */
@@ -421,19 +510,38 @@
 }
 
 .gr-form__scan-label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  inline-size: var(--field-height);
+  block-size: var(--field-height);
+  border: var(--border-width) solid var(--color-primary-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-primary);
+  font-size: var(--text-md);
 }
 
 .gr-form__scan-input {
-  flex: 1 1 var(--content-narrow);
-  min-inline-size: var(--space-16);
+  flex: 1 1 auto;
+  min-inline-size: var(--space-24);
 }
 
 .gr-form__scan-hint {
+  // Sotto 2xl lo spazio va tutto all'input: l'hint tastiera si vede solo
+  // sugli schermi larghi (il placeholder spiega comunque cosa fare).
+  display: none;
   margin: 0;
-  flex: 1 1 100%;
+  flex-shrink: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+
+  @include bp.media-up('2xl') {
+    display: block;
+    margin-top: 0;
+  }
 }
 
 .gr-form__line-total-gross {
@@ -512,12 +620,13 @@
 }
 
 .gr-form__table {
-  /* Le colonne hanno una larghezza dichiarata (config colonne, §7): la
-     tabella si dimensiona sul contenuto invece di comprimere le colonne per
-     entrare nel wrapper, che altrimenti sovrappone le intestazioni quando le
-     colonne visibili non ci stanno (scorrimento orizzontale in .gr-form__table-wrap). */
-  inline-size: auto;
-  min-inline-size: 100%;
+  /* Larghezza DEFINITA (100%): senza, `table-layout: fixed` e' inerte e il
+     browser ripiega sul layout automatico ignorando le larghezze del config
+     colonne (v4 — era il motivo dell'IVA larga 200px e degli SKU strizzati).
+     Se la somma delle colonne supera il wrapper la tabella cresce comunque
+     e scorre in .gr-form__table-wrap; se e' inferiore, l'extra si
+     distribuisce proporzionalmente. */
+  inline-size: 100%;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--text-sm);
@@ -562,12 +671,11 @@
   z-index: 3;
   padding: var(--space-2);
   font-size: var(--text-2xs);
-  text-transform: uppercase;
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   text-align: start;
-  color: var(--color-text-subtle);
+  color: var(--color-text-muted);
   background-color: var(--color-table-header-bg);
-  border-block-end: var(--border-width) solid var(--color-border);
+  border-block-end: var(--border-width) solid var(--color-border-strong);
   white-space: nowrap;
 }
 
@@ -605,6 +713,19 @@
   padding-inline: var(--space-1);
 }
 
+// Colonna numero riga (v4): stretta, centrata, su fondo attenuato.
+// Sui <col> vale solo `width` fisico: le logical properties vengono ignorate.
+.gr-form__col--index {
+  width: var(--space-10);
+}
+
+.gr-form__table .gr-form__cell--index {
+  text-align: center;
+  font-size: var(--text-2xs);
+  color: var(--color-text-subtle);
+  background-color: var(--color-surface-sunken);
+}
+
 .gr-form__cell--actions {
   inline-size: calc(var(--gr-line-row-height) + var(--space-1));
   text-align: center;
@@ -614,6 +735,8 @@
   padding: var(--space-1) var(--space-2);
 }
 
+// Celle editabili "nude" (v4): il bordo compare al passaggio, il focus e'
+// accento + anello — la tabella resta pulita ma la cella attiva si vede.
 .gr-form__input--table {
   inline-size: 100%;
   min-inline-size: 0;
@@ -623,12 +746,22 @@
   line-height: var(--leading-normal);
   color: var(--color-text);
   background: transparent;
-  border: none;
-  border-radius: 0;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  transition:
+    border-color var(--transition-fast) var(--ease-standard),
+    background-color var(--transition-fast) var(--ease-standard);
+
+  &:hover {
+    border-color: var(--color-border);
+    background-color: var(--color-surface);
+  }
 
   &:focus-visible {
     outline: none;
-    box-shadow: none;
+    border-color: var(--color-primary);
+    background-color: var(--color-surface);
+    box-shadow: 0 0 0 var(--border-width-strong) var(--color-focus-ring-alpha);
   }
 }
 
@@ -661,12 +794,33 @@
   max-block-size: min(75vh, calc(var(--space-8) * 24));
 }
 
+// Riga strumenti righe (v4): titolo+conteggi | scanner flessibile | bottoni.
 .gr-form__lines-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-2) var(--space-4);
   flex-wrap: wrap;
+}
+
+@include bp.media-up('xl') {
+  .gr-form__lines-head {
+    display: grid;
+    grid-template-columns: auto minmax(var(--space-32), 1fr) auto;
+    align-items: center;
+  }
+}
+
+.gr-form__lines-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.gr-form__lines-count {
+  font-size: var(--text-xs);
+  color: var(--color-text-subtle);
 }
 
 .gr-form__lines-tools {
@@ -901,22 +1055,24 @@
   border-radius: var(--radius-md);
 }
 
+// Barra azioni flottante (v4): card traslucida con blur che resta staccata
+// dal fondo, come nel riferimento.
 .gr-form__actions {
   position: sticky;
-  inset-block-end: 0;
+  inset-block-end: var(--space-2);
   z-index: var(--z-sticky);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
-  margin-block-start: var(--space-1);
-  margin-inline: calc(var(--space-2) * -1);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface-raised);
-  border-block-start: var(--border-width) solid var(--color-border);
-  border-end-start-radius: var(--radius-lg);
-  border-end-end-radius: var(--radius-lg);
+  margin-block-start: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: color-mix(in srgb, var(--color-surface) 95%, transparent);
+  backdrop-filter: blur(12px);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }
 
 .gr-form__actions-note {
@@ -1139,4 +1295,108 @@
   flex-direction: column;
   gap: var(--space-3);
   margin-block-end: var(--space-4);
+}
+
+.gr-form__actions-note-sep {
+  color: var(--color-text-subtle);
+}
+
+// ── Dock mobile (v4): totale + scanner + salva fissi in basso ───────────────
+.gr-form__dock {
+  display: none;
+}
+
+@include bp.media-down('md') {
+  // Sotto md salva e scanner vivono nel dock: la barra azioni resta ma in
+  // flusso normale (Chiudi/etichette/PDF devono restare raggiungibili).
+  .gr-form__actions {
+    position: static;
+    box-shadow: none;
+  }
+
+  .gr-form__actions app-button[type='submit'],
+  .gr-form__scan-inline {
+    display: none;
+  }
+
+  .gr-form {
+    // Spazio per non far coprire i totali dal dock fisso.
+    padding-block-end: calc(var(--space-24) + env(safe-area-inset-bottom));
+  }
+
+  .gr-form__dock {
+    display: block;
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: var(--z-sticky);
+    padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom));
+    background-color: color-mix(in srgb, var(--color-surface) 96%, transparent);
+    backdrop-filter: blur(12px);
+    border-block-start: var(--border-width) solid var(--color-border);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .gr-form__dock-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-block-end: var(--space-2);
+  }
+
+  .gr-form__dock-total span {
+    font-size: var(--text-xs);
+    color: var(--color-text-subtle);
+  }
+
+  .gr-form__dock-total strong {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text);
+  }
+
+  .gr-form__dock-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .gr-form__dock-scan {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    block-size: var(--btn-min-height);
+    padding-inline: var(--space-3);
+    font-size: var(--text-md);
+    font-family: inherit;
+    color: var(--color-text);
+    background-color: var(--color-input-bg);
+    border: var(--border-width) solid var(--color-input-border);
+    border-radius: var(--radius-md);
+  }
+
+  .gr-form__dock-scan:focus-visible {
+    border-color: var(--color-interactive);
+    outline: none;
+    box-shadow: var(--field-focus-ring);
+  }
+
+  .gr-form__dock-save {
+    flex-shrink: 0;
+    block-size: var(--btn-min-height);
+    padding-inline: var(--space-5);
+    border: 0;
+    border-radius: var(--radius-md);
+    background-color: var(--color-primary);
+    color: var(--color-primary-fg);
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .gr-form__dock-save:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+  }
+
+  .gr-form__dock-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 }

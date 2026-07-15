@@ -18,8 +18,63 @@
 .app-topbar__start {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-3);
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
+
+// Blocco azienda (v5.1): avatar profilo + nome negozio + sede attiva.
+// E' un bottone: porta a profilo/impostazioni. Non si comprime: a cedere
+// spazio e' il campo ricerca a destra.
+.app-topbar__company {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
+  min-inline-size: 0;
+  max-inline-size: calc(var(--space-24) + var(--space-8));
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: start;
+  transition: background-color var(--transition-fast) var(--ease-standard);
+}
+
+.app-topbar__company:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.app-topbar__company-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  line-height: 1;
+}
+
+.app-topbar__company-name {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-topbar__company-sub {
+  font-size: var(--text-2xs);
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@include bp.media-up('md') {
+  .app-topbar__company {
+    max-inline-size: calc(var(--select-menu-width) + var(--space-10));
+  }
 }
 
 .app-topbar__menu {
@@ -262,30 +317,6 @@
   box-shadow: var(--shadow-sm);
 }
 
-.app-topbar__user {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  // Avatar e logout non si comprimono: a stringersi e' il selettore location.
-  flex-shrink: 0;
-}
-
-.app-topbar__avatar {
-  display: inline-flex;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-full);
-  background-color: transparent;
-  cursor: pointer;
-  transition:
-    background-color var(--transition-fast) var(--ease-standard),
-    box-shadow var(--transition-fast) var(--ease-standard);
-}
-
-.app-topbar__avatar:hover {
-  box-shadow: 0 0 0 var(--border-width-strong) var(--color-border-strong);
-}
-
 .app-topbar__logout {
   display: none;
   align-items: center;
@@ -336,8 +367,12 @@
     padding-inline: var(--space-4);
   }
 
+  // A destra accanto ai toggle tema (riferimento v4): larga ma flessibile —
+  // cede spazio per prima quando la finestra si stringe.
   .app-topbar__search {
-    inline-size: min(var(--content-form), 100%);
+    flex: 0 1 var(--select-menu-width-wide);
+    inline-size: var(--select-menu-width-wide);
+    min-inline-size: var(--space-24);
     padding-inline: var(--space-3);
   }
 

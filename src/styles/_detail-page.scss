@@ -6,7 +6,7 @@
   .#{$block} {
     display: flex;
     flex-direction: column;
-    gap: var(--space-5);
+    gap: var(--space-6);
   }
 
   .#{$block}__back {
@@ -30,8 +30,9 @@
 
   .#{$block}__title {
     margin: 0;
-    font-size: var(--text-xl);
+    font-size: var(--text-2xl);
     font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-tight);
     color: var(--color-text);
   }
 
@@ -56,6 +57,7 @@
     background-color: var(--color-surface);
     border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
   }
 
   .#{$block}__panel-head {

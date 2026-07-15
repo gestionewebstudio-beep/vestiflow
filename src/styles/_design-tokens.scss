@@ -1,15 +1,16 @@
 // =============================================================================
-// VestiFlow — Design Tokens ("Tech Moderno", dark-first)
+// VestiFlow — Design Tokens ("Tech Moderno", light-first — restyle v3)
 // UNICA fonte di verita' per valori visivi (regole-architettura).
 // I componenti usano SOLO `var(--token)`. Nessun valore numerico nudo altrove.
 //
-// Tema principale = DARK (`:root`). Il light e' l'override `[data-theme='light']`.
-// Un solo accento indigo (#6C7BFF) per CTA/focus/link/nav attiva; verde #3DDC97
-// riservato a Shopify/sync/successo. Bordi > ombre. Vedi docs/RESTYLE-SPEC.md.
+// Tema principale = LIGHT (`:root`). Il dark e' l'override `[data-theme='dark']`.
+// Un solo accento indigo per CTA/focus/link/nav attiva; verde riservato a
+// Shopify/sync/successo. Bordi > ombre. Vedi docs/RESTYLE-SPEC.md.
 //
 // Architettura a livelli:
 //   1. Primitive  -> scale colore grezze (fallback / chart legacy)
-//   2. Semantici  -> superfici/testo/primary (dark in :root, light nel mixin)
+//   2. Semantici  -> superfici/testo/primary (light nel mixin in :root,
+//                    dark nel mixin theme-dark)
 //   3. Stato      -> stock/status (ok, low, empty, warning, error, success...)
 //   4. Spacing / Radius / Shadow / Z-index
 //   5. Typography (Inter + JetBrains Mono per mono)
@@ -17,121 +18,246 @@
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// TEMA LIGHT — mixin riusato da `[data-theme='light']` e da `@media print`
-// (le pagine di stampa forzano sempre il tema chiaro, sfondo bianco).
+// TEMA LIGHT — incluso in `:root` (default) e forzato da `@media print`
+// (le pagine di stampa restano sempre su tema chiaro, sfondo bianco).
 // -----------------------------------------------------------------------------
 @mixin theme-light {
   color-scheme: light;
 
-  // Superfici
-  --color-bg: #eef0f4;
+  // Superfici — neutre pure, dal logo monocromo (v5 "Antracite")
+  --color-bg: #f4f4f5;
   --color-surface: #ffffff;
-  --color-surface-raised: #eef0f4;
-  --color-surface-sunken: #ffffff;
-  --color-surface-hover: #f3f5f9;
-  --color-surface-muted: #f3f5f9;
+  --color-surface-raised: #fafafa;
+  --color-surface-sunken: #f8f8f9;
+  --color-surface-hover: #f4f4f6;
+  --color-surface-muted: #efeff1;
 
-  --color-border: #e2e6ee;
-  --color-border-strong: #cbd2df;
+  --color-border: #e4e4e7;
+  --color-border-strong: #cdcdd2;
 
-  // Testo
-  --color-text: #171a21;
-  --color-text-muted: #5b6472;
-  --color-text-subtle: #6b7486;
+  // Testo — grafite, mai nero pieno
+  --color-text: #292a2e;
+  --color-text-muted: #5c5d64;
+  --color-text-subtle: #86878f;
   --color-text-inverse: #ffffff;
 
-  // CTA + interattivo — accento piu' profondo per contrasto su bianco
-  --color-primary: #5560ee;
-  --color-primary-hover: #6c7bff;
-  --color-primary-active: #4d58e6;
+  // CTA + interattivo — grafite morbida ispirata al logo (non nero pieno)
+  --color-primary: #333438;
+  --color-primary-hover: #47484e;
+  --color-primary-active: #26272b;
   --color-primary-fg: #ffffff;
-  --color-primary-subtle: rgb(85 96 238 / 0.1);
+  --color-primary-subtle: rgb(51 52 56 / 0.08);
 
-  --color-interactive: #5560ee;
-  --color-interactive-hover: #6c7bff;
-  --color-interactive-active: #4d58e6;
-  --color-interactive-subtle: rgb(85 96 238 / 0.1);
+  --color-interactive: #333438;
+  --color-interactive-hover: #47484e;
+  --color-interactive-active: #26272b;
+  --color-interactive-subtle: rgb(51 52 56 / 0.08);
 
-  --color-focus-ring: #5560ee;
-  --color-link: #4d58e6;
-  --color-link-hover: #3742c9;
-  --color-focus-ring-alpha: rgb(85 96 238 / 0.18);
+  --color-focus-ring: #333438;
+  --color-link: #2f3034;
+  --color-link-hover: #5c5d64;
+  --color-focus-ring-alpha: rgb(51 52 56 / 0.15);
   --field-focus-ring: 0 0 0 3px var(--color-focus-ring-alpha);
 
-  // Brand Shopify / successo
-  --color-brand: #0e9d68;
-  --color-brand-hover: #0b7f55;
-  --color-brand-subtle: rgb(14 157 104 / 0.1);
+  // Brand Shopify / successo — verde semantico (non piu' accento app)
+  --color-brand: #176b43;
+  --color-brand-hover: #115634;
+  --color-brand-subtle: #eaf7f0;
 
-  --color-danger: #d92d2d;
-  --color-danger-hover: #b81f1f;
+  --color-danger: #b42318;
+  --color-danger-hover: #932015;
   --color-danger-fg: #ffffff;
-  --color-danger-subtle: rgb(217 45 45 / 0.1);
-  --color-danger-border: rgb(217 45 45 / 0.35);
+  --color-danger-subtle: #fff1ef;
+  --color-danger-border: rgb(180 35 24 / 0.3);
 
-  --color-backdrop: rgb(15 23 42 / 0.45);
+  --color-backdrop: rgb(20 20 22 / 0.45);
 
-  // Nav
-  --color-nav-bg: #f7f8fa;
-  --color-nav-hover: #ffffff;
-  --color-nav-selected-bg: rgb(108 123 255 / 0.14);
-  --color-nav-selected-text: #171a21;
+  // Nav — sidebar GRIGIO CHIARO in light (v5.1): niente blocco scuro,
+  // testi grafite e voce attiva con tinta.
+  --color-nav-bg: #efeff1;
+  --color-nav-hover: rgb(28 28 30 / 0.05);
+  --color-nav-selected-bg: rgb(51 52 56 / 0.09);
+  --color-nav-selected-text: #292a2e;
+  --color-nav-fg: #5c5d64;
+  --color-nav-fg-hover: #292a2e;
+  --color-nav-section: #86878f;
+  --color-nav-border: #e0e0e3;
+  --color-nav-badge-bg: rgb(51 52 56 / 0.09);
+  --color-nav-accent: #333438;
 
-  // Input / tabelle
+  // Input / tabelle — separatori di colonna stile foglio di lavoro
   --color-input-bg: #ffffff;
-  --color-input-border: #d3d9e3;
-  --color-table-header-bg: #f7f8fa;
-  --color-table-row-divider: #e8ebf1;
-  --color-table-row-selected: rgb(108 123 255 / 0.06);
-  --color-row-active: rgb(108 123 255 / 0.07);
+  --color-input-border: #cdcdd2;
+  --color-table-header-bg: #f1f1f3;
+  --color-table-row-divider: #e9e9ec;
+  --color-table-col-divider: #efeff1;
+  --color-table-row-selected: rgb(51 52 56 / 0.05);
+  --color-row-active: rgb(51 52 56 / 0.06);
 
-  // Stato / stock
-  --status-ok-fg: #0e9d68;
-  --status-ok-bg: rgb(14 157 104 / 0.1);
-  --status-ok-border: rgb(14 157 104 / 0.3);
-  --status-low-fg: #b26a00;
-  --status-low-bg: rgb(178 106 0 / 0.1);
-  --status-low-border: rgb(178 106 0 / 0.3);
-  --status-empty-fg: #d92d2d;
-  --status-empty-bg: rgb(217 45 45 / 0.08);
-  --status-empty-border: rgb(217 45 45 / 0.28);
+  // Stato / stock — tinte semantiche soft (funzionali, non brand)
+  --status-ok-fg: #176b43;
+  --status-ok-bg: #eaf7f0;
+  --status-ok-border: #b9d9cf;
+  --status-low-fg: #9a5b0b;
+  --status-low-bg: #fff5e5;
+  --status-low-border: #edd4a8;
+  --status-empty-fg: #b42318;
+  --status-empty-bg: #fff1ef;
+  --status-empty-border: #f0c4be;
 
-  --status-success-fg: #0e9d68;
-  --status-success-bg: rgb(14 157 104 / 0.1);
-  --status-success-border: rgb(14 157 104 / 0.3);
-  --status-warning-fg: #b26a00;
-  --status-warning-bg: rgb(178 106 0 / 0.1);
-  --status-warning-border: rgb(178 106 0 / 0.3);
-  --status-error-fg: #d92d2d;
-  --status-error-bg: rgb(217 45 45 / 0.08);
-  --status-error-border: rgb(217 45 45 / 0.28);
+  --status-success-fg: #176b43;
+  --status-success-bg: #eaf7f0;
+  --status-success-border: #b9d9cf;
+  --status-warning-fg: #9a5b0b;
+  --status-warning-bg: #fff5e5;
+  --status-warning-border: #edd4a8;
+  --status-error-fg: #b42318;
+  --status-error-bg: #fff1ef;
+  --status-error-border: #f0c4be;
 
-  --status-info-fg: #0b7fc2;
-  --status-info-bg: rgb(11 127 194 / 0.1);
-  --status-info-border: rgb(11 127 194 / 0.28);
-  --status-neutral-fg: #5b6472;
-  --status-neutral-bg: rgb(91 100 114 / 0.1);
-  --status-neutral-border: rgb(91 100 114 / 0.28);
+  --status-info-fg: #0b6fa8;
+  --status-info-bg: #ecf5fb;
+  --status-info-border: #bcdcef;
+  --status-neutral-fg: #55555c;
+  --status-neutral-bg: #f0f0f1;
+  --status-neutral-border: #e0e0e3;
 
   // Badge «Fonte: VestiFlow»
-  --vestiflow-lockup-bg: #3b3b3b;
+  --vestiflow-lockup-bg: #333438;
   --vestiflow-lockup-fg: #ffffff;
-  --badge-vestiflow-fg: #303030;
-  --badge-vestiflow-bg: color-mix(in srgb, var(--vestiflow-lockup-bg) 18%, transparent);
-  --badge-vestiflow-border: color-mix(in srgb, var(--vestiflow-lockup-bg) 32%, transparent);
+  --badge-vestiflow-fg: #333438;
+  --badge-vestiflow-bg: color-mix(in srgb, var(--vestiflow-lockup-bg) 10%, transparent);
+  --badge-vestiflow-border: color-mix(in srgb, var(--vestiflow-lockup-bg) 26%, transparent);
 
-  // Ombre — Polaris slate su fondo chiaro
-  --shadow-xs: 0 1px 0 rgb(15 23 42 / 0.04);
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
-  --shadow-md: 0 4px 6px -2px rgb(15 23 42 / 0.08);
-  --shadow-lg: 0 8px 16px -4px rgb(15 23 42 / 0.12);
+  // Ombre — morbide stratificate, neutre
+  --shadow-xs: 0 1px 2px rgb(23 23 26 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(23 23 26 / 0.04), 0 4px 12px rgb(23 23 26 / 0.05);
+  --shadow-md: 0 1px 2px rgb(23 23 26 / 0.04), 0 10px 30px rgb(23 23 26 / 0.06);
+  --shadow-lg: 0 15px 35px rgb(23 23 26 / 0.16);
 }
 
 // -----------------------------------------------------------------------------
-// :root — TEMA DARK (principale) + token indipendenti dal tema
+// TEMA DARK — override `[data-theme='dark']` (ex tema principale)
+// -----------------------------------------------------------------------------
+@mixin theme-dark {
+  color-scheme: dark;
+
+  // Superfici — GRAFITE MORBIDA (v5): scuro riposante, mai nero pece.
+  --color-bg: #232529;
+  --color-surface: #2b2d33;
+  --color-surface-raised: #33353c;
+  --color-surface-sunken: #26282d;
+  --color-surface-hover: #313339;
+  --color-surface-muted: #282a30;
+
+  --color-border: #3d3f47;
+  --color-border-strong: #4c4f59;
+
+  --color-text: #ececef;
+  --color-text-muted: #a9acb5;
+  --color-text-subtle: #7d808a;
+  --color-text-inverse: #1a1a1c;
+
+  // CTA + interattivo — il monogramma chiaro del logo: bottoni quasi bianchi
+  // con testo scuro (mono invertito).
+  --color-primary: #ececef;
+  --color-primary-hover: #ffffff;
+  --color-primary-active: #d5d5da;
+  --color-primary-fg: #1a1a1c;
+  --color-primary-subtle: rgb(236 236 239 / 0.1);
+
+  --color-interactive: #ececef;
+  --color-interactive-hover: #ffffff;
+  --color-interactive-active: #d5d5da;
+  --color-interactive-subtle: rgb(236 236 239 / 0.1);
+
+  --color-focus-ring: #ececef;
+  --color-link: #d6d7dd;
+  --color-link-hover: #ffffff;
+  --color-focus-ring-alpha: rgb(236 236 239 / 0.22);
+  --field-focus-ring: 0 0 0 3px var(--color-focus-ring-alpha);
+
+  // Brand Shopify / successo
+  --color-brand: #3ddc97;
+  --color-brand-hover: #63e5ab;
+  --color-brand-subtle: rgb(61 220 151 / 0.12);
+
+  --color-danger: #ff6b5e;
+  --color-danger-hover: #ff887d;
+  --color-danger-fg: #ffffff;
+  --color-danger-subtle: rgb(255 107 94 / 0.12);
+  --color-danger-border: rgb(255 107 94 / 0.35);
+
+  --color-backdrop: rgb(0 0 0 / 0.55);
+
+  // Nav laterale — appena piu' scura del contenuto, sempre morbida
+  --color-nav-bg: #1e2025;
+  --color-nav-hover: rgb(255 255 255 / 0.06);
+  --color-nav-selected-bg: rgb(255 255 255 / 0.1);
+  --color-nav-selected-text: #ffffff;
+  --color-nav-fg: #b3b6bf;
+  --color-nav-fg-hover: #ffffff;
+  --color-nav-section: #83858e;
+  --color-nav-border: rgb(255 255 255 / 0.07);
+  --color-nav-badge-bg: rgb(255 255 255 / 0.1);
+  --color-nav-accent: #ffffff;
+
+  // Input / tabelle
+  --color-input-bg: #26282d;
+  --color-input-border: #4c4f59;
+  --color-table-header-bg: #292b31;
+  --color-table-row-divider: #3a3c44;
+  --color-table-col-divider: #34363d;
+  --color-table-row-selected: rgb(236 236 239 / 0.06);
+  --color-row-active: rgb(236 236 239 / 0.07);
+
+  // Stato / stock — fg pieno + bg 12% + bordo 25%
+  --status-ok-fg: #3ddc97;
+  --status-ok-bg: rgb(61 220 151 / 0.12);
+  --status-ok-border: rgb(61 220 151 / 0.25);
+  --status-low-fg: #ffb02e;
+  --status-low-bg: rgb(255 176 46 / 0.12);
+  --status-low-border: rgb(255 176 46 / 0.25);
+  --status-empty-fg: #ff6b5e;
+  --status-empty-bg: rgb(255 107 94 / 0.12);
+  --status-empty-border: rgb(255 107 94 / 0.25);
+
+  --status-success-fg: #3ddc97;
+  --status-success-bg: rgb(61 220 151 / 0.12);
+  --status-success-border: rgb(61 220 151 / 0.25);
+  --status-warning-fg: #ffb02e;
+  --status-warning-bg: rgb(255 176 46 / 0.12);
+  --status-warning-border: rgb(255 176 46 / 0.25);
+  --status-error-fg: #ff6b5e;
+  --status-error-bg: rgb(255 107 94 / 0.12);
+  --status-error-border: rgb(255 107 94 / 0.25);
+
+  --status-info-fg: #4cc3ff;
+  --status-info-bg: rgb(76 195 255 / 0.12);
+  --status-info-border: rgb(76 195 255 / 0.25);
+  --status-neutral-fg: #a9acb5;
+  --status-neutral-bg: rgb(169 172 181 / 0.12);
+  --status-neutral-border: rgb(169 172 181 / 0.25);
+
+  // Badge «Fonte: VestiFlow»
+  --vestiflow-lockup-bg: #4c4f59;
+  --vestiflow-lockup-fg: #ececef;
+  --badge-vestiflow-fg: #a9acb5;
+  --badge-vestiflow-bg: color-mix(in srgb, var(--vestiflow-lockup-bg) 40%, transparent);
+  --badge-vestiflow-border: color-mix(in srgb, var(--vestiflow-lockup-bg) 80%, transparent);
+
+  // Ombre — morbide anche qui: alpha contenute, mai buchi neri
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 12px rgb(0 0 0 / 0.22);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.2), 0 10px 30px rgb(0 0 0 / 0.28);
+  --shadow-lg: 0 15px 35px rgb(0 0 0 / 0.4);
+}
+
+// -----------------------------------------------------------------------------
+// :root — TEMA LIGHT (principale) + token indipendenti dal tema
 // -----------------------------------------------------------------------------
 :root {
-  color-scheme: dark;
+  @include theme-light;
 
   // ── 1. PRIMITIVE — scale grezze (fallback chart / legacy) ──────────────────
   --blue-50: #eaf4ff;
@@ -189,104 +315,6 @@
   --red-600: #a30a24;
   --red-700: #8e0b21;
 
-  // ── 2. SEMANTICI — Superfici / testo (DARK) ────────────────────────────────
-  --color-bg: #0b0c0f;
-  --color-surface: #14161b;
-  --color-surface-raised: #1a1d24;
-  --color-surface-sunken: #0f1116;
-  --color-surface-hover: #171a20;
-  /** Pannello attenuato dentro una card (totali, fasce hint): tono inset leggibile su surface. */
-  --color-surface-muted: #101217;
-
-  --color-border: #262a33;
-  --color-border-strong: #333a47;
-
-  --color-text: #e9ecf2;
-  --color-text-muted: #9ba3b0;
-  --color-text-subtle: #667085;
-  --color-text-inverse: #0b0c0f;
-
-  // CTA + interattivo — unificati sull'accento indigo
-  --color-primary: #6c7bff;
-  --color-primary-hover: #8591ff;
-  --color-primary-active: #5b6af2;
-  --color-primary-fg: #ffffff;
-  --color-primary-subtle: rgb(108 123 255 / 0.14);
-
-  --color-interactive: #6c7bff;
-  --color-interactive-hover: #8591ff;
-  --color-interactive-active: #aab3ff;
-  --color-interactive-subtle: rgb(108 123 255 / 0.14);
-
-  --color-focus-ring: #6c7bff;
-  --color-link: #8591ff;
-  --color-link-hover: #aab3ff;
-  --color-focus-ring-alpha: rgb(108 123 255 / 0.18);
-  --field-focus-ring: 0 0 0 3px var(--color-focus-ring-alpha);
-
-  // Brand Shopify / successo
-  --color-brand: #3ddc97;
-  --color-brand-hover: #63e5ab;
-  --color-brand-subtle: rgb(61 220 151 / 0.12);
-
-  --color-danger: #ff5c5c;
-  --color-danger-hover: #ff7a7a;
-  --color-danger-fg: #ffffff;
-  --color-danger-subtle: rgb(255 92 92 / 0.12);
-  --color-danger-border: rgb(255 92 92 / 0.35);
-
-  /** Sfondo semitrasparente per overlay/drawer (backdrop). */
-  --color-backdrop: rgb(0 0 0 / 0.72);
-
-  // Nav laterale
-  --color-nav-bg: #0e1014;
-  --color-nav-hover: #14161b;
-  --color-nav-selected-bg: rgb(108 123 255 / 0.14);
-  --color-nav-selected-text: #e9ecf2;
-
-  // Input / tabelle
-  --color-input-bg: #0f1116;
-  --color-input-border: #333a47;
-  --color-table-header-bg: #101217;
-  --color-table-row-divider: #1f232c;
-  --color-table-row-selected: rgb(108 123 255 / 0.06);
-  --color-row-active: rgb(108 123 255 / 0.07);
-
-  // ── 3. STATO / STOCK (DARK) — fg pieno + bg 12% + bordo 25% ────────────────
-  --status-ok-fg: #3ddc97;
-  --status-ok-bg: rgb(61 220 151 / 0.12);
-  --status-ok-border: rgb(61 220 151 / 0.25);
-  --status-low-fg: #ffb02e;
-  --status-low-bg: rgb(255 176 46 / 0.12);
-  --status-low-border: rgb(255 176 46 / 0.25);
-  --status-empty-fg: #ff5c5c;
-  --status-empty-bg: rgb(255 92 92 / 0.12);
-  --status-empty-border: rgb(255 92 92 / 0.25);
-
-  --status-success-fg: #3ddc97;
-  --status-success-bg: rgb(61 220 151 / 0.12);
-  --status-success-border: rgb(61 220 151 / 0.25);
-  --status-warning-fg: #ffb02e;
-  --status-warning-bg: rgb(255 176 46 / 0.12);
-  --status-warning-border: rgb(255 176 46 / 0.25);
-  --status-error-fg: #ff5c5c;
-  --status-error-bg: rgb(255 92 92 / 0.12);
-  --status-error-border: rgb(255 92 92 / 0.25);
-
-  --status-info-fg: #4cc3ff;
-  --status-info-bg: rgb(76 195 255 / 0.12);
-  --status-info-border: rgb(76 195 255 / 0.25);
-  --status-neutral-fg: #9ba3b0;
-  --status-neutral-bg: rgb(155 163 176 / 0.12);
-  --status-neutral-border: rgb(155 163 176 / 0.25);
-
-  // Badge «Fonte: VestiFlow»
-  --vestiflow-lockup-bg: #333a47;
-  --vestiflow-lockup-fg: #e9ecf2;
-  --badge-vestiflow-fg: #9ba3b0;
-  --badge-vestiflow-bg: color-mix(in srgb, var(--vestiflow-lockup-bg) 40%, transparent);
-  --badge-vestiflow-border: color-mix(in srgb, var(--vestiflow-lockup-bg) 80%, transparent);
-
   // ── 4. SPACING — scala base 4px ─────────────────────────────────────────────
   --space-0: 0;
   --space-1: 0.25rem; // 4px
@@ -321,12 +349,6 @@
   --radius-2xl: 1.25rem; // 20px
   --radius-full: 9999px;
 
-  // ── 4. SHADOWS — DARK: alpha nera piu' alta; ombre solo dropdown/overlay ────
-  --shadow-xs: 0 1px 0 rgb(0 0 0 / 0.4);
-  --shadow-sm: 0 1px 0 rgb(0 0 0 / 0.5);
-  --shadow-md: 0 4px 6px -2px rgb(0 0 0 / 0.55);
-  --shadow-lg: 0 8px 16px -4px rgb(0 0 0 / 0.6);
-
   // ── 4. Z-INDEX ─────────────────────────────────────────────────────────────
   --z-base: 0;
   --z-raised: 10;
@@ -353,8 +375,9 @@
   --text-base: 0.8125rem; // 13px — base UI densita' admin
   --text-md: 0.875rem; // 14px
   --text-lg: 1rem; // 16px
-  --text-xl: 1.25rem; // 20px — page title
-  --text-2xl: 1.5rem; // 24px — KPI value
+  --text-xl: 1.25rem; // 20px — titoli sezione/panel
+  --text-2xl: 1.5rem; // 24px — page title (polish v2)
+  --text-kpi: 1.75rem; // 28px — valore KPI stat-card (polish v2)
   --text-3xl: 1.875rem; // 30px — brand lockup topbar
 
   --font-weight-regular: 400;
@@ -381,7 +404,7 @@
   --content-wide: 90rem;
 
   /** Larghezza massima celle testuali nelle tabelle dense (ellipsis). */
-  --table-cell-max: 18ch;
+  --table-cell-max: 24ch;
 
   /** Larghezza minima del riquadro totali nei documenti (spec §Form: min 300px). */
   --detail-totals-min: 18.75rem;
@@ -392,11 +415,15 @@
   --chart-donut-layout-max: 26rem;
   --chart-donut-height: 20rem;
 
+  // Brand mark — costanti dal logo antracite (v5), non a tema.
+  --brand-gradient: linear-gradient(135deg, #3a3a40, #17171a);
+  --brand-mark-shadow: 0 7px 18px rgb(24 24 27 / 0.25);
+
   --sidebar-width: 14.5rem; // 232px — nav desktop
   --sidebar-width-drawer: 17.5rem; // 280px — drawer mobile
   --sidebar-width-collapsed: 3.5rem;
   --sidebar-icon-size: 1.25rem; // colonna icone nav
-  --topbar-height: 3.25rem; // 52px
+  --topbar-height: 3.75rem; // 60px — allineata alla fascia brand della sidebar (logo 40px)
   /** Altezza riservata al banner assistenza fisso in fondo alla shell. */
   --shell-support-banner-height: calc(
     var(--btn-min-height) + var(--space-3) * 2 + var(--border-width)
@@ -406,10 +433,21 @@
   --btn-min-height: 2.75rem; // 44px — touch target minimo (a11y)
   --field-height: 2.25rem; // 36px — input
   --field-height-inline: 1.875rem; // 30px — input inline nelle righe documento (spec §Form)
+  // Larghezza campi per tipo di contenuto (v3): un campo largo quanto il dato
+  // che ospita, mai quanto la pagina.
+  --field-w-xs: 5rem; // 80px — quantita', numeri corti
+  --field-w-sm: 8rem; // 128px — importi, percentuali, CAP
+  --field-w-md: 11rem; // 176px — date, codici
+  --field-w-lg: 14rem; // 224px — select standard (= select-menu-width)
+  --field-w-xl: 22rem; // 352px — nomi, email, ricerche
+
   --select-menu-width: 14rem; // larghezza uniforme trigger + pannello in tutta l'app
   --select-menu-width-wide: 22rem; // select con etichette lunghe (es. profilo canale admin)
   --select-menu-width-narrow: var(--space-20); // valori numerici corti (paginazione)
   --select-menu-panel-max-height: 16rem; // scroll solo con molte voci
+  // Il pannello puo' essere piu' largo del trigger (es. IVA: trigger 72px,
+  // opzioni «22 · 22% · Imponibile 22%») ma mai oltre questo tetto.
+  --select-menu-panel-max-width: 22rem;
   --container-pad-inline: var(--space-4);
 
   --border-width: 1px;
@@ -421,23 +459,26 @@
   // ── 6a. MOTION ─────────────────────────────────────────────────────────────
   --transition-fast: 100ms;
   --transition-base: 150ms;
+  --transition-page: 240ms; // ingresso contenuto pagina (polish v2)
   --transition-slow: 600ms;
   --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 // -----------------------------------------------------------------------------
-// LIGHT MODE — override semantici (schermate 2a–2c del mockup)
+// DARK MODE — override semantici (ex default, resta disponibile dal toggle)
 // -----------------------------------------------------------------------------
-[data-theme='light'] {
-  @include theme-light;
+[data-theme='dark'] {
+  @include theme-dark;
 }
 
 // -----------------------------------------------------------------------------
 // STAMPA — le pagine di stampa/etichette restano sempre su tema chiaro (bianco)
-// indipendentemente dalla preferenza utente.
+// indipendentemente dalla preferenza utente. `:root[data-theme='dark']` serve
+// a battere in specificita' l'override dark.
 // -----------------------------------------------------------------------------
 @media print {
-  :root {
+  :root,
+  :root[data-theme='dark'] {
     @include theme-light;
   }
 }

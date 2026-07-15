@@ -12,6 +12,29 @@
 
     <button
       type="button"
+      class="app-topbar__company"
+      [title]="'Profilo e impostazioni — ' + companyName()"
+      [attr.aria-label]="'Profilo e impostazioni — ' + companyName()"
+      (click)="onSettingsClick()"
+    >
+      @if (user(); as currentUser) {
+        <app-user-avatar
+          size="md"
+          [displayName]="currentUser.displayName"
+          [email]="currentUser.email"
+          [avatarUrl]="currentUser.avatarUrl"
+        />
+      }
+      <span class="app-topbar__company-copy">
+        <strong class="app-topbar__company-name">{{ companyName() }}</strong>
+        <span class="app-topbar__company-sub">{{ companyLocationLabel() }}</span>
+      </span>
+    </button>
+  </div>
+
+  <div class="app-topbar__end">
+    <button
+      type="button"
       class="app-topbar__search"
       aria-label="Ricerca globale (Ctrl K)"
       title="Ricerca globale"
@@ -21,9 +44,7 @@
       <span class="app-topbar__search-placeholder">Cerca prodotti, ordini, clienti…</span>
       <kbd class="app-topbar__search-kbd" aria-hidden="true">⌘K</kbd>
     </button>
-  </div>
 
-  <div class="app-topbar__end">
     <div class="app-topbar__theme" role="group" aria-label="Modalità tema">
       @for (option of themeOptions; track option.mode) {
         <button
@@ -40,26 +61,21 @@
       }
     </div>
 
-    @if (locations().length > 0 || (locationSelectorLocked() && fixedLocationLabel())) {
+    <!-- Sede fissa o unica: la mostra gia' il blocco azienda a sinistra;
+         il selettore compare solo quando la sede si puo' davvero cambiare. -->
+    @if (!showFixedLocationLabel() && locations().length > 0) {
       <div class="app-topbar__store">
-        @if (showFixedLocationLabel(); as label) {
-          <span class="app-topbar__store-fixed" [title]="fixedLocationTitle()">
-            <i class="pi pi-shop" aria-hidden="true"></i>
-            {{ label }}
-          </span>
-        } @else {
-          <app-select-menu
-            [options]="locationOptions()"
-            [value]="activeLocationValue()"
-            ariaLabel="Location attiva"
-            placeholder="Tutte le location"
-            triggerIcon="pi-shop"
-            [compact]="true"
-            [toolbarChip]="true"
-            [includeEmptyOption]="!locationSelectorLocked()"
-            (valueChange)="onLocationChange($event)"
-          />
-        }
+        <app-select-menu
+          [options]="locationOptions()"
+          [value]="activeLocationValue()"
+          ariaLabel="Location attiva"
+          placeholder="Tutte le location"
+          triggerIcon="pi-shop"
+          [compact]="true"
+          [toolbarChip]="true"
+          [includeEmptyOption]="!locationSelectorLocked()"
+          (valueChange)="onLocationChange($event)"
+        />
       </div>
     }
 
@@ -83,32 +99,14 @@
     }
 
     @if (user(); as currentUser) {
-      <div class="app-topbar__user">
-        <button
-          type="button"
-          class="app-topbar__avatar"
-          [attr.aria-label]="
-            'Impostazioni (' + (currentUser.displayName.trim() || currentUser.email) + ')'
-          "
-          [title]="'Impostazioni'"
-          (click)="onSettingsClick()"
-        >
-          <app-user-avatar
-            size="md"
-            [displayName]="currentUser.displayName"
-            [email]="currentUser.email"
-            [avatarUrl]="currentUser.avatarUrl"
-          />
-        </button>
-        <button
-          type="button"
-          class="app-topbar__logout"
-          [attr.aria-label]="'Esci (' + (currentUser.displayName.trim() || currentUser.email) + ')'"
-          (click)="logout.emit()"
-        >
-          <i class="pi pi-sign-out" aria-hidden="true"></i>
-        </button>
-      </div>
+      <button
+        type="button"
+        class="app-topbar__logout"
+        [attr.aria-label]="'Esci (' + (currentUser.displayName.trim() || currentUser.email) + ')'"
+        (click)="logout.emit()"
+      >
+        <i class="pi pi-sign-out" aria-hidden="true"></i>
+      </button>
     }
   </div>
 </div>

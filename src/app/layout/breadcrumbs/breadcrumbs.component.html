@@ -1,0 +1,24 @@
+@if (crumbs().length > 0) {
+  <nav class="breadcrumbs" aria-label="Percorso di navigazione">
+    <ol class="breadcrumbs__list">
+      @for (crumb of crumbs(); track $index) {
+        <li class="breadcrumbs__item">
+          @if (!$first) {
+            <i class="pi pi-angle-right breadcrumbs__sep" aria-hidden="true"></i>
+          }
+          @if (crumb.link) {
+            <a class="breadcrumbs__link" [routerLink]="crumb.link">{{ crumb.label }}</a>
+          } @else {
+            <span
+              class="breadcrumbs__current"
+              [class.breadcrumbs__current--last]="$last"
+              [attr.aria-current]="$last ? 'page' : null"
+            >
+              {{ crumb.label }}
+            </span>
+          }
+        </li>
+      }
+    </ol>
+  </nav>
+}

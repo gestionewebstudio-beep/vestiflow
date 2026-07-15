@@ -54,6 +54,30 @@ select {
   color: inherit;
 }
 
+// Scrollbar a tema (polish v2): sottili, coerenti col tema attivo.
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  inline-size: var(--space-2);
+  block-size: var(--space-2);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-strong);
+  border-radius: var(--radius-full);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-subtle);
+}
+
 // -----------------------------------------------------------------------------
 // TIPOGRAFIA — gerarchia sobria da gestionale (peso + spaziatura, non dimensioni)
 // -----------------------------------------------------------------------------
@@ -167,6 +191,59 @@ button:disabled {
 .mono {
   font-family: var(--font-mono);
   font-variant-numeric: var(--numeric-tabular);
+}
+
+// -----------------------------------------------------------------------------
+// BACK LINK (v4) — ogni "X__back" diventa un chip bordato compatto, come il
+// bottone indietro del riferimento. Regola globale: copre tutte le pagine
+// senza toccare i template ([class$] evita i falsi positivi tipo __backdrop).
+// -----------------------------------------------------------------------------
+a[class$='__back'],
+button[class$='__back'] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  min-block-size: var(--field-height);
+  padding-inline: var(--space-2) var(--space-3);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    color var(--transition-fast) var(--ease-standard),
+    border-color var(--transition-fast) var(--ease-standard);
+}
+
+a[class$='__back']:hover,
+button[class$='__back']:hover {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+// -----------------------------------------------------------------------------
+// INGRESSO PAGINA (polish v2) — fade+rise del componente routato a ogni
+// navigazione. Globale perche' i figli della router-outlet non ereditano
+// l'encapsulation della shell. Reduced-motion gestito in fondo al file.
+// -----------------------------------------------------------------------------
+@keyframes shell-content-enter {
+  from {
+    opacity: 0;
+    translate: 0 var(--space-2);
+  }
+}
+
+// fill "backwards" e non "both": a fine animazione la translate deve
+// SGANCIARSI, o l'elemento resta un containing block e rompe i discendenti
+// position: fixed (es. il dock mobile dell'arrivo merce).
+app-shell-layout .shell__content > *:not(router-outlet) {
+  animation: shell-content-enter var(--transition-page) var(--ease-standard) backwards;
 }
 
 // -----------------------------------------------------------------------------

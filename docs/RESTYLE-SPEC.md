@@ -220,6 +220,130 @@ Il grosso del restyle è **centralizzato nei token**: l'architettura esistente (
 - Test e2e esistenti verdi (a11y.spec incluso); Lighthouse a11y ≥ attuale.
 - Etichette/stampa (`@media print` e label print) restano su sfondo bianco: le pagine di stampa forzano `[data-theme='light']`.
 
+## Polish v2 (approvato — luglio 2026)
+
+Evoluzione della spec sopra, stessa identità Tech Moderno. Dove questa sezione
+diverge dalle regole precedenti, vince questa sezione.
+
+- **Titoli pagina**: `--text-2xl` (24px) bold + `--tracking-tight`. I titoli di
+  panel/sezione restano `--text-lg`/`--text-xl`.
+- **KPI (stat-card)**: valore `--text-kpi` (28px, nuovo token) bold + tabular-nums.
+- **Ombre sulle card**: panel e card su surface prendono `--shadow-xs` (il
+  principio "bordi > ombre" resta: l'ombra è profondità sottile, il bordo
+  disegna la forma). Le card **cliccabili** (hub documenti e simili) al hover
+  fanno lift: `translate 0 -2px` + `--shadow-md` + icona/freccia accento.
+- **Motion**: ingresso pagina fade+rise 240ms (`--transition-page`, nuovo token,
+  keyframes `shell-content-enter` in `styles.scss`); bottoni con press
+  `translate 0 1px` su :active; primary hover con alone `--color-focus-ring-alpha`.
+  `prefers-reduced-motion` resta gestito globalmente.
+- **Scrollbar a tema**: sottili (`--space-2`), thumb `--color-border-strong`,
+  track trasparente; regole standard + `::-webkit-scrollbar` in `styles.scss`.
+- **Empty state**: icona in medaglione `--space-12` tondo su
+  `--color-surface-muted` con bordo.
+- **Shell**: padding contenuto responsive `--space-3` / `--space-4` (sm) /
+  `--space-5 --space-6` (lg); nav della sidebar scrollabile con brand e logout
+  sempre visibili; il selettore location in topbar si comprime sotto md.
+- **Pagine auth**: brand lockup (logo 32px + wordmark `--text-xl` bold) sopra la
+  card, su bg pagina.
+- **Stampa**: le pagine print restano escluse dal polish (nessuna ombra/motion).
+
+## Restyle v3 — "Chiaro professionale" (approvato — luglio 2026)
+
+Decisione del proprietario: **il tema principale diventa LIGHT**. Il dark resta
+completo e selezionabile dal toggle (nessun token rimosso). Dove questa sezione
+diverge dalle precedenti, vince questa.
+
+- **`:root` = tema chiaro** (i valori dell'ex override `[data-theme='light']`,
+  schermate 2a–2c del mockup); il dark vive nel mixin `theme-dark` applicato da
+  `[data-theme='dark']`.
+- **ThemeService**: `DEFAULT_MODE = 'light'` al primo avvio; preferenza salvata
+  e modalita' system invariate.
+- **Asset che assumevano dark**: logo sidebar/login invertiti solo sotto
+  `[data-theme='dark']`; meta `theme-color` e manifest PWA su `#eef0f4`.
+- **Ritmo verticale**: le pagine list/detail passano a gap `--space-6`.
+- **Larghezza campi per contenuto**: nuovi token `--field-w-xs|sm|md|lg|xl`
+  (80/128/176/224/352px) — un campo e' largo quanto il dato che ospita, mai
+  quanto la pagina.
+- La stampa resta forzata su tema chiaro (`:root[data-theme='dark']` incluso).
+- Tutte le regole del Polish v2 (titoli 24px, KPI 28px, ombre, motion,
+  scrollbar, empty state) valgono su entrambi i temi.
+
+## Restyle v4 — "Verde bosco" (approvato — luglio 2026)
+
+Fonte di verita' visiva: il mockup del proprietario
+`esempio_vestiflow_arrivo_merce_v6   -  Claude dopo file di GPT.html` (root del
+repo). Dove questa sezione diverge dalle precedenti, vince questa.
+
+- **Accento**: verde bosco `#1f6f5f` (hover `#18584c`, piu' scuro — non piu'
+  chiaro) al posto dell'indigo; su dark diventa menta `#4eb59c` con testo scuro.
+- **Palette light**: bg `#f4f6f7`, superfici bianche, bordi/grigi verde-tinted
+  (`#dde4e1`/`#c8d2ce`), testo `#18211e`/`#52605b`/`#7f8b87`; stati con tinte
+  "soft" piene (successo `#eaf7f0`, warning `#fff5e5`, danger `#fff1ef`).
+- **Sidebar SCURA (`#13211e`) in entrambi i temi** — pattern del riferimento.
+  Nuovi token dedicati `--color-nav-fg|fg-hover|section|border|badge-bg|accent`;
+  voce attiva: tinta `rgb(78 181 156/.14)` + indicatore inset `#4eb59c`.
+- **Brand mark**: tile con gradiente `--brand-gradient`
+  (`135deg, #55bca3 → #1f6f5f`) e "V" bianca, in sidebar e pagine auth.
+- **Tabelle "da foglio di lavoro"**: separatori verticali di colonna
+  (`--color-table-col-divider`), header 11/700 normal-case (niente uppercase)
+  su banda `#f0f4f2` con bordo forte sotto, righe compatte (padding-block 8px).
+- **Topbar**: superficie traslucida (94% surface) con `backdrop-filter: blur`.
+- **Ombre**: morbide stratificate (`0 1px 2px` + `0 10px 30px`).
+- Dark: variante verde-tinted completa (superfici `#0d1412`–`#1a2521`).
+
+### Pattern di dettaglio pagina (v4)
+
+- **Back link**: ogni `X__back` e' un chip bordato su surface (regola globale in
+  `styles.scss`, selettore `[class$='__back']`); nelle testate operative
+  compatte diventa quadrato icon-only accanto al titolo (`__head-row`:
+  freccia + h1 20px + badge stato + riferimento sulla stessa riga).
+- **Testata documento a celle unite**: la griglia campi e' un'unica card con
+  bordi interni tra le celle; label 11/600 sottile sopra, input NUDO dentro
+  (niente bordo proprio, i select/date perdono il chrome via token cascata);
+  `:focus-within` = cella tinta `--color-primary-subtle` + linea accento 2px
+  sul bordo inferiore. Ultima colonna della riga senza bordo destro.
+- **Celle tabella editabili "nude"**: bordo trasparente a riposo, bordo
+  `--color-border` + surface al hover, focus = bordo accento + anello 2px.
+  Valori calcolati/readonly in `--color-text-muted`.
+- **Tabelle liste = card** (mixin `data-table-desktop`): `border-collapse:
+separate` + spacing 0, bordo `--color-border`, raggio `--radius-lg` sugli
+  angoli (via prime/ultime celle), surface come sfondo. Colonne numeriche:
+  destra + tabular-nums + nowrap. Celle testuali lunghe: ellipsis oltre
+  `--table-cell-max` (24ch) con `title` per il testo completo; codici in
+  `--font-mono`. **Niente `table-layout: fixed` con colonne dinamiche**
+  (column picker): layout auto + vincoli per cella — fixed solo dove esistono
+  davvero le classi `__col--*` nel template. Sticky header su
+  `--color-table-header-bg` (mai surface). Su mobile la veste card della
+  tabella si azzera: le card sono le righe.
+- **Barra azioni**: sticky flottante staccata dal fondo (`inset-block-end`
+  8px), surface 95% + `backdrop-filter: blur`, bordo + `--radius-lg` +
+  `--shadow-md`.
+- Rimandati (in attesa che l'altra sessione liberi i template dell'arrivo
+  merce): scansione inline nella riga strumenti righe, lista mobile a
+  fisarmonica, dock mobile fisso, selettore azienda in topbar.
+
+## Restyle v5 — "Antracite" dal logo (approvato — luglio 2026)
+
+Il logo VestiFlow e' monocromo (tile `#181818` + monogramma bianco): i colori
+del tema derivano da li'. Sostituisce l'accento "Verde bosco" del v4; il resto
+delle regole v4 (celle unite, tabelle card, larghezze campi, pattern operativi)
+resta invariato.
+
+- **Accento = antracite**: light `#1c1c1e` (hover `#333338`) per CTA, focus,
+  link, selezioni; dark = mono invertito, bottoni quasi bianchi `#ececef` con
+  testo scuro.
+- **Superfici light**: neutre pure (bg `#f4f4f5`, bordi `#e4e4e7`), niente
+  tinte verdi.
+- **Dark "grafite morbida"**: bg `#232529`, superfici `#2b2d33`–`#33353c` —
+  scuro riposante, MAI nero pece; ombre con alpha contenute.
+- **Sidebar antracite** (`#16161a` light / `#1e2025` dark) come il tile del
+  logo; voce attiva bianca su tinta `rgb(255 255 255/.1)`.
+- **Colori semantici invariati**: successo/scorte verdi, warning ambra, errori
+  rossi, info blu — sono funzionali, non brand. Il verde `--color-brand` resta
+  riservato a Shopify/sync.
+- Logo reale (`icon-topbar.png`) nel brand di sidebar e pagine auth; invertito
+  dove il fondo e' scuro.
+
 ## Come dirlo a Claude Code
 
 1. Copia questo file nel repo come `docs/RESTYLE-SPEC.md` (o nella root).

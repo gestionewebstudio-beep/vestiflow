@@ -11,7 +11,7 @@
   inset-block-start: 0;
   z-index: var(--z-raised);
   padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface);
+  background-color: var(--color-table-header-bg);
 }
 
 .doc-table__row {
@@ -36,37 +36,18 @@
   font-weight: var(--font-weight-semibold);
 }
 
+// Layout automatico (v4): colonne dimensionate dal contenuto; controparte in
+// ellipsis oltre il limite, date e numeri mai a capo.
 @include bp.media-up('lg') {
-  .doc-table {
-    table-layout: fixed;
+  .doc-table__date {
+    white-space: nowrap;
   }
 
-  .doc-table__col--date {
-    inline-size: 12%;
-  }
-
-  .doc-table__col--type {
-    inline-size: 18%;
-  }
-
-  .doc-table__col--reference {
-    inline-size: 16%;
-  }
-
-  .doc-table__col--counterparty {
-    inline-size: 20%;
-  }
-
-  .doc-table__col--status {
-    inline-size: 16%;
-  }
-
-  .doc-table__col--lines {
-    inline-size: 8%;
-  }
-
-  .doc-table__col--total {
-    inline-size: 10%;
+  .doc-table__counterparty {
+    max-inline-size: var(--table-cell-max);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .doc-table tbody td.doc-table__cell--lines,

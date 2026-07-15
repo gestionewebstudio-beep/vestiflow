@@ -12,10 +12,20 @@
   padding-inline: var(--space-4);
 }
 
+// Icona in medaglione tinto: l'empty state diventa un momento curato, non un
+// buco nella pagina (polish v2).
 .empty-state__icon {
-  font-size: var(--text-2xl);
-  color: var(--color-text-subtle);
-  margin-block-end: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-12);
+  block-size: var(--space-12);
+  font-size: var(--text-xl);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-muted);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-full);
+  margin-block-end: var(--space-2);
 }
 
 .empty-state__title {

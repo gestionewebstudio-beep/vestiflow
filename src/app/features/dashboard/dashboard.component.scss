@@ -12,7 +12,7 @@
 
 .dashboard__title {
   margin: 0;
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
@@ -27,7 +27,7 @@
   display: grid;
   grid-template-columns: 1fr;
   align-items: stretch;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 @include bp.media-up('md') {
@@ -54,6 +54,7 @@
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
 }
 
 .dashboard__panel-head {

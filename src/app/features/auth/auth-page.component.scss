@@ -23,15 +23,17 @@
   gap: var(--space-2);
 }
 
+// Logo del gestionale: tile scuro + monogramma chiaro — su sfondo pagina
+// chiaro va bene com'e', su tema dark si inverte per contrasto.
 .login__brand-logo {
-  inline-size: var(--space-8);
-  block-size: var(--space-8);
-  border-radius: var(--radius-sm);
-  filter: invert(1);
+  inline-size: var(--space-10);
+  block-size: var(--space-10);
+  border-radius: var(--radius-md);
+  box-shadow: var(--brand-mark-shadow);
 }
 
-:host-context([data-theme='light']) .login__brand-logo {
-  filter: none;
+:host-context([data-theme='dark']) .login__brand-logo {
+  filter: invert(1);
 }
 
 .login__brand-wordmark {
@@ -57,7 +59,7 @@
 
 .login__title {
   margin: 0;
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
@@ -134,7 +136,11 @@
   text-align: center;
 }
 
-.login__back,
+// Il back e' un chip (regola globale v4); qui resta solo il margine.
+.login__back {
+  margin-block-start: var(--space-3);
+}
+
 .login__forgot-link {
   display: inline-block;
   margin-block-start: var(--space-3);
@@ -145,7 +151,6 @@
   text-underline-offset: var(--space-1);
 }
 
-.login__back:hover,
 .login__forgot-link:hover {
   color: var(--color-text);
 }

@@ -3,13 +3,40 @@
 @use 'breakpoints' as bp;
 
 /// Layout tabella standard — default desktop, nessuna media query.
+/// v4: la tabella e' una CARD (bordo + angoli arrotondati su surface), come
+/// il riferimento; separate+spacing 0 mantiene i divisori a 1px e permette
+/// il raggio sugli angoli via prime/ultime celle.
 @mixin data-table-desktop($block) {
   .#{$block} {
     display: table;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     inline-size: 100%;
     table-layout: auto;
     font-size: var(--text-sm);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .#{$block} thead th:first-child {
+    border-start-start-radius: calc(var(--radius-lg) - var(--border-width));
+  }
+
+  .#{$block} thead th:last-child {
+    border-start-end-radius: calc(var(--radius-lg) - var(--border-width));
+  }
+
+  .#{$block} tbody tr:last-child td {
+    border-block-end: 0;
+  }
+
+  .#{$block} tbody tr:last-child td:first-child {
+    border-end-start-radius: calc(var(--radius-lg) - var(--border-width));
+  }
+
+  .#{$block} tbody tr:last-child td:last-child {
+    border-end-end-radius: calc(var(--radius-lg) - var(--border-width));
   }
 
   .#{$block} tbody {
@@ -30,11 +57,17 @@
   .#{$block}__row td {
     display: table-cell;
     box-sizing: border-box;
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-2) var(--space-4);
     border-block-end: var(--border-width) solid var(--color-table-row-divider);
+    // Separatore verticale di colonna: leggibilita' "da foglio di lavoro" (v4).
+    border-inline-end: var(--border-width) solid var(--color-table-col-divider);
     vertical-align: middle;
     text-align: start;
     color: var(--color-text);
+
+    &:last-child {
+      border-inline-end: 0;
+    }
 
     &::before {
       content: none;
@@ -57,19 +90,23 @@
     background-color: var(--color-table-row-selected);
   }
 
-  // Header: 11/600 uppercase, letterspacing, testo sottile su bg sunken.
+  // Header (v4): 11/700 normal-case su banda tinta, con separatori colonna —
+  // come il file di riferimento, niente maiuscolo urlato.
   .#{$block} th {
     box-sizing: border-box;
     padding: var(--space-2) var(--space-4);
     text-align: start;
     font-size: var(--text-2xs);
-    font-weight: var(--font-weight-semibold);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-caps);
-    color: var(--color-text-subtle);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-muted);
     background-color: var(--color-table-header-bg);
-    border-block-end: var(--border-width) solid var(--color-border);
+    border-block-end: var(--border-width) solid var(--color-border-strong);
+    border-inline-end: var(--border-width) solid var(--color-table-col-divider);
     white-space: nowrap;
+
+    &:last-child {
+      border-inline-end: 0;
+    }
   }
 
   // I bottoni di ordinamento dentro th: lo UA stylesheet di Chromium forza
@@ -80,10 +117,13 @@
     letter-spacing: inherit;
   }
 
+  // Colonne numeriche: destra, cifre tabulari, mai a capo (v4).
   .#{$block} th.#{$block}__cell--numeric,
   .#{$block} tbody td.#{$block}__cell--numeric,
   .#{$block}__row td.#{$block}__cell--numeric {
     text-align: end;
+    font-variant-numeric: var(--numeric-tabular);
+    white-space: nowrap;
   }
 }
 
@@ -93,6 +133,10 @@
     .#{$block} {
       display: block;
       max-inline-size: 100%;
+      // Reset della veste card desktop: su mobile le card sono le righe.
+      background-color: transparent;
+      border: 0;
+      border-radius: 0;
     }
 
     .#{$block} tbody {

@@ -1,0 +1,56 @@
+// Percorso di navigazione: fascia sottile e discreta sopra il contenuto.
+.breadcrumbs {
+  margin-block-end: var(--space-3);
+}
+
+.breadcrumbs__list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-xs);
+}
+
+.breadcrumbs__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.breadcrumbs__sep {
+  flex-shrink: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-subtle);
+}
+
+.breadcrumbs__link {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast) var(--ease-standard);
+}
+
+.breadcrumbs__link:hover {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
+.breadcrumbs__current {
+  color: var(--color-text-muted);
+}
+
+.breadcrumbs__current--last {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Le pagine di stampa non portano il percorso applicativo.
+@media print {
+  .breadcrumbs {
+    display: none;
+  }
+}

@@ -8,24 +8,26 @@
     Arrivi merce
   </a>
 
-  <h1 class="gr-form__title">
-    {{ pageTitle() }}
-  </h1>
+  <div class="gr-form__head-row">
+    <h1 class="gr-form__title">
+      {{ pageTitle() }}
+    </h1>
 
-  @if (isEditMode()) {
-    <div class="gr-form__meta">
-      @if (statusDisplayLabel(); as label) {
-        <app-badge [tone]="statusDisplayTone()!">{{ label }}</app-badge>
-      }
-      @if (internalReferenceLabel(); as ref) {
-        <span class="gr-form__internal-ref tabular-nums">N. interno: {{ ref }}</span>
-      }
-    </div>
-  } @else if (internalReferenceLabel(); as ref) {
-    <p class="gr-form__preview-ref tabular-nums">
-      Prossimo numero interno (anteprima): <strong>{{ ref }}</strong>
-    </p>
-  }
+    @if (isEditMode()) {
+      <div class="gr-form__meta">
+        @if (statusDisplayLabel(); as label) {
+          <app-badge [tone]="statusDisplayTone()!">{{ label }}</app-badge>
+        }
+        @if (internalReferenceLabel(); as ref) {
+          <span class="gr-form__internal-ref tabular-nums">N. interno: {{ ref }}</span>
+        }
+      </div>
+    } @else if (internalReferenceLabel(); as ref) {
+      <p class="gr-form__preview-ref tabular-nums">
+        Prossimo numero interno (anteprima): <strong>{{ ref }}</strong>
+      </p>
+    }
+  </div>
 
   @if (saveWarnings().length > 0) {
     <div class="gr-form__warning-banner" role="status">
@@ -156,24 +158,7 @@
       <fieldset class="gr-form__fieldset" [disabled]="formReadOnly()">
         <div class="gr-form__header">
           <div class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact">
-            <div class="gr-form__field">
-              <span class="gr-form__label">Tipo documento</span>
-              @if (isConfirmedEdit()) {
-                <p class="gr-form__readonly">{{ documentTypeLabel(form.controls.type.value) }}</p>
-              } @else {
-                <app-select-menu
-                  [options]="typeOptions"
-                  [value]="form.controls.type.value"
-                  ariaLabel="Tipo documento"
-                  placeholder="Tipo documento"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  (valueChange)="onTypeSelect($event)"
-                />
-              }
-            </div>
-
-            <div class="gr-form__field">
+            <div class="gr-form__field gr-form__field--span2">
               <span class="gr-form__label" id="gr-supplier-label">Fornitore</span>
               <app-select-menu
                 [options]="supplierOptions()"
@@ -245,7 +230,7 @@
               }
             </div>
 
-            <div class="gr-form__field">
+            <div class="gr-form__field gr-form__field--end-md">
               <label class="gr-form__label" for="gr-date">Data registrazione</label>
               <app-date-input
                 inputId="gr-date"
@@ -257,6 +242,23 @@
             </div>
 
             <div class="gr-form__field">
+              <span class="gr-form__label">Tipo documento</span>
+              @if (isConfirmedEdit()) {
+                <p class="gr-form__readonly">{{ documentTypeLabel(form.controls.type.value) }}</p>
+              } @else {
+                <app-select-menu
+                  [options]="typeOptions"
+                  [value]="form.controls.type.value"
+                  ariaLabel="Tipo documento"
+                  placeholder="Tipo documento"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="onTypeSelect($event)"
+                />
+              }
+            </div>
+
+            <div class="gr-form__field gr-form__field--end-xl">
               <span class="gr-form__label">Documento fornitore</span>
               <app-select-menu
                 [options]="externalDocTypeOptions()"
@@ -280,7 +282,7 @@
               />
             </div>
 
-            <div class="gr-form__field">
+            <div class="gr-form__field gr-form__field--end-md">
               <label class="gr-form__label" for="gr-ext-date">Data doc. fornitore</label>
               <app-date-input
                 inputId="gr-ext-date"
@@ -295,7 +297,7 @@
             <!-- Punto E: la Causale di carico non è più esposta nel form.
                  Viene generata sempre in automatico e in silenzio dal modello
                  del tipo documento fornitore (tipo + numero + data). -->
-            <div class="gr-form__field">
+            <div class="gr-form__field gr-form__field--fill gr-form__field--end-xl">
               <label class="gr-form__check gr-form__check--block" for="gr-invoice-pending">
                 <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
                 <span>Seguirà fattura</span>
@@ -328,7 +330,38 @@
 
         <section class="gr-form__lines" aria-labelledby="gr-lines-title">
           <div class="gr-form__lines-head">
-            <h2 id="gr-lines-title" class="gr-form__subtitle">Righe documento</h2>
+            <div class="gr-form__lines-heading">
+              <h2 id="gr-lines-title" class="gr-form__subtitle">Righe documento</h2>
+              <span class="gr-form__lines-count tabular-nums">
+                {{ validLinesCount() }} valide · {{ totalPiecesCount() }} pezzi
+              </span>
+            </div>
+            <div class="gr-form__scan-inline" role="region" aria-label="Lettura codici a barre">
+              <label
+                class="gr-form__scan-label"
+                for="gr-barcode-scan"
+                title="Scansione codice a barre"
+              >
+                <i class="pi pi-barcode" aria-hidden="true"></i>
+                <span class="sr-only">Scansione codice a barre</span>
+              </label>
+              <input
+                #barcodeScanInput
+                id="gr-barcode-scan"
+                class="gr-form__input gr-form__scan-input"
+                type="text"
+                [value]="barcodeScanDraft()"
+                [disabled]="formReadOnly() || barcodeScanBusy()"
+                autocomplete="off"
+                placeholder="Scansiona EAN, digita SKU o cerca…"
+                aria-describedby="gr-barcode-scan-hint"
+                (input)="onBarcodeScanInput($any($event.target).value)"
+                (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
+              />
+              <p id="gr-barcode-scan-hint" class="gr-form__scan-hint">
+                <kbd>148*</kbd> + codice = quantità
+              </p>
+            </div>
             <div class="gr-form__lines-tools">
               <app-table-column-picker [viewId]="lineColumnsView" />
               @if (canIncludeSupplierOrder()) {
@@ -366,9 +399,9 @@
                 <i class="pi pi-box" aria-hidden="true"></i>
                 Nuovo prodotto
               </app-button>
-              <app-button type="button" variant="ghost" (click)="addLine()">
+              <app-button type="button" [disabled]="formReadOnly()" (click)="addLine()">
                 <i class="pi pi-plus" aria-hidden="true"></i>
-                Manuale
+                Aggiungi riga
               </app-button>
             </div>
           </div>
@@ -380,6 +413,7 @@
           <div class="gr-form__table-wrap">
             <table class="gr-form__table">
               <colgroup>
+                <col class="gr-form__col--index" />
                 @if (isLineColumnVisible('sku')) {
                   <col [style.width]="lineColumnWidth('sku')" />
                 }
@@ -449,6 +483,7 @@
               </colgroup>
               <thead>
                 <tr>
+                  <th scope="col" class="gr-form__cell--index" aria-label="Numero riga">#</th>
                   @if (isLineColumnVisible('sku')) {
                     <th scope="col" [style.width]="lineColumnWidth('sku')">
                       <button
@@ -857,12 +892,14 @@
                     [class.gr-form__table-row--incomplete]="!lineRowComplete(i)"
                     [formGroupName]="i"
                   >
+                    <td class="gr-form__cell--index tabular-nums">{{ i + 1 }}</td>
                     @if (isLineColumnVisible('sku')) {
                       <td class="gr-form__cell gr-form__cell--code">
                         <app-goods-receipt-line-code-cell
                           [lineIndex]="i"
                           [inputId]="'gr-sku-' + i"
                           ariaLabel="SKU"
+                          placeholder="Cerca SKU"
                           [value]="line.controls.sku.value"
                           [linked]="lineHasLinkedProduct(i)"
                           [linkedValue]="line.controls.sku.value"
@@ -888,6 +925,7 @@
                           [lineIndex]="i"
                           [inputId]="'gr-barcode-' + i"
                           ariaLabel="EAN"
+                          placeholder="Scansiona EAN"
                           [value]="line.controls.barcode.value"
                           [linked]="lineHasLinkedProduct(i)"
                           [linkedValue]="line.controls.barcode.value"
@@ -1264,29 +1302,6 @@
             }
           </div>
 
-          <div class="gr-form__scan-inline" role="region" aria-label="Lettura codici a barre">
-            <label class="gr-form__scan-label" for="gr-barcode-scan">
-              <i class="pi pi-barcode" aria-hidden="true"></i>
-              Scansione codice a barre
-            </label>
-            <input
-              #barcodeScanInput
-              id="gr-barcode-scan"
-              class="gr-form__input gr-form__scan-input"
-              type="text"
-              [value]="barcodeScanDraft()"
-              [disabled]="formReadOnly() || barcodeScanBusy()"
-              autocomplete="off"
-              placeholder="Scansiona o digita codice…"
-              aria-describedby="gr-barcode-scan-hint"
-              (input)="onBarcodeScanInput($any($event.target).value)"
-              (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
-            />
-            <p id="gr-barcode-scan-hint" class="gr-form__scan-hint">
-              Quantità + codice: <kbd>148*</kbd> seguito dal codice a barre.
-            </p>
-          </div>
-
           <aside class="gr-form__totals-bar" aria-label="Totali documento">
             <dl class="gr-form__totals">
               <div class="gr-form__totals-row">
@@ -1409,24 +1424,26 @@
       <div class="gr-form__actions">
         <p class="gr-form__actions-note">
           <i class="pi pi-info-circle" aria-hidden="true"></i>
+          <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
+          <span class="gr-form__actions-note-sep">·</span>
           Le giacenze si aggiornano alla conferma
         </p>
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
           Chiudi
         </app-button>
+        @if (editDocumentId()) {
+          <app-button
+            type="button"
+            variant="danger"
+            [disabled]="saving()"
+            (click)="requestDeleteDocument()"
+          >
+            Elimina documento
+          </app-button>
+        }
         <app-button type="button" variant="secondary" [disabled]="saving()" (click)="printLabels()">
           Stampa etichette
         </app-button>
-        @if (canSaveDocument()) {
-          <app-button
-            type="button"
-            [loading]="saving()"
-            [disabled]="saving()"
-            (click)="requestSaveDocument()"
-          >
-            Salva documento
-          </app-button>
-        }
         @if (canExportPdf()) {
           <app-button type="button" variant="secondary" (click)="openPrintPreview()">
             Anteprima stampa
@@ -1441,16 +1458,48 @@
             Scarica PDF
           </app-button>
         }
-        @if (editDocumentId()) {
+        @if (canSaveDocument()) {
           <app-button
             type="button"
-            variant="ghost"
+            [loading]="saving()"
             [disabled]="saving()"
-            (click)="requestDeleteDocument()"
+            (click)="requestSaveDocument()"
           >
-            Elimina documento
+            Salva documento
           </app-button>
         }
+      </div>
+
+      <!-- Dock mobile (v4): totale + scanner + salva sempre a portata di pollice. -->
+      <div class="gr-form__dock" role="region" aria-label="Azioni rapide documento">
+        <div class="gr-form__dock-total">
+          <span>Totale documento</span>
+          <strong class="tabular-nums">{{ formatMoney(documentTotals().total) }}</strong>
+        </div>
+        <div class="gr-form__dock-row">
+          <input
+            #barcodeScanDockInput
+            class="gr-form__dock-scan"
+            type="text"
+            [value]="barcodeScanDraft()"
+            [disabled]="formReadOnly() || barcodeScanBusy()"
+            autocomplete="off"
+            placeholder="Scansiona o digita codice…"
+            aria-label="Scansione codice a barre"
+            (input)="onBarcodeScanInput($any($event.target).value)"
+            (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
+          />
+          @if (canSaveDocument()) {
+            <button
+              type="button"
+              class="gr-form__dock-save"
+              [disabled]="saving()"
+              (click)="requestSaveDocument()"
+            >
+              Salva
+            </button>
+          }
+        </div>
       </div>
     </form>
   }

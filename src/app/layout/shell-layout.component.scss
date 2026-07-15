@@ -28,7 +28,9 @@
 .shell__topbar {
   grid-area: topbar;
   border-block-end: var(--border-width) solid var(--color-border);
-  background-color: var(--color-surface);
+  // Superficie traslucida con blur (riferimento v4).
+  background-color: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  backdrop-filter: blur(12px);
   min-inline-size: 0;
 }
 
@@ -129,7 +131,8 @@
 .shell__sidebar {
   grid-area: sidebar;
   background-color: var(--color-nav-bg);
-  border-inline-end: var(--border-width) solid var(--color-border);
+  // La sidebar e' scura in entrambi i temi: bordo dai token nav.
+  border-inline-end: var(--border-width) solid var(--color-nav-border);
   // Mobile: drawer off-canvas.
   position: fixed;
   inset-block: 0;
@@ -173,6 +176,10 @@
   min-block-size: 0;
   padding: var(--space-3);
 }
+
+// L'animazione di ingresso del contenuto routato vive in styles.scss:
+// i componenti figli della router-outlet non hanno l'attributo _ngcontent
+// della shell, quindi una regola scoped qui non li raggiungerebbe.
 
 @include bp.media-up('sm') {
   .shell__content {

@@ -23,6 +23,8 @@ export class GoodsReceiptLineCodeCellComponent {
   readonly lineIndex = input.required<number>();
   readonly inputId = input('');
   readonly ariaLabel = input.required<string>();
+  /** Placeholder mostrato a cella vuota (es. «Cerca SKU», «Scansiona EAN»). */
+  readonly placeholder = input('');
   readonly value = input.required<string>();
   readonly linked = input(false);
   readonly linkedValue = input('');

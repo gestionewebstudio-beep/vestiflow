@@ -1,64 +1,19 @@
-@use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
-:host {
-  display: block;
-}
+// Tabella fornitori sul mixin condiviso (v4): stessa veste card, header,
+// divisori e card mobile di tutte le altre liste del gestionale.
+@include rt.list-card-table-host();
+@include rt.stack-table('supplier-table');
 
 .supplier-table-wrap {
   overflow-x: auto;
-}
-
-.supplier-table {
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.supplier-table th,
-.supplier-table td {
-  padding: var(--space-2) var(--space-3);
-  border-block-end: var(--border-width) solid var(--color-border);
-  text-align: start;
-}
-
-.supplier-table th {
-  text-transform: uppercase;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-subtle);
-  background: var(--color-surface-muted);
 }
 
 .supplier-table__row {
   cursor: pointer;
 }
 
-.supplier-table__row:hover,
 .supplier-table__row:focus-visible {
-  background: var(--color-surface-muted);
-}
-
-@include bp.media-down('md') {
-  .supplier-table thead {
-    display: none;
-  }
-
-  .supplier-table tr {
-    display: block;
-    margin-block-end: var(--space-3);
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--radius-md);
-  }
-
-  .supplier-table td {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-3);
-    border: none;
-  }
-
-  .supplier-table td::before {
-    content: attr(data-label);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-muted);
-  }
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
 }

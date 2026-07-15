@@ -205,9 +205,12 @@
   inset-block-start: calc(100% + var(--space-1));
   inset-inline-start: 0;
   inset-inline-end: auto;
-  inline-size: 100%;
+  // Largo quanto serve alle opzioni (v4): mai meno del trigger, mai oltre il
+  // tetto — un trigger stretto (es. IVA 72px) apre comunque una tendina
+  // leggibile su una riga.
+  inline-size: max-content;
   min-inline-size: 100%;
-  max-inline-size: 100%;
+  max-inline-size: var(--select-menu-panel-max-width);
   z-index: var(--z-dropdown);
   margin: 0;
   padding: var(--space-1);

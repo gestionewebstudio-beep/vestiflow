@@ -86,6 +86,22 @@ export class AppTopbarComponent {
     })),
   );
 
+  // ── Blocco azienda (riferimento v4): nome negozio + sede attiva ────────────
+  protected readonly companyName = computed(() => this.user()?.tenantName?.trim() || 'VestiFlow');
+
+  /** Sottotitolo del blocco azienda: sede attiva risolta. */
+  protected readonly companyLocationLabel = computed(() => {
+    const fixed = this.showFixedLocationLabel();
+    if (fixed) {
+      return fixed;
+    }
+    const id = this.activeLocationId();
+    if (!id) {
+      return 'Tutte le location';
+    }
+    return this.locations().find((location) => location.id === id)?.name ?? 'Tutte le location';
+  });
+
   /** Etichetta fissa quando c'è una sola sede (select inutile). */
   protected readonly singleLocationLabel = computed(() => {
     const list = this.locations();
@@ -102,10 +118,6 @@ export class AppTopbarComponent {
     }
     return this.singleLocationLabel();
   });
-
-  protected readonly fixedLocationTitle = computed(() =>
-    this.locationSelectorLocked() ? 'Sede operativa assegnata' : 'Sede operativa',
-  );
 
   /** Valore stringa per il select-menu (EntityId o vuoto). */
   protected readonly activeLocationValue = computed(() => this.activeLocationId() ?? '');

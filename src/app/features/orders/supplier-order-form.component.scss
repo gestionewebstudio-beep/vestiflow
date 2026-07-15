@@ -29,7 +29,7 @@
 
 .po-form__title {
   margin: 0;
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
@@ -191,7 +191,9 @@
 .po-form__table {
   inline-size: 100%;
   min-inline-size: calc(var(--space-16) * 6);
-  border-collapse: collapse;
+  // Con larghezza definita il fixed rispetta le larghezze del config colonne
+  // (senza, il contenuto decide e i campi numerici si gonfiano — v4).
+  table-layout: fixed;
   font-size: var(--text-sm);
 }
 

@@ -30,7 +30,7 @@
           @switch (col.id) {
             @case ('documentDate') {
               <td
-                class="tabular-nums"
+                class="doc-table__date tabular-nums"
                 [class.doc-table__cell--pinned]="col.pinned"
                 [attr.data-label]="col.label"
               >
@@ -52,7 +52,12 @@
               </td>
             }
             @case ('counterparty') {
-              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+              <td
+                class="doc-table__counterparty"
+                [class.doc-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+                [title]="counterparty(doc)"
+              >
                 {{ counterparty(doc) }}
               </td>
             }

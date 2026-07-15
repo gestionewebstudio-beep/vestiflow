@@ -5,11 +5,11 @@ import type { ResolvedTheme, ThemeMode } from '@shared/models/theme.model';
 const STORAGE_KEY = 'vestiflow-theme';
 const THEME_MODES: readonly ThemeMode[] = ['light', 'dark', 'system'];
 /**
- * Restyle "Tech Moderno": il tema principale e' DARK. Al primo avvio, senza
- * preferenza salvata, si parte in dark (non piu' 'system'). L'utente resta
- * libero di scegliere light o system dal toggle.
+ * Restyle v3 "Chiaro professionale": il tema principale e' LIGHT. Al primo
+ * avvio, senza preferenza salvata, si parte in light. L'utente resta libero
+ * di scegliere dark o system dal toggle.
  */
-const DEFAULT_MODE: ThemeMode = 'dark';
+const DEFAULT_MODE: ThemeMode = 'light';
 
 /**
  * Gestisce la preferenza tema (light | dark | system) e applica `data-theme`

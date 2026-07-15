@@ -11,18 +11,11 @@
   inline-size: 100%;
 }
 
-.product-table__head th,
-.product-table tbody td,
-.product-table__row td {
-  box-sizing: border-box;
-  padding: var(--space-3) var(--space-4);
-}
-
 .product-table__head th {
   position: sticky;
   inset-block-start: 0;
   z-index: var(--z-raised);
-  background-color: var(--color-surface);
+  background-color: var(--color-table-header-bg);
 }
 
 .product-table__head th[aria-sort='ascending'] .product-table__sort,

@@ -11,7 +11,7 @@
   inset-block-start: 0;
   z-index: var(--z-raised);
   padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface);
+  background-color: var(--color-table-header-bg);
 }
 
 .level-table__row:hover {
@@ -61,53 +61,22 @@
   cursor: pointer;
 }
 
+// Layout automatico (v4): le colonne si dimensionano sul contenuto — niente
+// piu' otto colonne uguali con nomi spezzati a meta' parola. Nome e SKU in
+// ellipsis oltre il limite, il resto non va mai a capo.
 @include bp.media-up('lg') {
-  .level-table {
-    table-layout: fixed;
-  }
-
-  .level-table__col--variant {
-    inline-size: 28%;
-  }
-
-  .level-table__col--sku {
-    inline-size: 12%;
-  }
-
-  .level-table__col--location {
-    inline-size: 13%;
-  }
-
-  .level-table__col--available {
-    inline-size: 8%;
-  }
-
-  .level-table__col--on-hand {
-    inline-size: 9%;
-  }
-
-  .level-table__col--committed {
-    inline-size: 9%;
-  }
-
-  .level-table__col--incoming {
-    inline-size: 9%;
-  }
-
-  .level-table__col--status {
-    inline-size: 13%;
-  }
-
   .level-table__title {
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    white-space: normal;
+    max-inline-size: var(--table-cell-max);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .level-table__sku {
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    white-space: normal;
+    max-inline-size: var(--table-cell-max);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .level-table tbody td.level-table__cell--status,
