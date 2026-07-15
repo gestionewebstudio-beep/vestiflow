@@ -54,52 +54,7 @@
                   Nessun articolo trovato a catalogo.
                 </li>
               }
-              <!-- Punto D: stesse azioni della tabella desktop. -->
-              <li>
-                <button
-                  type="button"
-                  class="gr-card__suggestion gr-card__suggestion--create"
-                  (mousedown)="$event.preventDefault()"
-                  (click)="createNewRequest.emit(lineIndex())"
-                >
-                  <i class="pi pi-plus" aria-hidden="true"></i>
-                  {{ createActionLabel() }}
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  class="gr-card__suggestion gr-card__suggestion--create"
-                  (mousedown)="$event.preventDefault()"
-                  (click)="anagraphicOpen.emit(lineIndex())"
-                >
-                  <i class="pi pi-external-link" aria-hidden="true"></i>
-                  Apri scheda completa…
-                </button>
-              </li>
             </ul>
-          }
-          @if (createMode()) {
-            <span class="gr-card__create-badge" role="status">
-              Nuovo articolo
-              <button
-                type="button"
-                class="gr-card__create-cancel"
-                aria-label="Annulla creazione nuovo articolo"
-                (click)="createNewCancel.emit(lineIndex())"
-              >
-                <i class="pi pi-times" aria-hidden="true"></i>
-              </button>
-            </span>
-            <label class="gr-card__stock-toggle">
-              <input
-                type="checkbox"
-                [checked]="manageStock()"
-                [disabled]="disabled()"
-                (change)="onManageStockToggle($event)"
-              />
-              Gestito a magazzino
-            </label>
           }
         </div>
       }

@@ -247,15 +247,12 @@ export class ProductsService {
                 },
               }
             : {}),
-          ...(query.locationId
-            ? {
-                inventoryLevels: {
-                  where: { locationId: query.locationId },
-                  select: { onHand: true },
-                  take: 1,
-                },
-              }
-            : {}),
+          // Con locationId: giacenza della sola sede. Senza: tutte le righe,
+          // sommate a valle (totale multi-sede invece di nessun dato).
+          inventoryLevels: {
+            ...(query.locationId ? { where: { locationId: query.locationId }, take: 1 } : {}),
+            select: { onHand: true },
+          },
         },
         orderBy: [{ product: { name: 'asc' } }, { sku: 'asc' }],
         skip: (query.page - 1) * query.pageSize,
@@ -266,7 +263,14 @@ export class ProductsService {
 
     const items: VariantSummaryDto[] = rows.map((row) => {
       const supplierLink = 'supplierLinks' in row ? row.supplierLinks?.[0] : undefined;
-      const level = 'inventoryLevels' in row ? row.inventoryLevels?.[0] : undefined;
+      const levels = row.inventoryLevels ?? [];
+      // Con location: giacenza puntuale della sede. Senza: totale multi-sede;
+      // null solo se la variante non ha alcuna riga giacenza (mai movimentata).
+      const stockOnHand = query.locationId
+        ? (levels[0]?.onHand ?? null)
+        : levels.length > 0
+          ? levels.reduce((sum, level) => sum + level.onHand, 0)
+          : null;
       const purchaseMinor = supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null;
       return {
         variantId: row.id,
@@ -286,7 +290,7 @@ export class ProductsService {
             ? { amountMinor: row.compareAtPriceMinor, currencyCode: row.currency }
             : null,
         supplierSku: supplierLink?.supplierSku ?? null,
-        stockOnHand: level?.onHand ?? null,
+        stockOnHand,
         category: row.product.category?.trim() || null,
         unitOfMeasure: row.product.unitOfMeasure ?? 'pz',
         defaultVatCodeId: row.product.defaultVatCodeId ?? null,

@@ -31,8 +31,9 @@ export async function searchAndPickLineVariant(
 }
 
 /**
- * Creazione esplicita di un nuovo articolo dalla riga (§8, punto D): il
- * dropdown del campo Nome prodotto offre l'azione "Crea «testo»".
+ * Creazione implicita di un nuovo articolo dalla riga: basta digitare il
+ * nome nel campo Nome prodotto (nessuna azione "Crea" dedicata) — l'articolo
+ * nasce al click su "Salva documento".
  */
 export async function createLineArticleExplicit(page: Page, lineIndex = 0): Promise<string> {
   const sku = `E2E-GR-${Date.now()}`;
@@ -40,13 +41,6 @@ export async function createLineArticleExplicit(page: Page, lineIndex = 0): Prom
   const nameInput = page.locator(`#gr-product-${lineIndex}`);
   await nameInput.click();
   await nameInput.fill(name);
-
-  await page
-    .getByRole('button', { name: `Crea «${name}»` })
-    .first()
-    .click();
-  await expect(page.locator('.gr-product-cell__create-badge').first()).toBeVisible();
-
   await page.locator(`#gr-sku-${lineIndex}`).fill(sku);
   return sku;
 }

@@ -4,8 +4,6 @@ import {
   GoodsReceiptLineState,
   lineDraftHasSignificantData,
   lineDraftIsEmpty,
-  lineDraftIsSearchQueryOnly,
-  lineDraftPersistableForAutoSave,
   lineDraftPersistableForExplicitSave,
   resolveGoodsReceiptLineState,
   type GoodsReceiptLineDraft,
@@ -24,7 +22,6 @@ function draft(overrides: Partial<GoodsReceiptLineDraft> = {}): GoodsReceiptLine
     compareAtPrice: '',
     vatRatePercent: '',
     loadsStock: true,
-    createNew: false,
     ...overrides,
   };
 }
@@ -41,15 +38,17 @@ describe('goods-receipt-line-state.util', () => {
       ).toBe(GoodsReceiptLineState.Searching);
     });
 
-    it('classifica come PARTIAL il testo digitato senza ricerca attiva', () => {
+    // Creazione implicita: nome valido senza articolo collegato = la riga
+    // creerà l'articolo al salvataggio, nessun gesto dedicato.
+    it('classifica come CREATE_NEW il nome digitato senza ricerca attiva', () => {
       expect(resolveGoodsReceiptLineState(draft({ productName: 'maglia' }))).toBe(
-        GoodsReceiptLineState.Partial,
+        GoodsReceiptLineState.CreateNew,
       );
     });
 
-    it('classifica come CREATE_NEW_EXPLICIT solo dopo azione esplicita', () => {
-      expect(resolveGoodsReceiptLineState(draft({ productName: 'maglia', createNew: true }))).toBe(
-        GoodsReceiptLineState.CreateNewExplicit,
+    it('classifica come PARTIAL i dati senza nome valido né articolo', () => {
+      expect(resolveGoodsReceiptLineState(draft({ productName: 'C', unitCost: '9,90' }))).toBe(
+        GoodsReceiptLineState.Partial,
       );
     });
 
@@ -84,24 +83,6 @@ describe('goods-receipt-line-state.util', () => {
     });
   });
 
-  describe('lineDraftIsSearchQueryOnly', () => {
-    it('riconosce come query il solo nome digitato', () => {
-      expect(lineDraftIsSearchQueryOnly(draft({ productName: 'maglia uomo' }))).toBe(true);
-    });
-
-    it('non è query se ci sono altri dati (costo)', () => {
-      expect(
-        lineDraftIsSearchQueryOnly(draft({ productName: 'Trasporto', unitCost: '15,00' })),
-      ).toBe(false);
-    });
-
-    it('non è query se la riga è persistita, collegata o in creazione esplicita', () => {
-      expect(lineDraftIsSearchQueryOnly(draft({ productName: 'x', id: 'line-1' }))).toBe(false);
-      expect(lineDraftIsSearchQueryOnly(draft({ productName: 'x', variantId: 'v1' }))).toBe(false);
-      expect(lineDraftIsSearchQueryOnly(draft({ productName: 'x', createNew: true }))).toBe(false);
-    });
-  });
-
   describe('lineDraftPersistableForExplicitSave', () => {
     it('esclude la riga vuota di UI', () => {
       expect(lineDraftPersistableForExplicitSave(draft())).toBe(false);
@@ -113,13 +94,15 @@ describe('goods-receipt-line-state.util', () => {
       );
     });
 
-    it('esclude la query di ricerca (solo nome) anche al salvataggio esplicito', () => {
+    // Creazione implicita: il solo nome digitato basta — al salvataggio
+    // esplicito la riga crea l'articolo (e col carico attivo, il movimento).
+    it('include la riga con solo il nome digitato (creazione implicita)', () => {
       expect(
         lineDraftPersistableForExplicitSave(draft({ productName: 'Cintura', quantity: 2 })),
-      ).toBe(false);
+      ).toBe(true);
     });
 
-    it('include la riga parziale con dati economici (senza movimento)', () => {
+    it('include la riga con nome e dati economici', () => {
       expect(
         lineDraftPersistableForExplicitSave(
           draft({ productName: 'Cintura', quantity: 2, unitCost: '9,90' }),
@@ -127,68 +110,26 @@ describe('goods-receipt-line-state.util', () => {
       ).toBe(true);
     });
 
-    it('include la riga in creazione esplicita con nome e quantità', () => {
+    // Solo nome senza quantità → al salvataggio esplicito si crea la sola
+    // anagrafica (nessuna riga documento lato server).
+    it('include la riga con nome anche a quantità zero (solo anagrafica)', () => {
       expect(
-        lineDraftPersistableForExplicitSave(
-          draft({ productName: 'Cintura', quantity: 2, createNew: true }),
-        ),
+        lineDraftPersistableForExplicitSave(draft({ productName: 'Cintura', quantity: 0 })),
       ).toBe(true);
     });
 
-    // Punto A: solo nome senza quantità → al salvataggio esplicito si crea
-    // la sola anagrafica (nessuna riga documento lato server).
-    it('include la riga createNew con nome anche a quantità zero (solo anagrafica)', () => {
+    it('esclude la riga con nome troppo corto e quantità zero', () => {
+      expect(lineDraftPersistableForExplicitSave(draft({ productName: 'C', quantity: 0 }))).toBe(
+        false,
+      );
+    });
+
+    it('esclude i dati economici a quantità zero senza nome valido', () => {
       expect(
         lineDraftPersistableForExplicitSave(
-          draft({ productName: 'Cintura', quantity: 0, createNew: true }),
-        ),
-      ).toBe(true);
-    });
-
-    it('esclude la riga createNew con nome troppo corto e quantità zero', () => {
-      expect(
-        lineDraftPersistableForExplicitSave(
-          draft({ productName: 'C', quantity: 0, createNew: true }),
+          draft({ productName: 'C', quantity: 0, unitCost: '9,90' }),
         ),
       ).toBe(false);
-    });
-
-    it('esclude righe con quantità zero senza articolo', () => {
-      expect(
-        lineDraftPersistableForExplicitSave(
-          draft({ productName: 'Cintura', quantity: 0, unitCost: '9,90' }),
-        ),
-      ).toBe(false);
-    });
-  });
-
-  describe('lineDraftPersistableForAutoSave', () => {
-    it('esclude la query di ricerca (testo digitato, nessun articolo, nessun id)', () => {
-      expect(lineDraftPersistableForAutoSave(draft({ productName: 'maglia uomo' }))).toBe(false);
-    });
-
-    // Punto C: l'autosave passivo non crea MAI articoli — le righe createNew
-    // senza id/variantId restano fuori dal payload anche se complete.
-    it('esclude la riga createNew completa senza id: nessuna creazione da autosave', () => {
-      expect(
-        lineDraftPersistableForAutoSave(
-          draft({ productName: 'Cintura', quantity: 2, unitCost: '9,90', createNew: true }),
-        ),
-      ).toBe(false);
-    });
-
-    it('include la riga con articolo collegato', () => {
-      expect(lineDraftPersistableForAutoSave(draft({ variantId: 'v1', quantity: 1 }))).toBe(true);
-    });
-
-    it('include la riga parziale già persistita (id server) per non cancellarla', () => {
-      expect(
-        lineDraftPersistableForAutoSave(draft({ id: 'line-1', productName: 'Riga economica' })),
-      ).toBe(true);
-    });
-
-    it('esclude la riga vuota anche se già persistita e poi svuotata', () => {
-      expect(lineDraftPersistableForAutoSave(draft({ id: 'line-1' }))).toBe(false);
     });
   });
 });

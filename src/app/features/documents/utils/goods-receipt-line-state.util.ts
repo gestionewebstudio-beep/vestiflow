@@ -4,14 +4,15 @@
  *
  * - EMPTY_UI: riga di comodo dell'interfaccia, mai persistita.
  * - SEARCHING: query di ricerca contestuale in corso, mai persistita.
- * - CREATE_NEW_EXPLICIT: l'utente ha chiesto "Crea nuovo articolo".
- * - PARTIAL: dati significativi ma nessun articolo collegato.
+ * - CREATE_NEW: nome digitato senza articolo collegato — al salvataggio
+ *   crea l'articolo (creazione implicita: nessun gesto dedicato).
+ * - PARTIAL: dati significativi ma nessun articolo collegato né nome valido.
  * - VALID_NO_STOCK / VALID_LOAD_STOCK: riga completa, con o senza carico.
  */
 export const GoodsReceiptLineState = {
   EmptyUi: 'empty_ui',
   Searching: 'searching',
-  CreateNewExplicit: 'create_new_explicit',
+  CreateNew: 'create_new',
   Partial: 'partial',
   ValidNoStock: 'valid_no_stock',
   ValidLoadStock: 'valid_load_stock',
@@ -34,7 +35,6 @@ export interface GoodsReceiptLineDraft {
   readonly compareAtPrice?: string;
   readonly vatRatePercent?: string;
   readonly loadsStock?: boolean;
-  readonly createNew?: boolean;
 }
 
 function draftQuantity(draft: GoodsReceiptLineDraft): number {
@@ -84,43 +84,22 @@ export function resolveGoodsReceiptLineState(
       ? GoodsReceiptLineState.ValidLoadStock
       : GoodsReceiptLineState.ValidNoStock;
   }
-  if (draft.createNew) {
-    return GoodsReceiptLineState.CreateNewExplicit;
-  }
   if (lineDraftIsEmpty(draft)) {
     return GoodsReceiptLineState.EmptyUi;
   }
   if (options?.searchActive) {
     return GoodsReceiptLineState.Searching;
   }
+  if (lineDraftHasCreatableName(draft)) {
+    return GoodsReceiptLineState.CreateNew;
+  }
   return GoodsReceiptLineState.Partial;
 }
 
 /**
- * Query di ricerca contestuale: solo testo nel campo nome, nessun articolo
- * collegato, nessuna riga persistita, nessuna creazione esplicita. Non deve
- * MAI essere persistita come riga documento (§6/§7).
- */
-export function lineDraftIsSearchQueryOnly(draft: GoodsReceiptLineDraft): boolean {
-  if (draft.variantId || draft.id || draft.createNew) {
-    return false;
-  }
-  if (!draft.productName.trim()) {
-    return false;
-  }
-  return !(
-    draft.sku?.trim() ||
-    draft.barcode?.trim() ||
-    draft.unitCost?.trim() ||
-    draft.sellingPrice?.trim() ||
-    draft.compareAtPrice?.trim() ||
-    draft.vatRatePercent?.trim()
-  );
-}
-
-/**
- * Nome sufficiente per la creazione esplicita dell'articolo dalla riga
- * (punto A): il solo nome basta, lo SKU è facoltativo (specifica §SKU).
+ * Nome sufficiente per la creazione dell'articolo dalla riga: il solo nome
+ * basta, lo SKU è facoltativo (specifica §SKU). La creazione è implicita:
+ * ogni riga non collegata con nome valido crea l'articolo al salvataggio.
  */
 export function lineDraftHasCreatableName(draft: GoodsReceiptLineDraft): boolean {
   return draft.productName.trim().length >= 2;
@@ -128,40 +107,21 @@ export function lineDraftHasCreatableName(draft: GoodsReceiptLineDraft): boolean
 
 /**
  * Persistibilità al salvataggio esplicito ("Salva documento" / uscita /
- * Invio-aggiungi riga): righe con articolo e quantità, righe in creazione
- * esplicita con nome valido (anche a quantità 0: creano la sola anagrafica,
- * punto A), oppure righe parziali con dati significativi oltre il solo nome
+ * Invio-aggiungi riga): righe con articolo e quantità, righe non collegate
+ * con nome valido (creazione implicita dell'articolo, anche a quantità 0:
+ * creano la sola anagrafica), oppure righe parziali con dati significativi
  * (persistite come righe economiche senza movimento, specifica §5/§13).
- * Le query di ricerca sono sempre escluse.
  */
 export function lineDraftPersistableForExplicitSave(draft: GoodsReceiptLineDraft): boolean {
   const qty = draftQuantity(draft);
   if (draft.variantId) {
     return qty > 0;
   }
-  if (draft.createNew && lineDraftHasCreatableName(draft)) {
+  if (lineDraftHasCreatableName(draft)) {
     return true;
   }
   if (qty <= 0) {
     return false;
   }
-  if (lineDraftIsSearchQueryOnly(draft)) {
-    return false;
-  }
   return lineDraftHasSignificantData(draft);
-}
-
-/**
- * Persistibilità in autosave passivo (debounce): SOLO righe con articolo
- * collegato oppure righe già persistite (id assegnato dal server). Le righe
- * in creazione esplicita (createNew) NON si auto-persistono mai: l'articolo
- * nasce solo sui gesti espliciti — Invio/aggiungi riga, Salva documento,
- * Salva e chiudi (punto C). Le righe già persistite restano nel payload
- * finché sono ancora persistibili (ometterle le cancellerebbe sul server).
- */
-export function lineDraftPersistableForAutoSave(draft: GoodsReceiptLineDraft): boolean {
-  if (!draft.variantId && !draft.id) {
-    return false;
-  }
-  return lineDraftPersistableForExplicitSave(draft);
 }

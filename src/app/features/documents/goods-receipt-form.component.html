@@ -81,13 +81,15 @@
         </div>
       }
 
-      @if (autoSaveStatus() === 'saving') {
-        <p class="gr-form__autosave-hint" role="status">Salvataggio automatico…</p>
-      } @else if (autoSaveStatus() === 'pending') {
-        <p class="gr-form__autosave-hint" role="status">Modifiche in attesa di salvataggio…</p>
+      @if (saveHintStatus() === 'saving') {
+        <p class="gr-form__autosave-hint" role="status">Salvataggio…</p>
+      } @else if (saveHintStatus() === 'pending') {
+        <p class="gr-form__autosave-hint gr-form__autosave-hint--dirty" role="status">
+          Modifiche non salvate — usa «Salva documento»
+        </p>
       } @else if (editDocumentId()) {
         <p class="gr-form__autosave-hint gr-form__autosave-hint--saved" role="status">
-          Documento salvato automaticamente.
+          Documento salvato.
         </p>
       }
 
@@ -939,15 +941,13 @@
                           [suggestions]="lineSuggestions(i)"
                           [suggestionsOpen]="lineSuggestionsOpen(i)"
                           [activeSuggestionIndex]="activeSuggestionIndex()"
-                          [createMode]="lineCreateMode(i)"
-                          [manageStock]="lineNewProductManagesStock(i)"
-                          (manageStockChange)="onLineNewProductManagesStockChange(i, $event)"
                           (valueChange)="onLineProductNameChange(i, $event)"
                           (focused)="onLineProductFocus(i)"
                           (blurred)="onLineProductBlur(i)"
                           (searchOpen)="openLineProductSearch(i)"
                           (anagraphicOpen)="openProductAnagraphic(i)"
                           (detailOpen)="openProductDetail(i)"
+                          (unlinkRequest)="onLineUnlink(i)"
                           (suggestionPick)="
                             onProductSuggestionPick($event.lineIndex, $event.variantId)
                           "
@@ -955,8 +955,6 @@
                           (lineAdvance)="advanceFromProductField(i)"
                           (lineRowAdvance)="advanceToNextLine(i)"
                           (lineRowRetreat)="advanceToPreviousLine(i)"
-                          (createNewRequest)="startCreateNewArticle(i)"
-                          (createNewCancel)="cancelCreateNewArticle(i)"
                           (escapePressed)="onLineSearchEscape(i)"
                         />
                       </td>
@@ -1022,14 +1020,29 @@
                     @if (isLineColumnVisible('stockAvailable')) {
                       <td
                         class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                        [title]="lineStockAvailableTitle(i)"
                       >
                         {{ lineStockAvailable(i) }}
                       </td>
                     }
                     @if (isLineColumnVisible('unitOfMeasure')) {
-                      <td class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed">
-                        {{ lineUnitOfMeasure(i) }}
-                      </td>
+                      @if (lineCreateMode(i)) {
+                        <td class="gr-form__cell gr-form__cell--editable">
+                          <select
+                            class="gr-form__select-inline"
+                            formControlName="newProductUnitOfMeasure"
+                            [attr.aria-label]="'Unità di misura riga ' + (i + 1)"
+                          >
+                            @for (um of unitOfMeasureOptions; track um) {
+                              <option [value]="um">{{ um }}</option>
+                            }
+                          </select>
+                        </td>
+                      } @else {
+                        <td class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed">
+                          {{ lineUnitOfMeasure(i) }}
+                        </td>
+                      }
                     }
                     @if (isLineColumnVisible('unitCost')) {
                       <td class="gr-form__cell gr-form__cell--editable gr-form__num">
@@ -1237,8 +1250,6 @@
                 [canRemove]="lines.length > 1"
                 [suggestions]="lineSuggestions(i)"
                 [suggestionsOpen]="lineSuggestionsOpen(i)"
-                [createMode]="lineCreateMode(i)"
-                [manageStock]="lineNewProductManagesStock(i)"
                 (searchProduct)="openLineProductSearch($event)"
                 (vatChange)="onLineVatSelect(i, $event)"
                 (fieldBlur)="onLineOperationalBlur($event)"
@@ -1246,10 +1257,6 @@
                 (nameFocus)="onLineProductFocus($event)"
                 (nameBlur)="onLineProductBlur($event)"
                 (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                (createNewRequest)="startCreateNewArticle($event)"
-                (createNewCancel)="cancelCreateNewArticle($event)"
-                (manageStockChange)="onLineNewProductManagesStockChange(i, $event)"
-                (anagraphicOpen)="openProductAnagraphic($event)"
                 (duplicated)="duplicateLine($event)"
                 (removed)="removeLine($event)"
               />
@@ -1399,6 +1406,10 @@
       }
 
       <div class="gr-form__actions">
+        <p class="gr-form__actions-note">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          Le giacenze si aggiornano alla conferma
+        </p>
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
           Chiudi
         </app-button>

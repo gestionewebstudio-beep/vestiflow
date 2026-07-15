@@ -65,6 +65,12 @@ export class SaveGoodsReceiptNewProductDto {
   @IsOptional()
   @IsBoolean()
   managesStock?: boolean;
+
+  /** Unità di misura del nuovo articolo (es. pz, kg); assente = default pz. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unitOfMeasure?: string;
 }
 
 /**

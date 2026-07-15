@@ -5,6 +5,28 @@
     </p>
     <button
       type="button"
+      class="gr-product-cell__search"
+      [disabled]="disabled()"
+      aria-label="Cerca un altro prodotto"
+      title="Cerca un altro prodotto"
+      (mousedown)="$event.preventDefault()"
+      (click)="openSearch($event)"
+    >
+      <i class="pi pi-search" aria-hidden="true"></i>
+    </button>
+    <button
+      type="button"
+      class="gr-product-cell__search"
+      [disabled]="disabled()"
+      aria-label="Scollega articolo e modifica il testo"
+      title="Scollega articolo e modifica il testo"
+      (mousedown)="$event.preventDefault()"
+      (click)="requestUnlink($event)"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+    <button
+      type="button"
       class="gr-product-cell__link-action"
       [disabled]="disabled()"
       (click)="openDetail($event)"
@@ -70,53 +92,7 @@
             Nessun articolo trovato a catalogo.
           </li>
         }
-        <!-- Punto D: azioni in coda al dropdown — creazione inline con il
-             testo digitato oppure scheda completa prefillata. -->
-        <li class="gr-product-cell__suggestion-create">
-          <button
-            type="button"
-            class="gr-product-cell__create-btn"
-            (mousedown)="$event.preventDefault()"
-            (click)="requestCreateNew($event)"
-          >
-            <i class="pi pi-plus" aria-hidden="true"></i>
-            {{ createActionLabel() }}
-          </button>
-        </li>
-        <li class="gr-product-cell__suggestion-create">
-          <button
-            type="button"
-            class="gr-product-cell__create-btn"
-            (mousedown)="$event.preventDefault()"
-            (click)="openAnagraphic($event)"
-          >
-            <i class="pi pi-external-link" aria-hidden="true"></i>
-            Apri scheda completa…
-          </button>
-        </li>
       </ul>
-    }
-    @if (createMode()) {
-      <span class="gr-product-cell__create-badge" role="status">
-        Nuovo articolo
-        <button
-          type="button"
-          class="gr-product-cell__create-cancel"
-          aria-label="Annulla creazione nuovo articolo"
-          (click)="cancelCreateNew($event)"
-        >
-          <i class="pi pi-times" aria-hidden="true"></i>
-        </button>
-      </span>
-      <label class="gr-product-cell__stock-toggle">
-        <input
-          type="checkbox"
-          [checked]="manageStock()"
-          [disabled]="disabled()"
-          (change)="onManageStockToggle($event)"
-        />
-        Gestito a magazzino
-      </label>
     }
     <button
       type="button"

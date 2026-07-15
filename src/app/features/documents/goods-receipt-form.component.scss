@@ -3,7 +3,8 @@
 :host {
   display: block;
   inline-size: 100%;
-  --gr-line-row-height: calc(var(--field-height) - var(--space-3));
+  // Input inline 30px come da spec (righe tabella ~36-38px con il padding).
+  --gr-line-row-height: var(--field-height-inline);
 }
 
 .gr-form {
@@ -28,7 +29,7 @@
 .gr-form__title {
   margin: 0;
   font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
 
@@ -211,8 +212,8 @@
   font-size: var(--text-base);
   font-family: inherit;
   color: var(--color-text);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
+  background-color: var(--color-input-bg);
+  border: var(--border-width) solid var(--color-input-border);
   border-radius: var(--radius-md);
 }
 
@@ -239,7 +240,25 @@
 .gr-form__textarea:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
+}
+
+// Select inline nelle celle della tabella righe (es. U.M. del nuovo articolo).
+.gr-form__select-inline {
+  inline-size: 100%;
+  min-block-size: var(--gr-line-row-height);
+  padding-inline: var(--space-1);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  color: var(--color-text);
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.gr-form__select-inline:focus-visible {
+  outline: none;
+  box-shadow: inset var(--field-focus-ring);
 }
 
 .gr-form__error {
@@ -317,6 +336,11 @@
 
   &--saved {
     color: var(--status-success-fg);
+  }
+
+  &--dirty {
+    color: var(--status-warning-fg);
+    font-weight: var(--font-weight-medium);
   }
 }
 
@@ -417,24 +441,27 @@
   text-decoration: line-through;
 }
 
+// Non piu' sticky: collideva col footer azioni sticky (entrambi in basso);
+// la tabella righe ha gia' uno scroll interno che tiene i totali a portata.
 .gr-form__totals-bar {
-  position: sticky;
-  inset-block-end: 0;
-  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
   margin-block-start: auto;
   padding-block-start: var(--space-2);
-  background-color: var(--color-surface);
 }
 
+// Riquadro totali allineato a destra, min 300px (spec §Form, mockup 1c).
 .gr-form__totals {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-2);
   margin: 0;
-  padding: var(--space-3);
+  min-inline-size: min(var(--detail-totals-min), 100%);
+  padding: var(--space-3) var(--space-4);
   font-size: var(--text-sm);
   background-color: var(--color-surface-muted);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
@@ -469,8 +496,10 @@
   border-block-start: var(--border-width) solid var(--color-border);
 }
 
+// Totale documento in evidenza (spec: 15/700 — reso con la scala esistente).
 .gr-form__totals-row--total {
-  font-size: var(--text-base);
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-bold);
 }
 
 .gr-form__totals-input {
@@ -504,7 +533,7 @@
 .gr-form__table td:focus-within {
   position: relative;
   z-index: 1;
-  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: inset var(--field-focus-ring);
 }
 
 .gr-form__table tbody tr.gr-form__table-row--active {
@@ -514,6 +543,12 @@
 
 .gr-form__table tbody tr.gr-form__table-row--active td {
   overflow: visible;
+  background-color: var(--color-row-active);
+}
+
+// Indicatore laterale accento sulla riga di inserimento attiva.
+.gr-form__table tbody tr.gr-form__table-row--active td:first-child {
+  box-shadow: inset var(--border-width-strong) 0 0 var(--color-primary);
 }
 
 .gr-form__table th:last-child,
@@ -525,12 +560,13 @@
   position: sticky;
   top: 0;
   z-index: 3;
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
+  padding: var(--space-2);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
   font-weight: var(--font-weight-semibold);
   text-align: start;
-  color: var(--color-text-muted);
-  background-color: var(--color-surface-sunken);
+  color: var(--color-text-subtle);
+  background-color: var(--color-table-header-bg);
   border-block-end: var(--border-width) solid var(--color-border);
   white-space: nowrap;
 }
@@ -549,9 +585,11 @@
   cursor: help;
 }
 
+// block-size su una riga di tabella agisce da altezza minima: le righe
+// respirano a ~38px (input inline 30px centrati) senza tagliare contenuti alti.
 .gr-form__table tbody tr {
-  block-size: var(--gr-line-row-height);
-  border-block-end: var(--border-width) solid var(--color-border);
+  block-size: calc(var(--gr-line-row-height) + var(--space-2));
+  border-block-end: var(--border-width) solid var(--color-table-row-divider);
 }
 
 .gr-form__table tbody tr:last-child {
@@ -612,7 +650,14 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   flex: 1 1 auto;
-  min-block-size: 0;
+  // Area di lavoro tipo foglio (mockup 1c): almeno ~8 righe visibili anche a
+  // documento vuoto o quasi, cosi' inserimento e scansione hanno spazio;
+  // sugli schermi bassi il minimo si ferma a 45vh. Lo scroll interno parte
+  // solo oltre il tetto di 75vh.
+  min-block-size: min(
+    calc((var(--field-height-inline) + var(--space-2)) * 8 + var(--field-height) + var(--space-2)),
+    45vh
+  );
   max-block-size: min(75vh, calc(var(--space-8) * 24));
 }
 
@@ -857,10 +902,31 @@
 }
 
 .gr-form__actions {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--z-sticky);
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
+  margin-block-start: var(--space-1);
+  margin-inline: calc(var(--space-2) * -1);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface-raised);
+  border-block-start: var(--border-width) solid var(--color-border);
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
+}
+
+.gr-form__actions-note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  margin-inline-end: auto;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }
 
 .gr-form__warning-banner {

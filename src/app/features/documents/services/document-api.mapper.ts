@@ -322,6 +322,8 @@ export interface SaveGoodsReceiptNewProductBody {
   readonly vatCodeId?: EntityId;
   /** False = articolo non gestito a magazzino: riga solo economica (punto B). */
   readonly managesStock?: boolean;
+  /** Unità di misura del nuovo articolo (es. pz, kg); assente = default pz. */
+  readonly unitOfMeasure?: string;
 }
 
 /** Riga Arrivo merce in salvataggio unico: id presente = riga già salvata. */

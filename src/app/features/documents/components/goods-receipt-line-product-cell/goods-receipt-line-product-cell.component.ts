@@ -30,13 +30,8 @@ export class GoodsReceiptLineProductCellComponent {
   readonly suggestions = input<readonly VariantSummary[]>([]);
   readonly suggestionsOpen = input(false);
   readonly activeSuggestionIndex = input(0);
-  /** True quando la riga è in modalità "Crea nuovo articolo" esplicita (§8). */
-  readonly createMode = input(false);
-  /** Toggle "Gestito a magazzino" del nuovo articolo (punto B, default sì). */
-  readonly manageStock = input(true);
 
   readonly valueChange = output<string>();
-  readonly manageStockChange = output<boolean>();
   readonly focused = output<number>();
   readonly blurred = output<number>();
   readonly searchOpen = output<number>();
@@ -47,8 +42,8 @@ export class GoodsReceiptLineProductCellComponent {
   readonly lineAdvance = output<number>();
   readonly lineRowAdvance = output<number>();
   readonly lineRowRetreat = output<number>();
-  readonly createNewRequest = output<number>();
-  readonly createNewCancel = output<number>();
+  /** Scollega l'articolo dalla riga: nome e codici tornano modificabili. */
+  readonly unlinkRequest = output<number>();
   readonly escapePressed = output<number>();
 
   private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('productInput');
@@ -84,6 +79,11 @@ export class GoodsReceiptLineProductCellComponent {
     this.detailOpen.emit(this.lineIndex());
   }
 
+  protected requestUnlink(event: Event): void {
+    event.stopPropagation();
+    this.unlinkRequest.emit(this.lineIndex());
+  }
+
   protected pickSuggestion(variantId: string): void {
     this.suggestionPick.emit({ lineIndex: this.lineIndex(), variantId });
   }
@@ -93,27 +93,6 @@ export class GoodsReceiptLineProductCellComponent {
       event.preventDefault();
       this.pickSuggestion(variantId);
     }
-  }
-
-  protected requestCreateNew(event: Event): void {
-    event.stopPropagation();
-    this.createNewRequest.emit(this.lineIndex());
-  }
-
-  protected cancelCreateNew(event: Event): void {
-    event.stopPropagation();
-    this.createNewCancel.emit(this.lineIndex());
-  }
-
-  protected onManageStockToggle(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    this.manageStockChange.emit(target.checked);
-  }
-
-  /** Etichetta azione "Crea «testo»" nel dropdown (punto D). */
-  protected createActionLabel(): string {
-    const term = this.value().trim();
-    return term ? `Crea «${term}»` : 'Crea nuovo articolo';
   }
 
   protected onKeydown(event: KeyboardEvent): void {

@@ -150,8 +150,9 @@ describe('GoodsReceiptFormComponent', () => {
     expect(screen.queryByRole('button', { name: /Gestione causali/ })).toBeNull();
   });
 
-  // Punto A: la riga createNew serializza `newProduct` nel payload esplicito.
-  it('serializza newProduct sul salvataggio esplicito, mai in autosave (punti A/C)', async () => {
+  // Creazione implicita (punto A): il nome digitato basta — la riga
+  // serializza `newProduct` nel payload del salvataggio.
+  it('serializza newProduct al salvataggio col solo nome digitato', async () => {
     const { fixture } = await setup();
     const component = fixture.componentInstance;
 
@@ -159,52 +160,30 @@ describe('GoodsReceiptFormComponent', () => {
     line.controls.productName.setValue('Cintura pelle', { emitEvent: false });
     line.controls.quantity.setValue(2, { emitEvent: false });
     line.controls.unitCost.setValue('9,90', { emitEvent: false });
-    line.controls.createNew.setValue(true, { emitEvent: false });
 
-    const explicitBody = component['buildSaveGoodsReceiptBody']('explicit');
-    expect(explicitBody.lines).toHaveLength(1);
-    expect(explicitBody.lines?.[0]?.newProduct).toEqual(
+    const body = component['buildSaveGoodsReceiptBody']();
+    expect(body.lines).toHaveLength(1);
+    expect(body.lines?.[0]?.newProduct).toEqual(
       expect.objectContaining({ name: 'Cintura pelle', purchasePriceMinor: 990 }),
     );
-    expect(explicitBody.lines?.[0]?.loadsStock).toBe(true);
-
-    // Autosave passivo: la riga createNew NON viene serializzata (punto C).
-    const autoBody = component['buildSaveGoodsReceiptBody']('auto');
-    expect(autoBody.lines).toHaveLength(0);
+    expect(body.lines?.[0]?.loadsStock).toBe(true);
   });
 
-  // Punto B: il toggle "Gestito a magazzino" spento viaggia nel payload e
-  // spegne il carico magazzino della riga.
-  it('newProduct non-stock: managesStock=false e riga senza carico', async () => {
-    const { fixture } = await setup();
-    const component = fixture.componentInstance;
-
-    const line = component['lines'].at(0);
-    line.controls.productName.setValue('Servizio sartoria', { emitEvent: false });
-    line.controls.quantity.setValue(1, { emitEvent: false });
-    line.controls.createNew.setValue(true, { emitEvent: false });
-    component['onLineNewProductManagesStockChange'](0, false);
-
-    const body = component['buildSaveGoodsReceiptBody']('explicit');
-    expect(body.lines?.[0]?.newProduct?.managesStock).toBe(false);
-    expect(body.lines?.[0]?.loadsStock).toBe(false);
-    expect(line.controls.loadsStock.disabled).toBe(true);
-  });
-
-  // Punto D: senza risultati il dropdown propone le due azioni.
-  it('dropdown senza risultati: mostra "Crea «testo»" e "Apri scheda completa…"', async () => {
+  // Dropdown essenziale: solo i suggerimenti dal catalogo (o il messaggio
+  // vuoto) — nessuna azione "Crea", nessuna scheda completa, nessun badge.
+  it('dropdown senza risultati: solo il messaggio, nessuna azione extra', async () => {
     const user = userEvent.setup();
     await setup();
 
     const input = screen.getAllByLabelText('Nome prodotto')[0];
     await user.type(input!, 'maglia');
 
-    const createActions = await screen.findAllByRole('button', { name: 'Crea «maglia»' });
-    expect(createActions.length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: 'Apri scheda completa…' }).length).toBeGreaterThan(
-      0,
-    );
-    expect(screen.getAllByText('Nessun articolo trovato a catalogo.').length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText('Nessun articolo trovato a catalogo.')).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /^Crea/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Apri scheda completa…' })).toBeNull();
+    expect(screen.queryByText('Nuovo articolo al salvataggio')).toBeNull();
   });
 
   // Punto B: variante di prodotto non gestito a magazzino → "Mag." spenta e bloccata.

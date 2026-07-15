@@ -92,6 +92,8 @@ export interface QuickProductCreateInput {
   readonly vatCodeId?: string | null;
   readonly managesStock?: boolean | null;
   readonly currency?: string | null;
+  /** Unità di misura (es. pz, kg); assente = default pz dello schema. */
+  readonly unitOfMeasure?: string | null;
 }
 
 export interface QuickProductCreateResult {
@@ -129,6 +131,7 @@ export async function createQuickProductWithVariant(
         status: ProductStatus.active,
         defaultVatCodeId: input.vatCodeId ?? null,
         managesStock,
+        ...(input.unitOfMeasure?.trim() ? { unitOfMeasure: input.unitOfMeasure.trim() } : {}),
         options: [] as unknown as Prisma.InputJsonValue,
         variants: {
           create: [

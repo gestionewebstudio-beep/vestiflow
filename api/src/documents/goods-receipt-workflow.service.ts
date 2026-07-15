@@ -391,6 +391,7 @@ export class GoodsReceiptWorkflowService {
           vatCodeId: line.newProduct.vatCodeId,
           managesStock: line.newProduct.managesStock,
           currency: dto.currency ?? existing?.currency ?? 'EUR',
+          unitOfMeasure: line.newProduct.unitOfMeasure,
         });
         createdProducts.push({
           lineIndex: index,
