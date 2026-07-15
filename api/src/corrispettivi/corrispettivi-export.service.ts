@@ -121,7 +121,7 @@ export class CorrispettiviExportService {
   ): Promise<AccountantRow[]> {
     const orders = await this.prisma.salesOrder.findMany({
       where: buildCorrispettiviWhere(tenantId, query),
-      include: { customer: { select: { email: true } } },
+      include: { customer: { select: { party: { select: { email: true } } } } },
       orderBy: { placedAt: 'asc' },
     });
 
@@ -132,7 +132,7 @@ export class CorrispettiviExportService {
         'Numero ordine': order.orderNumber,
         Canale: sourceDisplayLabel(order.source),
         Cliente: order.customerName,
-        'Email cliente': order.customer?.email ?? '',
+        'Email cliente': order.customer?.party.email ?? '',
         Imponibile: this.formatMinor(taxableMinor),
         IVA: this.formatMinor(order.taxMinor),
         Totale: this.formatMinor(order.totalMinor),

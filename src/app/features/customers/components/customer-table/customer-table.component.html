@@ -1,6 +1,9 @@
 <table class="customer-table">
   <thead class="customer-table__head">
     <tr>
+      @if (showColumn('code')) {
+        <th scope="col">{{ columnLabel('code') }}</th>
+      }
       @if (showColumn('name')) {
         <th scope="col">{{ columnLabel('name') }}</th>
       }
@@ -50,6 +53,11 @@
         (keydown.enter)="rowClick.emit(customer)"
         (keydown.space)="$event.preventDefault(); rowClick.emit(customer)"
       >
+        @if (showColumn('code')) {
+          <td class="tabular-nums" [attr.data-label]="columnLabel('code')">
+            {{ customer.code ?? '—' }}
+          </td>
+        }
         @if (showColumn('name')) {
           <td class="customer-table__name" [attr.data-label]="columnLabel('name')">
             {{ displayName(customer) }}

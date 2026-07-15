@@ -60,7 +60,7 @@ export class CorrispettiviService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.salesOrder.findMany({
         where,
-        include: { customer: { select: { email: true } } },
+        include: { customer: { select: { party: { select: { email: true } } } } },
         orderBy: { placedAt: 'desc' },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
@@ -68,7 +68,15 @@ export class CorrispettiviService {
       this.prisma.salesOrder.count({ where }),
     ]);
 
-    return { items, total, page: query.page, pageSize: query.pageSize };
+    return {
+      items: items.map(({ customer, ...order }) => ({
+        ...order,
+        customer: customer ? { email: customer.party.email } : null,
+      })),
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
   }
 
   async getSummary(
@@ -234,7 +242,7 @@ export class CorrispettiviService {
 
     const fiscalStatus = dto.fiscalStatus as PrismaFiscal;
 
-    return this.prisma.salesOrder.update({
+    const updated = await this.prisma.salesOrder.update({
       where: { id: orderId },
       data: {
         fiscalStatus,
@@ -243,8 +251,10 @@ export class CorrispettiviService {
           ? { fiscalDeliveredAt: new Date() }
           : {}),
       },
-      include: { customer: { select: { email: true } } },
+      include: { customer: { select: { party: { select: { email: true } } } } },
     });
+    const { customer, ...rest } = updated;
+    return { ...rest, customer: customer ? { email: customer.party.email } : null };
   }
 
   private aggregateOrders(

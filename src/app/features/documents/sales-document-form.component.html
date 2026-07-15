@@ -38,6 +38,12 @@
       [formGroup]="form"
       (ngSubmit)="isConfirmedEdit() ? saveDraft() : requestConfirm()"
     >
+      @if (customerDocumentAlert(); as customerAlert) {
+        <p class="gr-form__supplier-note-banner" role="status">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          {{ customerAlert }}
+        </p>
+      }
       <div class="gr-form__grid">
         <div class="gr-form__field">
           <span class="gr-form__label" id="sd-customer-label">Cliente</span>

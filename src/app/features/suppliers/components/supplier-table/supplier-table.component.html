@@ -57,6 +57,11 @@
                   {{ supplier.paymentTerms?.trim() || '—' }}
                 </td>
               }
+              @case ('roleStatus') {
+                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ supplier.isActive ? 'Attivo' : 'Disattivato' }}
+                </td>
+              }
             }
           }
         </tr>

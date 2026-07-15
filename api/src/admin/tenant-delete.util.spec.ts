@@ -23,6 +23,8 @@ describe('deleteTenantData', () => {
       store: { deleteMany },
       customer: { deleteMany },
       supplier: { deleteMany },
+      party: { deleteMany },
+      paymentOption: { deleteMany },
       shopifyCredential: { deleteMany },
       shopifyOAuthState: { deleteMany },
       shopifyConnection: { deleteMany },
@@ -34,7 +36,7 @@ describe('deleteTenantData', () => {
 
     await deleteTenantData(tx as never, 'tenant-1');
 
-    expect(deleteMany).toHaveBeenCalledTimes(20);
+    expect(deleteMany).toHaveBeenCalledTimes(22);
     expect(deleteMany).toHaveBeenCalledWith({ where: { tenantId: 'tenant-1' } });
     expect(deleteOne).toHaveBeenCalledWith({ where: { id: 'tenant-1' } });
   });

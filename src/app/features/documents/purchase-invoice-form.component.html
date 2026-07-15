@@ -28,6 +28,12 @@
     />
   } @else {
     <form class="pi-form__form" [formGroup]="form" (ngSubmit)="save()">
+      @if (supplierDocumentAlert(); as supplierAlert) {
+        <p class="pi-form__supplier-alert-banner" role="status">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          {{ supplierAlert }}
+        </p>
+      }
       <div class="pi-form__grid">
         <div class="pi-form__field">
           <span class="pi-form__label" id="pi-supplier-label">Fornitore</span>

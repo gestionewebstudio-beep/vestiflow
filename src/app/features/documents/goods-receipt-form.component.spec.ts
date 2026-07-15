@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { ProductService } from '@features/products/services/product.service';
 import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
@@ -92,6 +93,7 @@ describe('GoodsReceiptFormComponent', () => {
           },
         },
         { provide: VatCodeService, useValue: { list: () => of([]) } },
+        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
         { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
         {
           provide: TableViewPreferenceApiService,

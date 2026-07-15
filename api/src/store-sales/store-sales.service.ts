@@ -20,6 +20,7 @@ import {
   resolveOperationalLocationScope,
 } from '../inventory/licensed-location-scope.util';
 import { assertUserCanAccessLocation } from '../inventory/user-location-scope.util';
+import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
@@ -622,12 +623,11 @@ export class StoreSalesService {
   ): Promise<string | null> {
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, tenantId },
-      select: { firstName: true, lastName: true, email: true },
+      select: { party: true },
     });
     if (!customer) {
       throw new NotFoundException('Cliente non trovato.');
     }
-    const name = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
-    return name || customer.email || null;
+    return partyDisplayName(customer.party) || null;
   }
 }

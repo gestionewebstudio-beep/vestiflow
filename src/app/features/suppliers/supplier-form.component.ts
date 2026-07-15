@@ -14,6 +14,8 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Supplier } from '@core/models/supplier.model';
+import type { PaymentOption } from '@core/models/payment-option.model';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import type { VatCode } from '@core/models/vat-code.model';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { SupplierFormFieldsComponent } from '@features/suppliers/components/supplier-form-fields/supplier-form-fields.component';
@@ -46,6 +48,7 @@ export class SupplierFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly service = inject(SupplierService);
   private readonly vatCodeService = inject(VatCodeService);
+  private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -58,6 +61,12 @@ export class SupplierFormComponent {
   protected readonly vatCodes = toSignal(
     this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
     { initialValue: [] as readonly VatCode[] },
+  );
+
+  /** Voci pagamento del tenant per le tendine modalità/condizioni. */
+  protected readonly paymentOptions = toSignal(
+    this.paymentOptionsService.list().pipe(catchError(() => of([] as readonly PaymentOption[]))),
+    { initialValue: [] as readonly PaymentOption[] },
   );
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });

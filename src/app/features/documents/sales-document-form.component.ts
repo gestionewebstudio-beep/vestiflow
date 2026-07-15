@@ -244,7 +244,7 @@ export class SalesDocumentFormComponent {
   private readonly customersReload = signal(0);
   private readonly customers = toSignal(
     toObservable(this.customersReload).pipe(
-      switchMap(() => this.customerService.getCustomers({ page: 1, pageSize: 100 })),
+      switchMap(() => this.customerService.getCustomers({ page: 1, pageSize: 100, active: true })),
       map((response) => response.data),
     ),
     { initialValue: [] },
@@ -326,6 +326,9 @@ export class SalesDocumentFormComponent {
     if (customer.customerDiscount?.trim()) {
       parts.push(`Sconto cliente: ${customer.customerDiscount.trim()}`);
     }
+    if (customer.paymentMethod?.trim()) {
+      parts.push(`Modalità: ${customer.paymentMethod.trim()}`);
+    }
     if (customer.paymentTerms?.trim()) {
       parts.push(`Pagamento: ${customer.paymentTerms.trim()}`);
     }
@@ -334,6 +337,15 @@ export class SalesDocumentFormComponent {
     }
     return parts.length > 0 ? parts.join(' · ') : null;
   });
+
+  /** "Mostra avviso" (anagrafica cliente): banner alla selezione. */
+  protected readonly customerDocumentAlert = computed(() => {
+    const alert = this.selectedCustomer()?.documentCreationAlert?.trim();
+    return alert ?? '';
+  });
+
+  /** Ultima nota anagrafica inserita in automatico nelle note documento. */
+  private lastAutoInsertedNote = '';
 
   protected readonly lineTotals = computed(() => {
     this.formValue();
@@ -416,6 +428,9 @@ export class SalesDocumentFormComponent {
     }
 
     const commentParts: string[] = [];
+    if (customer.paymentMethod?.trim()) {
+      commentParts.push(`Modalità di pagamento: ${customer.paymentMethod.trim()}`);
+    }
     if (customer.paymentTerms?.trim()) {
       commentParts.push(`Pagamento: ${customer.paymentTerms.trim()}`);
     }
@@ -425,6 +440,28 @@ export class SalesDocumentFormComponent {
     const internalControl = this.form.controls.internalComment;
     if (commentParts.length > 0 && !internalControl.value.trim()) {
       internalControl.setValue(commentParts.join('\n'));
+    }
+
+    this.applyCustomerDocumentNote(customer);
+  }
+
+  /**
+   * "Inserisci nota" (anagrafica cliente): compila le note del documento con
+   * la nota configurata sul ruolo, preservando il disclaimer proforma e
+   * senza sovrascrivere testo digitato dall'operatore.
+   */
+  private applyCustomerDocumentNote(customer: Customer): void {
+    const note = customer.documentCreationNote?.trim() ?? '';
+    const control = this.form.controls.notes;
+    const current = control.value.trim();
+    const base = this.routeType === DocumentType.Proforma ? PROFORMA_DISCLAIMER : '';
+    const previousAuto = [base, this.lastAutoInsertedNote].filter(Boolean).join('\n');
+    if (note && (current === base.trim() || (previousAuto && current === previousAuto.trim()))) {
+      control.setValue([base, note].filter(Boolean).join('\n'));
+      this.lastAutoInsertedNote = note;
+    } else if (!note && previousAuto && current === previousAuto.trim()) {
+      control.setValue(base);
+      this.lastAutoInsertedNote = '';
     }
   }
 

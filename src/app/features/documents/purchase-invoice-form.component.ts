@@ -137,6 +137,21 @@ export class PurchaseInvoiceFormComponent {
     this.suppliers().map((supplier) => ({ value: supplier.id, label: supplier.name })),
   );
 
+  /** "Mostra avviso" (anagrafica fornitore): banner alla selezione. */
+  protected readonly supplierDocumentAlert = computed(() => {
+    const supplierId = this.selectedSupplierId();
+    if (!supplierId) {
+      return '';
+    }
+    const supplier = this.suppliers().find((entry) => entry.id === supplierId);
+    return supplier?.documentCreationAlert?.trim() ?? '';
+  });
+
+  private readonly selectedSupplierId = signal('');
+
+  /** Ultima nota anagrafica inserita in automatico nelle note documento. */
+  private lastAutoInsertedNote = '';
+
   /**
    * Ultimo importo scritto automaticamente nel campo "Totale fattura" come
    * comodo default (somma degli arrivi inclusi). Distingue un default non
@@ -212,10 +227,35 @@ export class PurchaseInvoiceFormComponent {
     const previous = this.form.controls.supplierId.value;
     this.form.controls.supplierId.setValue(value ?? '');
     this.form.controls.supplierId.markAsTouched();
+    this.selectedSupplierId.set(value ?? '');
+    this.applySupplierDocumentNote(value ?? '');
     if (previous && previous !== value && this.includedReceipts().length > 0) {
       // Gli arrivi inclusi appartengono al fornitore precedente: non più validi.
       this.includedReceipts.set([]);
       this.syncAutoTotal();
+    }
+  }
+
+  /**
+   * "Inserisci nota" (anagrafica fornitore): compila le note della
+   * registrazione senza sovrascrivere testo digitato dall'operatore.
+   */
+  private applySupplierDocumentNote(supplierId: string): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const supplier = supplierId
+      ? (this.suppliers().find((entry) => entry.id === supplierId) ?? null)
+      : null;
+    const note = supplier?.documentCreationNote?.trim() ?? '';
+    const control = this.form.controls.notes;
+    const current = control.value.trim();
+    if (note && (!current || current === this.lastAutoInsertedNote)) {
+      control.setValue(note);
+      this.lastAutoInsertedNote = note;
+    } else if (!note && current && current === this.lastAutoInsertedNote) {
+      control.setValue('');
+      this.lastAutoInsertedNote = '';
     }
   }
 
@@ -408,6 +448,7 @@ export class PurchaseInvoiceFormComponent {
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
+    this.selectedSupplierId.set(doc.supplierId ?? '');
     this.form.patchValue({
       supplierId: doc.supplierId ?? '',
       documentDate: doc.documentDate.slice(0, 10),

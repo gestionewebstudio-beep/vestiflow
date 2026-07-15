@@ -78,6 +78,11 @@ export class UpdateSupplierDto {  @IsOptional()
   @IsOptional()
   @IsString()
   @MaxLength(200)
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
   paymentTerms?: string;
 
   @IsOptional()
@@ -100,6 +105,13 @@ export class UpdateSupplierDto {  @IsOptional()
   @MaxLength(100)
   freightTerms?: string;
 
+  /** "Mostra avviso": avviso mostrato alla creazione di documenti per il fornitore. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  documentCreationAlert?: string;
+
+  /** "Inserisci nota": nota inserita automaticamente nei documenti del fornitore. */
   @IsOptional()
   @IsString()
   @MaxLength(1000)
@@ -110,6 +122,7 @@ export class UpdateSupplierDto {  @IsOptional()
   @MaxLength(2000)
   notes?: string;
 
+  /** Aggiunge/riattiva (true) o disattiva (false) il ruolo cliente del soggetto. */
   @IsOptional()
   @IsBoolean()
   alsoCustomer?: boolean;

@@ -65,7 +65,7 @@ export class SalesOrdersService {
       this.prisma.salesOrder.findMany({
         where,
         include: {
-          customer: { select: { email: true } },
+          customer: { select: { party: { select: { email: true } } } },
           document: { select: { id: true, reference: true, type: true, status: true } },
           lines: {
             select: { id: true, title: true, quantity: true },
@@ -96,8 +96,9 @@ export class SalesOrdersService {
       this.prisma.salesOrder.count({ where }),
     ]);
 
-    const items: SalesOrderListRow[] = rows.map(({ reservations, ...order }) => ({
+    const items: SalesOrderListRow[] = rows.map(({ reservations, customer, ...order }) => ({
       ...order,
+      customer: customer ? { email: customer.party.email } : null,
       committedQuantity: reservations.reduce(
         (sum, reservation) => sum + reservation.remainingQuantity,
         0,
@@ -113,7 +114,7 @@ export class SalesOrdersService {
       where: { id, tenantId },
       include: {
         lines: { orderBy: { id: 'asc' } },
-        customer: { select: { email: true } },
+        customer: { select: { party: { select: { email: true } } } },
         document: { select: { id: true, reference: true, type: true, status: true } },
         onlineSale: {
           select: {
@@ -132,6 +133,7 @@ export class SalesOrdersService {
     if (!order) {
       throw new NotFoundException('Vendita non trovata');
     }
-    return order;
+    const { customer, ...rest } = order;
+    return { ...rest, customer: customer ? { email: customer.party.email } : null };
   }
 }

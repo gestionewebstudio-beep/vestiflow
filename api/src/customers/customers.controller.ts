@@ -11,7 +11,6 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
-import type { Customer } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
@@ -25,6 +24,7 @@ import {
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
+import type { CustomerView } from '../common/party/party-views';
 import { CustomersExportService } from './customers-export.service';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -45,7 +45,7 @@ export class CustomersController {
   list(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCustomersQueryDto,
-  ): Promise<Paginated<Customer>> {
+  ): Promise<Paginated<CustomerView>> {
     return this.customers.list(tenantId, query);
   }
 
@@ -64,12 +64,18 @@ export class CustomersController {
     });
   }
 
+  @Get('preview-code')
+  @RequireAnyPermissions(CUSTOMERS_VIEW_PERMISSIONS)
+  previewNextCode(@CurrentTenant() tenantId: string): Promise<{ readonly code: string }> {
+    return this.customers.previewNextCode(tenantId);
+  }
+
   @Get(':id')
   @RequireAnyPermissions(CUSTOMERS_VIEW_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<Customer> {
+  ): Promise<CustomerView> {
     return this.customers.getById(tenantId, id);
   }
 
@@ -78,7 +84,7 @@ export class CustomersController {
   create(
     @CurrentTenant() tenantId: string,
     @Body() dto: CreateCustomerDto,
-  ): Promise<Customer> {
+  ): Promise<CustomerView> {
     return this.customers.create(tenantId, dto);
   }
 
@@ -88,7 +94,7 @@ export class CustomersController {
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCustomerDto,
-  ): Promise<Customer> {
+  ): Promise<CustomerView> {
     return this.customers.update(tenantId, id, dto);
   }
 }

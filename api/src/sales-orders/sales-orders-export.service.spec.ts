@@ -12,7 +12,7 @@ describe('SalesOrdersExportService', () => {
             orderNumber: '1001',
             placedAt: new Date('2026-01-15T10:00:00.000Z'),
             customerName: 'Mario Rossi',
-            customer: { email: 'mario@example.com' },
+            customer: { party: { email: 'mario@example.com' } },
             source: 'shopify',
             financialStatus: 'paid',
             fulfillmentStatus: 'fulfilled',

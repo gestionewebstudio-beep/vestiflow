@@ -29,6 +29,13 @@ enum TenantChannelProfile {
   tiktok_shop
 }
 
+/// Tipo di voce pagamento gestibile: modalità (Contanti, Bonifico…) o
+/// condizioni (Vista fattura, 30 gg d.f.…). Due elenchi separati, come Danea.
+enum PaymentOptionKind {
+  method
+  terms
+}
+
 enum ProductStatus {
   draft
   active
@@ -316,10 +323,12 @@ model Tenant {
   inventoryLevels         InventoryLevel[]
   stockMovements          StockMovement[]
   inventoryCounts         InventoryCountSession[]
+  parties                 Party[]
   suppliers               Supplier[]
   supplierVariantLinks    SupplierVariantLink[]
   supplierOrders          SupplierOrder[]
   customers               Customer[]
+  paymentOptions          PaymentOption[]
   salesOrders             SalesOrder[]
   stockReservations       StockReservation[]
   stockReservationEvents  StockReservationEvent[]
@@ -770,25 +779,60 @@ model StockMovement {
 
 // ── Fornitori e ordini fornitore ─────────────────────────────────────────────
 
-model Supplier {
+// ── Anagrafica canonica: soggetto + ruoli commerciali ────────────────────────
+
+/// Soggetto anagrafico canonico (logica Danea): i dati anagrafici, fiscali,
+/// di contatto e gli indirizzi vivono qui UNA SOLA VOLTA. I ruoli commerciali
+/// (cliente/fornitore) sono tabelle collegate: lo stesso soggetto può essere
+/// solo cliente, solo fornitore o entrambi, senza duplicare l'anagrafica.
+model Party {
   id           String   @id @default(uuid()) @db.Uuid
   tenantId     String   @map("tenant_id") @db.Uuid
-  /// Codice interno fornitore (opzionale, univoco per tenant se valorizzato).
-  code         String?
-  name         String
+  /// Ragione sociale (aziende). Per persone fisiche restano nome/cognome.
+  companyName  String?  @map("company_name")
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
   vatNumber    String?  @map("vat_number")
   taxCode      String?  @map("tax_code")
   email        String?
   pec          String?
   phone        String?
-  contactName  String?  @map("contact_name")
   website      String?
+  contactName  String?  @map("contact_name")
   addressLine1 String?  @map("address_line1")
   addressLine2 String?  @map("address_line2")
   city         String?
   province     String?
   postalCode   String?  @map("postal_code")
   countryCode  String?  @map("country_code")
+  /// Note anagrafiche del soggetto (le note commerciali stanno sul ruolo).
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  customerRole Customer?
+  supplierRole Supplier?
+
+  @@index([tenantId])
+  @@index([tenantId, companyName])
+  @@index([tenantId, lastName, firstName])
+  @@map("parties")
+}
+
+/// Ruolo fornitore del soggetto (owner: gestionale). Contiene SOLO i dati
+/// commerciali del ruolo: l'anagrafica comune vive su Party. La disattivazione
+/// (isActive=false) esclude il ruolo dai nuovi utilizzi senza toccare storico.
+model Supplier {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  partyId      String   @unique @map("party_id") @db.Uuid
+  /// Codice interno fornitore (progressivo, univoco per tenant se valorizzato).
+  code         String?
+  isActive     Boolean  @default(true) @map("is_active")
+  /// Modalità di pagamento (voce gestita in Impostazioni → Pagamenti).
+  paymentMethod String? @map("payment_method")
+  /// Condizioni di pagamento (voce gestita in Impostazioni → Pagamenti).
   paymentTerms String?  @map("payment_terms")
   /// Sconto fornitore (es. "10%" o "4+10%" — applicazione a cascata).
   supplierDiscount       String? @map("supplier_discount")
@@ -798,14 +842,15 @@ model Supplier {
   transportResponsible   String? @map("transport_responsible")
   /// Porto (es. "Franco", "Assegnato").
   freightTerms           String? @map("freight_terms")
-  /// Avviso mostrato in creazione arrivo merce per questo fornitore.
+  /// "Mostra avviso": avviso mostrato alla creazione di documenti per questo fornitore.
+  documentCreationAlert  String? @map("document_creation_alert")
+  /// "Inserisci nota": nota inserita automaticamente nei documenti del fornitore.
   documentCreationNote   String? @map("document_creation_note")
-  notes        String?
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   tenant         Tenant                @relation(fields: [tenantId], references: [id])
-  linkedCustomer Customer?
+  party          Party                 @relation(fields: [partyId], references: [id])
   orders         SupplierOrder[]
   documents      Document[]
   attachments    SupplierAttachment[]
@@ -814,7 +859,6 @@ model Supplier {
 
   @@unique([tenantId, code])
   @@index([tenantId])
-  @@index([tenantId, name])
   @@map("suppliers")
 }
 
@@ -891,42 +935,67 @@ model SupplierOrderLine {
 
 // ── Clienti e vendite (owner: Shopify per l'ecommerce) ──────────────────────
 
+/// Ruolo cliente del soggetto. Contiene SOLO i dati commerciali del ruolo:
+/// l'anagrafica comune vive su Party. La disattivazione (isActive=false)
+/// esclude il ruolo dai nuovi utilizzi senza toccare documenti o storico.
 model Customer {
   id                String   @id @default(uuid()) @db.Uuid
   tenantId          String   @map("tenant_id") @db.Uuid
-  firstName         String   @map("first_name")
-  lastName          String   @map("last_name")
-  email             String?
-  phone             String?
-  notes             String?
-  addressLine1      String?  @map("address_line1")
-  addressLine2      String?  @map("address_line2")
-  city              String?
-  province          String?
-  postalCode        String?  @map("postal_code")
-  countryCode       String?  @map("country_code")
-  /// Ragione sociale (rivenditori/aziende).
-  companyName       String?  @map("company_name")
-  vatNumber         String?  @map("vat_number")
+  partyId           String   @unique @map("party_id") @db.Uuid
+  /// Codice interno cliente (progressivo, univoco per tenant se valorizzato).
+  code              String?
+  isActive          Boolean  @default(true) @map("is_active")
   /// Sconto cliente (es. "10%" o "4+10%" — applicazione a cascata).
   customerDiscount  String?  @map("customer_discount")
+  /// Modalità di pagamento (voce gestita in Impostazioni → Pagamenti).
+  paymentMethod     String?  @map("payment_method")
+  /// Condizioni di pagamento (voce gestita in Impostazioni → Pagamenti).
   paymentTerms      String?  @map("payment_terms")
+  /// Incaricato trasporto (es. "Vettore", "Mittente").
+  transportResponsible String? @map("transport_responsible")
+  /// "Mostra avviso": avviso mostrato alla creazione di documenti per questo cliente.
+  documentCreationAlert String? @map("document_creation_alert")
+  /// "Inserisci nota": nota inserita automaticamente nei documenti del cliente.
+  documentCreationNote  String? @map("document_creation_note")
   commercialNotes   String?  @map("commercial_notes")
+  /// Mapping canale di vendita: id cliente Shopify (anagrafica owned da Shopify).
   shopifyCustomerId String?  @map("shopify_customer_id")
-  /// Fornitore collegato se il cliente è anche fornitore (ruolo duale).
-  linkedSupplierId  String?  @unique @map("linked_supplier_id") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   tenant         Tenant       @relation(fields: [tenantId], references: [id])
-  linkedSupplier Supplier?    @relation(fields: [linkedSupplierId], references: [id], onDelete: SetNull)
+  party          Party        @relation(fields: [partyId], references: [id])
   orders         SalesOrder[]
   documents      Document[]
   onlineSales    OnlineSale[]
 
   @@unique([tenantId, shopifyCustomerId])
-  @@index([tenantId, lastName])
+  @@unique([tenantId, code])
+  @@index([tenantId])
   @@map("customers")
+}
+
+/// Voce gestibile per pagamenti (logica Danea): modalità ("Contanti",
+/// "Bonifico bancario"…) e condizioni ("Vista fattura", "30 gg d.f."…)
+/// sono due elenchi separati, preimpostati e ampliabili dalle Impostazioni.
+/// I ruoli salvano il nome come stringa: rinominare una voce non riscrive
+/// le anagrafiche già salvate (snapshot, come per i documenti).
+model PaymentOption {
+  id        String            @id @default(uuid()) @db.Uuid
+  tenantId  String            @map("tenant_id") @db.Uuid
+  kind      PaymentOptionKind
+  name      String
+  sortOrder Int               @default(0) @map("sort_order")
+  isSystem  Boolean           @default(false) @map("is_system")
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, kind, name])
+  @@index([tenantId, kind, sortOrder])
+  @@map("payment_options")
 }
 
 /// Ordini di vendita: read-model nel gestionale (owner Shopify per online/POS;

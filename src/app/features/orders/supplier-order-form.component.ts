@@ -35,6 +35,8 @@ import {
   zeroMoney,
 } from '@core/utils/money.util';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import type { PaymentOption } from '@core/models/payment-option.model';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import type { VatCode } from '@core/models/vat-code.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -114,6 +116,7 @@ export class SupplierOrderFormComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly vatCodeService = inject(VatCodeService);
+  private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -174,6 +177,12 @@ export class SupplierOrderFormComponent {
   protected readonly vatCodes = toSignal(
     this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
     { initialValue: [] as readonly VatCode[] },
+  );
+
+  /** Voci pagamento del tenant per il form nuovo fornitore inline. */
+  protected readonly paymentOptions = toSignal(
+    this.paymentOptionsService.list().pipe(catchError(() => of([] as readonly PaymentOption[]))),
+    { initialValue: [] as readonly PaymentOption[] },
   );
 
   protected readonly variantSearchDraft = signal('');
@@ -323,6 +332,16 @@ export class SupplierOrderFormComponent {
     this.form.controls.supplierId.setValue(value ?? '');
     this.form.controls.supplierId.markAsTouched();
   }
+
+  /** "Mostra avviso" (anagrafica fornitore): banner alla selezione. */
+  protected readonly supplierDocumentAlert = computed(() => {
+    const supplierId = this.formValue()?.supplierId;
+    if (!supplierId) {
+      return '';
+    }
+    const supplier = this.suppliers().find((entry) => entry.id === supplierId);
+    return supplier?.documentCreationAlert?.trim() ?? '';
+  });
 
   protected onLocationSelect(value: string | null): void {
     this.form.controls.destinationLocationId.setValue(value ?? '');

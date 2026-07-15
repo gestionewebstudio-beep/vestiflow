@@ -19,6 +19,8 @@ export async function deleteTenantData(
   await tx.store.deleteMany({ where: { tenantId } });
   await tx.customer.deleteMany({ where: { tenantId } });
   await tx.supplier.deleteMany({ where: { tenantId } });
+  await tx.party.deleteMany({ where: { tenantId } });
+  await tx.paymentOption.deleteMany({ where: { tenantId } });
   await tx.shopifyCredential.deleteMany({ where: { tenantId } });
   await tx.shopifyOAuthState.deleteMany({ where: { tenantId } });
   await tx.shopifyConnection.deleteMany({ where: { tenantId } });

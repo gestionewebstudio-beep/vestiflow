@@ -1,0 +1,118 @@
+<section class="payment-options">
+  <header class="payment-options__header">
+    <div class="payment-options__heading">
+      <a class="payment-options__back" routerLink="/settings">
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        Impostazioni
+      </a>
+      <h1 class="payment-options__title">Pagamenti</h1>
+      <p class="payment-options__subtitle">
+        Modalità e condizioni di pagamento usate nelle anagrafiche clienti e fornitori. Le
+        anagrafiche salvano il nome della voce: rinominare o eliminare una voce non modifica i dati
+        già salvati.
+      </p>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="7" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare le voci pagamento."
+      retryLabel="Riprova"
+      (retry)="retry()"
+    />
+  } @else {
+    <div class="payment-options__panels">
+      @for (group of kinds; track group.kind) {
+        <section class="payment-options__panel" [attr.aria-label]="group.title">
+          <h2 class="payment-options__panel-title">{{ group.title }}</h2>
+          <p class="payment-options__panel-hint">{{ group.hint }}</p>
+
+          <form class="payment-options__add" (submit)="$event.preventDefault(); add(group.kind)">
+            <label class="sr-only" [for]="'add-' + group.kind">
+              Nuova voce {{ group.title }}
+            </label>
+            <input
+              [id]="'add-' + group.kind"
+              class="payment-options__add-input"
+              type="text"
+              name="draft-{{ group.kind }}"
+              [(ngModel)]="drafts[group.kind]"
+              placeholder="Nuova voce…"
+              autocomplete="off"
+            />
+            <app-button type="submit" variant="secondary" [disabled]="saving()">
+              Aggiungi
+            </app-button>
+          </form>
+
+          <ul class="payment-options__list">
+            @for (option of optionsOf(group.kind); track option.id) {
+              <li
+                class="payment-options__item"
+                [class.payment-options__item--inactive]="!option.isActive"
+              >
+                @if (editingId() === option.id) {
+                  <input
+                    class="payment-options__rename-input"
+                    type="text"
+                    [(ngModel)]="editingName"
+                    name="rename-{{ option.id }}"
+                    [attr.aria-label]="'Rinomina ' + option.name"
+                    (keydown.enter)="$event.preventDefault(); confirmRename(option)"
+                    (keydown.escape)="cancelRename()"
+                  />
+                  <span class="payment-options__item-actions">
+                    <app-button
+                      type="button"
+                      variant="primary"
+                      [disabled]="saving()"
+                      (click)="confirmRename(option)"
+                      >Salva</app-button
+                    >
+                    <app-button type="button" variant="ghost" (click)="cancelRename()"
+                      >Annulla</app-button
+                    >
+                  </span>
+                } @else {
+                  <span class="payment-options__item-name">
+                    {{ option.name }}
+                    @if (!option.isActive) {
+                      <span class="payment-options__badge">Disattivata</span>
+                    }
+                  </span>
+                  <span class="payment-options__item-actions">
+                    <app-button
+                      type="button"
+                      variant="ghost"
+                      [disabled]="saving()"
+                      (click)="startRename(option)"
+                      >Rinomina</app-button
+                    >
+                    <app-button
+                      type="button"
+                      variant="ghost"
+                      [disabled]="saving()"
+                      (click)="toggleActive(option)"
+                      >{{ option.isActive ? 'Disattiva' : 'Riattiva' }}</app-button
+                    >
+                    <app-button
+                      type="button"
+                      variant="ghost"
+                      [disabled]="saving()"
+                      (click)="remove(option)"
+                      >Elimina</app-button
+                    >
+                  </span>
+                }
+              </li>
+            } @empty {
+              <li class="payment-options__empty">Nessuna voce: aggiungine una qui sopra.</li>
+            }
+          </ul>
+        </section>
+      }
+    </div>
+  }
+</section>

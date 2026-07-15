@@ -135,16 +135,29 @@ async function main() {
     }
   }
 
+  // Anagrafica canonica: il soggetto (party) porta i dati comuni,
+  // il fornitore e' il ruolo commerciale agganciato al soggetto.
+  const supplierParty = await prisma.party.upsert({
+    where: { id: 'a7777777-7777-4777-8777-777777777777' },
+    update: {},
+    create: {
+      id: 'a7777777-7777-4777-8777-777777777777',
+      tenantId: tenant.id,
+      companyName: 'Confezioni Sud SRL',
+      email: 'ordini@confezionisud.it',
+    },
+  });
   const supplier = await prisma.supplier.upsert({
     where: { id: '77777777-7777-4777-8777-777777777777' },
     update: {},
     create: {
       id: '77777777-7777-4777-8777-777777777777',
       tenantId: tenant.id,
-      name: 'Confezioni Sud SRL',
-      email: 'ordini@confezionisud.it',
+      partyId: supplierParty.id,
+      code: '0001',
     },
   });
+  const supplierName = 'Confezioni Sud SRL';
 
   const variantMWhite = await prisma.productVariant.findFirst({
     where: { tenantId: tenant.id, sku: 'TSB-M-WHT' },
@@ -180,7 +193,7 @@ async function main() {
         tenantId: tenant.id,
         reference: 'PO-2026-0001',
         supplierId: supplier.id,
-        supplierName: supplier.name,
+        supplierName,
         destinationLocationId: locationWarehouse.id,
         status: 'received',
         currency: 'EUR',
@@ -219,7 +232,7 @@ async function main() {
         tenantId: tenant.id,
         reference: 'PO-2026-0002',
         supplierId: supplier.id,
-        supplierName: supplier.name,
+        supplierName,
         destinationLocationId: locationShop.id,
         status: 'partially_received',
         currency: 'EUR',
@@ -250,7 +263,7 @@ async function main() {
         tenantId: tenant.id,
         reference: 'PO-2026-0003',
         supplierId: supplier.id,
-        supplierName: supplier.name,
+        supplierName,
         destinationLocationId: locationWarehouse.id,
         status: 'draft',
         currency: 'EUR',
@@ -281,7 +294,7 @@ async function main() {
         tenantId: tenant.id,
         reference: 'PO-2026-0004',
         supplierId: supplier.id,
-        supplierName: supplier.name,
+        supplierName,
         destinationLocationId: locationShop.id,
         status: 'sent',
         currency: 'EUR',
@@ -385,10 +398,22 @@ async function main() {
   ];
 
   for (const customer of sampleCustomers) {
-    await prisma.customer.upsert({
-      where: { id: customer.id },
+    const { id, shopifyCustomerId, ...partyData } = customer;
+    const partyId = `a${id.slice(1)}`;
+    await prisma.party.upsert({
+      where: { id: partyId },
       update: {},
-      create: { tenantId: tenant.id, ...customer },
+      create: { id: partyId, tenantId: tenant.id, ...partyData },
+    });
+    await prisma.customer.upsert({
+      where: { id },
+      update: {},
+      create: {
+        id,
+        tenantId: tenant.id,
+        partyId,
+        ...(shopifyCustomerId ? { shopifyCustomerId } : {}),
+      },
     });
   }
 

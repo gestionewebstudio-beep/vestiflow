@@ -78,44 +78,46 @@ export class ShopifySyncService {
 
     const existing = await this.prisma.customer.findUnique({
       where: { tenantId_shopifyCustomerId: { tenantId, shopifyCustomerId: shopifyId } },
-      select: { id: true },
+      select: { id: true, partyId: true },
     });
 
     const address = customer.default_address as Record<string, unknown> | undefined;
 
-    await this.prisma.customer.upsert({
-      where: { tenantId_shopifyCustomerId: { tenantId, shopifyCustomerId: shopifyId } },
-      update: {
-        firstName: String(customer.first_name ?? 'Cliente'),
-        lastName: String(customer.last_name ?? 'Shopify'),
-        email: (customer.email as string | undefined) ?? null,
-        phone: (customer.phone as string | undefined) ?? null,
-        notes: (customer.note as string | undefined) ?? null,
-        addressLine1: (address?.address1 as string | undefined) ?? null,
-        addressLine2: (address?.address2 as string | undefined) ?? null,
-        city: (address?.city as string | undefined) ?? null,
-        province: (address?.province as string | undefined) ?? null,
-        postalCode: (address?.zip as string | undefined) ?? null,
-        countryCode: (address?.country_code as string | undefined) ?? null,
-      },
-      create: {
-        tenantId,
-        shopifyCustomerId: shopifyId,
-        firstName: String(customer.first_name ?? 'Cliente'),
-        lastName: String(customer.last_name ?? 'Shopify'),
-        email: (customer.email as string | undefined) ?? null,
-        phone: (customer.phone as string | undefined) ?? null,
-        notes: (customer.note as string | undefined) ?? null,
-        addressLine1: (address?.address1 as string | undefined) ?? null,
-        addressLine2: (address?.address2 as string | undefined) ?? null,
-        city: (address?.city as string | undefined) ?? null,
-        province: (address?.province as string | undefined) ?? null,
-        postalCode: (address?.zip as string | undefined) ?? null,
-        countryCode: (address?.country_code as string | undefined) ?? null,
-      },
+    // I dati anagrafici Shopify vivono sul soggetto canonico (Party);
+    // il ruolo cliente conserva solo il mapping canale (shopifyCustomerId).
+    const partyData = {
+      firstName: String(customer.first_name ?? 'Cliente'),
+      lastName: String(customer.last_name ?? 'Shopify'),
+      email: (customer.email as string | undefined) ?? null,
+      phone: (customer.phone as string | undefined) ?? null,
+      notes: (customer.note as string | undefined) ?? null,
+      addressLine1: (address?.address1 as string | undefined) ?? null,
+      addressLine2: (address?.address2 as string | undefined) ?? null,
+      city: (address?.city as string | undefined) ?? null,
+      province: (address?.province as string | undefined) ?? null,
+      postalCode: (address?.zip as string | undefined) ?? null,
+      countryCode: (address?.country_code as string | undefined) ?? null,
+    };
+
+    if (existing) {
+      await this.prisma.party.update({
+        where: { id: existing.partyId },
+        data: partyData,
+      });
+      return 'updated';
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const party = await tx.party.create({
+        data: { tenantId, ...partyData },
+        select: { id: true },
+      });
+      await tx.customer.create({
+        data: { tenantId, partyId: party.id, shopifyCustomerId: shopifyId },
+      });
     });
 
-    return existing ? 'updated' : 'created';
+    return 'created';
   }
 
   /** Allinea un ordine Shopify in locale (webhook o import bulk). */

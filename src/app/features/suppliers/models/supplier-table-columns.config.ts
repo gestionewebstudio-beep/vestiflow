@@ -12,6 +12,7 @@ export const SUPPLIER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'city', label: 'Città', defaultVisible: true },
   { id: 'phone', label: 'Telefono', defaultVisible: false },
   { id: 'paymentTerms', label: 'Pagamento', defaultVisible: false },
+  { id: 'roleStatus', label: 'Stato ruolo', defaultVisible: false },
 ] as const;
 
 export const SUPPLIER_LIST_COLUMN_PRESETS: TableViewPresetMap = {

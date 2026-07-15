@@ -14,6 +14,8 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Customer } from '@core/models/customer.model';
+import type { PaymentOption } from '@core/models/payment-option.model';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { CustomerFormFieldsComponent } from '@features/customers/components/customer-form-fields/customer-form-fields.component';
 import {
   createCustomerFormGroup,
@@ -44,6 +46,7 @@ import { CustomerService } from './services/customer.service';
 export class CustomerFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly service = inject(CustomerService);
+  private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -90,6 +93,12 @@ export class CustomerFormComponent {
     () => this.loadState().customer?.source === 'shopify',
   );
 
+  /** Voci pagamento del tenant per le tendine modalità/condizioni. */
+  protected readonly paymentOptions = toSignal(
+    this.paymentOptionsService.list().pipe(catchError(() => of([] as readonly PaymentOption[]))),
+    { initialValue: [] as readonly PaymentOption[] },
+  );
+
   protected readonly form = createCustomerFormGroup(this.fb);
 
   constructor() {
@@ -105,6 +114,10 @@ export class CustomerFormComponent {
 
   protected submit(): void {
     this.form.markAllAsTouched();
+    if (this.form.hasError('identityRequired')) {
+      this.saveError.set('Indica la ragione sociale oppure nome e cognome del cliente.');
+      return;
+    }
     if (this.form.invalid || this.saving()) {
       return;
     }

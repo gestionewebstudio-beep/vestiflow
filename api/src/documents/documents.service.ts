@@ -18,6 +18,7 @@ import {
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
+import { partyDisplayName } from '../common/party/party.util';
 import { applyStockSale } from '../inventory/inventory-movement.util';
 import {
   assertLocationInUserScope,
@@ -2711,9 +2712,10 @@ export class DocumentsService {
     if (!supplierId) return null;
     const supplier = await this.prisma.supplier.findFirst({
       where: { id: supplierId, tenantId },
-      select: { name: true },
+      select: { party: true },
     });
-    return supplier?.name ?? null;
+    if (!supplier) return null;
+    return partyDisplayName(supplier.party) || null;
   }
 
   private async snapshotCustomerName(
@@ -2723,10 +2725,10 @@ export class DocumentsService {
     if (!customerId) return null;
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, tenantId },
-      select: { firstName: true, lastName: true },
+      select: { party: true },
     });
     if (!customer) return null;
-    return `${customer.firstName} ${customer.lastName}`.trim();
+    return partyDisplayName(customer.party) || null;
   }
 
   /** Espone la configurazione risolta per un tipo (usata dal controller settings). */

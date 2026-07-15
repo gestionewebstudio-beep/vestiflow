@@ -20,6 +20,8 @@
         idPrefix="customer-page"
         [formGroup]="form"
         [anagraficaReadOnly]="anagraficaReadOnly()"
+        [showCodeField]="isEdit()"
+        [paymentOptions]="paymentOptions()"
       />
 
       @if (saveError(); as message) {

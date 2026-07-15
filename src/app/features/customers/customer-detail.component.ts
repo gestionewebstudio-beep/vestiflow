@@ -115,10 +115,16 @@ export class CustomerDetailComponent {
       : '—';
     return [
       { label: 'Origine', value: customerSourceLabel(customer.source) },
-      { label: 'Nome', value: customer.firstName },
-      { label: 'Cognome', value: customer.lastName },
+      { label: 'Nome', value: customer.firstName || '—' },
+      { label: 'Cognome', value: customer.lastName || '—' },
+      { label: 'Ragione sociale', value: customer.companyName ?? '—' },
+      { label: 'P. IVA', value: customer.vatNumber ?? '—', numeric: true },
+      { label: 'Codice fiscale', value: customer.taxCode ?? '—', numeric: true },
       { label: 'Email', value: customer.email ?? '—' },
+      { label: 'PEC', value: customer.pec ?? '—' },
       { label: 'Telefono', value: customer.phone ?? '—', numeric: true },
+      { label: 'Sito web', value: customer.website ?? '—' },
+      { label: 'Referente', value: customer.contactName ?? '—' },
       { label: 'Indirizzo', value: addressLabel },
       { label: 'Cliente dal', value: formatDate(customer.createdAt), numeric: true },
       { label: 'Aggiornato il', value: formatDate(customer.updatedAt), numeric: true },
@@ -132,14 +138,29 @@ export class CustomerDetailComponent {
       return [];
     }
     return [
-      { label: 'Ragione sociale', value: customer.companyName ?? '—' },
-      { label: 'P. IVA', value: customer.vatNumber ?? '—', numeric: true },
+      { label: 'Codice cliente', value: customer.code ?? '—', numeric: true },
       { label: 'Sconto', value: customer.customerDiscount ?? '—' },
-      { label: 'Pagamento', value: customer.paymentTerms ?? '—' },
+      { label: 'Modalità di pagamento', value: customer.paymentMethod ?? '—' },
+      { label: 'Condizioni di pagamento', value: customer.paymentTerms ?? '—' },
+      { label: 'Incaricato trasporto', value: customer.transportResponsible ?? '—' },
+      {
+        label: 'Avviso creazione documento',
+        value: customer.documentCreationAlert ?? '—',
+        wide: true,
+      },
+      {
+        label: 'Nota inserita nei documenti',
+        value: customer.documentCreationNote ?? '—',
+        wide: true,
+      },
       { label: 'Note commerciali', value: customer.commercialNotes ?? '—', wide: true },
       {
         label: 'Anche fornitore',
-        value: customer.linkedSupplierId ? 'Sì — collegato in anagrafica fornitori' : 'No',
+        value: customer.linkedSupplierId
+          ? customer.linkedSupplierActive
+            ? 'Sì — stesso soggetto in anagrafica fornitori'
+            : 'Ruolo fornitore disattivato (storico conservato)'
+          : 'No',
       },
     ];
   });

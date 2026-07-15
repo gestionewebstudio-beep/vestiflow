@@ -57,7 +57,10 @@ export class CustomerTableComponent {
   }
 
   protected alsoSupplierLabel(customer: Customer): string {
-    return customer.linkedSupplierId ? 'Sì' : '—';
+    if (!customer.linkedSupplierId) {
+      return '—';
+    }
+    return customer.linkedSupplierActive ? 'Sì' : 'Disattivato';
   }
 
   protected createdAtLabel(customer: Customer): string {

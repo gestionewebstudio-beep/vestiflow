@@ -6,6 +6,7 @@ import {
 import { TableViewPresetId as PresetId } from '@shared/table-columns/table-column.model';
 
 export const CUSTOMER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+  { id: 'code', label: 'Codice', pinnable: true, defaultVisible: true },
   { id: 'name', label: 'Cliente', pinnable: true, defaultVisible: true },
   { id: 'source', label: 'Origine', defaultVisible: true },
   { id: 'email', label: 'Email', defaultVisible: true },
@@ -21,9 +22,9 @@ export const CUSTOMER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
 ];
 
 export const CUSTOMER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
-  [PresetId.Default]: ['name', 'source', 'email', 'phone'],
+  [PresetId.Default]: ['code', 'name', 'source', 'email', 'phone'],
   [PresetId.Warehouse]: ['name', 'phone', 'city'],
-  [PresetId.Accountant]: ['name', 'companyName', 'vatNumber', 'paymentTerms', 'email'],
+  [PresetId.Accountant]: ['code', 'name', 'companyName', 'vatNumber', 'paymentTerms', 'email'],
   [PresetId.Supplier]: ['name', 'email', 'phone', 'alsoSupplier'],
   [PresetId.Analysis]: ['name', 'source', 'discount', 'paymentTerms'],
   [PresetId.Operational]: ['name', 'phone', 'city', 'discount'],

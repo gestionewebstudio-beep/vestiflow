@@ -21,6 +21,7 @@ import {
   applyInventorySerialsFromDocumentLines,
   assertSerialNumbersForDocumentLines,
 } from '../inventory/inventory-serial.util';
+import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { createQuickProductWithVariant } from '../products/quick-product-create.util';
 import {
@@ -969,9 +970,10 @@ export class GoodsReceiptWorkflowService {
     if (!supplierId) return null;
     const supplier = await tx.supplier.findFirst({
       where: { id: supplierId, tenantId },
-      select: { name: true },
+      select: { party: true },
     });
-    return supplier?.name ?? null;
+    if (!supplier) return null;
+    return partyDisplayName(supplier.party) || null;
   }
 }
 

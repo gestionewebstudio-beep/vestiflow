@@ -136,7 +136,7 @@ describe('SupplierOrdersService', () => {
 
   it('create persiste ordine fornitore con righe', async () => {
     const prisma = createPrismaMock();
-    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: { companyName: 'Fornitore Alpha', firstName: null, lastName: null, contactName: null, email: null } });
     prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
     prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
     prisma.supplierOrder.findMany.mockResolvedValue([]);
@@ -161,7 +161,7 @@ describe('SupplierOrdersService', () => {
     // numeratore basato sul conteggio (2 → 0003) collicerebbe con 0003 e
     // violerebbe @@unique([tenantId, reference]); il massimo + 1 → 0004.
     const prisma = createPrismaMock();
-    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: { companyName: 'Fornitore Alpha', firstName: null, lastName: null, contactName: null, email: null } });
     prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
     prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
     prisma.supplierOrder.findMany.mockResolvedValue([
@@ -328,7 +328,7 @@ describe('SupplierOrdersService', () => {
 
   it('create rifiuta stato iniziale non valido', async () => {
     const prisma = createPrismaMock();
-    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore' });
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: { companyName: 'Fornitore', firstName: null, lastName: null, contactName: null, email: null } });
     prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
     prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
     const service = createService(prisma);
@@ -354,7 +354,7 @@ describe('SupplierOrdersService', () => {
       expectedAt: null,
       lines: [],
     });
-    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore' });
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: { companyName: 'Fornitore', firstName: null, lastName: null, contactName: null, email: null } });
     prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
     prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
     prisma.supplierOrderLine.deleteMany.mockResolvedValue({ count: 1 });
@@ -434,7 +434,7 @@ describe('SupplierOrdersService', () => {
   describe('enforcement location (N sedi per utente)', () => {
     it('titolare può creare un ordine fornitore in qualunque sede del tenant', async () => {
       const prisma = createPrismaMock();
-      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: { companyName: 'Fornitore Alpha', firstName: null, lastName: null, contactName: null, email: null } });
       prisma.location.findFirst.mockResolvedValue({ id: 'loc-qualunque' });
       prisma.productVariant.findMany.mockResolvedValue([{ id: 'var-1', sku: 'SKU-1' }]);
       prisma.supplierOrder.findMany.mockResolvedValue([]);
@@ -456,7 +456,7 @@ describe('SupplierOrdersService', () => {
 
     it('utente con una sola sede assegnata riceve 403 su una sede diversa dello stesso tenant', async () => {
       const prisma = createPrismaMock();
-      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: { companyName: 'Fornitore Alpha', firstName: null, lastName: null, contactName: null, email: null } });
       prisma.location.findFirst.mockResolvedValue({ id: 'loc-2' });
       const service = createService(prisma);
       const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
@@ -477,7 +477,7 @@ describe('SupplierOrdersService', () => {
 
     it('utente senza alcuna sede assegnata non può creare ordini fornitore', async () => {
       const prisma = createPrismaMock();
-      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', name: 'Fornitore Alpha' });
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: { companyName: 'Fornitore Alpha', firstName: null, lastName: null, contactName: null, email: null } });
       prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' });
       const service = createService(prisma);
       const clerk = testClerkUser({ hasAllLocationsAccess: false, assignedLocationIds: [] });

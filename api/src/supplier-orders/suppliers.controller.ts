@@ -15,7 +15,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Supplier } from '@prisma/client';
 
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
@@ -32,6 +31,7 @@ import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard'
 import { documentAttachmentUploadMulterOptions } from '../common/upload/multer-upload.options';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
+import type { SupplierView } from '../common/party/party-views';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { ListSuppliersQueryDto } from './dto/list-suppliers.query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
@@ -53,7 +53,7 @@ export class SuppliersController {
   /** Elenco completo (select inline ordini/arrivi merce). */
   @Get('all')
   @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
-  listAll(@CurrentTenant() tenantId: string): Promise<Supplier[]> {
+  listAll(@CurrentTenant() tenantId: string): Promise<SupplierView[]> {
     return this.suppliers.listAll(tenantId);
   }
 
@@ -62,7 +62,7 @@ export class SuppliersController {
   list(
     @CurrentTenant() tenantId: string,
     @Query() query: ListSuppliersQueryDto,
-  ): Promise<Paginated<Supplier>> {
+  ): Promise<Paginated<SupplierView>> {
     return this.suppliers.list(tenantId, query);
   }
 
@@ -77,7 +77,7 @@ export class SuppliersController {
   getById(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<Supplier> {
+  ): Promise<SupplierView> {
     return this.suppliers.getById(tenantId, id);
   }
 
@@ -115,7 +115,7 @@ export class SuppliersController {
 
   @Post()
   @RequirePermissions(TenantPermission.SupplierOrdersManage)
-  create(@CurrentTenant() tenantId: string, @Body() dto: CreateSupplierDto): Promise<Supplier> {
+  create(@CurrentTenant() tenantId: string, @Body() dto: CreateSupplierDto): Promise<SupplierView> {
     return this.suppliers.create(tenantId, dto);
   }
 
@@ -125,7 +125,7 @@ export class SuppliersController {
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSupplierDto,
-  ): Promise<Supplier> {
+  ): Promise<SupplierView> {
     return this.suppliers.update(tenantId, id, dto);
   }
 

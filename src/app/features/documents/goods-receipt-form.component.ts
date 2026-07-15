@@ -49,6 +49,8 @@ import {
 } from '@core/models/vat-code.model';
 import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import type { PaymentOption } from '@core/models/payment-option.model';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import {
@@ -232,6 +234,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly vatCodeService = inject(VatCodeService);
+  private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -367,6 +370,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly vatCodes = toSignal(
     this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
     { initialValue: [] as readonly VatCode[] },
+  );
+
+  /** Voci pagamento del tenant per il form nuovo fornitore inline. */
+  protected readonly paymentOptions = toSignal(
+    this.paymentOptionsService.list().pipe(catchError(() => of([] as readonly PaymentOption[]))),
+    { initialValue: [] as readonly PaymentOption[] },
   );
 
   private readonly vatCodeById = computed(
@@ -726,7 +735,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.setupDirtyTracking();
     this.form.controls.supplierId.valueChanges
       .pipe(startWith(this.form.controls.supplierId.value), takeUntilDestroyed(this.destroyRef))
-      .subscribe((supplierId) => this.reloadSupplierVariantLinks(supplierId));
+      .subscribe((supplierId) => {
+        this.reloadSupplierVariantLinks(supplierId);
+        this.applySupplierDocumentNote(supplierId);
+      });
     effect(() => {
       this.pinnedVariants();
       this.searchedVariants();
@@ -742,6 +754,30 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * documento". Qui si tracciano le modifiche non salvate, per il dialog di
    * uscita e per l'avviso del browser su ricarica/chiusura scheda.
    */
+  /**
+   * "Inserisci nota" (anagrafica fornitore): compila le note del documento
+   * con la nota configurata sul ruolo, senza mai sovrascrivere testo digitato
+   * dall'operatore o note di un documento esistente.
+   */
+  private applySupplierDocumentNote(supplierId: string): void {
+    if (this.formReadOnly() || this.isEditMode()) {
+      return;
+    }
+    const supplier = supplierId
+      ? (this.suppliers().find((entry) => entry.id === supplierId) ?? null)
+      : null;
+    const note = supplier?.documentCreationNote?.trim() ?? '';
+    const control = this.form.controls.notes;
+    const current = control.value.trim();
+    if (note && (!current || current === this.lastAutoInsertedNote)) {
+      control.setValue(note);
+      this.lastAutoInsertedNote = note;
+    } else if (!note && current && current === this.lastAutoInsertedNote) {
+      control.setValue('');
+      this.lastAutoInsertedNote = '';
+    }
+  }
+
   private setupDirtyTracking(): void {
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       if (!this.suppressDirtyMarking && !this.formReadOnly()) {
@@ -1682,6 +1718,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     initialValue: this.form.getRawValue(),
   });
 
+  /** Ultima nota anagrafica inserita in automatico (per sostituirla al cambio fornitore). */
+  private lastAutoInsertedNote = '';
+
   protected readonly selectedSupplier = computed((): Supplier | null => {
     const supplierId = this.formValue()?.supplierId;
     if (!supplierId) {
@@ -1691,8 +1730,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   });
 
   protected readonly supplierDocumentNote = computed(() => {
-    const note = this.selectedSupplier()?.documentCreationNote?.trim();
-    return note ?? '';
+    const alert = this.selectedSupplier()?.documentCreationAlert?.trim();
+    return alert ?? '';
   });
 
   protected readonly documentTotals = computed(() => {

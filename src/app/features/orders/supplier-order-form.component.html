@@ -26,6 +26,12 @@
     />
   } @else {
     <form class="po-form__form" [formGroup]="form" (ngSubmit)="saveAndSend()">
+      @if (supplierDocumentAlert(); as supplierAlert) {
+        <p class="po-form__supplier-alert-banner" role="status">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          {{ supplierAlert }}
+        </p>
+      }
       <div class="po-form__grid">
         <div class="po-form__field">
           <span class="po-form__label" id="po-supplier-label">Fornitore</span>
@@ -95,6 +101,7 @@
             idPrefix="po-new-supplier"
             [formGroup]="supplierForm"
             [vatCodes]="vatCodes()"
+            [paymentOptions]="paymentOptions()"
           />
           <div class="po-form__supplier-actions">
             <app-button

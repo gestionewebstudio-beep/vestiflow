@@ -9,6 +9,8 @@ export interface CustomerListQuery {
   readonly pageSize?: number;
   /** Ricerca libera su nome, cognome ed email. */
   readonly search?: string;
+  /** true = solo ruoli attivi (picker documenti); default: tutti. */
+  readonly active?: boolean;
 }
 
 /** Filtri export CSV (stessi filtri lista, senza paginazione). */

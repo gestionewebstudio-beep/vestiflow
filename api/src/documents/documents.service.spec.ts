@@ -4,7 +4,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { DocumentStatus, DocumentType, SupplierOrderStatus } from '@prisma/client';
+import { DocumentStatus, DocumentType } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';

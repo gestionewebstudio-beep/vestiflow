@@ -22,6 +22,7 @@ import {
   assertLocationInUserScope,
   assertLocationReadableInUserScope,
 } from '../inventory/user-location-scope.util';
+import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
@@ -69,6 +70,7 @@ export class SupplierOrdersService {
   ): Promise<SupplierOrderWithLines> {
     const supplier = await this.prisma.supplier.findFirst({
       where: { id: dto.supplierId, tenantId },
+      include: { party: true },
     });
     if (!supplier) {
       throw new NotFoundException('Fornitore non trovato');
@@ -110,7 +112,7 @@ export class SupplierOrdersService {
           tenantId,
           reference,
           supplierId: supplier.id,
-          supplierName: supplier.name,
+          supplierName: partyDisplayName(supplier.party),
           destinationLocationId: dto.destinationLocationId,
           status,
           currency: dto.currency ?? 'EUR',
@@ -162,6 +164,7 @@ export class SupplierOrdersService {
 
     const supplier = await this.prisma.supplier.findFirst({
       where: { id: dto.supplierId ?? order.supplierId, tenantId },
+      include: { party: true },
     });
     if (!supplier) {
       throw new NotFoundException('Fornitore non trovato');
@@ -202,7 +205,7 @@ export class SupplierOrdersService {
         where: { id },
         data: {
           supplierId: supplier.id,
-          supplierName: supplier.name,
+          supplierName: partyDisplayName(supplier.party),
           destinationLocationId,
           currency: dto.currency ?? order.currency,
           totalMinor,

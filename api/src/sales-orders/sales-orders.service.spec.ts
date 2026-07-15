@@ -47,6 +47,7 @@ describe('SalesOrdersService', () => {
         id: 'order-1',
         orderNumber: '1001',
         onlineSale: null,
+        customer: null,
         committedQuantity: 3,
         locationName: 'Negozio Roma',
       },
@@ -59,7 +60,7 @@ describe('SalesOrdersService', () => {
     prisma.salesOrder.findFirst.mockResolvedValue({
       id: 'order-1',
       lines: [],
-      customer: { email: 'buyer@example.com' },
+      customer: { party: { email: 'buyer@example.com' } },
     });
     const service = new SalesOrdersService(prisma as unknown as PrismaService);
 

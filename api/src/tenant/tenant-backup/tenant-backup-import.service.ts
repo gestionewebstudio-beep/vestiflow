@@ -209,6 +209,12 @@ export class TenantBackupImportService {
       case 'documentSequences':
         await tx.documentSequence.deleteMany({ where: { tenantId } });
         return;
+      case 'paymentOptions':
+        await tx.paymentOption.deleteMany({ where: { tenantId } });
+        return;
+      case 'parties':
+        await tx.party.deleteMany({ where: { tenantId } });
+        return;
       case 'suppliers':
         await tx.supplier.deleteMany({ where: { tenantId } });
         return;
@@ -357,6 +363,12 @@ export class TenantBackupImportService {
         return;
       case 'documentSequences':
         await tx.documentSequence.createMany({ data });
+        return;
+      case 'paymentOptions':
+        await tx.paymentOption.createMany({ data });
+        return;
+      case 'parties':
+        await tx.party.createMany({ data });
         return;
       case 'suppliers':
         await tx.supplier.createMany({ data });

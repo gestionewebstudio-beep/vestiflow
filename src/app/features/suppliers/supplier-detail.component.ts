@@ -136,16 +136,22 @@ export class SupplierDetailComponent {
       { label: 'Referente', value: s.contactName ?? '—' },
       { label: 'Sito web', value: s.website ?? '—' },
       { label: 'Indirizzo', value: this.formatAddress(s) },
-      { label: 'Pagamento', value: s.paymentTerms ?? '—' },
+      { label: 'Modalità di pagamento', value: s.paymentMethod ?? '—' },
+      { label: 'Condizioni di pagamento', value: s.paymentTerms ?? '—' },
       { label: 'Sconto fornitore', value: s.supplierDiscount ?? '—' },
       { label: 'Codice IVA predefinito', value: this.vatCodeLabel(s.defaultVatCodeId) },
       { label: 'Incaricato trasporto', value: s.transportResponsible ?? '—' },
       { label: 'Porto', value: s.freightTerms ?? '—' },
-      { label: 'Nota creazione documento', value: s.documentCreationNote ?? '—' },
+      { label: 'Avviso creazione documento', value: s.documentCreationAlert ?? '—' },
+      { label: 'Nota inserita nei documenti', value: s.documentCreationNote ?? '—' },
       { label: 'Note', value: s.notes ?? '—' },
       {
         label: 'Anche cliente',
-        value: s.linkedCustomerId ? 'Sì — collegato in anagrafica clienti' : 'No',
+        value: s.linkedCustomerId
+          ? s.linkedCustomerActive
+            ? 'Sì — stesso soggetto in anagrafica clienti'
+            : 'Ruolo cliente disattivato (storico conservato)'
+          : 'No',
       },
     ];
   });

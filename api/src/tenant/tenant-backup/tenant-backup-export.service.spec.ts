@@ -26,6 +26,8 @@ function createExportPrismaMock(tenant: { id: string; name: string }) {
     documentTypeSetting: { findMany: emptyList },
     tenantFeatureSettings: { findUnique: emptyUnique },
     documentSequence: { findMany: emptyList },
+    paymentOption: { findMany: emptyList },
+    party: { findMany: emptyList },
     supplier: { findMany: emptyList },
     customer: { findMany: emptyList },
     product: { findMany: emptyList },

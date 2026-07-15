@@ -14,7 +14,12 @@ describe('ShopifySyncService', () => {
     const prisma = {
       customer: {
         findUnique: vi.fn(),
+        create: vi.fn().mockResolvedValue({}),
         upsert: vi.fn().mockResolvedValue({}),
+      },
+      party: {
+        create: vi.fn().mockResolvedValue({ id: 'party-new' }),
+        update: vi.fn().mockResolvedValue({}),
       },
       salesOrder: {
         findFirst: vi.fn(),
@@ -35,6 +40,12 @@ describe('ShopifySyncService', () => {
       },
       $transaction: vi.fn(),
     };
+    prisma.$transaction.mockImplementation(async (arg: unknown) => {
+      if (typeof arg === 'function') {
+        return (arg as (tx: unknown) => Promise<unknown>)(prisma);
+      }
+      return Promise.all(arg as Promise<unknown>[]);
+    });
 
     const shopifyConnection = {
       touchSync: vi.fn().mockResolvedValue(undefined),
@@ -113,12 +124,20 @@ describe('ShopifySyncService', () => {
     });
 
     expect(result).toBe('created');
-    expect(prisma.customer.upsert).toHaveBeenCalledWith(
+    expect(prisma.party.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({
-          shopifyCustomerId: 'gid://shopify/Customer/42',
+        data: expect.objectContaining({
           firstName: 'Mario',
           lastName: 'Rossi',
+          email: 'mario@example.com',
+        }),
+      }),
+    );
+    expect(prisma.customer.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          shopifyCustomerId: 'gid://shopify/Customer/42',
+          partyId: 'party-new',
         }),
       }),
     );
@@ -130,7 +149,8 @@ describe('ShopifySyncService', () => {
     const result = await service.applyCustomerFromShopify('tenant-1', { email: 'x@y.com' });
 
     expect(result).toBe('skipped');
-    expect(prisma.customer.upsert).not.toHaveBeenCalled();
+    expect(prisma.customer.create).not.toHaveBeenCalled();
+    expect(prisma.party.create).not.toHaveBeenCalled();
   });
 
   it('applyInventoryLevelFromShopify delega alla riconciliazione senza modificare giacenze', async () => {

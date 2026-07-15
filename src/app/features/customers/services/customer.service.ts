@@ -30,6 +30,9 @@ export class CustomerService {
     if (query.search) {
       params = params.set('search', query.search);
     }
+    if (query.active) {
+      params = params.set('active', 'true');
+    }
 
     return this.http.get<ApiPaginated<CustomerApiRow>>(this.url('/customers'), { params }).pipe(
       timeout(HTTP_TIMEOUT_MS),

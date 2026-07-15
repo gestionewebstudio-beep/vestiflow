@@ -2,9 +2,13 @@
   <div class="customer-fields__grid">
     <div class="customer-fields__field customer-fields__field--full">
       <h3 class="customer-fields__section-title">Dati anagrafici</h3>
+      <p class="customer-fields__hint" role="note">
+        I dati anagrafici appartengono al soggetto e sono condivisi con l'eventuale ruolo fornitore:
+        modificarli qui li aggiorna ovunque.
+      </p>
       @if (anagraficaReadOnly()) {
         <p class="customer-fields__hint" role="note">
-          Anagrafica sincronizzata da Shopify: in sola lettura. I dati commerciali restano
+          Anagrafica sincronizzata da Shopify: in sola lettura. I dati fiscali e commerciali restano
           modificabili nel gestionale.
         </p>
       }
@@ -18,9 +22,6 @@
         type="text"
         formControlName="firstName"
         autocomplete="given-name"
-        [attr.aria-invalid]="
-          formGroup().controls.firstName.invalid && formGroup().controls.firstName.touched
-        "
       />
     </div>
     <div class="customer-fields__field">
@@ -31,9 +32,36 @@
         type="text"
         formControlName="lastName"
         autocomplete="family-name"
-        [attr.aria-invalid]="
-          formGroup().controls.lastName.invalid && formGroup().controls.lastName.touched
-        "
+      />
+    </div>
+    <div class="customer-fields__field">
+      <label class="customer-fields__label" [for]="idPrefix() + '-company'">Ragione sociale</label>
+      <input
+        [id]="idPrefix() + '-company'"
+        class="customer-fields__control"
+        type="text"
+        formControlName="companyName"
+        autocomplete="organization"
+      />
+    </div>
+    <div class="customer-fields__field">
+      <label class="customer-fields__label" [for]="idPrefix() + '-vat'">P. IVA</label>
+      <input
+        [id]="idPrefix() + '-vat'"
+        class="customer-fields__control"
+        type="text"
+        formControlName="vatNumber"
+        autocomplete="off"
+      />
+    </div>
+    <div class="customer-fields__field">
+      <label class="customer-fields__label" [for]="idPrefix() + '-tax'">Codice fiscale</label>
+      <input
+        [id]="idPrefix() + '-tax'"
+        class="customer-fields__control"
+        type="text"
+        formControlName="taxCode"
+        autocomplete="off"
       />
     </div>
     <div class="customer-fields__field">
@@ -47,6 +75,16 @@
       />
     </div>
     <div class="customer-fields__field">
+      <label class="customer-fields__label" [for]="idPrefix() + '-pec'">PEC</label>
+      <input
+        [id]="idPrefix() + '-pec'"
+        class="customer-fields__control"
+        type="email"
+        formControlName="pec"
+        autocomplete="off"
+      />
+    </div>
+    <div class="customer-fields__field">
       <label class="customer-fields__label" [for]="idPrefix() + '-phone'">Telefono</label>
       <input
         [id]="idPrefix() + '-phone'"
@@ -54,6 +92,26 @@
         type="tel"
         formControlName="phone"
         autocomplete="tel"
+      />
+    </div>
+    <div class="customer-fields__field">
+      <label class="customer-fields__label" [for]="idPrefix() + '-website'">Sito web</label>
+      <input
+        [id]="idPrefix() + '-website'"
+        class="customer-fields__control"
+        type="url"
+        formControlName="website"
+        autocomplete="url"
+      />
+    </div>
+    <div class="customer-fields__field">
+      <label class="customer-fields__label" [for]="idPrefix() + '-contact'">Referente</label>
+      <input
+        [id]="idPrefix() + '-contact'"
+        class="customer-fields__control"
+        type="text"
+        formControlName="contactName"
+        autocomplete="off"
       />
     </div>
     <div class="customer-fields__field customer-fields__field--full">
@@ -129,28 +187,20 @@
     </div>
 
     <div class="customer-fields__field customer-fields__field--full">
-      <h3 class="customer-fields__section-title">Dati commerciali</h3>
+      <h3 class="customer-fields__section-title">Dati commerciali — ruolo cliente</h3>
     </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-company'">Ragione sociale</label>
-      <input
-        [id]="idPrefix() + '-company'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="companyName"
-        autocomplete="organization"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-vat'">P. IVA</label>
-      <input
-        [id]="idPrefix() + '-vat'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="vatNumber"
-        autocomplete="off"
-      />
-    </div>
+    @if (showCodeField()) {
+      <div class="customer-fields__field">
+        <label class="customer-fields__label" [for]="idPrefix() + '-code'">Codice cliente</label>
+        <input
+          [id]="idPrefix() + '-code'"
+          class="customer-fields__control"
+          type="text"
+          formControlName="code"
+          autocomplete="off"
+        />
+      </div>
+    }
     <div class="customer-fields__field">
       <label class="customer-fields__label" [for]="idPrefix() + '-discount'">Sconto</label>
       <input
@@ -158,20 +208,74 @@
         class="customer-fields__control"
         type="text"
         formControlName="customerDiscount"
-        placeholder="es. 10% o 4+10%"
+        placeholder="es. 10% o 10+5+4"
         autocomplete="off"
       />
     </div>
     <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-payment'">Pagamento</label>
+      <label class="customer-fields__label" [for]="idPrefix() + '-payment-method'"
+        >Modalità di pagamento</label
+      >
+      <app-select-menu
+        [options]="paymentMethodOptions()"
+        [value]="formGroup().controls.paymentMethod.value"
+        ariaLabel="Modalità di pagamento"
+        placeholder="Seleziona…"
+        [fullWidth]="true"
+        [includeEmptyOption]="true"
+        (valueChange)="onPaymentMethodSelect($event)"
+      />
+    </div>
+    <div class="customer-fields__field">
+      <label class="customer-fields__label" [for]="idPrefix() + '-payment-terms'"
+        >Condizioni di pagamento</label
+      >
+      <app-select-menu
+        [options]="paymentTermsOptions()"
+        [value]="formGroup().controls.paymentTerms.value"
+        ariaLabel="Condizioni di pagamento"
+        placeholder="Seleziona…"
+        [fullWidth]="true"
+        [includeEmptyOption]="true"
+        (valueChange)="onPaymentTermsSelect($event)"
+      />
+    </div>
+    <div class="customer-fields__field">
+      <label class="customer-fields__label" [for]="idPrefix() + '-transport'"
+        >Incaricato trasporto</label
+      >
       <input
-        [id]="idPrefix() + '-payment'"
+        [id]="idPrefix() + '-transport'"
         class="customer-fields__control"
         type="text"
-        formControlName="paymentTerms"
-        placeholder="es. 30 gg fine mese"
+        formControlName="transportResponsible"
+        placeholder="Es. Vettore, Mittente"
         autocomplete="off"
       />
+    </div>
+    <div class="customer-fields__field customer-fields__field--full">
+      <label class="customer-fields__label" [for]="idPrefix() + '-doc-alert'"
+        >Mostra avviso alla creazione documento</label
+      >
+      <textarea
+        [id]="idPrefix() + '-doc-alert'"
+        class="customer-fields__control customer-fields__textarea"
+        rows="2"
+        formControlName="documentCreationAlert"
+        placeholder="Es. Verificare il fido prima di confermare"
+      ></textarea>
+    </div>
+    <div class="customer-fields__field customer-fields__field--full">
+      <label class="customer-fields__label" [for]="idPrefix() + '-doc-note'"
+        >Inserisci nota nei documenti</label
+      >
+      <textarea
+        [id]="idPrefix() + '-doc-note'"
+        class="customer-fields__control customer-fields__textarea"
+        rows="2"
+        formControlName="documentCreationNote"
+        placeholder="Testo aggiunto automaticamente alle note del documento"
+      ></textarea>
     </div>
     <div class="customer-fields__field customer-fields__field--full">
       <label class="customer-fields__label" [for]="idPrefix() + '-commercial-notes'"
@@ -191,8 +295,9 @@
         <span>È anche fornitore</span>
       </label>
       <p class="customer-fields__hint">
-        Se attivo, il cliente comparirà anche nell'elenco fornitori e potrà essere selezionato in
-        arrivo merce e altri documenti fornitore.
+        Aggiunge il ruolo fornitore allo stesso soggetto, senza duplicare l'anagrafica: i dati
+        comuni restano condivisi. Togliendo la spunta il ruolo viene disattivato per i nuovi
+        utilizzi, ma documenti e storico restano intatti.
       </p>
     </div>
   </div>

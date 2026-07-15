@@ -76,7 +76,7 @@ function createPrismaMock() {
       findFirst: vi.fn().mockResolvedValue(null),
       updateMany: vi.fn(),
     },
-    supplier: { findFirst: vi.fn().mockResolvedValue({ id: 'sup-1', name: 'Fornitore A' }) },
+    supplier: { findFirst: vi.fn().mockResolvedValue({ id: 'sup-1', party: { companyName: 'Fornitore A', firstName: null, lastName: null, contactName: null, email: null } }) },
     location: {
       findFirst: vi.fn().mockImplementation(({ where }: { where: { id: string } }) =>
         Promise.resolve({ id: where.id }),

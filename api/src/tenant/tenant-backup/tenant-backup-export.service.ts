@@ -121,6 +121,10 @@ export class TenantBackupExportService {
       }
       case 'documentSequences':
         return this.prisma.documentSequence.findMany({ where: { tenantId } });
+      case 'paymentOptions':
+        return this.prisma.paymentOption.findMany({ where: { tenantId } });
+      case 'parties':
+        return this.prisma.party.findMany({ where: { tenantId } });
       case 'suppliers':
         return this.prisma.supplier.findMany({ where: { tenantId } });
       case 'customers':

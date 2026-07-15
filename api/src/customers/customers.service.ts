@@ -3,54 +3,93 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma, type Customer } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import type { Paginated } from '../common/dto/pagination.dto';
+import {
+  CUSTOMER_PARTY_INCLUDE,
+  toCustomerView,
+  type CustomerView,
+  type CustomerWithParty,
+} from '../common/party/party-views';
 import { PrismaService } from '../prisma/prisma.service';
 import { nextNumericSupplierCode } from '../supplier-orders/supplier-code.util';
-import {
-  customerNamesFromSupplier,
-  supplierNameFromCustomer,
-} from './customer-supplier-link.util';
 import type { CreateCustomerDto } from './dto/create-customer.dto';
 import type { ListCustomersQueryDto } from './dto/list-customers.query.dto';
 import type { UpdateCustomerDto } from './dto/update-customer.dto';
 
-type CustomerWriteData = {
-  firstName?: string;
-  lastName?: string;
+type PartyWriteData = {
+  companyName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  vatNumber?: string | null;
+  taxCode?: string | null;
   email?: string | null;
+  pec?: string | null;
   phone?: string | null;
-  notes?: string | null;
+  website?: string | null;
+  contactName?: string | null;
   addressLine1?: string | null;
   addressLine2?: string | null;
   city?: string | null;
   province?: string | null;
   postalCode?: string | null;
   countryCode?: string | null;
-  companyName?: string | null;
-  vatNumber?: string | null;
+  notes?: string | null;
+};
+
+type CustomerRoleWriteData = {
+  code?: string | null;
   customerDiscount?: string | null;
+  paymentMethod?: string | null;
   paymentTerms?: string | null;
+  transportResponsible?: string | null;
+  documentCreationAlert?: string | null;
+  documentCreationNote?: string | null;
   commercialNotes?: string | null;
 };
 
+/** Campi del soggetto owned da Shopify per i clienti sincronizzati (read-only). */
+const SHOPIFY_OWNED_PARTY_FIELDS = [
+  'firstName',
+  'lastName',
+  'email',
+  'phone',
+  'notes',
+  'addressLine1',
+  'addressLine2',
+  'city',
+  'province',
+  'postalCode',
+  'countryCode',
+] as const satisfies readonly (keyof PartyWriteData)[];
+
+/**
+ * Anagrafica clienti come RUOLO del soggetto canonico (Party): i dati comuni
+ * vivono una sola volta sul soggetto, qui restano i dati commerciali.
+ * La spunta "È anche fornitore" aggiunge/riattiva il ruolo fornitore sullo
+ * STESSO soggetto senza copiare nulla; la disattivazione esclude il ruolo
+ * dai nuovi utilizzi senza eliminare dati, documenti o storico.
+ */
 @Injectable()
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(tenantId: string, query: ListCustomersQueryDto): Promise<Paginated<Customer>> {
+  async list(tenantId: string, query: ListCustomersQueryDto): Promise<Paginated<CustomerView>> {
+    const search = query.search?.trim();
     const where: Prisma.CustomerWhereInput = {
       tenantId,
-      ...(query.search
+      ...(query.active ? { isActive: true } : {}),
+      ...(search
         ? {
             OR: [
-              { firstName: { contains: query.search, mode: 'insensitive' } },
-              { lastName: { contains: query.search, mode: 'insensitive' } },
-              { email: { contains: query.search, mode: 'insensitive' } },
-              { companyName: { contains: query.search, mode: 'insensitive' as const } },
-              { vatNumber: { contains: query.search, mode: 'insensitive' as const } },
-              { phone: { contains: query.search, mode: 'insensitive' } },
+              { code: { contains: search, mode: 'insensitive' } },
+              { party: { firstName: { contains: search, mode: 'insensitive' } } },
+              { party: { lastName: { contains: search, mode: 'insensitive' } } },
+              { party: { companyName: { contains: search, mode: 'insensitive' } } },
+              { party: { email: { contains: search, mode: 'insensitive' } } },
+              { party: { vatNumber: { contains: search, mode: 'insensitive' } } },
+              { party: { phone: { contains: search, mode: 'insensitive' } } },
             ],
           }
         : {}),
@@ -59,19 +98,151 @@ export class CustomersService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.customer.findMany({
         where,
-        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+        include: CUSTOMER_PARTY_INCLUDE,
+        orderBy: [
+          { party: { lastName: 'asc' } },
+          { party: { firstName: 'asc' } },
+          { party: { companyName: 'asc' } },
+        ],
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),
       this.prisma.customer.count({ where }),
     ]);
 
-    return { items, total, page: query.page, pageSize: query.pageSize };
+    return {
+      items: items.map(toCustomerView),
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
   }
 
-  async getById(tenantId: string, id: string): Promise<Customer> {
+  async getById(tenantId: string, id: string): Promise<CustomerView> {
+    return toCustomerView(await this.getRowById(tenantId, id));
+  }
+
+  async create(tenantId: string, dto: CreateCustomerDto): Promise<CustomerView> {
+    const partyData = this.normalizePartyWrite(dto);
+    const roleData = this.normalizeRoleWrite(dto);
+    this.assertIdentityPresent(partyData);
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      if (roleData.code) {
+        await this.assertCodeAvailable(tx, tenantId, roleData.code);
+      }
+      const code = roleData.code ?? (await this.allocateNextCustomerCode(tx, tenantId));
+
+      const party = await tx.party.create({
+        data: { tenantId, ...partyData },
+        select: { id: true },
+      });
+      const customer = await tx.customer.create({
+        data: { tenantId, partyId: party.id, ...roleData, code },
+        select: { id: true, partyId: true },
+      });
+
+      if (dto.alsoSupplier) {
+        await this.setSupplierRoleTx(tx, tenantId, customer, true);
+      }
+
+      return customer.id;
+    });
+
+    return this.getById(tenantId, created);
+  }
+
+  async update(tenantId: string, id: string, dto: UpdateCustomerDto): Promise<CustomerView> {
+    const existing = await this.getRowById(tenantId, id);
+    const partyData = this.normalizePartyWrite(dto, existing.shopifyCustomerId != null);
+    const roleData = this.normalizeRoleWrite(dto);
+    this.assertIdentityPresent({
+      companyName: existing.party.companyName,
+      firstName: existing.party.firstName,
+      lastName: existing.party.lastName,
+      ...partyData,
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      if (roleData.code !== undefined && roleData.code !== existing.code) {
+        await this.assertCodeAvailable(tx, tenantId, roleData.code, id);
+      }
+
+      await tx.customer.update({ where: { id }, data: roleData });
+      if (Object.keys(partyData).length > 0) {
+        await tx.party.update({ where: { id: existing.partyId }, data: partyData });
+      }
+
+      if (dto.alsoSupplier === true) {
+        await this.setSupplierRoleTx(tx, tenantId, existing, true);
+      } else if (dto.alsoSupplier === false) {
+        await this.setSupplierRoleTx(tx, tenantId, existing, false);
+      }
+    });
+
+    return this.getById(tenantId, id);
+  }
+
+  /** Prossimo codice cliente progressivo (anteprima nel form). */
+  async previewNextCode(tenantId: string): Promise<{ readonly code: string }> {
+    const code = await this.allocateNextCustomerCode(this.prisma, tenantId);
+    return { code };
+  }
+
+  /**
+   * Attiva/disattiva il ruolo CLIENTE del soggetto di un fornitore
+   * (spunta "È anche cliente" nella scheda fornitore). Nessuna copia dati:
+   * il ruolo si aggancia allo stesso soggetto; la disattivazione conserva
+   * la riga (e quindi documenti e storico), escludendola dai nuovi utilizzi.
+   */
+  async setCustomerRoleForSupplier(
+    tenantId: string,
+    supplierId: string,
+    enabled: boolean,
+  ): Promise<CustomerView | null> {
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id: supplierId, tenantId },
+      include: { party: { include: { customerRole: { select: { id: true } } } } },
+    });
+    if (!supplier) {
+      throw new NotFoundException('Fornitore non trovato');
+    }
+
+    const existingRole = supplier.party.customerRole;
+
+    if (!enabled) {
+      if (!existingRole) {
+        return null;
+      }
+      await this.prisma.customer.update({
+        where: { id: existingRole.id },
+        data: { isActive: false },
+      });
+      return this.getById(tenantId, existingRole.id);
+    }
+
+    if (existingRole) {
+      await this.prisma.customer.update({
+        where: { id: existingRole.id },
+        data: { isActive: true },
+      });
+      return this.getById(tenantId, existingRole.id);
+    }
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const code = await this.allocateNextCustomerCode(tx, tenantId);
+      return tx.customer.create({
+        data: { tenantId, partyId: supplier.partyId, code },
+        select: { id: true },
+      });
+    });
+    return this.getById(tenantId, created.id);
+  }
+
+  private async getRowById(tenantId: string, id: string): Promise<CustomerWithParty> {
     const customer = await this.prisma.customer.findFirst({
       where: { id, tenantId },
+      include: CUSTOMER_PARTY_INCLUDE,
     });
     if (!customer) {
       throw new NotFoundException('Cliente non trovato');
@@ -79,180 +250,107 @@ export class CustomersService {
     return customer;
   }
 
-  async create(tenantId: string, dto: CreateCustomerDto): Promise<Customer> {
-    const data = this.normalizeWrite(dto);
-    if (!data.firstName || !data.lastName) {
-      throw new UnprocessableEntityException('Nome e cognome sono obbligatori');
-    }
-    const firstName = data.firstName;
-    const lastName = data.lastName;
-
-    return this.prisma.$transaction(async (tx) => {
-      const customer = await tx.customer.create({
-        data: {
-          tenantId,
-          firstName,
-          lastName,
-          email: data.email ?? null,
-          phone: data.phone ?? null,
-          notes: data.notes ?? null,
-          addressLine1: data.addressLine1 ?? null,
-          addressLine2: data.addressLine2 ?? null,
-          city: data.city ?? null,
-          province: data.province ?? null,
-          postalCode: data.postalCode ?? null,
-          countryCode: data.countryCode ?? null,
-          companyName: data.companyName ?? null,
-          vatNumber: data.vatNumber ?? null,
-          customerDiscount: data.customerDiscount ?? null,
-          paymentTerms: data.paymentTerms ?? null,
-          commercialNotes: data.commercialNotes ?? null,
-        },
-      });
-
-      if (dto.alsoSupplier) {
-        return this.linkSupplierToCustomer(tx, tenantId, customer);
-      }
-
-      return customer;
-    });
-  }
-
-  async update(tenantId: string, id: string, dto: UpdateCustomerDto): Promise<Customer> {
-    const existing = await this.getById(tenantId, id);
-    const data = this.normalizeWrite(dto, existing.shopifyCustomerId != null);
-
-    return this.prisma.$transaction(async (tx) => {
-      const customer = await tx.customer.update({
-        where: { id },
-        data,
-      });
-
-      if (dto.alsoSupplier === true && !customer.linkedSupplierId) {
-        return this.linkSupplierToCustomer(tx, tenantId, customer);
-      }
-
-      if (dto.alsoSupplier === false && customer.linkedSupplierId) {
-        return tx.customer.update({
-          where: { id },
-          data: { linkedSupplierId: null },
-        });
-      }
-
-      return customer;
-    });
-  }
-
-  /** Crea o collega un cliente a un fornitore esistente (ruolo duale da scheda fornitore). */
-  async linkCustomerToSupplier(
+  /**
+   * Attiva/disattiva il ruolo FORNITORE del soggetto del cliente
+   * (spunta "È anche fornitore"). Attivazione senza copia dati; la
+   * disattivazione conserva riga, documenti e collegamenti storici.
+   */
+  private async setSupplierRoleTx(
+    tx: Prisma.TransactionClient,
     tenantId: string,
-    supplierId: string,
+    customer: { readonly partyId: string },
     enabled: boolean,
-  ): Promise<Customer | null> {
-    const supplier = await this.prisma.supplier.findFirst({
-      where: { id: supplierId, tenantId },
-    });
-    if (!supplier) {
-      throw new NotFoundException('Fornitore non trovato');
-    }
-
-    const existingLinked = await this.prisma.customer.findFirst({
-      where: { tenantId, linkedSupplierId: supplierId },
+  ): Promise<void> {
+    const existingRole = await tx.supplier.findUnique({
+      where: { partyId: customer.partyId },
+      select: { id: true, isActive: true },
     });
 
     if (!enabled) {
-      if (!existingLinked) {
-        return null;
+      if (existingRole && existingRole.isActive) {
+        await tx.supplier.update({
+          where: { id: existingRole.id },
+          data: { isActive: false },
+        });
       }
-      return this.prisma.customer.update({
-        where: { id: existingLinked.id },
-        data: { linkedSupplierId: null },
-      });
+      return;
     }
 
-    if (existingLinked) {
-      return existingLinked;
-    }
-
-    const names = customerNamesFromSupplier(supplier);
-
-    return this.prisma.$transaction(async (tx) => {
-      const customer = await tx.customer.create({
-        data: {
-          tenantId,
-          firstName: names.firstName,
-          lastName: names.lastName,
-          email: supplier.email,
-          phone: supplier.phone,
-          companyName: supplier.name,
-          vatNumber: supplier.vatNumber,
-          paymentTerms: supplier.paymentTerms,
-          customerDiscount: supplier.supplierDiscount,
-          addressLine1: supplier.addressLine1,
-          addressLine2: supplier.addressLine2,
-          city: supplier.city,
-          province: supplier.province,
-          postalCode: supplier.postalCode,
-          countryCode: supplier.countryCode,
-          linkedSupplierId: supplierId,
-        },
-      });
-      return customer;
-    });
-  }
-
-  private async linkSupplierToCustomer(
-    tx: Prisma.TransactionClient,
-    tenantId: string,
-    customer: Customer,
-  ): Promise<Customer> {
-    if (customer.linkedSupplierId) {
-      return customer;
+    if (existingRole) {
+      if (!existingRole.isActive) {
+        await tx.supplier.update({
+          where: { id: existingRole.id },
+          data: { isActive: true },
+        });
+      }
+      return;
     }
 
     const code = await this.allocateNextSupplierCode(tx, tenantId);
-    const supplier = await tx.supplier.create({
-      data: {
-        tenantId,
-        code,
-        name: supplierNameFromCustomer(customer),
-        vatNumber: customer.vatNumber,
-        email: customer.email,
-        phone: customer.phone,
-        paymentTerms: customer.paymentTerms,
-        supplierDiscount: customer.customerDiscount,
-        addressLine1: customer.addressLine1,
-        addressLine2: customer.addressLine2,
-        city: customer.city,
-        province: customer.province,
-        postalCode: customer.postalCode,
-        countryCode: customer.countryCode,
-        contactName: `${customer.firstName} ${customer.lastName}`.trim(),
-      },
+    await tx.supplier.create({
+      data: { tenantId, partyId: customer.partyId, code },
     });
+  }
 
-    return tx.customer.update({
-      where: { id: customer.id },
-      data: { linkedSupplierId: supplier.id },
+  private async allocateNextCustomerCode(
+    tx: Prisma.TransactionClient | PrismaService,
+    tenantId: string,
+  ): Promise<string> {
+    const rows = await tx.customer.findMany({
+      where: { tenantId, code: { not: null } },
+      select: { code: true },
     });
+    return nextNumericSupplierCode(rows.map((row) => row.code ?? '').filter(Boolean));
   }
 
   private async allocateNextSupplierCode(
     tx: Prisma.TransactionClient,
     tenantId: string,
   ): Promise<string> {
-    const suppliers = await tx.supplier.findMany({
-      where: { tenantId },
+    const rows = await tx.supplier.findMany({
+      where: { tenantId, code: { not: null } },
       select: { code: true },
     });
-    const codes = suppliers.map((s) => s.code).filter((c): c is string => Boolean(c));
-    return nextNumericSupplierCode(codes);
+    return nextNumericSupplierCode(rows.map((row) => row.code ?? '').filter(Boolean));
   }
 
-  private normalizeWrite(
+  private async assertCodeAvailable(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    code: string | null | undefined,
+    excludeId?: string,
+  ): Promise<void> {
+    if (!code) {
+      return;
+    }
+    const existing = await tx.customer.findFirst({
+      where: {
+        tenantId,
+        code,
+        ...(excludeId ? { NOT: { id: excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new UnprocessableEntityException(`Codice cliente "${code}" già in uso`);
+    }
+  }
+
+  /** Denominazione obbligatoria: ragione sociale oppure nome e cognome. */
+  private assertIdentityPresent(party: PartyWriteData): void {
+    const hasCompany = Boolean(party.companyName?.trim());
+    const hasPerson = Boolean(party.firstName?.trim()) && Boolean(party.lastName?.trim());
+    if (!hasCompany && !hasPerson) {
+      throw new UnprocessableEntityException(
+        'Indica la ragione sociale oppure nome e cognome del cliente',
+      );
+    }
+  }
+
+  private normalizePartyWrite(
     dto: CreateCustomerDto | UpdateCustomerDto,
     shopifyOwned = false,
-  ): CustomerWriteData {
+  ): PartyWriteData {
     const trim = (value: string | undefined): string | null | undefined => {
       if (value === undefined) {
         return undefined;
@@ -261,60 +359,66 @@ export class CustomersService {
       return trimmed.length > 0 ? trimmed : null;
     };
 
-    const result: CustomerWriteData = {};
+    const result: PartyWriteData = {};
+    const assign = (key: keyof PartyWriteData, value: string | undefined): void => {
+      const normalized = trim(value);
+      if (normalized !== undefined) {
+        result[key] = normalized;
+      }
+    };
 
-    if (!shopifyOwned) {
-      if (dto.firstName !== undefined) {
-        result.firstName = dto.firstName.trim();
-      }
-      if (dto.lastName !== undefined) {
-        result.lastName = dto.lastName.trim();
-      }
-      if (dto.email !== undefined) {
-        result.email = trim(dto.email);
-      }
-      if (dto.phone !== undefined) {
-        result.phone = trim(dto.phone);
-      }
-      if (dto.notes !== undefined) {
-        result.notes = trim(dto.notes);
-      }
-      if (dto.addressLine1 !== undefined) {
-        result.addressLine1 = trim(dto.addressLine1);
-      }
-      if (dto.addressLine2 !== undefined) {
-        result.addressLine2 = trim(dto.addressLine2);
-      }
-      if (dto.city !== undefined) {
-        result.city = trim(dto.city);
-      }
-      if (dto.province !== undefined) {
-        result.province = trim(dto.province);
-      }
-      if (dto.postalCode !== undefined) {
-        result.postalCode = trim(dto.postalCode);
-      }
-      if (dto.countryCode !== undefined) {
-        result.countryCode = trim(dto.countryCode);
+    assign('companyName', dto.companyName);
+    assign('firstName', dto.firstName);
+    assign('lastName', dto.lastName);
+    assign('vatNumber', dto.vatNumber);
+    assign('taxCode', dto.taxCode);
+    assign('email', dto.email);
+    assign('pec', dto.pec);
+    assign('phone', dto.phone);
+    assign('website', dto.website);
+    assign('contactName', dto.contactName);
+    assign('addressLine1', dto.addressLine1);
+    assign('addressLine2', dto.addressLine2);
+    assign('city', dto.city);
+    assign('province', dto.province);
+    assign('postalCode', dto.postalCode);
+    assign('countryCode', dto.countryCode);
+    assign('notes', dto.notes);
+
+    if (shopifyOwned) {
+      for (const field of SHOPIFY_OWNED_PARTY_FIELDS) {
+        delete result[field];
       }
     }
 
-    if (dto.companyName !== undefined) {
-      result.companyName = trim(dto.companyName);
-    }
-    if (dto.vatNumber !== undefined) {
-      result.vatNumber = trim(dto.vatNumber);
-    }
-    if (dto.customerDiscount !== undefined) {
-      result.customerDiscount = trim(dto.customerDiscount);
-    }
-    if (dto.paymentTerms !== undefined) {
-      result.paymentTerms = trim(dto.paymentTerms);
-    }
-    if (dto.commercialNotes !== undefined) {
-      result.commercialNotes = trim(dto.commercialNotes);
-    }
+    return result;
+  }
 
+  private normalizeRoleWrite(dto: CreateCustomerDto | UpdateCustomerDto): CustomerRoleWriteData {
+    const trim = (value: string | undefined): string | null | undefined => {
+      if (value === undefined) {
+        return undefined;
+      }
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    };
+
+    const result: CustomerRoleWriteData = {};
+    const assign = (key: keyof CustomerRoleWriteData, value: string | undefined): void => {
+      const normalized = trim(value);
+      if (normalized !== undefined) {
+        result[key] = normalized;
+      }
+    };
+
+    assign('code', dto.code);
+    assign('customerDiscount', dto.customerDiscount);
+    assign('paymentMethod', dto.paymentMethod);
+    assign('paymentTerms', dto.paymentTerms);
+    assign('transportResponsible', dto.transportResponsible);
+    assign('documentCreationAlert', dto.documentCreationAlert);
+    assign('documentCreationNote', dto.documentCreationNote);
+    assign('commercialNotes', dto.commercialNotes);
     return result;
   }
 }

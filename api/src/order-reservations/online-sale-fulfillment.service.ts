@@ -9,6 +9,7 @@ import {
   StockMovementType,
   CorrispettivoStatus,
   type Customer,
+  type Party,
   type SalesOrder,
   type SalesOrderLine,
   type StockReservation,
@@ -31,7 +32,7 @@ export type OnlineSaleCreationOutcome = 'created' | 'already_exists' | 'order_no
 
 type OrderWithContext = SalesOrder & {
   lines: SalesOrderLine[];
-  customer: Customer | null;
+  customer: (Customer & { party: Party }) | null;
   reservations: StockReservation[];
 };
 
@@ -86,7 +87,7 @@ export class OnlineSaleFulfillmentService {
   ): Promise<OnlineSaleCreationOutcome> {
     const order = (await tx.salesOrder.findFirst({
       where: { id: event.salesOrderId, tenantId: event.tenantId },
-      include: { lines: true, customer: true, reservations: true },
+      include: { lines: true, customer: { include: { party: true } }, reservations: true },
     })) as OrderWithContext | null;
     if (!order) {
       return 'order_not_found';
@@ -606,17 +607,17 @@ export class OnlineSaleFulfillmentService {
     }
   }
 
-  private formatCustomerAddress(customer: Customer | null): string | null {
+  private formatCustomerAddress(customer: (Customer & { party: Party }) | null): string | null {
     if (!customer) {
       return null;
     }
     const parts = [
-      customer.addressLine1,
-      customer.addressLine2,
-      [customer.postalCode, customer.city, customer.province]
+      customer.party.addressLine1,
+      customer.party.addressLine2,
+      [customer.party.postalCode, customer.party.city, customer.party.province]
         .filter((value) => value && value.trim() !== '')
         .join(' '),
-      customer.countryCode,
+      customer.party.countryCode,
     ].filter((value) => value && value.trim() !== '');
     return parts.length > 0 ? parts.join(', ') : null;
   }

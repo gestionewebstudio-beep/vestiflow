@@ -47,7 +47,7 @@ export class SalesOrdersExportService {
   async exportCsv(tenantId: string, query: ExportSalesOrdersQueryDto): Promise<string> {
     const orders = await this.prisma.salesOrder.findMany({
       where: this.buildWhere(tenantId, query),
-      include: { customer: { select: { email: true } } },
+      include: { customer: { select: { party: { select: { email: true } } } } },
       orderBy: { placedAt: 'desc' },
     });
 
@@ -55,7 +55,7 @@ export class SalesOrdersExportService {
       'Numero ordine': order.orderNumber,
       Data: ROME_DATETIME_FORMAT.format(order.placedAt),
       Cliente: order.customerName,
-      'Email cliente': order.customer?.email ?? '',
+      'Email cliente': order.customer?.party.email ?? '',
       Canale: sourceDisplayLabel(order.source),
       Pagamento: financialStatusDisplayLabel(order.financialStatus),
       Evasione: fulfillmentStatusDisplayLabel(order.fulfillmentStatus),

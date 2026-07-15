@@ -154,16 +154,32 @@
         autocomplete="country"
       />
     </div>
-    <div class="supplier-fields__field supplier-fields__field--full">
+    <div class="supplier-fields__field">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-payment-method'"
+        >Modalità di pagamento</label
+      >
+      <app-select-menu
+        [options]="paymentMethodOptions()"
+        [value]="formGroup().controls.paymentMethod.value"
+        ariaLabel="Modalità di pagamento"
+        placeholder="Seleziona…"
+        [fullWidth]="true"
+        [includeEmptyOption]="true"
+        (valueChange)="onPaymentMethodSelect($event)"
+      />
+    </div>
+    <div class="supplier-fields__field">
       <label class="supplier-fields__label" [for]="idPrefix() + '-payment'"
         >Condizioni di pagamento</label
       >
-      <input
-        [id]="idPrefix() + '-payment'"
-        class="supplier-fields__control"
-        type="text"
-        formControlName="paymentTerms"
-        autocomplete="off"
+      <app-select-menu
+        [options]="paymentTermsOptions()"
+        [value]="formGroup().controls.paymentTerms.value"
+        ariaLabel="Condizioni di pagamento"
+        placeholder="Seleziona…"
+        [fullWidth]="true"
+        [includeEmptyOption]="true"
+        (valueChange)="onPaymentTermsSelect($event)"
       />
     </div>
     <div class="supplier-fields__field supplier-fields__field--full">
@@ -221,15 +237,27 @@
       />
     </div>
     <div class="supplier-fields__field supplier-fields__field--full">
+      <label class="supplier-fields__label" [for]="idPrefix() + '-doc-alert'"
+        >Mostra avviso alla creazione documento</label
+      >
+      <textarea
+        [id]="idPrefix() + '-doc-alert'"
+        class="supplier-fields__control supplier-fields__textarea"
+        rows="2"
+        formControlName="documentCreationAlert"
+        placeholder="Es. Controllare sempre la data di consegna prevista"
+      ></textarea>
+    </div>
+    <div class="supplier-fields__field supplier-fields__field--full">
       <label class="supplier-fields__label" [for]="idPrefix() + '-doc-note'"
-        >Nota alla creazione documento</label
+        >Inserisci nota nei documenti</label
       >
       <textarea
         [id]="idPrefix() + '-doc-note'"
         class="supplier-fields__control supplier-fields__textarea"
         rows="2"
         formControlName="documentCreationNote"
-        placeholder="Es. Controllare sempre la data di consegna prevista"
+        placeholder="Testo aggiunto automaticamente alle note del documento"
       ></textarea>
     </div>
     <div class="supplier-fields__field supplier-fields__field--full">
@@ -247,8 +275,9 @@
         <span>È anche cliente</span>
       </label>
       <p class="supplier-fields__hint">
-        Se attivo, il fornitore comparirà anche nell'elenco clienti e potrà essere selezionato nei
-        documenti di vendita.
+        Aggiunge il ruolo cliente allo stesso soggetto, senza duplicare l'anagrafica: i dati comuni
+        restano condivisi. Togliendo la spunta il ruolo viene disattivato per i nuovi utilizzi, ma
+        documenti e storico restano intatti.
       </p>
     </div>
   </div>
