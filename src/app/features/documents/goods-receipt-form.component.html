@@ -106,52 +106,23 @@
         </p>
       }
 
-      @if (isConfirmedEdit()) {
+      <!-- Niente azioni di ciclo vita fiscale (Segna stampato/inviato, Registra
+           esternamente): l'arrivo merce è un documento operativo interno e la
+           copertura contabile è tracciata dal collegamento fattura (lista). -->
+      @if (isConfirmedEdit() && canExportPdf()) {
         <div class="gr-form__post-actions" aria-label="Azioni documento confermato">
-          @if (canExportPdf()) {
-            <app-button type="button" variant="secondary" (click)="openPrintPreview()">
-              Anteprima stampa
-            </app-button>
-            <app-button
-              type="button"
-              variant="secondary"
-              [loading]="downloadingPdf()"
-              [disabled]="downloadingPdf()"
-              (click)="downloadDocumentPdf()"
-            >
-              Scarica PDF
-            </app-button>
-          }
-          @if (canPrintDocument()) {
-            <app-button
-              type="button"
-              variant="secondary"
-              [disabled]="lifecycleActionSaving()"
-              (click)="printDocumentLifecycle()"
-            >
-              Segna stampato
-            </app-button>
-          }
-          @if (canSendDocument()) {
-            <app-button
-              type="button"
-              variant="secondary"
-              [disabled]="lifecycleActionSaving()"
-              (click)="sendDocumentLifecycle()"
-            >
-              Segna inviato
-            </app-button>
-          }
-          @if (canRegisterExternalDocument()) {
-            <app-button
-              type="button"
-              variant="ghost"
-              [disabled]="lifecycleActionSaving()"
-              (click)="registerDialogOpen.set(true)"
-            >
-              Registra esternamente
-            </app-button>
-          }
+          <app-button type="button" variant="secondary" (click)="openPrintPreview()">
+            Anteprima stampa
+          </app-button>
+          <app-button
+            type="button"
+            variant="secondary"
+            [loading]="downloadingPdf()"
+            [disabled]="downloadingPdf()"
+            (click)="downloadDocumentPdf()"
+          >
+            Scarica PDF
+          </app-button>
         </div>
       }
 
@@ -1635,15 +1606,6 @@
   confirmLabel="Elimina documento"
   [busy]="saving()"
   (confirmed)="confirmDeleteDocument()"
-/>
-
-<app-confirm-dialog
-  [(open)]="registerDialogOpen"
-  title="Registra esternamente"
-  message="Confermi la registrazione contabile esterna di questo documento?"
-  confirmLabel="Registra"
-  [busy]="lifecycleActionSaving()"
-  (confirmed)="registerDocumentExternal()"
 />
 
 <app-confirm-dialog

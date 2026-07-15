@@ -328,8 +328,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly productPanelMode = signal<'create' | 'edit'>('create');
   protected readonly productPanelEditProductId = signal<string | null>(null);
   protected readonly attachTargetLineIndex = signal<number | null>(null);
-  protected readonly registerDialogOpen = signal(false);
-  protected readonly lifecycleActionSaving = signal(false);
   protected readonly downloadingPdf = signal(false);
   private readonly supplierSkuByVariantId = signal<Map<string, string>>(new Map());
   private readonly variantIdBySupplierSku = signal<Map<string, string>>(new Map());
@@ -450,38 +448,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return 'Documento registrato esternamente: le modifiche non aggiornano il gestionale contabile esterno.';
     }
     return null;
-  });
-
-  protected readonly canPrintDocument = computed(() => {
-    const doc = this.loadedDocument();
-    if (!doc) {
-      return false;
-    }
-    return (
-      doc.status === DocumentStatus.Confirmed ||
-      doc.status === DocumentStatus.Sent ||
-      doc.status === DocumentStatus.ExternallyRegistered
-    );
-  });
-
-  protected readonly canSendDocument = computed(() => {
-    const doc = this.loadedDocument();
-    if (!doc) {
-      return false;
-    }
-    return doc.status === DocumentStatus.Confirmed || doc.status === DocumentStatus.Printed;
-  });
-
-  protected readonly canRegisterExternalDocument = computed(() => {
-    const doc = this.loadedDocument();
-    if (!doc) {
-      return false;
-    }
-    return (
-      doc.status === DocumentStatus.Confirmed ||
-      doc.status === DocumentStatus.Printed ||
-      doc.status === DocumentStatus.Sent
-    );
   });
 
   protected readonly formReadOnly = computed(() => this.isConfirmedEdit() && !this.editUnlocked());
@@ -3721,24 +3687,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.attachTargetLineIndex.set(null);
   }
 
-  protected printDocumentLifecycle(): void {
-    const id = this.editDocumentId();
-    if (!id || this.lifecycleActionSaving()) {
-      return;
-    }
-    this.lifecycleActionSaving.set(true);
-    this.documentService
-      .markPrinted(id)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.lifecycleActionSaving.set(false);
-          this.reload();
-        },
-        error: () => this.lifecycleActionSaving.set(false),
-      });
-  }
-
   protected openPrintPreview(): void {
     const id = this.persistedDocumentId();
     if (!id) {
@@ -3778,43 +3726,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     anchor.download = filename.replace(/[^\w\s.-]/g, '-');
     anchor.click();
     URL.revokeObjectURL(url);
-  }
-
-  protected sendDocumentLifecycle(): void {
-    const id = this.editDocumentId();
-    if (!id || this.lifecycleActionSaving()) {
-      return;
-    }
-    this.lifecycleActionSaving.set(true);
-    this.documentService
-      .markSent(id)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.lifecycleActionSaving.set(false);
-          this.reload();
-        },
-        error: () => this.lifecycleActionSaving.set(false),
-      });
-  }
-
-  protected registerDocumentExternal(): void {
-    const id = this.editDocumentId();
-    if (!id || this.lifecycleActionSaving()) {
-      return;
-    }
-    this.lifecycleActionSaving.set(true);
-    this.documentService
-      .registerExternal(id, {})
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.lifecycleActionSaving.set(false);
-          this.registerDialogOpen.set(false);
-          this.reload();
-        },
-        error: () => this.lifecycleActionSaving.set(false),
-      });
   }
 
   protected cancel(): void {
