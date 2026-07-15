@@ -95,7 +95,7 @@
           <button
             type="button"
             class="select-menu__option-btn"
-            [class.select-menu__option-btn--detailed]="option.detail"
+            [class.select-menu__option-btn--detailed]="option.detail && !inlineDetail()"
             role="option"
             [attr.aria-selected]="isSelected(option)"
             [attr.aria-label]="optionAriaLabel(option)"
@@ -114,7 +114,10 @@
                 aria-hidden="true"
               ></span>
             }
-            <span class="select-menu__option-copy">
+            <span
+              class="select-menu__option-copy"
+              [class.select-menu__option-copy--inline]="inlineDetail()"
+            >
               <span class="select-menu__option-label">{{ option.label }}</span>
               @if (option.detail) {
                 <span class="select-menu__option-detail tabular-nums">{{ option.detail }}</span>

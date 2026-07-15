@@ -82,7 +82,10 @@ describe('GoodsReceiptFormComponent', () => {
           },
         },
         { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
-        { provide: SupplierService, useValue: { getSuppliers: () => of([]) } },
+        {
+          provide: SupplierService,
+          useValue: { getSuppliers: () => of([]), getVariantLinksBySupplier: () => of([]) },
+        },
         { provide: SupplierOrderService, useValue: {} },
         { provide: ProductLabelPrintService, useValue: {} },
         {
@@ -171,11 +174,33 @@ describe('GoodsReceiptFormComponent', () => {
     expect(body.lines?.[0]?.loadsStock).toBe(true);
   });
 
+  // Gate compilazione: fornitore + magazzino vanno scelti PRIMA delle righe,
+  // altrimenti si inserirebbero articoli in un documento "nullo".
+  it('blocca le righe finché fornitore e magazzino non sono selezionati', async () => {
+    const { fixture } = await setup();
+
+    const input = screen.getAllByLabelText('Nome prodotto')[0]!;
+    expect(input.closest('fieldset[disabled]')).not.toBeNull();
+    expect(screen.getByText(/Seleziona fornitore e magazzino/i)).toBeVisible();
+
+    fixture.componentInstance.form.controls.supplierId.setValue('sup-1');
+    fixture.componentInstance.form.controls.locationId.setValue('loc-1');
+    fixture.detectChanges();
+
+    expect(input.closest('fieldset[disabled]')).toBeNull();
+    expect(screen.queryByText(/Seleziona fornitore e magazzino/i)).toBeNull();
+  });
+
   // Dropdown essenziale: solo i suggerimenti dal catalogo (o il messaggio
   // vuoto) — nessuna azione "Crea", nessuna scheda completa, nessun badge.
   it('dropdown senza risultati: solo il messaggio, nessuna azione extra', async () => {
     const user = userEvent.setup();
-    await setup();
+    const { fixture } = await setup();
+
+    // Gate compilazione: fornitore + magazzino sbloccano le righe.
+    fixture.componentInstance.form.controls.supplierId.setValue('sup-1');
+    fixture.componentInstance.form.controls.locationId.setValue('loc-1');
+    fixture.detectChanges();
 
     const input = screen.getAllByLabelText('Nome prodotto')[0];
     await user.type(input!, 'maglia');

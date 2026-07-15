@@ -307,6 +307,26 @@
   word-break: break-all;
 }
 
+// Detail inline (opzioni compatte, es. IVA): label + detail su UNA riga;
+// il pannello (`max-content`) si dimensiona sul testo intero.
+.select-menu__option-copy--inline {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.select-menu__option-copy--inline .select-menu__option-label {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.select-menu__option-copy--inline .select-menu__option-detail {
+  white-space: nowrap;
+  word-break: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .select-menu__swatch {
   inline-size: var(--space-4);
   block-size: var(--space-4);

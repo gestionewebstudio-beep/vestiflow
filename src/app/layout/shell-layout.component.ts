@@ -15,7 +15,6 @@ import { catchError, filter, merge, of, switchMap, type Subscription } from 'rxj
 import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
-import { ThemeService } from '@core/services/theme.service';
 import {
   isPlatformOperator,
   hasActiveSupportSession,
@@ -36,7 +35,6 @@ import { AppTopbarComponent } from '@shared/components/app-topbar/app-topbar.com
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PwaUpdateBannerComponent } from '@shared/components/pwa-update-banner/pwa-update-banner.component';
 import type { NavItem, NavSection } from '@shared/models/nav-item.model';
-import type { ThemeMode } from '@shared/models/theme.model';
 
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
@@ -84,7 +82,6 @@ import {
 export class ShellLayoutComponent {
   private readonly document = inject(DOCUMENT);
   private readonly router = inject(Router);
-  private readonly themeService = inject(ThemeService);
   private readonly authService = inject(AuthService);
   private readonly locationContext = inject(LocationContextService);
   private readonly operationalLocations = inject(OperationalLocationsService);
@@ -94,7 +91,6 @@ export class ShellLayoutComponent {
   private readonly supportSessions = inject(SupportSessionService);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly themeMode = this.themeService.mode;
   readonly currentUser = this.authService.currentUser;
   readonly activeLocationId = this.locationContext.activeLocationId;
 
@@ -536,10 +532,6 @@ export class ShellLayoutComponent {
 
   closeDrawer(): void {
     this._drawerOpen.set(false);
-  }
-
-  onThemeModeChange(mode: ThemeMode): void {
-    this.themeService.setMode(mode);
   }
 
   onLocationChange(locationId: EntityId | null): void {

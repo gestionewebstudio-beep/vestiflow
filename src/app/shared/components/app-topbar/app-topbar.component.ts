@@ -10,13 +10,6 @@ import type { User } from '@core/models/user.model';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { UserAvatarComponent } from '@shared/components/user-avatar/user-avatar.component';
-import type { ThemeMode } from '@shared/models/theme.model';
-
-interface ThemeOption {
-  readonly mode: ThemeMode;
-  readonly icon: string;
-  readonly label: string;
-}
 
 const SYNC_LABELS: Record<ShopifyConnectionStatus, string> = {
   [ShopifyConnectionStatus.NotConnected]: 'Shopify non connesso',
@@ -37,8 +30,6 @@ const SYNC_LABELS: Record<ShopifyConnectionStatus, string> = {
   styleUrl: './app-topbar.component.scss',
 })
 export class AppTopbarComponent {
-  /** Modalita' tema corrente (riflette fedelmente il ThemeService). */
-  readonly themeMode = input.required<ThemeMode>();
   /** Utente autenticato corrente (solo per la resa di nome/iniziali). */
   readonly user = input<User | null>(null);
   /** Location selezionabili (vuoto = selettore nascosto). */
@@ -62,8 +53,6 @@ export class AppTopbarComponent {
   readonly menuToggle = output<void>();
   /** Click sulla ricerca globale ⌘K (placeholder: nessun handler in prima battuta). */
   readonly searchClick = output<void>();
-  /** Richiesta di cambio modalita' tema. */
-  readonly themeModeChange = output<ThemeMode>();
   /** Richiesta di cambio location attiva (null = tutte). */
   readonly locationChange = output<EntityId | null>();
   /** Click sull'indicatore sync (lo shell naviga alle impostazioni). */
@@ -72,12 +61,6 @@ export class AppTopbarComponent {
   readonly settingsClick = output<void>();
   /** Richiesta di logout (lo shell parla all'AuthService). */
   readonly logout = output<void>();
-
-  protected readonly themeOptions: readonly ThemeOption[] = [
-    { mode: 'light', icon: 'pi-sun', label: 'Tema chiaro' },
-    { mode: 'dark', icon: 'pi-moon', label: 'Tema scuro' },
-    { mode: 'system', icon: 'pi-desktop', label: 'Tema di sistema' },
-  ];
 
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
     this.locations().map((location) => ({

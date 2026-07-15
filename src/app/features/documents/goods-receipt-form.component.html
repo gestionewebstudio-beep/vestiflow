@@ -258,51 +258,56 @@
               }
             </div>
 
-            <div class="gr-form__field gr-form__field--end-xl">
-              <span class="gr-form__label">Documento fornitore</span>
-              <app-select-menu
-                [options]="externalDocTypeOptions()"
-                [value]="form.controls.externalDocumentTypeId.value"
-                ariaLabel="Tipo documento fornitore"
-                placeholder="DDT, Fattura…"
-                [compact]="true"
-                [fullWidth]="true"
-                (valueChange)="onExternalDocTypeSelect($event)"
-              />
-            </div>
+            <!-- Gate compilazione: i dati del documento fornitore si sbloccano
+                 solo dopo fornitore + magazzino (display: contents per non
+                 rompere la griglia della testata). -->
+            <fieldset class="gr-form__gate-fields" [disabled]="headerGateActive()">
+              <div class="gr-form__field gr-form__field--end-xl">
+                <span class="gr-form__label">Documento fornitore</span>
+                <app-select-menu
+                  [options]="externalDocTypeOptions()"
+                  [value]="form.controls.externalDocumentTypeId.value"
+                  ariaLabel="Tipo documento fornitore"
+                  placeholder="DDT, Fattura…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="onExternalDocTypeSelect($event)"
+                />
+              </div>
 
-            <div class="gr-form__field">
-              <label class="gr-form__label" for="gr-ext-num">N. documento fornitore</label>
-              <input
-                id="gr-ext-num"
-                class="gr-form__input"
-                type="text"
-                formControlName="externalDocNumber"
-                placeholder="Es. 145"
-              />
-            </div>
+              <div class="gr-form__field">
+                <label class="gr-form__label" for="gr-ext-num">N. documento fornitore</label>
+                <input
+                  id="gr-ext-num"
+                  class="gr-form__input"
+                  type="text"
+                  formControlName="externalDocNumber"
+                  placeholder="Es. 145"
+                />
+              </div>
 
-            <div class="gr-form__field gr-form__field--end-md">
-              <label class="gr-form__label" for="gr-ext-date">Data doc. fornitore</label>
-              <app-date-input
-                inputId="gr-ext-date"
-                formControlName="externalDocDate"
-                ariaLabel="Data documento fornitore"
-                placeholder="Opzionale"
-                [compact]="true"
-                [fullWidth]="true"
-              />
-            </div>
+              <div class="gr-form__field gr-form__field--end-md">
+                <label class="gr-form__label" for="gr-ext-date">Data doc. fornitore</label>
+                <app-date-input
+                  inputId="gr-ext-date"
+                  formControlName="externalDocDate"
+                  ariaLabel="Data documento fornitore"
+                  placeholder="Opzionale"
+                  [compact]="true"
+                  [fullWidth]="true"
+                />
+              </div>
 
-            <!-- Punto E: la Causale di carico non è più esposta nel form.
-                 Viene generata sempre in automatico e in silenzio dal modello
-                 del tipo documento fornitore (tipo + numero + data). -->
-            <div class="gr-form__field gr-form__field--fill gr-form__field--end-xl">
-              <label class="gr-form__check gr-form__check--block" for="gr-invoice-pending">
-                <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
-                <span>Seguirà fattura</span>
-              </label>
-            </div>
+              <!-- Punto E: la Causale di carico non è più esposta nel form.
+                   Viene generata sempre in automatico e in silenzio dal modello
+                   del tipo documento fornitore (tipo + numero + data). -->
+              <div class="gr-form__field gr-form__field--fill gr-form__field--end-xl">
+                <label class="gr-form__check gr-form__check--block" for="gr-invoice-pending">
+                  <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
+                  <span>Seguirà fattura</span>
+                </label>
+              </div>
+            </fieldset>
           </div>
         </div>
 
@@ -328,485 +333,234 @@
           </div>
         }
 
-        <section class="gr-form__lines" aria-labelledby="gr-lines-title">
-          <div class="gr-form__lines-head">
-            <div class="gr-form__lines-heading">
-              <h2 id="gr-lines-title" class="gr-form__subtitle">Righe documento</h2>
-              <span class="gr-form__lines-count tabular-nums">
-                {{ validLinesCount() }} valide · {{ totalPiecesCount() }} pezzi
-              </span>
-            </div>
-            <div class="gr-form__scan-inline" role="region" aria-label="Lettura codici a barre">
-              <label
-                class="gr-form__scan-label"
-                for="gr-barcode-scan"
-                title="Scansione codice a barre"
-              >
-                <i class="pi pi-barcode" aria-hidden="true"></i>
-                <span class="sr-only">Scansione codice a barre</span>
-              </label>
-              <input
-                #barcodeScanInput
-                id="gr-barcode-scan"
-                class="gr-form__input gr-form__scan-input"
-                type="text"
-                [value]="barcodeScanDraft()"
-                [disabled]="formReadOnly() || barcodeScanBusy()"
-                autocomplete="off"
-                placeholder="Scansiona EAN, digita SKU o cerca…"
-                aria-describedby="gr-barcode-scan-hint"
-                (input)="onBarcodeScanInput($any($event.target).value)"
-                (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
-              />
-              <p id="gr-barcode-scan-hint" class="gr-form__scan-hint">
-                <kbd>148*</kbd> + codice = quantità
-              </p>
-            </div>
-            <div class="gr-form__lines-tools">
-              <app-table-column-picker [viewId]="lineColumnsView" />
-              @if (canIncludeSupplierOrder()) {
-                <app-button type="button" variant="secondary" (click)="openIncludeOrderPanel()">
-                  <i class="pi pi-link" aria-hidden="true"></i>
-                  Includi ordine
+        @if (headerGateActive()) {
+          <p class="gr-form__gate-banner" role="status">
+            <i class="pi pi-lock" aria-hidden="true"></i>
+            {{ headerGateMessage() }}
+          </p>
+        }
+
+        <fieldset class="gr-form__gate-fields" [disabled]="headerGateActive()">
+          <section class="gr-form__lines" aria-labelledby="gr-lines-title">
+            <div class="gr-form__lines-head">
+              <div class="gr-form__lines-heading">
+                <h2 id="gr-lines-title" class="gr-form__subtitle">Righe documento</h2>
+                <span class="gr-form__lines-count tabular-nums">
+                  {{ validLinesCount() }} valide · {{ totalPiecesCount() }} pezzi
+                </span>
+              </div>
+              <div class="gr-form__scan-inline" role="region" aria-label="Lettura codici a barre">
+                <label
+                  class="gr-form__scan-label"
+                  for="gr-barcode-scan"
+                  title="Scansione codice a barre"
+                >
+                  <i class="pi pi-barcode" aria-hidden="true"></i>
+                  <span class="sr-only">Scansione codice a barre</span>
+                </label>
+                <input
+                  #barcodeScanInput
+                  id="gr-barcode-scan"
+                  class="gr-form__input gr-form__scan-input"
+                  type="text"
+                  [value]="barcodeScanDraft()"
+                  [disabled]="formReadOnly() || barcodeScanBusy()"
+                  autocomplete="off"
+                  placeholder="Scansiona EAN, digita SKU o cerca…"
+                  aria-describedby="gr-barcode-scan-hint"
+                  (input)="onBarcodeScanInput($any($event.target).value)"
+                  (keydown.enter)="commitBarcodeScan(); $event.preventDefault()"
+                />
+                <p id="gr-barcode-scan-hint" class="gr-form__scan-hint">
+                  <kbd>148*</kbd> + codice = quantità
+                </p>
+              </div>
+              <div class="gr-form__lines-tools">
+                <app-table-column-picker [viewId]="lineColumnsView" />
+                @if (canIncludeSupplierOrder()) {
+                  <app-button type="button" variant="secondary" (click)="openIncludeOrderPanel()">
+                    <i class="pi pi-link" aria-hidden="true"></i>
+                    Includi ordine
+                  </app-button>
+                }
+                <app-button
+                  type="button"
+                  [variant]="barcodeScanMode() ? 'primary' : 'secondary'"
+                  [disabled]="formReadOnly()"
+                  (click)="toggleBarcodeScanMode()"
+                >
+                  <i class="pi pi-barcode" aria-hidden="true"></i>
+                  Cod. a barre
                 </app-button>
-              }
-              <app-button
-                type="button"
-                [variant]="barcodeScanMode() ? 'primary' : 'secondary'"
-                [disabled]="formReadOnly()"
-                (click)="toggleBarcodeScanMode()"
-              >
-                <i class="pi pi-barcode" aria-hidden="true"></i>
-                Cod. a barre
-              </app-button>
-              <app-button
-                type="button"
-                variant="secondary"
-                [disabled]="formReadOnly()"
-                (click)="triggerCsvImport(csvFileInput)"
-              >
-                <i class="pi pi-upload" aria-hidden="true"></i>
-                Importa CSV
-              </app-button>
-              <input
-                #csvFileInput
-                class="sr-only"
-                type="file"
-                accept=".csv,text/csv"
-                (change)="onCsvFileSelected($event)"
-              />
-              <app-button type="button" variant="secondary" (click)="openNewProduct()">
-                <i class="pi pi-box" aria-hidden="true"></i>
-                Nuovo prodotto
-              </app-button>
-              <app-button type="button" [disabled]="formReadOnly()" (click)="addLine()">
-                <i class="pi pi-plus" aria-hidden="true"></i>
-                Aggiungi riga
-              </app-button>
+                <app-button
+                  type="button"
+                  variant="secondary"
+                  [disabled]="formReadOnly()"
+                  (click)="triggerCsvImport(csvFileInput)"
+                >
+                  <i class="pi pi-upload" aria-hidden="true"></i>
+                  Importa CSV
+                </app-button>
+                <input
+                  #csvFileInput
+                  class="sr-only"
+                  type="file"
+                  accept=".csv,text/csv"
+                  (change)="onCsvFileSelected($event)"
+                />
+                <app-button type="button" variant="secondary" (click)="openNewProduct()">
+                  <i class="pi pi-box" aria-hidden="true"></i>
+                  Nuovo prodotto
+                </app-button>
+                <app-button type="button" [disabled]="formReadOnly()" (click)="addLine()">
+                  <i class="pi pi-plus" aria-hidden="true"></i>
+                  Aggiungi riga
+                </app-button>
+              </div>
             </div>
-          </div>
 
-          @if (csvImportSummary(); as summary) {
-            <p class="gr-form__import-summary" role="status">{{ summary }}</p>
-          }
+            @if (csvImportSummary(); as summary) {
+              <p class="gr-form__import-summary" role="status">{{ summary }}</p>
+            }
 
-          <div class="gr-form__table-wrap">
-            <table class="gr-form__table">
-              <colgroup>
-                <col class="gr-form__col--index" />
-                @if (isLineColumnVisible('sku')) {
-                  <col [style.width]="lineColumnWidth('sku')" />
-                }
-                @if (isLineColumnVisible('barcode')) {
-                  <col [style.width]="lineColumnWidth('barcode')" />
-                }
-                @if (isLineColumnVisible('supplierCode')) {
-                  <col [style.width]="lineColumnWidth('supplierCode')" />
-                }
-                @if (isLineColumnVisible('product')) {
-                  <col [style.width]="lineColumnWidth('product')" />
-                }
-                @if (isLineColumnVisible('description')) {
-                  <col [style.width]="lineColumnWidth('description')" />
-                }
-                @if (isLineColumnVisible('poOrdered') && hasLinkedSupplierOrder()) {
-                  <col [style.width]="lineColumnWidth('poOrdered')" />
-                }
-                @if (isLineColumnVisible('poReceived') && hasLinkedSupplierOrder()) {
-                  <col [style.width]="lineColumnWidth('poReceived')" />
-                }
-                @if (isLineColumnVisible('poRemaining') && hasLinkedSupplierOrder()) {
-                  <col [style.width]="lineColumnWidth('poRemaining')" />
-                }
-                @if (isLineColumnVisible('quantity')) {
-                  <col [style.width]="lineColumnWidth('quantity')" />
-                }
-                @if (isLineColumnVisible('stockAvailable')) {
-                  <col [style.width]="lineColumnWidth('stockAvailable')" />
-                }
-                @if (isLineColumnVisible('unitOfMeasure')) {
-                  <col [style.width]="lineColumnWidth('unitOfMeasure')" />
-                }
-                @if (isLineColumnVisible('unitCost')) {
-                  <col [style.width]="lineColumnWidth('unitCost')" />
-                }
-                @if (isLineColumnVisible('discount')) {
-                  <col [style.width]="lineColumnWidth('discount')" />
-                }
-                @if (isLineColumnVisible('sellingPrice')) {
-                  <col [style.width]="lineColumnWidth('sellingPrice')" />
-                }
-                @if (isLineColumnVisible('compareAtPrice')) {
-                  <col [style.width]="lineColumnWidth('compareAtPrice')" />
-                }
-                @if (isLineColumnVisible('vat')) {
-                  <col [style.width]="lineColumnWidth('vat')" />
-                }
-                @if (isLineColumnVisible('lot')) {
-                  <col [style.width]="lineColumnWidth('lot')" />
-                }
-                @if (isLineColumnVisible('expiry')) {
-                  <col [style.width]="lineColumnWidth('expiry')" />
-                }
-                @if (isLineColumnVisible('serials')) {
-                  <col [style.width]="lineColumnWidth('serials')" />
-                }
-                @if (isLineColumnVisible('loadsStock')) {
-                  <col [style.width]="lineColumnWidth('loadsStock')" />
-                }
-                @if (isLineColumnVisible('lineTotal')) {
-                  <col [style.width]="lineColumnWidth('lineTotal')" />
-                }
-                @if (isLineColumnVisible('actions')) {
-                  <col [style.width]="lineColumnWidth('actions')" />
-                }
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col" class="gr-form__cell--index" aria-label="Numero riga">#</th>
+            @if (selectedLinesCount() > 0) {
+              <div
+                class="gr-form__bulk-bar"
+                role="toolbar"
+                aria-label="Operazioni righe selezionate"
+              >
+                <span class="gr-form__bulk-count tabular-nums">
+                  {{ selectedLinesCount() }}
+                  {{ selectedLinesCount() === 1 ? 'riga selezionata' : 'righe selezionate' }}
+                </span>
+                <app-button
+                  type="button"
+                  variant="secondary"
+                  [disabled]="formReadOnly()"
+                  (click)="duplicateSelectedLines()"
+                >
+                  <i class="pi pi-clone" aria-hidden="true"></i>
+                  Duplica
+                </app-button>
+                <app-button
+                  type="button"
+                  variant="secondary"
+                  [disabled]="formReadOnly()"
+                  (click)="openApplyVatDialogForSelection()"
+                >
+                  <i class="pi pi-percentage" aria-hidden="true"></i>
+                  Imposta IVA…
+                </app-button>
+                <app-button
+                  type="button"
+                  variant="danger"
+                  [disabled]="formReadOnly()"
+                  (click)="removeSelectedLines()"
+                >
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                  Elimina
+                </app-button>
+                <app-button type="button" variant="ghost" (click)="clearLineSelection()">
+                  Deseleziona
+                </app-button>
+              </div>
+            }
+
+            <div class="gr-form__table-wrap">
+              <table class="gr-form__table">
+                <colgroup>
+                  <col class="gr-form__col--select" />
+                  <col class="gr-form__col--index" />
                   @if (isLineColumnVisible('sku')) {
-                    <th scope="col" [style.width]="lineColumnWidth('sku')">
-                      <button
-                        type="button"
-                        class="gr-form__th-sort"
-                        [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
-                        (click)="toggleLineSort('sku')"
-                      >
-                        SKU
-                        @if (lineSortColumn() === 'sku') {
-                          <i
-                            class="pi"
-                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
-                            aria-hidden="true"
-                          ></i>
-                        }
-                      </button>
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('sku')"
-                        (resized)="onLineColumnResize('sku', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('sku')" />
                   }
                   @if (isLineColumnVisible('barcode')) {
-                    <th scope="col" [style.width]="lineColumnWidth('barcode')">
-                      <button
-                        type="button"
-                        class="gr-form__th-sort"
-                        [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
-                        (click)="toggleLineSort('barcode')"
-                      >
-                        EAN
-                        @if (lineSortColumn() === 'barcode') {
-                          <i
-                            class="pi"
-                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
-                            aria-hidden="true"
-                          ></i>
-                        }
-                      </button>
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('barcode')"
-                        (resized)="onLineColumnResize('barcode', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('barcode')" />
                   }
                   @if (isLineColumnVisible('supplierCode')) {
-                    <th scope="col" [style.width]="lineColumnWidth('supplierCode')">
-                      <button
-                        type="button"
-                        class="gr-form__th-sort"
-                        [attr.aria-label]="lineSortAriaLabel('supplierCode', 'Codice fornitore')"
-                        (click)="toggleLineSort('supplierCode')"
-                      >
-                        Cod. fornitore
-                        @if (lineSortColumn() === 'supplierCode') {
-                          <i
-                            class="pi"
-                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
-                            aria-hidden="true"
-                          ></i>
-                        }
-                      </button>
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('supplierCode')"
-                        (resized)="onLineColumnResize('supplierCode', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('supplierCode')" />
                   }
                   @if (isLineColumnVisible('product')) {
-                    <th
-                      scope="col"
-                      class="gr-form__th--product"
-                      [style.width]="lineColumnWidth('product')"
-                    >
-                      <button
-                        type="button"
-                        class="gr-form__th-sort"
-                        [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
-                        (click)="toggleLineSort('product')"
-                      >
-                        Nome prodotto
-                        @if (lineSortColumn() === 'product') {
-                          <i
-                            class="pi"
-                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
-                            aria-hidden="true"
-                          ></i>
-                        }
-                      </button>
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('product')"
-                        (resized)="onLineColumnResize('product', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('product')" />
                   }
                   @if (isLineColumnVisible('description')) {
-                    <th scope="col" [style.width]="lineColumnWidth('description')">
-                      Descrizione
-                      <span
-                        appTableColumnResize
-                        (resized)="onLineColumnResize('description', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('description')" />
                   }
                   @if (isLineColumnVisible('poOrdered') && hasLinkedSupplierOrder()) {
-                    <th
-                      scope="col"
-                      class="gr-form__num"
-                      [style.width]="lineColumnWidth('poOrdered')"
-                    >
-                      Ord.
-                    </th>
+                    <col [style.width]="lineColumnWidth('poOrdered')" />
                   }
                   @if (isLineColumnVisible('poReceived') && hasLinkedSupplierOrder()) {
-                    <th
-                      scope="col"
-                      class="gr-form__num"
-                      [style.width]="lineColumnWidth('poReceived')"
-                    >
-                      Ric.
-                    </th>
+                    <col [style.width]="lineColumnWidth('poReceived')" />
                   }
                   @if (isLineColumnVisible('poRemaining') && hasLinkedSupplierOrder()) {
-                    <th
-                      scope="col"
-                      class="gr-form__num"
-                      [style.width]="lineColumnWidth('poRemaining')"
-                    >
-                      Res.
-                    </th>
+                    <col [style.width]="lineColumnWidth('poRemaining')" />
                   }
                   @if (isLineColumnVisible('quantity')) {
-                    <th
-                      scope="col"
-                      class="gr-form__num"
-                      [style.width]="lineColumnWidth('quantity')"
-                    >
-                      <button
-                        type="button"
-                        class="gr-form__th-sort gr-form__th-sort--num"
-                        [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
-                        (click)="toggleLineSort('quantity')"
-                      >
-                        Q.tà
-                        @if (lineSortColumn() === 'quantity') {
-                          <i
-                            class="pi"
-                            [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                            [class.pi-sort-down]="lineSortDirection() === 'desc'"
-                            aria-hidden="true"
-                          ></i>
-                        }
-                      </button>
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('quantity')"
-                        (resized)="onLineColumnResize('quantity', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('quantity')" />
                   }
                   @if (isLineColumnVisible('stockAvailable')) {
-                    <th
-                      scope="col"
-                      class="gr-form__num"
-                      [style.width]="lineColumnWidth('stockAvailable')"
-                    >
-                      Q.tà disp.
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('stockAvailable')"
-                        (resized)="onLineColumnResize('stockAvailable', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('stockAvailable')" />
                   }
                   @if (isLineColumnVisible('unitOfMeasure')) {
-                    <th scope="col" [style.width]="lineColumnWidth('unitOfMeasure')">
-                      U.m.
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('unitOfMeasure')"
-                        (resized)="onLineColumnResize('unitOfMeasure', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('unitOfMeasure')" />
                   }
                   @if (isLineColumnVisible('unitCost')) {
-                    <th
-                      scope="col"
-                      class="gr-form__num gr-form__th--menu"
-                      [style.width]="lineColumnWidth('unitCost')"
-                    >
-                      <span class="gr-form__th-menu-wrap">
-                        <button
-                          type="button"
-                          class="gr-form__th-sort gr-form__th-sort--num"
-                          [attr.aria-label]="lineSortAriaLabel('unitCost', costModeLabel())"
-                          (click)="toggleLineSort('unitCost')"
-                        >
-                          {{ costModeLabel() }}
-                          @if (lineSortColumn() === 'unitCost') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                              [class.pi-sort-down]="lineSortDirection() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <button
-                          type="button"
-                          class="gr-form__th-menu-trigger"
-                          aria-haspopup="menu"
-                          [attr.aria-expanded]="costModeMenuOpen()"
-                          aria-label="Modalità costi del documento"
-                          (click)="toggleCostModeMenu()"
-                        >
-                          <i class="pi pi-chevron-down" aria-hidden="true"></i>
-                        </button>
-                        @if (costModeMenuOpen()) {
-                          <div class="gr-form__th-menu" role="menu" aria-label="Modalità costi">
-                            <button
-                              type="button"
-                              class="gr-form__th-menu-item"
-                              role="menuitemradio"
-                              [attr.aria-checked]="costEntryMode() === 'vat_excluded'"
-                              (click)="selectCostMode('vat_excluded')"
-                            >
-                              @if (costEntryMode() === 'vat_excluded') {
-                                <i class="pi pi-check" aria-hidden="true"></i>
-                              } @else {
-                                <span class="gr-form__th-menu-check" aria-hidden="true"></span>
-                              }
-                              Usa costi netti
-                            </button>
-                            <button
-                              type="button"
-                              class="gr-form__th-menu-item"
-                              role="menuitemradio"
-                              [attr.aria-checked]="costEntryMode() === 'vat_included'"
-                              (click)="selectCostMode('vat_included')"
-                            >
-                              @if (costEntryMode() === 'vat_included') {
-                                <i class="pi pi-check" aria-hidden="true"></i>
-                              } @else {
-                                <span class="gr-form__th-menu-check" aria-hidden="true"></span>
-                              }
-                              Usa costi ivati
-                            </button>
-                          </div>
-                        }
-                      </span>
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('unitCost')"
-                        (resized)="onLineColumnResize('unitCost', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('unitCost')" />
                   }
                   @if (isLineColumnVisible('discount')) {
-                    <th
-                      scope="col"
-                      class="gr-form__num"
-                      [style.width]="lineColumnWidth('discount')"
-                    >
-                      Sconto
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('discount')"
-                        (resized)="onLineColumnResize('discount', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('discount')" />
                   }
                   @if (isLineColumnVisible('sellingPrice')) {
-                    <th
-                      scope="col"
-                      class="gr-form__num"
-                      [style.width]="lineColumnWidth('sellingPrice')"
-                    >
-                      Prezzo al pubblico
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('sellingPrice')"
-                        (resized)="onLineColumnResize('sellingPrice', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('sellingPrice')" />
                   }
                   @if (isLineColumnVisible('compareAtPrice')) {
-                    <th
-                      scope="col"
-                      class="gr-form__num"
-                      [style.width]="lineColumnWidth('compareAtPrice')"
-                    >
-                      Prezzo barrato
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('compareAtPrice')"
-                        (resized)="onLineColumnResize('compareAtPrice', $event)"
-                      ></span>
-                    </th>
+                    <col [style.width]="lineColumnWidth('compareAtPrice')" />
                   }
                   @if (isLineColumnVisible('vat')) {
-                    <th
-                      scope="col"
-                      class="gr-form__num gr-form__th--menu"
-                      [style.width]="lineColumnWidth('vat')"
-                    >
-                      <span class="gr-form__th-menu-wrap">
+                    <col [style.width]="lineColumnWidth('vat')" />
+                  }
+                  @if (isLineColumnVisible('lot')) {
+                    <col [style.width]="lineColumnWidth('lot')" />
+                  }
+                  @if (isLineColumnVisible('expiry')) {
+                    <col [style.width]="lineColumnWidth('expiry')" />
+                  }
+                  @if (isLineColumnVisible('serials')) {
+                    <col [style.width]="lineColumnWidth('serials')" />
+                  }
+                  @if (isLineColumnVisible('loadsStock')) {
+                    <col [style.width]="lineColumnWidth('loadsStock')" />
+                  }
+                  @if (isLineColumnVisible('lineTotal')) {
+                    <col [style.width]="lineColumnWidth('lineTotal')" />
+                  }
+                  @if (isLineColumnVisible('actions')) {
+                    <col [style.width]="lineColumnWidth('actions')" />
+                  }
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col" class="gr-form__cell--select">
+                      <input
+                        type="checkbox"
+                        class="gr-form__select-check"
+                        aria-label="Seleziona tutte le righe"
+                        [checked]="allLinesSelected()"
+                        [indeterminate]="someLinesSelected()"
+                        (change)="toggleSelectAllLines($any($event.target).checked)"
+                      />
+                    </th>
+                    <th scope="col" class="gr-form__cell--index" aria-label="Numero riga">#</th>
+                    @if (isLineColumnVisible('sku')) {
+                      <th scope="col" [style.width]="lineColumnWidth('sku')">
                         <button
                           type="button"
-                          class="gr-form__th-sort gr-form__th-sort--num"
-                          [attr.aria-label]="lineSortAriaLabel('vat', 'IVA')"
-                          (click)="toggleLineSort('vat')"
+                          class="gr-form__th-sort"
+                          [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
+                          (click)="toggleLineSort('sku')"
                         >
-                          IVA
-                          @if (lineSortColumn() === 'vat') {
+                          SKU
+                          @if (lineSortColumn() === 'sku') {
                             <i
                               class="pi"
                               [class.pi-sort-up]="lineSortDirection() === 'asc'"
@@ -815,606 +569,964 @@
                             ></i>
                           }
                         </button>
-                        <button
-                          type="button"
-                          class="gr-form__th-menu-trigger"
-                          aria-haspopup="menu"
-                          [attr.aria-expanded]="vatHeaderMenuOpen()"
-                          aria-label="Azioni colonna IVA"
-                          (click)="toggleVatHeaderMenu()"
-                        >
-                          <i class="pi pi-chevron-down" aria-hidden="true"></i>
-                        </button>
-                        @if (vatHeaderMenuOpen()) {
-                          <div class="gr-form__th-menu" role="menu" aria-label="Azioni colonna IVA">
-                            <button
-                              type="button"
-                              class="gr-form__th-menu-item"
-                              role="menuitem"
-                              (click)="openApplyVatDialog()"
-                            >
-                              <span class="gr-form__th-menu-check" aria-hidden="true"></span>
-                              Imposta IVA a tutte le righe…
-                            </button>
-                          </div>
-                        }
-                      </span>
-                      <span
-                        appTableColumnResize
-                        [minWidthPx]="lineColumnMinWidth('vat')"
-                        (resized)="onLineColumnResize('vat', $event)"
-                      ></span>
-                    </th>
-                  }
-                  @if (isLineColumnVisible('lot')) {
-                    <th scope="col" [style.width]="lineColumnWidth('lot')">Lotto</th>
-                  }
-                  @if (isLineColumnVisible('expiry')) {
-                    <th scope="col" [style.width]="lineColumnWidth('expiry')">Scadenza</th>
-                  }
-                  @if (isLineColumnVisible('serials')) {
-                    <th scope="col" [style.width]="lineColumnWidth('serials')">Seriali</th>
-                  }
-                  @if (isLineColumnVisible('loadsStock')) {
-                    <th scope="col" [style.width]="lineColumnWidth('loadsStock')">
-                      <span class="gr-form__th-label">
-                        Mag.
-                        <app-hover-tooltip [text]="loadsStockTooltip" position="bottom">
-                          <i
-                            class="pi pi-info-circle gr-form__th-info"
-                            aria-label="Info colonna Magazzino"
-                          ></i>
-                        </app-hover-tooltip>
-                      </span>
-                    </th>
-                  }
-                  @if (isLineColumnVisible('lineTotal')) {
-                    <th
-                      scope="col"
-                      class="gr-form__num"
-                      [style.width]="lineColumnWidth('lineTotal')"
-                    >
-                      Totale
-                    </th>
-                  }
-                  @if (isLineColumnVisible('actions')) {
-                    <th scope="col" [style.width]="lineColumnWidth('actions')">
-                      <span class="sr-only">Azioni</span>
-                    </th>
-                  }
-                </tr>
-              </thead>
-              <tbody formArrayName="lines">
-                @for (line of lines.controls; track line; let i = $index) {
-                  <tr
-                    class="gr-form__table-row"
-                    [class.gr-form__table-row--active]="lineRowActive(i)"
-                    [class.gr-form__table-row--incomplete]="!lineRowComplete(i)"
-                    [formGroupName]="i"
-                  >
-                    <td class="gr-form__cell--index tabular-nums">{{ i + 1 }}</td>
-                    @if (isLineColumnVisible('sku')) {
-                      <td class="gr-form__cell gr-form__cell--code">
-                        <app-goods-receipt-line-code-cell
-                          [lineIndex]="i"
-                          [inputId]="'gr-sku-' + i"
-                          ariaLabel="SKU"
-                          placeholder="Cerca SKU"
-                          [value]="line.controls.sku.value"
-                          [linked]="lineHasLinkedProduct(i)"
-                          [linkedValue]="line.controls.sku.value"
-                          [disabled]="formReadOnly()"
-                          [suggestions]="codeSuggestions(i, 'sku')"
-                          [suggestionsOpen]="codeSuggestionsOpen(i, 'sku')"
-                          (valueChange)="onLineSkuChange(i, $event)"
-                          (focused)="onLineCodeFocus(i, 'sku')"
-                          (blurred)="onLineCodeBlur(i)"
-                          (commit)="commitSkuLookup(i)"
-                          (lineRowAdvance)="advanceToNextLine(i)"
-                          (lineRowRetreat)="advanceToPreviousLine(i)"
-                          (suggestionPick)="
-                            onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                          "
-                          (escapePressed)="onLineSearchEscape(i)"
-                        />
-                      </td>
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('sku')"
+                          (resized)="onLineColumnResize('sku', $event)"
+                        ></span>
+                      </th>
                     }
                     @if (isLineColumnVisible('barcode')) {
-                      <td class="gr-form__cell gr-form__cell--code">
-                        <app-goods-receipt-line-code-cell
-                          [lineIndex]="i"
-                          [inputId]="'gr-barcode-' + i"
-                          ariaLabel="EAN"
-                          placeholder="Scansiona EAN"
-                          [value]="line.controls.barcode.value"
-                          [linked]="lineHasLinkedProduct(i)"
-                          [linkedValue]="line.controls.barcode.value"
-                          [disabled]="formReadOnly()"
-                          [suggestions]="codeSuggestions(i, 'barcode')"
-                          [suggestionsOpen]="codeSuggestionsOpen(i, 'barcode')"
-                          (valueChange)="onLineBarcodeChange(i, $event)"
-                          (focused)="onLineCodeFocus(i, 'barcode')"
-                          (blurred)="onLineCodeBlur(i)"
-                          (commit)="commitBarcodeLookup(i)"
-                          (lineRowAdvance)="advanceToNextLine(i)"
-                          (lineRowRetreat)="advanceToPreviousLine(i)"
-                          (suggestionPick)="
-                            onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                          "
-                          (escapePressed)="onLineSearchEscape(i)"
-                        />
-                      </td>
+                      <th scope="col" [style.width]="lineColumnWidth('barcode')">
+                        <button
+                          type="button"
+                          class="gr-form__th-sort"
+                          [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
+                          (click)="toggleLineSort('barcode')"
+                        >
+                          EAN
+                          @if (lineSortColumn() === 'barcode') {
+                            <i
+                              class="pi"
+                              [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                              [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                              aria-hidden="true"
+                            ></i>
+                          }
+                        </button>
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('barcode')"
+                          (resized)="onLineColumnResize('barcode', $event)"
+                        ></span>
+                      </th>
                     }
                     @if (isLineColumnVisible('supplierCode')) {
-                      <td class="gr-form__cell gr-form__cell--code">
-                        @if (lineHasLinkedProduct(i)) {
-                          <span class="gr-form__readonly-cell">{{
-                            line.controls.supplierSku.value || '—'
-                          }}</span>
-                        } @else {
-                          <input
-                            [id]="'gr-supplier-code-' + i"
-                            class="gr-form__input gr-form__input--table"
-                            type="text"
-                            [value]="line.controls.supplierSku.value"
-                            [disabled]="formReadOnly()"
-                            aria-label="Codice fornitore"
-                            autocomplete="off"
-                            (input)="onLineSupplierSkuChange(i, $any($event.target).value)"
-                            (blur)="commitSupplierSkuLookup(i)"
-                            (keydown)="onLineFieldKeydown(i, 'supplierCode', $event)"
-                          />
-                        }
-                      </td>
+                      <th scope="col" [style.width]="lineColumnWidth('supplierCode')">
+                        <button
+                          type="button"
+                          class="gr-form__th-sort"
+                          [attr.aria-label]="lineSortAriaLabel('supplierCode', 'Codice fornitore')"
+                          (click)="toggleLineSort('supplierCode')"
+                        >
+                          Cod. fornitore
+                          @if (lineSortColumn() === 'supplierCode') {
+                            <i
+                              class="pi"
+                              [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                              [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                              aria-hidden="true"
+                            ></i>
+                          }
+                        </button>
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('supplierCode')"
+                          (resized)="onLineColumnResize('supplierCode', $event)"
+                        ></span>
+                      </th>
                     }
                     @if (isLineColumnVisible('product')) {
-                      <td class="gr-form__cell gr-form__cell--product">
-                        <app-goods-receipt-line-product-cell
-                          [lineIndex]="i"
-                          [inputId]="'gr-product-' + i"
-                          [value]="line.controls.productName.value"
-                          [linked]="lineHasLinkedProduct(i)"
-                          [linkedLabel]="linkedProductLabel(i)"
-                          [disabled]="formReadOnly()"
-                          [invalid]="lineFieldInvalid(i, 'productName')"
-                          [suggestions]="lineSuggestions(i)"
-                          [suggestionsOpen]="lineSuggestionsOpen(i)"
-                          [activeSuggestionIndex]="activeSuggestionIndex()"
-                          (valueChange)="onLineProductNameChange(i, $event)"
-                          (focused)="onLineProductFocus(i)"
-                          (blurred)="onLineProductBlur(i)"
-                          (searchOpen)="openLineProductSearch(i)"
-                          (anagraphicOpen)="openProductAnagraphic(i)"
-                          (detailOpen)="openProductDetail(i)"
-                          (unlinkRequest)="onLineUnlink(i)"
-                          (suggestionPick)="
-                            onProductSuggestionPick($event.lineIndex, $event.variantId)
-                          "
-                          (suggestionNavigate)="onProductSuggestionNavigate($event)"
-                          (lineAdvance)="advanceFromProductField(i)"
-                          (lineRowAdvance)="advanceToNextLine(i)"
-                          (lineRowRetreat)="advanceToPreviousLine(i)"
-                          (escapePressed)="onLineSearchEscape(i)"
-                        />
-                      </td>
+                      <th
+                        scope="col"
+                        class="gr-form__th--product"
+                        [style.width]="lineColumnWidth('product')"
+                      >
+                        <button
+                          type="button"
+                          class="gr-form__th-sort"
+                          [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
+                          (click)="toggleLineSort('product')"
+                        >
+                          Nome prodotto
+                          @if (lineSortColumn() === 'product') {
+                            <i
+                              class="pi"
+                              [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                              [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                              aria-hidden="true"
+                            ></i>
+                          }
+                        </button>
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('product')"
+                          (resized)="onLineColumnResize('product', $event)"
+                        ></span>
+                      </th>
                     }
                     @if (isLineColumnVisible('description')) {
-                      <td class="gr-form__cell">
-                        <input
-                          [id]="'gr-desc-' + i"
-                          class="gr-form__input gr-form__input--table"
-                          type="text"
-                          formControlName="description"
-                        />
-                      </td>
+                      <th scope="col" [style.width]="lineColumnWidth('description')">
+                        Descrizione
+                        <span
+                          appTableColumnResize
+                          (resized)="onLineColumnResize('description', $event)"
+                        ></span>
+                      </th>
                     }
                     @if (isLineColumnVisible('poOrdered') && hasLinkedSupplierOrder()) {
-                      @if (poLineContext(i); as poCtx) {
-                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums">
-                          {{ poCtx.ordered }}
-                        </td>
-                      } @else {
-                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num">—</td>
-                      }
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('poOrdered')"
+                      >
+                        Ord.
+                      </th>
                     }
                     @if (isLineColumnVisible('poReceived') && hasLinkedSupplierOrder()) {
-                      @if (poLineContext(i); as poCtx) {
-                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums">
-                          {{ poCtx.received }}
-                        </td>
-                      } @else {
-                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num">—</td>
-                      }
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('poReceived')"
+                      >
+                        Ric.
+                      </th>
                     }
                     @if (isLineColumnVisible('poRemaining') && hasLinkedSupplierOrder()) {
-                      @if (poLineContext(i); as poCtx) {
-                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums">
-                          {{ poCtx.remaining }}
-                        </td>
-                      } @else {
-                        <td class="gr-form__cell gr-form__cell--readonly gr-form__num">—</td>
-                      }
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('poRemaining')"
+                      >
+                        Res.
+                      </th>
                     }
                     @if (isLineColumnVisible('quantity')) {
-                      <td class="gr-form__cell gr-form__cell--editable gr-form__num">
-                        <input
-                          [id]="'gr-qty-' + i"
-                          class="gr-form__input gr-form__input--table gr-form__input--num"
-                          [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
-                          type="number"
-                          min="0"
-                          step="1"
-                          formControlName="quantity"
-                          [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
-                          [title]="
-                            lineFieldInvalid(i, 'quantity')
-                              ? 'Inserisci una quantità maggiore di zero.'
-                              : null
-                          "
-                          (blur)="onLineOperationalBlur(i)"
-                          (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
-                        />
-                      </td>
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('quantity')"
+                      >
+                        <button
+                          type="button"
+                          class="gr-form__th-sort gr-form__th-sort--num"
+                          [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
+                          (click)="toggleLineSort('quantity')"
+                        >
+                          Q.tà
+                          @if (lineSortColumn() === 'quantity') {
+                            <i
+                              class="pi"
+                              [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                              [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                              aria-hidden="true"
+                            ></i>
+                          }
+                        </button>
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('quantity')"
+                          (resized)="onLineColumnResize('quantity', $event)"
+                        ></span>
+                      </th>
                     }
                     @if (isLineColumnVisible('stockAvailable')) {
-                      <td
-                        class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
-                        [title]="lineStockAvailableTitle(i)"
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('stockAvailable')"
                       >
-                        {{ lineStockAvailable(i) }}
-                      </td>
+                        Q.tà disp.
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('stockAvailable')"
+                          (resized)="onLineColumnResize('stockAvailable', $event)"
+                        ></span>
+                      </th>
                     }
                     @if (isLineColumnVisible('unitOfMeasure')) {
-                      @if (lineCreateMode(i)) {
-                        <td class="gr-form__cell gr-form__cell--editable">
-                          <select
-                            class="gr-form__select-inline"
-                            formControlName="newProductUnitOfMeasure"
-                            [attr.aria-label]="'Unità di misura riga ' + (i + 1)"
-                          >
-                            @for (um of unitOfMeasureOptions; track um) {
-                              <option [value]="um">{{ um }}</option>
-                            }
-                          </select>
-                        </td>
-                      } @else {
-                        <td class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed">
-                          {{ lineUnitOfMeasure(i) }}
-                        </td>
-                      }
+                      <th scope="col" [style.width]="lineColumnWidth('unitOfMeasure')">
+                        U.m.
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('unitOfMeasure')"
+                          (resized)="onLineColumnResize('unitOfMeasure', $event)"
+                        ></span>
+                      </th>
                     }
                     @if (isLineColumnVisible('unitCost')) {
-                      <td class="gr-form__cell gr-form__cell--editable gr-form__num">
-                        <input
-                          [id]="'gr-cost-' + i"
-                          class="gr-form__input gr-form__input--table gr-form__input--num"
-                          [class.gr-form__input--invalid]="unitCostInvalid(i)"
-                          type="text"
-                          inputmode="decimal"
-                          formControlName="unitCost"
-                          placeholder="0,00"
-                          [attr.aria-invalid]="unitCostInvalid(i) ? 'true' : null"
-                          [title]="unitCostInvalid(i) ? 'Il costo inserito non è valido.' : null"
-                          (blur)="onLineOperationalBlur(i)"
-                          (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
-                        />
-                      </td>
-                    }
-                    @if (isLineColumnVisible('discount')) {
-                      <td class="gr-form__cell gr-form__cell--editable gr-form__num">
-                        <input
-                          [id]="'gr-discount-' + i"
-                          class="gr-form__input gr-form__input--table gr-form__input--num"
-                          type="text"
-                          formControlName="discountPercent"
-                          placeholder="0%"
-                          (blur)="onLineOperationalBlur(i)"
-                          (keydown)="onLineFieldKeydown(i, 'discount', $event)"
-                        />
-                      </td>
-                    }
-                    @if (isLineColumnVisible('sellingPrice')) {
-                      <td class="gr-form__cell gr-form__num">
-                        <input
-                          [id]="'gr-selling-' + i"
-                          class="gr-form__input gr-form__input--table gr-form__input--num"
-                          type="text"
-                          inputmode="decimal"
-                          formControlName="sellingPrice"
-                          placeholder="0,00"
-                          (blur)="onLineOperationalBlur(i)"
-                          (keydown)="onLineFieldKeydown(i, 'sellingPrice', $event)"
-                        />
-                      </td>
-                    }
-                    @if (isLineColumnVisible('compareAtPrice')) {
-                      <td class="gr-form__cell gr-form__num">
-                        <input
-                          [id]="'gr-compare-' + i"
-                          class="gr-form__input gr-form__input--table gr-form__input--num"
-                          type="text"
-                          inputmode="decimal"
-                          formControlName="compareAtPrice"
-                          placeholder="0,00"
-                          (blur)="onLineOperationalBlur(i)"
-                          (keydown)="onLineFieldKeydown(i, 'compareAtPrice', $event)"
-                        />
-                      </td>
-                    }
-                    @if (isLineColumnVisible('vat')) {
-                      <td
-                        class="gr-form__cell gr-form__cell--editable gr-form__cell--vat"
-                        [title]="lineVatTooltip(i)"
+                      <th
+                        scope="col"
+                        class="gr-form__num gr-form__th--menu"
+                        [style.width]="lineColumnWidth('unitCost')"
                       >
-                        <app-select-menu
-                          [options]="lineVatOptions(i)"
-                          [value]="lineVatValue(i)"
-                          ariaLabel="Codice IVA riga"
-                          placeholder="—"
-                          [compact]="true"
-                          [matchInputHeight]="true"
-                          [includeEmptyOption]="false"
-                          [searchable]="true"
-                          searchPlaceholder="Codice, aliquota, descrizione…"
-                          searchAriaLabel="Cerca Codice IVA"
-                          (valueChange)="onLineVatSelect(i, $event)"
-                        />
-                      </td>
-                    }
-                    @if (isLineColumnVisible('lot')) {
-                      <td class="gr-form__cell">
-                        <input
-                          [id]="'gr-lot-' + i"
-                          class="gr-form__input gr-form__input--table"
-                          type="text"
-                          formControlName="lotCode"
-                          autocomplete="off"
-                          (blur)="onLineOperationalBlur(i)"
-                          (keydown)="onLineFieldKeydown(i, 'lot', $event)"
-                        />
-                      </td>
-                    }
-                    @if (isLineColumnVisible('expiry')) {
-                      <td class="gr-form__cell">
-                        <app-date-input
-                          [inputId]="'gr-lot-date-' + i"
-                          formControlName="lotExpiryDate"
-                          ariaLabel="Scadenza lotto"
-                          [compact]="true"
-                          (triggerBlur)="onLineOperationalBlur(i)"
-                          (triggerKeydown)="onLineFieldKeydown(i, 'expiry', $event)"
-                        />
-                      </td>
-                    }
-                    @if (isLineColumnVisible('serials')) {
-                      <td class="gr-form__cell">
-                        <input
-                          [id]="'gr-serial-' + i"
-                          class="gr-form__input gr-form__input--table"
-                          type="text"
-                          formControlName="serialNumbersText"
-                          placeholder="SN001, SN002"
-                          autocomplete="off"
-                          (blur)="onLineOperationalBlur(i)"
-                          (keydown)="onLineFieldKeydown(i, 'serials', $event)"
-                        />
-                      </td>
-                    }
-                    @if (isLineColumnVisible('loadsStock')) {
-                      <td class="gr-form__cell gr-form__cell--check">
-                        <label class="gr-form__check">
-                          <input
-                            type="checkbox"
-                            formControlName="loadsStock"
-                            (change)="onLoadsStockChange(i)"
-                          />
-                          <span class="sr-only">Carica magazzino</span>
-                        </label>
-                      </td>
-                    }
-                    @if (isLineColumnVisible('lineTotal')) {
-                      <td
-                        class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
-                      >
-                        @if (lineHasDiscount(i)) {
-                          <span class="gr-form__line-total-gross">{{
-                            formatMoney(lineGrossMoney(i))
-                          }}</span>
-                        }
-                        <span>{{ formatMoney(lineMoney(i)) }}</span>
-                      </td>
-                    }
-                    @if (isLineColumnVisible('actions')) {
-                      <td class="gr-form__cell gr-form__cell--actions">
-                        <div class="gr-form__line-actions">
+                        <span class="gr-form__th-menu-wrap">
                           <button
                             type="button"
-                            class="gr-form__line-move"
-                            [disabled]="formReadOnly() || i === 0"
-                            aria-label="Sposta riga su"
-                            (click)="moveLineUp(i)"
+                            class="gr-form__th-sort gr-form__th-sort--num"
+                            [attr.aria-label]="lineSortAriaLabel('unitCost', costModeLabel())"
+                            (click)="toggleLineSort('unitCost')"
                           >
-                            <i class="pi pi-chevron-up" aria-hidden="true"></i>
+                            {{ costModeLabel() }}
+                            @if (lineSortColumn() === 'unitCost') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                                [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
                           </button>
                           <button
                             type="button"
-                            class="gr-form__line-move"
-                            [disabled]="formReadOnly() || i >= lines.length - 1"
-                            aria-label="Sposta riga giù"
-                            (click)="moveLineDown(i)"
+                            class="gr-form__th-menu-trigger"
+                            aria-haspopup="menu"
+                            [attr.aria-expanded]="costModeMenuOpen()"
+                            aria-label="Modalità costi del documento"
+                            (click)="toggleCostModeMenu()"
                           >
                             <i class="pi pi-chevron-down" aria-hidden="true"></i>
                           </button>
+                          @if (costModeMenuOpen()) {
+                            <div class="gr-form__th-menu" role="menu" aria-label="Modalità costi">
+                              <button
+                                type="button"
+                                class="gr-form__th-menu-item"
+                                role="menuitemradio"
+                                [attr.aria-checked]="costEntryMode() === 'vat_excluded'"
+                                (click)="selectCostMode('vat_excluded')"
+                              >
+                                @if (costEntryMode() === 'vat_excluded') {
+                                  <i class="pi pi-check" aria-hidden="true"></i>
+                                } @else {
+                                  <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                                }
+                                Usa costi netti
+                              </button>
+                              <button
+                                type="button"
+                                class="gr-form__th-menu-item"
+                                role="menuitemradio"
+                                [attr.aria-checked]="costEntryMode() === 'vat_included'"
+                                (click)="selectCostMode('vat_included')"
+                              >
+                                @if (costEntryMode() === 'vat_included') {
+                                  <i class="pi pi-check" aria-hidden="true"></i>
+                                } @else {
+                                  <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                                }
+                                Usa costi ivati
+                              </button>
+                            </div>
+                          }
+                        </span>
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('unitCost')"
+                          (resized)="onLineColumnResize('unitCost', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('discount')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('discount')"
+                      >
+                        Sconto
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('discount')"
+                          (resized)="onLineColumnResize('discount', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('sellingPrice')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('sellingPrice')"
+                      >
+                        Prezzo al pubblico
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('sellingPrice')"
+                          (resized)="onLineColumnResize('sellingPrice', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('compareAtPrice')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('compareAtPrice')"
+                      >
+                        Prezzo barrato
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('compareAtPrice')"
+                          (resized)="onLineColumnResize('compareAtPrice', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('vat')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num gr-form__th--menu"
+                        [style.width]="lineColumnWidth('vat')"
+                      >
+                        <span class="gr-form__th-menu-wrap">
                           <button
                             type="button"
-                            class="gr-form__line-move"
-                            [disabled]="formReadOnly()"
-                            aria-label="Duplica riga"
-                            (click)="duplicateLine(i)"
+                            class="gr-form__th-sort gr-form__th-sort--num"
+                            [attr.aria-label]="lineSortAriaLabel('vat', 'IVA')"
+                            (click)="toggleLineSort('vat')"
                           >
-                            <i class="pi pi-clone" aria-hidden="true"></i>
+                            IVA
+                            @if (lineSortColumn() === 'vat') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSortDirection() === 'asc'"
+                                [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
                           </button>
                           <button
                             type="button"
-                            class="gr-form__line-remove"
-                            [disabled]="lines.length <= 1"
-                            aria-label="Rimuovi riga"
-                            (click)="removeLine(i)"
+                            class="gr-form__th-menu-trigger"
+                            aria-haspopup="menu"
+                            [attr.aria-expanded]="vatHeaderMenuOpen()"
+                            aria-label="Azioni colonna IVA"
+                            (click)="toggleVatHeaderMenu()"
                           >
-                            <i class="pi pi-trash" aria-hidden="true"></i>
+                            <i class="pi pi-chevron-down" aria-hidden="true"></i>
                           </button>
-                        </div>
-                      </td>
+                          @if (vatHeaderMenuOpen()) {
+                            <div
+                              class="gr-form__th-menu"
+                              role="menu"
+                              aria-label="Azioni colonna IVA"
+                            >
+                              <button
+                                type="button"
+                                class="gr-form__th-menu-item"
+                                role="menuitem"
+                                (click)="openApplyVatDialog()"
+                              >
+                                <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                                Imposta IVA a tutte le righe…
+                              </button>
+                            </div>
+                          }
+                        </span>
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('vat')"
+                          (resized)="onLineColumnResize('vat', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('lot')) {
+                      <th scope="col" [style.width]="lineColumnWidth('lot')">Lotto</th>
+                    }
+                    @if (isLineColumnVisible('expiry')) {
+                      <th scope="col" [style.width]="lineColumnWidth('expiry')">Scadenza</th>
+                    }
+                    @if (isLineColumnVisible('serials')) {
+                      <th scope="col" [style.width]="lineColumnWidth('serials')">Seriali</th>
+                    }
+                    @if (isLineColumnVisible('loadsStock')) {
+                      <th scope="col" [style.width]="lineColumnWidth('loadsStock')">
+                        <span class="gr-form__th-label">
+                          Mag.
+                          <app-hover-tooltip [text]="loadsStockTooltip" position="bottom">
+                            <i
+                              class="pi pi-info-circle gr-form__th-info"
+                              aria-label="Info colonna Magazzino"
+                            ></i>
+                          </app-hover-tooltip>
+                        </span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('lineTotal')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('lineTotal')"
+                      >
+                        Totale
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('lineTotal')"
+                          (resized)="onLineColumnResize('lineTotal', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('actions')) {
+                      <th scope="col" [style.width]="lineColumnWidth('actions')">
+                        <span class="sr-only">Azioni</span>
+                      </th>
                     }
                   </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody formArrayName="lines">
+                  @for (line of lines.controls; track line; let i = $index) {
+                    <tr
+                      class="gr-form__table-row"
+                      [class.gr-form__table-row--active]="lineRowActive(i)"
+                      [class.gr-form__table-row--incomplete]="!lineRowComplete(i)"
+                      [formGroupName]="i"
+                      [class.gr-form__table-row--selected]="lineSelected(line)"
+                    >
+                      <td class="gr-form__cell--select">
+                        <input
+                          type="checkbox"
+                          class="gr-form__select-check"
+                          [attr.aria-label]="'Seleziona riga ' + (i + 1)"
+                          [checked]="lineSelected(line)"
+                          (change)="toggleLineSelected(line, $any($event.target).checked)"
+                        />
+                      </td>
+                      <td class="gr-form__cell--index">
+                        <div class="gr-form__index-cell">
+                          <span class="gr-form__line-move-stack">
+                            <button
+                              type="button"
+                              class="gr-form__line-move gr-form__line-move--compact"
+                              tabindex="-1"
+                              [disabled]="formReadOnly() || i === 0"
+                              aria-label="Sposta riga su"
+                              (click)="moveLineUp(i)"
+                            >
+                              <i class="pi pi-chevron-up" aria-hidden="true"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="gr-form__line-move gr-form__line-move--compact"
+                              tabindex="-1"
+                              [disabled]="formReadOnly() || i >= lines.length - 1"
+                              aria-label="Sposta riga giù"
+                              (click)="moveLineDown(i)"
+                            >
+                              <i class="pi pi-chevron-down" aria-hidden="true"></i>
+                            </button>
+                          </span>
+                          <span class="tabular-nums">{{ i + 1 }}</span>
+                        </div>
+                      </td>
+                      @if (isLineColumnVisible('sku')) {
+                        <td class="gr-form__cell gr-form__cell--code">
+                          <app-goods-receipt-line-code-cell
+                            [lineIndex]="i"
+                            [inputId]="'gr-sku-' + i"
+                            ariaLabel="SKU"
+                            placeholder="Cerca SKU"
+                            [value]="line.controls.sku.value"
+                            [linked]="lineHasLinkedProduct(i)"
+                            [linkedValue]="line.controls.sku.value"
+                            [disabled]="formReadOnly()"
+                            [suggestions]="codeSuggestions(i, 'sku')"
+                            [suggestionsOpen]="codeSuggestionsOpen(i, 'sku')"
+                            (valueChange)="onLineSkuChange(i, $event)"
+                            (focused)="onLineCodeFocus(i, 'sku')"
+                            (blurred)="onLineCodeBlur(i)"
+                            (commit)="commitSkuLookup(i)"
+                            (lineRetreat)="focusPreviousLineField(i, 'sku')"
+                            (lineRowAdvance)="advanceToNextLine(i)"
+                            (lineRowRetreat)="advanceToPreviousLine(i)"
+                            (suggestionPick)="
+                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
+                            "
+                            (escapePressed)="onLineSearchEscape(i)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('barcode')) {
+                        <td class="gr-form__cell gr-form__cell--code">
+                          <app-goods-receipt-line-code-cell
+                            [lineIndex]="i"
+                            [inputId]="'gr-barcode-' + i"
+                            ariaLabel="EAN"
+                            placeholder="Scansiona EAN"
+                            [value]="line.controls.barcode.value"
+                            [linked]="lineHasLinkedProduct(i)"
+                            [linkedValue]="line.controls.barcode.value"
+                            [disabled]="formReadOnly()"
+                            [suggestions]="codeSuggestions(i, 'barcode')"
+                            [suggestionsOpen]="codeSuggestionsOpen(i, 'barcode')"
+                            (valueChange)="onLineBarcodeChange(i, $event)"
+                            (focused)="onLineCodeFocus(i, 'barcode')"
+                            (blurred)="onLineCodeBlur(i)"
+                            (commit)="commitBarcodeLookup(i)"
+                            (lineRetreat)="focusPreviousLineField(i, 'barcode')"
+                            (lineRowAdvance)="advanceToNextLine(i)"
+                            (lineRowRetreat)="advanceToPreviousLine(i)"
+                            (suggestionPick)="
+                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
+                            "
+                            (escapePressed)="onLineSearchEscape(i)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('supplierCode')) {
+                        <td class="gr-form__cell gr-form__cell--code">
+                          @if (lineHasLinkedProduct(i)) {
+                            <span class="gr-form__readonly-cell">{{
+                              line.controls.supplierSku.value || '—'
+                            }}</span>
+                          } @else {
+                            <input
+                              [id]="'gr-supplier-code-' + i"
+                              class="gr-form__input gr-form__input--table"
+                              type="text"
+                              [value]="line.controls.supplierSku.value"
+                              [disabled]="formReadOnly()"
+                              aria-label="Codice fornitore"
+                              autocomplete="off"
+                              (input)="onLineSupplierSkuChange(i, $any($event.target).value)"
+                              (blur)="commitSupplierSkuLookup(i)"
+                              (keydown)="onLineFieldKeydown(i, 'supplierCode', $event)"
+                            />
+                          }
+                        </td>
+                      }
+                      @if (isLineColumnVisible('product')) {
+                        <td class="gr-form__cell gr-form__cell--product">
+                          <app-goods-receipt-line-product-cell
+                            [lineIndex]="i"
+                            [inputId]="'gr-product-' + i"
+                            [value]="line.controls.productName.value"
+                            [linked]="lineHasLinkedProduct(i)"
+                            [linkedLabel]="linkedProductLabel(i)"
+                            [disabled]="formReadOnly()"
+                            [invalid]="lineFieldInvalid(i, 'productName')"
+                            [suggestions]="lineSuggestions(i)"
+                            [suggestionsOpen]="lineSuggestionsOpen(i)"
+                            [activeSuggestionIndex]="activeSuggestionIndex()"
+                            (valueChange)="onLineProductNameChange(i, $event)"
+                            (focused)="onLineProductFocus(i)"
+                            (blurred)="onLineProductBlur(i)"
+                            (searchOpen)="openLineProductSearch(i)"
+                            (anagraphicOpen)="openProductAnagraphic(i)"
+                            (detailOpen)="openProductDetail(i)"
+                            (unlinkRequest)="onLineUnlink(i)"
+                            (suggestionPick)="
+                              onProductSuggestionPick($event.lineIndex, $event.variantId)
+                            "
+                            (suggestionNavigate)="onProductSuggestionNavigate($event)"
+                            (lineAdvance)="advanceFromProductField(i)"
+                            (lineRetreat)="focusPreviousLineField(i, 'product')"
+                            (lineRowAdvance)="advanceToNextLine(i)"
+                            (lineRowRetreat)="advanceToPreviousLine(i)"
+                            (escapePressed)="onLineSearchEscape(i)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('description')) {
+                        <td class="gr-form__cell">
+                          <input
+                            [id]="'gr-desc-' + i"
+                            class="gr-form__input gr-form__input--table"
+                            type="text"
+                            formControlName="description"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('poOrdered') && hasLinkedSupplierOrder()) {
+                        @if (poLineContext(i); as poCtx) {
+                          <td
+                            class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums"
+                          >
+                            {{ poCtx.ordered }}
+                          </td>
+                        } @else {
+                          <td class="gr-form__cell gr-form__cell--readonly gr-form__num">—</td>
+                        }
+                      }
+                      @if (isLineColumnVisible('poReceived') && hasLinkedSupplierOrder()) {
+                        @if (poLineContext(i); as poCtx) {
+                          <td
+                            class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums"
+                          >
+                            {{ poCtx.received }}
+                          </td>
+                        } @else {
+                          <td class="gr-form__cell gr-form__cell--readonly gr-form__num">—</td>
+                        }
+                      }
+                      @if (isLineColumnVisible('poRemaining') && hasLinkedSupplierOrder()) {
+                        @if (poLineContext(i); as poCtx) {
+                          <td
+                            class="gr-form__cell gr-form__cell--readonly gr-form__num tabular-nums"
+                          >
+                            {{ poCtx.remaining }}
+                          </td>
+                        } @else {
+                          <td class="gr-form__cell gr-form__cell--readonly gr-form__num">—</td>
+                        }
+                      }
+                      @if (isLineColumnVisible('quantity')) {
+                        <td class="gr-form__cell gr-form__cell--editable gr-form__num">
+                          <input
+                            [id]="'gr-qty-' + i"
+                            class="gr-form__input gr-form__input--table gr-form__input--num"
+                            [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
+                            type="number"
+                            min="0"
+                            step="1"
+                            formControlName="quantity"
+                            [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
+                            [title]="
+                              lineFieldInvalid(i, 'quantity')
+                                ? 'Inserisci una quantità maggiore di zero.'
+                                : null
+                            "
+                            (blur)="onLineOperationalBlur(i)"
+                            (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('stockAvailable')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                          [title]="lineStockAvailableTitle(i)"
+                        >
+                          {{ lineStockAvailable(i) }}
+                        </td>
+                      }
+                      @if (isLineColumnVisible('unitOfMeasure')) {
+                        @if (lineCreateMode(i)) {
+                          <td class="gr-form__cell gr-form__cell--editable">
+                            <select
+                              class="gr-form__select-inline"
+                              formControlName="newProductUnitOfMeasure"
+                              [attr.aria-label]="'Unità di misura riga ' + (i + 1)"
+                            >
+                              @for (um of unitOfMeasureOptions; track um) {
+                                <option [value]="um">{{ um }}</option>
+                              }
+                            </select>
+                          </td>
+                        } @else {
+                          <td class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed">
+                            {{ lineUnitOfMeasure(i) }}
+                          </td>
+                        }
+                      }
+                      @if (isLineColumnVisible('unitCost')) {
+                        <td class="gr-form__cell gr-form__cell--editable gr-form__num">
+                          <input
+                            [id]="'gr-cost-' + i"
+                            class="gr-form__input gr-form__input--table gr-form__input--num"
+                            [class.gr-form__input--invalid]="unitCostInvalid(i)"
+                            type="text"
+                            inputmode="decimal"
+                            formControlName="unitCost"
+                            placeholder="0,00"
+                            [attr.aria-invalid]="unitCostInvalid(i) ? 'true' : null"
+                            [title]="unitCostInvalid(i) ? 'Il costo inserito non è valido.' : null"
+                            (blur)="onLineOperationalBlur(i)"
+                            (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('discount')) {
+                        <td class="gr-form__cell gr-form__cell--editable gr-form__num">
+                          <input
+                            [id]="'gr-discount-' + i"
+                            class="gr-form__input gr-form__input--table gr-form__input--num"
+                            type="text"
+                            formControlName="discountPercent"
+                            placeholder="0%"
+                            (blur)="onLineOperationalBlur(i)"
+                            (keydown)="onLineFieldKeydown(i, 'discount', $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('sellingPrice')) {
+                        <td class="gr-form__cell gr-form__num">
+                          <input
+                            [id]="'gr-selling-' + i"
+                            class="gr-form__input gr-form__input--table gr-form__input--num"
+                            type="text"
+                            inputmode="decimal"
+                            formControlName="sellingPrice"
+                            placeholder="0,00"
+                            (blur)="onLineOperationalBlur(i)"
+                            (keydown)="onLineFieldKeydown(i, 'sellingPrice', $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('compareAtPrice')) {
+                        <td class="gr-form__cell gr-form__num">
+                          <input
+                            [id]="'gr-compare-' + i"
+                            class="gr-form__input gr-form__input--table gr-form__input--num"
+                            type="text"
+                            inputmode="decimal"
+                            formControlName="compareAtPrice"
+                            placeholder="0,00"
+                            (blur)="onLineOperationalBlur(i)"
+                            (keydown)="onLineFieldKeydown(i, 'compareAtPrice', $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('vat')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--editable gr-form__cell--vat"
+                          [title]="lineVatTooltip(i)"
+                        >
+                          <app-select-menu
+                            [options]="lineVatOptions(i)"
+                            [value]="lineVatValue(i)"
+                            ariaLabel="Codice IVA riga"
+                            placeholder="—"
+                            [compact]="true"
+                            [matchInputHeight]="true"
+                            [includeEmptyOption]="false"
+                            [searchable]="true"
+                            [inlineDetail]="true"
+                            searchPlaceholder="Codice, aliquota, descrizione…"
+                            searchAriaLabel="Cerca Codice IVA"
+                            (valueChange)="onLineVatSelect(i, $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('lot')) {
+                        <td class="gr-form__cell">
+                          <input
+                            [id]="'gr-lot-' + i"
+                            class="gr-form__input gr-form__input--table"
+                            type="text"
+                            formControlName="lotCode"
+                            autocomplete="off"
+                            (blur)="onLineOperationalBlur(i)"
+                            (keydown)="onLineFieldKeydown(i, 'lot', $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('expiry')) {
+                        <td class="gr-form__cell">
+                          <app-date-input
+                            [inputId]="'gr-lot-date-' + i"
+                            formControlName="lotExpiryDate"
+                            ariaLabel="Scadenza lotto"
+                            [compact]="true"
+                            (triggerBlur)="onLineOperationalBlur(i)"
+                            (triggerKeydown)="onLineFieldKeydown(i, 'expiry', $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('serials')) {
+                        <td class="gr-form__cell">
+                          <input
+                            [id]="'gr-serial-' + i"
+                            class="gr-form__input gr-form__input--table"
+                            type="text"
+                            formControlName="serialNumbersText"
+                            placeholder="SN001, SN002"
+                            autocomplete="off"
+                            (blur)="onLineOperationalBlur(i)"
+                            (keydown)="onLineFieldKeydown(i, 'serials', $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('loadsStock')) {
+                        <td class="gr-form__cell gr-form__cell--check">
+                          <label class="gr-form__check">
+                            <input
+                              type="checkbox"
+                              formControlName="loadsStock"
+                              (change)="onLoadsStockChange(i)"
+                            />
+                            <span class="sr-only">Carica magazzino</span>
+                          </label>
+                        </td>
+                      }
+                      @if (isLineColumnVisible('lineTotal')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                        >
+                          @if (lineHasDiscount(i)) {
+                            <span class="gr-form__line-total-gross">{{
+                              formatMoney(lineGrossMoney(i))
+                            }}</span>
+                          }
+                          <span>{{ formatMoney(lineMoney(i)) }}</span>
+                        </td>
+                      }
+                      @if (isLineColumnVisible('actions')) {
+                        <td class="gr-form__cell gr-form__cell--actions">
+                          <div class="gr-form__line-actions">
+                            <button
+                              type="button"
+                              class="gr-form__line-move"
+                              tabindex="-1"
+                              [disabled]="formReadOnly()"
+                              aria-label="Duplica riga"
+                              (click)="duplicateLine(i)"
+                            >
+                              <i class="pi pi-clone" aria-hidden="true"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="gr-form__line-remove"
+                              tabindex="-1"
+                              [disabled]="lines.length <= 1"
+                              aria-label="Rimuovi riga"
+                              (click)="removeLine(i)"
+                            >
+                              <i class="pi pi-trash" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
 
-          <!-- Vista mobile (§10.10): righe come card editabili, tabella nascosta. -->
-          <div class="gr-form__cards">
-            @for (line of lines.controls; track line; let i = $index) {
-              <app-goods-receipt-line-card
-                [lineIndex]="i"
-                [line]="line"
-                [linked]="lineHasLinkedProduct(i)"
-                [productLabel]="linkedProductLabel(i)"
-                [incomplete]="!lineRowComplete(i)"
-                [totalLabel]="formatMoney(lineMoney(i))"
-                [grossLabel]="lineHasDiscount(i) ? formatMoney(lineGrossMoney(i)) : null"
-                [vatOptions]="lineVatOptions(i)"
-                [vatValue]="lineVatValue(i)"
-                [disabled]="formReadOnly()"
-                [canRemove]="lines.length > 1"
-                [suggestions]="lineSuggestions(i)"
-                [suggestionsOpen]="lineSuggestionsOpen(i)"
-                (searchProduct)="openLineProductSearch($event)"
-                (vatChange)="onLineVatSelect(i, $event)"
-                (fieldBlur)="onLineOperationalBlur($event)"
-                (nameInput)="onCardProductNameInput(i, $event)"
-                (nameFocus)="onLineProductFocus($event)"
-                (nameBlur)="onLineProductBlur($event)"
-                (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                (duplicated)="duplicateLine($event)"
-                (removed)="removeLine($event)"
-              />
-            }
-          </div>
+            <!-- Vista mobile (§10.10): righe come card editabili, tabella nascosta. -->
+            <div class="gr-form__cards">
+              @for (line of lines.controls; track line; let i = $index) {
+                <app-goods-receipt-line-card
+                  [lineIndex]="i"
+                  [line]="line"
+                  [linked]="lineHasLinkedProduct(i)"
+                  [productLabel]="linkedProductLabel(i)"
+                  [incomplete]="!lineRowComplete(i)"
+                  [totalLabel]="formatMoney(lineMoney(i))"
+                  [grossLabel]="lineHasDiscount(i) ? formatMoney(lineGrossMoney(i)) : null"
+                  [vatOptions]="lineVatOptions(i)"
+                  [vatValue]="lineVatValue(i)"
+                  [disabled]="formReadOnly()"
+                  [canRemove]="lines.length > 1"
+                  [suggestions]="lineSuggestions(i)"
+                  [suggestionsOpen]="lineSuggestionsOpen(i)"
+                  (searchProduct)="openLineProductSearch($event)"
+                  (vatChange)="onLineVatSelect(i, $event)"
+                  (fieldBlur)="onLineOperationalBlur($event)"
+                  (nameInput)="onCardProductNameInput(i, $event)"
+                  (nameFocus)="onLineProductFocus($event)"
+                  (nameBlur)="onLineProductBlur($event)"
+                  (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
+                  (duplicated)="duplicateLine($event)"
+                  (removed)="removeLine($event)"
+                />
+              }
+            </div>
 
-          <aside class="gr-form__totals-bar" aria-label="Totali documento">
-            <dl class="gr-form__totals">
-              <div class="gr-form__totals-row">
-                <dt>Imponibile righe</dt>
-                <dd class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</dd>
-              </div>
-              <div class="gr-form__totals-row gr-form__totals-row--field">
-                <dt>
-                  <label for="gr-doc-discount">Sconto extra documento</label>
-                </dt>
-                <dd>
-                  <input
-                    id="gr-doc-discount"
-                    class="gr-form__input gr-form__input--num gr-form__totals-input"
-                    type="text"
-                    formControlName="documentDiscountPercent"
-                    placeholder="0%"
-                    aria-label="Sconto extra documento"
-                  />
-                </dd>
-              </div>
-              @if (documentTotals().documentDiscount.amountMinor > 0) {
+            <aside class="gr-form__totals-bar" aria-label="Totali documento">
+              <dl class="gr-form__totals">
                 <div class="gr-form__totals-row">
-                  <dt>Sconto documento</dt>
-                  <dd class="tabular-nums">
-                    −{{ formatMoney(documentTotals().documentDiscount) }}
+                  <dt>Imponibile righe</dt>
+                  <dd class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</dd>
+                </div>
+                <div class="gr-form__totals-row gr-form__totals-row--field">
+                  <dt>
+                    <label for="gr-doc-discount">Sconto extra documento</label>
+                  </dt>
+                  <dd>
+                    <input
+                      id="gr-doc-discount"
+                      class="gr-form__input gr-form__input--num gr-form__totals-input"
+                      type="text"
+                      formControlName="documentDiscountPercent"
+                      placeholder="0%"
+                      aria-label="Sconto extra documento"
+                    />
                   </dd>
                 </div>
-              }
-              <div class="gr-form__totals-row">
-                <dt>Imponibile</dt>
-                <dd class="tabular-nums">{{ formatMoney(documentTotals().subtotal) }}</dd>
-              </div>
-              <div class="gr-form__totals-row">
-                <dt>IVA</dt>
-                <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
-              </div>
-              @if (reverseChargeTotal().amountMinor > 0) {
-                <div class="gr-form__totals-row gr-form__totals-row--info">
-                  <dt>IVA reverse charge (non dovuta al fornitore)</dt>
-                  <dd class="tabular-nums">{{ formatMoney(reverseChargeTotal()) }}</dd>
-                </div>
-              }
-              @if (nonDeductibleTotal().amountMinor > 0) {
-                <div class="gr-form__totals-row gr-form__totals-row--info">
-                  <dt>di cui IVA indetraibile</dt>
-                  <dd class="tabular-nums">{{ formatMoney(nonDeductibleTotal()) }}</dd>
-                </div>
-              }
-              <div class="gr-form__totals-row gr-form__totals-row--total">
-                <dt>Totale</dt>
-                <dd class="tabular-nums">
-                  <strong>{{ formatMoney(documentTotals().total) }}</strong>
-                </dd>
-              </div>
-            </dl>
-            @if (vatSummary().length > 0) {
-              <dl class="gr-form__totals gr-form__vat-summary" aria-label="Riepilogo IVA">
-                <div class="gr-form__totals-row gr-form__totals-row--info">
-                  <dt><strong>Riepilogo IVA</strong></dt>
-                  <dd></dd>
-                </div>
-                @for (row of vatSummary(); track row.vatCodeId ?? row.code) {
-                  <div
-                    class="gr-form__totals-row gr-form__totals-row--info"
-                    [title]="row.description"
-                  >
-                    <dt>{{ row.code }} · {{ formatVatRate(row.ratePercent) }}</dt>
+                @if (documentTotals().documentDiscount.amountMinor > 0) {
+                  <div class="gr-form__totals-row">
+                    <dt>Sconto documento</dt>
                     <dd class="tabular-nums">
-                      Imp. {{ formatMoney(minorToMoney(row.netMinor)) }} · IVA
-                      {{ formatMoney(minorToMoney(row.vatMinor)) }}
+                      −{{ formatMoney(documentTotals().documentDiscount) }}
                     </dd>
                   </div>
                 }
+                <div class="gr-form__totals-row">
+                  <dt>Imponibile</dt>
+                  <dd class="tabular-nums">{{ formatMoney(documentTotals().subtotal) }}</dd>
+                </div>
+                <div class="gr-form__totals-row">
+                  <dt>IVA</dt>
+                  <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
+                </div>
+                @if (reverseChargeTotal().amountMinor > 0) {
+                  <div class="gr-form__totals-row gr-form__totals-row--info">
+                    <dt>IVA reverse charge (non dovuta al fornitore)</dt>
+                    <dd class="tabular-nums">{{ formatMoney(reverseChargeTotal()) }}</dd>
+                  </div>
+                }
+                @if (nonDeductibleTotal().amountMinor > 0) {
+                  <div class="gr-form__totals-row gr-form__totals-row--info">
+                    <dt>di cui IVA indetraibile</dt>
+                    <dd class="tabular-nums">{{ formatMoney(nonDeductibleTotal()) }}</dd>
+                  </div>
+                }
+                <div class="gr-form__totals-row gr-form__totals-row--total">
+                  <dt>Totale</dt>
+                  <dd class="tabular-nums">
+                    <strong>{{ formatMoney(documentTotals().total) }}</strong>
+                  </dd>
+                </div>
               </dl>
-            }
-          </aside>
-        </section>
-
-        <div class="gr-form__field">
-          <label class="gr-form__label" for="gr-notes">Note documento</label>
-          <textarea
-            id="gr-notes"
-            class="gr-form__textarea"
-            rows="2"
-            formControlName="notes"
-          ></textarea>
-        </div>
-
-        <div class="gr-form__field">
-          <label class="gr-form__label" for="gr-internal-comment">Commento interno</label>
-          <textarea
-            id="gr-internal-comment"
-            class="gr-form__textarea"
-            rows="2"
-            formControlName="internalComment"
-          ></textarea>
-          <p class="gr-form__hint">
-            Nota interna non stampata: compare nella colonna Commento dell'elenco Arrivi merce.
-          </p>
-        </div>
-
-        @if (editDocumentId(); as docId) {
-          <section class="gr-form__attachments" aria-labelledby="gr-attachments-title">
-            <h2 id="gr-attachments-title" class="gr-form__subtitle">Allegati</h2>
-            <app-document-attachments-panel [documentId]="docId" [canManage]="!formReadOnly()" />
+              @if (vatSummary().length > 0) {
+                <dl class="gr-form__totals gr-form__vat-summary" aria-label="Riepilogo IVA">
+                  <div class="gr-form__totals-row gr-form__totals-row--info">
+                    <dt><strong>Riepilogo IVA</strong></dt>
+                    <dd></dd>
+                  </div>
+                  @for (row of vatSummary(); track row.vatCodeId ?? row.code) {
+                    <div
+                      class="gr-form__totals-row gr-form__totals-row--info"
+                      [title]="row.description"
+                    >
+                      <dt>{{ row.code }} · {{ formatVatRate(row.ratePercent) }}</dt>
+                      <dd class="tabular-nums">
+                        Imp. {{ formatMoney(minorToMoney(row.netMinor)) }} · IVA
+                        {{ formatMoney(minorToMoney(row.vatMinor)) }}
+                      </dd>
+                    </div>
+                  }
+                </dl>
+              }
+            </aside>
           </section>
-        } @else {
-          <p class="gr-form__hint">
-            Il documento si salva automaticamente mentre compili testata e righe. Gli allegati sono
-            disponibili dopo il primo salvataggio.
-          </p>
-        }
+
+          <!-- Sezione inferiore compatta: note e commento affiancati oltre md. -->
+          <div class="gr-form__bottom-grid">
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="gr-notes">Note documento</label>
+              <textarea
+                id="gr-notes"
+                class="gr-form__textarea"
+                rows="2"
+                formControlName="notes"
+              ></textarea>
+            </div>
+
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="gr-internal-comment">
+                Commento interno
+                <span class="gr-form__label-hint">
+                  (non stampato: visibile nell'elenco Arrivi merce)
+                </span>
+              </label>
+              <textarea
+                id="gr-internal-comment"
+                class="gr-form__textarea"
+                rows="2"
+                formControlName="internalComment"
+              ></textarea>
+            </div>
+          </div>
+
+          @if (editDocumentId(); as docId) {
+            <section class="gr-form__attachments" aria-labelledby="gr-attachments-title">
+              <h2 id="gr-attachments-title" class="gr-form__subtitle">Allegati</h2>
+              <app-document-attachments-panel [documentId]="docId" [canManage]="!formReadOnly()" />
+            </section>
+          } @else {
+            <p class="gr-form__hint">
+              Il documento si salva automaticamente mentre compili testata e righe. Gli allegati
+              sono disponibili dopo il primo salvataggio.
+            </p>
+          }
+        </fieldset>
       </fieldset>
 
       @if (submitError(); as appError) {
@@ -1482,7 +1594,7 @@
             class="gr-form__dock-scan"
             type="text"
             [value]="barcodeScanDraft()"
-            [disabled]="formReadOnly() || barcodeScanBusy()"
+            [disabled]="formReadOnly() || barcodeScanBusy() || headerGateActive()"
             autocomplete="off"
             placeholder="Scansiona o digita codice…"
             aria-label="Scansione codice a barre"
@@ -1604,7 +1716,7 @@
     aria-labelledby="gr-apply-vat-title"
   >
     <h2 id="gr-apply-vat-title" class="gr-form__exit-title">
-      Codice IVA da impostare su tutte le righe
+      {{ applyVatDialogTitle() }}
     </h2>
     <div class="gr-form__field">
       <span class="gr-form__label" id="gr-apply-vat-label">Codice IVA</span>

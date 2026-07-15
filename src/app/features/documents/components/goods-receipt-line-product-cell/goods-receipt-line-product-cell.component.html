@@ -6,6 +6,7 @@
     <button
       type="button"
       class="gr-product-cell__search"
+      tabindex="-1"
       [disabled]="disabled()"
       aria-label="Cerca un altro prodotto"
       title="Cerca un altro prodotto"
@@ -17,6 +18,7 @@
     <button
       type="button"
       class="gr-product-cell__search"
+      tabindex="-1"
       [disabled]="disabled()"
       aria-label="Scollega articolo e modifica il testo"
       title="Scollega articolo e modifica il testo"
@@ -28,6 +30,7 @@
     <button
       type="button"
       class="gr-product-cell__link-action"
+      tabindex="-1"
       [disabled]="disabled()"
       (click)="openDetail($event)"
     >
@@ -58,6 +61,7 @@
       <button
         type="button"
         class="gr-product-cell__search"
+        tabindex="-1"
         [disabled]="disabled()"
         aria-label="Cerca prodotto"
         (mousedown)="$event.preventDefault()"
@@ -97,6 +101,7 @@
     <button
       type="button"
       class="gr-product-cell__link-action"
+      tabindex="-1"
       [disabled]="disabled()"
       (click)="openAnagraphic($event)"
     >

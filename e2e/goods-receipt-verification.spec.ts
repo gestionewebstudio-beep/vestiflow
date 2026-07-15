@@ -4,7 +4,11 @@ import {
   fillMinimalGoodsReceiptDraft,
   saveGoodsReceiptDocument,
 } from './helpers/goods-receipt-form';
-import { pickAnySupplier, defaultVariantSearchTerm } from './helpers/select-menu';
+import {
+  pickAnySupplier,
+  pickSelectMenuOption,
+  defaultVariantSearchTerm,
+} from './helpers/select-menu';
 
 /**
  * Scenari della specifica di verifica Arrivo merce
@@ -17,6 +21,16 @@ async function openNewGoodsReceipt(page: Page): Promise<void> {
   await expect(page.locator('h1.gr-form__title')).toHaveText('Nuovo arrivo merce', {
     timeout: 30_000,
   });
+}
+
+/**
+ * Gate compilazione: fornitore + magazzino vanno scelti prima che righe e
+ * altri campi si sblocchino (le celle riga nascono disabilitate).
+ */
+async function unlockGoodsReceiptCompilation(page: Page): Promise<void> {
+  await pickAnySupplier(page);
+  await pickSelectMenuOption(page, 'Location di destinazione', { index: 1 });
+  await expect(page.locator('#gr-product-0')).toBeEnabled({ timeout: 15_000 });
 }
 
 test.describe('Arrivo merce — verifica funzionale', () => {
@@ -41,6 +55,7 @@ test.describe('Arrivo merce — verifica funzionale', () => {
   }) => {
     test.setTimeout(90_000);
     await openNewGoodsReceipt(page);
+    await unlockGoodsReceiptCompilation(page);
 
     const term = defaultVariantSearchTerm();
     const nameInput = page.locator('#gr-product-0');
@@ -71,6 +86,7 @@ test.describe('Arrivo merce — verifica funzionale', () => {
   test('§8 creazione implicita: nessun badge/toggle, il nome digitato resta', async ({ page }) => {
     test.setTimeout(90_000);
     await openNewGoodsReceipt(page);
+    await unlockGoodsReceiptCompilation(page);
 
     const nameInput = page.locator('#gr-product-0');
     await nameInput.click();
@@ -132,6 +148,7 @@ test.describe('Arrivo merce — ricerca contestuale su card mobile', () => {
   test('la card riga offre solo i suggerimenti dal catalogo', async ({ page }) => {
     test.setTimeout(90_000);
     await openNewGoodsReceipt(page);
+    await unlockGoodsReceiptCompilation(page);
 
     const cardNameInput = page.getByRole('combobox', { name: 'Nome prodotto riga 1' });
     await expect(cardNameInput).toBeVisible({ timeout: 15_000 });

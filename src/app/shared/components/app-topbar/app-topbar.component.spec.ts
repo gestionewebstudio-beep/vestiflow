@@ -25,7 +25,6 @@ describe('AppTopbarComponent', () => {
   it('mostra etichetta fissa con una sola sede disponibile', async () => {
     await render(AppTopbarComponent, {
       componentInputs: {
-        themeMode: 'light',
         locations: [napoli],
         activeLocationId: napoli.id,
       },
@@ -38,7 +37,6 @@ describe('AppTopbarComponent', () => {
   it('mostra select con più sedi e selettore non bloccato', async () => {
     await render(AppTopbarComponent, {
       componentInputs: {
-        themeMode: 'light',
         locations: [napoli, roma],
         activeLocationId: null,
         locationSelectorLocked: false,
@@ -52,7 +50,6 @@ describe('AppTopbarComponent', () => {
   it('mostra etichetta fissa quando la sede è bloccata', async () => {
     await render(AppTopbarComponent, {
       componentInputs: {
-        themeMode: 'light',
         locations: [napoli, roma],
         locationSelectorLocked: true,
         fixedLocationLabel: 'Roma',

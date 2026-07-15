@@ -480,6 +480,39 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected readonly formReadOnly = computed(() => this.isConfirmedEdit() && !this.editUnlocked());
 
+  /**
+   * Blocco compilazione: fornitore (se richiesto dal tipo) e magazzino vanno
+   * scelti PRIMA di righe e altri campi. Senza, le righe inserite non
+   * caricherebbero nulla e l'operazione risulterebbe nulla senza accorgersene.
+   */
+  protected readonly headerGateActive = computed(() => {
+    if (this.formReadOnly()) {
+      return false;
+    }
+    // Trigger reattivo: i valori si leggono dai controls (mai disabilitati).
+    this.formValue();
+    const type = this.form.controls.type.value;
+    const supplierRequired = type !== DocumentType.ManualLoad && type !== DocumentType.InitialLoad;
+    const supplierMissing = supplierRequired && !this.form.controls.supplierId.value;
+    const locationMissing = !this.form.controls.locationId.value;
+    return supplierMissing || locationMissing;
+  });
+
+  protected readonly headerGateMessage = computed(() => {
+    this.formValue();
+    const type = this.form.controls.type.value;
+    const supplierRequired = type !== DocumentType.ManualLoad && type !== DocumentType.InitialLoad;
+    const supplierMissing = supplierRequired && !this.form.controls.supplierId.value;
+    const locationMissing = !this.form.controls.locationId.value;
+    if (supplierMissing && locationMissing) {
+      return 'Seleziona fornitore e magazzino di destinazione per compilare il documento.';
+    }
+    if (supplierMissing) {
+      return 'Seleziona il fornitore per compilare il documento.';
+    }
+    return 'Seleziona il magazzino di destinazione per compilare il documento.';
+  });
+
   protected readonly documentStatus = computed(
     () => this.loadedDocument()?.status ?? DocumentStatus.Draft,
   );
@@ -849,7 +882,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.autocompleteLineIndex() !== index || this.lineHasLinkedProduct(index)) {
       return [];
     }
-    return mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants());
+    // Nessun suggerimento senza testo digitato: al solo focus della cella
+    // vuota gli articoli delle altre righe del documento NON vanno proposti.
+    const term = this.lines.at(index)?.controls.productName.value.trim().toLowerCase() ?? '';
+    if (term.length < VARIANT_SEARCH_MIN_CHARS) {
+      return [];
+    }
+    // Le varianti già presenti nel documento (pinned) entrano nell'elenco
+    // solo se combaciano col testo digitato, come i risultati del server.
+    const pinnedMatching = this.pinnedVariants().filter((variant) =>
+      [variant.productName, variant.title, variant.sku, variant.barcode ?? ''].some((value) =>
+        value.toLowerCase().includes(term),
+      ),
+    );
+    return mergeVariantSummaries(pinnedMatching, this.searchedVariants());
   }
 
   /**
@@ -1334,16 +1380,23 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.focusNextLineField(index, field);
       return;
     }
-    if (event.key !== 'Tab' || event.shiftKey) {
+    if (event.key !== 'Tab') {
       return;
     }
-    const order = this.visibleLineFocusFields(index);
-    const pos = order.indexOf(field);
-    if (pos < order.length - 1) {
+    // Tab deterministico (velocità inserimento): sempre e solo tra i campi
+    // dati della riga — mai su icone, checkbox o pulsanti di servizio.
+    if (event.shiftKey) {
+      const order = this.visibleLineFocusFields(index);
+      if (order.indexOf(field) <= 0 && index === 0) {
+        // Prima cella della prima riga: lascia al browser l'uscita dalla tabella.
+        return;
+      }
+      event.preventDefault();
+      this.focusPreviousLineField(index, field);
       return;
     }
     event.preventDefault();
-    this.advanceToNextLine(index);
+    this.focusNextLineField(index, field);
   }
 
   protected onLineSupplierSkuChange(index: number, value: string): void {
@@ -1494,6 +1547,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     this.advanceToNextLine(index);
+  }
+
+  /** Shift+Tab: campo precedente della riga, o ultima cella della riga sopra. */
+  protected focusPreviousLineField(index: number, current: GoodsReceiptLineFocusField): void {
+    const order = this.visibleLineFocusFields(index);
+    const pos = order.indexOf(current);
+    if (pos > 0) {
+      this.focusLineField(index, order[pos - 1]!);
+      return;
+    }
+    this.advanceToPreviousLine(index);
   }
 
   private clearCodeLookup(): void {
@@ -2046,10 +2110,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   // ── Colonna IVA: select riga, tooltip, applica a tutte (§9.2, §10, §13) ────
 
   private vatOptionFromCode(vatCode: VatCode): SelectMenuOption {
+    // Riga sintetica su UNA riga (dropdown IVA): codice + aliquota + descrizione,
+    // senza ripetere la natura per ogni voce (resta nel tooltip di cella).
+    const rate = formatVatRate(vatCode.ratePercent);
+    const description = vatCode.description.trim();
+    const detail = description.toLowerCase().includes(rate.toLowerCase())
+      ? description
+      : `${rate} · ${description}`;
     return {
       value: vatCode.id,
       label: vatCode.code,
-      detail: `${formatVatRate(vatCode.ratePercent)} · ${vatCode.description} · ${vatCode.nature.label}`,
+      detail,
     };
   }
 
@@ -2141,14 +2212,34 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   // ── "Imposta IVA a tutte le righe…" (§10) ──────────────────────────────────
 
+  /** Ambito del dialog IVA: tutte le righe (menu colonna) o solo le selezionate. */
+  protected readonly applyVatScope = signal<'all' | 'selected'>('all');
+
   protected openApplyVatDialog(): void {
     this.vatHeaderMenuOpen.set(false);
     if (this.formReadOnly()) {
       return;
     }
+    this.applyVatScope.set('all');
     this.applyVatCodeId.set(this.defaultVatCodeId());
     this.applyVatDialogOpen.set(true);
   }
+
+  /** Variante massiva dalla barra di selezione: agisce sulle sole righe scelte. */
+  protected openApplyVatDialogForSelection(): void {
+    if (this.formReadOnly() || this.selectedLinesCount() === 0) {
+      return;
+    }
+    this.applyVatScope.set('selected');
+    this.applyVatCodeId.set(this.defaultVatCodeId());
+    this.applyVatDialogOpen.set(true);
+  }
+
+  protected readonly applyVatDialogTitle = computed(() =>
+    this.applyVatScope() === 'selected'
+      ? 'Codice IVA da impostare sulle righe selezionate'
+      : 'Codice IVA da impostare su tutte le righe',
+  );
 
   protected closeApplyVatDialog(): void {
     this.applyVatDialogOpen.set(false);
@@ -2157,7 +2248,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   /** Righe economiche interessate: esclude la riga vuota di inserimento (§10.1). */
   protected readonly applyVatTargetCount = computed(() => {
     this.formValue();
-    return this.lines.controls.filter((line) => !this.lineIsEmpty(line)).length;
+    const selected = this.selectedLineControls();
+    const scoped =
+      this.applyVatScope() === 'selected'
+        ? this.lines.controls.filter((line) => selected.has(line))
+        : this.lines.controls;
+    return scoped.filter((line) => !this.lineIsEmpty(line)).length;
   });
 
   protected readonly applyVatSelectedCode = computed(() => {
@@ -2177,8 +2273,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!vatCodeId || !this.vatCodeById().has(vatCodeId)) {
       return;
     }
+    const selected = this.selectedLineControls();
+    const selectedOnly = this.applyVatScope() === 'selected';
     for (const line of this.lines.controls) {
-      if (this.lineIsEmpty(line)) {
+      if (this.lineIsEmpty(line) || (selectedOnly && !selected.has(line))) {
         continue;
       }
       line.controls.vatCodeId.setValue(vatCodeId, { emitEvent: false });
@@ -2303,8 +2401,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected onSupplierSelect(value: string | null): void {
+    const wasGated = this.headerGateActive();
     this.form.controls.supplierId.setValue(value ?? '');
     this.form.controls.supplierId.markAsTouched();
+    this.focusLinesWhenGateUnlocks(wasGated);
     // Il refetch dei collegamenti SKU fornitore parte già dalla subscription
     // su supplierId.valueChanges (costruttore): non ripeterlo qui, altrimenti
     // ogni selezione lancia due GET identiche in corsa tra loro.
@@ -2336,8 +2436,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected onLocationSelect(value: string | null): void {
+    const wasGated = this.headerGateActive();
     this.form.controls.locationId.setValue(value ?? '');
     this.form.controls.locationId.markAsTouched();
+    this.focusLinesWhenGateUnlocks(wasGated);
+  }
+
+  /**
+   * Appena fornitore+magazzino sono completi il blocco cade: il fuoco passa
+   * alla prima riga per iniziare subito l'inserimento (velocità operativa).
+   */
+  private focusLinesWhenGateUnlocks(wasGated: boolean): void {
+    if (!wasGated || this.headerGateActive()) {
+      return;
+    }
+    // Doppio giro: prima Angular deve togliere il disabled dal fieldset.
+    setTimeout(() => this.focusFirstLineField(0));
   }
 
   // ── Documento fornitore (tipo) e Causale di carico ─────────────────────────
@@ -2928,6 +3042,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected addLine(): void {
+    if (this.headerGateActive()) {
+      return;
+    }
     const lastIndex = Math.max(0, this.lines.length - 1);
     this.commitLineAndSave(lastIndex, () => {
       const line = this.createLine();
@@ -2951,7 +3068,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected commitBarcodeScan(): void {
-    if (this.formReadOnly() || this.barcodeScanBusy()) {
+    if (this.formReadOnly() || this.barcodeScanBusy() || this.headerGateActive()) {
       return;
     }
     const raw = this.barcodeScanDraft().trim();
@@ -3147,6 +3264,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.formReadOnly()) {
       return;
     }
+    this.insertLineCopy(index);
+    this.syncLineFieldAccess();
+    this.markFormDirty();
+    this.focusLineField(index + 1, 'quantity');
+  }
+
+  private insertLineCopy(index: number): void {
     const source = this.lines.at(index).getRawValue();
     const copy = this.createLine();
     copy.patchValue(
@@ -3171,9 +3295,88 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       { emitEvent: false },
     );
     this.lines.insert(index + 1, copy);
+  }
+
+  // ── Selezione multipla righe: operazioni massive ────────────────────────────
+  /** Righe selezionate, per riferimento al FormGroup: stabile su riordino/sort. */
+  protected readonly selectedLineControls = signal<
+    ReadonlySet<ReturnType<GoodsReceiptFormComponent['createLine']>>
+  >(new Set());
+
+  protected lineSelected(line: ReturnType<GoodsReceiptFormComponent['createLine']>): boolean {
+    return this.selectedLineControls().has(line);
+  }
+
+  protected toggleLineSelected(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+    checked: boolean,
+  ): void {
+    this.selectedLineControls.update((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(line);
+      } else {
+        next.delete(line);
+      }
+      return next;
+    });
+  }
+
+  /** Conteggio robusto: ignora selezioni di righe nel frattempo rimosse. */
+  protected readonly selectedLinesCount = computed(() => {
+    this.formValue();
+    const selected = this.selectedLineControls();
+    return this.lines.controls.filter((line) => selected.has(line)).length;
+  });
+
+  protected readonly allLinesSelected = computed(() => {
+    this.formValue();
+    const selected = this.selectedLineControls();
+    return this.lines.length > 0 && this.lines.controls.every((line) => selected.has(line));
+  });
+
+  protected readonly someLinesSelected = computed(
+    () => this.selectedLinesCount() > 0 && !this.allLinesSelected(),
+  );
+
+  protected toggleSelectAllLines(checked: boolean): void {
+    this.selectedLineControls.set(checked ? new Set(this.lines.controls) : new Set());
+  }
+
+  protected clearLineSelection(): void {
+    this.selectedLineControls.set(new Set());
+  }
+
+  protected removeSelectedLines(): void {
+    if (this.formReadOnly() || this.selectedLinesCount() === 0) {
+      return;
+    }
+    const selected = this.selectedLineControls();
+    for (let i = this.lines.length - 1; i >= 0; i -= 1) {
+      if (selected.has(this.lines.at(i))) {
+        this.lines.removeAt(i);
+      }
+    }
+    this.clearLineSelection();
+    this.ensureMinimumOneRow();
+    this.trimDuplicateTrailingEmptyRows();
+    this.markFormDirty();
+  }
+
+  protected duplicateSelectedLines(): void {
+    if (this.formReadOnly() || this.selectedLinesCount() === 0) {
+      return;
+    }
+    const selected = this.selectedLineControls();
+    // Dal basso verso l'alto: gli indici delle righe sopra restano validi.
+    for (let i = this.lines.length - 1; i >= 0; i -= 1) {
+      if (selected.has(this.lines.at(i))) {
+        this.insertLineCopy(i);
+      }
+    }
+    this.clearLineSelection();
     this.syncLineFieldAccess();
     this.markFormDirty();
-    this.focusLineField(index + 1, 'quantity');
   }
 
   protected fieldInvalid(name: 'supplierId' | 'locationId' | 'documentDate'): boolean {

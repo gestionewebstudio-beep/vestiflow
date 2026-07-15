@@ -40,6 +40,8 @@ export class GoodsReceiptLineProductCellComponent {
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
   readonly suggestionNavigate = output<'next' | 'prev'>();
   readonly lineAdvance = output<number>();
+  /** Shift+Tab: torna al campo dati precedente (gestito dal form padre). */
+  readonly lineRetreat = output<number>();
   readonly lineRowAdvance = output<number>();
   readonly lineRowRetreat = output<number>();
   /** Scollega l'articolo dalla riga: nome e codici tornano modificabili. */
@@ -135,7 +137,14 @@ export class GoodsReceiptLineProductCellComponent {
       this.lineAdvance.emit(this.lineIndex());
       return;
     }
-    if (event.key === 'Tab' && !event.shiftKey && !open) {
+    if (event.key === 'Tab') {
+      // Tab va SEMPRE al campo dati successivo/precedente: mai sui pulsanti
+      // icona della cella (lente, «Completa anagrafica»…) — velocità inserimento.
+      event.preventDefault();
+      if (event.shiftKey) {
+        this.lineRetreat.emit(this.lineIndex());
+        return;
+      }
       this.lineAdvance.emit(this.lineIndex());
     }
   }

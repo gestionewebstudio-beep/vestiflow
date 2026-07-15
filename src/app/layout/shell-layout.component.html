@@ -23,7 +23,6 @@
   <!-- Topbar persistente: dumb, parla allo shell via output(). -->
   <header class="shell__topbar">
     <app-topbar
-      [themeMode]="themeMode()"
       [user]="currentUser()"
       [locations]="topbarLocations()"
       [activeLocationId]="activeLocationId()"
@@ -35,7 +34,6 @@
       [shopifyLastError]="shopifyLastError()"
       (menuToggle)="toggleDrawer()"
       (searchClick)="openGlobalSearch()"
-      (themeModeChange)="onThemeModeChange($event)"
       (locationChange)="onLocationChange($event)"
       (syncClick)="onSyncClick()"
       (settingsClick)="onSettingsClick()"

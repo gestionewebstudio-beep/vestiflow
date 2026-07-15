@@ -12,29 +12,6 @@
 
     <button
       type="button"
-      class="app-topbar__company"
-      [title]="'Profilo e impostazioni — ' + companyName()"
-      [attr.aria-label]="'Profilo e impostazioni — ' + companyName()"
-      (click)="onSettingsClick()"
-    >
-      @if (user(); as currentUser) {
-        <app-user-avatar
-          size="md"
-          [displayName]="currentUser.displayName"
-          [email]="currentUser.email"
-          [avatarUrl]="currentUser.avatarUrl"
-        />
-      }
-      <span class="app-topbar__company-copy">
-        <strong class="app-topbar__company-name">{{ companyName() }}</strong>
-        <span class="app-topbar__company-sub">{{ companyLocationLabel() }}</span>
-      </span>
-    </button>
-  </div>
-
-  <div class="app-topbar__end">
-    <button
-      type="button"
       class="app-topbar__search"
       aria-label="Ricerca globale (Ctrl K)"
       title="Ricerca globale"
@@ -44,24 +21,10 @@
       <span class="app-topbar__search-placeholder">Cerca prodotti, ordini, clienti…</span>
       <kbd class="app-topbar__search-kbd" aria-hidden="true">⌘K</kbd>
     </button>
+  </div>
 
-    <div class="app-topbar__theme" role="group" aria-label="Modalità tema">
-      @for (option of themeOptions; track option.mode) {
-        <button
-          type="button"
-          class="app-topbar__theme-btn"
-          [class.app-topbar__theme-btn--active]="themeMode() === option.mode"
-          [attr.aria-pressed]="themeMode() === option.mode"
-          [attr.aria-label]="option.label"
-          [title]="option.label"
-          (click)="themeModeChange.emit(option.mode)"
-        >
-          <i class="pi" [ngClass]="option.icon" aria-hidden="true"></i>
-        </button>
-      }
-    </div>
-
-    <!-- Sede fissa o unica: la mostra gia' il blocco azienda a sinistra;
+  <div class="app-topbar__end">
+    <!-- Sede fissa o unica: la mostra gia' il blocco profilo a destra;
          il selettore compare solo quando la sede si puo' davvero cambiare. -->
     @if (!showFixedLocationLabel() && locations().length > 0) {
       <div class="app-topbar__store">
@@ -97,6 +60,27 @@
         }
       </button>
     }
+
+    <button
+      type="button"
+      class="app-topbar__company"
+      [title]="'Profilo e impostazioni — ' + companyName()"
+      [attr.aria-label]="'Profilo e impostazioni — ' + companyName()"
+      (click)="onSettingsClick()"
+    >
+      @if (user(); as currentUser) {
+        <app-user-avatar
+          size="md"
+          [displayName]="currentUser.displayName"
+          [email]="currentUser.email"
+          [avatarUrl]="currentUser.avatarUrl"
+        />
+      }
+      <span class="app-topbar__company-copy">
+        <strong class="app-topbar__company-name">{{ companyName() }}</strong>
+        <span class="app-topbar__company-sub">{{ companyLocationLabel() }}</span>
+      </span>
+    </button>
 
     @if (user(); as currentUser) {
       <button

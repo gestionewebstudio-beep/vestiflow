@@ -63,8 +63,7 @@
 .gr-form__line-total-gross,
 .gr-form__totals-row--info,
 .gr-form__th-info,
-.gr-form__th-menu-trigger,
-.gr-form__po-link-hint {
+.gr-form__th-menu-trigger {
   display: block;
   margin-top: var(--space-1);
 }
@@ -152,10 +151,36 @@
   gap: 0;
   position: relative;
   min-inline-size: 0;
-  padding: var(--space-2) var(--space-3);
+  // Testata compatta: celle più basse, la tabella righe guadagna spazio.
+  padding: var(--space-1) var(--space-2);
   border-block-end: var(--border-width) solid var(--color-border);
   border-inline-end: var(--border-width) solid var(--color-border);
   transition: background-color var(--transition-fast) var(--ease-standard);
+}
+
+// ── Gate compilazione: fornitore+magazzino prima di tutto il resto ──────────
+// `display: contents` lascia i figli dentro la griglia/flex del contenitore
+// (il fieldset non genera box: margin/padding/border non servono);
+// l'attributo disabled del fieldset blocca comunque i controlli nativi.
+.gr-form__gate-fields {
+  display: contents;
+}
+
+.gr-form__gate-fields:disabled > * {
+  opacity: 0.55;
+}
+
+.gr-form__gate-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  background-color: var(--color-primary-subtle);
+  border: var(--border-width) solid var(--color-primary);
+  border-radius: var(--radius-md);
 }
 
 // Ultima colonna della riga senza bordo destro, per ogni breakpoint della
@@ -457,12 +482,6 @@
   min-inline-size: 0;
 }
 
-.gr-form__field--wide {
-  @include bp.media-up('md') {
-    grid-column: span 2;
-  }
-}
-
 .gr-form__check--block {
   min-block-size: var(--field-height);
   align-items: center;
@@ -713,22 +732,81 @@
   padding-inline: var(--space-1);
 }
 
-// Colonna numero riga (v4): stretta, centrata, su fondo attenuato.
+// Colonna selezione righe (operazioni massive): checkbox stretta a sinistra.
+.gr-form__col--select {
+  width: var(--space-8);
+}
+
+.gr-form__select-check {
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+// Colonna numero riga (v4): stretta, centrata, su fondo attenuato; ospita
+// anche le frecce compatte di riordino (a sinistra, come da richiesta).
 // Sui <col> vale solo `width` fisico: le logical properties vengono ignorate.
 .gr-form__col--index {
-  width: var(--space-10);
+  width: var(--space-12);
+}
+
+.gr-form__table .gr-form__cell--select,
+.gr-form__table .gr-form__cell--index {
+  text-align: center;
+  background-color: var(--color-surface-sunken);
 }
 
 .gr-form__table .gr-form__cell--index {
-  text-align: center;
   font-size: var(--text-2xs);
   color: var(--color-text-subtle);
-  background-color: var(--color-surface-sunken);
+}
+
+.gr-form__index-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline: var(--space-1);
+}
+
+.gr-form__line-move-stack {
+  display: inline-flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.gr-form__line-move--compact {
+  inline-size: var(--space-4);
+  block-size: calc(var(--gr-line-row-height) / 2 - var(--space-1) / 2);
+  font-size: var(--text-2xs);
 }
 
 .gr-form__cell--actions {
   inline-size: calc(var(--gr-line-row-height) + var(--space-1));
   text-align: center;
+}
+
+// Riga selezionata per operazioni massive: tinta leggera su tutta la riga.
+.gr-form__table tbody tr.gr-form__table-row--selected td {
+  background-color: var(--color-primary-subtle);
+}
+
+// ── Barra operazioni massive (selezione multipla righe) ─────────────────────
+.gr-form__bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--color-primary-subtle);
+  border: var(--border-width) solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.gr-form__bulk-count {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
 }
 
 .gr-form__cell--readonly {
@@ -929,7 +1007,24 @@
 }
 
 .gr-form__attachments {
-  margin-block-start: var(--space-4);
+  // Sezione inferiore compatta: gli allegati seguono note/commento senza salti.
+  margin-block-start: var(--space-2);
+}
+
+// Note documento + Commento interno affiancati oltre md (sezione inferiore).
+.gr-form__bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2) var(--space-3);
+
+  @include bp.media-up('md') {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.gr-form__label-hint {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-subtle);
 }
 
 .gr-form__hint {
@@ -1026,23 +1121,15 @@
   white-space: nowrap;
 }
 
+// Le proprietà comuni arrivano dal blocco condiviso `.gr-form__input,
+// .gr-form__textarea`: qui restano solo le differenze della textarea.
 .gr-form__textarea {
   width: 100%;
   min-height: calc(var(--space-8) * 2);
-  padding: var(--space-2) var(--space-3);
-  font-family: inherit;
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
-  color: var(--color-text);
   background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  resize: vertical;
-
-  &:focus-visible {
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
+  border-color: var(--color-border);
 }
 
 .gr-form__submit-error {
@@ -1171,14 +1258,6 @@
 // in silenzio). Le classi gr-form__causal-* residue servono al pannello
 // "Gestisci tipi documento fornitore", che ne riusa la struttura.
 
-.gr-form__causal-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
 .gr-form__causal-empty {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
@@ -1251,6 +1330,11 @@
 }
 
 .gr-form__causal-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
   inline-size: var(--btn-min-height);
   block-size: var(--btn-min-height);
   background: none;

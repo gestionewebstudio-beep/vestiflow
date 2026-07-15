@@ -276,47 +276,6 @@
   background-color: var(--color-text-subtle);
 }
 
-.app-topbar__theme {
-  display: none;
-  align-items: center;
-  gap: var(--space-1);
-  box-sizing: border-box;
-  block-size: var(--topbar-chip-block-size);
-  padding: var(--space-1);
-  padding-block: 0;
-  background-color: var(--color-bg);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.app-topbar__theme-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--field-height);
-  block-size: var(--field-height);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  border: var(--border-width) solid transparent;
-  transition:
-    background-color var(--transition-fast) var(--ease-standard),
-    color var(--transition-fast) var(--ease-standard),
-    border-color var(--transition-fast) var(--ease-standard),
-    box-shadow var(--transition-fast) var(--ease-standard);
-}
-
-.app-topbar__theme-btn:hover:not(.app-topbar__theme-btn--active) {
-  color: var(--color-text);
-  background-color: var(--color-surface-hover);
-}
-
-.app-topbar__theme-btn--active {
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-sm);
-}
-
 .app-topbar__logout {
   display: none;
   align-items: center;
@@ -351,10 +310,6 @@
   .app-topbar {
     gap: var(--space-3);
     padding-inline: var(--space-3);
-  }
-
-  .app-topbar__theme {
-    display: inline-flex;
   }
 
   .app-topbar__sync-meta {

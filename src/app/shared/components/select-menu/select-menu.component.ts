@@ -80,6 +80,11 @@ export class SelectMenuComponent {
   readonly searchAriaLabel = input<string>('Cerca nelle opzioni');
   /** Se false, la ricerca emette `searchChange` senza filtrare le opzioni in locale (es. lookup server-side). */
   readonly filterOptionsLocally = input<boolean>(true);
+  /**
+   * Detail sulla STESSA riga della label (opzioni compatte, es. colonna IVA):
+   * il pannello si allarga a contenuto senza creare opzioni a doppia riga.
+   */
+  readonly inlineDetail = input<boolean>(false);
 
   readonly valueChange = output<string | null>();
   readonly valuesChange = output<readonly string[]>();

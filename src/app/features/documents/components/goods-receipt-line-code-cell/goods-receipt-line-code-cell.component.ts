@@ -37,6 +37,8 @@ export class GoodsReceiptLineCodeCellComponent {
   readonly focused = output<number>();
   readonly blurred = output<number>();
   readonly commit = output<number>();
+  /** Shift+Tab: torna al campo dati precedente (gestito dal form padre). */
+  readonly lineRetreat = output<number>();
   readonly lineRowAdvance = output<number>();
   readonly lineRowRetreat = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
@@ -107,7 +109,13 @@ export class GoodsReceiptLineCodeCellComponent {
       this.commit.emit(this.lineIndex());
       return;
     }
-    if (event.key === 'Tab' && !event.shiftKey) {
+    if (event.key === 'Tab') {
+      // Tab deterministico come nel resto della riga: mai sul default browser.
+      event.preventDefault();
+      if (event.shiftKey) {
+        this.lineRetreat.emit(this.lineIndex());
+        return;
+      }
       this.commit.emit(this.lineIndex());
     }
   }
