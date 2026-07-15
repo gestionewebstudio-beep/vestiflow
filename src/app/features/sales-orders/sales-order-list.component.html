@@ -67,8 +67,8 @@
 
     <div class="sales-list__filters">
       <div class="sales-list__field">
-        <span class="sales-list__label">Origine</span>
         <app-select-menu
+          chipLabel="Origine"
           [options]="sourceOptions()"
           [value]="query().source ?? ''"
           ariaLabel="Filtra per origine ordine"
@@ -76,12 +76,13 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onSourceFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
       <div class="sales-list__field">
-        <span class="sales-list__label">Pagamento</span>
         <app-select-menu
+          chipLabel="Pagamento"
           [options]="financialStatusOptions"
           [value]="query().financialStatus ?? ''"
           ariaLabel="Filtra per stato pagamento"
@@ -89,6 +90,7 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onFinancialFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 

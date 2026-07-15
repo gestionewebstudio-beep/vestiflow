@@ -22,8 +22,9 @@
 }
 
 .supplier-table th {
+  text-transform: uppercase;
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
+  color: var(--color-text-subtle);
   background: var(--color-surface-muted);
 }
 

@@ -60,6 +60,8 @@ export class AppTopbarComponent {
 
   /** Toggle del drawer/sidebar (hamburger, mobile). */
   readonly menuToggle = output<void>();
+  /** Click sulla ricerca globale ⌘K (placeholder: nessun handler in prima battuta). */
+  readonly searchClick = output<void>();
   /** Richiesta di cambio modalita' tema. */
   readonly themeModeChange = output<ThemeMode>();
   /** Richiesta di cambio location attiva (null = tutte). */
@@ -139,19 +141,27 @@ export class AppTopbarComponent {
     return parts.filter(Boolean).join(' · ');
   });
 
-  /** Modificatore BEM del pallino di stato sync. */
-  protected readonly syncToneClass = computed(() => {
+  /** Tono di stato sync condiviso da pill e pallino. */
+  private readonly syncTone = computed<'ok' | 'warning' | 'error' | 'neutral'>(() => {
     switch (this.syncStatus()) {
       case ShopifyConnectionStatus.Connected:
-        return 'app-topbar__sync-dot--ok';
+        return 'ok';
       case ShopifyConnectionStatus.ReauthRequired:
-        return 'app-topbar__sync-dot--warning';
+        return 'warning';
       case ShopifyConnectionStatus.Error:
-        return 'app-topbar__sync-dot--error';
+        return 'error';
       default:
-        return 'app-topbar__sync-dot--neutral';
+        return 'neutral';
     }
   });
+
+  /** Modificatore BEM del pallino di stato sync. */
+  protected readonly syncToneClass = computed(() => `app-topbar__sync-dot--${this.syncTone()}`);
+
+  /** Modificatore BEM della pill sync (tinta dello stato). */
+  protected readonly syncCardToneClass = computed(
+    () => `app-topbar__sync-card--${this.syncTone()}`,
+  );
 
   protected onLocationChange(value: string | null): void {
     this.locationChange.emit(value);

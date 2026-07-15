@@ -71,7 +71,7 @@
 .create-client__title {
   margin: 0;
   font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
 
@@ -335,12 +335,12 @@
 }
 
 .create-client__table th {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-  color: var(--color-text-muted);
-  background-color: var(--color-surface-sunken);
+  letter-spacing: var(--tracking-caps);
+  color: var(--color-text-subtle);
+  background-color: var(--color-table-header-bg);
 }
 
 .create-client__table tbody tr:hover {

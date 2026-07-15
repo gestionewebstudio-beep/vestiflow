@@ -27,7 +27,7 @@
 .pi-form__title {
   margin: 0;
   font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
 
@@ -101,7 +101,7 @@
 .pi-form__textarea:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .pi-form__error {
@@ -158,10 +158,11 @@
   }
 
   thead th {
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-muted);
-    background-color: var(--color-surface-sunken);
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-subtle);
+    background-color: var(--color-table-header-bg);
   }
 
   tfoot th,
@@ -206,11 +207,21 @@
   color: var(--status-error-fg);
 }
 
+// Footer azioni sticky in basso (restyle spec §Form).
 .pi-form__actions {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--z-sticky);
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface-raised);
+  border-block-start: var(--border-width) solid var(--color-border);
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
 }
 
 // ── Pannello "Includi documento" ────────────────────────────────────────────

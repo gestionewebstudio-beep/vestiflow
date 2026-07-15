@@ -38,29 +38,60 @@
   background-color: var(--color-surface-hover);
 }
 
-.app-topbar__brand-lockup {
-  display: none;
+// ── Ricerca globale ⌘K (placeholder) ────────────────────────────────────────
+.app-topbar__search {
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-inline-size: 0;
-}
-
-.app-topbar__logo {
-  inline-size: var(--space-10);
-  block-size: var(--space-10);
+  block-size: var(--topbar-chip-block-size);
+  inline-size: var(--field-height);
+  padding-inline: var(--space-2);
+  color: var(--color-text-subtle);
+  background-color: var(--color-input-bg);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  transition:
+    border-color var(--transition-fast) var(--ease-standard),
+    box-shadow var(--transition-fast) var(--ease-standard);
+}
+
+.app-topbar__search:hover {
+  border-color: var(--color-border-strong);
+}
+
+.app-topbar__search:focus-visible {
+  outline: none;
+  border-color: var(--color-interactive);
+  box-shadow: var(--field-focus-ring);
+}
+
+.app-topbar__search-icon {
   flex-shrink: 0;
+  font-size: var(--text-sm);
 }
 
-:host-context([data-theme='dark']) .app-topbar__logo {
-  filter: invert(1);
+.app-topbar__search-placeholder {
+  display: none;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
 }
 
-.app-topbar__brand {
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--text-3xl);
-  line-height: 1;
-  color: var(--color-text);
+.app-topbar__search-kbd {
+  display: none;
+  flex-shrink: 0;
+  padding-inline: var(--space-1);
+  color: var(--color-text-subtle);
+  background-color: var(--color-surface-hover);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
 }
 
 .app-topbar__end {
@@ -97,16 +128,16 @@
 .app-topbar__sync-card {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   box-sizing: border-box;
   block-size: var(--topbar-chip-block-size);
   min-inline-size: 0;
-  padding: var(--space-1);
+  padding-inline: var(--space-1);
   padding-block: 0;
   color: var(--color-text-muted);
-  background-color: var(--color-bg);
+  background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   font-size: var(--text-md);
   transition:
     background-color var(--transition-fast) var(--ease-standard),
@@ -114,9 +145,27 @@
     border-color var(--transition-fast) var(--ease-standard);
 }
 
+// Pill sync tinta per stato (verde = connesso, come da spec)
+.app-topbar__sync-card--ok {
+  color: var(--status-ok-fg);
+  background-color: var(--status-ok-bg);
+  border-color: var(--status-ok-border);
+}
+
+.app-topbar__sync-card--warning {
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+}
+
+.app-topbar__sync-card--error {
+  color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+  border-color: var(--status-error-border);
+}
+
 .app-topbar__sync-card:hover {
-  color: var(--color-text);
-  background-color: var(--color-surface-hover);
+  filter: brightness(1.08);
 }
 
 .app-topbar__sync-icon-wrap {
@@ -270,8 +319,19 @@
     padding-inline: var(--space-4);
   }
 
-  .app-topbar__brand-lockup {
+  .app-topbar__search {
+    inline-size: min(var(--content-form), 100%);
+    padding-inline: var(--space-3);
+  }
+
+  .app-topbar__search-placeholder,
+  .app-topbar__search-kbd {
+    display: inline;
+  }
+
+  .app-topbar__search-kbd {
     display: inline-flex;
+    align-items: center;
   }
 }
 

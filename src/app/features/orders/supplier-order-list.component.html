@@ -30,8 +30,8 @@
 
     <div class="po-list__filters">
       <div class="po-list__field">
-        <span class="po-list__label">Stato</span>
         <app-select-menu
+          chipLabel="Stato"
           [options]="statusOptions"
           [value]="query().status ?? ''"
           ariaLabel="Filtra per stato ordine"
@@ -39,6 +39,7 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onStatusFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 

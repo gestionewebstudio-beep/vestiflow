@@ -25,8 +25,8 @@
 
     <div class="os-list__filters">
       <div class="os-list__field">
-        <span class="os-list__label">Canale</span>
         <app-select-menu
+          chipLabel="Canale"
           [options]="channelOptions"
           [value]="query().channel ?? ''"
           ariaLabel="Filtra per canale"
@@ -34,6 +34,7 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onChannelFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 

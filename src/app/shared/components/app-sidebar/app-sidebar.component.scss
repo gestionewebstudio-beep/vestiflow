@@ -15,10 +15,45 @@
   padding: var(--space-2);
 }
 
-.app-sidebar__header {
+.app-sidebar__brand {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-block-size: var(--topbar-height);
+  padding-inline: var(--space-3);
+  padding-block-end: var(--space-2);
   margin-block-end: var(--space-1);
+}
+
+.app-sidebar__brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.app-sidebar__logo {
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  // Il tile del logo deve contrastare col fondo: chiaro su dark (default),
+  // scuro su light. L'immagine sorgente e' tile scuro + monogramma chiaro.
+  filter: invert(1);
+}
+
+:host-context([data-theme='light']) .app-sidebar__logo {
+  filter: none;
+}
+
+.app-sidebar__wordmark {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text);
+  white-space: nowrap;
 }
 
 .app-sidebar__close {
@@ -107,7 +142,7 @@
 
 .app-sidebar__link {
   display: grid;
-  grid-template-columns: var(--sidebar-icon-size) minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-icon-size) minmax(0, 1fr) auto;
   align-items: center;
   column-gap: var(--space-2);
   inline-size: 100%;
@@ -133,7 +168,11 @@
   color: var(--color-nav-selected-text);
   font-weight: var(--font-weight-semibold);
   background-color: var(--color-nav-selected-bg);
-  box-shadow: inset var(--border-width-strong) 0 0 var(--color-text);
+  box-shadow: inset var(--border-width-strong) 0 0 var(--color-primary);
+}
+
+.app-sidebar__link--active .app-sidebar__icon {
+  color: var(--color-primary);
 }
 
 .app-sidebar__icon {
@@ -142,6 +181,19 @@
   justify-content: center;
   inline-size: var(--sidebar-icon-size);
   font-size: var(--text-md);
+}
+
+.app-sidebar__badge {
+  justify-self: end;
+  min-inline-size: var(--space-5);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-full);
+  color: var(--color-primary);
+  background-color: var(--color-primary-subtle);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--space-4);
+  text-align: center;
 }
 
 .app-sidebar__label {

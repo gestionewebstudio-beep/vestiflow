@@ -163,6 +163,12 @@ button:disabled {
   font-feature-settings: 'tnum';
 }
 
+// SKU, EAN e codici tecnici: JetBrains Mono + cifre tabulari (restyle spec).
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: var(--numeric-tabular);
+}
+
 // -----------------------------------------------------------------------------
 // APP BUTTON — animazione icona in loading (ng-content non eredita encapsulation)
 // -----------------------------------------------------------------------------

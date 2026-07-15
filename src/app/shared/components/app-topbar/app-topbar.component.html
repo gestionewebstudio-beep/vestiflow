@@ -10,17 +10,17 @@
       <i class="pi pi-bars" aria-hidden="true"></i>
     </button>
 
-    <div class="app-topbar__brand-lockup">
-      <img
-        class="app-topbar__logo"
-        src="/icons/icon-topbar.png"
-        width="40"
-        height="40"
-        alt=""
-        aria-hidden="true"
-      />
-      <span class="app-topbar__brand">VestiFlow</span>
-    </div>
+    <button
+      type="button"
+      class="app-topbar__search"
+      aria-label="Ricerca globale (Ctrl K)"
+      title="Ricerca globale"
+      (click)="searchClick.emit()"
+    >
+      <i class="pi pi-search app-topbar__search-icon" aria-hidden="true"></i>
+      <span class="app-topbar__search-placeholder">Cerca prodotti, ordini, clienti…</span>
+      <kbd class="app-topbar__search-kbd" aria-hidden="true">⌘K</kbd>
+    </button>
   </div>
 
   <div class="app-topbar__end">
@@ -67,6 +67,7 @@
       <button
         type="button"
         class="app-topbar__sync-card"
+        [ngClass]="syncCardToneClass()"
         [attr.aria-label]="syncTooltip()"
         [title]="syncTooltip()"
         (click)="syncClick.emit()"

@@ -15,8 +15,8 @@
 
   <div class="stock-movements__filters">
     <div class="stock-movements__field stock-movements__field--select">
-      <span class="stock-movements__label">Tipo movimento</span>
       <app-select-menu
+        chipLabel="Tipo movimento"
         [options]="movementTypeOptions"
         [value]="typeFilter()"
         ariaLabel="Filtra per tipo movimento"
@@ -24,12 +24,13 @@
         [compact]="true"
         [fullWidth]="true"
         (valueChange)="onTypeFilterChange($event)"
+        [filterChip]="true"
       />
     </div>
 
     <div class="stock-movements__field stock-movements__field--select">
-      <span class="stock-movements__label">Origine</span>
       <app-select-menu
+        chipLabel="Origine"
         [options]="originOptions()"
         [value]="originFilter()"
         ariaLabel="Filtra per origine movimento"
@@ -37,12 +38,13 @@
         [compact]="true"
         [fullWidth]="true"
         (valueChange)="onOriginFilterChange($event)"
+        [filterChip]="true"
       />
     </div>
 
     <div class="stock-movements__field stock-movements__field--select">
-      <span class="stock-movements__label">Location</span>
       <app-select-menu
+        chipLabel="Location"
         [options]="locationOptions()"
         [value]="locationFilter()"
         ariaLabel="Filtra per location"
@@ -50,6 +52,7 @@
         [compact]="true"
         [fullWidth]="true"
         (valueChange)="onLocationFilterChange($event)"
+        [filterChip]="true"
       />
     </div>
 

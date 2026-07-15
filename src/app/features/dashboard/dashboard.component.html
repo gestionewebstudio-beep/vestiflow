@@ -55,14 +55,12 @@
       <app-stat-card
         label="Prodotti a catalogo"
         [value]="productCountLabel()"
-        icon="pi-tag"
         tone="neutral"
         hint="Attivi nel tenant"
       />
       <app-stat-card
         label="Ordini in arrivo"
         [value]="incomingOrdersLabel()"
-        icon="pi-truck"
         tone="neutral"
         hint="Ordini fornitore inviati o parziali"
       />
@@ -70,8 +68,8 @@
         <app-stat-card
           label="Vendite da evadere"
           [value]="toFulfillLabel()"
-          icon="pi-shopping-cart"
           tone="info"
+          [accent]="true"
           hint="Ordini Shopify non evasi"
         />
       }

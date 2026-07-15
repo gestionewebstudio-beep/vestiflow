@@ -77,7 +77,7 @@
 .variants-step__input:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .variants-step__input[aria-invalid='true'] {

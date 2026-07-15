@@ -34,7 +34,7 @@
   .#{$block}__title {
     margin: 0;
     font-size: var(--text-xl);
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-bold);
     color: var(--color-text);
   }
 
@@ -80,15 +80,15 @@
     padding-inline: var(--space-8) var(--space-3);
     font-size: var(--text-base);
     color: var(--color-text);
-    background-color: var(--color-surface);
-    border: var(--border-width) solid var(--color-border-strong);
+    background-color: var(--color-input-bg);
+    border: var(--border-width) solid var(--color-input-border);
     border-radius: var(--radius-md);
   }
 
   .#{$block}__input:focus-visible {
     border-color: var(--color-interactive);
     outline: none;
-    box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+    box-shadow: var(--field-focus-ring);
   }
 
   .#{$block}__filters {

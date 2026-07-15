@@ -46,6 +46,10 @@
               <td
                 class="level-table__cell--numeric tabular-nums"
                 [class.level-table__cell--negative]="row.available < 0"
+                [class.level-table__cell--empty]="row.available <= 0"
+                [class.level-table__cell--low]="
+                  row.available > 0 && row.minThreshold > 0 && row.available <= row.minThreshold
+                "
                 [class.level-table__cell--pinned]="col.pinned"
                 [attr.data-label]="col.label"
               >

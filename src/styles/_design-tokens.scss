@@ -29,6 +29,7 @@
   --color-surface-raised: #eef0f4;
   --color-surface-sunken: #ffffff;
   --color-surface-hover: #f3f5f9;
+  --color-surface-muted: #f3f5f9;
 
   --color-border: #e2e6ee;
   --color-border-strong: #cbd2df;
@@ -194,6 +195,8 @@
   --color-surface-raised: #1a1d24;
   --color-surface-sunken: #0f1116;
   --color-surface-hover: #171a20;
+  /** Pannello attenuato dentro una card (totali, fasce hint): tono inset leggibile su surface. */
+  --color-surface-muted: #101217;
 
   --color-border: #262a33;
   --color-border-strong: #333a47;
@@ -380,8 +383,8 @@
   /** Larghezza massima celle testuali nelle tabelle dense (ellipsis). */
   --table-cell-max: 18ch;
 
-  /** Larghezza minima del riquadro totali nelle pagine di dettaglio documento. */
-  --detail-totals-min: 14rem;
+  /** Larghezza minima del riquadro totali nei documenti (spec §Form: min 300px). */
+  --detail-totals-min: 18.75rem;
 
   --chart-height-md: 16rem;
   --chart-height-lg: 18rem;
@@ -402,6 +405,7 @@
 
   --btn-min-height: 2.75rem; // 44px — touch target minimo (a11y)
   --field-height: 2.25rem; // 36px — input
+  --field-height-inline: 1.875rem; // 30px — input inline nelle righe documento (spec §Form)
   --select-menu-width: 14rem; // larghezza uniforme trigger + pannello in tutta l'app
   --select-menu-width-wide: 22rem; // select con etichette lunghe (es. profilo canale admin)
   --select-menu-width-narrow: var(--space-20); // valori numerici corti (paginazione)

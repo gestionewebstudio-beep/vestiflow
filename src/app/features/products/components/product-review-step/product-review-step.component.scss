@@ -120,6 +120,8 @@
 @include rt.data-table-mobile-cards('review-step-table');
 
 .review-step-table__sku {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   font-weight: var(--font-weight-semibold);
 }
 

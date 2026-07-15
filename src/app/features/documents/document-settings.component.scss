@@ -35,7 +35,7 @@
 .doc-settings__title {
   margin: 0;
   font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
 
@@ -133,7 +133,7 @@
 .doc-settings__input:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .doc-settings__switch,

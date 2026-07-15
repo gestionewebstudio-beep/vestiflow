@@ -29,7 +29,7 @@
 .movement-form__title {
   margin: 0;
   font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
 
@@ -118,7 +118,7 @@
 .movement-form__textarea:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .movement-form__input[aria-invalid='true'],
@@ -138,10 +138,20 @@
   color: var(--status-error-fg);
 }
 
+// Footer azioni sticky in basso (restyle spec §Form).
 .movement-form__actions {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--z-sticky);
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface-raised);
+  border-block-start: var(--border-width) solid var(--color-border);
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
 }
 
 // ── Riepilogo ────────────────────────────────────────────────────────────────

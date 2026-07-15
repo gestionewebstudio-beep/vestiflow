@@ -61,5 +61,5 @@
 .detail-facts__link:focus-visible {
   border-radius: var(--radius-sm);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }

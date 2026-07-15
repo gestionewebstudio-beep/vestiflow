@@ -26,6 +26,7 @@ import type { SelectMenuOption } from './select-menu.model';
     '[class.select-menu-host--full]': 'fullWidth()',
     '[class.select-menu-host--toolbar]': 'toolbarChip()',
     '[class.select-menu-host--match-input]': 'matchInputHeight()',
+    '[class.select-menu-host--chip]': 'filterChip()',
     '(document:click)': 'onDocumentClick($event)',
     '(document:keydown.escape)': 'close()',
   },
@@ -60,6 +61,17 @@ export class SelectMenuComponent {
   /** Voce placeholder con valore vuoto (es. "Tutti"); disabilita per select obbligati. */
   readonly includeEmptyOption = input<boolean>(true);
   readonly matchInputHeight = input<boolean>(false);
+  /**
+   * Filtro inline a chip (restyle spec §Liste): quando un valore e' selezionato
+   * il trigger prende la tinta accento e la chevron lascia il posto alla × che
+   * azzera il filtro.
+   */
+  readonly filterChip = input<boolean>(false);
+  /**
+   * Etichetta mostrata dentro il chip prima del valore (es. «Categoria: Tutte»),
+   * come nei mockup 1b/2b. Sostituisce la label esterna sopra il controllo.
+   */
+  readonly chipLabel = input<string>();
   readonly invalid = input<boolean>(false);
   readonly describedBy = input<string>();
   /** Campo ricerca sticky nel pannello (utile per liste lunghe, es. varianti). */
@@ -136,6 +148,20 @@ export class SelectMenuComponent {
     }
     return (this.value() ?? '') === '';
   });
+
+  /** Chip filtro attivo: modalita' chip + almeno un valore selezionato. */
+  protected readonly chipActive = computed(() => this.filterChip() && !this.isEmptySelected());
+
+  /** Azzera il filtro dalla × del chip, senza aprire il pannello. */
+  protected clearFilter(event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.multiple()) {
+      this.valuesChange.emit([]);
+    } else {
+      this.valueChange.emit(null);
+    }
+    this.close();
+  }
 
   protected isSelected(option: SelectMenuOption): boolean {
     if (this.multiple()) {

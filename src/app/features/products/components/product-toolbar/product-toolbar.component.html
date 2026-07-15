@@ -18,8 +18,8 @@
 
   <div class="product-toolbar__filters">
     <div class="product-toolbar__field">
-      <span class="product-toolbar__label">Categoria</span>
       <app-select-menu
+        chipLabel="Categoria"
         [options]="categoryOptions()"
         [value]="filters().category ?? ''"
         ariaLabel="Filtra per categoria"
@@ -27,12 +27,13 @@
         [compact]="true"
         [fullWidth]="true"
         (valueChange)="onFilterChange('category', $event)"
+        [filterChip]="true"
       />
     </div>
 
     <div class="product-toolbar__field">
-      <span class="product-toolbar__label">Brand</span>
       <app-select-menu
+        chipLabel="Brand"
         [options]="brandOptions()"
         [value]="filters().brand ?? ''"
         ariaLabel="Filtra per brand"
@@ -40,12 +41,13 @@
         [compact]="true"
         [fullWidth]="true"
         (valueChange)="onFilterChange('brand', $event)"
+        [filterChip]="true"
       />
     </div>
 
     <div class="product-toolbar__field">
-      <span class="product-toolbar__label">Stagione</span>
       <app-select-menu
+        chipLabel="Stagione"
         [options]="seasonOptions()"
         [value]="filters().season ?? ''"
         ariaLabel="Filtra per stagione"
@@ -53,12 +55,13 @@
         [compact]="true"
         [fullWidth]="true"
         (valueChange)="onFilterChange('season', $event)"
+        [filterChip]="true"
       />
     </div>
 
     <div class="product-toolbar__field">
-      <span class="product-toolbar__label">Stato</span>
       <app-select-menu
+        chipLabel="Stato"
         [options]="statusOptions()"
         [value]="filters().status ?? ''"
         ariaLabel="Filtra per stato"
@@ -66,6 +69,7 @@
         [compact]="true"
         [fullWidth]="true"
         (valueChange)="onFilterChange('status', $event)"
+        [filterChip]="true"
       />
     </div>
 

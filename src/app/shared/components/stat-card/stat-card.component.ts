@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 export type StatTone = 'neutral' | 'success' | 'warning' | 'error' | 'info';
 
@@ -27,4 +27,21 @@ export class StatCardComponent {
   readonly trendLabel = input<string>();
   readonly trendTone = input<StatTone>('neutral');
   readonly tone = input<StatTone>('neutral');
+  /** Card azionabile: evidenziata con bordo accento (es. "Vendite da evadere"). */
+  readonly accent = input<boolean>(false);
+
+  /**
+   * Freccia del delta (mockup 1a/2a): su per il trend positivo, giù per quello
+   * negativo. Derivata dal tono: il testo del trend resta invariato.
+   */
+  protected readonly trendArrow = computed(() => {
+    switch (this.trendTone()) {
+      case 'success':
+        return 'pi-arrow-up';
+      case 'error':
+        return 'pi-arrow-down';
+      default:
+        return null;
+    }
+  });
 }

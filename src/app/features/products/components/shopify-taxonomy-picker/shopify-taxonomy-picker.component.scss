@@ -36,7 +36,7 @@
 .taxonomy-picker__search:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .taxonomy-picker__nav {

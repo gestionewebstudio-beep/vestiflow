@@ -64,8 +64,10 @@
 }
 
 .admin-users__table th {
+  text-transform: uppercase;
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
+  background-color: var(--color-table-header-bg);
+  color: var(--color-text-subtle);
 }
 
 .admin-users__table th:nth-child(3),

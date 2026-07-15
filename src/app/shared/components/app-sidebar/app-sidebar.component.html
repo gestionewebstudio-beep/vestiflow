@@ -1,6 +1,17 @@
 <nav class="app-sidebar" aria-label="Navigazione principale">
-  @if (drawerOpen()) {
-    <div class="app-sidebar__header">
+  <div class="app-sidebar__brand">
+    <span class="app-sidebar__brand-lockup">
+      <img
+        class="app-sidebar__logo"
+        src="/icons/icon-topbar.png"
+        width="28"
+        height="28"
+        alt=""
+        aria-hidden="true"
+      />
+      <span class="app-sidebar__wordmark">VestiFlow</span>
+    </span>
+    @if (drawerOpen()) {
       <button
         type="button"
         class="app-sidebar__close"
@@ -9,8 +20,8 @@
       >
         <i class="pi pi-times" aria-hidden="true"></i>
       </button>
-    </div>
-  }
+    }
+  </div>
 
   @for (section of sections(); track section.id) {
     <section class="app-sidebar__section" [attr.aria-label]="section.label ?? null">
@@ -39,6 +50,9 @@
               >
                 <i class="app-sidebar__icon pi" [ngClass]="item.icon" aria-hidden="true"></i>
                 <span class="app-sidebar__label">{{ item.label }}</span>
+                @if (item.badge !== undefined) {
+                  <span class="app-sidebar__badge tabular-nums">{{ item.badge }}</span>
+                }
               </a>
             }
           </li>

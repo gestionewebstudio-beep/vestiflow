@@ -45,7 +45,7 @@
 .option-list__input:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .option-list__input[aria-invalid='true'] {
@@ -108,5 +108,5 @@
 .option-list__chip-remove:focus-visible {
   outline: none;
   color: var(--color-text);
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }

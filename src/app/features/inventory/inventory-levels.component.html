@@ -75,8 +75,8 @@
 
     <div class="inventory-levels__filters">
       <div class="inventory-levels__field">
-        <span class="inventory-levels__label">Location</span>
         <app-select-menu
+          chipLabel="Location"
           [options]="locationOptions()"
           [value]="locationFilter()"
           ariaLabel="Filtra per location"
@@ -84,12 +84,13 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onLocationFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
       <div class="inventory-levels__field">
-        <span class="inventory-levels__label">Stato stock</span>
         <app-select-menu
+          chipLabel="Stato stock"
           [options]="stockStatusOptions"
           [value]="statusFilter()"
           ariaLabel="Filtra per stato stock"
@@ -97,6 +98,7 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onStatusFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 

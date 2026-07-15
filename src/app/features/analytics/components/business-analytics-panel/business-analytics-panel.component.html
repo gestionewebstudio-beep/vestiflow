@@ -13,18 +13,12 @@
 
     <div class="analytics-panel__filters">
       @if (!hidePeriodFilter()) {
-        <div class="analytics-panel__field">
-          <span class="analytics-panel__label">Periodo</span>
-          <app-select-menu
-            [options]="periodOptions"
-            [value]="displayPeriod()"
-            ariaLabel="Periodo analytics"
-            placeholder="Periodo"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onPeriodChange($event)"
-          />
-        </div>
+        <app-segmented
+          [options]="periodOptions"
+          [value]="displayPeriod()"
+          ariaLabel="Periodo analytics"
+          (valueChange)="onPeriodChange($event)"
+        />
         @if (showCustomDates()) {
           <div class="analytics-panel__field">
             <span class="analytics-panel__label">Dal</span>
@@ -58,7 +52,6 @@
       <app-stat-card
         label="Fatturato"
         [value]="revenueLabel()"
-        icon="pi-euro"
         tone="success"
         [hint]="revenueHint()"
         [trendLabel]="revenueTrend() ?? undefined"
@@ -68,28 +61,24 @@
         label="Margine lordo"
         [value]="marginLabel()"
         [valueSuffix]="marginPercentSuffix() ?? undefined"
-        icon="pi-percentage"
         tone="info"
         [hint]="marginHintText()"
       />
       <app-stat-card
         label="Pezzi venduti"
         [value]="unitsSoldLabel()"
-        icon="pi-tags"
         tone="neutral"
         [hint]="transactionCountLabel() + ' transazioni · ticket medio ' + avgTicketLabel()"
       />
       <app-stat-card
         label="Previsione mese"
         [value]="projectedRevenueLabel()"
-        icon="pi-chart-line"
         tone="warning"
         [hint]="forecastHintText()"
       />
       <app-stat-card
         label="Valore magazzino"
         [value]="stockValueLabel()"
-        icon="pi-box"
         tone="info"
         hint="Disponibile a prezzo di vendita (snapshot)"
       />
@@ -97,21 +86,18 @@
         label="Margine stock"
         [value]="stockMarginLabel()"
         [valueSuffix]="stockMarginPercentSuffix() ?? undefined"
-        icon="pi-wallet"
         tone="success"
         hint="Potenziale lordo su giacenze con costo noto"
       />
       <app-stat-card
         label="Pezzi disponibili"
         [value]="availableUnitsLabel()"
-        icon="pi-database"
         tone="neutral"
         hint="Su location in scope"
       />
       <app-stat-card
         label="Sotto soglia"
         [value]="lowStockCountLabel()"
-        icon="pi-exclamation-triangle"
         tone="warning"
         hint="Varianti da riordinare"
       />

@@ -22,17 +22,46 @@
     </div>
 
     <div class="pagination__controls">
-      <app-button variant="secondary" [disabled]="!canPrev()" (click)="prev()">
+      <button
+        type="button"
+        class="pagination__nav"
+        [disabled]="!canPrev()"
+        aria-label="Pagina precedente"
+        (click)="prev()"
+      >
         <i class="pi pi-chevron-left" aria-hidden="true"></i>
-        <span class="sr-only">Precedente</span>
-      </app-button>
-      <span class="pagination__page tabular-nums">
-        Pagina {{ meta().page }} di {{ meta().totalPages }}
-      </span>
-      <app-button variant="secondary" [disabled]="!canNext()" (click)="next()">
+      </button>
+
+      <ul class="pagination__pages">
+        @for (item of pageItems(); track $index) {
+          <li>
+            @if (item === 'ellipsis') {
+              <span class="pagination__ellipsis" aria-hidden="true">…</span>
+            } @else {
+              <button
+                type="button"
+                class="pagination__page-btn tabular-nums"
+                [class.pagination__page-btn--current]="item === meta().page"
+                [attr.aria-current]="item === meta().page ? 'page' : null"
+                [attr.aria-label]="'Pagina ' + item"
+                (click)="goTo(item)"
+              >
+                {{ item }}
+              </button>
+            }
+          </li>
+        }
+      </ul>
+
+      <button
+        type="button"
+        class="pagination__nav"
+        [disabled]="!canNext()"
+        aria-label="Pagina successiva"
+        (click)="next()"
+      >
         <i class="pi pi-chevron-right" aria-hidden="true"></i>
-        <span class="sr-only">Successiva</span>
-      </app-button>
+      </button>
     </div>
   </div>
 </nav>

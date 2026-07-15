@@ -82,8 +82,8 @@
         >
           @if (!isGoodsReceiptList()) {
             <div class="doc-list__field">
-              <span class="doc-list__label">Tipo</span>
               <app-select-menu
+                chipLabel="Tipo"
                 [options]="typeOptions"
                 [value]="query().type ?? ''"
                 ariaLabel="Filtra per tipo documento"
@@ -91,12 +91,13 @@
                 [compact]="true"
                 [fullWidth]="true"
                 (valueChange)="onTypeFilterChange($event)"
+                [filterChip]="true"
               />
             </div>
 
             <div class="doc-list__field">
-              <span class="doc-list__label">Stato</span>
               <app-select-menu
+                chipLabel="Stato"
                 [options]="statusOptions"
                 [value]="query().status ?? ''"
                 ariaLabel="Filtra per stato documento"
@@ -104,12 +105,13 @@
                 [compact]="true"
                 [fullWidth]="true"
                 (valueChange)="onStatusFilterChange($event)"
+                [filterChip]="true"
               />
             </div>
 
             <div class="doc-list__field">
-              <span class="doc-list__label">Cliente</span>
               <app-select-menu
+                chipLabel="Cliente"
                 [options]="customerOptions()"
                 [value]="query().customerId ?? ''"
                 ariaLabel="Filtra per cliente"
@@ -117,12 +119,13 @@
                 [compact]="true"
                 [fullWidth]="true"
                 (valueChange)="onCustomerFilterChange($event)"
+                [filterChip]="true"
               />
             </div>
           } @else {
             <div class="doc-list__field">
-              <span class="doc-list__label">Fornitore</span>
               <app-select-menu
+                chipLabel="Fornitore"
                 [options]="supplierOptions()"
                 [value]="query().supplierId ?? ''"
                 ariaLabel="Filtra per fornitore"
@@ -133,12 +136,13 @@
                 searchPlaceholder="Cerca fornitore…"
                 searchAriaLabel="Cerca fornitore"
                 (valueChange)="onSupplierFilterChange($event)"
+                [filterChip]="true"
               />
             </div>
 
             <div class="doc-list__field">
-              <span class="doc-list__label">Stato</span>
               <app-select-menu
+                chipLabel="Stato"
                 [options]="linkStatusOptions"
                 [value]="query().linkStatus ?? ''"
                 ariaLabel="Filtra per stato collegamento fattura"
@@ -146,12 +150,13 @@
                 [compact]="true"
                 [fullWidth]="true"
                 (valueChange)="onLinkStatusFilterChange($event)"
+                [filterChip]="true"
               />
             </div>
 
             <div class="doc-list__field">
-              <span class="doc-list__label">Documento fornitore</span>
               <app-select-menu
+                chipLabel="Documento fornitore"
                 [options]="externalDocTypeOptions()"
                 [value]="query().externalDocumentTypeId ?? ''"
                 ariaLabel="Filtra per tipo documento fornitore"
@@ -159,12 +164,13 @@
                 [compact]="true"
                 [fullWidth]="true"
                 (valueChange)="onExternalDocTypeFilterChange($event)"
+                [filterChip]="true"
               />
             </div>
 
             <div class="doc-list__field">
-              <span class="doc-list__label">Magazzino</span>
               <app-select-menu
+                chipLabel="Magazzino"
                 [options]="locationOptions()"
                 [value]="query().locationId ?? ''"
                 ariaLabel="Filtra per location"
@@ -172,6 +178,7 @@
                 [compact]="true"
                 [fullWidth]="true"
                 (valueChange)="onLocationFilterChange($event)"
+                [filterChip]="true"
               />
             </div>
           }

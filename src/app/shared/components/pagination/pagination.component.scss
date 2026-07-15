@@ -73,6 +73,71 @@
   white-space: nowrap;
 }
 
+// ── Pill numerate (mockup 1b/2b: « 1 2 3 … 52 ») ─────────────────────────────
+.pagination__pages {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pagination__page-btn,
+.pagination__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--field-height);
+  block-size: var(--field-height);
+  padding-inline: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    color var(--transition-fast) var(--ease-standard);
+}
+
+.pagination__page-btn:hover,
+.pagination__nav:hover:not(:disabled) {
+  color: var(--color-text);
+  background-color: var(--color-surface-hover);
+}
+
+.pagination__page-btn--current {
+  color: var(--color-primary-fg);
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.pagination__page-btn--current:hover {
+  color: var(--color-primary-fg);
+  background-color: var(--color-primary);
+}
+
+.pagination__nav {
+  border-color: var(--color-border-strong);
+}
+
+.pagination__nav:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--space-5);
+  color: var(--color-text-subtle);
+}
+
 @include bp.media-up('sm') {
   .pagination__actions {
     align-items: center;

@@ -22,21 +22,24 @@ export interface ChartThemePalette {
 }
 
 export function readChartThemePalette(): ChartThemePalette {
+  // Restyle "Tech Moderno": palette = accento indigo (--color-primary) + verde
+  // brand Shopify (--color-brand); gridlines/asse = --color-border. I fallback
+  // riflettono il tema dark di default.
   return {
-    text: readCssToken('--color-text', '#303030'),
-    textMuted: readCssToken('--color-text-muted', '#616161'),
-    border: readCssToken('--color-border', '#e3e3e3'),
-    surface: readCssToken('--color-surface', '#ffffff'),
-    primary: readCssToken('--color-primary', '#303030'),
-    success: readCssToken('--green-500', '#047c5d'),
-    info: readCssToken('--blue-500', '#005bd3'),
-    warning: readCssToken('--orange-500', '#ffb800'),
+    text: readCssToken('--color-text', '#e9ecf2'),
+    textMuted: readCssToken('--color-text-muted', '#9ba3b0'),
+    border: readCssToken('--color-border', '#262a33'),
+    surface: readCssToken('--color-surface', '#14161b'),
+    primary: readCssToken('--color-primary', '#6c7bff'),
+    success: readCssToken('--color-brand', '#3ddc97'),
+    info: readCssToken('--status-info-fg', '#4cc3ff'),
+    warning: readCssToken('--status-warning-fg', '#ffb02e'),
     series: [
-      readCssToken('--blue-500', '#005bd3'),
-      readCssToken('--green-500', '#047c5d'),
-      readCssToken('--orange-500', '#ffb800'),
-      readCssToken('--blue-300', '#91d0ff'),
-      readCssToken('--green-300', '#92fcac'),
+      readCssToken('--color-primary', '#6c7bff'),
+      readCssToken('--color-brand', '#3ddc97'),
+      readCssToken('--color-interactive-active', '#aab3ff'),
+      readCssToken('--status-warning-fg', '#ffb02e'),
+      readCssToken('--status-info-fg', '#4cc3ff'),
     ],
   };
 }

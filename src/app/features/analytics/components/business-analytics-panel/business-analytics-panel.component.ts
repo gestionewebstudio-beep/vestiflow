@@ -23,8 +23,8 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
-import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
-import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
+import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
 
 import {
   DEFAULT_REPORT_PERIOD,
@@ -62,7 +62,7 @@ type PanelState =
     StatCardComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
-    SelectMenuComponent,
+    SegmentedComponent,
     DateInputComponent,
     BusinessAnalyticsChartsComponent,
   ],
@@ -135,12 +135,17 @@ export class BusinessAnalyticsPanelComponent {
     }),
   );
 
-  protected readonly periodOptions: readonly SelectMenuOption[] = [
-    { value: ReportPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
-    { value: ReportPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
-    { value: ReportPeriodPreset.ThisMonth, label: 'Mese corrente' },
+  /**
+   * Periodo come controllo segmented (mockup 1a/2a). Etichette brevi per stare
+   * in riga: i preset e il comportamento restano quelli del select precedente,
+   * «Personalizzato» incluso (mostra le date puntuali).
+   */
+  protected readonly periodOptions: readonly SegmentedOption[] = [
+    { value: ReportPeriodPreset.Last7Days, label: '7 giorni' },
+    { value: ReportPeriodPreset.Last30Days, label: '30 giorni' },
+    { value: ReportPeriodPreset.ThisMonth, label: 'Mese' },
     { value: ReportPeriodPreset.LastMonth, label: 'Mese scorso' },
-    { value: ReportPeriodPreset.ThisYear, label: 'Anno corrente' },
+    { value: ReportPeriodPreset.ThisYear, label: 'Anno' },
     { value: ReportPeriodPreset.Custom, label: 'Personalizzato' },
   ];
 

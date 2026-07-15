@@ -100,7 +100,7 @@
 .options-step__name-input:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .options-step__name-input[aria-invalid='true'] {
@@ -188,6 +188,8 @@
 }
 
 .options-step__sku {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: var(--numeric-tabular);
 }
@@ -211,8 +213,10 @@
   .options-step__table-head th {
     padding: var(--space-3) var(--space-4);
     text-align: start;
+    text-transform: uppercase;
     font-weight: var(--font-weight-semibold);
-    color: var(--color-text-muted);
+    background-color: var(--color-table-header-bg);
+    color: var(--color-text-subtle);
     border-block-end: var(--border-width) solid var(--color-border);
   }
 

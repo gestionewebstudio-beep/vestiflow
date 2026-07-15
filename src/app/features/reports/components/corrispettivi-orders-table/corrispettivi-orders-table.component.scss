@@ -20,9 +20,10 @@
   z-index: 1;
   padding: var(--space-3) var(--space-4);
   text-align: left;
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
-  background-color: var(--color-surface-muted);
+  text-transform: uppercase;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-subtle);
+  background-color: var(--color-table-header-bg);
   border-bottom: var(--border-width) solid var(--color-border);
   white-space: nowrap;
 }

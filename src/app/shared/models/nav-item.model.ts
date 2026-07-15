@@ -18,6 +18,11 @@ export interface NavItem {
   readonly activeRouteExclude?: readonly string[];
   /** Voce non ancora attiva (feature in preparazione): mostrata ma non navigabile. */
   readonly disabled?: boolean;
+  /**
+   * Contatore opzionale mostrato come pill accento accanto alla voce
+   * (es. ordini fornitore in sospeso "6"). Assente = nessun badge.
+   */
+  readonly badge?: string | number;
   /** Opzioni legacy per evidenziare la voce; preferire activeRoutePrefix. */
   readonly linkActiveOptions?: IsActiveMatchOptions;
 }

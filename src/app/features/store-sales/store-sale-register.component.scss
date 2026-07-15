@@ -25,7 +25,7 @@
 .pos__title {
   margin: 0;
   font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
 
@@ -181,7 +181,7 @@
 .pos__input:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .pos__textarea {
@@ -199,7 +199,7 @@
 .pos__textarea:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-interactive-subtle);
+  box-shadow: var(--field-focus-ring);
 }
 
 .pos__search-actions {
@@ -304,8 +304,10 @@
 }
 
 .pos-cart th {
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
+  text-transform: uppercase;
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-table-header-bg);
+  color: var(--color-text-subtle);
   white-space: nowrap;
 }
 

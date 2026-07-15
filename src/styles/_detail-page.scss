@@ -31,7 +31,7 @@
   .#{$block}__title {
     margin: 0;
     font-size: var(--text-xl);
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-bold);
     color: var(--color-text);
   }
 
@@ -123,7 +123,8 @@
 
   .#{$block}__total-row--grand {
     padding-block-start: var(--space-2);
-    font-weight: var(--font-weight-semibold);
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-bold);
     border-block-start: var(--border-width) solid var(--color-border);
   }
 

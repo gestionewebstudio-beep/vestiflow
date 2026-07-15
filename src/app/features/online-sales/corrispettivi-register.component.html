@@ -53,8 +53,8 @@
       </div>
 
       <div class="cor-list__field">
-        <span class="cor-list__label">Canale</span>
         <app-select-menu
+          chipLabel="Canale"
           [options]="channelOptions"
           [value]="query().channel ?? ''"
           ariaLabel="Filtra per canale"
@@ -62,12 +62,13 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onChannelFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
       <div class="cor-list__field">
-        <span class="cor-list__label">Stato</span>
         <app-select-menu
+          chipLabel="Stato"
           [options]="statusOptions"
           [value]="query().status ?? ''"
           ariaLabel="Filtra per stato"
@@ -75,12 +76,13 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onStatusFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
       <div class="cor-list__field">
-        <span class="cor-list__label">Aliquota IVA</span>
         <app-select-menu
+          chipLabel="Aliquota IVA"
           [options]="vatRateOptions"
           [value]="query().vatRatePercent?.toString() ?? ''"
           ariaLabel="Filtra per aliquota IVA"
@@ -88,12 +90,13 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onVatRateFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
       <div class="cor-list__field">
-        <span class="cor-list__label">Fattura</span>
         <app-select-menu
+          chipLabel="Fattura"
           [options]="invoicedOptions"
           [value]="invoicedFilterValue()"
           ariaLabel="Filtra per fattura emessa"
@@ -101,12 +104,13 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onInvoicedFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
       <div class="cor-list__field">
-        <span class="cor-list__label">Riepilogo</span>
         <app-select-menu
+          chipLabel="Riepilogo"
           [options]="inclusionOptions"
           [value]="inclusionFilterValue()"
           ariaLabel="Filtra per inclusione nel riepilogo"
@@ -114,6 +118,7 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onInclusionFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
@@ -222,8 +227,8 @@
                         @if (canEditEntries()) {
                           <div class="cor-detail__edit">
                             <div class="cor-detail__edit-field">
-                              <span class="cor-list__label">Stato</span>
                               <app-select-menu
+                                chipLabel="Stato"
                                 [options]="statusOptions"
                                 [value]="detail.detail.status"
                                 ariaLabel="Stato corrispettivo"
