@@ -24,8 +24,14 @@ html {
 }
 
 body {
-  min-height: 100%;
-  overflow: hidden;
+  // Altezza FISSA al viewport + `clip` + containing block (`relative`):
+  // il documento non puo' mai crescere oltre lo schermo ne' scrollare via
+  // focus/scrollIntoView, e gli elementi absolute senza antenato posizionato
+  // si ancorano al body (clippato) invece che all'html — era il bug del
+  // cambio tema da Impostazioni che faceva sparire l'intera app.
+  position: relative;
+  height: 100%;
+  overflow: clip;
   font-family: var(--font-sans);
   font-size: var(--text-base);
   font-weight: var(--font-weight-regular);
@@ -264,6 +270,14 @@ app-shell-layout .shell__content > *:not(router-outlet) {
 // STAMPA — nasconde la shell per le pagine di stampa etichette
 // -----------------------------------------------------------------------------
 @media print {
+  // La stampa multipagina deve poter fluire oltre il viewport.
+  html,
+  body {
+    height: auto;
+    min-height: auto;
+    overflow: visible;
+  }
+
   app-shell-layout .shell__topbar,
   app-shell-layout .shell__sidebar,
   app-shell-layout .shell__backdrop,
