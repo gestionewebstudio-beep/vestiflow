@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { DocumentStatus } from '@core/models/document.model';
-import type { DocumentRecord } from '@core/models/document.model';
+import type { DocumentRecord, LinkedPurchaseInvoiceInfo } from '@core/models/document.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.component';
@@ -20,6 +21,7 @@ import {
 } from '../../models/document-labels.util';
 import { isStoreFlowDocumentType } from '../../models/document-operational.util';
 import { isPrintableDocumentType } from '../../models/document-print.util';
+import { goodsReceiptExternalDocLabel } from '../../utils/goods-receipt-list-export.util';
 
 /** Azioni disponibili dal menu "···" della riga (audit cliente §1: azioni dalla lista). */
 export type DocumentTableActionId =
@@ -35,6 +37,12 @@ export interface DocumentTableActionEvent {
   readonly doc: DocumentRecord;
 }
 
+/** Cambio selezione di una riga (checkbox operazioni massive). */
+export interface DocumentTableSelectionEvent {
+  readonly doc: DocumentRecord;
+  readonly selected: boolean;
+}
+
 /**
  * Tabella registro documenti (dumb puro). Row click verso il dettaglio; importi
  * a destra in tabular-nums; mobile come card impilate. Colonna Azioni sempre
@@ -44,7 +52,7 @@ export interface DocumentTableActionEvent {
 @Component({
   selector: 'app-document-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ActionMenuComponent, BadgeComponent],
+  imports: [ActionMenuComponent, BadgeComponent, RouterLink],
   templateUrl: './document-table.component.html',
   styleUrl: './document-table.component.scss',
 })
@@ -53,9 +61,27 @@ export class DocumentTableComponent {
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
   /** Azioni di gestione (duplica/elimina) mostrate solo con permesso DocumentsManage. */
   readonly canManage = input<boolean>(false);
+  /** Selezione multipla per operazioni massive (lista Arrivi merce). */
+  readonly selectable = input<boolean>(false);
+  readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
 
   readonly rowClick = output<DocumentRecord>();
   readonly action = output<DocumentTableActionEvent>();
+  readonly selectionChange = output<DocumentTableSelectionEvent>();
+  readonly selectAllChange = output<boolean>();
+
+  protected readonly allSelected = computed(() => {
+    const docs = this.documents();
+    const selected = this.selectedIds();
+    return docs.length > 0 && docs.every((doc) => selected.has(doc.id));
+  });
+
+  protected readonly someSelected = computed(() => {
+    const docs = this.documents();
+    const selected = this.selectedIds();
+    const count = docs.filter((doc) => selected.has(doc.id)).length;
+    return count > 0 && count < docs.length;
+  });
 
   protected readonly typeLabel = documentTypeLabel;
   protected readonly formatMoney = formatMoney;
@@ -86,13 +112,7 @@ export class DocumentTableComponent {
 
   /** "DDT 145 del 08/05/2026" quando tipo/data documento fornitore sono noti. */
   protected externalDocLabel(doc: DocumentRecord): string {
-    const number = doc.externalDocNumber?.trim();
-    if (!number) {
-      return doc.externalRef?.trim() || '—';
-    }
-    const typePrefix = doc.externalDocumentTypeSnapshot?.trim();
-    const label = typePrefix ? `${typePrefix} ${number}` : number;
-    return doc.externalDocDate ? `${label} del ${formatDate(doc.externalDocDate)}` : label;
+    return goodsReceiptExternalDocLabel(doc) || '—';
   }
 
   protected billingCauseLabel(doc: DocumentRecord): string {
@@ -109,6 +129,11 @@ export class DocumentTableComponent {
 
   protected linkStatusTone(doc: DocumentRecord) {
     return goodsReceiptLinkStatusTone(doc);
+  }
+
+  /** Fattura registrata collegata: la cella "Stato" diventa un link ad essa. */
+  protected linkedInvoice(doc: DocumentRecord): LinkedPurchaseInvoiceInfo | null {
+    return doc.linkStatus === 'linked' ? (doc.linkedPurchaseInvoice ?? null) : null;
   }
 
   protected statusLabel(doc: DocumentRecord): string | null {
@@ -157,5 +182,9 @@ export class DocumentTableComponent {
 
   protected onAction(actionId: string, doc: DocumentRecord): void {
     this.action.emit({ action: actionId as DocumentTableActionId, doc });
+  }
+
+  protected onToggleSelect(doc: DocumentRecord, selected: boolean): void {
+    this.selectionChange.emit({ doc, selected });
   }
 }

@@ -1,6 +1,18 @@
 <table class="doc-table">
   <thead class="doc-table__head">
     <tr>
+      @if (selectable()) {
+        <th scope="col" class="doc-table__cell--select">
+          <input
+            type="checkbox"
+            class="doc-table__select-check"
+            aria-label="Seleziona tutti i documenti della pagina"
+            [checked]="allSelected()"
+            [indeterminate]="someSelected()"
+            (change)="selectAllChange.emit($any($event.target).checked)"
+          />
+        </th>
+      }
       @for (col of columns(); track col.id) {
         <th
           scope="col"
@@ -22,10 +34,26 @@
         class="doc-table__row"
         tabindex="0"
         [attr.aria-label]="rowLabel(doc)"
+        [class.doc-table__row--selected]="selectable() && selectedIds().has(doc.id)"
         (click)="rowClick.emit(doc)"
         (keydown.enter)="rowClick.emit(doc)"
         (keydown.space)="$event.preventDefault(); rowClick.emit(doc)"
       >
+        @if (selectable()) {
+          <td
+            class="doc-table__cell--select"
+            data-label="Seleziona"
+            (click)="$event.stopPropagation()"
+          >
+            <input
+              type="checkbox"
+              class="doc-table__select-check"
+              [attr.aria-label]="'Seleziona documento ' + referenceLabel(doc)"
+              [checked]="selectedIds().has(doc.id)"
+              (change)="onToggleSelect(doc, $any($event.target).checked)"
+            />
+          </td>
+        }
         @for (col of columns(); track col.id) {
           @switch (col.id) {
             @case ('documentDate') {
@@ -84,12 +112,23 @@
             }
             @case ('linkStatus') {
               <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                @if (linkStatusLabel(doc); as label) {
+                @if (linkedInvoice(doc); as invoice) {
+                  <span class="doc-table__cell-value">
+                    <a
+                      class="doc-table__invoice-link"
+                      [routerLink]="['/app/documents/registrazione-fattura', invoice.id, 'edit']"
+                      (click)="$event.stopPropagation()"
+                    >
+                      {{ linkStatusLabel(doc) }}
+                    </a>
+                    @if (invoice.totalsCheckPending) {
+                      <app-badge tone="warning">Totali da verificare</app-badge>
+                    }
+                  </span>
+                } @else if (linkStatusLabel(doc); as label) {
                   <span class="doc-table__cell-value">
                     <app-badge [tone]="linkStatusTone(doc)!">{{ label }}</app-badge>
                   </span>
-                } @else {
-                  —
                 }
               </td>
             }

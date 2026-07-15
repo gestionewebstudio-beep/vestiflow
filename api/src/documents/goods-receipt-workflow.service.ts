@@ -37,10 +37,7 @@ import {
   reconcileSupplierOrderReceipt,
 } from './document-supplier-order.util';
 import { applySupplierPriceUpdates } from './document-supplier-price.util';
-import {
-  formatDocumentReference,
-  nextDocumentNumber,
-} from './document-totals.util';
+import { formatDocumentReference, nextDocumentNumber } from './document-totals.util';
 import {
   computeGoodsReceiptLines,
   computeGoodsReceiptTotals,
@@ -54,6 +51,13 @@ import type { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
 
 /** Tipi arrivo merce che richiedono il fornitore già alla creazione (§9.2). */
 const SUPPLIER_REQUIRED_TYPES: readonly DocumentType[] = INVOICE_LINKABLE_RECEIPT_TYPES;
+
+/**
+ * Marcatore della spunta "Seguirà fattura" dell'Arrivo merce: il form la
+ * persiste in billingCause con questo testo. Solo gli arrivi così marcati
+ * sono includibili in una Registrazione fattura.
+ */
+const INVOICE_PENDING_BILLING_CAUSE = 'In attesa fattura';
 
 export interface LinkableGoodsReceiptRow {
   readonly id: string;
@@ -137,7 +141,7 @@ export class GoodsReceiptWorkflowService {
 
     if ((SUPPLIER_REQUIRED_TYPES as readonly string[]).includes(dto.type) && !dto.supplierId) {
       throw new UnprocessableEntityException(
-        'Seleziona un fornitore prima di salvare l\'arrivo merce.',
+        "Seleziona un fornitore prima di salvare l'arrivo merce.",
       );
     }
 
@@ -155,9 +159,7 @@ export class GoodsReceiptWorkflowService {
     const costEntryMode = dto.purchaseCostEntryMode ?? 'vat_excluded';
     const requestedVatCodeIds = [
       ...new Set(
-        (dto.lines ?? [])
-          .map((line) => line.vatCodeId)
-          .filter((id): id is string => id != null),
+        (dto.lines ?? []).map((line) => line.vatCodeId).filter((id): id is string => id != null),
       ),
     ];
     const newProductVatCodeIds = [
@@ -208,7 +210,9 @@ export class GoodsReceiptWorkflowService {
     // Punto B: varianti già a catalogo di prodotti non gestiti a magazzino
     // → carico forzato a false lato server, qualunque cosa dica il client.
     const linkedVariantIds = [
-      ...new Set(computedLines.map((line) => line.variantId).filter((id): id is string => id != null)),
+      ...new Set(
+        computedLines.map((line) => line.variantId).filter((id): id is string => id != null),
+      ),
     ];
     const knownVariants = linkedVariantIds.length
       ? await this.prisma.productVariant.findMany({
@@ -262,8 +266,7 @@ export class GoodsReceiptWorkflowService {
     });
     const pricePolicy = featureSettings?.updateSupplierPriceOnLoad ?? 'ask';
     const shouldApplySupplierPrices =
-      pricePolicy === 'always' ||
-      (pricePolicy === 'ask' && dto.applySupplierPriceUpdates === true);
+      pricePolicy === 'always' || (pricePolicy === 'ask' && dto.applySupplierPriceUpdates === true);
 
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
     const createdProducts: GoodsReceiptCreatedProduct[] = [];
@@ -286,10 +289,7 @@ export class GoodsReceiptWorkflowService {
             'Il tipo documento non può essere cambiato dopo il salvataggio.',
           );
         }
-        if (
-          setting.blockAfterConfirm &&
-          existing.status !== DocumentStatus.draft
-        ) {
+        if (setting.blockAfterConfirm && existing.status !== DocumentStatus.draft) {
           throw new ConflictException(
             'Modifica bloccata dalle impostazioni per questo tipo di documento.',
           );
@@ -610,7 +610,10 @@ export class GoodsReceiptWorkflowService {
 
   // ── Registrazione fattura ──────────────────────────────────────────────────
 
-  /** Arrivi merce includibili in una registrazione fattura (§5.1, §9.6). */
+  /**
+   * Arrivi merce includibili in una registrazione fattura (§5.1, §9.6):
+   * solo quelli con la spunta "Seguirà fattura" attiva nel documento.
+   */
   async listLinkableGoodsReceipts(
     tenantId: string,
     supplierId: string,
@@ -623,6 +626,7 @@ export class GoodsReceiptWorkflowService {
         type: { in: [...INVOICE_LINKABLE_RECEIPT_TYPES] },
         status: { notIn: [DocumentStatus.draft, DocumentStatus.cancelled] },
         totalMinor: { gt: 0 },
+        billingCause: INVOICE_PENDING_BILLING_CAUSE,
         purchaseInvoiceLinks: {
           none: {
             purchaseInvoice: {
@@ -824,7 +828,9 @@ export class GoodsReceiptWorkflowService {
       await tx.purchaseInvoiceGoodsReceiptLink.deleteMany({
         where: {
           purchaseInvoiceId: documentId,
-          goodsReceiptId: { notIn: receiptIds.length ? receiptIds : ['00000000-0000-0000-0000-000000000000'] },
+          goodsReceiptId: {
+            notIn: receiptIds.length ? receiptIds : ['00000000-0000-0000-0000-000000000000'],
+          },
         },
       });
       for (const receipt of sortedReceipts) {
@@ -909,9 +915,7 @@ export class GoodsReceiptWorkflowService {
     const unique = new Map(targets.map((t) => [`${t.variantId}::${t.locationId}`, t]));
     for (const target of unique.values()) {
       try {
-        await this.channelSync.pushInventoryLevels(tenantId, target.variantId, [
-          target.locationId,
-        ]);
+        await this.channelSync.pushInventoryLevels(tenantId, target.variantId, [target.locationId]);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Push inventario canale fallito';
         this.logger.warn(`Push inventario non riuscito (${tenantId}): ${message}`);

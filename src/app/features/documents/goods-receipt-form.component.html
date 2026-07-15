@@ -1407,7 +1407,11 @@
                 />
               }
             </div>
+          </section>
 
+          <!-- Sezione inferiore compatta: totali a destra, note e commento
+               interno a sinistra sulla stessa banda (meno scroll verticale). -->
+          <div class="gr-form__footer-grid">
             <aside class="gr-form__totals-bar" aria-label="Totali documento">
               <dl class="gr-form__totals">
                 <div class="gr-form__totals-row">
@@ -1485,33 +1489,32 @@
                 </dl>
               }
             </aside>
-          </section>
 
-          <!-- Sezione inferiore compatta: note e commento affiancati oltre md. -->
-          <div class="gr-form__bottom-grid">
-            <div class="gr-form__field">
-              <label class="gr-form__label" for="gr-notes">Note documento</label>
-              <textarea
-                id="gr-notes"
-                class="gr-form__textarea"
-                rows="2"
-                formControlName="notes"
-              ></textarea>
-            </div>
+            <div class="gr-form__footer-notes">
+              <div class="gr-form__field">
+                <label class="gr-form__label" for="gr-notes">Note documento</label>
+                <textarea
+                  id="gr-notes"
+                  class="gr-form__textarea"
+                  rows="2"
+                  formControlName="notes"
+                ></textarea>
+              </div>
 
-            <div class="gr-form__field">
-              <label class="gr-form__label" for="gr-internal-comment">
-                Commento interno
-                <span class="gr-form__label-hint">
-                  (non stampato: visibile nell'elenco Arrivi merce)
-                </span>
-              </label>
-              <textarea
-                id="gr-internal-comment"
-                class="gr-form__textarea"
-                rows="2"
-                formControlName="internalComment"
-              ></textarea>
+              <div class="gr-form__field">
+                <label class="gr-form__label" for="gr-internal-comment">
+                  Commento interno
+                  <span class="gr-form__label-hint">
+                    (non stampato: visibile nell'elenco Arrivi merce)
+                  </span>
+                </label>
+                <textarea
+                  id="gr-internal-comment"
+                  class="gr-form__textarea"
+                  rows="2"
+                  formControlName="internalComment"
+                ></textarea>
+              </div>
             </div>
           </div>
 

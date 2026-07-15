@@ -128,7 +128,7 @@
           <app-empty-state
             icon="pi-inbox"
             title="Nessun arrivo merce incluso"
-            description="Usa “Includi documento” per collegare gli arrivi merce sospesi di questo fornitore. Il collegamento è solo documentale: le giacenze non vengono toccate."
+            description="Usa “Includi documento” per collegare gli arrivi merce di questo fornitore con la spunta «Seguirà fattura». Il collegamento è solo documentale: le giacenze non vengono toccate."
           />
         } @else {
           <div class="pi-form__table-wrap">
@@ -218,8 +218,8 @@
   @if (includePanelOpen()) {
     <div class="pi-form__include">
       <p class="pi-form__include-hint">
-        Arrivi merce sospesi del fornitore selezionato, non annullati e non ancora collegati ad
-        altre fatture.
+        Arrivi merce del fornitore selezionato con la spunta «Seguirà fattura», non annullati e non
+        ancora collegati ad altre fatture.
       </p>
       @if (linkableLoading()) {
         <app-table-skeleton [columns]="1" [rows]="4" />
@@ -233,7 +233,7 @@
         <app-empty-state
           icon="pi-inbox"
           title="Nessun arrivo merce disponibile"
-          description="Non ci sono arrivi merce sospesi da includere per questo fornitore."
+          description="Non ci sono arrivi merce da includere per questo fornitore: verifica che nei documenti sia attiva la spunta «Seguirà fattura»."
         />
       } @else {
         <ul class="pi-form__include-list">

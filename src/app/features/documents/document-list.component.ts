@@ -11,8 +11,10 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
+  from,
   map,
   of,
   startWith,
@@ -27,8 +29,10 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
+import type { Money } from '@core/models/money.model';
 import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { CustomerService } from '@features/customers/services/customer.service';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -48,7 +52,10 @@ import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { DocumentTableComponent } from './components/document-table/document-table.component';
-import type { DocumentTableActionEvent } from './components/document-table/document-table.component';
+import type {
+  DocumentTableActionEvent,
+  DocumentTableSelectionEvent,
+} from './components/document-table/document-table.component';
 import {
   GOODS_RECEIPT_DOCUMENT_TYPES,
   isGoodsReceiptDocumentType,
@@ -70,6 +77,11 @@ import {
 } from './models/document-list-query.model';
 import { DocumentService } from './services/document.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
+import { isPrintableDocumentType } from './models/document-print.util';
+import {
+  buildGoodsReceiptListCsv,
+  buildGoodsReceiptListPrintHtml,
+} from './utils/goods-receipt-list-export.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -177,7 +189,7 @@ export class DocumentListComponent {
 
   /** Stato collegamento fattura degli Arrivi merce (prompt §4). */
   protected readonly linkStatusOptions: readonly SelectMenuOption[] = [
-    { value: 'suspended', label: 'Sospesi' },
+    { value: 'suspended', label: 'Senza fattura' },
     { value: 'linked', label: 'Collegati a fattura' },
     { value: 'cancelled', label: 'Annullati' },
   ];
@@ -263,6 +275,23 @@ export class DocumentListComponent {
   protected readonly downloadingPdfId = signal<string | null>(null);
   private pendingDeleteDoc: DocumentRecord | null = null;
 
+  // ── Selezione multipla per operazioni massive (lista Arrivi merce) ─────────
+  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
+  protected readonly bulkPdfBusy = signal(false);
+  protected readonly formatMoney = formatMoney;
+
+  protected readonly selectedDocs = computed(() =>
+    this.documents().filter((doc) => this.selectedIds().has(doc.id)),
+  );
+
+  /** Somma dei totali documento selezionati, mostrata nella barra massiva. */
+  protected readonly selectionTotal = computed<Money>(() => {
+    const docs = this.selectedDocs();
+    const currencyCode = docs[0]?.currency ?? DEFAULT_CURRENCY;
+    const amountMinor = docs.reduce((sum, doc) => sum + doc.total.amountMinor, 0);
+    return { amountMinor, currencyCode };
+  });
+
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
 
   private readonly request = computed(() => ({ query: this.apiQuery(), tick: this.refreshTick() }));
@@ -338,8 +367,10 @@ export class DocumentListComponent {
   protected readonly isAccountantView = computed(() => Boolean(this.query().accountant));
   protected readonly isPendingInvoiceView = computed(() => Boolean(this.query().pendingInvoice));
 
-  // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
+  // takeUntilDestroyed() gestisce l'unsubscribe; i campi evitano subscription "ignorate".
   private readonly searchSubscription: Subscription;
+  private readonly selectionPruneSubscription: Subscription;
+  private bulkPdfSubscription: Subscription | null = null;
 
   constructor() {
     this.columnPreferences.registerView(
@@ -364,6 +395,18 @@ export class DocumentListComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.applySearch(value));
+
+    // Al cambio pagina/filtri la selezione si restringe alle righe visibili:
+    // le azioni massive operano solo su documenti che l'utente vede.
+    this.selectionPruneSubscription = toObservable(this.documents)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((docs) => {
+        const visible = new Set(docs.map((doc) => doc.id));
+        this.selectedIds.update((current) => {
+          const next = new Set([...current].filter((id) => visible.has(id)));
+          return next.size === current.size ? current : next;
+        });
+      });
 
     effect(() => {
       const fromUrl = this.query().search ?? '';
@@ -568,6 +611,94 @@ export class DocumentListComponent {
 
   protected cancelDeleteDocument(): void {
     this.pendingDeleteDoc = null;
+  }
+
+  // ── Operazioni massive sui documenti selezionati ────────────────────────────
+
+  protected onToggleDocSelection(event: DocumentTableSelectionEvent): void {
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (event.selected) {
+        next.add(event.doc.id);
+      } else {
+        next.delete(event.doc.id);
+      }
+      return next;
+    });
+  }
+
+  protected onToggleSelectAll(checked: boolean): void {
+    this.selectedIds.set(checked ? new Set(this.documents().map((doc) => doc.id)) : new Set());
+  }
+
+  protected clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+
+  /** CSV apribile in Excel dei documenti selezionati, con riga totali. */
+  protected exportSelectionCsv(): void {
+    const docs = this.selectedDocs();
+    if (docs.length === 0) {
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 10);
+    this.downloadBlob(
+      new Blob([buildGoodsReceiptListCsv(docs)], { type: 'text/csv;charset=utf-8' }),
+      `arrivi-merce-${stamp}.csv`,
+    );
+  }
+
+  /** Elenco stampabile dei selezionati con totali ("Salva come PDF" incluso). */
+  protected printSelectionList(): void {
+    const docs = this.selectedDocs();
+    if (docs.length === 0) {
+      return;
+    }
+    const printWindow = globalThis.open('', '_blank');
+    if (!printWindow) {
+      this.actionError.set({
+        kind: AppErrorKind.Unknown,
+        message: 'Il browser ha bloccato la finestra di stampa. Consenti i popup e riprova.',
+      });
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(buildGoodsReceiptListPrintHtml(docs));
+    printWindow.document.close();
+    const runPrint = (): void => {
+      printWindow.focus();
+      printWindow.print();
+    };
+    if (printWindow.document.readyState === 'complete') {
+      runPrint();
+    } else {
+      printWindow.addEventListener('load', runPrint, { once: true });
+    }
+  }
+
+  /** Scarica in sequenza il PDF di ogni documento selezionato. */
+  protected downloadSelectionPdfs(): void {
+    const docs = this.selectedDocs().filter((doc) => isPrintableDocumentType(doc.type));
+    if (docs.length === 0 || this.bulkPdfBusy()) {
+      return;
+    }
+    this.bulkPdfBusy.set(true);
+    this.bulkPdfSubscription = from(docs)
+      .pipe(
+        concatMap((doc) => this.service.exportPdf(doc.id).pipe(map((blob) => ({ doc, blob })))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: ({ doc, blob }) => {
+          const stamp = doc.documentDate.slice(0, 10);
+          this.downloadBlob(blob, `documento-${doc.reference ?? doc.id}-${stamp}.pdf`);
+        },
+        complete: () => this.bulkPdfBusy.set(false),
+        error: (err: unknown) => {
+          this.bulkPdfBusy.set(false);
+          this.actionError.set(this.toAppError(err));
+        },
+      });
   }
 
   /** Stampa (§1): scarica il PDF direttamente dalla lista, senza aprire il documento. */

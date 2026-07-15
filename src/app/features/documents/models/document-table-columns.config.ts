@@ -49,7 +49,9 @@ export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
   { id: 'total', label: 'Tot. documento', numeric: true, defaultVisible: true },
   { id: 'location', label: 'Magazzino', defaultVisible: true },
-  { id: 'status', label: 'Stato documento', defaultVisible: false },
+  // Niente colonna "Stato documento": l'Arrivo merce non ha più il ciclo
+  // Bozza/Confermato selezionabile (il salvataggio conferma sempre) e
+  // l'annullamento è già esposto dalla colonna "Stato" (collegamento fattura).
   { id: 'type', label: 'Tipo', defaultVisible: false },
 ] as const;
 

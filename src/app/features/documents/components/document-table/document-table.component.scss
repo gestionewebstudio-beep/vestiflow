@@ -36,6 +36,35 @@
   font-weight: var(--font-weight-semibold);
 }
 
+// Colonna selezione per operazioni massive: stretta, checkbox centrata.
+.doc-table__cell--select {
+  inline-size: var(--space-10);
+  text-align: center;
+}
+
+.doc-table__select-check {
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.doc-table__row--selected td {
+  background-color: var(--color-primary-subtle);
+}
+
+// Link alla registrazione fattura collegata (colonna "Stato").
+.doc-table__invoice-link {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 // Layout automatico (v4): colonne dimensionate dal contenuto; controparte in
 // ellipsis oltre il limite, date e numeri mai a capo.
 @include bp.media-up('lg') {

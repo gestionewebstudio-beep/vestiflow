@@ -91,6 +91,25 @@
   }
 }
 
+// Barra operazioni massive: appare sopra la tabella quando ci sono selezioni.
+.doc-list__bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--color-primary-subtle);
+  border: var(--border-width) solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.doc-list__bulk-count {
+  margin-inline-end: auto;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+}
+
 .doc-list__filters {
   display: flex;
   flex-direction: column;

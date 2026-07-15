@@ -266,12 +266,43 @@
     @if (actionError(); as err) {
       <app-error-state [description]="err.message" />
     }
+    @if (isGoodsReceiptList() && selectedDocs().length > 0) {
+      <div class="doc-list__bulk-bar" role="toolbar" aria-label="Operazioni documenti selezionati">
+        <span class="doc-list__bulk-count tabular-nums">
+          {{ selectedDocs().length }}
+          {{ selectedDocs().length === 1 ? 'documento selezionato' : 'documenti selezionati' }}
+          · Totale {{ formatMoney(selectionTotal()) }}
+        </span>
+        <app-button variant="secondary" (click)="printSelectionList()">
+          <i class="pi pi-print" aria-hidden="true"></i>
+          Stampa / PDF elenco
+        </app-button>
+        <app-button variant="secondary" (click)="exportSelectionCsv()">
+          <i class="pi pi-file-excel" aria-hidden="true"></i>
+          Esporta Excel (CSV)
+        </app-button>
+        <app-button
+          variant="secondary"
+          [loading]="bulkPdfBusy()"
+          [disabled]="bulkPdfBusy()"
+          (click)="downloadSelectionPdfs()"
+        >
+          <i class="pi pi-file-pdf" aria-hidden="true"></i>
+          PDF documenti
+        </app-button>
+        <app-button variant="ghost" (click)="clearSelection()">Deseleziona</app-button>
+      </div>
+    }
     <app-document-table
       [documents]="documents()"
       [columns]="tableColumns()"
       [canManage]="canManageDocuments()"
+      [selectable]="isGoodsReceiptList()"
+      [selectedIds]="selectedIds()"
       (rowClick)="openDocument($event)"
       (action)="onTableAction($event)"
+      (selectionChange)="onToggleDocSelection($event)"
+      (selectAllChange)="onToggleSelectAll($event)"
     />
     <app-pagination
       label="Paginazione documenti"

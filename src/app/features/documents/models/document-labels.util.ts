@@ -1,6 +1,7 @@
 // Etichette e toni display per tipi e stati documento (it-IT).
 
 import { DocumentStatus, DocumentType, type DocumentRecord } from '@core/models/document.model';
+import { formatDate } from '@core/utils/date.util';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
 import { isOperationalDocumentType } from './document-operational.util';
@@ -115,8 +116,10 @@ export function documentStatusDisplayTone(
 }
 
 /**
- * Stato collegamento fattura di un Arrivo merce (colonna "Stato" della lista
- * esterna, prompt §3-4): Sospeso, Collegato alla fattura registrata, Annullato.
+ * Stato collegamento fattura di un Arrivo merce (colonna "Stato" della lista):
+ * la colonna è puramente informativa. Vuota finché nessuna fattura registrata
+ * include l'arrivo; "Fattura forn. n. 45 del 17/08/2025" quando è collegato;
+ * "Annullato" se il documento è annullato.
  */
 export function goodsReceiptLinkStatusLabel(
   doc: Pick<DocumentRecord, 'linkStatus' | 'linkedPurchaseInvoice'>,
@@ -127,12 +130,12 @@ export function goodsReceiptLinkStatusLabel(
     case 'linked': {
       const invoice = doc.linkedPurchaseInvoice;
       const number = invoice?.externalDocNumber?.trim() || invoice?.reference?.trim();
-      const base = number ? `Fattura forn. N. ${number}` : 'Collegato a fattura';
-      // Flag persistito §15: l'arrivo è cambiato dopo il collegamento.
-      return invoice?.totalsCheckPending ? `${base} · Totali da verificare` : base;
+      const date = invoice?.externalDocDate ?? invoice?.documentDate;
+      const base = number ? `Fattura forn. n. ${number}` : 'Fattura fornitore';
+      return date ? `${base} del ${formatDate(date)}` : base;
     }
-    case 'suspended':
-      return 'Sospeso';
+    // 'suspended' non produce testo: il campo resta vuoto finché la fattura
+    // non viene registrata e collegata da "Includi documento".
     default:
       return null;
   }
@@ -146,8 +149,6 @@ export function goodsReceiptLinkStatusTone(
       return 'error';
     case 'linked':
       return 'success';
-    case 'suspended':
-      return 'warning';
     default:
       return null;
   }

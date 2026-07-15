@@ -568,12 +568,48 @@
   text-decoration: line-through;
 }
 
+// Sezione inferiore su una sola banda (ottimizzazione righe/colonne): note e
+// commento a sinistra, riquadro totali a destra. Sotto lg tornano impilati
+// con i totali per primi (subito dopo la tabella righe, come prima).
+.gr-form__footer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'totals'
+    'notes';
+  gap: var(--space-2) var(--space-4);
+  align-items: start;
+
+  @include bp.media-up('lg') {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'notes totals';
+  }
+}
+
+.gr-form__footer-notes {
+  grid-area: notes;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+
+  // Tra md e lg (totali ancora impilati) i due campi si affiancano.
+  @include bp.media-up('md') {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  // Con i totali a fianco i campi tornano in colonna: riempiono l'altezza
+  // del riquadro totali invece di schiacciarsi in larghezza.
+  @include bp.media-up('lg') {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 // Non piu' sticky: collideva col footer azioni sticky (entrambi in basso);
 // la tabella righe ha gia' uno scroll interno che tiene i totali a portata.
 .gr-form__totals-bar {
+  grid-area: totals;
   display: flex;
   justify-content: flex-end;
-  margin-block-start: auto;
   padding-block-start: var(--space-2);
 }
 
@@ -1009,17 +1045,6 @@
 .gr-form__attachments {
   // Sezione inferiore compatta: gli allegati seguono note/commento senza salti.
   margin-block-start: var(--space-2);
-}
-
-// Note documento + Commento interno affiancati oltre md (sezione inferiore).
-.gr-form__bottom-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-2) var(--space-3);
-
-  @include bp.media-up('md') {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .gr-form__label-hint {
