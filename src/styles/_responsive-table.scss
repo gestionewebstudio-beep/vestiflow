@@ -72,6 +72,14 @@
     white-space: nowrap;
   }
 
+  // I bottoni di ordinamento dentro th: lo UA stylesheet di Chromium forza
+  // text-transform: none sui button, rompendo l'uppercase dell'header.
+  .#{$block} th button {
+    font-size: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+  }
+
   .#{$block} th.#{$block}__cell--numeric,
   .#{$block} tbody td.#{$block}__cell--numeric,
   .#{$block}__row td.#{$block}__cell--numeric {
@@ -104,7 +112,7 @@
       inline-size: 100%;
       max-inline-size: 100%;
       box-sizing: border-box;
-      margin-block-end: var(--space-3);
+      margin-block-end: var(--space-2);
       padding: var(--space-3);
       background-color: var(--color-surface);
       border: var(--border-width) solid var(--color-border);
@@ -115,7 +123,7 @@
     .#{$block}__row td {
       display: grid;
       grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
-      gap: var(--space-2);
+      gap: var(--space-1) var(--space-2);
       align-items: center;
       padding-block: var(--space-1);
       border: none;
@@ -125,6 +133,7 @@
         content: attr(data-label);
         display: block;
         grid-column: 1;
+        font-size: var(--text-xs);
         font-weight: var(--font-weight-medium);
         color: var(--color-text-muted);
         text-align: start;

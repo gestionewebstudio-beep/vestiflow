@@ -620,7 +620,7 @@
   block-size: var(--gr-line-row-height);
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
-  line-height: var(--line-height-normal);
+  line-height: var(--leading-normal);
   color: var(--color-text);
   background: transparent;
   border: none;
@@ -780,7 +780,7 @@
 
 .gr-form__hint {
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
 }
 
 :host ::ng-deep .table-column-resize {
@@ -878,7 +878,7 @@
   padding: var(--space-2) var(--space-3);
   font-family: inherit;
   font-size: var(--text-sm);
-  line-height: var(--line-height-normal);
+  line-height: var(--leading-normal);
   color: var(--color-text);
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
@@ -994,14 +994,14 @@
   margin: 0 0 var(--space-4);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
-  line-height: var(--line-height-normal);
+  line-height: var(--leading-normal);
 }
 
 .gr-form__exit-error {
   margin: 0 0 var(--space-4);
   font-size: var(--text-sm);
   color: var(--color-danger);
-  line-height: var(--line-height-normal);
+  line-height: var(--leading-normal);
 }
 
 .gr-form__exit-actions {

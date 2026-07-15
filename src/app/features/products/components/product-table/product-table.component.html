@@ -3,7 +3,7 @@
     <thead class="product-table__head">
       <tr>
         @if (showColumn('select')) {
-          <th scope="col" class="product-table__cell--select">
+          <th scope="col" class="product-table__cell--select product-table__col--select">
             <label class="product-table__select-all">
               <input
                 #selectAllCheckbox
@@ -23,7 +23,7 @@
           </th>
         }
         @if (showColumn('name')) {
-          <th scope="col" [attr.aria-sort]="ariaSort('name')">
+          <th scope="col" class="product-table__col--name" [attr.aria-sort]="ariaSort('name')">
             <button
               type="button"
               class="product-table__sort"
@@ -36,7 +36,7 @@
           </th>
         }
         @if (showColumn('brand')) {
-          <th scope="col" [attr.aria-sort]="ariaSort('brand')">
+          <th scope="col" class="product-table__col--brand" [attr.aria-sort]="ariaSort('brand')">
             <button
               type="button"
               class="product-table__sort"
@@ -49,7 +49,11 @@
           </th>
         }
         @if (showColumn('category')) {
-          <th scope="col" [attr.aria-sort]="ariaSort('category')">
+          <th
+            scope="col"
+            class="product-table__col--category"
+            [attr.aria-sort]="ariaSort('category')"
+          >
             <button
               type="button"
               class="product-table__sort"
@@ -62,7 +66,7 @@
           </th>
         }
         @if (showColumn('season')) {
-          <th scope="col" [attr.aria-sort]="ariaSort('season')">
+          <th scope="col" class="product-table__col--season" [attr.aria-sort]="ariaSort('season')">
             <button
               type="button"
               class="product-table__sort"
@@ -75,10 +79,16 @@
           </th>
         }
         @if (showColumn('variants')) {
-          <th scope="col" class="product-table__cell--numeric">{{ columnLabel('variants') }}</th>
+          <th scope="col" class="product-table__cell--numeric product-table__col--numeric">
+            {{ columnLabel('variants') }}
+          </th>
         }
         @if (showColumn('status')) {
-          <th scope="col" class="product-table__cell--status" [attr.aria-sort]="ariaSort('status')">
+          <th
+            scope="col"
+            class="product-table__cell--status product-table__col--status"
+            [attr.aria-sort]="ariaSort('status')"
+          >
             <button
               type="button"
               class="product-table__sort"
@@ -91,13 +101,17 @@
           </th>
         }
         @if (showColumn('source')) {
-          <th scope="col" class="product-table__cell--source">{{ columnLabel('source') }}</th>
+          <th scope="col" class="product-table__cell--source product-table__col--source">
+            {{ columnLabel('source') }}
+          </th>
         }
         @if (showColumn('shopify') && showShopifyColumn()) {
-          <th scope="col" class="product-table__cell--shopify">{{ columnLabel('shopify') }}</th>
+          <th scope="col" class="product-table__cell--shopify product-table__col--shopify">
+            {{ columnLabel('shopify') }}
+          </th>
         }
         @if (showColumn('actions')) {
-          <th scope="col" class="product-table__cell--actions">
+          <th scope="col" class="product-table__cell--actions product-table__col--actions">
             <span class="sr-only">Etichetta</span>
             <i class="pi pi-print" aria-hidden="true"></i>
           </th>

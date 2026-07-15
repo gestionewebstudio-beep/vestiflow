@@ -33,7 +33,7 @@
   min-inline-size: 0;
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
-  line-height: var(--line-height-normal);
+  line-height: var(--leading-normal);
   border: none;
   background: transparent;
 
@@ -121,7 +121,7 @@
   min-inline-size: 0;
   margin: 0;
   font-size: var(--text-sm);
-  line-height: var(--line-height-normal);
+  line-height: var(--leading-normal);
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -139,7 +139,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  line-height: var(--line-height-normal);
+  line-height: var(--leading-normal);
 
   &:disabled {
     opacity: 0.5;

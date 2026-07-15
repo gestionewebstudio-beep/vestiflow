@@ -84,20 +84,22 @@
     inline-size: 3rem;
   }
 
+  // Somma 95% + colonna select 3rem: resta dentro il 100% (layout fixed,
+  // sforare fa comparire lo scroll orizzontale). Azioni: due bottoni 36px.
   .product-table__col--name {
-    inline-size: 24%;
+    inline-size: 21%;
   }
 
   .product-table__col--brand {
-    inline-size: 12%;
+    inline-size: 10%;
   }
 
   .product-table__col--category {
-    inline-size: 14%;
+    inline-size: 11%;
   }
 
   .product-table__col--season {
-    inline-size: 12%;
+    inline-size: 8%;
   }
 
   .product-table__col--numeric {
@@ -105,19 +107,19 @@
   }
 
   .product-table__col--status {
-    inline-size: 10%;
+    inline-size: 9%;
   }
 
   .product-table__col--source {
-    inline-size: 10%;
+    inline-size: 9%;
   }
 
   .product-table__col--shopify {
-    inline-size: 10%;
+    inline-size: 9%;
   }
 
   .product-table__col--actions {
-    inline-size: 6%;
+    inline-size: 10%;
   }
 
   .product-table__name,

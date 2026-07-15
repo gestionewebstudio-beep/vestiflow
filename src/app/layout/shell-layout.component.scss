@@ -141,7 +141,8 @@
     transform var(--transition-base) var(--ease-standard),
     visibility 0s linear var(--transition-base);
   z-index: var(--z-modal);
-  overflow-y: auto;
+  // Lo scroll vive dentro app-sidebar (__nav): brand e logout restano fissi.
+  overflow-y: hidden;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -170,12 +171,12 @@
   overflow-x: hidden;
   min-inline-size: 0;
   min-block-size: 0;
-  padding: var(--space-2);
+  padding: var(--space-3);
 }
 
 @include bp.media-up('sm') {
   .shell__content {
-    padding: var(--space-3);
+    padding: var(--space-4);
   }
 }
 
@@ -186,6 +187,11 @@
     grid-template-areas:
       'sidebar topbar'
       'sidebar content';
+  }
+
+  // Piu' respiro sul desktop denso: 20px verticale, 24px orizzontale.
+  .shell__content {
+    padding: var(--space-5) var(--space-6);
   }
 
   .shell__sidebar {

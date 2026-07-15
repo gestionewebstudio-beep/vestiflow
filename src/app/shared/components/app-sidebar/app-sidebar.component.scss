@@ -12,7 +12,19 @@
   align-items: stretch;
   block-size: 100%;
   inline-size: 100%;
+  min-block-size: 0;
   padding: var(--space-2);
+}
+
+// Solo la zona voci scrolla: brand in alto e logout in basso restano visibili.
+.app-sidebar__nav {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  // Compensa lo scrollbar senza far ballare le voci.
+  scrollbar-gutter: stable;
+  padding-block-end: var(--space-2);
 }
 
 .app-sidebar__brand {

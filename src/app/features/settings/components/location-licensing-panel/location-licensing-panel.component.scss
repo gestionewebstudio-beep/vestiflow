@@ -11,7 +11,7 @@
 
 .location-licensing__title {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
@@ -20,7 +20,7 @@
 .location-licensing__counter,
 .location-licensing__notice {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
@@ -68,7 +68,7 @@
 
 .location-licensing__code {
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--text-xs);
 }
 
 .location-licensing__actions {
@@ -80,5 +80,5 @@
 .location-licensing__error {
   margin: 0;
   color: var(--color-danger);
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
 }

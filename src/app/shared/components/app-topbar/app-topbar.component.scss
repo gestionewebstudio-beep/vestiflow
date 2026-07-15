@@ -97,9 +97,10 @@
 .app-topbar__end {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin-inline-start: auto;
-  flex-shrink: 0;
+  // Mobile: deve potersi restringere, o avatar/sync escono dallo schermo.
+  flex-shrink: 1;
   min-inline-size: 0;
 }
 
@@ -108,6 +109,14 @@
   align-items: center;
   min-inline-size: 0;
   flex-shrink: 1;
+}
+
+// Il selettore location non puo' avere larghezza fissa sotto md: si adatta
+// allo spazio residuo e il label va in ellipsis dentro il trigger.
+.app-topbar__store app-select-menu {
+  inline-size: auto;
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .app-topbar__store-fixed {
@@ -132,6 +141,7 @@
   box-sizing: border-box;
   block-size: var(--topbar-chip-block-size);
   min-inline-size: 0;
+  flex-shrink: 0;
   padding-inline: var(--space-1);
   padding-block: 0;
   color: var(--color-text-muted);
@@ -256,6 +266,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  // Avatar e logout non si comprimono: a stringersi e' il selettore location.
+  flex-shrink: 0;
 }
 
 .app-topbar__avatar {
@@ -296,6 +308,11 @@
 @include bp.media-up('md') {
   .app-topbar__end {
     gap: var(--space-4);
+  }
+
+  // Da md in su torna la larghezza uniforme del design system.
+  .app-topbar__store app-select-menu {
+    inline-size: var(--select-menu-width);
   }
 }
 

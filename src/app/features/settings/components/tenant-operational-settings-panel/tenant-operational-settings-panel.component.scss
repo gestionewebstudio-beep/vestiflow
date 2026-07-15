@@ -40,6 +40,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  // Campi a larghezza di lettura, non a tutta pagina (UX form).
+  max-inline-size: var(--content-form);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
