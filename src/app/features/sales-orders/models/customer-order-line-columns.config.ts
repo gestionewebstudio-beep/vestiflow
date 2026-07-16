@@ -31,7 +31,19 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
     minWidthPx: 52,
   },
   { id: 'unitOfMeasure', label: 'U.m.', defaultWidthPx: 44, minWidthPx: 36 },
-  { id: 'unitPrice', label: 'Prezzo unitario', numeric: true, defaultWidthPx: 92, minWidthPx: 56 },
+  // Costo d'acquisto (§8): colonna sensibile, nascosta di default e visibile
+  // SOLO agli operatori con permesso "Visualizza costi d'acquisto" — senza
+  // permesso la definizione non viene proprio registrata nel selettore.
+  {
+    id: 'purchaseCost',
+    label: 'Costo',
+    numeric: true,
+    defaultVisible: false,
+    defaultWidthPx: 84,
+    minWidthPx: 56,
+  },
+  // Glossario VestiFlow (§7): "Prezzo" come nella scheda prodotto.
+  { id: 'unitPrice', label: 'Prezzo', numeric: true, defaultWidthPx: 92, minWidthPx: 56 },
   { id: 'discount', label: 'Sconto', numeric: true, defaultWidthPx: 64, minWidthPx: 44 },
   {
     id: 'discountedPrice',
@@ -42,7 +54,7 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   },
   { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 56, minWidthPx: 40 },
   { id: 'commitsStock', label: 'Imp.', defaultWidthPx: 48, minWidthPx: 40 },
-  { id: 'lineTotal', label: 'Totale riga', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
+  { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
   { id: 'actions', label: 'Azioni', defaultWidthPx: 72, minWidthPx: 56 },
 ];
 

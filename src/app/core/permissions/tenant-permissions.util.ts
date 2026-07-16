@@ -92,6 +92,18 @@ export function canImportExportCatalog(user: User | null | undefined): boolean {
   return hasTenantPermission(user, TenantPermission.CatalogImportExport);
 }
 
+/**
+ * Dato sensibile (§permessi): costo d'acquisto visibile dove si vende (es.
+ * colonna Costo nell'Ordine cliente). Senza permesso la colonna non compare
+ * nemmeno tra le opzioni del selettore colonne.
+ */
+export function canViewPurchaseCosts(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.CatalogViewPurchaseCosts);
+}
+
 export function canImportExportInventory(user: User | null | undefined): boolean {
   if (hasFullTenantAccess(user)) {
     return true;

@@ -8,6 +8,7 @@ export const TenantPermission = {
   CatalogManage: 'catalog.manage',
   CatalogImportExport: 'catalog.import_export',
   CatalogDelete: 'catalog.delete',
+  CatalogViewPurchaseCosts: 'catalog.view_purchase_costs',
   SupplierOrdersManage: 'supplier_orders.manage',
   SupplierOrdersReceive: 'supplier_orders.receive',
   DocumentsView: 'documents.view',
@@ -67,6 +68,12 @@ export const TENANT_PERMISSION_DEFINITIONS: readonly TenantPermissionDefinition[
     key: TenantPermission.CatalogDelete,
     label: 'Eliminare prodotti',
     hint: 'Rimuove prodotti dal catalogo.',
+    group: 'catalog',
+  },
+  {
+    key: TenantPermission.CatalogViewPurchaseCosts,
+    label: "Visualizza costi d'acquisto",
+    hint: "Mostra il costo d'acquisto degli articoli dove si vende (es. colonna Costo nell'Ordine cliente).",
     group: 'catalog',
   },
   {
@@ -145,6 +152,7 @@ const MANAGER_DEFAULTS: readonly TenantPermissionKey[] = [
   TenantPermission.InventoryImportExport,
   TenantPermission.CatalogManage,
   TenantPermission.CatalogImportExport,
+  TenantPermission.CatalogViewPurchaseCosts,
   TenantPermission.SupplierOrdersManage,
   TenantPermission.SupplierOrdersReceive,
   TenantPermission.DocumentsView,

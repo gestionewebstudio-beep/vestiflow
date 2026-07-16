@@ -1,4 +1,10 @@
-<span class="hover-tooltip" [class.hover-tooltip--bottom]="position() === 'bottom'">
+<span
+  class="hover-tooltip"
+  [class.hover-tooltip--bottom]="position() === 'bottom'"
+  [class.hover-tooltip--end]="alignEnd()"
+  (mouseenter)="updatePlacement()"
+  (focusin)="updatePlacement()"
+>
   <span class="hover-tooltip__trigger">
     <ng-content />
   </span>

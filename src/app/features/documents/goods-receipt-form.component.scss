@@ -1032,6 +1032,9 @@
   z-index: calc(var(--z-dropdown) - 1);
 }
 
+// Fix stacking menu colonna vs backdrop: in document-form-footer.shared.scss
+// (secondo stylesheet condiviso, fuori dal budget di questo file).
+
 .gr-form__attachments {
   // Sezione inferiore compatta: gli allegati seguono note/commento senza salti.
   margin-block-start: var(--space-2);

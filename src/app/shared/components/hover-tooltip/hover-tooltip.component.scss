@@ -22,9 +22,12 @@
   z-index: var(--z-tooltip);
   inset-block-end: calc(100% + var(--space-2));
   inset-inline-start: 0;
-  inline-size: auto;
+  // max-content: il bubble si dimensiona sul TESTO, non sullo spazio del
+  // contenitore — da assoluto dentro una colonna stretta, `auto` faceva
+  // shrink-to-fit sulla larghezza della cella (striscia verticale ~99px).
+  inline-size: max-content;
   min-inline-size: 0;
-  max-inline-size: var(--select-menu-width-wide);
+  max-inline-size: min(var(--select-menu-width-wide), calc(100vw - var(--space-8)));
   padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-md);
@@ -53,6 +56,14 @@
 .hover-tooltip--bottom .hover-tooltip__bubble {
   inset-block-end: auto;
   inset-block-start: calc(100% + var(--space-2));
+}
+
+// Posizionamento intelligente (colonne vicine al bordo destro): il bubble si
+// ancora al bordo destro del trigger e si estende verso sinistra, restando
+// nel viewport. La classe arriva dal componente, misurata a hover/focus.
+.hover-tooltip--end .hover-tooltip__bubble {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
 }
 
 .hover-tooltip:hover .hover-tooltip__bubble,

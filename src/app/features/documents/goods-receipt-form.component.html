@@ -990,10 +990,30 @@
                         </div>
                       </td>
                       @if (isLineColumnVisible('articleCode')) {
-                        <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed tabular-nums"
-                        >
-                          {{ lineArticleCode(i) }}
+                        <td class="gr-form__cell gr-form__cell--code">
+                          <app-goods-receipt-line-code-cell
+                            [lineIndex]="i"
+                            [inputId]="'gr-code-' + i"
+                            ariaLabel="Codice articolo"
+                            placeholder="Cerca codice"
+                            [value]="line.controls.articleCode.value"
+                            [linked]="lineHasLinkedProduct(i)"
+                            [linkedValue]="lineArticleCode(i)"
+                            [disabled]="formReadOnly()"
+                            [suggestions]="codeSuggestions(i, 'articleCode')"
+                            [suggestionsOpen]="codeSuggestionsOpen(i, 'articleCode')"
+                            (valueChange)="onLineArticleCodeChange(i, $event)"
+                            (focused)="onLineCodeFocus(i, 'articleCode')"
+                            (blurred)="onLineCodeBlur(i)"
+                            (commit)="commitArticleCodeLookup(i)"
+                            (lineRetreat)="focusPreviousLineField(i, 'articleCode')"
+                            (lineRowAdvance)="advanceToNextLine(i)"
+                            (lineRowRetreat)="advanceToPreviousLine(i)"
+                            (suggestionPick)="
+                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
+                            "
+                            (escapePressed)="onLineSearchEscape(i)"
+                          />
                         </td>
                       }
                       @if (isLineColumnVisible('sku')) {

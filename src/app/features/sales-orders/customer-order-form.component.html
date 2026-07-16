@@ -291,6 +291,9 @@
                   @if (isLineColumnVisible('unitOfMeasure')) {
                     <col [style.width]="lineColumnWidth('unitOfMeasure')" />
                   }
+                  @if (isLineColumnVisible('purchaseCost')) {
+                    <col [style.width]="lineColumnWidth('purchaseCost')" />
+                  }
                   @if (isLineColumnVisible('unitPrice')) {
                     <col [style.width]="lineColumnWidth('unitPrice')" />
                   }
@@ -312,6 +315,10 @@
                   @if (isLineColumnVisible('actions')) {
                     <col [style.width]="lineColumnWidth('actions')" />
                   }
+                  <!-- Filler elastico: con table-layout fixed le colonne a
+                       larghezza fissa non assorbono lo spazio residuo e la
+                       tabella lascerebbe un vuoto a destra (P1). -->
+                  <col class="co-form__col--filler" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -398,13 +405,27 @@
                         ></span>
                       </th>
                     }
+                    @if (isLineColumnVisible('purchaseCost')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('purchaseCost')"
+                      >
+                        Costo
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('purchaseCost')"
+                          (resized)="onLineColumnResize('purchaseCost', $event)"
+                        ></span>
+                      </th>
+                    }
                     @if (isLineColumnVisible('unitPrice')) {
                       <th
                         scope="col"
                         class="gr-form__num"
                         [style.width]="lineColumnWidth('unitPrice')"
                       >
-                        Prezzo unit.
+                        Prezzo
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('unitPrice')"
@@ -443,7 +464,7 @@
                         class="gr-form__num"
                         [style.width]="lineColumnWidth('discountedPrice')"
                       >
-                        Prezzo scont.
+                        Prezzo scontato
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('discountedPrice')"
@@ -480,7 +501,7 @@
                         class="gr-form__num"
                         [style.width]="lineColumnWidth('lineTotal')"
                       >
-                        Totale riga
+                        Totale
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('lineTotal')"
@@ -493,6 +514,7 @@
                         <span class="sr-only">Azioni</span>
                       </th>
                     }
+                    <th scope="col" class="co-form__th-filler" aria-hidden="true"></th>
                   </tr>
                 </thead>
                 <tbody formArrayName="lines">
@@ -506,10 +528,22 @@
                         <span class="tabular-nums">{{ i + 1 }}</span>
                       </td>
                       @if (isLineColumnVisible('articleCode')) {
-                        <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed tabular-nums"
-                        >
-                          {{ lineArticleCode(i) }}
+                        <td class="gr-form__cell gr-form__cell--code">
+                          <app-goods-receipt-line-code-cell
+                            [lineIndex]="i"
+                            [inputId]="'co-code-' + i"
+                            ariaLabel="Codice articolo"
+                            placeholder="Cerca codice"
+                            [value]="line.controls.articleCode.value"
+                            [linked]="lineHasLinkedProduct(i)"
+                            [linkedValue]="lineArticleCode(i)"
+                            [disabled]="formReadOnly()"
+                            (valueChange)="onLineArticleCodeChange(i, $event)"
+                            (commit)="commitCodeLookup(i, 'articleCode')"
+                            (lineRetreat)="focusPreviousLineField(i, 'articleCode')"
+                            (lineRowAdvance)="advanceToNextLine(i)"
+                            (escapePressed)="onLineSearchEscape(i)"
+                          />
                         </td>
                       }
                       @if (isLineColumnVisible('sku')) {
@@ -525,6 +559,8 @@
                             [disabled]="formReadOnly()"
                             (valueChange)="onLineSkuChange(i, $event)"
                             (commit)="commitCodeLookup(i, 'sku')"
+                            (lineRetreat)="focusPreviousLineField(i, 'sku')"
+                            (lineRowAdvance)="advanceToNextLine(i)"
                             (escapePressed)="onLineSearchEscape(i)"
                           />
                         </td>
@@ -542,6 +578,8 @@
                             [disabled]="formReadOnly()"
                             (valueChange)="onLineBarcodeChange(i, $event)"
                             (commit)="commitCodeLookup(i, 'barcode')"
+                            (lineRetreat)="focusPreviousLineField(i, 'barcode')"
+                            (lineRowAdvance)="advanceToNextLine(i)"
                             (escapePressed)="onLineSearchEscape(i)"
                           />
                         </td>
@@ -570,6 +608,9 @@
                               onProductSuggestionPick($event.lineIndex, $event.variantId)
                             "
                             (suggestionNavigate)="onProductSuggestionNavigate($event)"
+                            (lineAdvance)="focusNextLineField(i, 'product')"
+                            (lineRetreat)="focusPreviousLineField(i, 'product')"
+                            (lineRowAdvance)="advanceToNextLine(i)"
                             (escapePressed)="onLineSearchEscape(i)"
                           />
                         </td>
@@ -587,6 +628,7 @@
                             min="0"
                             step="1"
                             formControlName="quantity"
+                            (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
                             [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
                             [title]="
                               lineAvailabilityHint(i) ??
@@ -612,6 +654,13 @@
                           {{ lineUnitOfMeasure(i) }}
                         </td>
                       }
+                      @if (isLineColumnVisible('purchaseCost')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                        >
+                          {{ linePurchaseCost(i) }}
+                        </td>
+                      }
                       @if (isLineColumnVisible('unitPrice')) {
                         <td class="gr-form__cell gr-form__cell--editable gr-form__num">
                           <input
@@ -621,6 +670,7 @@
                             inputmode="decimal"
                             formControlName="unitPrice"
                             placeholder="0,00"
+                            (keydown)="onLineFieldKeydown(i, 'unitPrice', $event)"
                           />
                         </td>
                       }
@@ -633,6 +683,7 @@
                             formControlName="discount"
                             placeholder="0%"
                             title="Percentuale singola o cascata: «10%», «4+10%»"
+                            (keydown)="onLineFieldKeydown(i, 'discount', $event)"
                           />
                         </td>
                       }
@@ -710,6 +761,7 @@
                           </div>
                         </td>
                       }
+                      <td class="gr-form__cell co-form__cell--filler" aria-hidden="true"></td>
                     </tr>
                   }
                   <!-- Riga di inserimento rapido: sempre in fondo alla tabella

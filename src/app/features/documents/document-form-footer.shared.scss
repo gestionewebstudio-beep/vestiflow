@@ -13,6 +13,15 @@
   --gr-actions-height: calc(var(--btn-min-height) + var(--space-2) * 2 + var(--border-width) * 2);
 }
 
+// Menu di intestazione colonna (modalità costi, IVA): lo stacking context del
+// th sticky (z-index 3) confinava il menu SOTTO il backdrop fisso trasparente
+// (z-dropdown − 1) — visibile ma non cliccabile, i click finivano al backdrop.
+// A menu aperto (:has: il menu è nel DOM solo da aperto) il th sale sopra.
+// Vive qui perché condiviso da Arrivo merce e Ordine cliente.
+.gr-form__table thead th:has(.gr-form__th-menu) {
+  z-index: var(--z-dropdown);
+}
+
 @include bp.media-up('lg') {
   .gr-form__footer-grid {
     position: sticky;

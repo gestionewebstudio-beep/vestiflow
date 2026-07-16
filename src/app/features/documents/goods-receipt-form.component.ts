@@ -175,6 +175,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
 const SESSION_UNLOCKED_DOC_IDS = new Set<string>();
 
 type GoodsReceiptLineFocusField =
+  | 'articleCode'
   | 'sku'
   | 'barcode'
   | 'supplierCode'
@@ -189,7 +190,7 @@ type GoodsReceiptLineFocusField =
   | 'expiry'
   | 'serials';
 
-type GoodsReceiptCodeLookupField = 'sku' | 'barcode';
+type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
 
 /**
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
@@ -944,19 +945,26 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Codice articolo del prodotto collegato alla riga (colonna selezionabile
-   * §Codice articolo): risolto dalle summary varianti, come il nome prodotto.
+   * Codice articolo mostrato sulla riga collegata (§6): dal form control
+   * (sincronizzato dalle summary) o direttamente dalla summary in cache.
    */
   protected lineArticleCode(index: number): string {
     const line = this.lines.at(index);
-    const variantId = line?.controls.variantId.value;
+    if (!line) {
+      return '';
+    }
+    const fromControl = line.controls.articleCode.value.trim();
+    if (fromControl) {
+      return fromControl;
+    }
+    const variantId = line.controls.variantId.value;
     if (!variantId) {
-      return '—';
+      return '';
     }
     const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
       (v) => v.variantId === variantId,
     );
-    return summary?.articleCode || '—';
+    return summary?.articleCode ?? '';
   }
 
   protected onLineSkuChange(index: number, value: string): void {
@@ -1001,7 +1009,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       }
       // La lookup potrebbe essere stata chiusa (blur/Esc) mentre la ricerca
       // era in corso: in quel caso i risultati non vanno mostrati.
-      if (this.codeLookupField() !== 'sku' || this.codeLookupLineIndex() == null) {
+      const field = this.codeLookupField();
+      if ((field !== 'sku' && field !== 'articleCode') || this.codeLookupLineIndex() == null) {
         return;
       }
       this.codeLookupSuggestions.set(results);
@@ -1019,6 +1028,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     line.controls.variantId.setValue('');
     // I codici appartengono all'articolo scollegato: lasciarli farebbe
     // ri-collegare la riga al blur (o collidere lo SKU alla creazione).
+    line.controls.articleCode.setValue('', { emitEvent: false });
     line.controls.sku.setValue('', { emitEvent: false });
     line.controls.barcode.setValue('', { emitEvent: false });
     this.syncLineFieldAccess();
@@ -1048,6 +1058,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.lines.at(index).controls.barcode.setValue(value);
     this.codesNotFound.clear();
     this.clearCodeLookup();
+    this.markFormDirty();
+  }
+
+  /** Cod. articolo come criterio di ricerca (§6): stessa meccanica dello SKU. */
+  protected onLineArticleCodeChange(index: number, value: string): void {
+    this.lines.at(index).controls.articleCode.setValue(value);
+    this.codesNotFound.clear();
+    this.clearProductAutocomplete();
+    const term = value.trim();
+    if (term.length >= VARIANT_SEARCH_MIN_CHARS && !this.lineHasLinkedProduct(index)) {
+      this.codeLookupLineIndex.set(index);
+      this.codeLookupField.set('articleCode');
+      this.codeSearchDraft.set(term);
+    } else {
+      this.clearCodeLookup();
+    }
     this.markFormDirty();
   }
 
@@ -1125,6 +1151,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.commitCodeLookup(index, 'barcode');
   }
 
+  protected commitArticleCodeLookup(index: number): void {
+    this.commitCodeLookup(index, 'articleCode');
+  }
+
   private commitCodeLookup(index: number, field: GoodsReceiptCodeLookupField): void {
     if (this.lineHasLinkedProduct(index)) {
       this.focusNextLineField(index, field);
@@ -1132,7 +1162,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     const line = this.lines.at(index);
     const value =
-      field === 'sku' ? line.controls.sku.value.trim() : line.controls.barcode.value.trim();
+      field === 'sku'
+        ? line.controls.sku.value.trim()
+        : field === 'articleCode'
+          ? line.controls.articleCode.value.trim()
+          : line.controls.barcode.value.trim();
     if (!value) {
       this.clearCodeLookup();
       this.focusNextLineField(index, field);
@@ -1201,6 +1235,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   ): readonly VariantSummary[] {
     if (field === 'sku') {
       const exact = results.filter((row) => normalizeSku(row.sku) === normalizeSku(value));
+      return exact.length > 0 ? exact : results;
+    }
+    if (field === 'articleCode') {
+      // Il codice articolo è per prodotto: piu' varianti possono condividerlo,
+      // il match esatto le elenca tutte (scelta all'operatore).
+      const normalized = value.trim().toUpperCase();
+      const exact = results.filter((row) => row.articleCode.trim().toUpperCase() === normalized);
       return exact.length > 0 ? exact : results;
     }
     const normalized = value.trim();
@@ -1312,6 +1353,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     const id = active.id;
     const prefixMap: readonly [string, GoodsReceiptLineFocusField][] = [
+      ['gr-code-', 'articleCode'],
       ['gr-sku-', 'sku'],
       ['gr-barcode-', 'barcode'],
       ['gr-supplier-code-', 'supplierCode'],
@@ -1338,7 +1380,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return (
       this.lineSuggestionsOpen(index) ||
       this.codeSuggestionsOpen(index, 'sku') ||
-      this.codeSuggestionsOpen(index, 'barcode')
+      this.codeSuggestionsOpen(index, 'barcode') ||
+      this.codeSuggestionsOpen(index, 'articleCode')
     );
   }
 
@@ -1435,6 +1478,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   private visibleLineFocusFields(index: number): readonly GoodsReceiptLineFocusField[] {
     const all: GoodsReceiptLineFocusField[] = [
+      'articleCode',
       'sku',
       'barcode',
       'supplierCode',
@@ -1471,6 +1515,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           return true;
         }
         return false;
+      }
+      if (field === 'articleCode') {
+        return this.isLineColumnVisible('articleCode');
       }
       if (field === 'sku') {
         return this.isLineColumnVisible('sku');
@@ -1514,6 +1561,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected focusLineField(index: number, field: GoodsReceiptLineFocusField): void {
     const idMap: Record<GoodsReceiptLineFocusField, string> = {
+      articleCode: `gr-code-${index}`,
       sku: `gr-sku-${index}`,
       barcode: `gr-barcode-${index}`,
       supplierCode: `gr-supplier-code-${index}`,
@@ -1591,6 +1639,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       if (!summary) {
         continue;
       }
+      line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
       line.controls.sku.setValue(summary.sku, { emitEvent: false });
       line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
       if (!line.controls.productName.value.trim()) {
@@ -1643,6 +1692,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       // dall'anagrafica). Costo, IVA e prezzi restano modificabili: sono dati
       // economici della riga e un refuso deve poter essere corretto.
       const lockedWhenLinked = [
+        line.controls.articleCode,
         line.controls.sku,
         line.controls.barcode,
         line.controls.supplierSku,
@@ -1732,7 +1782,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (Number(line.controls.quantity.value) <= 0) {
       return false;
     }
-    const code = line.controls.sku.value.trim() || line.controls.barcode.value.trim();
+    const code =
+      line.controls.sku.value.trim() ||
+      line.controls.barcode.value.trim() ||
+      line.controls.articleCode.value.trim();
     return code.length > 0;
   }
 
@@ -2696,6 +2749,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         (v) => v.variantId === value,
       );
       if (summary) {
+        line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
         line.controls.sku.setValue(summary.sku, { emitEvent: false });
         line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
         const label = summary.productName || summary.title;
@@ -3664,6 +3718,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             return;
           }
           const line = this.lines.at(index);
+          line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
           line.controls.sku.setValue(summary.sku, { emitEvent: false });
           line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
           const label = summary.productName || summary.title;
@@ -3892,6 +3947,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const line = this.fb.group({
       id: this.fb.control(''),
       variantId: this.fb.control(orderLine.variantId),
+      articleCode: this.fb.control(''),
       sku: this.fb.control(orderLine.sku),
       barcode: this.fb.control(''),
       supplierSku: this.fb.control(this.supplierSkuByVariantId().get(orderLine.variantId) ?? ''),
@@ -3992,6 +4048,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const row = this.fb.group({
       id: this.fb.control(''),
       variantId: this.fb.control(variant?.variantId ?? ''),
+      articleCode: this.fb.control(''),
       sku: this.fb.control(variant?.sku ?? line.sku),
       barcode: this.fb.control(variant?.barcode ?? line.barcode),
       supplierSku: this.fb.control(
@@ -4408,7 +4465,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
     index: number,
   ): Observable<void> {
-    const code = line.controls.sku.value.trim() || line.controls.barcode.value.trim();
+    const code =
+      line.controls.sku.value.trim() ||
+      line.controls.barcode.value.trim() ||
+      line.controls.articleCode.value.trim();
     if (!code || this.codesNotFound.has(code)) {
       return of(undefined);
     }
@@ -4496,6 +4556,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         this.fb.group({
           id: this.fb.control(line.id),
           variantId: this.fb.control(line.variantId ?? ''),
+          articleCode: this.fb.control(''),
           sku: this.fb.control(line.sku ?? ''),
           barcode: this.fb.control(''),
           supplierSku: this.fb.control(''),
@@ -4544,6 +4605,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const line = this.fb.group({
       id: this.fb.control(''),
       variantId: this.fb.control(''),
+      // Codice articolo: terzo criterio di ricerca accanto a SKU/EAN (§6).
+      articleCode: this.fb.control(''),
       sku: this.fb.control(''),
       barcode: this.fb.control(''),
       supplierSku: this.fb.control(''),

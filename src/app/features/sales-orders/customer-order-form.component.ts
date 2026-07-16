@@ -23,8 +23,10 @@ import {
   take,
 } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
+import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError, type AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
@@ -105,6 +107,16 @@ import {
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
+
+/** Campi riga nel giro Tab/Invio deterministico (stesso pattern Arrivo merce). */
+type CustomerOrderLineFocusField =
+  | 'articleCode'
+  | 'sku'
+  | 'barcode'
+  | 'product'
+  | 'quantity'
+  | 'unitPrice'
+  | 'discount';
 type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
@@ -169,6 +181,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
+  private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -495,9 +508,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly concluding = signal(false);
 
   constructor() {
+    // Colonna "Costo" (dato sensibile §permessi): senza il permesso
+    // "Visualizza costi d'acquisto" la definizione non viene registrata,
+    // quindi non compare nemmeno tra le opzioni del selettore colonne.
+    const canSeeCosts = canViewPurchaseCosts(this.authService.currentUser());
     this.columnPreferences.registerView(
       CUSTOMER_ORDER_LINES_VIEW,
-      CUSTOMER_ORDER_LINE_COLUMNS,
+      canSeeCosts
+        ? CUSTOMER_ORDER_LINE_COLUMNS
+        : CUSTOMER_ORDER_LINE_COLUMNS.filter((column) => column.id !== 'purchaseCost'),
       CUSTOMER_ORDER_LINE_PRESETS,
     );
 
@@ -556,6 +575,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return this.fb.group({
       id: this.fb.control(''),
       variantId: this.fb.control(''),
+      // Codice articolo: terzo criterio di ricerca accanto a SKU/EAN (§6).
+      articleCode: this.fb.control(''),
       sku: this.fb.control(''),
       barcode: this.fb.control(''),
       productName: this.fb.control(''),
@@ -610,7 +631,22 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /** Codice articolo del prodotto collegato alla riga (colonna §Codice articolo). */
   protected lineArticleCode(index: number): string {
-    return this.lineVariantSummary(index)?.articleCode || '—';
+    return (
+      this.lineVariantSummary(index)?.articleCode ||
+      this.lines.at(index)?.controls.articleCode.value ||
+      ''
+    );
+  }
+
+  /**
+   * Costo d'acquisto dell'articolo (colonna "Costo", §8): ultimo costo
+   * registrato in anagrafica (stesso dato scritto dall'Arrivo merce, netto).
+   * Visibile solo con permesso "Visualizza costi d'acquisto".
+   */
+  protected linePurchaseCost(index: number): string {
+    this.formValue();
+    const purchase = this.lineVariantSummary(index)?.purchasePrice;
+    return purchase && purchase.amountMinor > 0 ? formatMoney(purchase) : '—';
   }
 
   protected lineVariantSummary(index: number): VariantSummary | null {
@@ -634,6 +670,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         (entry) => entry.variantId === variantId,
       );
       if (summary) {
+        // FISSA la summary trovata nei risultati di ricerca: quando la query
+        // si svuota (debounce) i searched tornano [], e senza pin la riga
+        // perdeva disponibilità/codici dopo ~1s (Q.tà disp. che "sparisce").
+        this.pinnedVariants.update((current) => mergeVariantSummaries([summary], current));
         this.applySummaryToLine(line, summary);
       } else {
         this.pinVariantSummary(index, variantId);
@@ -647,6 +687,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     line: ReturnType<CustomerOrderFormComponent['createLine']>,
     summary: VariantSummary,
   ): void {
+    line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
     line.controls.sku.setValue(summary.sku, { emitEvent: false });
     line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
     line.controls.productName.setValue(summary.productName || summary.title, { emitEvent: false });
@@ -723,6 +764,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           const summary = rows[0];
           if (summary) {
             this.pinnedVariants.update((current) => mergeVariantSummaries([summary], current));
+            // Codice articolo sulle righe collegate (righe caricate da ordine
+            // esistente: il documento non lo persiste, arriva dall'anagrafica).
+            for (const line of this.lines.controls) {
+              if (line.controls.variantId.value === summary.variantId) {
+                line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
+              }
+            }
           }
         });
     }
@@ -1053,6 +1101,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     const line = this.lines.at(index);
     line.patchValue({
       variantId: '',
+      articleCode: '',
       sku: '',
       barcode: '',
       productName: '',
@@ -1061,7 +1110,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
-  // ── Celle codice (SKU / EAN): lookup esatto alla conferma ───────────────
+  // ── Celle codice (Cod. articolo / SKU / EAN): lookup esatto alla conferma ──
   protected onLineSkuChange(index: number, value: string): void {
     this.lines.at(index).controls.sku.setValue(value);
     this.markFormDirty();
@@ -1072,13 +1121,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
-  protected commitCodeLookup(index: number, field: 'sku' | 'barcode'): void {
+  protected onLineArticleCodeChange(index: number, value: string): void {
+    this.lines.at(index).controls.articleCode.setValue(value);
+    this.markFormDirty();
+  }
+
+  protected commitCodeLookup(index: number, field: 'articleCode' | 'sku' | 'barcode'): void {
     const line = this.lines.at(index);
     if (line.controls.variantId.value) {
+      this.focusNextLineField(index, field);
       return;
     }
     const code = line.controls[field].value.trim();
     if (!code) {
+      this.focusNextLineField(index, field);
       return;
     }
     const locationId = this.form.controls.locationId.value || undefined;
@@ -1089,8 +1145,134 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         if (variantId) {
           this.onVariantSelect(index, variantId);
           this.pinVariantSummary(index, variantId);
+          this.focusLineField(index, 'quantity');
+          return;
         }
+        // Nessun match esatto (§6c): l'operatore prosegue con gli altri campi.
+        this.focusNextLineField(index, field);
       });
+  }
+
+  // ── Tab deterministico tra i campi riga (§10, stesso pattern Arrivo merce) ──
+
+  /** Campi editabili visibili della riga, nell'ordine delle colonne. */
+  private visibleLineFocusFields(index: number): readonly CustomerOrderLineFocusField[] {
+    const all: readonly CustomerOrderLineFocusField[] = [
+      'articleCode',
+      'sku',
+      'barcode',
+      'product',
+      'quantity',
+      'unitPrice',
+      'discount',
+    ];
+    const linked = this.lineHasLinkedProduct(index);
+    return all.filter((field) => {
+      // Su riga collegata i codici/nome sono bloccati: restano i campi dati.
+      if (
+        linked &&
+        (field === 'articleCode' || field === 'sku' || field === 'barcode' || field === 'product')
+      ) {
+        return false;
+      }
+      const columnId = field === 'product' ? 'product' : field;
+      return this.isLineColumnVisible(columnId);
+    });
+  }
+
+  protected focusLineField(index: number, field: CustomerOrderLineFocusField): void {
+    const idMap: Record<CustomerOrderLineFocusField, string> = {
+      articleCode: `co-code-${index}`,
+      sku: `co-sku-${index}`,
+      barcode: `co-barcode-${index}`,
+      product: `co-product-${index}`,
+      quantity: `co-qty-${index}`,
+      unitPrice: `co-price-${index}`,
+      discount: `co-discount-${index}`,
+    };
+    globalThis.document.getElementById(idMap[field])?.focus();
+  }
+
+  private focusFirstLineField(index: number): void {
+    const order = this.visibleLineFocusFields(index);
+    if (order[0]) {
+      this.focusLineField(index, order[0]);
+    }
+  }
+
+  private focusLastLineField(index: number): void {
+    const order = this.visibleLineFocusFields(index);
+    const last = order[order.length - 1];
+    if (last) {
+      this.focusLineField(index, last);
+    }
+  }
+
+  protected focusNextLineField(index: number, current: CustomerOrderLineFocusField): void {
+    const order = this.visibleLineFocusFields(index);
+    const pos = order.indexOf(current);
+    if (pos >= 0 && pos < order.length - 1) {
+      this.focusLineField(index, order[pos + 1]!);
+      return;
+    }
+    this.advanceToNextLine(index);
+  }
+
+  protected focusPreviousLineField(index: number, current: CustomerOrderLineFocusField): void {
+    const order = this.visibleLineFocusFields(index);
+    const pos = order.indexOf(current);
+    if (pos > 0) {
+      this.focusLineField(index, order[pos - 1]!);
+      return;
+    }
+    if (index > 0) {
+      this.focusLastLineField(index - 1);
+    }
+  }
+
+  /** Ultima cella della riga → prima cella della successiva; sull'ultima riga crea la nuova. */
+  protected advanceToNextLine(index: number): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const nextIndex = index + 1;
+    if (nextIndex >= this.lines.length) {
+      this.lines.push(this.createLine());
+      this.markFormDirty();
+    }
+    // Focus dopo il render della riga appena creata.
+    setTimeout(() => this.focusFirstLineField(nextIndex));
+  }
+
+  /**
+   * Tab/Shift+Tab deterministici sui campi dati della riga: mai su icone o
+   * pulsanti di servizio; dall'ultimo campo si passa alla riga successiva.
+   */
+  protected onLineFieldKeydown(
+    index: number,
+    field: CustomerOrderLineFocusField,
+    event: KeyboardEvent,
+  ): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.focusNextLineField(index, field);
+      return;
+    }
+    if (event.key !== 'Tab') {
+      return;
+    }
+    if (event.shiftKey) {
+      const order = this.visibleLineFocusFields(index);
+      if (order.indexOf(field) <= 0 && index === 0) {
+        // Prima cella della prima riga: lascia al browser l'uscita dalla tabella.
+        return;
+      }
+      event.preventDefault();
+      this.focusPreviousLineField(index, field);
+      return;
+    }
+    event.preventDefault();
+    this.focusNextLineField(index, field);
   }
 
   protected openLineProductSearch(index: number): void {
@@ -1423,6 +1605,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           {
             id: line.id,
             variantId: line.variantId ?? '',
+            // Popolato dalle summary appena caricate (refreshAllLineSummaries).
+            articleCode: '',
             sku: line.sku,
             barcode: line.barcode ?? '',
             productName: line.title,
