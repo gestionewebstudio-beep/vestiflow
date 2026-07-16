@@ -22,6 +22,62 @@ const REPORT_FETCH_PAGE_SIZE = 100;
 /** Limite di sicurezza: evita fetch illimitato in memoria su storico vendite enorme. */
 const MAX_REPORT_PAGES = 20;
 
+// ── Ordine cliente manuale (maschera /app/sales) ────────────────────────────
+
+/** Riga in salvataggio (payload POST sales-orders/manual/save). */
+export interface SaveManualOrderLineInput {
+  readonly id?: EntityId;
+  readonly variantId?: EntityId;
+  readonly sku?: string;
+  readonly barcode?: string;
+  readonly title: string;
+  readonly quantity: number;
+  readonly unitPriceMinor?: number;
+  /** Sconto a cascata: "10%", "4+10%", "2+5+8%". */
+  readonly discount?: string;
+  readonly vatCodeId?: string;
+  readonly commitsStock?: boolean;
+  readonly unitOfMeasure?: string;
+}
+
+/** Salvataggio unico testata + righe + impegni (stessa impostazione Arrivo merce). */
+export interface SaveManualOrderInput {
+  readonly id?: EntityId;
+  readonly customerId: EntityId;
+  readonly locationId?: EntityId;
+  readonly documentDate: string;
+  readonly externalRef?: string;
+  readonly expectedDeliveryDate?: string;
+  readonly status?: 'confirmed' | 'cancelled';
+  readonly notes?: string;
+  readonly paymentTerms?: string;
+  readonly lines: readonly SaveManualOrderLineInput[];
+}
+
+/** Impegno attivo dell'ordine (per il calcolo della Q.tà disponibile in modifica). */
+export interface ManualOrderReservation {
+  readonly variantId: EntityId;
+  readonly remainingQuantity: number;
+}
+
+export interface SaveManualOrderResult {
+  readonly order: SalesOrder;
+  readonly reservations: readonly ManualOrderReservation[];
+  /** Avvisi disponibilità NON bloccanti (§CONTROLLI). */
+  readonly warnings: readonly string[];
+}
+
+export interface ManualOrderMeta {
+  readonly nextReferencePreview: string;
+  /** Tipi di documento di scarico disponibili oggi (enum API, es. sales_ddt). */
+  readonly unloadDocumentTypes: readonly string[];
+}
+
+export interface ConcludeManualOrderResult {
+  readonly documentId: EntityId;
+  readonly documentType: string;
+}
+
 /**
  * Accesso read-only alle vendite via NestJS. Shopify è owner: nessuna scrittura
  * lato gestionale; snapshot popolati da sync.
@@ -78,6 +134,46 @@ export class SalesOrderService {
         [] as readonly SalesOrder[],
       ),
     );
+  }
+
+  // ── Ordine cliente manuale ─────────────────────────────────────────────
+
+  getManualOrderMeta(): Observable<ManualOrderMeta> {
+    return this.http
+      .get<ManualOrderMeta>(this.url('/sales-orders/manual/meta'))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  saveManualOrder(input: SaveManualOrderInput): Observable<SaveManualOrderResult> {
+    return this.http
+      .post<{
+        order: SalesOrderApiRow;
+        reservations: readonly ManualOrderReservation[];
+        warnings: readonly string[];
+      }>(this.url('/sales-orders/manual/save'), input)
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((result) => ({
+          order: mapSalesOrderApiRow(result.order),
+          reservations: result.reservations,
+          warnings: result.warnings,
+        })),
+      );
+  }
+
+  getManualOrderReservations(id: EntityId): Observable<readonly ManualOrderReservation[]> {
+    return this.http
+      .get<readonly ManualOrderReservation[]>(this.url(`/sales-orders/manual/${id}/reservations`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /** "Concludi ordine": genera il documento di scarico precompilato (bozza). */
+  concludeManualOrder(id: EntityId, documentType: string): Observable<ConcludeManualOrderResult> {
+    return this.http
+      .post<ConcludeManualOrderResult>(this.url(`/sales-orders/manual/${id}/conclude`), {
+        documentType,
+      })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   exportSalesOrdersCsv(query: SalesOrderExportQuery): Observable<Blob> {

@@ -10,6 +10,9 @@ import {
   DocumentStatus,
   DocumentType,
   Prisma,
+  ReservationStatus,
+  SalesOrderFulfillmentStatus,
+  SalesOrderSource,
   SupplierOrderStatus,
   type Document,
   type DocumentLine,
@@ -24,6 +27,7 @@ import {
   assertLocationInUserScope,
   assertLocationReadableInUserScope,
 } from '../inventory/user-location-scope.util';
+import { StockReservationService } from '../order-reservations/stock-reservation.service';
 import {
   resolveReadableListLocationScope,
 } from '../inventory/licensed-location-scope.util';
@@ -228,6 +232,7 @@ export class DocumentsService {
     private readonly prisma: PrismaService,
     private readonly settings: DocumentSettingsService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly stockReservations: StockReservationService,
   ) {}
 
   async list(
@@ -1688,6 +1693,14 @@ export class DocumentsService {
         }
       }
 
+      // §CONCLUDI ORDINE: la conferma del documento di scarico generato da un
+      // Ordine cliente manuale trasforma gli impegni in scarichi reali —
+      // Impegnata torna a 0, ordine Concluso, nella STESSA transazione.
+      if (documentTypeUnloadsStockOnConfirm(doc.type)) {
+        const concludeTargets = await this.concludeLinkedManualOrderTx(tx, tenantId, doc.id);
+        syncTargets.push(...concludeTargets);
+      }
+
       if (documentTypeTransfersStockOnConfirm(doc.type)) {
         await assertSerialNumbersForTransferLines(tx, tenantId, doc.locationId!, doc.lines);
         for (const line of doc.lines) {
@@ -2187,6 +2200,14 @@ export class DocumentsService {
         );
       }
 
+      // Ordine cliente manuale concluso da questo scarico: l'annullamento del
+      // documento riporta l'ordine a Confermato e rifà gli impegni (la merce
+      // ricaricata torna assegnata all'ordine, Disponibile coerente).
+      if (wasStockUnloaded || wasManualUnloaded) {
+        const reopenTargets = await this.reopenLinkedManualOrderTx(tx, tenantId, doc.id);
+        syncTargets.push(...reopenTargets);
+      }
+
       if (wasStockLoaded) {
         await reverseInventorySerialsForDocument(
           tx,
@@ -2460,6 +2481,145 @@ export class DocumentsService {
 
   private formatReference(prefix: string, year: number, number: number): string {
     return `${prefix}-${year}-${String(number).padStart(4, '0')}`;
+  }
+
+  /**
+   * Conclude l'Ordine cliente manuale collegato a questo documento di scarico
+   * (§CONCLUDI ORDINE): consuma gli impegni attivi (Impegnata → 0, la
+   * Giacenza è già scesa con lo scarico) e marca l'ordine Concluso. No-op per
+   * documenti non collegati o collegati a ordini di canale (Shopify).
+   */
+  private async concludeLinkedManualOrderTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    documentId: string,
+  ): Promise<Array<{ variantId: string; locationId: string }>> {
+    const order = await tx.salesOrder.findFirst({
+      where: {
+        tenantId,
+        documentId,
+        source: SalesOrderSource.manual,
+        fulfilledAt: null,
+        cancelledAt: null,
+      },
+      select: { id: true, orderNumber: true },
+    });
+    if (!order) {
+      return [];
+    }
+
+    const syncTargets: Array<{ variantId: string; locationId: string }> = [];
+    const active = await tx.stockReservation.findMany({
+      where: { tenantId, salesOrderId: order.id, status: ReservationStatus.active },
+    });
+    for (const reservation of active) {
+      await this.stockReservations.consumeReservationTx(
+        tx,
+        reservation,
+        `Concluso con documento di scarico (ordine ${order.orderNumber})`,
+      );
+      syncTargets.push({
+        variantId: reservation.variantId,
+        locationId: reservation.locationId,
+      });
+    }
+
+    await tx.salesOrder.update({
+      where: { id: order.id },
+      data: {
+        fulfilledAt: new Date(),
+        fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
+      },
+    });
+    this.logger.log(`Ordine cliente ${order.orderNumber} concluso (${tenantId})`);
+    return syncTargets;
+  }
+
+  /**
+   * Riapre l'Ordine cliente manuale concluso da questo scarico quando il
+   * documento viene annullato: l'ordine torna Confermato e gli impegni
+   * vengono ricreati dalle righe con spunta "Impegna magazzino" attiva.
+   */
+  private async reopenLinkedManualOrderTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    documentId: string,
+  ): Promise<Array<{ variantId: string; locationId: string }>> {
+    const order = await tx.salesOrder.findFirst({
+      where: {
+        tenantId,
+        documentId,
+        source: SalesOrderSource.manual,
+        fulfilledAt: { not: null },
+        cancelledAt: null,
+      },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
+    });
+    if (!order || !order.locationId) {
+      return [];
+    }
+
+    await tx.salesOrder.update({
+      where: { id: order.id },
+      data: {
+        fulfilledAt: null,
+        fulfillmentStatus: SalesOrderFulfillmentStatus.unfulfilled,
+      },
+    });
+
+    const variantIds = [
+      ...new Set(
+        order.lines.map((line) => line.variantId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const variants = variantIds.length
+      ? await tx.productVariant.findMany({
+          where: { tenantId, id: { in: variantIds } },
+          select: { id: true, product: { select: { managesStock: true } } },
+        })
+      : [];
+    const managesStockByVariantId = new Map(
+      variants.map((variant) => [variant.id, variant.product.managesStock ?? true]),
+    );
+
+    // Gli impegni consumati alla conclusione tornano attivi (il sync da solo
+    // non riapre mai un impegno consumato), poi si riallineano alle righe.
+    await this.stockReservations.restoreConsumedOrderReservationsTx(tx, {
+      tenantId,
+      salesOrderId: order.id,
+      note: `Scarico annullato: ordine ${order.orderNumber} riaperto`,
+    });
+
+    const reservationLines = order.lines
+      .filter(
+        (line) =>
+          line.commitsStock &&
+          line.quantity > 0 &&
+          line.variantId &&
+          managesStockByVariantId.get(line.variantId) !== false,
+      )
+      .map((line) => ({
+        salesOrderLineId: line.id,
+        variantId: line.variantId!,
+        sku: line.sku,
+        quantity: line.quantity,
+      }));
+    await this.stockReservations.syncOrderReservationsTx(tx, {
+      tenantId,
+      salesOrderId: order.id,
+      channel: SalesOrderSource.manual,
+      locationId: order.locationId,
+      externalOrderRef: order.orderNumber,
+      lines: reservationLines,
+    });
+
+    this.logger.log(
+      `Ordine cliente ${order.orderNumber} riaperto: scarico annullato (${tenantId})`,
+    );
+    return reservationLines.map((line) => ({
+      variantId: line.variantId,
+      locationId: order.locationId!,
+    }));
   }
 
   /** Prima location licenziata attiva (fallback DDT vendita da proforma). */

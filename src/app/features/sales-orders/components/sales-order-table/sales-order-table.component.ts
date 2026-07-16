@@ -1,7 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import type { SalesOrder } from '@core/models/sales-order.model';
+import {
+  manualOrderState,
+  SalesOrderSource,
+  type SalesOrder,
+} from '@core/models/sales-order.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -50,6 +54,17 @@ export class SalesOrderTableComponent {
   protected readonly formatMoney = formatMoney;
 
   protected orderStateLabel(order: SalesOrder): string {
+    // Ordine manuale: stati del documento (§STATI Ordine cliente).
+    if (order.source === SalesOrderSource.Manual) {
+      switch (manualOrderState(order)) {
+        case 'cancelled':
+          return 'Annullato';
+        case 'concluded':
+          return 'Concluso';
+        default:
+          return 'Confermato';
+      }
+    }
     if (order.cancelledAt) {
       return 'Annullato';
     }
@@ -62,6 +77,9 @@ export class SalesOrderTableComponent {
   protected orderStateTone(order: SalesOrder): BadgeTone {
     if (order.cancelledAt) {
       return 'error';
+    }
+    if (order.source === SalesOrderSource.Manual) {
+      return manualOrderState(order) === 'concluded' ? 'info' : 'success';
     }
     if (order.fulfillmentStatus === 'fulfilled') {
       return 'success';

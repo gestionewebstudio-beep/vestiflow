@@ -98,11 +98,15 @@ export class StockReservationService {
       const currentRemaining =
         current.status === ReservationStatus.active ? current.remainingQuantity : 0;
       const delta = line.quantity - currentRemaining;
-      if (delta === 0 && current.status === ReservationStatus.active) {
+      if (
+        delta === 0 &&
+        current.status === ReservationStatus.active &&
+        current.locationId === params.locationId
+      ) {
         continue;
       }
 
-      await this.updateReservationTx(tx, params.tenantId, current, line, delta);
+      await this.updateReservationTx(tx, params.tenantId, current, line, delta, params.locationId);
     }
 
     // Righe rimosse dal canale (o impegni orfani): rilascio, mai cancellazione.
@@ -182,6 +186,52 @@ export class StockReservationService {
     return reservation.remainingQuantity;
   }
 
+  /**
+   * Ripristina gli impegni CONSUMATI di un ordine (annullamento del documento
+   * di scarico che aveva concluso un Ordine cliente manuale): status di nuovo
+   * `active`, quantità originale, Impegnata + quantità, evento verificabile.
+   * La Giacenza non viene toccata: il ricarico fisico è dello storno movimenti
+   * eseguito dal chiamante nella stessa transazione. Idempotente sui non consumati.
+   */
+  async restoreConsumedOrderReservationsTx(
+    tx: Prisma.TransactionClient,
+    params: { readonly tenantId: string; readonly salesOrderId: string; readonly note: string },
+  ): Promise<void> {
+    const consumed = await tx.stockReservation.findMany({
+      where: {
+        tenantId: params.tenantId,
+        salesOrderId: params.salesOrderId,
+        status: ReservationStatus.consumed,
+      },
+    });
+
+    for (const reservation of consumed) {
+      await tx.stockReservation.update({
+        where: { id: reservation.id },
+        data: { status: ReservationStatus.active, remainingQuantity: reservation.quantity },
+      });
+
+      await tx.stockReservationEvent.create({
+        data: {
+          tenantId: params.tenantId,
+          reservationId: reservation.id,
+          type: ReservationEventType.updated,
+          quantityDelta: reservation.quantity,
+          remainingAfter: reservation.quantity,
+          note: params.note,
+        },
+      });
+
+      await applyCommittedDelta(
+        tx,
+        params.tenantId,
+        reservation.variantId,
+        reservation.locationId,
+        reservation.quantity,
+      );
+    }
+  }
+
   /** Impegni attivi che compongono la Impegnata di una variante×location (UI §10). */
   listActiveForLevel(
     tenantId: string,
@@ -245,7 +295,12 @@ export class StockReservationService {
     current: StockReservation,
     line: ReservationLineInput,
     delta: number,
+    locationId: string,
   ): Promise<void> {
+    const locationChanged = current.locationId !== locationId;
+    const currentRemaining =
+      current.status === ReservationStatus.active ? current.remainingQuantity : 0;
+
     await tx.stockReservation.update({
       where: { id: current.id },
       data: {
@@ -253,6 +308,7 @@ export class StockReservationService {
         remainingQuantity: line.quantity,
         status: ReservationStatus.active,
         sku: line.sku,
+        locationId,
       },
     });
 
@@ -263,8 +319,23 @@ export class StockReservationService {
         type: ReservationEventType.updated,
         quantityDelta: delta,
         remainingAfter: line.quantity,
+        note: locationChanged ? 'Cambio location dell\'ordine' : undefined,
       },
     });
+
+    if (locationChanged) {
+      // L'impegno si sposta: Impegnata − residuo sulla vecchia sede,
+      // + quantità piena sulla nuova (ordini cliente manuali multi-sede).
+      await applyCommittedDelta(
+        tx,
+        tenantId,
+        current.variantId,
+        current.locationId,
+        -currentRemaining,
+      );
+      await applyCommittedDelta(tx, tenantId, current.variantId, locationId, line.quantity);
+      return;
+    }
 
     await applyCommittedDelta(tx, tenantId, current.variantId, current.locationId, delta);
   }

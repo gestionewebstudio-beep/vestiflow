@@ -1,5 +1,5 @@
 import type { EntityId, Money } from '@core/models/common.model';
-import type { ProductStatus } from '@core/models/product.model';
+import type { ProductKind, ProductStatus } from '@core/models/product.model';
 import type { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 
@@ -57,6 +57,8 @@ export interface CreateProductDto {
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;
   readonly managesStock?: boolean;
+  /** Tipo prodotto Articolo/Servizio (solo VestiFlow, mai su Shopify). */
+  readonly kind?: ProductKind;
   readonly options: readonly ProductOptionDto[];
   readonly variants: readonly CreateProductVariantDto[];
 }
@@ -82,6 +84,8 @@ export interface UpdateProductDto {
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;
   readonly managesStock?: boolean;
+  /** Tipo prodotto Articolo/Servizio (solo VestiFlow, mai su Shopify). */
+  readonly kind?: ProductKind;
   readonly options?: readonly ProductOptionDto[];
   readonly variants?: readonly UpdateProductVariantDto[];
 }

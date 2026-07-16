@@ -1,4 +1,5 @@
 import type { EntityId, Money } from '@core/models/common.model';
+import type { ProductKind } from '@core/models/product.model';
 
 /**
  * Vista denormalizzata di una variante per consumer fuori dalla feature
@@ -18,10 +19,14 @@ export interface VariantSummary {
   readonly compareAtPrice?: Money | null;
   readonly supplierSku?: string;
   readonly stockOnHand?: number | null;
+  /** Disponibile = Giacenza − Impegnata (per la location richiesta, se passata). */
+  readonly stockAvailable?: number | null;
   readonly category?: string;
   readonly unitOfMeasure?: string;
   /** Codice IVA predefinito del prodotto (ereditato dalle righe documento). */
   readonly defaultVatCodeId?: string;
   /** False = prodotto non gestito a magazzino: le righe documento non caricano giacenza. */
   readonly managesStock?: boolean;
+  /** Tipo prodotto: default della spunta "Impegna magazzino" (Ordine cliente). */
+  readonly kind?: ProductKind;
 }

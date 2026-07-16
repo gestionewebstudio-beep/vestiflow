@@ -58,6 +58,19 @@ export interface SalesOrderLine {
   readonly quantity: number;
   readonly unitPrice: Money;
   readonly lineTotal: Money;
+  // ── Righe Ordine cliente manuale ──
+  /** EAN congelato al momento dell'ordine. */
+  readonly barcode?: string;
+  /** Unità di misura snapshot (es. pz). */
+  readonly unitOfMeasure?: string;
+  /** Sconto riga in notazione a cascata (es. "10%", "4+10%"). */
+  readonly discount?: string;
+  /** Codice IVA della riga. */
+  readonly vatCodeId?: string;
+  /** IVA riga (unità minori). */
+  readonly lineVatTotal?: Money;
+  /** Spunta "Impegna magazzino" della riga. */
+  readonly commitsStock?: boolean;
 }
 
 /** Vendita read-only (Shopify-authoritative). */
@@ -102,6 +115,41 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   };
   /** Vendita online generata dall'evasione (fase 2): scarico + Corrispettivo. */
   readonly onlineSale?: SalesOrderOnlineSaleLink;
+  // ── Testata Ordine cliente manuale (source = manual) ──
+  /** Location/magazzino di origine degli impegni. */
+  readonly locationId?: EntityId;
+  /** Rif. ordine cliente esterno (testo libero). */
+  readonly externalRef?: string;
+  /** Data prevista consegna (solo giorno). */
+  readonly expectedDeliveryDate?: IsoDateString;
+  /** Note documento. */
+  readonly notes?: string;
+  /** Condizioni di pagamento (snapshot testo). */
+  readonly paymentTerms?: string;
+}
+
+/**
+ * Stato dell'Ordine cliente manuale (§STATI): tre stati derivati.
+ * Non esiste Bozza: o Confermato, o non esiste.
+ */
+export const ManualOrderState = {
+  Confirmed: 'confirmed',
+  Cancelled: 'cancelled',
+  Concluded: 'concluded',
+} as const;
+export type ManualOrderState = (typeof ManualOrderState)[keyof typeof ManualOrderState];
+
+/** Stato derivato: Annullato > Concluso > Confermato. */
+export function manualOrderState(
+  order: Pick<SalesOrder, 'cancelledAt' | 'fulfilledAt'>,
+): ManualOrderState {
+  if (order.cancelledAt) {
+    return ManualOrderState.Cancelled;
+  }
+  if (order.fulfilledAt) {
+    return ManualOrderState.Concluded;
+  }
+  return ManualOrderState.Confirmed;
 }
 
 /** Stato magazzino della Vendita online collegata. */

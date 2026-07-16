@@ -16,7 +16,7 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { startWith } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
-import { ProductStatus } from '@core/models/product.model';
+import { PRODUCT_KIND_LABELS, ProductKind, ProductStatus } from '@core/models/product.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 import { vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -108,6 +108,14 @@ export class ProductGeneralStepComponent implements OnInit {
     label: INVENTORY_TRACKING_LABELS[value],
   }));
 
+  /** Tipo prodotto (Articolo/Servizio): solo VestiFlow, mai sincronizzato con Shopify. */
+  protected readonly kindSelectOptions: readonly SelectMenuOption[] = (
+    Object.values(ProductKind) as ProductKind[]
+  ).map((value) => ({
+    value,
+    label: PRODUCT_KIND_LABELS[value],
+  }));
+
   protected readonly customCategory = signal(false);
   protected readonly customSeason = signal(false);
   protected readonly taxonomyTouched = signal(false);
@@ -157,6 +165,7 @@ export class ProductGeneralStepComponent implements OnInit {
     defaultVatCodeId: this.fb.control(''),
     inventoryTracking: this.fb.control<InventoryTrackingMode>(InventoryTrackingMode.Standard),
     managesStock: this.fb.control(true),
+    kind: this.fb.control<ProductKind>(ProductKind.Article),
     description: this.fb.control(''),
   });
 
@@ -218,6 +227,26 @@ export class ProductGeneralStepComponent implements OnInit {
   protected onTrackingSelect(value: string | null): void {
     if (value) {
       this.form.controls.inventoryTracking.setValue(value as InventoryTrackingMode);
+    }
+  }
+
+  /**
+   * Tipo Articolo/Servizio. Un Servizio non genera movimenti né conta in
+   * giacenza: al passaggio si propongono gestione magazzino OFF e nessun
+   * tracciamento (l'operatore può comunque modificarli).
+   */
+  protected onKindSelect(value: string | null): void {
+    if (!value) {
+      return;
+    }
+    const kind = value as ProductKind;
+    this.form.controls.kind.setValue(kind);
+    if (kind === ProductKind.Service) {
+      this.form.controls.managesStock.setValue(false);
+      this.form.controls.inventoryTracking.setValue(InventoryTrackingMode.None);
+    } else {
+      this.form.controls.managesStock.setValue(true);
+      this.form.controls.inventoryTracking.setValue(InventoryTrackingMode.Standard);
     }
   }
 

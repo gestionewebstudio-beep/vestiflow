@@ -42,6 +42,16 @@ enum ProductStatus {
   archived
 }
 
+/// Tipo prodotto (§Ordine cliente manuale): proprietà interna VestiFlow,
+/// MAI mappata su campi Shopify (né in lettura né in scrittura). Un
+/// prodotto di tipo `service` non richiede SKU/EAN, non genera movimenti
+/// di magazzino e non conta in giacenza; governa il default della spunta
+/// "Impegna magazzino" per riga negli Ordini cliente.
+enum ProductKind {
+  article
+  service
+}
+
 /// Provenienza catalogo: chi possiede i campi ecommerce condivisi con Shopify.
 enum CatalogOrigin {
   vestiflow
@@ -225,6 +235,7 @@ enum DocumentType {
   invoice_draft // Bozza fattura / dati per fatturazione
   online_sale // Vendita online (documento interno generato dall'evasione, fase 2)
   corrispettivo // Corrispettivo collegato alla Vendita online (registro interno, fase 2)
+  customer_order // Ordine cliente manuale (numeratore dedicato; l'ordine vive in SalesOrder)
   store_sale // Vendita in negozio (cassa interna non fiscale, fase 3 §7)
   store_return // Reso vendita negozio (rientro fisico documentato, fase 3 §9)
 }
@@ -504,6 +515,7 @@ model Location {
   inventorySerials  InventorySerial[]
   stockReservations StockReservation[]
   onlineSales       OnlineSale[]
+  salesOrders       SalesOrder[]
   shopifyInventorySyncStates ShopifyInventorySyncState[]
 
   @@index([tenantId])
@@ -566,6 +578,10 @@ model Product {
   inventoryTracking               InventoryTrackingMode   @default(standard) @map("inventory_tracking")
   /// Se false, il prodotto non genera movimenti di magazzino.
   managesStock                    Boolean                 @default(true) @map("manages_stock")
+  /// Tipo prodotto (Articolo/Servizio): solo VestiFlow, mai sincronizzato con
+  /// Shopify. I sync pull/push usano allowlist esplicite: questo campo non vi
+  /// compare e il valore scelto dall'operatore persiste alle sync successive.
+  kind                            ProductKind             @default(article)
   createdAt                       DateTime                @default(now()) @map("created_at")
   updatedAt                       DateTime                @updatedAt @map("updated_at")
 
@@ -1021,8 +1037,20 @@ model SalesOrder {
   fiscalNote        String?                     @map("fiscal_note")
   placedAt          DateTime                    @map("placed_at")
   shopifyOrderId    String?                     @map("shopify_order_id")
-  /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8).
+  /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8);
+  /// per gli ordini manuali: documento di scarico generato da "Concludi ordine".
   documentId        String?                     @unique @map("document_id") @db.Uuid
+  // ── Testata Ordine cliente manuale (source = manual) ──
+  /// Location/magazzino di origine degli impegni e dello scarico.
+  locationId        String?                     @map("location_id") @db.Uuid
+  /// Rif. ordine cliente esterno (testo libero, es. numero d'ordine del cliente).
+  externalRef       String?                     @map("external_ref")
+  /// Data prevista consegna (solo giorno).
+  expectedDeliveryDate DateTime?                @map("expected_delivery_date") @db.Date
+  /// Note documento.
+  notes             String?
+  /// Condizioni di pagamento (snapshot testo, proposto dall'anagrafica cliente).
+  paymentTerms      String?                     @map("payment_terms")
   /// Annullamento comunicato dal canale (impegni rilasciati, ordine in storico).
   cancelledAt       DateTime?                   @map("cancelled_at")
   /// Evasione completa registrata dal canale (evento canonico fulfilled).
@@ -1038,6 +1066,7 @@ model SalesOrder {
   tenant       Tenant             @relation(fields: [tenantId], references: [id])
   customer     Customer?          @relation(fields: [customerId], references: [id])
   document     Document?          @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  location     Location?          @relation(fields: [locationId], references: [id])
   lines        SalesOrderLine[]
   reservations StockReservation[]
   orderEvents  OnlineOrderEvent[]
@@ -1087,9 +1116,28 @@ model SalesOrderLine {
   quantity       Int
   unitPriceMinor Int     @map("unit_price_minor")
   totalMinor     Int     @map("total_minor")
+  // ── Righe Ordine cliente manuale (source = manual) ──
+  /// Ordinamento visuale delle righe nella maschera.
+  lineNumber     Int     @default(0) @map("line_number")
+  /// Snapshot EAN al momento dell'ordine.
+  barcode        String?
+  /// Unità di misura snapshot (es. pz).
+  unitOfMeasure  String? @map("unit_of_measure")
+  /// Sconto riga in notazione testuale, anche a cascata (es. "10%", "4+10%").
+  /// Il totale riga è già calcolato con la cascata ESATTA (mai % arrotondata).
+  discount       String?
+  /// Codice IVA della riga + snapshot (come DocumentLine, §9).
+  vatCodeId      String? @map("vat_code_id") @db.Uuid
+  vatSnapshot    Json?   @map("vat_snapshot")
+  /// IVA riga in unità minori (per i totali documento).
+  lineVatTotalMinor Int  @default(0) @map("line_vat_total_minor")
+  /// Spunta "Impegna magazzino": default dal Tipo prodotto (Articolo ON,
+  /// Servizio OFF), sempre modificabile. L'impegno effettivo segue la spunta.
+  commitsStock   Boolean @default(true) @map("commits_stock")
 
   order       SalesOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   reservation StockReservation?
+  vatCode     VatCode?          @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
 
   @@unique([orderId, externalLineId])
   @@index([orderId])
@@ -1855,6 +1903,7 @@ model VatCode {
   suppliers                Supplier[]
   onlineSaleLines          OnlineSaleLine[]
   corrispettivoEntryLines  CorrispettivoEntryLine[]
+  salesOrderLines          SalesOrderLine[]
 
   @@unique([tenantId, code])
   @@index([tenantId, sortOrder])

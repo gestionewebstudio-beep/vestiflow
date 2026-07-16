@@ -14,6 +14,22 @@ export const ProductStatus = {
 export type ProductStatus = (typeof ProductStatus)[keyof typeof ProductStatus];
 
 /**
+ * Tipo prodotto (Articolo/Servizio): proprietà SOLO VestiFlow, mai mappata su
+ * campi Shopify. Un Servizio non richiede SKU/EAN, non genera movimenti di
+ * magazzino e non conta in giacenza.
+ */
+export const ProductKind = {
+  Article: 'article',
+  Service: 'service',
+} as const;
+export type ProductKind = (typeof ProductKind)[keyof typeof ProductKind];
+
+export const PRODUCT_KIND_LABELS: Record<ProductKind, string> = {
+  [ProductKind.Article]: 'Articolo',
+  [ProductKind.Service]: 'Servizio',
+};
+
+/**
  * Opzione di variante (es. { name: 'Taglia', values: ['S','M','L'] }).
  * Serve alla generazione automatica delle combinazioni di varianti.
  */
@@ -57,6 +73,12 @@ export interface Product extends TenantScoped, Timestamped {
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;
   readonly managesStock?: boolean;
+  /**
+   * Tipo prodotto (Articolo/Servizio): proprietà interna VestiFlow, mai
+   * sincronizzata con Shopify. Governa il default della spunta
+   * "Impegna magazzino" per riga negli Ordini cliente.
+   */
+  readonly kind?: ProductKind;
   readonly options: readonly ProductOption[];
   readonly images?: readonly ProductImage[];
   readonly shopify?: ShopifyLink;

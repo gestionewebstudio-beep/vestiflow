@@ -4,6 +4,14 @@
       <h1 class="sales-list__title">{{ pageTitle() }}</h1>
       <p class="sales-list__subtitle">{{ pageSubtitle() }}</p>
     </div>
+    @if (canCreateManualOrder()) {
+      <div class="sales-list__actions">
+        <app-button (click)="createManualOrder()">
+          <i class="pi pi-plus" aria-hidden="true"></i>
+          Nuovo ordine
+        </app-button>
+      </div>
+    }
     @if (showShopifyOrdersSync()) {
       <div class="sales-list__actions">
         <app-button

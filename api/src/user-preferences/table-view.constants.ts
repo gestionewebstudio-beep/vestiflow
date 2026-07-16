@@ -7,6 +7,7 @@ export const TABLE_VIEW_IDS = [
   'suppliers_list',
   'goods_receipt_lines',
   'supplier_order_lines',
+  'customer_order_lines',
   'products_list',
   'customers_list',
 ] as const;

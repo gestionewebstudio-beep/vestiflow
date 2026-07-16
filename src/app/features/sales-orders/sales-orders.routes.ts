@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
+import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { REQUIRED_TENANT_PERMISSIONS_KEY } from '@core/permissions/tenant-permissions.util';
 
@@ -72,6 +73,24 @@ export const salesOrdersRoutes: Routes = [
       import('@features/store-sales/store-sale-register.component').then(
         (m) => m.StoreSaleRegisterComponent,
       ),
+  },
+  {
+    path: 'new',
+    title: 'VestiFlow · Nuovo ordine cliente',
+    loadComponent: () =>
+      import('./customer-order-form.component').then((m) => m.CustomerOrderFormComponent),
+    canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+  },
+  {
+    path: ':id/edit',
+    title: 'VestiFlow · Modifica ordine cliente',
+    loadComponent: () =>
+      import('./customer-order-form.component').then((m) => m.CustomerOrderFormComponent),
+    canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {
     path: ':id',

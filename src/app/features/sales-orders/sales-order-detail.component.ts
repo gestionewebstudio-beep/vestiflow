@@ -3,14 +3,22 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
-import type { SalesOrder } from '@core/models/sales-order.model';
+import {
+  ManualOrderState,
+  manualOrderState,
+  SalesOrderSource,
+  type SalesOrder,
+} from '@core/models/sales-order.model';
+import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
 import { formatDate, formatDateTime } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -45,6 +53,7 @@ type DetailState =
   imports: [
     RouterLink,
     BadgeComponent,
+    ButtonComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -57,6 +66,7 @@ type DetailState =
 export class SalesOrderDetailComponent {
   private readonly service = inject(SalesOrderService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -112,6 +122,50 @@ export class SalesOrderDetailComponent {
     return current.status === 'success' ? current.order : null;
   });
 
+  /** Ordine manuale non concluso: modificabile dalla maschera (§/app/sales). */
+  protected readonly canEditManualOrder = computed(() => {
+    const order = this.order();
+    return (
+      order != null &&
+      order.source === SalesOrderSource.Manual &&
+      manualOrderState(order) !== ManualOrderState.Concluded &&
+      canManageDocuments(this.authService.currentUser())
+    );
+  });
+
+  protected readonly isManualOrder = computed(
+    () => this.order()?.source === SalesOrderSource.Manual,
+  );
+
+  protected manualStateLabel(order: SalesOrder): string {
+    switch (manualOrderState(order)) {
+      case ManualOrderState.Cancelled:
+        return 'Annullato';
+      case ManualOrderState.Concluded:
+        return 'Concluso';
+      default:
+        return 'Confermato';
+    }
+  }
+
+  protected manualStateTone(order: SalesOrder): 'success' | 'error' | 'info' {
+    switch (manualOrderState(order)) {
+      case ManualOrderState.Cancelled:
+        return 'error';
+      case ManualOrderState.Concluded:
+        return 'info';
+      default:
+        return 'success';
+    }
+  }
+
+  protected editManualOrder(): void {
+    const order = this.order();
+    if (order) {
+      void this.router.navigate([this.listPath, order.id, 'edit']);
+    }
+  }
+
   protected readonly facts = computed<readonly DetailFact[]>(() => {
     const order = this.order();
     if (!order) {
@@ -125,6 +179,27 @@ export class SalesOrderDetailComponent {
       { label: 'Valuta', value: order.currency },
       salesOrderShopifyDetailFact(order.shopify, this.shopifyConnection()?.shopDomain),
     ];
+    if (order.source === SalesOrderSource.Manual) {
+      if (order.locationName) {
+        facts.push({ label: 'Magazzino di origine', value: order.locationName });
+      }
+      if (order.externalRef) {
+        facts.push({ label: 'Rif. ordine cliente', value: order.externalRef });
+      }
+      if (order.expectedDeliveryDate) {
+        facts.push({
+          label: 'Consegna prevista',
+          value: formatDate(order.expectedDeliveryDate),
+          numeric: true,
+        });
+      }
+      if (order.paymentTerms) {
+        facts.push({ label: 'Pagamento', value: order.paymentTerms });
+      }
+      if (order.notes) {
+        facts.push({ label: 'Note', value: order.notes });
+      }
+    }
     if (order.linkedDocument) {
       facts.push({
         label: 'Documento collegato',

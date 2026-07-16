@@ -11,7 +11,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { InventoryTrackingMode, ProductStatus } from '@prisma/client';
+import { InventoryTrackingMode, ProductKind, ProductStatus } from '@prisma/client';
 
 import { ProductOptionDto } from './create-product.dto';
 import { ShopifyCategoryMetafieldDto } from './shopify-category-metafield.dto';
@@ -96,6 +96,14 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   managesStock?: boolean;
+
+  /**
+   * Tipo prodotto Articolo/Servizio: proprietà interna VestiFlow, mai
+   * mappata su Shopify; le sync non lo toccano e il valore persiste.
+   */
+  @IsOptional()
+  @IsEnum(ProductKind)
+  kind?: ProductKind;
 
   @IsOptional()
   @IsArray()

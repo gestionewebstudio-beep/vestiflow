@@ -32,6 +32,7 @@ export interface ProductApiRow {
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: string;
   readonly managesStock?: boolean;
+  readonly kind?: 'article' | 'service';
   readonly options: readonly ProductOption[];
   readonly shopifyProductId?: string | null;
   readonly shopifySyncStatus: string;
@@ -235,6 +236,7 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     defaultVatCodeId: row.defaultVatCodeId ?? null,
     inventoryTracking: (row.inventoryTracking as Product['inventoryTracking']) ?? undefined,
     managesStock: row.managesStock ?? true,
+    kind: row.kind ?? 'article',
     options: row.options ?? [],
     images: (row.images ?? []).map((image) => ({
       id: image.id,

@@ -22,7 +22,10 @@ import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
-import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
+import {
+  canExportOperationalData,
+  canManageDocuments,
+} from '@core/permissions/tenant-permissions.util';
 import { SALES_ORDERS_CORRISPETTIVI_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
 import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
 import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
@@ -214,6 +217,11 @@ export class SalesOrderListComponent {
 
   protected readonly canExportData = computed(
     () => this.isShopifyView() && canExportOperationalData(this.authService.currentUser()),
+  );
+
+  /** "Nuovo ordine": solo nel registro generale, per chi gestisce documenti. */
+  protected readonly canCreateManualOrder = computed(
+    () => !this.isShopifyView() && canManageDocuments(this.authService.currentUser()),
   );
 
   protected readonly pageTitle = computed(() =>
@@ -414,6 +422,10 @@ export class SalesOrderListComponent {
 
   protected openOrder(order: SalesOrder): void {
     void this.router.navigate(['/app/sales', order.id]);
+  }
+
+  protected createManualOrder(): void {
+    void this.router.navigate(['/app/sales/new']);
   }
 
   private updateParams(params: Record<string, string | number | null>, replace = false): void {

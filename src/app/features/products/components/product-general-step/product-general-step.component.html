@@ -200,6 +200,24 @@
     </div>
 
     <div class="general-step__field">
+      <span class="general-step__label" id="product-kind-label">Tipo</span>
+      <app-select-menu
+        [options]="kindSelectOptions"
+        [value]="form.controls.kind.value"
+        ariaLabel="Tipo prodotto (Articolo o Servizio)"
+        placeholder="Articolo"
+        [compact]="true"
+        [fullWidth]="true"
+        [includeEmptyOption]="false"
+        (valueChange)="onKindSelect($event)"
+      />
+      <p class="general-step__hint">
+        Un Servizio non movimenta il magazzino e non conta in giacenza. Proprietà interna VestiFlow:
+        non viene mai inviata a Shopify.
+      </p>
+    </div>
+
+    <div class="general-step__field">
       <span class="general-step__label" id="product-tracking-label">Tracciamento inventario</span>
       <app-select-menu
         [options]="trackingSelectOptions"

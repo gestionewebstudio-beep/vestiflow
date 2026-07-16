@@ -31,6 +31,8 @@ export type SalesOrderDetailRow = SalesOrder & {
   lines: SalesOrderLine[];
   customer: { email: string | null } | null;
   document: { id: string; reference: string | null; type: string; status: string } | null;
+  /** Nome della location di origine (ordini manuali). */
+  locationName: string | null;
   /** Vendita online generata dall'evasione (fase 2), con Corrispettivo collegato. */
   onlineSale: {
     id: string;
@@ -113,8 +115,9 @@ export class SalesOrdersService {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id, tenantId },
       include: {
-        lines: { orderBy: { id: 'asc' } },
+        lines: { orderBy: [{ lineNumber: 'asc' }, { id: 'asc' }] },
         customer: { select: { party: { select: { email: true } } } },
+        location: { select: { name: true } },
         document: { select: { id: true, reference: true, type: true, status: true } },
         onlineSale: {
           select: {
@@ -133,7 +136,11 @@ export class SalesOrdersService {
     if (!order) {
       throw new NotFoundException('Vendita non trovata');
     }
-    const { customer, ...rest } = order;
-    return { ...rest, customer: customer ? { email: customer.party.email } : null };
+    const { customer, location, ...rest } = order;
+    return {
+      ...rest,
+      customer: customer ? { email: customer.party.email } : null,
+      locationName: location?.name ?? null,
+    };
   }
 }

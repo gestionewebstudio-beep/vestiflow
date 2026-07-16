@@ -19,9 +19,16 @@ export interface VariantSummaryDto {
   } | null;
   readonly supplierSku?: string | null;
   readonly stockOnHand?: number | null;
+  /**
+   * Disponibile = Giacenza − Impegnata (con locationId: della sola sede;
+   * senza: totale multi-sede). Null se la variante non ha righe giacenza.
+   */
+  readonly stockAvailable?: number | null;
   readonly category?: string | null;
   readonly unitOfMeasure?: string | null;
   readonly defaultVatCodeId?: string | null;
   /** False = prodotto non gestito a magazzino: le righe documento non caricano giacenza. */
   readonly managesStock?: boolean;
+  /** Tipo prodotto (Articolo/Servizio): default della spunta "Impegna magazzino". */
+  readonly kind?: 'article' | 'service';
 }

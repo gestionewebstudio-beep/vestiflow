@@ -43,6 +43,12 @@ export function toCreateProductBody(dto: CreateProductDto): Record<string, unkno
     season: dto.season,
     tags: dto.tags,
     status: dto.status,
+    unitOfMeasure: dto.unitOfMeasure,
+    defaultVatCodeId: dto.defaultVatCodeId ?? undefined,
+    inventoryTracking: dto.inventoryTracking,
+    managesStock: dto.managesStock,
+    // Tipo prodotto Articolo/Servizio: solo VestiFlow, mai inviato a Shopify.
+    kind: dto.kind,
     options: dto.options.map((option) => ({ name: option.name, values: [...option.values] })),
     variants: dto.variants.map(toApiVariant),
   };
@@ -70,6 +76,13 @@ export function toUpdateProductBody(dto: UpdateProductDto): Record<string, unkno
     season: dto.season,
     tags: dto.tags,
     status: dto.status,
+    unitOfMeasure: dto.unitOfMeasure,
+    // Null esplicito = torna al Codice IVA predefinito aziendale.
+    defaultVatCodeId: dto.defaultVatCodeId,
+    inventoryTracking: dto.inventoryTracking,
+    managesStock: dto.managesStock,
+    // Tipo prodotto Articolo/Servizio: solo VestiFlow, mai inviato a Shopify.
+    kind: dto.kind,
     options: dto.options?.map((option) => ({ name: option.name, values: [...option.values] })),
     variants: dto.variants?.map(toApiUpdateVariant),
   };

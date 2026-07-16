@@ -90,6 +90,7 @@ const PRODUCT_LIST_SELECT = {
   defaultVatCodeId: true,
   inventoryTracking: true,
   managesStock: true,
+  kind: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -233,6 +234,7 @@ export class ProductsService {
               unitOfMeasure: true,
               defaultVatCodeId: true,
               managesStock: true,
+              kind: true,
             },
           },
           ...(query.supplierId
@@ -251,7 +253,7 @@ export class ProductsService {
           // sommate a valle (totale multi-sede invece di nessun dato).
           inventoryLevels: {
             ...(query.locationId ? { where: { locationId: query.locationId }, take: 1 } : {}),
-            select: { onHand: true },
+            select: { onHand: true, available: true },
           },
         },
         orderBy: [{ product: { name: 'asc' } }, { sku: 'asc' }],
@@ -270,6 +272,12 @@ export class ProductsService {
         ? (levels[0]?.onHand ?? null)
         : levels.length > 0
           ? levels.reduce((sum, level) => sum + level.onHand, 0)
+          : null;
+      // Disponibile = Giacenza − Impegnata (Ordine cliente §DISPONIBILITÀ).
+      const stockAvailable = query.locationId
+        ? (levels[0]?.available ?? null)
+        : levels.length > 0
+          ? levels.reduce((sum, level) => sum + level.available, 0)
           : null;
       const purchaseMinor = supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null;
       return {
@@ -291,10 +299,12 @@ export class ProductsService {
             : null,
         supplierSku: supplierLink?.supplierSku ?? null,
         stockOnHand,
+        stockAvailable,
         category: row.product.category?.trim() || null,
         unitOfMeasure: row.product.unitOfMeasure ?? 'pz',
         defaultVatCodeId: row.product.defaultVatCodeId ?? null,
         managesStock: row.product.managesStock ?? true,
+        kind: row.product.kind,
       };
     });
 
@@ -356,6 +366,7 @@ export class ProductsService {
           defaultVatCodeId: dto.defaultVatCodeId ?? null,
           inventoryTracking: dto.inventoryTracking ?? undefined,
           managesStock: dto.managesStock ?? true,
+          kind: dto.kind ?? undefined,
           options: dto.options as unknown as Prisma.InputJsonValue,
           variants: {
             create: dto.variants.map((variant) => this.toVariantCreateInput(tenantId, variant)),
@@ -438,6 +449,7 @@ export class ProductsService {
         defaultVatCodeId: original.defaultVatCodeId,
         inventoryTracking: original.inventoryTracking,
         managesStock: original.managesStock,
+        kind: original.kind,
         options: original.options as Prisma.InputJsonValue,
         variants: { create: variantsData },
         images: {
@@ -537,6 +549,7 @@ export class ProductsService {
             ? { inventoryTracking: dto.inventoryTracking }
             : {}),
           ...(dto.managesStock !== undefined ? { managesStock: dto.managesStock } : {}),
+          ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
           ...(dto.options ? { options: dto.options as unknown as Prisma.InputJsonValue } : {}),
         },
         include: PRODUCT_INCLUDE,

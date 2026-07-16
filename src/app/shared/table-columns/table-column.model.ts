@@ -7,6 +7,7 @@ export const TableViewId = {
   SuppliersList: 'suppliers_list',
   GoodsReceiptLines: 'goods_receipt_lines',
   SupplierOrderLines: 'supplier_order_lines',
+  CustomerOrderLines: 'customer_order_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
 } as const;

@@ -32,6 +32,9 @@ export const DOCUMENT_TYPES: readonly DocumentType[] = [
 export const INTERNAL_ONLY_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.online_sale,
   DocumentType.corrispettivo,
+  // Ordine cliente manuale: vive in SalesOrder, l'enum serve solo al
+  // numeratore dedicato (DocumentSequence) — mai righe in `documents`.
+  DocumentType.customer_order,
 ] as const;
 
 export function isInternalOnlyDocumentType(type: DocumentType): boolean {
@@ -88,6 +91,7 @@ export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
   [DocumentType.invoice_draft]: 'BF',
   [DocumentType.online_sale]: 'VO',
   [DocumentType.corrispettivo]: 'COR',
+  [DocumentType.customer_order]: 'OC',
   [DocumentType.store_sale]: 'VN',
   [DocumentType.store_return]: 'RN',
 };
@@ -110,6 +114,7 @@ export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
   [DocumentType.invoice_draft]: 'Bozza fattura',
   [DocumentType.online_sale]: 'Vendita online',
   [DocumentType.corrispettivo]: 'Corrispettivo',
+  [DocumentType.customer_order]: 'Ordine cliente',
   [DocumentType.store_sale]: 'Vendita in negozio',
   [DocumentType.store_return]: 'Reso vendita negozio',
 };

@@ -39,3 +39,38 @@ export function applyDiscountMinor(amountMinor: number, discountInput: string): 
   }
   return Math.round((amountMinor * (100 - discount)) / 100);
 }
+
+/**
+ * Moltiplicatore ESATTO dello sconto a cascata (§Ordine cliente): a differenza
+ * di `parseEffectiveDiscountPercent` non arrotonda mai la percentuale —
+ * "4+10%" → 0.96 × 0.90 = 0.864 (13,6% effettivo, NON 14%).
+ */
+export function cascadeDiscountMultiplier(input: string | null | undefined): number {
+  const trimmed = input?.trim();
+  if (!trimmed) {
+    return 1;
+  }
+  let multiplier = 1;
+  for (const part of trimmed.replace(/%/g, '').split('+')) {
+    const value = Number.parseFloat(part.trim().replace(',', '.'));
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      continue;
+    }
+    multiplier *= (100 - value) / 100;
+  }
+  return Math.min(1, Math.max(0, multiplier));
+}
+
+/**
+ * Prezzo scontato in unità minori con cascata esatta (arrotondamento al
+ * centesimo solo alla fine): prezzo × Π(1 − sᵢ/100).
+ */
+export function applyCascadeDiscountMinor(
+  amountMinor: number,
+  discountInput: string | null | undefined,
+): number {
+  if (amountMinor <= 0) {
+    return 0;
+  }
+  return Math.round(amountMinor * cascadeDiscountMultiplier(discountInput));
+}

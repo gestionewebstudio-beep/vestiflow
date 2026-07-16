@@ -14,6 +14,7 @@ import type { DocumentSettingsService } from './document-settings.service';
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
 import { DocumentsService } from './documents.service';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import type { StockReservationService } from '../order-reservations/stock-reservation.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 
@@ -100,6 +101,9 @@ function createPrismaMock() {
     },
     supplier: { findFirst: vi.fn() },
     customer: { findFirst: vi.fn() },
+    // Ordine cliente manuale collegato a scarichi: nessuno di default.
+    salesOrder: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+    stockReservation: { findMany: vi.fn().mockResolvedValue([]) },
     location: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     supplierOrder: { findFirst: vi.fn() },
     supplierOrderLine: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
@@ -121,12 +125,19 @@ function createPrismaMock() {
 function createService(prisma: ReturnType<typeof createPrismaMock>, setting = resolvedSetting()) {
   const settings = { getResolved: vi.fn().mockResolvedValue(setting) };
   const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+  const stockReservations = {
+    consumeReservationTx: vi.fn().mockResolvedValue(0),
+    syncOrderReservationsTx: vi.fn().mockResolvedValue(undefined),
+    releaseOrderReservationsTx: vi.fn().mockResolvedValue(undefined),
+    restoreConsumedOrderReservationsTx: vi.fn().mockResolvedValue(undefined),
+  };
   const service = new DocumentsService(
     prisma as unknown as PrismaService,
     settings as unknown as DocumentSettingsService,
     channelSync as unknown as ChannelSyncFacade,
+    stockReservations as unknown as StockReservationService,
   );
-  return { service, settings, channelSync };
+  return { service, settings, channelSync, stockReservations };
 }
 
 describe('DocumentsService', () => {

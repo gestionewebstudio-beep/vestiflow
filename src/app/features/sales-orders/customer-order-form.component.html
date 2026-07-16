@@ -1,0 +1,940 @@
+<section class="gr-form co-form">
+  <a class="gr-form__back" href="/app/sales" (click)="$event.preventDefault(); cancel()">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    Ordini cliente
+  </a>
+
+  <div class="gr-form__head-row">
+    <h1 class="gr-form__title">{{ pageTitle() }}</h1>
+
+    @if (isEditMode()) {
+      <div class="gr-form__meta">
+        <app-badge [tone]="stateBadgeTone()">{{ stateBadgeLabel() }}</app-badge>
+        @if (internalReferenceLabel(); as ref) {
+          <span class="gr-form__internal-ref tabular-nums">N. documento: {{ ref }}</span>
+        }
+      </div>
+    } @else if (internalReferenceLabel(); as ref) {
+      <p class="gr-form__preview-ref tabular-nums">
+        Prossimo numero documento (anteprima): <strong>{{ ref }}</strong>
+      </p>
+    }
+  </div>
+
+  @if (saveWarnings().length > 0) {
+    <div class="gr-form__warning-banner" role="status">
+      @for (warning of saveWarnings(); track warning) {
+        <p>{{ warning }}</p>
+      }
+    </div>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="6" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare l'ordine cliente."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (notEditable()) {
+    <app-empty-state
+      icon="pi-lock"
+      title="Ordine non modificabile"
+      description="Solo gli ordini di origine Manuale possono essere modificati da questa maschera."
+      ctaLabel="Torna al registro"
+      (ctaClick)="cancel()"
+    />
+  } @else {
+    <form class="gr-form__form" [class.gr-form__form--readonly]="formReadOnly()" [formGroup]="form">
+      @if (formReadOnly()) {
+        <div class="gr-form__unlock-banner" role="status">
+          <p>
+            Ordine concluso: non è più modificabile. Le correzioni si fanno sul documento di scarico
+            associato.
+          </p>
+          @if (loadedOrder()?.linkedDocument; as doc) {
+            <app-button type="button" variant="secondary" (click)="openOrderDetail()">
+              Apri dettaglio ordine
+            </app-button>
+          }
+        </div>
+      }
+
+      @if (dirtySinceLastSave() && !formReadOnly()) {
+        <p class="gr-form__autosave-hint gr-form__autosave-hint--dirty" role="status">
+          Modifiche non salvate — usa «Salva documento»
+        </p>
+      } @else if (editOrderId() && !formReadOnly()) {
+        <p class="gr-form__autosave-hint gr-form__autosave-hint--saved" role="status">
+          Documento salvato.
+        </p>
+      }
+
+      @if (customerAlert(); as alert) {
+        <p class="gr-form__supplier-note-banner" role="status">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          {{ alert }}
+        </p>
+      }
+
+      <fieldset class="gr-form__fieldset" [disabled]="formReadOnly()">
+        <!-- Testata compatta (stessa impostazione dell'Arrivo merce). -->
+        <div class="gr-form__header">
+          <div class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact">
+            <div class="gr-form__field gr-form__field--span2">
+              <span class="gr-form__label" id="co-customer-label">Cliente</span>
+              <app-select-menu
+                [options]="customerOptions()"
+                [value]="form.controls.customerId.value"
+                ariaLabel="Cliente"
+                placeholder="Seleziona cliente…"
+                [compact]="true"
+                [fullWidth]="true"
+                [searchable]="true"
+                searchPlaceholder="Cerca cliente…"
+                searchAriaLabel="Cerca cliente"
+                [invalid]="fieldInvalid('customerId')"
+                describedBy="co-customer-error"
+                (valueChange)="onCustomerSelect($event)"
+              />
+              @if (fieldInvalid('customerId')) {
+                <p id="co-customer-error" class="gr-form__error">Seleziona un cliente.</p>
+              }
+              @if (form.controls.customerId.value) {
+                <button type="button" class="gr-form__inline-toggle" (click)="openCustomerDetail()">
+                  <i class="pi pi-external-link" aria-hidden="true"></i>
+                  Scheda cliente
+                </button>
+              }
+            </div>
+
+            <div class="gr-form__field">
+              <span class="gr-form__label">Location di origine</span>
+              @if (locationOptions().length > 0) {
+                <app-select-menu
+                  [options]="locationOptions()"
+                  [value]="form.controls.locationId.value"
+                  ariaLabel="Location di origine"
+                  placeholder="Seleziona location…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca location…"
+                  searchAriaLabel="Cerca location"
+                  (valueChange)="onLocationSelect($event)"
+                />
+              } @else {
+                <p class="gr-form__error" role="alert">
+                  Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
+                  dell'account.
+                </p>
+              }
+            </div>
+
+            <div class="gr-form__field gr-form__field--end-md">
+              <label class="gr-form__label" for="co-date">Data documento</label>
+              <app-date-input
+                inputId="co-date"
+                formControlName="documentDate"
+                ariaLabel="Data documento"
+                [compact]="true"
+                [fullWidth]="true"
+              />
+            </div>
+
+            <div class="gr-form__field">
+              <span class="gr-form__label">Stato</span>
+              @if (isConcluded()) {
+                <p class="gr-form__readonly">Concluso</p>
+              } @else {
+                <app-select-menu
+                  [options]="stateOptions"
+                  [value]="form.controls.status.value"
+                  ariaLabel="Stato documento"
+                  placeholder="Confermato"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [includeEmptyOption]="false"
+                  (valueChange)="onStateSelect($event)"
+                />
+              }
+            </div>
+
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="co-external-ref">Rif. ordine cliente</label>
+              <input
+                id="co-external-ref"
+                class="gr-form__input"
+                type="text"
+                formControlName="externalRef"
+                placeholder="Es. PO-2026-15"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="gr-form__field gr-form__field--end-md">
+              <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
+              <app-date-input
+                inputId="co-delivery"
+                formControlName="expectedDeliveryDate"
+                ariaLabel="Data prevista consegna"
+                placeholder="Opzionale"
+                [compact]="true"
+                [fullWidth]="true"
+              />
+            </div>
+
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="co-payment">Pagamento</label>
+              <input
+                id="co-payment"
+                class="gr-form__input"
+                type="text"
+                formControlName="paymentTerms"
+                placeholder="Es. 30 gg d.f."
+                autocomplete="off"
+              />
+            </div>
+          </div>
+        </div>
+
+        @if (headerGateActive()) {
+          <p class="gr-form__gate-banner" role="status">
+            <i class="pi pi-lock" aria-hidden="true"></i>
+            Seleziona il cliente per compilare le righe del documento.
+          </p>
+        }
+
+        <fieldset class="gr-form__gate-fields" [disabled]="headerGateActive()">
+          <section class="gr-form__lines" aria-labelledby="co-lines-title">
+            <div class="gr-form__lines-head">
+              <div class="gr-form__lines-heading">
+                <h2 id="co-lines-title" class="gr-form__subtitle">Righe documento</h2>
+                <span class="gr-form__lines-count tabular-nums">
+                  {{ validLinesCount() }} valide · {{ totalPiecesCount() }} pezzi
+                </span>
+              </div>
+              <div class="gr-form__lines-tools">
+                <app-table-column-picker [viewId]="lineColumnsView" />
+                <app-button type="button" variant="secondary" (click)="openNewProduct()">
+                  <i class="pi pi-box" aria-hidden="true"></i>
+                  Nuovo prodotto
+                </app-button>
+                <app-button type="button" [disabled]="formReadOnly()" (click)="addLine()">
+                  <i class="pi pi-plus" aria-hidden="true"></i>
+                  Aggiungi riga
+                </app-button>
+              </div>
+            </div>
+
+            <div class="gr-form__table-wrap">
+              <table class="gr-form__table">
+                <colgroup>
+                  <col class="gr-form__col--index" />
+                  @if (isLineColumnVisible('sku')) {
+                    <col [style.width]="lineColumnWidth('sku')" />
+                  }
+                  @if (isLineColumnVisible('barcode')) {
+                    <col [style.width]="lineColumnWidth('barcode')" />
+                  }
+                  @if (isLineColumnVisible('product')) {
+                    <col [style.width]="lineColumnWidth('product')" />
+                  }
+                  @if (isLineColumnVisible('quantity')) {
+                    <col [style.width]="lineColumnWidth('quantity')" />
+                  }
+                  @if (isLineColumnVisible('stockAvailable')) {
+                    <col [style.width]="lineColumnWidth('stockAvailable')" />
+                  }
+                  @if (isLineColumnVisible('unitOfMeasure')) {
+                    <col [style.width]="lineColumnWidth('unitOfMeasure')" />
+                  }
+                  @if (isLineColumnVisible('unitPrice')) {
+                    <col [style.width]="lineColumnWidth('unitPrice')" />
+                  }
+                  @if (isLineColumnVisible('discount')) {
+                    <col [style.width]="lineColumnWidth('discount')" />
+                  }
+                  @if (isLineColumnVisible('discountedPrice')) {
+                    <col [style.width]="lineColumnWidth('discountedPrice')" />
+                  }
+                  @if (isLineColumnVisible('vat')) {
+                    <col [style.width]="lineColumnWidth('vat')" />
+                  }
+                  @if (isLineColumnVisible('commitsStock')) {
+                    <col [style.width]="lineColumnWidth('commitsStock')" />
+                  }
+                  @if (isLineColumnVisible('lineTotal')) {
+                    <col [style.width]="lineColumnWidth('lineTotal')" />
+                  }
+                  @if (isLineColumnVisible('actions')) {
+                    <col [style.width]="lineColumnWidth('actions')" />
+                  }
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col" class="gr-form__cell--index" aria-label="Numero riga">#</th>
+                    @if (isLineColumnVisible('sku')) {
+                      <th scope="col" [style.width]="lineColumnWidth('sku')">
+                        SKU
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('sku')"
+                          (resized)="onLineColumnResize('sku', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('barcode')) {
+                      <th scope="col" [style.width]="lineColumnWidth('barcode')">
+                        EAN
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('barcode')"
+                          (resized)="onLineColumnResize('barcode', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('product')) {
+                      <th
+                        scope="col"
+                        class="gr-form__th--product"
+                        [style.width]="lineColumnWidth('product')"
+                      >
+                        Nome prodotto
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('product')"
+                          (resized)="onLineColumnResize('product', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('quantity')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('quantity')"
+                      >
+                        Q.tà
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('quantity')"
+                          (resized)="onLineColumnResize('quantity', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('stockAvailable')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('stockAvailable')"
+                      >
+                        Q.tà disp.
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('stockAvailable')"
+                          (resized)="onLineColumnResize('stockAvailable', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('unitOfMeasure')) {
+                      <th scope="col" [style.width]="lineColumnWidth('unitOfMeasure')">
+                        U.m.
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('unitOfMeasure')"
+                          (resized)="onLineColumnResize('unitOfMeasure', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('unitPrice')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('unitPrice')"
+                      >
+                        Prezzo unit.
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('unitPrice')"
+                          (resized)="onLineColumnResize('unitPrice', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('discount')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('discount')"
+                      >
+                        <span class="gr-form__th-label">
+                          Sconto
+                          <app-hover-tooltip
+                            text="Percentuale singola o cascata: «10%», «4+10%» (prima 4%, poi 10% sul residuo)."
+                            position="bottom"
+                          >
+                            <i
+                              class="pi pi-info-circle gr-form__th-info"
+                              aria-label="Info sconto"
+                            ></i>
+                          </app-hover-tooltip>
+                        </span>
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('discount')"
+                          (resized)="onLineColumnResize('discount', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('discountedPrice')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('discountedPrice')"
+                      >
+                        Prezzo scont.
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('discountedPrice')"
+                          (resized)="onLineColumnResize('discountedPrice', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('vat')) {
+                      <th scope="col" class="gr-form__num" [style.width]="lineColumnWidth('vat')">
+                        IVA
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('vat')"
+                          (resized)="onLineColumnResize('vat', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('commitsStock')) {
+                      <th scope="col" [style.width]="lineColumnWidth('commitsStock')">
+                        <span class="gr-form__th-label">
+                          Imp.
+                          <app-hover-tooltip [text]="commitsStockTooltip" position="bottom">
+                            <i
+                              class="pi pi-info-circle gr-form__th-info"
+                              aria-label="Info colonna Impegna magazzino"
+                            ></i>
+                          </app-hover-tooltip>
+                        </span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('lineTotal')) {
+                      <th
+                        scope="col"
+                        class="gr-form__num"
+                        [style.width]="lineColumnWidth('lineTotal')"
+                      >
+                        Totale riga
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('lineTotal')"
+                          (resized)="onLineColumnResize('lineTotal', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('actions')) {
+                      <th scope="col" [style.width]="lineColumnWidth('actions')">
+                        <span class="sr-only">Azioni</span>
+                      </th>
+                    }
+                  </tr>
+                </thead>
+                <tbody formArrayName="lines">
+                  @for (line of lines.controls; track line; let i = $index) {
+                    <tr
+                      class="gr-form__table-row"
+                      [class.gr-form__table-row--incomplete]="!lineRowComplete(i)"
+                      [formGroupName]="i"
+                    >
+                      <td class="gr-form__cell--index">
+                        <span class="tabular-nums">{{ i + 1 }}</span>
+                      </td>
+                      @if (isLineColumnVisible('sku')) {
+                        <td class="gr-form__cell gr-form__cell--code">
+                          <app-goods-receipt-line-code-cell
+                            [lineIndex]="i"
+                            [inputId]="'co-sku-' + i"
+                            ariaLabel="SKU"
+                            placeholder="Cerca SKU"
+                            [value]="line.controls.sku.value"
+                            [linked]="lineHasLinkedProduct(i)"
+                            [linkedValue]="line.controls.sku.value"
+                            [disabled]="formReadOnly()"
+                            (valueChange)="onLineSkuChange(i, $event)"
+                            (commit)="commitCodeLookup(i, 'sku')"
+                            (escapePressed)="onLineSearchEscape(i)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('barcode')) {
+                        <td class="gr-form__cell gr-form__cell--code">
+                          <app-goods-receipt-line-code-cell
+                            [lineIndex]="i"
+                            [inputId]="'co-barcode-' + i"
+                            ariaLabel="EAN"
+                            placeholder="Scansiona EAN"
+                            [value]="line.controls.barcode.value"
+                            [linked]="lineHasLinkedProduct(i)"
+                            [linkedValue]="line.controls.barcode.value"
+                            [disabled]="formReadOnly()"
+                            (valueChange)="onLineBarcodeChange(i, $event)"
+                            (commit)="commitCodeLookup(i, 'barcode')"
+                            (escapePressed)="onLineSearchEscape(i)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('product')) {
+                        <td class="gr-form__cell gr-form__cell--product">
+                          <app-goods-receipt-line-product-cell
+                            [lineIndex]="i"
+                            [inputId]="'co-product-' + i"
+                            [value]="line.controls.productName.value"
+                            [linked]="lineHasLinkedProduct(i)"
+                            [linkedLabel]="linkedProductLabel(i)"
+                            [disabled]="formReadOnly()"
+                            [invalid]="lineFieldInvalid(i, 'productName')"
+                            [suggestions]="lineSuggestions(i)"
+                            [suggestionsOpen]="lineSuggestionsOpen(i)"
+                            [activeSuggestionIndex]="activeSuggestionIndex()"
+                            (valueChange)="onLineProductNameChange(i, $event)"
+                            (focused)="onLineProductFocus(i)"
+                            (blurred)="onLineProductBlur(i)"
+                            (searchOpen)="openLineProductSearch(i)"
+                            (anagraphicOpen)="openProductAnagraphic(i)"
+                            (detailOpen)="openProductDetail(i)"
+                            (unlinkRequest)="onLineUnlink(i)"
+                            (suggestionPick)="
+                              onProductSuggestionPick($event.lineIndex, $event.variantId)
+                            "
+                            (suggestionNavigate)="onProductSuggestionNavigate($event)"
+                            (escapePressed)="onLineSearchEscape(i)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('quantity')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--editable gr-form__num"
+                          [class.co-form__cell--exceeds]="lineExceedsAvailability(i)"
+                        >
+                          <input
+                            [id]="'co-qty-' + i"
+                            class="gr-form__input gr-form__input--table gr-form__input--num"
+                            [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
+                            type="number"
+                            min="0"
+                            step="1"
+                            formControlName="quantity"
+                            [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
+                            [title]="
+                              lineAvailabilityHint(i) ??
+                              (lineFieldInvalid(i, 'quantity')
+                                ? 'Inserisci una quantità maggiore di zero.'
+                                : null)
+                            "
+                          />
+                          @if (lineAvailabilityHint(i); as hint) {
+                            <span class="co-form__exceeds-hint">{{ hint }}</span>
+                          }
+                        </td>
+                      }
+                      @if (isLineColumnVisible('stockAvailable')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                        >
+                          {{ lineStockAvailable(i) }}
+                        </td>
+                      }
+                      @if (isLineColumnVisible('unitOfMeasure')) {
+                        <td class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed">
+                          {{ lineUnitOfMeasure(i) }}
+                        </td>
+                      }
+                      @if (isLineColumnVisible('unitPrice')) {
+                        <td class="gr-form__cell gr-form__cell--editable gr-form__num">
+                          <input
+                            [id]="'co-price-' + i"
+                            class="gr-form__input gr-form__input--table gr-form__input--num"
+                            type="text"
+                            inputmode="decimal"
+                            formControlName="unitPrice"
+                            placeholder="0,00"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('discount')) {
+                        <td class="gr-form__cell gr-form__cell--editable gr-form__num">
+                          <input
+                            [id]="'co-discount-' + i"
+                            class="gr-form__input gr-form__input--table gr-form__input--num"
+                            type="text"
+                            formControlName="discount"
+                            placeholder="0%"
+                            title="Percentuale singola o cascata: «10%», «4+10%»"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('discountedPrice')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                        >
+                          {{ formatMoney(lineDiscountedUnitMoney(i)) }}
+                        </td>
+                      }
+                      @if (isLineColumnVisible('vat')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--editable gr-form__cell--vat"
+                          [title]="lineVatTooltip(i)"
+                        >
+                          <app-select-menu
+                            [options]="lineVatOptions(i)"
+                            [value]="lineVatValue(i)"
+                            ariaLabel="Codice IVA riga"
+                            placeholder="—"
+                            [compact]="true"
+                            [matchInputHeight]="true"
+                            [includeEmptyOption]="false"
+                            [searchable]="true"
+                            [inlineDetail]="true"
+                            searchPlaceholder="Codice, aliquota, descrizione…"
+                            searchAriaLabel="Cerca Codice IVA"
+                            (valueChange)="onLineVatSelect(i, $event)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('commitsStock')) {
+                        <td class="gr-form__cell gr-form__cell--check">
+                          <label class="gr-form__check">
+                            <input type="checkbox" formControlName="commitsStock" />
+                            <span class="sr-only">Impegna magazzino</span>
+                          </label>
+                        </td>
+                      }
+                      @if (isLineColumnVisible('lineTotal')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                        >
+                          @if (lineHasDiscount(i)) {
+                            <span class="gr-form__line-total-gross">{{
+                              formatMoney(lineGrossMoney(i))
+                            }}</span>
+                          }
+                          <span>{{ formatMoney(lineTotalMoney(i)) }}</span>
+                        </td>
+                      }
+                      @if (isLineColumnVisible('actions')) {
+                        <td class="gr-form__cell gr-form__cell--actions">
+                          <div class="gr-form__line-actions">
+                            <button
+                              type="button"
+                              class="gr-form__line-move"
+                              tabindex="-1"
+                              [disabled]="formReadOnly()"
+                              aria-label="Duplica riga"
+                              (click)="duplicateLine(i)"
+                            >
+                              <i class="pi pi-clone" aria-hidden="true"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="gr-form__line-remove"
+                              tabindex="-1"
+                              [disabled]="formReadOnly()"
+                              aria-label="Rimuovi riga"
+                              (click)="removeLine(i)"
+                            >
+                              <i class="pi pi-trash" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </td>
+                      }
+                    </tr>
+                  }
+                  <!-- Riga di inserimento rapido: sempre in fondo alla tabella
+                       (stessa meccanica dell'Arrivo merce, sintassi qta*codice). -->
+                  <tr class="co-form__quick-row">
+                    <td class="gr-form__cell--index">
+                      <i class="pi pi-barcode" aria-hidden="true"></i>
+                    </td>
+                    <td [attr.colspan]="99">
+                      <div class="co-form__quick-cell">
+                        <input
+                          #quickScanInput
+                          id="co-quick-scan"
+                          class="gr-form__input co-form__quick-input"
+                          type="text"
+                          [value]="quickScanDraft()"
+                          [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
+                          autocomplete="off"
+                          placeholder="Scansiona o cerca prodotto… (Invio per aggiungere)"
+                          aria-describedby="co-quick-scan-hint"
+                          (input)="onQuickScanInput($any($event.target).value)"
+                          (keydown.enter)="commitQuickScan(); $event.preventDefault()"
+                        />
+                        <p id="co-quick-scan-hint" class="gr-form__scan-hint">
+                          <kbd>3*</kbd> + codice = quantità (es. 3*8032911100142)
+                        </p>
+                        @if (quickScanError(); as scanError) {
+                          <p class="gr-form__error" role="alert">{{ scanError }}</p>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Totali sticky in fondo + note documento (stessa banda dell'Arrivo merce). -->
+          <div class="gr-form__footer-grid">
+            <aside class="gr-form__totals-bar" aria-label="Totali documento">
+              <dl class="gr-form__totals">
+                <div class="gr-form__totals-row">
+                  <dt>Imponibile righe</dt>
+                  <dd class="tabular-nums">{{ formatMoney(documentTotals().subtotal) }}</dd>
+                </div>
+                <div class="gr-form__totals-row">
+                  <dt>IVA</dt>
+                  <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
+                </div>
+                <div class="gr-form__totals-row gr-form__totals-row--total">
+                  <dt>Totale documento</dt>
+                  <dd class="tabular-nums">
+                    <strong>{{ formatMoney(documentTotals().total) }}</strong>
+                  </dd>
+                </div>
+              </dl>
+            </aside>
+
+            <div class="gr-form__footer-notes">
+              <div class="gr-form__field">
+                <label class="gr-form__label" for="co-notes">Note documento</label>
+                <textarea
+                  id="co-notes"
+                  class="gr-form__textarea"
+                  rows="2"
+                  formControlName="notes"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </fieldset>
+
+      @if (submitError(); as appError) {
+        <p class="gr-form__submit-error" role="alert">{{ appError.message }}</p>
+      }
+
+      <div class="gr-form__actions">
+        <p class="gr-form__actions-note">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
+          <span class="gr-form__actions-note-sep">·</span>
+          Gli impegni di magazzino si aggiornano al salvataggio
+        </p>
+        <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
+          Chiudi
+        </app-button>
+        @if (canConclude()) {
+          <div class="co-form__conclude">
+            <app-button
+              type="button"
+              variant="secondary"
+              [disabled]="concluding()"
+              [loading]="concluding()"
+              (click)="toggleConcludeMenu()"
+            >
+              <i class="pi pi-check-square" aria-hidden="true"></i>
+              Concludi ordine
+              <i class="pi pi-chevron-down" aria-hidden="true"></i>
+            </app-button>
+            @if (concludeMenuOpen()) {
+              <div class="co-form__conclude-menu" role="menu" aria-label="Documento di scarico">
+                @for (option of unloadTypeOptions(); track option.value) {
+                  <button
+                    type="button"
+                    class="co-form__conclude-item"
+                    role="menuitem"
+                    (click)="concludeWith(option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        } @else if (isEditMode() && orderState() === 'confirmed' && dirtySinceLastSave()) {
+          <app-button
+            type="button"
+            variant="secondary"
+            [disabled]="true"
+            title="Salva il documento prima di concludere l'ordine"
+          >
+            Concludi ordine
+          </app-button>
+        }
+        @if (!formReadOnly()) {
+          <app-button
+            type="button"
+            [loading]="saving()"
+            [disabled]="saving()"
+            (click)="requestSaveDocument()"
+          >
+            Salva documento
+          </app-button>
+        }
+      </div>
+
+      <!-- Dock mobile: totale + scan + salva sempre a portata di pollice. -->
+      <div class="gr-form__dock" role="region" aria-label="Azioni rapide documento">
+        <div class="gr-form__dock-total">
+          <span>Totale documento</span>
+          <strong class="tabular-nums">{{ formatMoney(documentTotals().total) }}</strong>
+        </div>
+        <div class="gr-form__dock-row">
+          <input
+            class="gr-form__dock-scan"
+            type="text"
+            [value]="quickScanDraft()"
+            [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
+            autocomplete="off"
+            placeholder="Scansiona o digita codice…"
+            aria-label="Scansione codice a barre"
+            (input)="onQuickScanInput($any($event.target).value)"
+            (keydown.enter)="commitQuickScan(); $event.preventDefault()"
+          />
+          @if (!formReadOnly()) {
+            <button
+              type="button"
+              class="gr-form__dock-save"
+              [disabled]="saving()"
+              (click)="requestSaveDocument()"
+            >
+              Salva
+            </button>
+          }
+        </div>
+      </div>
+    </form>
+  }
+</section>
+
+@if (concludeMenuOpen()) {
+  <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="toggleConcludeMenu()"></div>
+}
+
+@if (availabilityDialogOpen()) {
+  <div
+    class="gr-form__exit-backdrop"
+    aria-hidden="true"
+    (click)="dismissAvailabilityDialog()"
+  ></div>
+  <div
+    class="gr-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="co-availability-title"
+  >
+    <h2 id="co-availability-title" class="gr-form__exit-title">Quantità oltre la disponibilità</h2>
+    <p class="gr-form__exit-message">
+      Alcune righe superano la quantità disponibile reale (Giacenza − Impegnata). Puoi correggere
+      subito oppure salvare comunque: nessun dato viene perso.
+    </p>
+    <ul class="co-form__availability-list">
+      @for (issue of availabilityIssues(); track issue.lineNumber) {
+        <li>
+          <strong>Riga {{ issue.lineNumber }}</strong> ({{ issue.label }}): richiesti
+          {{ issue.requested }}, disponibili solo {{ issue.available }}
+        </li>
+      }
+    </ul>
+    <div class="gr-form__exit-actions">
+      <app-button type="button" variant="ghost" (click)="dismissAvailabilityDialog()">
+        Correggi subito
+      </app-button>
+      <app-button type="button" (click)="confirmAvailabilityDialog()">Salva comunque</app-button>
+    </div>
+  </div>
+}
+
+@if (exitDialogOpen()) {
+  <div class="gr-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
+  <div class="gr-form__exit-dialog" role="dialog" aria-modal="true" aria-labelledby="co-exit-title">
+    <h2 id="co-exit-title" class="gr-form__exit-title">Modifiche non salvate</h2>
+    <p class="gr-form__exit-message">
+      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
+    </p>
+    @if (submitError(); as error) {
+      <p class="gr-form__exit-error" role="alert">{{ error.message }}</p>
+    }
+    <div class="gr-form__exit-actions">
+      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
+        Annulla
+      </app-button>
+      <app-button
+        type="button"
+        variant="secondary"
+        [disabled]="saving()"
+        (click)="confirmExitWithoutSaving()"
+      >
+        Chiudi senza salvare
+      </app-button>
+      <app-button
+        type="button"
+        [loading]="saving()"
+        [disabled]="saving()"
+        (click)="confirmExitSaveDocument()"
+      >
+        Salva e chiudi
+      </app-button>
+    </div>
+  </div>
+}
+
+<app-slide-panel
+  [open]="productSearchPanelOpen()"
+  title="Cerca prodotto"
+  (closed)="closeLineProductSearch()"
+>
+  @if (productSearchPanelOpen()) {
+    <app-goods-receipt-product-search-panel
+      [launchTerm]="productSearchLaunchTerm()"
+      [launchSeq]="productSearchLaunchSeq()"
+      [locationId]="form.controls.locationId.value"
+      (variantSelected)="onLineProductSearchPick($event.variantId)"
+      (dismissed)="closeLineProductSearch()"
+    />
+  }
+</app-slide-panel>
+
+<app-slide-panel
+  [open]="productPanelOpen()"
+  [title]="productPanelTitle()"
+  (closed)="closeProductPanel()"
+>
+  @if (productPanelOpen()) {
+    <app-product-form
+      [embeddedPanel]="true"
+      [embeddedPrefill]="productPanelPrefill()"
+      [embeddedProductId]="productPanelEditProductId()"
+      (productCreatedWithAttach)="onProductCreatedFromPanel($event)"
+      (productSavedWithoutAttach)="onProductSavedWithoutAttach($event)"
+      (productUpdatedInPanel)="onProductUpdatedFromPanel($event)"
+      (panelDismissed)="closeProductPanel()"
+    />
+  }
+</app-slide-panel>
+
+<app-confirm-dialog
+  [(open)]="attachWithoutAddDialogOpen"
+  title="Articolo creato"
+  message="Hai creato l'articolo ma non lo hai aggiunto al documento. Vuoi aggiungerlo ora?"
+  confirmLabel="Aggiungi al documento"
+  cancelLabel="Continua senza aggiungere"
+  (confirmed)="attachPendingVariantToLine()"
+  (dismissed)="dismissAttachPendingVariant()"
+/>

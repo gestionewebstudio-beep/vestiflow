@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ChannelsModule } from '../channels/channels.module';
+import { OrderReservationsModule } from '../order-reservations/order-reservations.module';
 import { VatModule } from '../vat/vat.module';
 import { DocumentAttachmentsService } from './document-attachments.service';
 import { DocumentPdfService } from './document-pdf.service';
@@ -16,7 +17,7 @@ import { GoodsReceiptWorkflowService } from './goods-receipt-workflow.service';
 import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflow.service';
 
 @Module({
-  imports: [ChannelsModule, VatModule],
+  imports: [ChannelsModule, VatModule, OrderReservationsModule],
   controllers: [
     DocumentsController,
     DocumentSettingsController,

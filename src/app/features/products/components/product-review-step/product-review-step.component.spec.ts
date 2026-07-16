@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/angular';
 import { describe, expect, it } from 'vitest';
 
-import { ProductStatus } from '@core/models/product.model';
+import { ProductKind, ProductStatus } from '@core/models/product.model';
 import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 
 import { ProductReviewStepComponent } from './product-review-step.component';
@@ -24,6 +24,7 @@ const GENERAL: ProductGeneralDraft = {
   defaultVatCodeId: '',
   inventoryTracking: InventoryTrackingMode.Standard,
   managesStock: true,
+  kind: ProductKind.Article,
 };
 
 const OPTIONS: ProductOptionsDraft = {

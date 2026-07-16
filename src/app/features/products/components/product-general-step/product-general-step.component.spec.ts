@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ProductStatus } from '@core/models/product.model';
+import { ProductKind, ProductStatus } from '@core/models/product.model';
 import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 
@@ -26,6 +26,7 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   defaultVatCodeId: '',
   inventoryTracking: InventoryTrackingMode.Standard,
   managesStock: true,
+  kind: ProductKind.Article,
 };
 
 describe('ProductGeneralStepComponent', () => {

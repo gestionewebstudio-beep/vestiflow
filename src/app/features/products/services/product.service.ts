@@ -73,10 +73,12 @@ interface VariantSummaryApiRow {
   } | null;
   readonly supplierSku?: string | null;
   readonly stockOnHand?: number | null;
+  readonly stockAvailable?: number | null;
   readonly category?: string | null;
   readonly unitOfMeasure?: string | null;
   readonly defaultVatCodeId?: string | null;
   readonly managesStock?: boolean;
+  readonly kind?: 'article' | 'service';
 }
 
 export interface VariantSummarySearchQuery {
@@ -411,10 +413,12 @@ export class ProductService {
         : undefined,
       supplierSku: row.supplierSku ?? undefined,
       stockOnHand: row.stockOnHand ?? undefined,
+      stockAvailable: row.stockAvailable ?? undefined,
       category: row.category?.trim() || undefined,
       unitOfMeasure: row.unitOfMeasure?.trim() || undefined,
       defaultVatCodeId: row.defaultVatCodeId ?? undefined,
       managesStock: row.managesStock ?? true,
+      kind: row.kind ?? 'article',
     };
   }
 

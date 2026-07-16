@@ -1,0 +1,98 @@
+// Aggiunte specifiche dell'Ordine cliente manuale. Il grosso dello stile è
+// RIUSATO dall'Arrivo merce (stesse classi gr-form__*, stesso foglio SCSS
+// referenziato in styleUrls): qui vivono solo riga di inserimento rapido,
+// avviso disponibilità ambra e menu "Concludi ordine".
+
+// Riga di inserimento rapido sempre in fondo alla tabella (§RIGHE).
+.co-form__quick-row td {
+  padding: var(--space-2);
+  background: var(--color-surface-subtle, var(--color-surface));
+  border-block-start: 1px dashed var(--color-border);
+}
+
+.co-form__quick-row .gr-form__cell--index {
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.co-form__quick-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.co-form__quick-input {
+  flex: 1 1 260px;
+  max-inline-size: 420px;
+}
+
+// §CONTROLLI: quantità oltre la disponibile — bordo/sfondo ambra sulla cella,
+// testo discreto "disponibili solo N". Mai un blocco.
+.co-form__cell--exceeds {
+  position: relative;
+  background: color-mix(in srgb, var(--color-warning, #b45309) 12%, transparent);
+
+  .gr-form__input--table {
+    border-color: var(--color-warning, #b45309);
+    box-shadow: 0 0 0 1px var(--color-warning, #b45309) inset;
+  }
+}
+
+.co-form__exceeds-hint {
+  display: block;
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  color: var(--color-warning, #b45309);
+  white-space: nowrap;
+}
+
+// Tendina "Concludi ordine": elenca i documenti di scarico disponibili.
+.co-form__conclude {
+  position: relative;
+  display: inline-flex;
+}
+
+.co-form__conclude-menu {
+  position: absolute;
+  inset-block-end: calc(100% + var(--space-1));
+  inset-inline-end: 0;
+  z-index: 30;
+  min-inline-size: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.co-form__conclude-item {
+  display: block;
+  inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--color-surface-hover, var(--color-surface-subtle));
+  }
+}
+
+// Dialogo disponibilità: elenco righe critiche.
+.co-form__availability-list {
+  margin: 0 0 var(--space-3);
+  padding-inline-start: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}

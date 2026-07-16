@@ -1,4 +1,4 @@
-import { ProductStatus } from '@core/models/product.model';
+import { ProductKind, ProductStatus } from '@core/models/product.model';
 import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { Product } from '@core/models/product.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
@@ -189,6 +189,7 @@ export function emptyProductFormDraft(): ProductFormDraft {
       defaultVatCodeId: '',
       inventoryTracking: InventoryTrackingMode.Standard,
       managesStock: true,
+      kind: ProductKind.Article,
     },
     options: { axes: defaultOptionAxes() },
     variants: [],
@@ -270,6 +271,7 @@ function generalToDto(
     defaultVatCodeId: general.defaultVatCodeId || null,
     inventoryTracking: general.inventoryTracking,
     managesStock: general.managesStock,
+    kind: general.kind,
   };
 }
 
@@ -342,6 +344,7 @@ export function productToFormDraft(
     defaultVatCodeId: product.defaultVatCodeId ?? '',
     inventoryTracking: product.inventoryTracking ?? InventoryTrackingMode.Standard,
     managesStock: product.managesStock ?? true,
+    kind: product.kind ?? ProductKind.Article,
   };
   const variantDrafts: VariantDraft[] = variants.map((variant) => ({
     key: variant.id,

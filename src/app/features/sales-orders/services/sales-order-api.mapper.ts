@@ -22,6 +22,14 @@ export interface SalesOrderLineApiRow {
   readonly quantity: number;
   readonly unitPriceMinor?: number;
   readonly totalMinor?: number;
+  // Righe Ordine cliente manuale.
+  readonly barcode?: string | null;
+  readonly unitOfMeasure?: string | null;
+  readonly discount?: string | null;
+  readonly vatCodeId?: string | null;
+  readonly lineVatTotalMinor?: number;
+  readonly commitsStock?: boolean;
+  readonly lineNumber?: number;
 }
 
 export interface SalesOrderApiRow {
@@ -45,6 +53,12 @@ export interface SalesOrderApiRow {
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
   readonly customer?: { readonly email?: string | null } | null;
+  // Testata Ordine cliente manuale.
+  readonly locationId?: EntityId | null;
+  readonly externalRef?: string | null;
+  readonly expectedDeliveryDate?: IsoDateString | null;
+  readonly notes?: string | null;
+  readonly paymentTerms?: string | null;
   readonly document?: {
     readonly id: EntityId;
     readonly reference?: string | null;
@@ -160,6 +174,15 @@ function mapLine(row: SalesOrderLineApiRow, currency: CurrencyCode): SalesOrderL
     quantity: row.quantity,
     unitPrice: { amountMinor: row.unitPriceMinor ?? 0, currencyCode: currency },
     lineTotal: { amountMinor: row.totalMinor ?? 0, currencyCode: currency },
+    barcode: row.barcode ?? undefined,
+    unitOfMeasure: row.unitOfMeasure ?? undefined,
+    discount: row.discount ?? undefined,
+    vatCodeId: row.vatCodeId ?? undefined,
+    lineVatTotal:
+      row.lineVatTotalMinor != null
+        ? { amountMinor: row.lineVatTotalMinor, currencyCode: currency }
+        : undefined,
+    commitsStock: row.commitsStock ?? true,
   };
 }
 
@@ -189,6 +212,11 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
       : undefined,
     committedQuantity: row.committedQuantity ?? 0,
     locationName: row.locationName ?? undefined,
+    locationId: row.locationId ?? undefined,
+    externalRef: row.externalRef ?? undefined,
+    expectedDeliveryDate: row.expectedDeliveryDate ?? undefined,
+    notes: row.notes ?? undefined,
+    paymentTerms: row.paymentTerms ?? undefined,
     linkedDocument: row.document
       ? {
           id: row.document.id,
