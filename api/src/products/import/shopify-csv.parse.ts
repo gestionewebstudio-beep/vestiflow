@@ -1,6 +1,12 @@
 /** Riga normalizzata dal CSV prodotti Shopify. */
 export interface ShopifyCsvRow {
   readonly rowNumber: number;
+  /**
+   * Codice articolo VestiFlow (colonna opzionale, NON Shopify): se presente
+   * e valido viene usato, se assente il progressivo viene generato, se già
+   * in uso la riga viene segnalata nel report (§IMPORTAZIONI MASSIVE).
+   */
+  readonly articleCode: string;
   readonly handle: string;
   readonly title: string;
   readonly bodyHtml: string;
@@ -26,6 +32,8 @@ export interface ShopifyCsvRow {
 }
 
 const HEADER_ALIASES: Record<string, keyof Omit<ShopifyCsvRow, 'rowNumber'>> = {
+  'codice articolo': 'articleCode',
+  'article code': 'articleCode',
   handle: 'handle',
   title: 'title',
   'body (html)': 'bodyHtml',
@@ -117,6 +125,7 @@ export function parseCsvText(content: string): string[][] {
 
 function emptyRow(): Omit<ShopifyCsvRow, 'rowNumber'> {
   return {
+    articleCode: '',
     handle: '',
     title: '',
     bodyHtml: '',

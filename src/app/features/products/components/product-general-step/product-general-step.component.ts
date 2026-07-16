@@ -30,6 +30,12 @@ import {
 
 import type { ProductGeneralDraft } from '../../models/product-form.model';
 import {
+  ARTICLE_CODE_FORMAT_MESSAGE,
+  ARTICLE_CODE_PATTERN,
+  ARTICLE_CODE_REQUIRED_MESSAGE,
+  normalizeArticleCode,
+} from '../../models/product-form.validators';
+import {
   buildProductSeasonSelectOptions,
   isStandardProductSeason,
   PRODUCT_SEASON_CUSTOM_OPTION,
@@ -82,6 +88,14 @@ export class ProductGeneralStepComponent implements OnInit {
   readonly catalogReadOnly = input(false);
   /** In creazione: campi secondari in sezione collassabile. */
   readonly compactLayout = input(false);
+  /**
+   * true = modifica di un articolo esistente: il codice articolo diventa
+   * obbligatorio (in creazione può restare vuoto: il backend genera il
+   * progressivo) e compare "Ripristina" dopo una cancellazione.
+   */
+  readonly editMode = input(false);
+  /** Nome dell'articolo che già usa il codice digitato (verifica live dal parent). */
+  readonly articleCodeTakenBy = input<string | null>(null);
 
   protected readonly statusSelectOptions: readonly SelectMenuOption[] = STATUS_OPTIONS.map(
     (option) => ({
@@ -152,6 +166,10 @@ export class ProductGeneralStepComponent implements OnInit {
   private readonly seasonValue = signal('');
 
   protected readonly form = this.fb.group({
+    // Primo campo dell'anagrafica (§POSIZIONE): identificatore principale.
+    // `required` viene aggiunto in ngOnInit solo in modifica (in creazione
+    // vuoto = progressivo generato dal backend).
+    articleCode: this.fb.control('', [Validators.pattern(ARTICLE_CODE_PATTERN)]),
     name: this.fb.control('', [Validators.required]),
     brand: this.fb.control(''),
     category: this.fb.control(''),
@@ -171,11 +189,17 @@ export class ProductGeneralStepComponent implements OnInit {
 
   private valueChangesSub: Subscription | null = null;
 
+  /** Codice caricato all'apertura: base del "Ripristina" (§obbligatorio). */
+  private initialArticleCode = '';
+
   constructor() {
     effect(() => {
       if (this.catalogReadOnly()) {
         this.form.disable({ emitEvent: false });
         this.form.controls.season.enable({ emitEvent: false });
+        // Il codice articolo e' una proprieta' SOLO VestiFlow: resta
+        // modificabile anche quando il catalogo e' gestito da Shopify.
+        this.form.controls.articleCode.enable({ emitEvent: false });
       } else {
         this.form.enable({ emitEvent: false });
       }
@@ -184,6 +208,11 @@ export class ProductGeneralStepComponent implements OnInit {
 
   ngOnInit(): void {
     const initial = this.value();
+    this.initialArticleCode = normalizeArticleCode(initial.articleCode);
+    if (this.editMode()) {
+      this.form.controls.articleCode.addValidators(Validators.required);
+      this.form.controls.articleCode.updateValueAndValidity({ emitEvent: false });
+    }
     this.categoryValue.set(initial.category);
     this.seasonValue.set(initial.season);
     this.customCategory.set(this.shouldUseCustomField(initial.category, this.categories()));
@@ -206,6 +235,58 @@ export class ProductGeneralStepComponent implements OnInit {
   protected showError(field: RequiredField): boolean {
     const control = this.form.controls[field];
     return control.invalid && control.touched;
+  }
+
+  /**
+   * Messaggio d'errore del codice articolo (vicino al campo, mai solo toast):
+   * obbligatorio (in modifica), formato, unicità (verifica live dal parent).
+   */
+  protected articleCodeError(): string | null {
+    const control = this.form.controls.articleCode;
+    const value = control.value.trim();
+    if (control.touched && control.hasError('required')) {
+      return ARTICLE_CODE_REQUIRED_MESSAGE;
+    }
+    if (value && control.hasError('pattern')) {
+      return ARTICLE_CODE_FORMAT_MESSAGE;
+    }
+    const takenBy = this.articleCodeTakenBy();
+    if (value && takenBy) {
+      return `Codice articolo già utilizzato da ${takenBy}.`;
+    }
+    return null;
+  }
+
+  /** Normalizzazione visiva §case-insensitive: al blur il codice va in MAIUSCOLO. */
+  protected onArticleCodeBlur(): void {
+    const control = this.form.controls.articleCode;
+    const normalized = normalizeArticleCode(control.value);
+    if (normalized !== control.value) {
+      control.setValue(normalized);
+    }
+    control.markAsTouched();
+  }
+
+  /** Codice caricato all'apertura, mostrato sul pulsante "Ripristina". */
+  protected initialArticleCodeValue(): string {
+    return this.initialArticleCode;
+  }
+
+  /** "Ripristina" visibile quando il codice caricato e' stato cancellato/modificato. */
+  protected canRestoreArticleCode(): boolean {
+    if (!this.editMode() || !this.initialArticleCode) {
+      return false;
+    }
+    return normalizeArticleCode(this.form.controls.articleCode.value) !== this.initialArticleCode;
+  }
+
+  /**
+   * Riporta il codice a quello previsto prima della cancellazione (mai
+   * rigenerato in silenzio: la scelta resta esplicita dell'operatore).
+   */
+  protected restoreArticleCode(): void {
+    this.form.controls.articleCode.setValue(this.initialArticleCode);
+    this.form.controls.articleCode.markAsTouched();
   }
 
   protected onStatusSelect(value: string | null): void {

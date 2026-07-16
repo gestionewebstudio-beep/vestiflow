@@ -2,6 +2,37 @@
   <div class="general-step__grid">
     <div class="general-step__essentials general-step__field--full">
       <div class="general-step__field">
+        <label class="general-step__label" for="product-article-code">
+          Codice articolo
+          @if (!editMode()) {
+            <span class="general-step__optional">(vuoto = generato automaticamente)</span>
+          }
+        </label>
+        <div class="general-step__code-row">
+          <input
+            id="product-article-code"
+            class="general-step__control general-step__control--code"
+            type="text"
+            formControlName="articleCode"
+            autocomplete="off"
+            spellcheck="false"
+            [placeholder]="editMode() ? '' : 'Es. 00001'"
+            [attr.aria-invalid]="articleCodeError() !== null"
+            [attr.aria-describedby]="articleCodeError() ? 'product-article-code-error' : null"
+            (blur)="onArticleCodeBlur()"
+          />
+          @if (canRestoreArticleCode()) {
+            <button type="button" class="general-step__code-restore" (click)="restoreArticleCode()">
+              Ripristina {{ '"' + initialArticleCodeValue() + '"' }}
+            </button>
+          }
+        </div>
+        @if (articleCodeError(); as codeError) {
+          <p id="product-article-code-error" class="general-step__error">{{ codeError }}</p>
+        }
+      </div>
+
+      <div class="general-step__field">
         <label class="general-step__label" for="product-name">Nome prodotto</label>
         <input
           id="product-name"

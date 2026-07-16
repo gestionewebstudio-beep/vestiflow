@@ -111,7 +111,9 @@ export class GlobalSearchComponent {
               ...products.map((product) => ({
                 group: 'Prodotti',
                 label: product.name,
-                sub: product.brand ?? undefined,
+                // Codice articolo in evidenza: la ricerca lo accetta come
+                // criterio (§ricerca globale) e il risultato lo conferma.
+                sub: [product.articleCode, product.brand].filter(Boolean).join(' · ') || undefined,
                 icon: 'pi-tag',
                 route: `/app/products/${product.id}`,
               })),

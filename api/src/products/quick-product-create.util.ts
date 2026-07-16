@@ -6,6 +6,8 @@ import {
   ShopifyCatalogLinkKind,
 } from '@prisma/client';
 
+import { nextArticleCodeInTx } from './article-code.util';
+
 /**
  * Creazione rapida di un'anagrafica prodotto (Product + variante unica),
  * tx-aware: usata dal flusso Arrivo merce (creazione atomica riga+articolo,
@@ -122,9 +124,13 @@ export async function createQuickProductWithVariant(
 
   const managesStock = input.managesStock ?? true;
   try {
+    // Codice articolo generato come progressivo (regola generale §Codice
+    // articolo: sempre generato se assente, in ogni flusso di creazione).
+    const articleCode = await nextArticleCodeInTx(tx, tenantId);
     const created = await tx.product.create({
       data: {
         tenantId,
+        articleCode,
         catalogOrigin: CatalogOrigin.vestiflow,
         shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
         name: input.name.trim(),

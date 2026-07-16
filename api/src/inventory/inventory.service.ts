@@ -38,7 +38,11 @@ import {
 } from './movement-document-reference.util';
 
 export type InventoryLevelWithRefs = InventoryLevel & {
-  variant: { sku: string; optionValues: Prisma.JsonValue; product: { name: string } };
+  variant: {
+    sku: string;
+    optionValues: Prisma.JsonValue;
+    product: { name: string; articleCode: string };
+  };
   location: { name: string };
 };
 
@@ -48,7 +52,7 @@ const MAX_SEARCH_VARIANTS = 100;
 const LEVEL_VARIANT_INCLUDE = {
   sku: true,
   optionValues: true,
-  product: { select: { name: true } },
+  product: { select: { name: true, articleCode: true } },
 } as const;
 
 const LEVEL_LOCATION_INCLUDE = { name: true } as const;
@@ -169,7 +173,7 @@ export class InventoryService {
           id: true,
           sku: true,
           optionValues: true,
-          product: { select: { name: true } },
+          product: { select: { name: true, articleCode: true } },
         },
         orderBy: [{ product: { name: 'asc' } }, { sku: 'asc' }],
         take: MAX_SEARCH_VARIANTS,
@@ -245,7 +249,7 @@ export class InventoryService {
       id: string;
       sku: string | null;
       optionValues?: Prisma.JsonValue;
-      product: { name: string };
+      product: { name: string; articleCode: string };
     },
     location: { id: string; name: string },
   ): InventoryLevelWithRefs {
@@ -264,7 +268,7 @@ export class InventoryService {
       variant: {
         sku: variant.sku ?? '',
         optionValues: variant.optionValues ?? [],
-        product: { name: variant.product.name },
+        product: { name: variant.product.name, articleCode: variant.product.articleCode },
       },
       location: { name: location.name },
     };
@@ -309,7 +313,7 @@ export class InventoryService {
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
         include: {
-          variant: { select: { product: { select: { name: true } } } },
+          variant: { select: { product: { select: { name: true, articleCode: true } } } },
         },
       }),
       this.prisma.stockMovement.count({ where }),

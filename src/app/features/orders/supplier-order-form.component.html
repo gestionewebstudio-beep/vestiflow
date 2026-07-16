@@ -133,6 +133,15 @@
           <table class="po-form__table">
             <thead>
               <tr>
+                @if (isLineColumnVisible('articleCode')) {
+                  <th scope="col" [style.width]="lineColumnWidth('articleCode')">
+                    Cod. articolo
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('articleCode', $event)"
+                    ></span>
+                  </th>
+                }
                 @if (isLineColumnVisible('variant')) {
                   <th scope="col" [style.width]="lineColumnWidth('variant')">
                     Articolo / SKU
@@ -175,6 +184,11 @@
             <tbody formArrayName="lines">
               @for (line of lines.controls; track line; let i = $index) {
                 <tr class="po-form__table-row" [formGroupName]="i">
+                  @if (isLineColumnVisible('articleCode')) {
+                    <td class="po-form__cell tabular-nums" data-label="Cod. articolo">
+                      {{ lineArticleCode(i) }}
+                    </td>
+                  }
                   @if (isLineColumnVisible('variant')) {
                     <td class="po-form__cell po-form__cell--variant" data-label="Articolo / SKU">
                       <app-select-menu

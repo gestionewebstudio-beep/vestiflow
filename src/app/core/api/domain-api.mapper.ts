@@ -13,6 +13,7 @@ import { stripHtmlToPlainText } from '@core/utils/html-text.util';
 export interface ProductApiRow {
   readonly id: EntityId;
   readonly tenantId: EntityId;
+  readonly articleCode?: string | null;
   readonly name: string;
   readonly description?: string | null;
   readonly brand?: string | null;
@@ -105,7 +106,7 @@ export interface InventoryLevelApiRow {
   readonly variant?: {
     readonly sku: string;
     readonly optionValues?: readonly { readonly name: string; readonly value: string }[];
-    readonly product: { readonly name: string };
+    readonly product: { readonly name: string; readonly articleCode?: string | null };
   };
   readonly location?: { readonly name: string };
 }
@@ -129,7 +130,7 @@ export interface StockMovementApiRow {
   readonly productTitle?: string | null;
   readonly documentReference?: string | null;
   readonly variant?: {
-    readonly product?: { readonly name: string };
+    readonly product?: { readonly name: string; readonly articleCode?: string | null };
   };
 }
 
@@ -214,6 +215,7 @@ export function mapProductApiRow(row: ProductApiRow): Product {
   return {
     id: row.id,
     tenantId: row.tenantId,
+    articleCode: row.articleCode ?? '',
     name: row.name,
     description: stripHtmlToPlainText(row.description),
     brand: row.brand ?? undefined,
@@ -339,6 +341,7 @@ export function mapStockMovementApiRow(row: StockMovementApiRow): StockMovement 
     origin: row.origin ? (row.origin as StockMovement['origin']) : undefined,
     externalRef: row.externalRef ?? undefined,
     productTitle: row.productTitle ?? row.variant?.product?.name ?? undefined,
+    articleCode: row.variant?.product?.articleCode ?? undefined,
     documentReference: row.documentReference ?? undefined,
   };
 }

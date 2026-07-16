@@ -10,6 +10,8 @@ export interface VariantSummary {
   readonly variantId: EntityId;
   readonly productId: EntityId;
   readonly sku: string;
+  /** Codice articolo del prodotto (identificatore anagrafico interno VestiFlow). */
+  readonly articleCode: string;
   readonly productName: string;
   /** Display completo (es. 'T-shirt Basic — M / Bianco'). */
   readonly title: string;

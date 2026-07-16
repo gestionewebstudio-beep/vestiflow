@@ -74,6 +74,17 @@ class BarcodeAvailabilityQueryDto {
   excludeProductId?: string;
 }
 
+class ArticleCodeAvailabilityQueryDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  articleCode!: string;
+
+  @IsOptional()
+  @IsUUID()
+  excludeProductId?: string;
+}
+
 class VariantByCodeQueryDto {
   @IsString()
   @MinLength(1)
@@ -148,6 +159,25 @@ export class ProductsController {
         optionValues: dto.optionValues,
       })
       .then((sku) => ({ sku }));
+  }
+
+  /**
+   * Disponibilità codice articolo per la validazione live del form
+   * anagrafica (§Codice articolo: univoco per tenant, case-insensitive).
+   * `takenBy` = nome dell'articolo che occupa il codice, per il messaggio
+   * "Codice articolo già utilizzato da [nome articolo]."
+   */
+  @Get('article-code-availability')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  checkArticleCode(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ArticleCodeAvailabilityQueryDto,
+  ): Promise<{ articleCode: string; available: boolean; takenBy: string | null }> {
+    return this.products.checkArticleCodeAvailability(
+      tenantId,
+      query.articleCode,
+      query.excludeProductId,
+    );
   }
 
   @Get('barcode-availability')

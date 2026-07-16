@@ -22,6 +22,11 @@
             </label>
           </th>
         }
+        @if (showColumn('articleCode')) {
+          <th scope="col" class="product-table__col--code">
+            {{ columnLabel('articleCode') }}
+          </th>
+        }
         @if (showColumn('name')) {
           <th scope="col" class="product-table__col--name" [attr.aria-sort]="ariaSort('name')">
             <button
@@ -144,6 +149,14 @@
                 />
                 <span class="sr-only">{{ product.name }}</span>
               </label>
+            </td>
+          }
+          @if (showColumn('articleCode')) {
+            <td
+              class="product-table__code tabular-nums"
+              [attr.data-label]="columnLabel('articleCode')"
+            >
+              {{ product.articleCode || '—' }}
             </td>
           }
           @if (showColumn('name')) {

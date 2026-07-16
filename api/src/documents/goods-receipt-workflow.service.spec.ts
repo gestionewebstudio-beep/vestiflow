@@ -90,6 +90,9 @@ function createPrismaMock() {
       deleteMany: vi.fn(),
       upsert: vi.fn(),
     },
+    // Advisory lock + max progressivo codice articolo (creazione rapida
+    // articolo da riga): nessun codice numerico esistente nei test.
+    $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation((arg: unknown) => {

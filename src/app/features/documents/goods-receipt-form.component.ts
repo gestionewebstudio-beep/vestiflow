@@ -879,9 +879,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // Le varianti già presenti nel documento (pinned) entrano nell'elenco
     // solo se combaciano col testo digitato, come i risultati del server.
     const pinnedMatching = this.pinnedVariants().filter((variant) =>
-      [variant.productName, variant.title, variant.sku, variant.barcode ?? ''].some((value) =>
-        value.toLowerCase().includes(term),
-      ),
+      [
+        variant.productName,
+        variant.title,
+        variant.sku,
+        variant.barcode ?? '',
+        variant.articleCode,
+      ].some((value) => value.toLowerCase().includes(term)),
     );
     return mergeVariantSummaries(pinnedMatching, this.searchedVariants());
   }
@@ -937,6 +941,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       (v) => v.variantId === variantId,
     );
     return summary?.productName ?? summary?.title ?? line.controls.description.value;
+  }
+
+  /**
+   * Codice articolo del prodotto collegato alla riga (colonna selezionabile
+   * §Codice articolo): risolto dalle summary varianti, come il nome prodotto.
+   */
+  protected lineArticleCode(index: number): string {
+    const line = this.lines.at(index);
+    const variantId = line?.controls.variantId.value;
+    if (!variantId) {
+      return '—';
+    }
+    const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
+      (v) => v.variantId === variantId,
+    );
+    return summary?.articleCode || '—';
   }
 
   protected onLineSkuChange(index: number, value: string): void {

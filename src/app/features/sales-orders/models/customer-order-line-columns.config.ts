@@ -10,6 +10,15 @@ export const CUSTOMER_ORDER_LINES_VIEW = TableViewId.CustomerOrderLines;
 // Stesse larghezze "per contenuto" della tabella righe Arrivo merce (v4):
 // SKU/EAN respirano, quantità e IVA restano strette, il nome prodotto domina.
 export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
+  // Identificatore anagrafico interno (§Codice articolo): colonna
+  // selezionabile, non mostrata di default.
+  {
+    id: 'articleCode',
+    label: 'Codice articolo',
+    defaultVisible: false,
+    defaultWidthPx: 96,
+    minWidthPx: 64,
+  },
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
   { id: 'product', label: 'Nome prodotto', defaultWidthPx: 300, minWidthPx: 160 },
@@ -37,7 +46,11 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'actions', label: 'Azioni', defaultWidthPx: 72, minWidthPx: 56 },
 ];
 
-const ALL_COLUMN_IDS = CUSTOMER_ORDER_LINE_COLUMNS.map((column) => column.id);
+// I preset partono dalle colonne visibili di default: quelle opzionali
+// (defaultVisible: false, es. Codice articolo) restano selezionabili a mano.
+const ALL_COLUMN_IDS = CUSTOMER_ORDER_LINE_COLUMNS.filter(
+  (column) => column.defaultVisible !== false,
+).map((column) => column.id);
 
 export const CUSTOMER_ORDER_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Default]: ALL_COLUMN_IDS,

@@ -335,6 +335,7 @@ export class InventoryLevelsComponent {
           variantId: level.variantId,
           locationId: level.locationId,
           sku: level.displaySku,
+          articleCode: level.articleCode,
           title: level.displayTitle,
           locationName:
             level.locationName ?? locationById.get(level.locationId)?.name ?? level.locationId,

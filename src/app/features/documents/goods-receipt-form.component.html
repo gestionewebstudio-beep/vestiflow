@@ -442,6 +442,9 @@
                 <colgroup>
                   <col class="gr-form__col--select" />
                   <col class="gr-form__col--index" />
+                  @if (isLineColumnVisible('articleCode')) {
+                    <col [style.width]="lineColumnWidth('articleCode')" />
+                  }
                   @if (isLineColumnVisible('sku')) {
                     <col [style.width]="lineColumnWidth('sku')" />
                   }
@@ -522,6 +525,16 @@
                       />
                     </th>
                     <th scope="col" class="gr-form__cell--index" aria-label="Numero riga">#</th>
+                    @if (isLineColumnVisible('articleCode')) {
+                      <th scope="col" [style.width]="lineColumnWidth('articleCode')">
+                        Cod. articolo
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('articleCode')"
+                          (resized)="onLineColumnResize('articleCode', $event)"
+                        ></span>
+                      </th>
+                    }
                     @if (isLineColumnVisible('sku')) {
                       <th scope="col" [style.width]="lineColumnWidth('sku')">
                         <button
@@ -976,6 +989,13 @@
                           <span class="tabular-nums">{{ i + 1 }}</span>
                         </div>
                       </td>
+                      @if (isLineColumnVisible('articleCode')) {
+                        <td
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed tabular-nums"
+                        >
+                          {{ lineArticleCode(i) }}
+                        </td>
+                      }
                       @if (isLineColumnVisible('sku')) {
                         <td class="gr-form__cell gr-form__cell--code">
                           <app-goods-receipt-line-code-cell

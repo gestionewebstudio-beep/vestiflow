@@ -2,6 +2,8 @@ export interface VariantSummaryDto {
   readonly variantId: string;
   readonly productId: string;
   readonly sku: string;
+  /** Codice articolo del prodotto (identificatore anagrafico interno VestiFlow). */
+  readonly articleCode: string;
   readonly productName: string;
   readonly title: string;
   readonly barcode?: string | null;

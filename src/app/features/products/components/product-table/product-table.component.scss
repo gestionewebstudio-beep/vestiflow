@@ -79,6 +79,12 @@
 
   // Somma 95% + colonna select 3rem: resta dentro il 100% (layout fixed,
   // sforare fa comparire lo scroll orizzontale). Azioni: due bottoni 36px.
+  // Codice articolo: colonna opzionale (nascosta di default), larghezza a
+  // contenuto — il progressivo tipico occupa 5-8 caratteri.
+  .product-table__col--code {
+    inline-size: 9%;
+  }
+
   .product-table__col--name {
     inline-size: 21%;
   }
@@ -116,6 +122,7 @@
   }
 
   .product-table__name,
+  .product-table__code,
   .product-table__brand,
   .product-table__category,
   .product-table__season {

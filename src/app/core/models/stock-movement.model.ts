@@ -62,5 +62,7 @@ export interface StockMovement extends TenantScoped {
   readonly origin?: MovementOrigin;
   readonly externalRef?: string;
   readonly productTitle?: string;
+  /** Codice articolo del prodotto (colonna selezionabile §Codice articolo). */
+  readonly articleCode?: string;
   readonly documentReference?: string;
 }

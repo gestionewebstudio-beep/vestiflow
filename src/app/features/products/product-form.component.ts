@@ -66,12 +66,17 @@ import type {
   ProductOptionsDraft,
   VariantDraft,
 } from './models/product-form.model';
-import type { BarcodeAvailabilityResult, SkuAvailabilityResult } from './models/product.dto';
+import type {
+  ArticleCodeAvailabilityResult,
+  BarcodeAvailabilityResult,
+  SkuAvailabilityResult,
+} from './models/product.dto';
 import {
   findDuplicateAxisNames,
   findDuplicateBarcodes,
   findDuplicateSkus,
   isBarcodeDistinct,
+  isValidArticleCodeFormat,
   isValidAxisName,
   isValidSku,
 } from './models/product-form.validators';
@@ -338,6 +343,45 @@ export class ProductFormComponent implements CanComponentDeactivate {
   );
   protected readonly takenBarcodes = computed(() => this.barcodeAvailability().taken);
 
+  // Codice articolo digitato (trim) per la verifica live di unicità.
+  private readonly draftArticleCode = computed(() => this.draft().general.articleCode.trim());
+
+  // Verifica unicità codice articolo lato server (debounced). In edit esclude
+  // il prodotto corrente così il suo stesso codice non si auto-segnala.
+  private readonly articleCodeAvailability = toSignal(
+    toObservable(this.draftArticleCode).pipe(
+      debounceTime(400),
+      distinctUntilChanged(),
+      switchMap((code) =>
+        code.length === 0
+          ? of<ArticleCodeAvailabilityResult>({ articleCode: '', available: true, takenBy: null })
+          : this.service.checkArticleCodeAvailability(code, this.productId() ?? undefined).pipe(
+              catchError(() =>
+                of<ArticleCodeAvailabilityResult>({
+                  articleCode: code,
+                  available: true,
+                  takenBy: null,
+                }),
+              ),
+            ),
+      ),
+    ),
+    { initialValue: { articleCode: '', available: true, takenBy: null } },
+  );
+
+  /** Nome dell'articolo che già usa il codice digitato (null = disponibile). */
+  protected readonly articleCodeTakenBy = computed(() => {
+    const availability = this.articleCodeAvailability();
+    // Il risultato vale solo per il codice attualmente digitato (debounce).
+    if (
+      availability.available ||
+      this.draftArticleCode().toUpperCase() !== availability.articleCode
+    ) {
+      return null;
+    }
+    return availability.takenBy ?? 'un altro articolo';
+  });
+
   protected readonly loading = computed(() => this.loadState().status === 'loading');
   protected readonly notFound = computed(() => this.loadState().status === 'notFound');
   protected readonly error = computed(() => {
@@ -353,8 +397,22 @@ export class ProductFormComponent implements CanComponentDeactivate {
   protected readonly isLastStep = computed(() => this._currentStep() === this.steps().length - 1);
   protected readonly quickVariant = computed(() => this.draft().variants[0] ?? null);
 
-  // Validità "Dati generali": solo il nome è obbligatorio (brand/categoria completabili dopo).
+  // Validità "Dati generali": nome obbligatorio + regole codice articolo
+  // (§Codice articolo): formato valido, univoco, obbligatorio in modifica
+  // ("Il codice articolo è obbligatorio": mai salvare col campo svuotato).
+  // Le regole del codice valgono anche a catalogo Shopify bloccato: è una
+  // proprietà SOLO VestiFlow, sempre modificabile.
   private readonly generalValid = computed(() => {
+    const articleCode = this.draft().general.articleCode;
+    if (!isValidArticleCodeFormat(articleCode)) {
+      return false;
+    }
+    if (this.mode() === 'edit' && articleCode.trim() === '') {
+      return false;
+    }
+    if (this.articleCodeTakenBy() !== null) {
+      return false;
+    }
     if (this.shopifyCatalogLocked()) {
       return true;
     }

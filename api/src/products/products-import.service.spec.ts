@@ -28,14 +28,28 @@ describe('ProductsImportService', () => {
       },
       product: {
         create: vi.fn(),
+        // Serve sia le chiavi anti-duplicato (name/importHandle) sia i codici
+        // articolo esistenti (articleCode) del tenant.
         findMany: vi.fn().mockResolvedValue(
-          existingProducts.map((product) => ({
+          existingProducts.map((product, index) => ({
             name: product.name,
             importHandle: product.importHandle ?? null,
+            articleCode: `ART-${index + 1}`,
           })),
         ),
+        findFirst: vi.fn().mockResolvedValue(null),
       },
+      $transaction: vi.fn(),
     };
+    // La create avviene in transazione (generazione codice articolo atomica):
+    // la tx condivide le mock del client radice, $queryRaw copre advisory
+    // lock + max progressivo (nessun codice numerico esistente).
+    prisma.$transaction.mockImplementation((cb: (tx: unknown) => unknown) =>
+      cb({
+        product: prisma.product,
+        $queryRaw: vi.fn().mockResolvedValue([]),
+      }),
+    );
     const service = new ProductsImportService(
       prisma as unknown as PrismaService,
       channelSync as unknown as ChannelSyncFacade,

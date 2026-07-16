@@ -55,7 +55,10 @@ describe('serializeProductsToShopifyCsv', () => {
       }),
     ]);
 
-    expect(csv.startsWith('\uFEFFHandle,Title,Body (HTML)')).toBe(true);
+    // "Codice articolo" apre l'export: colonna SOLO VestiFlow per il
+    // round-trip export\u2192import (mai mappata su campi Shopify).
+    expect(csv.startsWith('\uFEFFCodice articolo,Handle,Title,Body (HTML)')).toBe(true);
+    expect(csv).toContain('00042');
     expect(csv).toContain('maglietta-demo');
     expect(csv).toContain('SKU-S');
     expect(csv).toContain('SKU-M');
@@ -123,6 +126,7 @@ function makeRecord(input: {
     product: {
       id: productId,
       tenantId,
+      articleCode: '00042',
       name: input.name,
       description: input.description ?? null,
       brand: input.brand ?? null,

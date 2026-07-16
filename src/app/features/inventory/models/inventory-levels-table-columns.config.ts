@@ -6,6 +6,9 @@ import {
 
 export const INVENTORY_LEVEL_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'title', label: 'Variante', pinnable: true, defaultVisible: true },
+  // Identificatore anagrafico interno (§Codice articolo): colonna
+  // selezionabile, non mostrata di default (fuori dai preset).
+  { id: 'articleCode', label: 'Codice articolo', defaultVisible: false },
   { id: 'sku', label: 'Codice', defaultVisible: true },
   { id: 'locationName', label: 'Location', defaultVisible: true },
   { id: 'available', label: 'Disponibile', numeric: true, defaultVisible: true },

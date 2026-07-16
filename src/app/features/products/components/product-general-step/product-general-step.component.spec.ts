@@ -12,6 +12,7 @@ import { ProductGeneralStepComponent } from './product-general-step.component';
 import type { ProductGeneralDraft } from '../../models/product-form.model';
 
 const EMPTY_GENERAL: ProductGeneralDraft = {
+  articleCode: '',
   name: '',
   description: '',
   brand: '',

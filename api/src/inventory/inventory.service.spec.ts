@@ -169,7 +169,7 @@ describe('InventoryService', () => {
     });
   });
 
-  it('listLevels con ricerca usa filtro SKU, barcode e nome prodotto', async () => {
+  it('listLevels con ricerca usa filtro SKU, barcode, nome prodotto e codice articolo', async () => {
     const prisma = createPrismaMock();
     prisma.productVariant.findMany.mockResolvedValue([]);
     prisma.location.findMany.mockResolvedValue([{ id: 'loc-1', name: 'Shop' }]);
@@ -192,6 +192,7 @@ describe('InventoryService', () => {
             { sku: { contains: 'SKU', mode: 'insensitive' } },
             { barcode: { contains: 'SKU', mode: 'insensitive' } },
             { product: { name: { contains: 'SKU', mode: 'insensitive' } } },
+            { product: { articleCode: { contains: 'SKU', mode: 'insensitive' } } },
             {
               supplierLinks: {
                 some: { supplierSku: { contains: 'SKU', mode: 'insensitive' } },

@@ -33,6 +33,9 @@ function toApiVariant(variant: CreateProductVariantDto): Record<string, unknown>
 /** Payload POST /products (NestJS CreateProductDto). */
 export function toCreateProductBody(dto: CreateProductDto): Record<string, unknown> {
   return {
+    // Facoltativo in creazione: vuoto -> non inviato, il backend genera il
+    // progressivo (§Codice articolo). Mai mappato su campi Shopify.
+    articleCode: dto.articleCode?.trim() || undefined,
     name: dto.name,
     description: dto.description,
     brand: dto.brand,
@@ -66,6 +69,9 @@ function toApiUpdateVariant(variant: UpdateProductVariantDto): Record<string, un
  */
 export function toUpdateProductBody(dto: UpdateProductDto): Record<string, unknown> {
   return {
+    // undefined = non toccare il codice; il form blocca il salvataggio se
+    // l'operatore lo svuota (campo obbligatorio, §Codice articolo).
+    articleCode: dto.articleCode?.trim() || undefined,
     name: dto.name,
     description: dto.description,
     brand: dto.brand,

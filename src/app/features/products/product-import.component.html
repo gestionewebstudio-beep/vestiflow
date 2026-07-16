@@ -146,7 +146,8 @@
       <p class="product-import__done-message">{{ resultMessage() }}</p>
       <p class="product-import__done-stats tabular-nums">
         {{ importResult.imported }} importati · {{ importResult.skipped }} saltati ·
-        {{ importResult.failed }} falliti
+        {{ importResult.failed }} falliti · {{ importResult.articleCodesGenerated }} codici articolo
+        generati
       </p>
     </div>
 
@@ -155,6 +156,7 @@
         <thead>
           <tr>
             <th scope="col">Prodotto</th>
+            <th scope="col">Codice articolo</th>
             <th scope="col">Esito</th>
             <th scope="col">Dettaglio</th>
           </tr>
@@ -163,6 +165,16 @@
           @for (row of importResult.products; track row.handle + row.status) {
             <tr>
               <td data-label="Prodotto">{{ row.name }}</td>
+              <td data-label="Codice articolo" class="tabular-nums">
+                @if (row.articleCode) {
+                  {{ row.articleCode }}
+                  @if (row.articleCodeGenerated) {
+                    <span class="product-import__code-note">(generato)</span>
+                  }
+                } @else {
+                  —
+                }
+              </td>
               <td data-label="Esito">
                 <app-badge [tone]="resultStatusTone(row.status)">
                   {{ resultStatusLabel(row.status) }}

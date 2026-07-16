@@ -113,6 +113,10 @@
       <h2 id="detail-general" class="product-detail__panel-title">Dati generali</h2>
       <dl class="product-detail__facts">
         <div class="product-detail__fact">
+          <dt class="product-detail__term">Codice articolo</dt>
+          <dd class="product-detail__value">{{ p.articleCode || '—' }}</dd>
+        </div>
+        <div class="product-detail__fact">
           <dt class="product-detail__term">Brand</dt>
           <dd class="product-detail__value">{{ p.brand ?? '—' }}</dd>
         </div>

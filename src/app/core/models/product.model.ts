@@ -53,6 +53,12 @@ export interface SelectedOption {
  */
 export interface Product extends TenantScoped, Timestamped {
   readonly id: EntityId;
+  /**
+   * Codice articolo: identificatore anagrafico principale dell'articolo in
+   * VestiFlow. Obbligatorio, univoco per tenant, sempre in MAIUSCOLO.
+   * Proprietà SOLO VestiFlow: mai mappata su campi Shopify.
+   */
+  readonly articleCode: string;
   readonly name: string;
   readonly description?: string;
   readonly brand?: string;

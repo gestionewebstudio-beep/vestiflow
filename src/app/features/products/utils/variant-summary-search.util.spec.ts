@@ -8,6 +8,7 @@ function variant(id: string, sku = `SKU-${id}`): VariantSummary {
     variantId: id,
     productId: `prod-${id}`,
     sku,
+    articleCode: `A-${id}`,
     productName: `Prodotto ${id}`,
     title: `Prodotto ${id} — ${sku}`,
     sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },

@@ -166,6 +166,7 @@ describe('product-form.mapper', () => {
       const product = {
         id: 'prod-1',
         tenantId: 'tenant-1',
+        articleCode: '00007',
         name: 'Pantaloni',
         description: 'Descrizione',
         category: 'Abbigliamento',

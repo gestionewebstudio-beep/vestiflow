@@ -529,6 +529,12 @@ model Location {
 model Product {
   id                              String                  @id @default(uuid()) @db.Uuid
   tenantId                        String                  @map("tenant_id") @db.Uuid
+  /// Codice articolo: identificatore anagrafico interno VestiFlow (mai
+  /// sincronizzato con Shopify). Obbligatorio, univoco per tenant, salvato
+  /// sempre in MAIUSCOLO (l'unicita' case-insensitive e' garantita dalla
+  /// normalizzazione). Generato come progressivo numerico a 5+ cifre se
+  /// l'operatore non lo fornisce.
+  articleCode                     String                  @map("article_code")
   name                            String
   description                     String?
   brand                           String?
@@ -590,6 +596,7 @@ model Product {
   images         ProductImage[]
   defaultVatCode VatCode?         @relation(fields: [defaultVatCodeId], references: [id], onDelete: SetNull)
 
+  @@unique([tenantId, articleCode])
   @@index([tenantId, status])
   @@index([tenantId, name])
   @@index([tenantId, importHandle])

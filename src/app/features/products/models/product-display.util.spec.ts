@@ -7,6 +7,7 @@ import { productDisplayCategory, productDisplayCategoryShort } from './product-d
 const baseProduct = {
   id: 'p1',
   tenantId: 't1',
+  articleCode: '00001',
   name: 'Giacca',
   status: 'active' as const,
   catalogOrigin: CatalogOrigin.VestiFlow,

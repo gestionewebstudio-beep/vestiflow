@@ -70,6 +70,38 @@
   border-color: var(--status-error-border);
 }
 
+// Codice articolo: input + eventuale "Ripristina" sulla stessa riga.
+.general-step__code-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.general-step__control--code {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.general-step__code-restore {
+  flex-shrink: 0;
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-interactive);
+  background: none;
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast) var(--ease-standard);
+}
+
+.general-step__code-restore:hover {
+  border-color: var(--color-interactive);
+}
+
 .general-step__textarea {
   block-size: auto;
   min-block-size: var(--space-16);

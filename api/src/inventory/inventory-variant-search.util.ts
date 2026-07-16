@@ -6,6 +6,7 @@ function wordFilter(word: string): Prisma.ProductVariantWhereInput {
       { sku: { contains: word, mode: 'insensitive' } },
       { barcode: { contains: word, mode: 'insensitive' } },
       { product: { name: { contains: word, mode: 'insensitive' } } },
+      { product: { articleCode: { contains: word, mode: 'insensitive' } } },
       {
         supplierLinks: {
           some: { supplierSku: { contains: word, mode: 'insensitive' } },
@@ -17,9 +18,9 @@ function wordFilter(word: string): Prisma.ProductVariantWhereInput {
 
 /**
  * Filtro varianti per ricerca giacenze e righe documento (SKU, barcode,
- * nome prodotto, SKU fornitore). Il termine è tokenizzato per parola: ogni
- * parola deve matchare uno dei campi ("blazer lana" trova "Blazer
- * sartoriale lana"), non serve che la stringa sia contigua.
+ * nome prodotto, codice articolo, SKU fornitore). Il termine è tokenizzato
+ * per parola: ogni parola deve matchare uno dei campi ("blazer lana" trova
+ * "Blazer sartoriale lana"), non serve che la stringa sia contigua.
  */
 export function buildInventoryVariantSearchWhere(
   search: string,

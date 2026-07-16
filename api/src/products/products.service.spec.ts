@@ -30,23 +30,27 @@ describe('ProductsService', () => {
         count: vi.fn(),
       },
       stockMovement: { count: vi.fn() },
-      $transaction: vi
-        .fn()
-        .mockImplementation((arg: unknown) =>
-          typeof arg === 'function'
-            ? arg({
-                product: { update: vi.fn() },
-                productVariant: {
-                  findMany: vi.fn().mockResolvedValue([]),
-                  findFirst: vi.fn(),
-                  delete: vi.fn(),
-                },
-                inventoryLevel: { deleteMany: vi.fn() },
-                stockMovement: { count: vi.fn().mockResolvedValue(0) },
-              })
-            : Promise.all(arg as Promise<unknown>[]),
-        ),
+      $transaction: vi.fn(),
     };
+    // La tx condivide le mock del client radice: create/duplicate ora creano
+    // il prodotto DENTRO la transazione (generazione codice articolo atomica)
+    // e i test osservano comunque prisma.product.create. $queryRaw copre
+    // advisory lock + max progressivo (nessun codice esistente: parte da 00001).
+    prisma.$transaction.mockImplementation((arg: unknown) =>
+      typeof arg === 'function'
+        ? (arg as (tx: unknown) => unknown)({
+            product: prisma.product,
+            productVariant: {
+              ...prisma.productVariant,
+              findMany: vi.fn().mockResolvedValue([]),
+              delete: vi.fn(),
+            },
+            inventoryLevel: { deleteMany: vi.fn() },
+            stockMovement: { count: vi.fn().mockResolvedValue(0) },
+            $queryRaw: vi.fn().mockResolvedValue([]),
+          })
+        : Promise.all(arg as Promise<unknown>[]),
+    );
     const taxonomyLocalization = {
       prepareCategories: vi.fn().mockResolvedValue(undefined),
       prepareProductLocalization: vi.fn().mockResolvedValue(undefined),

@@ -608,6 +608,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return summary?.title || this.lines.at(index)?.controls.productName.value || '';
   }
 
+  /** Codice articolo del prodotto collegato alla riga (colonna §Codice articolo). */
+  protected lineArticleCode(index: number): string {
+    return this.lineVariantSummary(index)?.articleCode || '—';
+  }
+
   protected lineVariantSummary(index: number): VariantSummary | null {
     const variantId = this.lines.at(index)?.controls.variantId.value;
     if (!variantId) {

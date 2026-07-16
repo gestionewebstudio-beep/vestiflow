@@ -27,6 +27,15 @@ import {
 import { ShopifyTaxonomyLocalizationService } from '../shopify/shopify-taxonomy-localization.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import {
+  ARTICLE_CODE_REQUIRED_MESSAGE,
+  articleCodeTakenMessage,
+  assertArticleCodeAvailableInTx,
+  assertValidArticleCodeFormat,
+  nextArticleCodeInTx,
+  normalizeArticleCode,
+  resolveArticleCodeForCreateInTx,
+} from './article-code.util';
+import {
   assertShopifyCatalogDeleteAllowed,
   assertShopifyCatalogManualSyncAllowed,
   assertShopifyCatalogUpdateAllowed,
@@ -59,6 +68,7 @@ const PRODUCT_INCLUDE = {
 const PRODUCT_LIST_SELECT = {
   id: true,
   tenantId: true,
+  articleCode: true,
   name: true,
   description: true,
   brand: true,
@@ -121,6 +131,7 @@ export class ProductsService {
       ...(query.search
         ? {
             OR: [
+              { articleCode: { contains: query.search, mode: 'insensitive' } },
               { name: { contains: query.search, mode: 'insensitive' } },
               { brand: { contains: query.search, mode: 'insensitive' } },
               { variants: { some: { sku: { contains: query.search, mode: 'insensitive' } } } },
@@ -230,6 +241,7 @@ export class ProductsService {
           product: {
             select: {
               name: true,
+              articleCode: true,
               category: true,
               unitOfMeasure: true,
               defaultVatCodeId: true,
@@ -284,6 +296,7 @@ export class ProductsService {
         variantId: row.id,
         productId: row.productId,
         sku: row.sku ?? '',
+        articleCode: row.product.articleCode,
         productName: row.product.name,
         title: buildVariantTitle(row.product.name, row.optionValues),
         barcode: row.barcode,
@@ -343,14 +356,19 @@ export class ProductsService {
 
     // Il pre-check assertSkusAvailable non copre le richieste concorrenti:
     // il vincolo unico (tenant_id, sku) può comunque scattare qui e deve
-    // restare un 409 coerente, non un 500.
-    const created = await this.prisma.product
-      .create({
-        data: {
-          tenantId,
-          catalogOrigin: CatalogOrigin.vestiflow,
-          shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
-          name: dto.name,
+    // restare un 409 coerente, non un 500. La transazione serve anche al
+    // codice articolo: generazione progressivo e insert devono essere
+    // atomici (advisory lock per tenant dentro nextArticleCodeInTx).
+    const created = await this.prisma
+      .$transaction(async (tx) => {
+        const articleCode = await resolveArticleCodeForCreateInTx(tx, tenantId, dto.articleCode);
+        return tx.product.create({
+          data: {
+            tenantId,
+            articleCode,
+            catalogOrigin: CatalogOrigin.vestiflow,
+            shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
+            name: dto.name,
           description: normalizeProductDescription(dto.description),
           brand: dto.brand,
           category: dto.category,
@@ -367,23 +385,17 @@ export class ProductsService {
           inventoryTracking: dto.inventoryTracking ?? undefined,
           managesStock: dto.managesStock ?? true,
           kind: dto.kind ?? undefined,
-          options: dto.options as unknown as Prisma.InputJsonValue,
-          variants: {
-            create: dto.variants.map((variant) => this.toVariantCreateInput(tenantId, variant)),
+            options: dto.options as unknown as Prisma.InputJsonValue,
+            variants: {
+              create: dto.variants.map((variant) => this.toVariantCreateInput(tenantId, variant)),
+            },
           },
-        },
-        include: PRODUCT_INCLUDE,
+          include: PRODUCT_INCLUDE,
+        });
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          const skus = dto.variants
-            .map((variant) => variant.sku?.trim())
-            .filter((sku): sku is string => Boolean(sku));
-          throw new ConflictException(
-            skus.length > 0
-              ? `SKU già presenti a catalogo: ${skus.join(', ')}`
-              : 'Uno o più codici (SKU/barcode) risultano già presenti a catalogo.',
-          );
+          throw await this.uniqueViolationToConflict(tenantId, error, dto);
         }
         throw error;
       });
@@ -427,12 +439,18 @@ export class ProductsService {
       });
     }
 
-    const created = await this.prisma.product.create({
-      data: {
-        tenantId,
-        catalogOrigin: CatalogOrigin.vestiflow,
-        shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
-        name: `${original.name} (copia)`,
+    // La copia e' un articolo nuovo: il codice articolo e' univoco per
+    // tenant, quindi riceve il prossimo progressivo (mai il codice
+    // dell'originale). Generazione + insert atomici nella transazione.
+    const created = await this.prisma.$transaction(async (tx) => {
+      const articleCode = await nextArticleCodeInTx(tx, tenantId);
+      return tx.product.create({
+        data: {
+          tenantId,
+          articleCode,
+          catalogOrigin: CatalogOrigin.vestiflow,
+          shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
+          name: `${original.name} (copia)`,
         description: original.description,
         brand: original.brand,
         category: original.category,
@@ -450,21 +468,22 @@ export class ProductsService {
         inventoryTracking: original.inventoryTracking,
         managesStock: original.managesStock,
         kind: original.kind,
-        options: original.options as Prisma.InputJsonValue,
-        variants: { create: variantsData },
-        images: {
-          create: original.images.map((image) => ({
-            tenantId,
-            url: image.url,
-            storagePath: image.storagePath,
-            altText: image.altText,
-            sortOrder: image.sortOrder,
-            // shopifyImageId non copiato: l'immagine Shopify appartiene al
-            // prodotto originale, la copia non è ancora sincronizzata.
-          })),
+          options: original.options as Prisma.InputJsonValue,
+          variants: { create: variantsData },
+          images: {
+            create: original.images.map((image) => ({
+              tenantId,
+              url: image.url,
+              storagePath: image.storagePath,
+              altText: image.altText,
+              sortOrder: image.sortOrder,
+              // shopifyImageId non copiato: l'immagine Shopify appartiene al
+              // prodotto originale, la copia non è ancora sincronizzata.
+            })),
+          },
         },
-      },
-      include: PRODUCT_INCLUDE,
+        include: PRODUCT_INCLUDE,
+      });
     });
 
     return this.getById(tenantId, created.id);
@@ -511,9 +530,25 @@ export class ProductsService {
         await this.syncVariants(tx, tenantId, id, dto.variants);
       }
 
+      // Codice articolo: undefined = non toccare; vuoto = bloccato (il campo
+      // e' obbligatorio, mai rigenerato in silenzio: la scelta e' esplicita
+      // dell'operatore, specifica §obbligatorio); valorizzato = normalizzato
+      // in maiuscolo, formato e unicita' verificati.
+      let articleCode: string | undefined;
+      if (dto.articleCode !== undefined) {
+        const normalized = normalizeArticleCode(dto.articleCode);
+        if (!normalized) {
+          throw new UnprocessableEntityException(ARTICLE_CODE_REQUIRED_MESSAGE);
+        }
+        assertValidArticleCodeFormat(normalized);
+        await assertArticleCodeAvailableInTx(tx, tenantId, normalized, id);
+        articleCode = normalized;
+      }
+
       return tx.product.update({
         where: { id },
         data: {
+          ...(articleCode !== undefined ? { articleCode } : {}),
           name: dto.name,
           description: normalizeProductDescription(dto.description),
           brand: dto.brand,
@@ -625,6 +660,31 @@ export class ProductsService {
     return { sku: normalized, available: existing === null };
   }
 
+  /**
+   * Verifica disponibilità codice articolo per la validazione live del form.
+   * Ritorna anche il nome dell'articolo che occupa il codice, per il
+   * messaggio "Codice articolo già utilizzato da [nome articolo]."
+   */
+  async checkArticleCodeAvailability(
+    tenantId: string,
+    articleCode: string,
+    excludeProductId?: string,
+  ): Promise<{ articleCode: string; available: boolean; takenBy: string | null }> {
+    const normalized = normalizeArticleCode(articleCode);
+    if (!normalized) {
+      return { articleCode: '', available: false, takenBy: null };
+    }
+    const existing = await this.prisma.product.findFirst({
+      where: {
+        tenantId,
+        articleCode: { equals: normalized, mode: 'insensitive' },
+        ...(excludeProductId ? { id: { not: excludeProductId } } : {}),
+      },
+      select: { name: true },
+    });
+    return { articleCode: normalized, available: existing === null, takenBy: existing?.name ?? null };
+  }
+
   /** Verifica disponibilità barcode per la validazione live del form. */
   async checkBarcodeAvailability(
     tenantId: string,
@@ -663,7 +723,7 @@ export class ProductsService {
       throw new NotFoundException('Variante non trovata');
     }
 
-    const variant = await this.prisma.productVariant.findFirst({
+    let variant = await this.prisma.productVariant.findFirst({
       where: {
         tenantId,
         OR: [
@@ -674,8 +734,26 @@ export class ProductsService {
       include: { product: { select: { id: true, name: true, managesStock: true } } },
     });
 
+    // Codice articolo come criterio di scan (specifica §DOVE VIENE USATO 4a),
+    // dopo SKU/barcode: identifica il prodotto, quindi risolve una variante
+    // solo se il prodotto ne ha una sola (altrimenti la scelta resta alla
+    // ricerca contestuale, che ora include il codice articolo).
     if (!variant) {
-      throw new NotFoundException('Variante non trovata per SKU o barcode');
+      const byArticleCode = await this.prisma.productVariant.findMany({
+        where: {
+          tenantId,
+          product: { articleCode: { equals: trimmed, mode: 'insensitive' } },
+        },
+        include: { product: { select: { id: true, name: true, managesStock: true } } },
+        take: 2,
+      });
+      if (byArticleCode.length === 1) {
+        variant = byArticleCode[0]!;
+      }
+    }
+
+    if (!variant) {
+      throw new NotFoundException('Variante non trovata per SKU, barcode o codice articolo');
     }
 
     return {
@@ -938,6 +1016,39 @@ export class ProductsService {
           .join(', ')}`,
       );
     }
+  }
+
+  /**
+   * P2002 in creazione: distingue il vincolo violato per un 409 con
+   * messaggio chiaro. Sul codice articolo recupera il nome dell'articolo
+   * proprietario (specifica: "Codice articolo già utilizzato da [nome]").
+   */
+  private async uniqueViolationToConflict(
+    tenantId: string,
+    error: Prisma.PrismaClientKnownRequestError,
+    dto: CreateProductDto,
+  ): Promise<ConflictException> {
+    const target = Array.isArray(error.meta?.target) ? (error.meta.target as string[]) : [];
+    const providedCode = normalizeArticleCode(dto.articleCode);
+    if (providedCode && target.some((field) => String(field).includes('article_code'))) {
+      const owner = await this.prisma.product.findFirst({
+        where: { tenantId, articleCode: { equals: providedCode, mode: 'insensitive' } },
+        select: { name: true },
+      });
+      return new ConflictException(
+        owner
+          ? articleCodeTakenMessage(owner.name)
+          : `Codice articolo già in uso: ${providedCode}`,
+      );
+    }
+    const skus = dto.variants
+      .map((variant) => variant.sku?.trim())
+      .filter((sku): sku is string => Boolean(sku));
+    return new ConflictException(
+      skus.length > 0
+        ? `SKU già presenti a catalogo: ${skus.join(', ')}`
+        : 'Uno o più codici (SKU/barcode) risultano già presenti a catalogo.',
+    );
   }
 
   /** Un prodotto con prezzi in valute miste è quasi sempre un errore di input. */

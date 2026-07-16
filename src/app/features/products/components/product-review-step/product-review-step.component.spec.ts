@@ -10,6 +10,7 @@ import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '../../models/product-form.m
 import { generateVariantDrafts } from '../../models/product-form.mapper';
 
 const GENERAL: ProductGeneralDraft = {
+  articleCode: '00042',
   name: 'Giacca invernale',
   description: 'Descrizione breve',
   brand: 'North Brand',

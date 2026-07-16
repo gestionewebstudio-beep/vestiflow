@@ -15,6 +15,8 @@ export interface InventoryLevelRow {
   readonly variantId: EntityId;
   readonly locationId: EntityId;
   readonly sku: string;
+  /** Codice articolo del prodotto (colonna selezionabile §Codice articolo). */
+  readonly articleCode: string;
   /** Display completo prodotto + variante. */
   readonly title: string;
   readonly locationName: string;
@@ -31,6 +33,8 @@ export interface StockMovementRow {
   readonly id: EntityId;
   readonly type: StockMovementType;
   readonly sku: string;
+  /** Codice articolo del prodotto (colonna selezionabile §Codice articolo). */
+  readonly articleCode: string;
   /** Quantità con segno display (es. '+40', '−2', '6' per i trasferimenti). */
   readonly signedQuantity: string;
   /** 'Napoli' oppure 'Magazzino → Milano' per i trasferimenti. */

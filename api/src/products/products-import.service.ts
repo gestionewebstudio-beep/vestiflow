@@ -9,6 +9,7 @@ import { Prisma, CatalogOrigin, ShopifyCatalogLinkKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { resolveArticleCodeForCreateInTx } from './article-code.util';
 import type { CreateVariantDto } from './dto/create-product.dto';
 import {
   buildImportPreview,
@@ -27,12 +28,18 @@ export interface ImportProductsResult {
   readonly imported: number;
   readonly skipped: number;
   readonly failed: number;
+  /** Quanti codici articolo sono stati generati automaticamente (report §IMPORTAZIONI MASSIVE). */
+  readonly articleCodesGenerated: number;
   readonly products: readonly {
     readonly handle: string;
     readonly productId?: string;
     readonly name: string;
     readonly status: 'imported' | 'skipped' | 'failed';
     readonly message?: string;
+    /** Codice articolo assegnato al prodotto importato. */
+    readonly articleCode?: string;
+    /** true = progressivo generato automaticamente (assente nel file). */
+    readonly articleCodeGenerated?: boolean;
   }[];
 }
 
@@ -48,8 +55,9 @@ export class ProductsImportService {
   async previewCsv(tenantId: string, csvText: string): Promise<ImportPreviewResult> {
     const rows = this.parseCsvOrThrow(csvText);
     const existingSkus = await this.loadTenantSkus(tenantId);
+    const existingArticleCodes = await this.loadTenantArticleCodes(tenantId);
     const { handles, names } = await this.loadTenantProductDedupKeys(tenantId);
-    return buildImportPreview(rows, existingSkus, { handles, names });
+    return buildImportPreview(rows, existingSkus, { handles, names }, existingArticleCodes);
   }
 
   async importCsv(
@@ -59,7 +67,8 @@ export class ProductsImportService {
   ): Promise<ImportProductsResult> {
     const rows = this.parseCsvOrThrow(csvText);
     const existingSkus = await this.loadTenantSkus(tenantId);
-    const preview = buildImportPreview(rows, existingSkus);
+    const existingArticleCodes = await this.loadTenantArticleCodes(tenantId);
+    const preview = buildImportPreview(rows, existingSkus, undefined, existingArticleCodes);
     const handleFilter = options.handles?.length
       ? new Set(options.handles.map((handle) => handle.trim().toLowerCase()))
       : null;
@@ -77,6 +86,7 @@ export class ProductsImportService {
     let imported = 0;
     let skipped = 0;
     let failed = 0;
+    let articleCodesGenerated = 0;
 
     for (const product of preview.products) {
       if (handleFilter && !handleFilter.has(product.handle.toLowerCase())) {
@@ -116,11 +126,17 @@ export class ProductsImportService {
         }
         existingNames.add(nameKey);
         imported += 1;
+        const articleCodeGenerated = !product.dto.articleCode;
+        if (articleCodeGenerated) {
+          articleCodesGenerated += 1;
+        }
         results.push({
           handle: product.handle,
           productId: created.id,
           name: created.name,
           status: 'imported',
+          articleCode: created.articleCode,
+          articleCodeGenerated,
         });
       } catch (error: unknown) {
         failed += 1;
@@ -134,7 +150,7 @@ export class ProductsImportService {
       }
     }
 
-    return { imported, skipped, failed, products: results };
+    return { imported, skipped, failed, articleCodesGenerated, products: results };
   }
 
   private parseCsvOrThrow(csvText: string) {
@@ -156,6 +172,15 @@ export class ProductsImportService {
     return new Set(
       rows.map((row) => row.sku).filter((sku): sku is string => Boolean(sku)).map((sku) => sku.toLowerCase()),
     );
+  }
+
+  /** Codici articolo del tenant (lowercase) per il rilevamento conflitti in preview/import. */
+  private async loadTenantArticleCodes(tenantId: string): Promise<Set<string>> {
+    const rows = await this.prisma.product.findMany({
+      where: { tenantId },
+      select: { articleCode: true },
+    });
+    return new Set(rows.map((row) => row.articleCode.toLowerCase()));
   }
 
   private async loadTenantBarcodes(tenantId: string): Promise<Set<string>> {
@@ -206,39 +231,50 @@ export class ProductsImportService {
     );
 
     const importHandle = parsed.handle.trim() || null;
-    const created = await this.prisma.product.create({
-      data: {
+    // Regola generale §IMPORTAZIONI MASSIVE: codice fornito -> usato (unicita'
+    // riverificata in transazione: un conflitto blocca SOLO questa riga, con
+    // messaggio chiaro nel report); assente -> progressivo generato.
+    const created = await this.prisma.$transaction(async (tx) => {
+      const articleCode = await resolveArticleCodeForCreateInTx(
+        tx,
         tenantId,
-        catalogOrigin: CatalogOrigin.vestiflow,
-        shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
-        importHandle,
-        name: parsed.dto.name,
-        description: normalizeProductDescription(parsed.dto.description),
-        brand: parsed.dto.brand,
-        category: parsed.dto.category,
-        season: parsed.dto.season,
-        tags: parsed.dto.tags ?? [],
-        seoTitle: parsed.seoTitle,
-        seoDescription: parsed.seoDescription,
-        status: parsed.dto.status,
-        options: parsed.dto.options as unknown as Prisma.InputJsonValue,
-        variants: {
-          create: variantInputs,
+        parsed.dto.articleCode,
+      );
+      return tx.product.create({
+        data: {
+          tenantId,
+          articleCode,
+          catalogOrigin: CatalogOrigin.vestiflow,
+          shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
+          importHandle,
+          name: parsed.dto.name,
+          description: normalizeProductDescription(parsed.dto.description),
+          brand: parsed.dto.brand,
+          category: parsed.dto.category,
+          season: parsed.dto.season,
+          tags: parsed.dto.tags ?? [],
+          seoTitle: parsed.seoTitle,
+          seoDescription: parsed.seoDescription,
+          status: parsed.dto.status,
+          options: parsed.dto.options as unknown as Prisma.InputJsonValue,
+          variants: {
+            create: variantInputs,
+          },
+          ...(parsed.images.length > 0
+            ? {
+                images: {
+                  create: parsed.images.map((image) => ({
+                    tenantId,
+                    url: image.url,
+                    altText: image.altText,
+                    sortOrder: image.sortOrder,
+                  })),
+                },
+              }
+            : {}),
         },
-        ...(parsed.images.length > 0
-          ? {
-              images: {
-                create: parsed.images.map((image) => ({
-                  tenantId,
-                  url: image.url,
-                  altText: image.altText,
-                  sortOrder: image.sortOrder,
-                })),
-              },
-            }
-          : {}),
-      },
-      include: { variants: true, images: { orderBy: { sortOrder: 'asc' } } },
+        include: { variants: true, images: { orderBy: { sortOrder: 'asc' } } },
+      });
     });
 
     for (const barcode of usedBarcodes) {

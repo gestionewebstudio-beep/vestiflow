@@ -8,8 +8,14 @@ import {
 import { minorToShopifyDecimal } from '../../shopify/shopify-money.util';
 import { slugFromTitle } from './shopify-csv.parse';
 
-/** Colonne minime compatibili con import VestiFlow / export Shopify. */
+/**
+ * Colonne minime compatibili con import VestiFlow / export Shopify.
+ * "Codice articolo" è una colonna SOLO VestiFlow (mai mappata su campi
+ * Shopify: gli import Shopify ignorano le colonne sconosciute); serve al
+ * round-trip export→import senza perdere l'identificatore anagrafico.
+ */
 export const SHOPIFY_PRODUCT_EXPORT_HEADERS = [
+  'Codice articolo',
   'Handle',
   'Title',
   'Body (HTML)',
@@ -124,6 +130,7 @@ function buildProductRow(
 
   row.Handle = handle;
   if (includeProductFields) {
+    row['Codice articolo'] = product.articleCode;
     row.Title = product.name;
     row['Body (HTML)'] = toBodyHtml(product.description);
     row.Vendor = product.brand?.trim() ?? '';

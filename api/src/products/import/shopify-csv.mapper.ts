@@ -3,6 +3,7 @@ import { ProductStatus } from '@prisma/client';
 import { normalizeProductDescription } from '../../shopify/shopify-html.util';
 import { shopifyDecimalToMinor } from '../../shopify/shopify-money.util';
 import { parseShopifyTags } from '../../shopify/shopify-product-metadata.util';
+import { ARTICLE_CODE_FORMAT_MESSAGE, isValidArticleCodeFormat } from '../article-code.util';
 import type { CreateProductDto, CreateVariantDto } from '../dto/create-product.dto';
 import { groupShopifyCsvRows, type ShopifyCsvRow } from './shopify-csv.parse';
 
@@ -60,12 +61,22 @@ export function buildImportPreview(
   rows: readonly ShopifyCsvRow[],
   existingSkus: ReadonlySet<string>,
   existingCatalog: ExistingCatalogKeys = EMPTY_CATALOG_KEYS,
+  existingArticleCodes: ReadonlySet<string> = new Set<string>(),
 ): ImportPreviewResult {
   const groups = groupShopifyCsvRows(rows);
   const products: ParsedImportProduct[] = [];
+  // Codici articolo dichiarati nel file: un duplicato nel file stesso blocca
+  // la seconda riga (stesso principio dell'unicita' a catalogo).
+  const seenArticleCodes = new Set<string>();
 
   for (const [handle, groupRows] of groups.entries()) {
-    const product = mapGroupToImportProduct(handle, groupRows, existingSkus);
+    const product = mapGroupToImportProduct(
+      handle,
+      groupRows,
+      existingSkus,
+      existingArticleCodes,
+      seenArticleCodes,
+    );
     products.push({ ...product, alreadyImported: isAlreadyImported(product, existingCatalog) });
   }
 
@@ -105,6 +116,8 @@ function mapGroupToImportProduct(
   handle: string,
   rows: readonly ShopifyCsvRow[],
   existingSkus: ReadonlySet<string>,
+  existingArticleCodes: ReadonlySet<string>,
+  seenArticleCodes: Set<string>,
 ): Omit<ParsedImportProduct, 'alreadyImported'> {
   const issues: ImportIssue[] = [];
   const rowNumbers = rows.map((row) => row.rowNumber);
@@ -141,7 +154,20 @@ function mapGroupToImportProduct(
     });
   }
 
+  // Codice articolo (colonna opzionale, regola generale §IMPORTAZIONI
+  // MASSIVE): presente e valido -> usato; assente -> generato all'import;
+  // gia' in uso o duplicato nel file -> riga bloccata con errore chiaro,
+  // le altre righe proseguono.
+  const articleCode = resolveGroupArticleCode(
+    rows,
+    parent.rowNumber,
+    existingArticleCodes,
+    seenArticleCodes,
+    issues,
+  );
+
   const dto: CreateProductDto = {
+    ...(articleCode ? { articleCode } : {}),
     name,
     description: normalizeProductDescription(parent.bodyHtml) ?? undefined,
     brand: firstNonEmpty(rows.map((row) => row.vendor)) ?? undefined,
@@ -161,6 +187,53 @@ function mapGroupToImportProduct(
     issues,
     rowNumbers,
   };
+}
+
+/**
+ * Codice articolo del gruppo: prima colonna valorizzata, normalizzata in
+ * MAIUSCOLO. Formato non valido, conflitto con il catalogo o duplicato nel
+ * file producono un issue `error` (la riga viene saltata all'import, il
+ * resto del file prosegue) e il codice viene scartato.
+ */
+function resolveGroupArticleCode(
+  rows: readonly ShopifyCsvRow[],
+  parentRowNumber: number,
+  existingArticleCodes: ReadonlySet<string>,
+  seenArticleCodes: Set<string>,
+  issues: ImportIssue[],
+): string | undefined {
+  const raw = firstNonEmpty(rows.map((row) => row.articleCode));
+  if (!raw) {
+    return undefined;
+  }
+  const normalized = raw.toUpperCase();
+  if (!isValidArticleCodeFormat(normalized)) {
+    issues.push({
+      level: 'error',
+      message: `Codice articolo "${raw}" non valido. ${ARTICLE_CODE_FORMAT_MESSAGE}`,
+      rowNumber: parentRowNumber,
+    });
+    return undefined;
+  }
+  const key = normalized.toLowerCase();
+  if (existingArticleCodes.has(key)) {
+    issues.push({
+      level: 'error',
+      message: `Codice articolo ${normalized} già in uso.`,
+      rowNumber: parentRowNumber,
+    });
+    return undefined;
+  }
+  if (seenArticleCodes.has(key)) {
+    issues.push({
+      level: 'error',
+      message: `Codice articolo ${normalized} duplicato nel file.`,
+      rowNumber: parentRowNumber,
+    });
+    return undefined;
+  }
+  seenArticleCodes.add(key);
+  return normalized;
 }
 
 function buildOptions(

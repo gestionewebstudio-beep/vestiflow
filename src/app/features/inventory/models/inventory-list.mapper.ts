@@ -7,6 +7,8 @@ import { variantTitle } from '@features/products/models/product-variant.util';
 export interface InventoryLevelListItem extends InventoryLevel {
   readonly displaySku: string;
   readonly displayTitle: string;
+  /** Codice articolo del prodotto (colonna selezionabile §Codice articolo). */
+  readonly articleCode: string;
   readonly locationName?: string;
 }
 
@@ -25,6 +27,7 @@ export function mapInventoryLevelListItem(row: InventoryLevelApiRow): InventoryL
     ...level,
     displaySku: row.variant?.sku ?? level.variantId,
     displayTitle: title,
+    articleCode: row.variant?.product.articleCode ?? '',
     locationName: row.location?.name,
   };
 }

@@ -7,6 +7,9 @@ import { TableViewPresetId as PresetId } from '@shared/table-columns/table-colum
 
 export const PRODUCT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'select', label: 'Selezione', defaultVisible: true },
+  // Identificatore anagrafico interno (§Codice articolo): colonna disponibile
+  // nella selezione colonne, non mostrata di default.
+  { id: 'articleCode', label: 'Codice articolo', defaultVisible: false },
   { id: 'name', label: 'Nome', pinnable: true, defaultVisible: true },
   { id: 'brand', label: 'Brand', defaultVisible: true },
   { id: 'category', label: 'Categoria', defaultVisible: true },

@@ -8,6 +8,7 @@ import { toProductLabelViewModels } from './product-label.mapper';
 const product = {
   id: 'prod-1',
   tenantId: 'tenant-1',
+  articleCode: '00001',
   name: 'Maglietta Basic',
   brand: 'Brand X',
   status: ProductStatus.Active,

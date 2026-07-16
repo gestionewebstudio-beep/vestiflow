@@ -38,6 +38,15 @@
                   </span>
                 </td>
               }
+              @case ('articleCode') {
+                <td
+                  class="movement-table__sku tabular-nums"
+                  [class.movement-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ row.articleCode || '—' }}
+                </td>
+              }
               @case ('sku') {
                 <td
                   class="movement-table__sku tabular-nums"

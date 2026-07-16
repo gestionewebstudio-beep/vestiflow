@@ -377,7 +377,7 @@ export class TenantBackupImportService {
         await tx.customer.createMany({ data });
         return;
       case 'products':
-        await tx.product.createMany({ data });
+        await tx.product.createMany({ data: withBackfilledArticleCodes(data) });
         return;
       case 'productVariants':
         await tx.productVariant.createMany({ data });
@@ -546,4 +546,38 @@ export class TenantBackupImportService {
     if (lower.endsWith('.xml')) return 'application/xml';
     return 'application/octet-stream';
   }
+}
+
+/**
+ * Compatibilità backup pre-migrazione "Codice articolo": i pacchetti creati
+ * prima dell'introduzione del campo non hanno `articleCode` (oggi NOT NULL).
+ * Stessa regola della migrazione: progressivo per data di creazione, senza
+ * toccare i codici presenti nel backup. Il purge del tenant è già avvenuto,
+ * quindi i soli codici da evitare sono quelli dichiarati nel backup stesso.
+ */
+function withBackfilledArticleCodes(rows: Record<string, unknown>[]): never[] {
+  const usedCodes = new Set<string>();
+  for (const row of rows) {
+    const code = typeof row['articleCode'] === 'string' ? row['articleCode'].trim() : '';
+    if (code) {
+      usedCodes.add(code.toLowerCase());
+    }
+  }
+
+  const missing = rows
+    .filter((row) => !(typeof row['articleCode'] === 'string' && row['articleCode'].trim()))
+    .sort((a, b) => String(a['createdAt'] ?? '').localeCompare(String(b['createdAt'] ?? '')));
+
+  let sequence = 0;
+  for (const row of missing) {
+    let candidate: string;
+    do {
+      sequence += 1;
+      candidate = String(sequence).padStart(5, '0');
+    } while (usedCodes.has(candidate));
+    usedCodes.add(candidate);
+    row['articleCode'] = candidate;
+  }
+
+  return rows as never[];
 }

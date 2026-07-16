@@ -19,6 +19,17 @@ import { UpdateVariantDto } from './update-variant.dto';
 
 /** Aggiornamento prodotto: dati generali + sync opzionale del set varianti. */
 export class UpdateProductDto {
+  /**
+   * Codice articolo interno (§Codice articolo): modificabile in qualsiasi
+   * momento ma MAI vuoto (undefined = non toccare; stringa vuota = 422
+   * "Il codice articolo è obbligatorio." dal service, che valida anche
+   * formato e unicita' con messaggi chiari).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  articleCode?: string;
+
   @IsOptional()
   @IsString()
   @MinLength(1)

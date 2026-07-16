@@ -7,6 +7,32 @@ import { DEFAULT_CURRENCY, isValidCompareAt, moneyFromMajor } from '@core/utils/
 /** SKU: alfanumerico con trattini, senza spazi, prima lettera/numero. */
 export const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
 
+/**
+ * Codice articolo (§Codice articolo): lettere, cifre, trattino, underscore,
+ * slash. Niente spazi o altri caratteri speciali.
+ */
+export const ARTICLE_CODE_PATTERN = /^[A-Za-z0-9/_-]+$/;
+
+export const ARTICLE_CODE_REQUIRED_MESSAGE = 'Il codice articolo è obbligatorio.';
+export const ARTICLE_CODE_FORMAT_MESSAGE =
+  'Il codice articolo può contenere solo lettere, numeri, trattino (-), underscore (_) e slash (/), senza spazi.';
+
+/** Normalizza il codice articolo (trim + MAIUSCOLO, coerenza visiva §case-insensitive). */
+export function normalizeArticleCode(code: string): string {
+  return code.trim().toUpperCase();
+}
+
+/**
+ * Verifica formale del codice articolo (non l'unicita'). Una stringa vuota
+ * e' formalmente valida qui: l'obbligatorieta' (solo in modifica: in
+ * creazione vuoto = progressivo generato dal backend) e' una regola del
+ * form, non del formato.
+ */
+export function isValidArticleCodeFormat(code: string): boolean {
+  const trimmed = code.trim();
+  return trimmed.length === 0 || ARTICLE_CODE_PATTERN.test(trimmed);
+}
+
 /** Normalizza lo SKU per i confronti di unicita' (trim + maiuscolo). */
 export function normalizeSku(sku: string): string {
   return sku.trim().toUpperCase();

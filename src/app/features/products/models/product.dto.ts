@@ -43,6 +43,12 @@ export interface CreateProductVariantDto {
  * backend dal token (multi-tenant lato server, regole-sicurezza).
  */
 export interface CreateProductDto {
+  /**
+   * Codice articolo (identificatore anagrafico interno, §Codice articolo):
+   * facoltativo alla creazione — se assente il backend genera il progressivo
+   * numerico (00001, 00002...). Mai mappato su campi Shopify.
+   */
+  readonly articleCode?: string;
   readonly name: string;
   readonly description?: string;
   readonly brand?: string;
@@ -70,6 +76,8 @@ export interface UpdateProductVariantDto extends CreateProductVariantDto {
 
 /** Payload di modifica prodotto: patch parziale dei campi generali + set varianti. */
 export interface UpdateProductDto {
+  /** Codice articolo: undefined = non toccare; mai stringa vuota (campo obbligatorio). */
+  readonly articleCode?: string;
   readonly name?: string;
   readonly description?: string;
   readonly brand?: string;
@@ -102,6 +110,14 @@ export interface SkuAvailabilityResult {
   readonly available: boolean;
   /** SKU gia' in uso (normalizzati). Vuoto se tutti disponibili. */
   readonly taken: readonly string[];
+}
+
+/** Esito del controllo di disponibilita' codice articolo (unicita' per tenant). */
+export interface ArticleCodeAvailabilityResult {
+  readonly articleCode: string;
+  readonly available: boolean;
+  /** Nome dell'articolo che occupa il codice ("già utilizzato da [nome]"). */
+  readonly takenBy: string | null;
 }
 
 /** Lookup variante per SKU o barcode esatto (magazzino / PWA). */

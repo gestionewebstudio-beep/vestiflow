@@ -175,6 +175,7 @@ export function productFormDraftFromEmbeddedPrefill(
 export function emptyProductFormDraft(): ProductFormDraft {
   return {
     general: {
+      articleCode: '',
       name: '',
       description: '',
       brand: '',
@@ -254,6 +255,10 @@ function generalToDto(
   general: ProductGeneralDraft,
 ): Omit<CreateProductDto, 'options' | 'variants'> {
   return {
+    // Vuoto -> undefined: in creazione il backend genera il progressivo; in
+    // modifica il form blocca il salvataggio prima di arrivare qui (campo
+    // obbligatorio). Normalizzato in maiuscolo per coerenza visiva.
+    articleCode: general.articleCode.trim().toUpperCase() || undefined,
     name: general.name.trim(),
     description: trimmedOrUndefined(general.description),
     brand: trimmedOrUndefined(general.brand),
@@ -328,6 +333,7 @@ export function productToFormDraft(
   variants: readonly ProductVariant[],
 ): ProductFormDraft {
   const general: ProductGeneralDraft = {
+    articleCode: product.articleCode,
     name: product.name,
     description: product.description ?? '',
     brand: product.brand ?? '',

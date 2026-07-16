@@ -28,6 +28,15 @@
                 {{ row.title }}
               </td>
             }
+            @case ('articleCode') {
+              <td
+                class="level-table__sku tabular-nums"
+                [class.level-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.articleCode || '—' }}
+              </td>
+            }
             @case ('sku') {
               <td
                 class="level-table__sku tabular-nums"

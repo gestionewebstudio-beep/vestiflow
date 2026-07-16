@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { nextArticleCodeInTx } from '../products/article-code.util';
 import {
   resolveCatalogOriginForShopifyImport,
   resolveShopifyCatalogLinkKindForImport,
@@ -279,8 +280,13 @@ export class ShopifyProductPullService {
     if (!existing) {
       const reservedSkus = await this.loadTenantSkus(tenantId);
       await this.prisma.$transaction(async (tx) => {
+        // Codice articolo: proprietà interna VestiFlow, mai mappata su campi
+        // Shopify. Generato SOLO alla prima sincronizzazione (prodotto non
+        // ancora in VestiFlow); gli update successivi non lo toccano perché
+        // non compare nell'allowlist `productData` (stesso pattern di `kind`).
+        const articleCode = await nextArticleCodeInTx(tx, tenantId);
         const product = await tx.product.create({
-          data: { tenantId, ...productData },
+          data: { tenantId, articleCode, ...productData },
         });
 
         for (const variant of remote.variants) {

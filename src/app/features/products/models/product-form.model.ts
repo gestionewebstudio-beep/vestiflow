@@ -13,6 +13,11 @@ export const OPTION_NAME_COLOR = 'Colore';
 
 /** Dati generali del prodotto nel wizard. */
 export interface ProductGeneralDraft {
+  /**
+   * Codice articolo (§Codice articolo): in creazione può restare vuoto
+   * (il backend genera il progressivo); in modifica è obbligatorio.
+   */
+  readonly articleCode: string;
   readonly name: string;
   readonly description: string;
   readonly brand: string;

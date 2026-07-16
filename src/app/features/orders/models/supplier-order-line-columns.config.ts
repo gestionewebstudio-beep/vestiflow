@@ -8,6 +8,15 @@ import { TableViewPresetId as PresetId } from '@shared/table-columns/table-colum
 export const SUPPLIER_ORDER_LINES_VIEW = TableViewId.SupplierOrderLines;
 
 export const SUPPLIER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
+  // Identificatore anagrafico interno (§Codice articolo): colonna
+  // selezionabile, non mostrata di default.
+  {
+    id: 'articleCode',
+    label: 'Codice articolo',
+    defaultVisible: false,
+    defaultWidthPx: 96,
+    minWidthPx: 64,
+  },
   { id: 'variant', label: 'Articolo / SKU', defaultWidthPx: 220, minWidthPx: 140 },
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 72, minWidthPx: 56 },
   { id: 'unitCost', label: 'Costo', numeric: true, defaultWidthPx: 88, minWidthPx: 72 },

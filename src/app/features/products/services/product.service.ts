@@ -19,6 +19,7 @@ import type { Product } from '@core/models/product.model';
 
 import type { VariantSummary } from '../models/variant-summary.model';
 import type {
+  ArticleCodeAvailabilityResult,
   BarcodeAvailabilityResult,
   CreateProductDto,
   GenerateSkuRequestDto,
@@ -59,6 +60,7 @@ interface VariantSummaryApiRow {
   readonly variantId: EntityId;
   readonly productId: EntityId;
   readonly sku: string;
+  readonly articleCode?: string | null;
   readonly productName: string;
   readonly title: string;
   readonly barcode?: string | null;
@@ -237,6 +239,30 @@ export class ProductService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /**
+   * Disponibilità codice articolo (unicita' per tenant, case-insensitive).
+   * `takenBy` = nome dell'articolo che occupa il codice, per il messaggio
+   * "Codice articolo già utilizzato da [nome articolo]."
+   */
+  checkArticleCodeAvailability(
+    articleCode: string,
+    excludeProductId?: EntityId,
+  ): Observable<ArticleCodeAvailabilityResult> {
+    const normalized = articleCode.trim();
+    if (!normalized) {
+      return of({ articleCode: '', available: true, takenBy: null });
+    }
+    let params = new HttpParams().set('articleCode', normalized);
+    if (excludeProductId) {
+      params = params.set('excludeProductId', excludeProductId);
+    }
+    return this.http
+      .get<ArticleCodeAvailabilityResult>(this.url('/products/article-code-availability'), {
+        params,
+      })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   checkBarcodeAvailability(
     barcodes: readonly string[],
     excludeProductId?: EntityId,
@@ -392,6 +418,7 @@ export class ProductService {
       variantId: row.variantId,
       productId: row.productId,
       sku: row.sku,
+      articleCode: row.articleCode ?? '',
       productName: row.productName,
       title: row.title,
       barcode: row.barcode ?? undefined,

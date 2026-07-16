@@ -87,6 +87,8 @@
             [shopifyConnected]="shopifyConnected()"
             [catalogReadOnly]="shopifyCatalogLocked()"
             [compactLayout]="mode() === 'create'"
+            [editMode]="mode() === 'edit'"
+            [articleCodeTakenBy]="articleCodeTakenBy()"
             (valueChange)="onGeneralChange($event)"
           />
           @if (isQuickCreate() && quickVariant(); as variant) {

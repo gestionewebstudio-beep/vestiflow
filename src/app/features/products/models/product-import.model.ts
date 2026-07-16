@@ -34,11 +34,17 @@ export interface ProductImportResultItem {
   readonly name: string;
   readonly status: 'imported' | 'skipped' | 'failed';
   readonly message?: string;
+  /** Codice articolo assegnato al prodotto importato (§IMPORTAZIONI MASSIVE). */
+  readonly articleCode?: string;
+  /** true = progressivo generato automaticamente (assente nel file). */
+  readonly articleCodeGenerated?: boolean;
 }
 
 export interface ProductImportResult {
   readonly imported: number;
   readonly skipped: number;
   readonly failed: number;
+  /** Quanti codici articolo sono stati generati automaticamente. */
+  readonly articleCodesGenerated: number;
   readonly products: readonly ProductImportResultItem[];
 }

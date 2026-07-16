@@ -304,6 +304,7 @@ export class StockMovementsComponent {
         id: movement.id,
         type: movement.type,
         sku: movement.sku,
+        articleCode: movement.articleCode ?? '',
         signedQuantity: this.signedQuantity(movement),
         locationLabel:
           movement.type === StockMovementType.Transfer && movement.targetLocationId

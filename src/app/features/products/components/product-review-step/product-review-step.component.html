@@ -7,6 +7,10 @@
     <h2 id="review-general-title" class="review-step__section-title">Dati generali</h2>
     <dl class="review-step__list">
       <div class="review-step__row">
+        <dt>Codice articolo</dt>
+        <dd>{{ general().articleCode || 'Generato automaticamente' }}</dd>
+      </div>
+      <div class="review-step__row">
         <dt>Nome</dt>
         <dd>{{ general().name || '—' }}</dd>
       </div>

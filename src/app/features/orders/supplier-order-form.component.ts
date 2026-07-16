@@ -319,6 +319,18 @@ export class SupplierOrderFormComponent {
     this.columnPreferences.setColumnWidth(SUPPLIER_ORDER_LINES_VIEW, columnId, widthPx);
   }
 
+  /** Codice articolo del prodotto collegato alla riga (colonna §Codice articolo). */
+  protected lineArticleCode(index: number): string {
+    const variantId = this.lines.at(index)?.controls.variantId.value;
+    if (!variantId) {
+      return '—';
+    }
+    const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
+      (row) => row.variantId === variantId,
+    );
+    return summary?.articleCode || '—';
+  }
+
   protected lineMoney(index: number): Money {
     this.formValue();
     const line = this.lines.at(index);

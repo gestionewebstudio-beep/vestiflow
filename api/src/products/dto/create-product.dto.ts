@@ -83,6 +83,17 @@ export class CreateVariantDto {
 }
 
 export class CreateProductDto {
+  /**
+   * Codice articolo interno (§Codice articolo): identificatore anagrafico
+   * VestiFlow, mai sincronizzato con Shopify. Facoltativo alla creazione:
+   * se assente il backend genera il progressivo numerico (00001, 00002...).
+   * Formato e unicita' sono validati nel service con messaggi chiari.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  articleCode?: string;
+
   @IsString()
   @MinLength(1)
   @MaxLength(200)
