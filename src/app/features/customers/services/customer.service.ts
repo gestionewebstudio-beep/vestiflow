@@ -46,6 +46,18 @@ export class CustomerService {
     );
   }
 
+  /**
+   * Elenco completo dei clienti ATTIVI per le select inline (Ordine cliente),
+   * speculare a getSuppliers() dell'Arrivo merce: endpoint dedicato senza
+   * paginazione (la lista paginata ha pageSize massimo 100).
+   */
+  getAllCustomers(): Observable<readonly Customer[]> {
+    return this.http.get<CustomerApiRow[]>(this.url('/customers/all')).pipe(
+      timeout(HTTP_TIMEOUT_MS),
+      map((rows) => rows.map(mapCustomerApiRow)),
+    );
+  }
+
   getCustomerById(id: EntityId): Observable<Customer> {
     return this.http
       .get<CustomerApiRow>(this.url(`/customers/${id}`))

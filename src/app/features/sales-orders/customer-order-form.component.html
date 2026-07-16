@@ -101,6 +101,15 @@
               @if (fieldInvalid('customerId')) {
                 <p id="co-customer-error" class="gr-form__error">Seleziona un cliente.</p>
               }
+              <button type="button" class="gr-form__inline-toggle" (click)="toggleCustomerForm()">
+                <i
+                  class="pi"
+                  [class.pi-plus]="!showCustomerForm()"
+                  [class.pi-minus]="showCustomerForm()"
+                  aria-hidden="true"
+                ></i>
+                {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
+              </button>
               @if (form.controls.customerId.value) {
                 <button type="button" class="gr-form__inline-toggle" (click)="openCustomerDetail()">
                   <i class="pi pi-external-link" aria-hidden="true"></i>
@@ -198,6 +207,30 @@
             </div>
           </div>
         </div>
+
+        @if (showCustomerForm()) {
+          <div class="gr-form__supplier-box">
+            <h2 class="gr-form__subtitle">Nuovo cliente</h2>
+            @if (customerFormError(); as formError) {
+              <p class="gr-form__submit-error" role="alert">{{ formError }}</p>
+            }
+            <app-customer-form-fields
+              idPrefix="co-new-customer"
+              [formGroup]="customerForm"
+              [paymentOptions]="paymentOptions()"
+            />
+            <div class="gr-form__supplier-actions">
+              <app-button
+                type="button"
+                [loading]="savingCustomer()"
+                [disabled]="savingCustomer()"
+                (click)="saveCustomer()"
+              >
+                Salva cliente
+              </app-button>
+            </div>
+          </div>
+        }
 
         @if (headerGateActive()) {
           <p class="gr-form__gate-banner" role="status">

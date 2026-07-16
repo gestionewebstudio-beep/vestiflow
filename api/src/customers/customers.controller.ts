@@ -40,6 +40,13 @@ export class CustomersController {
     private readonly customersExport: CustomersExportService,
   ) {}
 
+  /** Elenco completo (select inline Ordine cliente), speculare a suppliers/all. */
+  @Get('all')
+  @RequireAnyPermissions(CUSTOMERS_VIEW_PERMISSIONS)
+  listAll(@CurrentTenant() tenantId: string): Promise<CustomerView[]> {
+    return this.customers.listAll(tenantId);
+  }
+
   @Get()
   @RequireAnyPermissions(CUSTOMERS_VIEW_PERMISSIONS)
   list(

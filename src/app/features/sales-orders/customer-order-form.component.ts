@@ -54,7 +54,14 @@ import {
   moneyToDecimalString,
   parseMoneyInput,
 } from '@core/utils/money.util';
+import type { PaymentOption } from '@core/models/payment-option.model';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
+import { CustomerFormFieldsComponent } from '@features/customers/components/customer-form-fields/customer-form-fields.component';
 import { CustomerService } from '@features/customers/services/customer.service';
+import {
+  createCustomerFormGroup,
+  mapCustomerFormToInput,
+} from '@features/customers/utils/customer-form.util';
 import { GoodsReceiptLineCodeCellComponent } from '@features/documents/components/goods-receipt-line-code-cell/goods-receipt-line-code-cell.component';
 import { GoodsReceiptLineProductCellComponent } from '@features/documents/components/goods-receipt-line-product-cell/goods-receipt-line-product-cell.component';
 import { GoodsReceiptProductSearchPanelComponent } from '@features/documents/components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
@@ -97,8 +104,6 @@ import {
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
-const CUSTOMERS_PAGE_SIZE = 200;
-
 type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
@@ -138,6 +143,7 @@ interface AvailabilityIssue {
     TableColumnResizeDirective,
     TableSkeletonComponent,
     HoverTooltipComponent,
+    CustomerFormFieldsComponent,
     GoodsReceiptLineCodeCellComponent,
     GoodsReceiptLineProductCellComponent,
     GoodsReceiptProductSearchPanelComponent,
@@ -157,6 +163,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly productService = inject(ProductService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly vatCodeService = inject(VatCodeService);
+  private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
@@ -253,10 +260,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private suppressDirtyMarking = false;
 
   // ── Dati di contorno ────────────────────────────────────────────────────
+  // Elenco completo clienti attivi via endpoint dedicato /customers/all
+  // (stesso pattern del Fornitore in Arrivo merce: la lista paginata ha
+  // pageSize massimo 100 e non va usata per la combo). Il reload scatta
+  // dopo la creazione inline di un nuovo cliente.
+  private readonly customersReload = signal(0);
   private readonly customers = toSignal(
-    this.customerService.getCustomers({ active: true, pageSize: CUSTOMERS_PAGE_SIZE }).pipe(
-      map((response) => response.data),
-      catchError(() => of([] as readonly Customer[])),
+    toObservable(this.customersReload).pipe(
+      switchMap(() =>
+        this.customerService
+          .getAllCustomers()
+          .pipe(catchError(() => of([] as readonly Customer[]))),
+      ),
     ),
     { initialValue: [] as readonly Customer[] },
   );
@@ -273,6 +288,57 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     const id = this.form.controls.customerId.value;
     return id ? (this.customers().find((customer) => customer.id === id) ?? null) : null;
   });
+
+  // ── Nuovo cliente inline (stesso pattern del Nuovo fornitore in GR) ─────
+  protected readonly showCustomerForm = signal(false);
+  readonly customerForm = createCustomerFormGroup(this.fb);
+  protected readonly savingCustomer = signal(false);
+  protected readonly customerFormError = signal<string | null>(null);
+
+  /** Voci pagamento del tenant per il form nuovo cliente inline. */
+  protected readonly paymentOptions = toSignal(
+    this.paymentOptionsService.list().pipe(catchError(() => of([] as readonly PaymentOption[]))),
+    { initialValue: [] as readonly PaymentOption[] },
+  );
+
+  protected toggleCustomerForm(): void {
+    this.showCustomerForm.update((open) => !open);
+    this.customerFormError.set(null);
+  }
+
+  /** Crea il cliente manuale riusando la logica di /app/customers. */
+  protected saveCustomer(): void {
+    if (this.savingCustomer()) {
+      return;
+    }
+    this.customerForm.markAllAsTouched();
+    if (this.customerForm.hasError('identityRequired')) {
+      this.customerFormError.set('Indica la ragione sociale oppure nome e cognome del cliente.');
+      return;
+    }
+    if (this.customerForm.invalid) {
+      return;
+    }
+    this.savingCustomer.set(true);
+    this.customerFormError.set(null);
+    this.customerService
+      .createCustomer(mapCustomerFormToInput(this.customerForm.getRawValue()))
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (customer) => {
+          this.savingCustomer.set(false);
+          this.showCustomerForm.set(false);
+          this.customerForm.reset();
+          this.customersReload.update((tick) => tick + 1);
+          this.form.controls.customerId.setValue(customer.id);
+          this.markFormDirty();
+        },
+        error: (err: unknown) => {
+          this.savingCustomer.set(false);
+          this.customerFormError.set(this.toAppError(err).message);
+        },
+      });
+  }
 
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
     toLocationSelectOptions(

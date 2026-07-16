@@ -75,6 +75,20 @@ const SHOPIFY_OWNED_PARTY_FIELDS = [
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Elenco completo dei ruoli attivi (select inline Ordine cliente), speculare a suppliers/all. */
+  async listAll(tenantId: string): Promise<CustomerView[]> {
+    const rows = await this.prisma.customer.findMany({
+      where: { tenantId, isActive: true },
+      include: CUSTOMER_PARTY_INCLUDE,
+      orderBy: [
+        { party: { lastName: 'asc' } },
+        { party: { firstName: 'asc' } },
+        { party: { companyName: 'asc' } },
+      ],
+    });
+    return rows.map(toCustomerView);
+  }
+
   async list(tenantId: string, query: ListCustomersQueryDto): Promise<Paginated<CustomerView>> {
     const search = query.search?.trim();
     const where: Prisma.CustomerWhereInput = {

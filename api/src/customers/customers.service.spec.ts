@@ -76,6 +76,20 @@ describe('CustomersService', () => {
     };
   }
 
+  it('listAll restituisce i soli ruoli attivi senza paginazione (combo Ordine cliente)', async () => {
+    const prisma = createPrismaMock();
+    prisma.customer.findMany.mockResolvedValue([customerRow()]);
+    const service = new CustomersService(prisma as unknown as PrismaService);
+
+    const result = await service.listAll(tenantId);
+
+    expect(prisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId, isActive: true } }),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ id: 'cust-1', firstName: 'Mario', lastName: 'Rossi' });
+  });
+
   it('list pagina clienti con ricerca opzionale (vista appiattita dal soggetto)', async () => {
     const prisma = createPrismaMock();
     prisma.customer.findMany.mockResolvedValue([customerRow()]);
