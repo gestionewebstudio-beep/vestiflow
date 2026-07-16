@@ -138,6 +138,33 @@ describe('product-form.mapper', () => {
       });
     });
 
+    it('codice articolo: vuoto -> undefined (progressivo dal backend), valorizzato -> MAIUSCOLO', () => {
+      const empty = emptyProductFormDraft();
+      const draftWithout = {
+        ...empty,
+        general: { ...empty.general, name: 'Solo nome' },
+        variants: [
+          {
+            key: 'k1',
+            optionValues: [],
+            sku: '',
+            sellingPrice: 10,
+            purchasePrice: null,
+            compareAtPrice: null,
+            barcode: '',
+            included: true,
+          },
+        ],
+      };
+      expect(toCreateProductDto(draftWithout).articleCode).toBeUndefined();
+
+      const draftWith = {
+        ...draftWithout,
+        general: { ...draftWithout.general, articleCode: ' abc001 ' },
+      };
+      expect(toCreateProductDto(draftWith).articleCode).toBe('ABC001');
+    });
+
     it('SKU vuoto non viene inviato (undefined, mai stringa vuota): creazione senza SKU', () => {
       const draft = {
         ...emptyProductFormDraft(),
@@ -190,6 +217,8 @@ describe('product-form.mapper', () => {
       const draft = productToFormDraft(product, variants);
       const dto = toCreateProductDto(draft);
 
+      expect(draft.general.articleCode).toBe('00007');
+      expect(dto.articleCode).toBe('00007');
       expect(draft.general.name).toBe('Pantaloni');
       expect(draft.variants[0]?.sellingPrice).toBe(59.9);
       expect(dto.variants[0]?.sku).toBe('PANT-M');

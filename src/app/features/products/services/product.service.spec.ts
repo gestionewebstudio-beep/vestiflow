@@ -69,6 +69,33 @@ describe('ProductService (HTTP)', () => {
     expect(result.meta.total).toBe(1);
   });
 
+  it('checkArticleCodeAvailability interroga il server e riporta chi occupa il codice', async () => {
+    const promise = firstValueFrom(service.checkArticleCodeAvailability('abc001', 'prod-1'));
+
+    const req = httpMock.expectOne((request) =>
+      request.url.includes('/products/article-code-availability'),
+    );
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('articleCode')).toBe('abc001');
+    expect(req.request.params.get('excludeProductId')).toBe('prod-1');
+    req.flush({ articleCode: 'ABC001', available: false, takenBy: 'Maglia Basic' });
+
+    await expect(promise).resolves.toEqual({
+      articleCode: 'ABC001',
+      available: false,
+      takenBy: 'Maglia Basic',
+    });
+  });
+
+  it('checkArticleCodeAvailability con codice vuoto non chiama il server', async () => {
+    await expect(firstValueFrom(service.checkArticleCodeAvailability('   '))).resolves.toEqual({
+      articleCode: '',
+      available: true,
+      takenBy: null,
+    });
+    httpMock.expectNone((request) => request.url.includes('/products/article-code-availability'));
+  });
+
   it('checkSkuAvailability aggrega SKU non disponibili', async () => {
     const promise = firstValueFrom(service.checkSkuAvailability(['SKU-OK', 'SKU-BAD']));
 

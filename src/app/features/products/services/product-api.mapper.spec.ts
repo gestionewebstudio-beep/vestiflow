@@ -25,6 +25,14 @@ const baseDto: CreateProductDto = {
 
 describe('product-api.mapper', () => {
   describe('toCreateProductBody', () => {
+    it('codice articolo vuoto non inviato (il backend genera il progressivo)', () => {
+      expect(toCreateProductBody(baseDto)['articleCode']).toBeUndefined();
+      expect(toCreateProductBody({ ...baseDto, articleCode: '  ' })['articleCode']).toBeUndefined();
+      expect(toCreateProductBody({ ...baseDto, articleCode: 'ABC001' })['articleCode']).toBe(
+        'ABC001',
+      );
+    });
+
     it('serializza Money con campo currency per l API', () => {
       const body = toCreateProductBody(baseDto);
 
@@ -40,6 +48,13 @@ describe('product-api.mapper', () => {
   });
 
   describe('toUpdateProductBody', () => {
+    it('codice articolo: undefined = non toccare, valorizzato = inviato', () => {
+      expect(toUpdateProductBody({ ...baseDto })['articleCode']).toBeUndefined();
+      expect(toUpdateProductBody({ ...baseDto, articleCode: '00042' })['articleCode']).toBe(
+        '00042',
+      );
+    });
+
     it('include id variante nel payload PATCH', () => {
       const updateDto: UpdateProductDto = {
         ...baseDto,

@@ -6,8 +6,10 @@ import {
   findDuplicateBarcodes,
   findDuplicateSkus,
   isBarcodeDistinct,
+  isValidArticleCodeFormat,
   isValidAxisName,
   isValidSku,
+  normalizeArticleCode,
   normalizeBarcode,
   normalizeSku,
 } from './product-form.validators';
@@ -15,6 +17,31 @@ import {
 describe('normalizeSku', () => {
   it('applica trim e maiuscolo', () => {
     expect(normalizeSku('  ts-001-m ')).toBe('TS-001-M');
+  });
+});
+
+describe('normalizeArticleCode', () => {
+  it('applica trim e maiuscolo (§Codice articolo, case-insensitive)', () => {
+    expect(normalizeArticleCode('  abc001 ')).toBe('ABC001');
+    expect(normalizeArticleCode('')).toBe('');
+  });
+});
+
+describe('isValidArticleCodeFormat', () => {
+  it('accetta lettere, cifre, trattino, underscore e slash', () => {
+    expect(isValidArticleCodeFormat('ABC-001_X/2')).toBe(true);
+    expect(isValidArticleCodeFormat('00001')).toBe(true);
+  });
+
+  it('accetta il codice vuoto: obbligatorietà gestita dal form, non dal formato', () => {
+    expect(isValidArticleCodeFormat('')).toBe(true);
+    expect(isValidArticleCodeFormat('   ')).toBe(true);
+  });
+
+  it('rifiuta spazi e altri caratteri speciali', () => {
+    expect(isValidArticleCodeFormat('AB C')).toBe(false);
+    expect(isValidArticleCodeFormat('AB.C')).toBe(false);
+    expect(isValidArticleCodeFormat('AB#1')).toBe(false);
   });
 });
 
