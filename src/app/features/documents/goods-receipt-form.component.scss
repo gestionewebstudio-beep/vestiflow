@@ -7,6 +7,10 @@
   --gr-line-row-height: var(--field-height-inline);
 }
 
+// Le regole della banda footer sticky (totali orizzontali + barra azioni a
+// lg+) vivono in document-form-footer.shared.scss, secondo stylesheet del
+// componente: condivise con l'Ordine cliente e fuori dal budget di questo file.
+
 .gr-form {
   display: flex;
   flex-direction: column;
@@ -568,18 +572,14 @@
   text-decoration: line-through;
 }
 
-// Sezione inferiore su una sola banda (ottimizzazione righe/colonne): note e
-// commento a sinistra, riquadro totali a destra. Sotto lg tornano impilati
-// con i totali per primi (subito dopo la tabella righe, come prima):
-// `order: -1` porta le note in prima colonna senza grid-template-areas.
+// Sezione inferiore su una sola banda (P2): note a sinistra, totali
+// AFFIANCATI ORIZZONTALMENTE a destra (varianti lg+ nel foglio condiviso
+// document-form-footer.shared.scss). Sotto lg tornano impilati con i totali
+// per primi: `order: -1` porta le note in prima colonna.
 .gr-form__footer-grid {
   display: grid;
   gap: var(--space-2) var(--space-4);
   align-items: start;
-
-  @include bp.media-up('lg') {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
 }
 
 .gr-form__footer-notes {
@@ -591,8 +591,6 @@
   }
 }
 
-// Non piu' sticky: collideva col footer azioni sticky (entrambi in basso);
-// la tabella righe ha gia' uno scroll interno che tiene i totali a portata.
 .gr-form__totals-bar {
   display: flex;
   justify-content: flex-end;
@@ -882,6 +880,12 @@
   max-inline-size: 100%;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
+  // Tabella a larghezza piena (P1): il wrapper esce dal padding interno del
+  // card .gr-form__form e si fonde coi suoi bordi laterali — l'area di
+  // lavoro occupa tutta la larghezza disponibile del documento.
+  margin-inline: calc(-1 * var(--space-2) - var(--border-width));
+  border-inline: none;
+  border-radius: 0;
   flex: 1 1 auto;
   // Area di lavoro tipo foglio (mockup 1c): almeno ~8 righe visibili anche a
   // documento vuoto o quasi, cosi' inserimento e scansione hanno spazio;

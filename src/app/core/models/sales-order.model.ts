@@ -126,6 +126,8 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly notes?: string;
   /** Condizioni di pagamento (snapshot testo). */
   readonly paymentTerms?: string;
+  /** Sconto extra % sull'intero documento, dopo gli sconti riga. */
+  readonly documentDiscountPercent?: number;
 }
 
 /**

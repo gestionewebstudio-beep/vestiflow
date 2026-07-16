@@ -1,0 +1,101 @@
+@use 'breakpoints' as bp;
+
+// Banda footer condivisa dei form documento (Arrivo merce e Ordine cliente,
+// P2): a lg+ note a sinistra e totali AFFIANCATI ORIZZONTALMENTE a destra,
+// con il Totale finale in evidenza all'estrema destra. La banda è sticky in
+// fondo alla schermata, appena sopra la barra azioni (altezza fissa
+// --gr-actions-height): resta visibile durante lo scroll delle righe.
+// Secondo stylesheet dei componenti form: condiviso e fuori dal budget del
+// foglio principale dell'Arrivo merce.
+
+:host {
+  // Altezza della barra azioni su UNA riga a lg+: aggancio della banda totali.
+  --gr-actions-height: calc(var(--btn-min-height) + var(--space-2) * 2 + var(--border-width) * 2);
+}
+
+@include bp.media-up('lg') {
+  .gr-form__footer-grid {
+    position: sticky;
+    inset-block-end: calc(var(--gr-actions-height) + var(--space-2) * 2);
+    z-index: var(--z-sticky);
+    display: flex;
+    align-items: stretch;
+    padding: var(--space-2) var(--space-3);
+    background-color: color-mix(in srgb, var(--color-surface) 95%, transparent);
+    backdrop-filter: blur(12px);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+  }
+
+  .gr-form__footer-notes {
+    flex: 1 1 var(--space-24);
+    min-inline-size: 0;
+    align-content: start;
+    // Nella banda sticky i campi note si affiancano per contenere l'altezza
+    // (Arrivo merce ne ha due: note + commento interno; l'ordine cliente uno).
+    grid-template-columns: repeat(auto-fit, minmax(var(--space-24), 1fr));
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .gr-form__totals-bar {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    padding-block-start: 0;
+  }
+
+  // Totali orizzontali: ogni voce diventa coppia inline etichetta+valore;
+  // il Totale chiude la fila, separato da un bordo verticale. Il riepilogo
+  // IVA per Codice resta impilato sotto (leggibilità delle aliquote).
+  .gr-form__totals {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2) var(--space-4);
+    min-inline-size: 0;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .gr-form__totals-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    inline-size: auto;
+    max-inline-size: none;
+    margin-inline-start: 0;
+  }
+
+  .gr-form__totals-row--total {
+    order: 99;
+    margin-block-start: 0;
+    padding-block-start: 0;
+    border-block-start: none;
+    padding-inline-start: var(--space-4);
+    border-inline-start: var(--border-width) solid var(--color-border);
+  }
+
+  .gr-form__totals.gr-form__vat-summary {
+    flex-direction: column;
+    align-items: flex-end;
+    margin-block-start: var(--space-2);
+  }
+
+  .gr-form__vat-summary .gr-form__totals-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    inline-size: 100%;
+    max-inline-size: var(--content-narrow);
+    margin-inline-start: auto;
+  }
+
+  // Barra azioni su UNA riga ad altezza fissa: info di stato a sinistra,
+  // pulsanti a destra; la banda totali si appoggia sopra senza sovrapporsi.
+  .gr-form__actions {
+    flex-wrap: nowrap;
+    block-size: var(--gr-actions-height);
+  }
+}

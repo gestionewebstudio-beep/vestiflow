@@ -131,6 +131,8 @@
                   [searchable]="true"
                   searchPlaceholder="Cerca location…"
                   searchAriaLabel="Cerca location"
+                  [invalid]="fieldInvalid('locationId')"
+                  describedBy="co-location-error"
                   (valueChange)="onLocationSelect($event)"
                 />
               } @else {
@@ -138,6 +140,9 @@
                   Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
                   dell'account.
                 </p>
+              }
+              @if (fieldInvalid('locationId')) {
+                <p id="co-location-error" class="gr-form__error">Seleziona la location.</p>
               }
             </div>
 
@@ -235,7 +240,7 @@
         @if (headerGateActive()) {
           <p class="gr-form__gate-banner" role="status">
             <i class="pi pi-lock" aria-hidden="true"></i>
-            Seleziona il cliente per compilare le righe del documento.
+            Seleziona cliente e location per iniziare ad aggiungere righe.
           </p>
         }
 
@@ -728,6 +733,33 @@
               <dl class="gr-form__totals">
                 <div class="gr-form__totals-row">
                   <dt>Imponibile righe</dt>
+                  <dd class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</dd>
+                </div>
+                <div class="gr-form__totals-row gr-form__totals-row--field">
+                  <dt>
+                    <label for="co-doc-discount">Sconto extra documento</label>
+                  </dt>
+                  <dd>
+                    <input
+                      id="co-doc-discount"
+                      class="gr-form__input gr-form__input--num gr-form__totals-input"
+                      type="text"
+                      formControlName="documentDiscountPercent"
+                      placeholder="0%"
+                      aria-label="Sconto extra documento"
+                    />
+                  </dd>
+                </div>
+                @if (documentTotals().documentDiscount.amountMinor > 0) {
+                  <div class="gr-form__totals-row">
+                    <dt>Sconto documento</dt>
+                    <dd class="tabular-nums">
+                      −{{ formatMoney(documentTotals().documentDiscount) }}
+                    </dd>
+                  </div>
+                }
+                <div class="gr-form__totals-row">
+                  <dt>Imponibile</dt>
                   <dd class="tabular-nums">{{ formatMoney(documentTotals().subtotal) }}</dd>
                 </div>
                 <div class="gr-form__totals-row">

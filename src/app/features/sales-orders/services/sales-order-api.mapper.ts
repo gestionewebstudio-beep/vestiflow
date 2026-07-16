@@ -59,6 +59,7 @@ export interface SalesOrderApiRow {
   readonly expectedDeliveryDate?: IsoDateString | null;
   readonly notes?: string | null;
   readonly paymentTerms?: string | null;
+  readonly documentDiscountPercent?: number;
   readonly document?: {
     readonly id: EntityId;
     readonly reference?: string | null;
@@ -217,6 +218,7 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     expectedDeliveryDate: row.expectedDeliveryDate ?? undefined,
     notes: row.notes ?? undefined,
     paymentTerms: row.paymentTerms ?? undefined,
+    documentDiscountPercent: row.documentDiscountPercent ?? 0,
     linkedDocument: row.document
       ? {
           id: row.document.id,

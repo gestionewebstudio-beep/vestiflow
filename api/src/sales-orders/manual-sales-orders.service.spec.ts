@@ -132,10 +132,33 @@ describe('ManualSalesOrdersService.save', () => {
     prisma = createPrismaMock();
   });
 
-  it('rifiuta il salvataggio senza righe valide (o Confermato, o non esiste)', async () => {
+  it('salva la sola testata senza righe: totali a zero e nessun impegno', async () => {
+    const { service, reservations } = createService(prisma);
+
+    const result = await service.save(
+      tenantId,
+      { ...baseDto, lines: [{ title: 'X', quantity: 0 }] },
+      testOwnerUser(),
+    );
+
+    const createArgs = prisma.salesOrder.create.mock.calls[0]![0] as {
+      data: Record<string, unknown>;
+    };
+    expect(createArgs.data['subtotalMinor']).toBe(0);
+    expect(createArgs.data['totalMinor']).toBe(0);
+    // Confermato anche senza righe: il sync impegni gira a righe vuote
+    // (rilascia eventuali impegni precedenti, non ne crea).
+    expect(reservations.syncOrderReservationsTx).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ lines: [] }),
+    );
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('rifiuta il salvataggio senza location di origine (testata obbligatoria)', async () => {
     const { service } = createService(prisma);
     await expect(
-      service.save(tenantId, { ...baseDto, lines: [{ title: 'X', quantity: 0 }] }, testOwnerUser()),
+      service.save(tenantId, { ...baseDto, locationId: undefined }, testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 

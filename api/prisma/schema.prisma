@@ -1051,6 +1051,9 @@ model SalesOrder {
   notes             String?
   /// Condizioni di pagamento (snapshot testo, proposto dall'anagrafica cliente).
   paymentTerms      String?                     @map("payment_terms")
+  /// Sconto extra percentuale sull'intero documento, dopo gli sconti riga
+  /// (stesso pattern di Document.documentDiscountPercent in Arrivo merce).
+  documentDiscountPercent Int                   @default(0) @map("document_discount_percent")
   /// Annullamento comunicato dal canale (impegni rilasciati, ordine in storico).
   cancelledAt       DateTime?                   @map("cancelled_at")
   /// Evasione completa registrata dal canale (evento canonico fulfilled).

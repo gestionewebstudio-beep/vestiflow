@@ -126,12 +126,9 @@ export class ManualSalesOrdersService {
 
     // Righe con quantità 0 o senza prodotto non sono salvabili (regola già
     // stabilita per Arrivo merce, coerente qui): si scartano in silenzio.
+    // Un ordine può però esistere con la SOLA testata (cliente + location):
+    // le righe sono opzionali; gli impegni scattano quando arriveranno.
     const persistableLines = dto.lines.filter(isPersistableManualOrderLine);
-    if (persistableLines.length === 0) {
-      throw new UnprocessableEntityException(
-        'Un ordine cliente esiste solo se completo: serve almeno una riga valida (prodotto + quantità).',
-      );
-    }
 
     const customer = await this.prisma.customer.findFirst({
       where: { id: dto.customerId, tenantId },
@@ -141,17 +138,20 @@ export class ManualSalesOrdersService {
       throw new UnprocessableEntityException('Seleziona un cliente valido per salvare l\'ordine.');
     }
 
-    if (dto.locationId) {
-      const location = await this.prisma.location.findFirst({
-        where: { id: dto.locationId, tenantId },
-        select: { id: true },
-      });
-      if (!location) {
-        throw new UnprocessableEntityException('La location selezionata non esiste più.');
-      }
-      if (user) {
-        assertLocationInUserScope(user, dto.locationId, 'write');
-      }
+    if (!dto.locationId) {
+      throw new UnprocessableEntityException(
+        'Seleziona la location di origine per salvare l\'ordine.',
+      );
+    }
+    const location = await this.prisma.location.findFirst({
+      where: { id: dto.locationId, tenantId },
+      select: { id: true },
+    });
+    if (!location) {
+      throw new UnprocessableEntityException('La location selezionata non esiste più.');
+    }
+    if (user) {
+      assertLocationInUserScope(user, dto.locationId, 'write');
     }
 
     // Varianti collegate: validate per tenant; Tipo/gestione magazzino decide
@@ -204,8 +204,9 @@ export class ManualSalesOrdersService {
       }
     }
 
+    const documentDiscountPercent = dto.documentDiscountPercent ?? 0;
     const computedLines = computeManualOrderLines(persistableLines, vatCodesById);
-    const totals = computeManualOrderTotals(computedLines);
+    const totals = computeManualOrderTotals(computedLines, documentDiscountPercent);
 
     // Impegno effettivo: segue la spunta della riga, MA mai per prodotti che
     // non gestiscono magazzino (Servizi/non gestiti: niente Impegnata).
@@ -216,12 +217,6 @@ export class ManualSalesOrdersService {
       const variant = variantById.get(line.variantId);
       return variant?.product.managesStock !== false;
     };
-    const hasCommittingLines = computedLines.some(effectiveCommits);
-    if (status === 'confirmed' && hasCommittingLines && !dto.locationId) {
-      throw new UnprocessableEntityException(
-        'Seleziona il magazzino di origine: serve per impegnare le giacenze delle righe.',
-      );
-    }
 
     const customerName = partyDisplayName(customer.party) || 'Cliente';
     const documentDate = new Date(dto.documentDate);
@@ -287,6 +282,7 @@ export class ManualSalesOrdersService {
           : null,
         notes: dto.notes?.trim() || null,
         paymentTerms: dto.paymentTerms?.trim() || null,
+        documentDiscountPercent,
         placedAt: documentDate,
         subtotalMinor: totals.subtotalMinor,
         taxMinor: totals.taxMinor,
@@ -505,6 +501,9 @@ export class ManualSalesOrdersService {
           subtotalMinor: order.subtotalMinor,
           taxMinor: order.taxMinor,
           totalMinor: order.totalMinor,
+          // Lo sconto extra documento dell'ordine viaggia con lo scarico:
+          // i totali di testata restano coerenti con le righe precompilate.
+          documentDiscountPercent: order.documentDiscountPercent,
           createdById: user?.id ?? null,
           createdByName: actorName,
           lines: {

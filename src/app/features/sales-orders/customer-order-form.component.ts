@@ -46,6 +46,7 @@ import { VatCodeService } from '@core/services/vat-code.service';
 import {
   applyCascadeDiscountMinor,
   cascadeDiscountMultiplier,
+  parseEffectiveDiscountPercent,
 } from '@core/utils/discount-percent.util';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import {
@@ -149,10 +150,11 @@ interface AvailabilityIssue {
     GoodsReceiptProductSearchPanelComponent,
   ],
   templateUrl: './customer-order-form.component.html',
-  // Stile riusato dall'Arrivo merce (stesse classi gr-form__*), più le
-  // aggiunte specifiche dell'ordine cliente (riga rapida, cella ambra).
+  // Stile riusato dall'Arrivo merce (stesse classi gr-form__*), più la banda
+  // footer condivisa e le aggiunte specifiche (riga rapida, cella ambra).
   styleUrls: [
     '../documents/goods-receipt-form.component.scss',
+    '../documents/document-form-footer.shared.scss',
     './customer-order-form.component.scss',
   ],
 })
@@ -234,7 +236,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // ── Form ────────────────────────────────────────────────────────────────
   readonly form = this.fb.group({
     customerId: this.fb.control('', { validators: [Validators.required] }),
-    locationId: this.fb.control(''),
+    // Obbligatoria: la testata (cliente + location) è il minimo salvabile.
+    locationId: this.fb.control('', { validators: [Validators.required] }),
     documentDate: this.fb.control(toIsoDateLocal(new Date()), {
       validators: [Validators.required],
     }),
@@ -243,6 +246,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     status: this.fb.control<'confirmed' | 'cancelled'>('confirmed'),
     paymentTerms: this.fb.control(''),
     notes: this.fb.control(''),
+    // Sconto extra % sull'intero documento (stesso pattern Arrivo merce).
+    documentDiscountPercent: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
   });
 
@@ -416,13 +421,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly VariantSummary[] },
   );
 
-  // ── Gate: righe disabilitate finché non è selezionato un cliente ────────
+  // ── Gate: righe disabilitate finché mancano cliente E location (P5) ─────
   protected readonly headerGateActive = computed(() => {
     if (this.formReadOnly()) {
       return false;
     }
     this.formValue();
-    return !this.form.controls.customerId.value;
+    return !this.form.controls.customerId.value || !this.form.controls.locationId.value;
   });
 
   protected readonly formReadOnly = computed(() => this.isConcluded());
@@ -826,36 +831,71 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return { amountMinor: qty * this.lineUnitPriceMinor(line), currencyCode: this.currency };
   }
 
-  private lineVatMinor(index: number): number {
-    const line = this.lines.at(index);
-    const vatCode = this.vatCodeById().get(line.controls.vatCodeId.value);
-    if (!vatCode || vatCode.calculationMode !== 'standard') {
-      return 0;
-    }
-    const rate = Number(vatCode.ratePercent);
-    if (!Number.isFinite(rate) || rate <= 0) {
-      return 0;
-    }
-    return Math.round((this.lineTotalMoney(index).amountMinor * rate) / 100);
-  }
-
+  /**
+   * Totali documento con Sconto extra (P3): applicato DOPO gli sconti riga
+   * sull'imponibile complessivo; l'IVA viene ricalcolata sulla ripartizione
+   * proporzionale (stessa logica dell'Arrivo merce, client e server).
+   */
   protected readonly documentTotals = computed(() => {
     this.formValue();
-    let subtotal = 0;
-    let tax = 0;
+    let lineSum = 0;
+    const taxParts: { readonly netMinor: number; readonly vatRate: number }[] = [];
     this.lines.controls.forEach((line, index) => {
       if (this.lineIsEmpty(line)) {
         return;
       }
-      subtotal += this.lineTotalMoney(index).amountMinor;
-      tax += this.lineVatMinor(index);
+      const netMinor = this.lineTotalMoney(index).amountMinor;
+      lineSum += netMinor;
+      taxParts.push({ netMinor, vatRate: this.lineVatRate(index) });
     });
+
+    const docDiscountPercent = parseEffectiveDiscountPercent(
+      this.form.controls.documentDiscountPercent.value,
+    );
+    const docDiscountAmount = Math.round((lineSum * docDiscountPercent) / 100);
+    const discountedLineSum = lineSum - docDiscountAmount;
+
+    let tax: number;
+    if (docDiscountPercent === 0 || lineSum === 0) {
+      tax = taxParts.reduce(
+        (sum, part) => sum + Math.round((part.netMinor * part.vatRate) / 100),
+        0,
+      );
+    } else {
+      tax = taxParts.reduce((sum, part) => {
+        if (part.vatRate <= 0) {
+          return sum;
+        }
+        const share = part.netMinor / lineSum;
+        const discountedNet = Math.round(discountedLineSum * share);
+        return sum + Math.round((discountedNet * part.vatRate) / 100);
+      }, 0);
+    }
+
     return {
-      subtotal: { amountMinor: subtotal, currencyCode: this.currency } satisfies Money,
+      linesTotal: { amountMinor: lineSum, currencyCode: this.currency } satisfies Money,
+      documentDiscount: {
+        amountMinor: docDiscountAmount,
+        currencyCode: this.currency,
+      } satisfies Money,
+      subtotal: { amountMinor: discountedLineSum, currencyCode: this.currency } satisfies Money,
       tax: { amountMinor: tax, currencyCode: this.currency } satisfies Money,
-      total: { amountMinor: subtotal + tax, currencyCode: this.currency } satisfies Money,
+      total: {
+        amountMinor: discountedLineSum + tax,
+        currencyCode: this.currency,
+      } satisfies Money,
     };
   });
+
+  /** Aliquota effettiva della riga (solo modalità standard, 0 altrimenti). */
+  private lineVatRate(index: number): number {
+    const vatCode = this.vatCodeById().get(this.lines.at(index).controls.vatCodeId.value);
+    if (!vatCode || vatCode.calculationMode !== 'standard') {
+      return 0;
+    }
+    const rate = Number(vatCode.ratePercent);
+    return Number.isFinite(rate) && rate > 0 ? rate : 0;
+  }
 
   protected lineUnitOfMeasure(index: number): string {
     const summary = this.lineVariantSummary(index);
@@ -1314,7 +1354,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     }
   }
 
-  protected fieldInvalid(field: 'customerId'): boolean {
+  protected fieldInvalid(field: 'customerId' | 'locationId'): boolean {
     this.formValue();
     const control = this.form.controls[field];
     return control.invalid && control.touched;
@@ -1367,6 +1407,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         status: order.cancelledAt ? 'cancelled' : 'confirmed',
         paymentTerms: order.paymentTerms ?? '',
         notes: order.notes ?? '',
+        documentDiscountPercent: order.documentDiscountPercent
+          ? String(order.documentDiscountPercent)
+          : '',
       });
       this.lines.clear({ emitEvent: false });
       for (const line of order.lines) {
@@ -1404,13 +1447,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (this.saving() || this.formReadOnly()) {
       return;
     }
+    // Testata minima salvabile: cliente + location (righe opzionali, P6).
     this.form.controls.customerId.markAsTouched();
-    if (!this.form.controls.customerId.value) {
+    this.form.controls.locationId.markAsTouched();
+    if (!this.form.controls.customerId.value || !this.form.controls.locationId.value) {
       this._submitState.set({
         status: 'error',
         error: {
           kind: AppErrorKind.Validation,
-          message: "Seleziona un cliente per salvare l'ordine.",
+          message: "Seleziona cliente e location di origine per salvare l'ordine.",
         },
       });
       return;
@@ -1496,6 +1541,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       status: value.status,
       notes: value.notes.trim() || undefined,
       paymentTerms: value.paymentTerms.trim() || undefined,
+      documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
       lines,
     };
   }
@@ -1506,18 +1552,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   private saveDocument(onSaved?: () => void): void {
+    // Righe opzionali (P6): l'ordine si salva anche con la sola testata;
+    // gli impegni scatteranno al salvataggio successivo con righe.
     const payload = this.buildSavePayload();
-    if (payload.lines.length === 0) {
-      this._submitState.set({
-        status: 'error',
-        error: {
-          kind: AppErrorKind.Validation,
-          message:
-            'Un ordine esiste solo se completo: aggiungi almeno una riga con prodotto e quantità.',
-        },
-      });
-      return;
-    }
     this._submitState.set({ status: 'saving' });
     this.salesOrderService
       .saveManualOrder(payload)
@@ -1624,7 +1661,21 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     });
   }
 
+  /**
+   * "Chiudi" (P7): con modifiche non salvate la conferma appare SEMPRE,
+   * direttamente dal pulsante — senza affidarsi solo al guard di route
+   * (che resta attivo per back del browser e navigazioni esterne).
+   */
   protected cancel(): void {
+    if (this.dirtySinceLastSave() && !this.formReadOnly()) {
+      this.exitDialogOpen.set(true);
+      this.pendingDeactivate = (allow) => {
+        if (allow) {
+          void this.router.navigate([this.listPath]);
+        }
+      };
+      return;
+    }
     void this.router.navigate([this.listPath]);
   }
 

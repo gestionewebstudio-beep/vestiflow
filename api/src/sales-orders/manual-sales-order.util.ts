@@ -68,6 +68,9 @@ export interface ComputedManualOrderLine {
   readonly vatCodeId: string | null;
   readonly vatSnapshot: Prisma.InputJsonObject | null;
   readonly lineVatTotalMinor: number;
+  /** Aliquota effettiva (solo modalità standard, 0 altrimenti) per la
+   *  ripartizione dell'IVA con sconto extra documento. */
+  readonly vatRatePercent: number;
   readonly commitsStock: boolean;
   readonly unitOfMeasure: string | null;
 }
@@ -116,24 +119,48 @@ export function computeManualOrderLines(
       vatCodeId: vatCode?.id ?? null,
       vatSnapshot,
       lineVatTotalMinor,
+      vatRatePercent: rate,
       commitsStock: line.commitsStock ?? true,
       unitOfMeasure: line.unitOfMeasure?.trim() || null,
     };
   });
 }
 
-/** Totali documento: imponibile, IVA, totale e sconto complessivo applicato. */
+/**
+ * Totali documento: imponibile, IVA, totale e sconto complessivo applicato.
+ * Lo sconto extra documento si applica DOPO gli sconti riga sull'imponibile
+ * complessivo; l'IVA viene ricalcolata sulla ripartizione proporzionale
+ * (stessa logica di computeGoodsReceiptTotals dell'Arrivo merce).
+ */
 export function computeManualOrderTotals(
   lines: readonly ComputedManualOrderLine[],
+  documentDiscountPercent = 0,
 ): ManualOrderTotals {
-  let subtotalMinor = 0;
-  let taxMinor = 0;
+  let lineSumMinor = 0;
   let grossMinor = 0;
   for (const line of lines) {
-    subtotalMinor += line.totalMinor;
-    taxMinor += line.lineVatTotalMinor;
+    lineSumMinor += line.totalMinor;
     grossMinor += line.quantity * line.unitPriceMinor;
   }
+
+  const docDiscount = Math.min(100, Math.max(0, Math.trunc(documentDiscountPercent)));
+  const docDiscountAmount = Math.round((lineSumMinor * docDiscount) / 100);
+  const subtotalMinor = lineSumMinor - docDiscountAmount;
+
+  let taxMinor: number;
+  if (docDiscount === 0 || lineSumMinor === 0) {
+    taxMinor = lines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
+  } else {
+    taxMinor = lines.reduce((sum, line) => {
+      if (line.vatRatePercent <= 0) {
+        return sum;
+      }
+      const share = line.totalMinor / lineSumMinor;
+      const discountedNet = Math.round(subtotalMinor * share);
+      return sum + Math.round((discountedNet * line.vatRatePercent) / 100);
+    }, 0);
+  }
+
   return {
     subtotalMinor,
     taxMinor,

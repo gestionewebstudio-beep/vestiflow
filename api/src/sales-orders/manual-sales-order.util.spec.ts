@@ -143,6 +143,35 @@ describe('computeManualOrderLines / computeManualOrderTotals', () => {
     expect(lines[0]!.totalMinor).toBe(3000);
     expect(lines[0]!.discount).toBeNull();
   });
+
+  it('sconto extra documento: imponibile ridotto e IVA ricalcolata (come Arrivo merce)', () => {
+    const vatCodesById = new Map([['vat-22', vatCode()]]);
+    const lines = computeManualOrderLines(
+      [
+        {
+          variantId: 'var-1',
+          sku: 'SKU-1',
+          title: 'T-shirt',
+          quantity: 2,
+          unitPriceMinor: 10000,
+          vatCodeId: 'vat-22',
+        },
+      ],
+      vatCodesById,
+    );
+
+    // Imponibile righe 200,00 € − 10% documento = 180,00 €; IVA 22% su 180.
+    const totals = computeManualOrderTotals(lines, 10);
+    expect(totals.subtotalMinor).toBe(18000);
+    expect(totals.taxMinor).toBe(Math.round((18000 * 22) / 100));
+    expect(totals.totalMinor).toBe(18000 + 3960);
+    expect(totals.discountMinor).toBe(2000);
+  });
+
+  it('senza righe: totali a zero anche con sconto documento', () => {
+    const totals = computeManualOrderTotals([], 15);
+    expect(totals).toEqual({ subtotalMinor: 0, taxMinor: 0, totalMinor: 0, discountMinor: 0 });
+  });
 });
 
 describe('isPersistableManualOrderLine', () => {

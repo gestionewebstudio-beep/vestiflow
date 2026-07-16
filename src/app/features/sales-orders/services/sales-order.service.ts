@@ -51,6 +51,9 @@ export interface SaveManualOrderInput {
   readonly status?: 'confirmed' | 'cancelled';
   readonly notes?: string;
   readonly paymentTerms?: string;
+  /** Sconto extra % documento (0-100), dopo gli sconti riga. */
+  readonly documentDiscountPercent?: number;
+  /** Righe opzionali: l'ordine può esistere con la sola testata. */
   readonly lines: readonly SaveManualOrderLineInput[];
 }
 

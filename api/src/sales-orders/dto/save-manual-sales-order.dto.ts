@@ -10,6 +10,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -123,6 +124,14 @@ export class SaveManualSalesOrderDto {
   @MaxLength(120)
   paymentTerms?: string;
 
+  /** Sconto extra % sull'intero documento, dopo gli sconti riga (come Arrivo merce). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  documentDiscountPercent?: number;
+
+  /** Righe opzionali: un ordine può esistere con la sola testata compilata. */
   @IsArray()
   @ArrayMaxSize(500)
   @ValidateNested({ each: true })

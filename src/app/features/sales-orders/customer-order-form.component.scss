@@ -3,6 +3,18 @@
 // referenziato in styleUrls): qui vivono solo riga di inserimento rapido,
 // avviso disponibilità ambra e menu "Concludi ordine".
 
+// P4 — La testata righe dell'Arrivo merce a xl diventa griglia a 3 colonne
+// (titolo | scanner inline | strumenti): qui lo scanner inline non esiste
+// (la scansione vive nella riga rapida in fondo), quindi gli strumenti
+// finirebbero nella colonna centrale e il pannello Colonne (ancorato a
+// destra del suo trigger) uscirebbe dallo schermo a sinistra. Si torna al
+// layout flex: titolo a sinistra, strumenti a destra, pannello nel viewport.
+.co-form .gr-form__lines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 // Riga di inserimento rapido sempre in fondo alla tabella (§RIGHE).
 .co-form__quick-row td {
   padding: var(--space-2);
