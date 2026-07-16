@@ -26,8 +26,8 @@
 // Logo del gestionale: tile scuro + monogramma chiaro — su sfondo pagina
 // chiaro va bene com'e', su tema dark si inverte per contrasto.
 .login__brand-logo {
-  inline-size: var(--space-10);
-  block-size: var(--space-10);
+  inline-size: var(--space-16);
+  block-size: var(--space-16);
   border-radius: var(--radius-md);
   box-shadow: var(--brand-mark-shadow);
 }
@@ -37,7 +37,7 @@
 }
 
 .login__brand-wordmark {
-  font-size: var(--text-xl);
+  font-size: var(--text-4xl);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--tracking-tight);
   color: var(--color-text);
