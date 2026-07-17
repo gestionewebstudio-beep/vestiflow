@@ -33,7 +33,11 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
+import { customerDisplayName } from '@core/models/customer.model';
+import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { CustomerService } from '@features/customers/services/customer.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
@@ -96,6 +100,7 @@ type SalesListState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ButtonComponent,
+    DateInputComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     PaginationComponent,
@@ -117,6 +122,8 @@ export class SalesOrderListComponent {
   private readonly authService = inject(AuthService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
+  private readonly customerService = inject(CustomerService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -143,6 +150,45 @@ export class SalesOrderListComponent {
     { value: 'refunded', label: 'Rimborsato' },
     { value: 'voided', label: 'Annullato' },
   ];
+
+  /** Filtro Evasione: stesse voci della colonna (fulfillmentStatus). */
+  protected readonly fulfillmentStatusOptions: readonly SelectMenuOption[] = [
+    { value: 'unfulfilled', label: 'Da evadere' },
+    { value: 'partial', label: 'Evasione parziale' },
+    { value: 'fulfilled', label: 'Evaso' },
+  ];
+
+  /**
+   * Filtro Stato (derivato, colonna Stato): le etichette riportano entrambe le
+   * diciture perche' il registro mescola ordini manuali (Confermato/Concluso)
+   * e Shopify (Aperto/Evaso), stesso stato sottostante.
+   */
+  protected readonly stateOptions: readonly SelectMenuOption[] = [
+    { value: 'open', label: 'Aperto / Confermato' },
+    { value: 'concluded', label: 'Concluso / Evaso' },
+    { value: 'cancelled', label: 'Annullato' },
+  ];
+
+  /** Clienti per il filtro (primi 100 attivi, ricercabili nel pannello). */
+  protected readonly customerOptions = toSignal(
+    this.customerService.getCustomers({ page: 1, pageSize: 100 }).pipe(
+      map((response) =>
+        response.data.map(
+          (customer): SelectMenuOption => ({
+            value: customer.id,
+            label: customerDisplayName(customer),
+          }),
+        ),
+      ),
+      catchError(() => of([] as readonly SelectMenuOption[])),
+    ),
+    { initialValue: [] as readonly SelectMenuOption[] },
+  );
+
+  /** Location consultabili dall'utente per il filtro. */
+  protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
+    this.operationalLocations.locations().map((loc) => ({ value: loc.id, label: loc.name })),
+  );
 
   /** Filtro origine del registro generale (fase 3 §2). */
   protected readonly sourceOptions = computed((): readonly SelectMenuOption[] => {
@@ -289,7 +335,17 @@ export class SalesOrderListComponent {
 
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
-    return Boolean(q.search ?? q.financialStatus ?? q.source);
+    return Boolean(
+      q.search ??
+      q.financialStatus ??
+      q.fulfillmentStatus ??
+      q.source ??
+      q.state ??
+      q.customerId ??
+      q.locationId ??
+      q.placedFrom ??
+      q.placedTo,
+    );
   });
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
@@ -323,8 +379,32 @@ export class SalesOrderListComponent {
     this.updateParams({ financialStatus: value, page: null }, true);
   }
 
+  protected onFulfillmentFilterChange(value: string | null): void {
+    this.updateParams({ fulfillmentStatus: value, page: null }, true);
+  }
+
   protected onSourceFilterChange(value: string | null): void {
     this.updateParams({ source: value, page: null }, true);
+  }
+
+  protected onStateFilterChange(value: string | null): void {
+    this.updateParams({ state: value, page: null }, true);
+  }
+
+  protected onCustomerFilterChange(value: string | null): void {
+    this.updateParams({ customerId: value, page: null }, true);
+  }
+
+  protected onLocationFilterChange(value: string | null): void {
+    this.updateParams({ locationId: value, page: null }, true);
+  }
+
+  protected onDateFromChange(value: string): void {
+    this.updateParams({ placedFrom: value || null, page: null }, true);
+  }
+
+  protected onDateToChange(value: string): void {
+    this.updateParams({ placedTo: value || null, page: null }, true);
   }
 
   protected onCorrispettiviPeriodChange(period: ReportPeriodPreset): void {
@@ -353,7 +433,21 @@ export class SalesOrderListComponent {
 
   protected resetFilters(): void {
     this.searchDraft.set('');
-    this.updateParams({ search: null, financialStatus: null, source: null, page: null }, true);
+    this.updateParams(
+      {
+        search: null,
+        financialStatus: null,
+        fulfillmentStatus: null,
+        source: null,
+        state: null,
+        customerId: null,
+        locationId: null,
+        placedFrom: null,
+        placedTo: null,
+        page: null,
+      },
+      true,
+    );
   }
 
   protected goToPage(page: number): void {

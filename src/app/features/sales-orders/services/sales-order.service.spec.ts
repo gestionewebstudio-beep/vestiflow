@@ -37,13 +37,25 @@ describe('SalesOrderService (HTTP)', () => {
         page: 1,
         pageSize: 20,
         financialStatus: 'paid',
+        fulfillmentStatus: 'partial',
         source: 'online',
+        state: 'concluded',
+        customerId: 'cust-1',
+        locationId: 'loc-1',
+        placedFrom: '2026-01-01',
+        placedTo: '2026-01-31',
       }),
     );
 
     const req = httpMock.expectOne((r) => r.url.startsWith(`${API_BASE}/sales-orders`));
     expect(req.request.params.get('financialStatus')).toBe('paid');
+    expect(req.request.params.get('fulfillmentStatus')).toBe('partial');
     expect(req.request.params.get('source')).toBe('online');
+    expect(req.request.params.get('state')).toBe('concluded');
+    expect(req.request.params.get('customerId')).toBe('cust-1');
+    expect(req.request.params.get('locationId')).toBe('loc-1');
+    expect(req.request.params.get('placedFrom')).toBe('2026-01-01');
+    expect(req.request.params.get('placedTo')).toBe('2026-01-31');
     req.flush({
       items: [
         {

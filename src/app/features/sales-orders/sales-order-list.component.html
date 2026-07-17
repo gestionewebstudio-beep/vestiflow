@@ -74,6 +74,48 @@
     </div>
 
     <div class="sales-list__filters">
+      <div class="sales-list__field sales-list__field--date">
+        <label class="sales-list__label" for="sales-date-from">Dal</label>
+        <app-date-input
+          inputId="sales-date-from"
+          [value]="query().placedFrom ?? ''"
+          ariaLabel="Data inizio periodo"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [max]="query().placedTo || undefined"
+          (valueChange)="onDateFromChange($event)"
+        />
+      </div>
+
+      <div class="sales-list__field sales-list__field--date">
+        <label class="sales-list__label" for="sales-date-to">Al</label>
+        <app-date-input
+          inputId="sales-date-to"
+          [value]="query().placedTo ?? ''"
+          ariaLabel="Data fine periodo"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [min]="query().placedFrom || undefined"
+          (valueChange)="onDateToChange($event)"
+        />
+      </div>
+
+      <div class="sales-list__field">
+        <app-select-menu
+          chipLabel="Stato"
+          [options]="stateOptions"
+          [value]="query().state ?? ''"
+          ariaLabel="Filtra per stato ordine"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onStateFilterChange($event)"
+          [filterChip]="true"
+        />
+      </div>
+
       <div class="sales-list__field">
         <app-select-menu
           chipLabel="Origine"
@@ -98,6 +140,51 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onFinancialFilterChange($event)"
+          [filterChip]="true"
+        />
+      </div>
+
+      <div class="sales-list__field">
+        <app-select-menu
+          chipLabel="Evasione"
+          [options]="fulfillmentStatusOptions"
+          [value]="query().fulfillmentStatus ?? ''"
+          ariaLabel="Filtra per stato evasione"
+          placeholder="Tutte"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onFulfillmentFilterChange($event)"
+          [filterChip]="true"
+        />
+      </div>
+
+      <div class="sales-list__field">
+        <app-select-menu
+          chipLabel="Cliente"
+          [options]="customerOptions()"
+          [value]="query().customerId ?? ''"
+          ariaLabel="Filtra per cliente"
+          placeholder="Tutti"
+          [compact]="true"
+          [fullWidth]="true"
+          [searchable]="true"
+          searchPlaceholder="Cerca cliente…"
+          searchAriaLabel="Cerca cliente"
+          (valueChange)="onCustomerFilterChange($event)"
+          [filterChip]="true"
+        />
+      </div>
+
+      <div class="sales-list__field">
+        <app-select-menu
+          chipLabel="Location"
+          [options]="locationOptions()"
+          [value]="query().locationId ?? ''"
+          ariaLabel="Filtra per location"
+          placeholder="Tutte"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onLocationFilterChange($event)"
           [filterChip]="true"
         />
       </div>

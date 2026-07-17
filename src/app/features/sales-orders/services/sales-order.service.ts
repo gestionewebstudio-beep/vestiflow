@@ -199,8 +199,20 @@ export class SalesOrderService {
     if (query.financialStatus) {
       next = next.set('financialStatus', query.financialStatus);
     }
+    if (query.fulfillmentStatus) {
+      next = next.set('fulfillmentStatus', query.fulfillmentStatus);
+    }
     if (query.source) {
       next = next.set('source', query.source);
+    }
+    if (query.state) {
+      next = next.set('state', query.state);
+    }
+    if (query.customerId) {
+      next = next.set('customerId', query.customerId);
+    }
+    if (query.locationId) {
+      next = next.set('locationId', query.locationId);
     }
     if (query.placedFrom) {
       next = next.set('placedFrom', query.placedFrom);

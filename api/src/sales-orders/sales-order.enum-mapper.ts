@@ -21,6 +21,22 @@ export const API_FINANCIAL_VALUES = [
   'voided',
 ] as const;
 
+/** Valori evasione accettati in query (allineati al frontend). */
+export const API_FULFILLMENT_VALUES = ['unfulfilled', 'partial', 'fulfilled'] as const;
+
+/**
+ * Stato derivato dell'ordine (rispecchia la colonna Stato della lista):
+ * aperto (Confermato/Aperto) · concluso (Concluso/Evaso) · annullato.
+ */
+export const API_STATE_OPEN = 'open';
+export const API_STATE_CONCLUDED = 'concluded';
+export const API_STATE_CANCELLED = 'cancelled';
+export const API_STATE_VALUES = [
+  API_STATE_OPEN,
+  API_STATE_CONCLUDED,
+  API_STATE_CANCELLED,
+] as const;
+
 export type ApiSalesOrderSource =
   | typeof API_SOURCE_ONLINE
   | typeof API_SOURCE_POS
@@ -67,6 +83,19 @@ export function prismaFinancialFilter(status?: string): PrismaFinancial[] | unde
       return [PrismaFinancial.refunded];
     case 'voided':
       return [PrismaFinancial.voided];
+    default:
+      return undefined;
+  }
+}
+
+export function prismaFulfillmentFilter(status?: string): PrismaFulfillment[] | undefined {
+  switch (status) {
+    case 'unfulfilled':
+      return [PrismaFulfillment.unfulfilled];
+    case 'partial':
+      return [PrismaFulfillment.partially_fulfilled];
+    case 'fulfilled':
+      return [PrismaFulfillment.fulfilled];
     default:
       return undefined;
   }

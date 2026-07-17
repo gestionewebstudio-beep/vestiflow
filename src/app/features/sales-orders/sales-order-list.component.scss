@@ -122,6 +122,13 @@
   }
 }
 
+// Campi periodo (Dal/Al): larghezza contenuta, come nella lista documenti.
+.sales-list__field--date {
+  @include bp.media-up('md') {
+    inline-size: calc(var(--space-10) * 4);
+  }
+}
+
 .sales-list__label {
   font-size: var(--text-xs);
   font-weight: var(--font-weight-medium);

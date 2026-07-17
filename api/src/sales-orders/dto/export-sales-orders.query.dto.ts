@@ -1,9 +1,11 @@
-import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
 
 import {
   API_FINANCIAL_VALUES,
+  API_FULFILLMENT_VALUES,
   API_SOURCE_ONLINE,
   API_SOURCE_POS,
+  API_STATE_VALUES,
 } from '../sales-order.enum-mapper';
 
 const SOURCE_VALUES = [API_SOURCE_ONLINE, API_SOURCE_POS] as const;
@@ -21,8 +23,24 @@ export class ExportSalesOrdersQueryDto {
   financialStatus?: string;
 
   @IsOptional()
+  @IsIn([...API_FULFILLMENT_VALUES])
+  fulfillmentStatus?: string;
+
+  @IsOptional()
   @IsIn([...SOURCE_VALUES])
   source?: string;
+
+  @IsOptional()
+  @IsIn([...API_STATE_VALUES])
+  state?: string;
+
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  locationId?: string;
 
   @IsOptional()
   @Matches(ISO_DATE)
