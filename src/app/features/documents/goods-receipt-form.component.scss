@@ -202,12 +202,7 @@
     grid-column: span 2;
   }
 
-  .gr-form__grid--header-compact .gr-form__field--fill {
-    grid-column: 1 / -1;
-  }
-
-  .gr-form__grid--header-compact .gr-form__field--end-md,
-  .gr-form__grid--header-compact .gr-form__field--fill {
+  .gr-form__grid--header-compact .gr-form__field--end-md {
     border-inline-end: 0;
   }
 }
@@ -218,7 +213,7 @@
   }
 
   .gr-form__grid--header-compact .gr-form__field--fill {
-    grid-column: span 4;
+    grid-column: span 5;
   }
 
   .gr-form__grid--header-compact .gr-form__field--end-xl {

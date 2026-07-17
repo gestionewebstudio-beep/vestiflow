@@ -52,7 +52,8 @@ export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   // Niente colonna "Stato documento": l'Arrivo merce non ha più il ciclo
   // Bozza/Confermato selezionabile (il salvataggio conferma sempre) e
   // l'annullamento è già esposto dalla colonna "Stato" (collegamento fattura).
-  { id: 'type', label: 'Tipo', defaultVisible: false },
+  // Niente colonna "Tipo": nella lista Arrivi merce il tipo interno è sempre
+  // "Arrivo merce" (il selettore è stato rimosso dal form).
 ] as const;
 
 export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {

@@ -112,7 +112,6 @@ import {
 } from './models/goods-receipt-line-columns.config';
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import {
-  documentTypeLabel,
   documentStatusDisplayLabel,
   documentStatusDisplayTone,
 } from './models/document-labels.util';
@@ -248,7 +247,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatVatRate = formatVatRate;
-  protected readonly documentTypeLabel = documentTypeLabel;
 
   private readonly columnPreferences = inject(TableColumnPreferenceService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
@@ -262,14 +260,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly lineTableColumnState = computed(() =>
     this.columnPreferences.state(GOODS_RECEIPT_LINES_VIEW)(),
   );
-
-  protected readonly typeOptions: readonly SelectMenuOption[] = [
-    DocumentType.GoodsReceipt,
-    DocumentType.SupplierDdt,
-    DocumentType.SupplierInvoiceAccompanying,
-    DocumentType.ManualLoad,
-    DocumentType.InitialLoad,
-  ].map((type) => ({ value: type, label: documentTypeLabel(type) }));
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
@@ -2453,12 +2443,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
     }
     this.ensureLineVatCode(line);
-  }
-
-  protected onTypeSelect(value: string | null): void {
-    if (value && isGoodsReceiptDocumentType(value as DocumentType)) {
-      this.form.controls.type.setValue(value as DocumentType);
-    }
   }
 
   protected onSupplierSelect(value: string | null): void {

@@ -212,33 +212,16 @@
               />
             </div>
 
-            <div class="gr-form__field">
-              <span class="gr-form__label">Tipo documento</span>
-              @if (isConfirmedEdit()) {
-                <p class="gr-form__readonly">{{ documentTypeLabel(form.controls.type.value) }}</p>
-              } @else {
-                <app-select-menu
-                  [options]="typeOptions"
-                  [value]="form.controls.type.value"
-                  ariaLabel="Tipo documento"
-                  placeholder="Tipo documento"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  (valueChange)="onTypeSelect($event)"
-                />
-              }
-            </div>
-
             <!-- Gate compilazione: i dati del documento fornitore si sbloccano
                  solo dopo fornitore + magazzino (display: contents per non
                  rompere la griglia della testata). -->
             <fieldset class="gr-form__gate-fields" [disabled]="headerGateActive()">
-              <div class="gr-form__field gr-form__field--end-xl">
-                <span class="gr-form__label">Documento fornitore</span>
+              <div class="gr-form__field">
+                <span class="gr-form__label">Tipo di documento</span>
                 <app-select-menu
                   [options]="externalDocTypeOptions()"
                   [value]="form.controls.externalDocumentTypeId.value"
-                  ariaLabel="Tipo documento fornitore"
+                  ariaLabel="Tipo di documento"
                   placeholder="DDT, Fattura…"
                   [compact]="true"
                   [fullWidth]="true"
@@ -246,7 +229,7 @@
                 />
               </div>
 
-              <div class="gr-form__field">
+              <div class="gr-form__field gr-form__field--end-xl">
                 <label class="gr-form__label" for="gr-ext-num">N. documento fornitore</label>
                 <input
                   id="gr-ext-num"
@@ -257,7 +240,7 @@
                 />
               </div>
 
-              <div class="gr-form__field gr-form__field--end-md">
+              <div class="gr-form__field">
                 <label class="gr-form__label" for="gr-ext-date">Data doc. fornitore</label>
                 <app-date-input
                   inputId="gr-ext-date"
@@ -272,7 +255,9 @@
               <!-- Punto E: la Causale di carico non è più esposta nel form.
                    Viene generata sempre in automatico e in silenzio dal modello
                    del tipo documento fornitore (tipo + numero + data). -->
-              <div class="gr-form__field gr-form__field--fill gr-form__field--end-xl">
+              <div
+                class="gr-form__field gr-form__field--fill gr-form__field--end-md gr-form__field--end-xl"
+              >
                 <label class="gr-form__check gr-form__check--block" for="gr-invoice-pending">
                   <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
                   <span>Seguirà fattura</span>
