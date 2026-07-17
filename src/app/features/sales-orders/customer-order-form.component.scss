@@ -15,6 +15,21 @@
   justify-content: space-between;
 }
 
+// Con le colonne a quota percentuale una colonna può farsi stretta: le
+// etichette header vanno a capo invece di troncarsi o traboccare (il
+// foglio condiviso impone nowrap).
+.co-form .gr-form__table thead th {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+// L'etichetta con icona info è inline-flex: senza un tetto alla larghezza
+// si dimensiona a max-content e sfora la cella invece di andare a capo.
+.co-form .gr-form__th-label {
+  max-inline-size: 100%;
+  flex-wrap: wrap;
+}
+
 // Riga di inserimento rapido sempre in fondo alla tabella (§RIGHE).
 .co-form__quick-row td {
   padding: var(--space-2);

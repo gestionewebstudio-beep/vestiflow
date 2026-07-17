@@ -269,7 +269,7 @@
             <div class="gr-form__table-wrap">
               <table class="gr-form__table">
                 <colgroup>
-                  <col class="gr-form__col--index" />
+                  <col class="gr-form__col--index" [style.width]="lineIndexColumnWidth()" />
                   @if (isLineColumnVisible('articleCode')) {
                     <col [style.width]="lineColumnWidth('articleCode')" />
                   }

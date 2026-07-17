@@ -554,11 +554,43 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return this.columnPreferences.isColumnVisible(CUSTOMER_ORDER_LINES_VIEW, columnId);
   }
 
-  protected lineColumnWidth(columnId: string): string {
-    this.lineTableColumnState();
+  // Larghezza nominale della colonna numero riga (--space-12): entra nel
+  // totale perché con quote percentuali TUTTE le colonne devono sommare 100%
+  // — una colonna px residua farebbe traboccare la tabella di quei px.
+  private static readonly LINE_INDEX_COLUMN_PX = 48;
+
+  /** Px salvati (o default) di una colonna: restano l'unità persistita. */
+  private lineColumnPx(columnId: string): number {
     const def = CUSTOMER_ORDER_LINE_COLUMNS.find((col) => col.id === columnId);
     const fallback = def?.defaultWidthPx ?? 96;
-    return `${this.columnPreferences.columnWidth(CUSTOMER_ORDER_LINES_VIEW, columnId, fallback)}px`;
+    return this.columnPreferences.columnWidth(CUSTOMER_ORDER_LINES_VIEW, columnId, fallback);
+  }
+
+  /** Somma dei px delle colonne visibili + colonna indice. */
+  private lineColumnsTotalPx(): number {
+    return CUSTOMER_ORDER_LINE_COLUMNS.reduce(
+      (total, def) =>
+        this.isLineColumnVisible(def.id) ? total + this.lineColumnPx(def.id) : total,
+      CustomerOrderFormComponent.LINE_INDEX_COLUMN_PX,
+    );
+  }
+
+  /**
+   * Larghezza colonna come QUOTA percentuale del totale: la tabella occupa
+   * sempre esattamente il 100% del contenitore — coi px assoluti e
+   * table-layout fixed, quando la somma superava il wrapper la tabella
+   * restava larga quanto la somma e scorreva invece di adattarsi. I px
+   * salvati dal resize fanno da pesi relativi.
+   */
+  protected lineColumnWidth(columnId: string): string {
+    this.lineTableColumnState();
+    return `${((this.lineColumnPx(columnId) / this.lineColumnsTotalPx()) * 100).toFixed(4)}%`;
+  }
+
+  /** Quota percentuale della colonna numero riga (vedi lineColumnWidth). */
+  protected lineIndexColumnWidth(): string {
+    this.lineTableColumnState();
+    return `${((CustomerOrderFormComponent.LINE_INDEX_COLUMN_PX / this.lineColumnsTotalPx()) * 100).toFixed(4)}%`;
   }
 
   protected lineColumnMinWidth(columnId: string): number {
