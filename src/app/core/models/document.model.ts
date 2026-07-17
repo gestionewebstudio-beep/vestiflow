@@ -27,6 +27,8 @@ export const DocumentType = {
   // Fase 3: creati solo dal flusso cassa (mai dai form documenti generici).
   StoreSale: 'store_sale',
   StoreReturn: 'store_return',
+  /** Preventivo cliente: numerazione PRE dedicata, mai effetti magazzino. */
+  Quote: 'quote',
 } as const;
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
 
@@ -158,6 +160,10 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly externalRef?: string;
   readonly sourceDocumentId?: EntityId;
   readonly billingCause?: string;
+  /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
+  readonly paymentTerms?: string;
+  /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
+  readonly expectedDeliveryDate?: IsoDateString;
   /** Causale di carico (Arrivo merce, prompt §9.2). */
   readonly causalText?: string;
   /** Modalità causale: auto (dal modello) o manual (testo utente, §10). */

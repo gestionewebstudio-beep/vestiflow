@@ -10,6 +10,7 @@ export const PRINTABLE_DOCUMENT_TYPES: readonly DocumentTypeValue[] = [
   DocumentType.Proforma,
   DocumentType.InvoiceDraft,
   DocumentType.SalesDdt,
+  DocumentType.Quote,
   DocumentType.Transfer,
   DocumentType.GoodsReceipt,
   DocumentType.SupplierDdt,

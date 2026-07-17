@@ -411,6 +411,10 @@ export class ShellLayoutComponent {
           '/app/sales/corrispettivi',
         ],
       });
+      if (canViewDocuments(user)) {
+        // Preventivi sotto Ordini cliente (registro documenti filtrato quote).
+        salesItems.push(this.documentRegisterNavItem('Preventivi', 'pi-file', 'quote'));
+      }
       salesItems.push({
         label: 'Vendite online',
         icon: 'pi-send',
@@ -426,12 +430,11 @@ export class ShellLayoutComponent {
     }
 
     if (canViewDocuments(user)) {
-      salesItems.push({
-        label: 'Preventivi',
-        icon: 'pi-file',
-        route: '/app/documents/registro',
-        disabled: true,
-      });
+      // Senza permesso report la voce Ordini cliente non c'è: i Preventivi
+      // restano comunque raggiungibili in testa al blocco documenti vendita.
+      if (!canViewReports(user)) {
+        salesItems.push(this.documentRegisterNavItem('Preventivi', 'pi-file', 'quote'));
+      }
       salesItems.push(
         this.documentRegisterNavItem('Proforma', 'pi-file-edit', 'proforma'),
         this.documentRegisterNavItem('DDT vendita', 'pi-truck', 'sales_ddt'),

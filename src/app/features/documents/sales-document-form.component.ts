@@ -55,8 +55,14 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import { DocumentIncludePanelComponent } from './components/document-include-panel/document-include-panel.component';
+import {
+  includeSourceKindsForDocumentType,
+  type IncludedDocumentPayload,
+} from './models/document-include.util';
 import { documentTypeLabel } from './models/document-labels.util';
 import {
   isInvoiceDraftDocumentType,
@@ -85,9 +91,11 @@ type SubmitState =
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentIncludePanelComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
+    SlidePanelComponent,
     TableSkeletonComponent,
   ],
   templateUrl: './sales-document-form.component.html',
@@ -135,6 +143,14 @@ export class SalesDocumentFormComponent {
     isInvoiceDraftDocumentType(this.documentType()),
   );
   protected readonly isSalesDdt = computed(() => isSalesDdtDocumentType(this.documentType()));
+
+  // ── Includi documento (mappa in document-include.util): il DDT vendita
+  //     include da Preventivo e da Ordine cliente; gli altri tipi nessuno. ──
+  protected readonly includeSourceKinds = computed(() =>
+    includeSourceKindsForDocumentType(this.documentType()),
+  );
+  protected readonly includePanelOpen = signal(false);
+  protected readonly includeLaunchSeq = signal(0);
 
   protected readonly confirmDialogMessage = computed(() =>
     this.isSalesDdt()
@@ -575,6 +591,78 @@ export class SalesDocumentFormComponent {
       return;
     }
     this.lines.removeAt(index);
+  }
+
+  // ── Includi documento: inserimento righe dal documento di origine ───────
+  protected openIncludePanel(): void {
+    this.includeLaunchSeq.update((seq) => seq + 1);
+    this.includePanelOpen.set(true);
+  }
+
+  protected closeIncludePanel(): void {
+    this.includePanelOpen.set(false);
+  }
+
+  /**
+   * Documento incluso (logica trasversale «Includi documento»): riga di testo
+   * descrittiva col riferimento all'origine (es. «Rif. Preventivo
+   * PRE-2026-0001 del 17/07/2026») seguita dalle righe articolo copiate.
+   * I dati di testata restano quelli del documento corrente.
+   */
+  protected onDocumentIncluded(payload: IncludedDocumentPayload): void {
+    this.closeIncludePanel();
+    const groups: ReturnType<SalesDocumentFormComponent['createLine']>[] = [];
+
+    const referenceLine = this.createLine();
+    referenceLine.patchValue(
+      { description: payload.referenceText, quantity: 1, vatRatePercent: '' },
+      { emitEvent: false },
+    );
+    groups.push(referenceLine);
+
+    for (const line of payload.lines) {
+      const group = this.createLine();
+      group.patchValue(
+        {
+          variantId: line.variantId ?? '',
+          description: line.description,
+          quantity: line.quantity,
+          unitPrice:
+            line.unitPriceMinor > 0
+              ? moneyToDecimalString({
+                  amountMinor: line.unitPriceMinor,
+                  currencyCode: this.currency,
+                }).replace('.', ',')
+              : '',
+          discountPercent: line.discount,
+          vatCodeId: line.vatCodeId ?? '',
+          vatRatePercent: '',
+        },
+        { emitEvent: false },
+      );
+      if (group.controls.vatCodeId.value) {
+        this.syncLegacyVatRate(group);
+      } else {
+        this.ensureLineVatCode(group);
+      }
+      groups.push(group);
+    }
+
+    // Le righe incluse entrano prima delle eventuali righe vuote in coda.
+    let insertAt = this.lines.length;
+    while (insertAt > 0 && this.emptyIncludeTargetLine(this.lines.at(insertAt - 1))) {
+      insertAt -= 1;
+    }
+    groups.forEach((group, offset) => {
+      this.lines.insert(insertAt + offset, group);
+    });
+  }
+
+  /** Riga vuota (né descrizione né variante): le incluse le precedono. */
+  private emptyIncludeTargetLine(
+    line: ReturnType<SalesDocumentFormComponent['createLine']>,
+  ): boolean {
+    return !line.controls.description.value.trim() && !line.controls.variantId.value;
   }
 
   protected saveDraft(): void {

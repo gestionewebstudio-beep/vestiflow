@@ -93,6 +93,17 @@ export class UpdateDocumentDto {
   @IsUUID()
   supplierOrderId?: string | null;
 
+  /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  paymentTerms?: string | null;
+
+  /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
+  @IsOptional()
+  @IsISO8601()
+  expectedDeliveryDate?: string | null;
+
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(500)

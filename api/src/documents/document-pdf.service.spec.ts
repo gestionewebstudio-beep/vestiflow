@@ -44,6 +44,8 @@ describe('DocumentPdfService', () => {
     supplierOrderId: null,
     billingCause: 'Vendita',
     paymentMethod: null,
+    paymentTerms: null,
+    expectedDeliveryDate: null,
     causalText: null,
     causalGenerationMode: null,
     causalTemplateSnapshot: null,

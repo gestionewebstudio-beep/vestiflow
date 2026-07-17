@@ -1,7 +1,7 @@
 <section class="gr-form co-form">
-  <a class="gr-form__back" href="/app/sales" (click)="$event.preventDefault(); cancel()">
+  <a class="gr-form__back" [href]="backHref" (click)="$event.preventDefault(); cancel()">
     <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Ordini cliente
+    {{ backLabel }}
   </a>
 
   <div class="gr-form__head-row">
@@ -9,7 +9,10 @@
 
     @if (isEditMode()) {
       <div class="gr-form__meta">
-        <app-badge [tone]="stateBadgeTone()">{{ stateBadgeLabel() }}</app-badge>
+        <!-- Preventivo: nessuno stato documento (resta solo il numero PRE). -->
+        @if (!isQuote) {
+          <app-badge [tone]="stateBadgeTone()">{{ stateBadgeLabel() }}</app-badge>
+        }
         @if (internalReferenceLabel(); as ref) {
           <span class="gr-form__internal-ref tabular-nums">N. documento: {{ ref }}</span>
         }
@@ -40,8 +43,12 @@
   } @else if (notEditable()) {
     <app-empty-state
       icon="pi-lock"
-      title="Ordine non modificabile"
-      description="Solo gli ordini di origine Manuale possono essere modificati da questa maschera."
+      [title]="isQuote ? 'Preventivo non modificabile' : 'Ordine non modificabile'"
+      [description]="
+        isQuote
+          ? 'Il documento non è un preventivo modificabile da questa maschera.'
+          : 'Solo gli ordini di origine Manuale possono essere modificati da questa maschera.'
+      "
       ctaLabel="Torna al registro"
       (ctaClick)="cancel()"
     />
@@ -119,7 +126,7 @@
             </div>
 
             <div class="gr-form__field">
-              <span class="gr-form__label">Location di origine</span>
+              <span class="gr-form__label">{{ isQuote ? 'Location' : 'Location di origine' }}</span>
               @if (locationOptions().length > 0) {
                 <app-select-menu
                   [options]="locationOptions()"
@@ -157,26 +164,31 @@
               />
             </div>
 
-            <div class="gr-form__field">
-              <span class="gr-form__label">Stato</span>
-              @if (isConcluded()) {
-                <p class="gr-form__readonly">Concluso</p>
-              } @else {
-                <app-select-menu
-                  [options]="stateOptions"
-                  [value]="form.controls.status.value"
-                  ariaLabel="Stato documento"
-                  placeholder="Confermato"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [includeEmptyOption]="false"
-                  (valueChange)="onStateSelect($event)"
-                />
-              }
-            </div>
+            <!-- Preventivo: nessuno stato documento in testata. -->
+            @if (!isQuote) {
+              <div class="gr-form__field">
+                <span class="gr-form__label">Stato</span>
+                @if (isConcluded()) {
+                  <p class="gr-form__readonly">Concluso</p>
+                } @else {
+                  <app-select-menu
+                    [options]="stateOptions"
+                    [value]="form.controls.status.value"
+                    ariaLabel="Stato documento"
+                    placeholder="Confermato"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [includeEmptyOption]="false"
+                    (valueChange)="onStateSelect($event)"
+                  />
+                }
+              </div>
+            }
 
             <div class="gr-form__field">
-              <label class="gr-form__label" for="co-external-ref">Rif. ordine cliente</label>
+              <label class="gr-form__label" for="co-external-ref">
+                {{ isQuote ? 'Rif.' : 'Rif. ordine cliente' }}
+              </label>
               <input
                 id="co-external-ref"
                 class="gr-form__input"
@@ -255,6 +267,17 @@
               </div>
               <div class="gr-form__lines-tools">
                 <app-table-column-picker [viewId]="lineColumnsView" />
+                @if (includeSourceKinds.length > 0) {
+                  <app-button
+                    type="button"
+                    variant="secondary"
+                    [disabled]="formReadOnly()"
+                    (click)="openIncludePanel()"
+                  >
+                    <i class="pi pi-file-import" aria-hidden="true"></i>
+                    Includi documento
+                  </app-button>
+                }
                 <app-button type="button" variant="secondary" (click)="openNewProduct()">
                   <i class="pi pi-box" aria-hidden="true"></i>
                   Nuovo prodotto
@@ -865,7 +888,11 @@
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
           <span class="gr-form__actions-note-sep">·</span>
-          Gli impegni di magazzino si aggiornano al salvataggio
+          {{
+            isQuote
+              ? 'Il preventivo non impegna e non blocca la disponibilità di magazzino'
+              : 'Gli impegni di magazzino si aggiornano al salvataggio'
+          }}
         </p>
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
           Chiudi
@@ -898,7 +925,9 @@
               </div>
             }
           </div>
-        } @else if (isEditMode() && orderState() === 'confirmed' && dirtySinceLastSave()) {
+        } @else if (
+          !isQuote && isEditMode() && orderState() === 'confirmed' && dirtySinceLastSave()
+        ) {
           <app-button
             type="button"
             variant="secondary"
@@ -1038,6 +1067,21 @@
       [locationId]="form.controls.locationId.value"
       (variantSelected)="onLineProductSearchPick($event.variantId)"
       (dismissed)="closeLineProductSearch()"
+    />
+  }
+</app-slide-panel>
+
+<app-slide-panel
+  [open]="includePanelOpen()"
+  title="Includi documento"
+  (closed)="closeIncludePanel()"
+>
+  @if (includePanelOpen()) {
+    <app-document-include-panel
+      [sourceKinds]="includeSourceKinds"
+      [launchSeq]="includeLaunchSeq()"
+      (included)="onDocumentIncluded($event)"
+      (dismissed)="closeIncludePanel()"
     />
   }
 </app-slide-panel>

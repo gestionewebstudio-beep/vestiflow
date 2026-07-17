@@ -89,3 +89,35 @@ export const CUSTOMER_ORDER_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitPrice', 'discountedPrice', 'lineTotal'],
   [PresetId.Operational]: ALL_COLUMN_IDS,
 };
+
+// ── Preventivo (stessa maschera dell'Ordine cliente, §Preventivi) ───────────
+// Il preventivo non impegna e non blocca disponibilità di magazzino: niente
+// colonne «Q.tà disponibile» e «Impegna» — il resto della tabella è identico.
+export const QUOTE_LINES_VIEW = TableViewId.QuoteLines;
+
+const QUOTE_EXCLUDED_COLUMN_IDS: readonly string[] = ['stockAvailable', 'commitsStock'];
+
+export const QUOTE_LINE_COLUMNS: readonly TableColumnDef[] = CUSTOMER_ORDER_LINE_COLUMNS.filter(
+  (column) => !QUOTE_EXCLUDED_COLUMN_IDS.includes(column.id),
+);
+
+const QUOTE_ALL_COLUMN_IDS = QUOTE_LINE_COLUMNS.filter(
+  (column) => column.defaultVisible !== false,
+).map((column) => column.id);
+
+export const QUOTE_LINE_PRESETS: TableViewPresetMap = {
+  [PresetId.Default]: QUOTE_ALL_COLUMN_IDS,
+  [PresetId.Warehouse]: ['sku', 'barcode', 'product', 'quantity', 'unitOfMeasure', 'actions'],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'quantity',
+    'unitPrice',
+    'discount',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Supplier]: QUOTE_ALL_COLUMN_IDS,
+  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitPrice', 'discountedPrice', 'lineTotal'],
+  [PresetId.Operational]: QUOTE_ALL_COLUMN_IDS,
+};

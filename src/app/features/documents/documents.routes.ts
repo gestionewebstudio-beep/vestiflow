@@ -71,6 +71,36 @@ export const documentsRoutes: Routes = [
     },
   },
   {
+    // Preventivo: stessa maschera dell'Ordine cliente in modalità quote
+    // (nessuno stato, nessun impegno magazzino, numeratore PRE).
+    path: 'quote/new',
+    title: 'VestiFlow · Nuovo preventivo',
+    loadComponent: () =>
+      import('@features/sales-orders/customer-order-form.component').then(
+        (m) => m.CustomerOrderFormComponent,
+      ),
+    canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      customerDocumentKind: 'quote',
+    },
+  },
+  {
+    path: 'quote/:id/edit',
+    title: 'VestiFlow · Modifica preventivo',
+    loadComponent: () =>
+      import('@features/sales-orders/customer-order-form.component').then(
+        (m) => m.CustomerOrderFormComponent,
+      ),
+    canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      customerDocumentKind: 'quote',
+    },
+  },
+  {
     path: 'sales/:id/edit',
     title: 'VestiFlow · Modifica documento vendita',
     loadComponent: () =>

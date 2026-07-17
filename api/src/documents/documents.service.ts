@@ -725,6 +725,8 @@ export class DocumentsService {
         supplierOrderId: dto.supplierOrderId ?? null,
         billingCause: dto.billingCause?.trim() || null,
         externalRef: dto.externalRef?.trim() || null,
+        paymentTerms: dto.paymentTerms?.trim() || null,
+        expectedDeliveryDate: dto.expectedDeliveryDate ? new Date(dto.expectedDeliveryDate) : null,
         currency: dto.currency ?? 'EUR',
         pricesIncludeVat: setting.pricesIncludeVat,
         documentDiscountPercent: dto.documentDiscountPercent ?? 0,
@@ -813,6 +815,8 @@ export class DocumentsService {
         externalDocumentTypeId: original.externalDocumentTypeId,
         externalDocumentTypeSnapshot: original.externalDocumentTypeSnapshot,
         billingCause: original.billingCause,
+        paymentTerms: original.paymentTerms,
+        expectedDeliveryDate: original.expectedDeliveryDate,
         causalText: original.causalText,
         causalGenerationMode: original.causalGenerationMode,
         causalTemplateSnapshot: original.causalTemplateSnapshot,
@@ -1017,6 +1021,14 @@ export class DocumentsService {
     }
     if (dto.externalRef !== undefined) {
       data.externalRef = dto.externalRef?.trim() || null;
+    }
+    if (dto.paymentTerms !== undefined) {
+      data.paymentTerms = dto.paymentTerms?.trim() || null;
+    }
+    if (dto.expectedDeliveryDate !== undefined) {
+      data.expectedDeliveryDate = dto.expectedDeliveryDate
+        ? new Date(dto.expectedDeliveryDate)
+        : null;
     }
     if (dto.documentDiscountPercent !== undefined) {
       data.documentDiscountPercent = dto.documentDiscountPercent;

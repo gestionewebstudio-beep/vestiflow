@@ -245,6 +245,7 @@ export class DocumentListComponent {
     { value: 'manual-unload', label: 'Scarico manuale' },
     { value: 'adjustment', label: 'Rettifica di magazzino' },
     { value: 'sales-ddt', label: 'DDT vendita' },
+    { value: 'quote', label: 'Preventivo' },
     { value: 'proforma', label: 'Proforma' },
     { value: 'invoice-draft', label: 'Bozza fattura' },
   ];
@@ -479,6 +480,9 @@ export class DocumentListComponent {
         break;
       case 'sales-ddt':
         this.openNewSalesDdt();
+        break;
+      case 'quote':
+        this.openNewQuote();
         break;
       case 'proforma':
         this.openNewProforma();
@@ -776,6 +780,10 @@ export class DocumentListComponent {
 
   protected openNewProforma(): void {
     void this.router.navigate(['/app/documents/proforma/new']);
+  }
+
+  protected openNewQuote(): void {
+    void this.router.navigate(['/app/documents/quote/new']);
   }
 
   protected openNewInvoiceDraft(): void {

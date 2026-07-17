@@ -170,6 +170,17 @@ export class CreateDocumentDto {
   @Max(100)
   documentDiscountPercent?: number;
 
+  /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  paymentTerms?: string;
+
+  /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
+  @IsOptional()
+  @IsISO8601()
+  expectedDeliveryDate?: string;
+
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(500)

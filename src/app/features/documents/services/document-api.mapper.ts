@@ -86,6 +86,8 @@ export interface DocumentApiRow {
   readonly externalRef?: string | null;
   readonly sourceDocumentId?: EntityId | null;
   readonly billingCause?: string | null;
+  readonly paymentTerms?: string | null;
+  readonly expectedDeliveryDate?: IsoDateString | null;
   readonly causalText?: string | null;
   readonly causalGenerationMode?: string | null;
   readonly causalTemplateSnapshot?: string | null;
@@ -222,6 +224,8 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     externalRef: row.externalRef ?? undefined,
     sourceDocumentId: row.sourceDocumentId ?? undefined,
     billingCause: row.billingCause ?? undefined,
+    paymentTerms: row.paymentTerms ?? undefined,
+    expectedDeliveryDate: row.expectedDeliveryDate ?? undefined,
     causalText: row.causalText ?? undefined,
     causalGenerationMode:
       (row.causalGenerationMode as CausalGenerationMode | null | undefined) ?? undefined,
@@ -301,11 +305,25 @@ export interface CreateDocumentBody {
   readonly billingCause?: string;
   readonly externalRef?: string;
   readonly documentDiscountPercent?: number;
+  /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
+  readonly paymentTerms?: string;
+  /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
+  readonly expectedDeliveryDate?: IsoDateString;
   readonly lines?: readonly DocumentLineInputBody[];
 }
 
-/** Body PATCH /documents/:id (bozze e documenti confermati editabili). */
-export type UpdateDocumentBody = Partial<Omit<CreateDocumentBody, 'type'>>;
+/**
+ * Body PATCH /documents/:id (bozze e documenti confermati editabili).
+ * I campi liberi di testata accettano anche null: il PATCH distingue
+ * «non toccare» (assente) da «svuota» (null) — usato dal form Preventivo.
+ */
+export type UpdateDocumentBody = Partial<
+  Omit<CreateDocumentBody, 'type' | 'externalRef' | 'paymentTerms' | 'expectedDeliveryDate'>
+> & {
+  readonly externalRef?: string | null;
+  readonly paymentTerms?: string | null;
+  readonly expectedDeliveryDate?: IsoDateString | null;
+};
 
 /**
  * Nuova anagrafica da creare atomicamente con la riga (punto A): il backend

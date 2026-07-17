@@ -17,6 +17,7 @@ export const DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.manual_unload,
   DocumentType.adjustment,
   DocumentType.inventory,
+  DocumentType.quote,
   DocumentType.proforma,
   DocumentType.invoice_draft,
   DocumentType.store_sale,
@@ -94,6 +95,7 @@ export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
   [DocumentType.customer_order]: 'OC',
   [DocumentType.store_sale]: 'VN',
   [DocumentType.store_return]: 'RN',
+  [DocumentType.quote]: 'PRE',
 };
 
 /** Titolo di stampa di default per tipo (§2.2). Sovrascrivibile in impostazioni. */
@@ -117,6 +119,7 @@ export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
   [DocumentType.customer_order]: 'Ordine cliente',
   [DocumentType.store_sale]: 'Vendita in negozio',
   [DocumentType.store_return]: 'Reso vendita negozio',
+  [DocumentType.quote]: 'Preventivo',
 };
 
 export interface ResolvedDocumentTypeSetting {

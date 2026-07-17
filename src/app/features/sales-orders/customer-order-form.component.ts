@@ -47,6 +47,7 @@ import { OperationalLocationsService } from '@core/services/operational-location
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
   applyCascadeDiscountMinor,
+  applyDiscountMinor,
   cascadeDiscountMultiplier,
   parseEffectiveDiscountPercent,
 } from '@core/utils/discount-percent.util';
@@ -65,12 +66,29 @@ import {
   createCustomerFormGroup,
   mapCustomerFormToInput,
 } from '@features/customers/utils/customer-form.util';
+import { DocumentIncludePanelComponent } from '@features/documents/components/document-include-panel/document-include-panel.component';
 import { GoodsReceiptLineCodeCellComponent } from '@features/documents/components/goods-receipt-line-code-cell/goods-receipt-line-code-cell.component';
 import { GoodsReceiptLineProductCellComponent } from '@features/documents/components/goods-receipt-line-product-cell/goods-receipt-line-product-cell.component';
 import { GoodsReceiptProductSearchPanelComponent } from '@features/documents/components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
+import {
+  CUSTOMER_ORDER_INCLUDE_SOURCES,
+  type IncludeSourceKind,
+  type IncludedDocumentPayload,
+} from '@features/documents/models/document-include.util';
 import { documentTypeLabel } from '@features/documents/models/document-labels.util';
 import { documentEditPath } from '@features/documents/models/document-routing.util';
-import type { DocumentType } from '@core/models/document.model';
+import { DocumentService } from '@features/documents/services/document.service';
+import type {
+  CreateDocumentBody,
+  DocumentLineInputBody,
+  UpdateDocumentBody,
+} from '@features/documents/services/document-api.mapper';
+import {
+  DocumentStatus,
+  DocumentType,
+  isConfirmedEditableDocumentStatus,
+} from '@core/models/document.model';
+import type { DocumentRecord } from '@core/models/document.model';
 import type { ProductEmbeddedCreatePrefill } from '@features/products/models/product-form.mapper';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductFormComponent } from '@features/products/product-form.component';
@@ -98,6 +116,9 @@ import {
   CUSTOMER_ORDER_LINE_COLUMNS,
   CUSTOMER_ORDER_LINE_PRESETS,
   CUSTOMER_ORDER_LINES_VIEW,
+  QUOTE_LINE_COLUMNS,
+  QUOTE_LINE_PRESETS,
+  QUOTE_LINES_VIEW,
 } from './models/customer-order-line-columns.config';
 import {
   SalesOrderService,
@@ -147,6 +168,7 @@ interface AvailabilityIssue {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentIncludePanelComponent,
     ProductFormComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -173,6 +195,7 @@ interface AvailabilityIssue {
 export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly salesOrderService = inject(SalesOrderService);
+  private readonly documentService = inject(DocumentService);
   private readonly customerService = inject(CustomerService);
   private readonly productService = inject(ProductService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
@@ -186,11 +209,25 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
+  /**
+   * Modalità della maschera (route data `customerDocumentKind`): 'order' =
+   * Ordine cliente manuale (default), 'quote' = Preventivo. Il Preventivo usa
+   * la STESSA schermata e lo stesso funzionamento, con tre differenze:
+   * nessuno stato documento, nessun impegno/blocco di disponibilità
+   * magazzino, persistenza nel registro documenti (tipo `quote`, numeratore
+   * PRE dedicato dai Numeratori).
+   */
+  private readonly formKind =
+    (this.route.snapshot.data['customerDocumentKind'] as 'order' | 'quote' | undefined) ?? 'order';
+  protected readonly isQuote = this.formKind === 'quote';
+
   protected readonly listPath = '/app/sales';
+  protected readonly quoteListPath = '/app/documents/registro';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatVatRate = formatVatRate;
-  protected readonly lineColumnsView = CUSTOMER_ORDER_LINES_VIEW;
+  protected readonly lineColumnsView = this.isQuote ? QUOTE_LINES_VIEW : CUSTOMER_ORDER_LINES_VIEW;
+  private readonly lineColumnDefs = this.isQuote ? QUOTE_LINE_COLUMNS : CUSTOMER_ORDER_LINE_COLUMNS;
   protected readonly commitsStockTooltip =
     'Se attiva, la quantità della riga impegna la disponibilità di magazzino (Disponibile = Giacenza − Impegnata). ' +
     'Default dal Tipo prodotto: Articolo ON, Servizio OFF. Sempre modificabile per eccezioni.';
@@ -201,6 +238,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly isEditMode = computed(() => Boolean(this.editOrderId()));
 
   protected readonly loadedOrder = signal<SalesOrder | null>(null);
+  /** Preventivo caricato in modifica (modalità quote: vive nel registro documenti). */
+  protected readonly loadedQuoteDoc = signal<DocumentRecord | null>(null);
   protected readonly saveWarnings = signal<readonly string[]>([]);
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
   protected readonly saving = computed(() => this._submitState().status === 'saving');
@@ -215,9 +254,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   });
   protected readonly isConcluded = computed(() => this.orderState() === ManualOrderState.Concluded);
 
-  protected readonly pageTitle = computed(() =>
-    this.isEditMode() ? 'Modifica ordine cliente' : 'Nuovo ordine cliente',
-  );
+  protected readonly pageTitle = computed(() => {
+    if (this.isQuote) {
+      return this.isEditMode() ? 'Modifica preventivo' : 'Nuovo preventivo';
+    }
+    return this.isEditMode() ? 'Modifica ordine cliente' : 'Nuovo ordine cliente';
+  });
+
+  protected readonly backLabel = this.isQuote ? 'Preventivi' : 'Ordini cliente';
+  protected readonly backHref = this.isQuote ? '/app/documents/registro?type=quote' : '/app/sales';
 
   protected readonly stateOptions: readonly SelectMenuOption[] = [
     { value: ManualOrderState.Confirmed, label: 'Confermato' },
@@ -396,13 +441,28 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   });
 
   private readonly meta = toSignal(
-    this.salesOrderService.getManualOrderMeta().pipe(catchError(() => of(null))),
+    this.isQuote
+      ? of(null)
+      : this.salesOrderService.getManualOrderMeta().pipe(catchError(() => of(null))),
     { initialValue: null },
   );
-  protected readonly previewReference = computed(() => this.meta()?.nextReferencePreview ?? null);
-  protected readonly internalReferenceLabel = computed(
-    () => this.loadedOrder()?.orderNumber ?? this.previewReference(),
+  /** Anteprima prossimo numero preventivo (numeratore quote → PRE-AAAA-NNNN). */
+  private readonly quotePreviewReference = toSignal(
+    this.isQuote
+      ? this.documentService.previewDocumentNumber(DocumentType.Quote).pipe(
+          map((preview) => preview.reference),
+          catchError(() => of(null)),
+        )
+      : of(null),
+    { initialValue: null as string | null },
   );
+  protected readonly previewReference = computed(() =>
+    this.isQuote ? this.quotePreviewReference() : (this.meta()?.nextReferencePreview ?? null),
+  );
+  protected readonly internalReferenceLabel = computed(() => {
+    const saved = this.isQuote ? this.loadedQuoteDoc()?.reference : this.loadedOrder()?.orderNumber;
+    return saved ?? this.previewReference();
+  });
   protected readonly unloadTypeOptions = computed<readonly SelectMenuOption[]>(() =>
     (this.meta()?.unloadDocumentTypes ?? []).map((type) => ({
       value: type,
@@ -453,6 +513,26 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         if (!id) {
           return of<'ready' | 'loading' | 'not-editable' | 'error'>('ready');
         }
+        if (this.isQuote) {
+          return this.documentService.getDocumentById(id).pipe(
+            map((doc) => {
+              const editable =
+                doc.type === DocumentType.Quote &&
+                (doc.status === DocumentStatus.Draft ||
+                  (isConfirmedEditableDocumentStatus(doc.status) &&
+                    doc.blockAfterConfirm !== true));
+              if (!editable) {
+                this.loadedQuoteDoc.set(null);
+                return 'not-editable' as const;
+              }
+              this.loadedQuoteDoc.set(doc);
+              this.patchFormFromQuoteDocument(doc);
+              return 'ready' as const;
+            }),
+            startWith<'ready' | 'loading' | 'not-editable' | 'error'>('loading'),
+            catchError(() => of('error' as const)),
+          );
+        }
         return this.salesOrderService.getSalesOrderById(id).pipe(
           map((order) => {
             if (order.source !== SalesOrderSource.Manual) {
@@ -498,6 +578,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly pendingAttachVariantId = signal<string | null>(null);
   protected readonly attachWithoutAddDialogOpen = signal(false);
 
+  // ── Includi documento (logica trasversale, mappa in document-include.util:
+  //     l'Ordine cliente include da Preventivo; il Preventivo non include da
+  //     nessun documento — si crea sempre da zero) ──────────────────────────
+  protected readonly includeSourceKinds: readonly IncludeSourceKind[] = this.isQuote
+    ? []
+    : CUSTOMER_ORDER_INCLUDE_SOURCES;
+  protected readonly includePanelOpen = signal(false);
+  protected readonly includeLaunchSeq = signal(0);
+
   // ── Dialoghi ────────────────────────────────────────────────────────────
   protected readonly exitDialogOpen = signal(false);
   private pendingDeactivate: ((allow: boolean) => void) | null = null;
@@ -513,11 +602,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     // quindi non compare nemmeno tra le opzioni del selettore colonne.
     const canSeeCosts = canViewPurchaseCosts(this.authService.currentUser());
     this.columnPreferences.registerView(
-      CUSTOMER_ORDER_LINES_VIEW,
+      this.lineColumnsView,
       canSeeCosts
-        ? CUSTOMER_ORDER_LINE_COLUMNS
-        : CUSTOMER_ORDER_LINE_COLUMNS.filter((column) => column.id !== 'purchaseCost'),
-      CUSTOMER_ORDER_LINE_PRESETS,
+        ? this.lineColumnDefs
+        : this.lineColumnDefs.filter((column) => column.id !== 'purchaseCost'),
+      this.isQuote ? QUOTE_LINE_PRESETS : CUSTOMER_ORDER_LINE_PRESETS,
     );
 
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -545,13 +634,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   private readonly lineTableColumnState = computed(() =>
-    this.columnPreferences.state(CUSTOMER_ORDER_LINES_VIEW)(),
+    this.columnPreferences.state(this.lineColumnsView)(),
   );
 
   // ── Colonne ─────────────────────────────────────────────────────────────
   protected isLineColumnVisible(columnId: string): boolean {
     this.lineTableColumnState();
-    return this.columnPreferences.isColumnVisible(CUSTOMER_ORDER_LINES_VIEW, columnId);
+    return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
   }
 
   // Larghezza nominale della colonna numero riga (--space-12): entra nel
@@ -561,14 +650,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /** Px salvati (o default) di una colonna: restano l'unità persistita. */
   private lineColumnPx(columnId: string): number {
-    const def = CUSTOMER_ORDER_LINE_COLUMNS.find((col) => col.id === columnId);
+    const def = this.lineColumnDefs.find((col) => col.id === columnId);
     const fallback = def?.defaultWidthPx ?? 96;
-    return this.columnPreferences.columnWidth(CUSTOMER_ORDER_LINES_VIEW, columnId, fallback);
+    return this.columnPreferences.columnWidth(this.lineColumnsView, columnId, fallback);
   }
 
   /** Somma dei px delle colonne visibili + colonna indice. */
   private lineColumnsTotalPx(): number {
-    return CUSTOMER_ORDER_LINE_COLUMNS.reduce(
+    return this.lineColumnDefs.reduce(
       (total, def) =>
         this.isLineColumnVisible(def.id) ? total + this.lineColumnPx(def.id) : total,
       CustomerOrderFormComponent.LINE_INDEX_COLUMN_PX,
@@ -594,12 +683,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected lineColumnMinWidth(columnId: string): number {
-    const def = CUSTOMER_ORDER_LINE_COLUMNS.find((col) => col.id === columnId);
+    const def = this.lineColumnDefs.find((col) => col.id === columnId);
     return def?.minWidthPx ?? 48;
   }
 
   protected onLineColumnResize(columnId: string, widthPx: number): void {
-    this.columnPreferences.setColumnWidth(CUSTOMER_ORDER_LINES_VIEW, columnId, widthPx);
+    this.columnPreferences.setColumnWidth(this.lineColumnsView, columnId, widthPx);
   }
 
   // ── Righe: creazione, selezione variante, difaults ──────────────────────
@@ -855,6 +944,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /** Avviso ambra sulla cella quantità: la Q.tà digitata supera la disponibile. */
   protected lineExceedsAvailability(index: number): boolean {
+    // Il Preventivo non impegna e non blocca disponibilità: nessun avviso.
+    if (this.isQuote) {
+      return false;
+    }
     this.formValue();
     const line = this.lines.at(index);
     if (!line || !line.controls.commitsStock.value) {
@@ -882,15 +975,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return parsed?.amountMinor ?? 0;
   }
 
-  /** Prezzo unitario scontato con cascata ESATTA (es. "4+10%" ≠ 14%). */
+  /**
+   * Prezzo unitario scontato con cascata ESATTA (es. "4+10%" ≠ 14%).
+   * In modalità Preventivo lo sconto è la percentuale effettiva ARROTONDATA:
+   * le righe documento persistono uno sconto intero (discountPercent), quindi
+   * l'anteprima usa lo stesso arrotondamento per combaciare col server.
+   */
   protected lineDiscountedUnitMoney(index: number): Money {
     this.formValue();
     const line = this.lines.at(index);
     const unit = this.lineUnitPriceMinor(line);
-    return {
-      amountMinor: applyCascadeDiscountMinor(unit, line.controls.discount.value),
-      currencyCode: this.currency,
-    };
+    const discounted = this.isQuote
+      ? applyDiscountMinor(unit, line.controls.discount.value)
+      : applyCascadeDiscountMinor(unit, line.controls.discount.value);
+    return { amountMinor: discounted, currencyCode: this.currency };
   }
 
   protected lineHasDiscount(index: number): boolean {
@@ -1556,6 +1654,71 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     setTimeout(() => this.quickScanInputRef()?.nativeElement.focus(), 0);
   }
 
+  // ── Includi documento: inserimento righe dal documento di origine ───────
+  protected openIncludePanel(): void {
+    this.includeLaunchSeq.update((seq) => seq + 1);
+    this.includePanelOpen.set(true);
+  }
+
+  protected closeIncludePanel(): void {
+    this.includePanelOpen.set(false);
+  }
+
+  /**
+   * Documento incluso: inserisce la riga di testo descrittiva col riferimento
+   * all'origine (es. «Rif. Preventivo PRE-2026-0001 del 17/07/2026») seguita
+   * dalle righe articolo copiate. I dati di testata restano quelli del
+   * documento corrente.
+   */
+  protected onDocumentIncluded(payload: IncludedDocumentPayload): void {
+    this.closeIncludePanel();
+    const groups: ReturnType<CustomerOrderFormComponent['createLine']>[] = [];
+
+    const referenceLine = this.createLine();
+    referenceLine.patchValue(
+      { productName: payload.referenceText, quantity: 1, commitsStock: false },
+      { emitEvent: false },
+    );
+    groups.push(referenceLine);
+
+    for (const line of payload.lines) {
+      const group = this.createLine();
+      group.patchValue(
+        {
+          variantId: line.variantId ?? '',
+          sku: line.sku ?? '',
+          barcode: line.barcode ?? '',
+          productName: line.description,
+          quantity: line.quantity,
+          unitPrice:
+            line.unitPriceMinor > 0
+              ? moneyToDecimalString({
+                  amountMinor: line.unitPriceMinor,
+                  currencyCode: this.currency,
+                }).replace('.', ',')
+              : '',
+          discount: line.discount,
+          vatCodeId: line.vatCodeId ?? '',
+          commitsStock: Boolean(line.variantId),
+        },
+        { emitEvent: false },
+      );
+      groups.push(group);
+    }
+
+    // Le righe incluse entrano prima delle eventuali righe vuote in coda.
+    let insertAt = this.lines.length;
+    while (insertAt > 0 && this.lineIsEmpty(this.lines.at(insertAt - 1))) {
+      insertAt -= 1;
+    }
+    groups.forEach((group, offset) => {
+      this.lines.insert(insertAt + offset, group, { emitEvent: false });
+    });
+    // Summary anagrafiche per le righe collegate: codici, U.m., disponibilità.
+    this.refreshAllLineSummaries();
+    this.markFormDirty();
+  }
+
   // ── Testata: select handlers ────────────────────────────────────────────
   protected onCustomerSelect(value: string | null): void {
     this.form.controls.customerId.setValue(value ?? '');
@@ -1676,9 +1839,28 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         status: 'error',
         error: {
           kind: AppErrorKind.Validation,
-          message: "Seleziona cliente e location di origine per salvare l'ordine.",
+          message: this.isQuote
+            ? 'Seleziona cliente e location per salvare il preventivo.'
+            : "Seleziona cliente e location di origine per salvare l'ordine.",
         },
       });
+      return;
+    }
+    if (this.isQuote) {
+      // Il preventivo riceve il numero PRE al salvataggio: serve almeno una
+      // riga valida (un preventivo di sola testata non è numerabile).
+      if (this.validLinesCount() === 0) {
+        this._submitState.set({
+          status: 'error',
+          error: {
+            kind: AppErrorKind.Validation,
+            message: 'Aggiungi almeno una riga valida per salvare il preventivo.',
+          },
+        });
+        return;
+      }
+      // Nessun controllo disponibilità: il preventivo non impegna magazzino.
+      this.saveDocument();
       return;
     }
     // Controllo disponibilità pre-salvataggio: riepilogo righe critiche,
@@ -1773,6 +1955,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   private saveDocument(onSaved?: () => void): void {
+    if (this.isQuote) {
+      this.saveQuoteDocument(onSaved);
+      return;
+    }
     // Righe opzionali (P6): l'ordine si salva anche con la sola testata;
     // gli impegni scatteranno al salvataggio successivo con righe.
     const payload = this.buildSavePayload();
@@ -1810,9 +1996,159 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       });
   }
 
+  // ── Preventivo: persistenza nel registro documenti (tipo quote) ─────────
+
+  /** Righe documento dal form (stessa griglia dell'Ordine cliente). */
+  private buildQuoteLines(): DocumentLineInputBody[] {
+    const lines: DocumentLineInputBody[] = [];
+    for (const line of this.lines.controls) {
+      const raw = line.getRawValue();
+      if (this.lineIsEmpty(line)) {
+        continue;
+      }
+      const unitPrice = parseMoneyInput(raw.unitPrice, this.currency);
+      lines.push({
+        variantId: raw.variantId || undefined,
+        sku: raw.sku.trim() || undefined,
+        description: raw.productName.trim() || raw.sku.trim() || 'Riga documento',
+        quantity: Number(raw.quantity) || 0,
+        unitPriceMinor: unitPrice?.amountMinor ?? 0,
+        // Le righe documento persistono la percentuale effettiva intera
+        // (cascata "4+10%" → 14): stessa resa dei totali in anteprima.
+        discountPercent: parseEffectiveDiscountPercent(raw.discount),
+        vatCodeId: raw.vatCodeId || undefined,
+        // Mai effetti magazzino: il preventivo non impegna e non scarica.
+        loadsStock: false,
+      });
+    }
+    return lines;
+  }
+
+  /**
+   * Salvataggio Preventivo: crea (o aggiorna) il documento `quote` e lo
+   * conferma subito — il numero PRE arriva dal numeratore dedicato alla prima
+   * conferma e il documento resta senza stato visibile in maschera.
+   */
+  private saveQuoteDocument(onSaved?: () => void): void {
+    const value = this.form.getRawValue();
+    const editId = this.editOrderId();
+    const lines = this.buildQuoteLines();
+    this._submitState.set({ status: 'saving' });
+
+    const save$ = editId
+      ? this.documentService.updateDocument(editId, {
+          documentDate: value.documentDate,
+          customerId: value.customerId,
+          locationId: value.locationId || undefined,
+          externalRef: value.externalRef.trim() || null,
+          paymentTerms: value.paymentTerms.trim() || null,
+          expectedDeliveryDate: value.expectedDeliveryDate || null,
+          notes: value.notes.trim(),
+          documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
+          lines,
+        } satisfies UpdateDocumentBody)
+      : this.documentService.createDocument({
+          type: DocumentType.Quote,
+          documentDate: value.documentDate,
+          customerId: value.customerId,
+          locationId: value.locationId || undefined,
+          externalRef: value.externalRef.trim() || undefined,
+          paymentTerms: value.paymentTerms.trim() || undefined,
+          expectedDeliveryDate: value.expectedDeliveryDate || undefined,
+          notes: value.notes.trim() || undefined,
+          currency: this.currency,
+          documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
+          lines,
+        } satisfies CreateDocumentBody);
+
+    const request$ = save$.pipe(
+      switchMap((doc) =>
+        doc.status === DocumentStatus.Draft
+          ? this.documentService.confirmDocument(doc.id)
+          : of(doc),
+      ),
+    );
+
+    request$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (doc) => {
+        this._submitState.set({ status: 'idle' });
+        this.loadedQuoteDoc.set(doc);
+        this.dirtySinceLastSave.set(false);
+        if (!this.editOrderId()) {
+          void this.router.navigate(['/app/documents/quote', doc.id, 'edit'], {
+            replaceUrl: true,
+          });
+        } else {
+          this.patchFormFromQuoteDocument(doc);
+        }
+        onSaved?.();
+      },
+      error: (err: unknown) => {
+        this._submitState.set({ status: 'error', error: this.toAppError(err) });
+      },
+    });
+  }
+
+  /** Carica il preventivo (documento quote) nel form condiviso. */
+  private patchFormFromQuoteDocument(doc: DocumentRecord): void {
+    this.suppressDirtyMarking = true;
+    try {
+      this.form.patchValue({
+        customerId: doc.customerId ?? '',
+        locationId: doc.locationId ?? '',
+        documentDate: doc.documentDate.slice(0, 10),
+        externalRef: doc.externalRef ?? '',
+        expectedDeliveryDate: doc.expectedDeliveryDate?.slice(0, 10) ?? '',
+        status: 'confirmed',
+        paymentTerms: doc.paymentTerms ?? '',
+        notes: doc.notes ?? '',
+        documentDiscountPercent:
+          doc.documentDiscountPercent && doc.documentDiscountPercent > 0
+            ? String(doc.documentDiscountPercent)
+            : '',
+      });
+      this.lines.clear({ emitEvent: false });
+      for (const line of doc.lines ?? []) {
+        const group = this.createLine();
+        group.setValue(
+          {
+            // Le righe documento vengono sostituite integralmente al PATCH:
+            // nessun id riga da preservare (a differenza dell'ordine cliente).
+            id: '',
+            variantId: line.variantId ?? '',
+            articleCode: '',
+            sku: line.sku ?? '',
+            barcode: '',
+            productName: line.description,
+            quantity: line.quantity,
+            unitPrice:
+              line.unitPrice.amountMinor > 0
+                ? moneyToDecimalString(line.unitPrice).replace('.', ',')
+                : '',
+            discount:
+              line.discountPercent && line.discountPercent > 0 ? `${line.discountPercent}%` : '',
+            vatCodeId: line.vatCodeId ?? '',
+            commitsStock: false,
+            unitOfMeasure: '',
+          },
+          { emitEvent: false },
+        );
+        this.lines.push(group, { emitEvent: false });
+      }
+      if (this.lines.length === 0) {
+        this.lines.push(this.createLine(), { emitEvent: false });
+      }
+      this.refreshAllLineSummaries();
+      this.dirtySinceLastSave.set(false);
+    } finally {
+      this.suppressDirtyMarking = false;
+    }
+  }
+
   // ── Concludi ordine (§CONCLUDI ORDINE) ──────────────────────────────────
   protected readonly canConclude = computed(
     () =>
+      !this.isQuote &&
       this.isEditMode() &&
       this.orderState() === ManualOrderState.Confirmed &&
       !this.dirtySinceLastSave() &&
@@ -1892,9 +2228,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       this.exitDialogOpen.set(true);
       this.pendingDeactivate = (allow) => {
         if (allow) {
-          void this.router.navigate([this.listPath]);
+          this.navigateToList();
         }
       };
+      return;
+    }
+    this.navigateToList();
+  }
+
+  /** Lista di provenienza: registro preventivi (quote) o Ordini cliente. */
+  private navigateToList(): void {
+    if (this.isQuote) {
+      void this.router.navigate([this.quoteListPath], {
+        queryParams: { type: DocumentType.Quote },
+      });
       return;
     }
     void this.router.navigate([this.listPath]);

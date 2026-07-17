@@ -23,6 +23,7 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.InvoiceDraft]: 'Bozza fattura',
   [DocumentType.StoreSale]: 'Vendita negozio',
   [DocumentType.StoreReturn]: 'Reso vendita negozio',
+  [DocumentType.Quote]: 'Preventivo',
 };
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
@@ -90,6 +91,10 @@ export function documentStatusDisplayLabel(
   status: DocumentStatus,
   doc: Pick<DocumentRecord, 'externallyIssuedAt'> = { externallyIssuedAt: undefined },
 ): string | null {
+  // Preventivo: nessuno stato documento (resta visibile solo l'annullamento).
+  if (type === DocumentType.Quote) {
+    return status === DocumentStatus.Cancelled ? 'Annullato' : null;
+  }
   if (isOperationalDocumentType(type)) {
     if (status === DocumentStatus.Draft) {
       return null;
@@ -109,6 +114,9 @@ export function documentStatusDisplayTone(
   type: DocumentType,
   status: DocumentStatus,
 ): BadgeTone | null {
+  if (type === DocumentType.Quote && status !== DocumentStatus.Cancelled) {
+    return null;
+  }
   if (isOperationalDocumentType(type) && status === DocumentStatus.Draft) {
     return null;
   }

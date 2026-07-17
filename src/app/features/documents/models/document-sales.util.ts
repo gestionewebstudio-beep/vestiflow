@@ -12,6 +12,7 @@ export const SALES_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.Proforma,
   DocumentType.InvoiceDraft,
   DocumentType.SalesDdt,
+  DocumentType.Quote,
 ] as const;
 
 export function isSalesFormDocumentType(type: DocumentType): boolean {
@@ -32,4 +33,9 @@ export function isProformaDocumentType(type: DocumentType): boolean {
 
 export function isInvoiceDraftDocumentType(type: DocumentType): boolean {
   return type === DocumentType.InvoiceDraft;
+}
+
+/** Preventivo: maschera dedicata (stessa impostazione dell'Ordine cliente). */
+export function isQuoteDocumentType(type: DocumentType): boolean {
+  return type === DocumentType.Quote;
 }

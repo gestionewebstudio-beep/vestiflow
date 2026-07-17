@@ -1,0 +1,87 @@
+<section class="doc-include">
+  @if (!activeKind()) {
+    <div class="doc-include__head">
+      <p class="doc-include__hint">Scegli il tipo di documento da includere.</p>
+    </div>
+    <ul class="doc-include__kind-list">
+      @for (kind of sourceKinds(); track kind) {
+        <li>
+          <button type="button" class="doc-include__kind" (click)="selectKind(kind)">
+            <span class="doc-include__kind-label">{{ kindLabels[kind] }}</span>
+            <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          </button>
+        </li>
+      }
+    </ul>
+  } @else {
+    <div class="doc-include__head">
+      @if (sourceKinds().length > 1) {
+        <button type="button" class="doc-include__back" (click)="backToKinds()">
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+          Tipi di documento
+        </button>
+      }
+      <p class="doc-include__hint">
+        Includendo un documento viene inserita una riga descrittiva con il riferimento all'origine,
+        seguita dalle righe articolo copiate. I dati di testata restano quelli del documento
+        corrente.
+      </p>
+      <input
+        class="doc-include__search"
+        type="search"
+        [ngModel]="searchQuery()"
+        placeholder="Cerca per numero o cliente…"
+        [attr.aria-label]="'Cerca ' + kindLabels[activeKind()!]"
+        autocomplete="off"
+        (ngModelChange)="onSearchInput($event)"
+      />
+    </div>
+
+    @if (includeError(); as error) {
+      <p class="doc-include__error" role="alert">{{ error }}</p>
+    }
+
+    @if (listError()) {
+      <app-empty-state
+        icon="pi-exclamation-triangle"
+        title="Errore di caricamento"
+        description="Impossibile caricare l'elenco. Modifica la ricerca per riprovare."
+      />
+    } @else if (rows().length === 0) {
+      <app-empty-state
+        icon="pi-inbox"
+        [title]="'Nessun ' + kindLabels[activeKind()!].toLowerCase() + ' includibile'"
+        description="Non ci sono documenti che corrispondono alla ricerca."
+      />
+    } @else {
+      <ul class="doc-include__list">
+        @for (row of rows(); track row.id) {
+          <li>
+            <button
+              type="button"
+              class="doc-include__item"
+              [disabled]="includingId() !== null"
+              (click)="include(row)"
+            >
+              <span class="doc-include__item-main">
+                <span class="doc-include__item-ref tabular-nums">{{ row.reference }}</span>
+                <span class="doc-include__item-date">del {{ formatDate(row.documentDate) }}</span>
+              </span>
+              <span class="doc-include__item-detail">
+                <span>{{ row.customerName }}</span>
+                <span class="tabular-nums">{{ formatMoney(row.total) }}</span>
+              </span>
+              @if (includingId() === row.id) {
+                <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  }
+
+  <div class="doc-include__actions">
+    <app-button type="button" variant="ghost" (click)="close()">Chiudi</app-button>
+  </div>
+</section>

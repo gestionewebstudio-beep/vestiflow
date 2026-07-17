@@ -53,6 +53,7 @@ import { isStoreFlowDocumentType } from './models/document-operational.util';
 import {
   isInvoiceDraftDocumentType,
   isProformaDocumentType,
+  isQuoteDocumentType,
   isSalesDdtDocumentType,
   isSalesFormDocumentType,
 } from './models/document-sales.util';
@@ -399,6 +400,13 @@ export class DocumentDetailComponent {
       if (doc.linkedSalesOrder) {
         return false;
       }
+      if (doc.status === DocumentStatus.Draft) {
+        return true;
+      }
+      return isConfirmedEditableDocumentStatus(doc.status) && doc.blockAfterConfirm !== true;
+    }
+    // Preventivo: si modifica dalla maschera dedicata finché non bloccato.
+    if (isQuoteDocumentType(doc.type)) {
       if (doc.status === DocumentStatus.Draft) {
         return true;
       }

@@ -6,6 +6,8 @@ export const NON_STOCK_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.invoice_draft,
   DocumentType.supplier_order,
   DocumentType.supplier_invoice,
+  // Preventivo: mai effetti magazzino (non impegna e non blocca disponibilità).
+  DocumentType.quote,
 ] as const;
 
 /** Avviso obbligatorio in stampa/note proforma (§9.1). */

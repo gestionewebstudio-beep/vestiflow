@@ -126,6 +126,12 @@
       <section class="gr-form__lines" aria-labelledby="sd-lines-title">
         <div class="gr-form__lines-head">
           <h2 id="sd-lines-title" class="gr-form__subtitle">Righe</h2>
+          @if (includeSourceKinds().length > 0) {
+            <app-button type="button" variant="ghost" (click)="openIncludePanel()">
+              <i class="pi pi-file-import" aria-hidden="true"></i>
+              Includi documento
+            </app-button>
+          }
           <app-button type="button" variant="ghost" (click)="addLine()">
             <i class="pi pi-plus" aria-hidden="true"></i>
             Aggiungi riga
@@ -315,4 +321,19 @@
     [busy]="saving()"
     (confirmed)="confirmAndSave()"
   />
+
+  <app-slide-panel
+    [open]="includePanelOpen()"
+    title="Includi documento"
+    (closed)="closeIncludePanel()"
+  >
+    @if (includePanelOpen()) {
+      <app-document-include-panel
+        [sourceKinds]="includeSourceKinds()"
+        [launchSeq]="includeLaunchSeq()"
+        (included)="onDocumentIncluded($event)"
+        (dismissed)="closeIncludePanel()"
+      />
+    }
+  </app-slide-panel>
 </section>

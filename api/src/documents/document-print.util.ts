@@ -5,6 +5,7 @@ export const PRINTABLE_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
   DocumentType.invoice_draft,
   DocumentType.sales_ddt,
+  DocumentType.quote,
   DocumentType.transfer,
   DocumentType.goods_receipt,
   DocumentType.supplier_ddt,
@@ -23,6 +24,7 @@ const SALES_TYPES: readonly DocumentType[] = [
   DocumentType.sales_ddt,
   DocumentType.proforma,
   DocumentType.invoice_draft,
+  DocumentType.quote,
 ] as const;
 
 export type DocumentPrintKind = 'transfer' | 'goods_receipt' | 'sales' | 'generic';

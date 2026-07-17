@@ -8,6 +8,7 @@ export const TableViewId = {
   GoodsReceiptLines: 'goods_receipt_lines',
   SupplierOrderLines: 'supplier_order_lines',
   CustomerOrderLines: 'customer_order_lines',
+  QuoteLines: 'quote_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
 } as const;

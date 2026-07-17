@@ -17,6 +17,9 @@ export function documentEditPath(doc: {
   readonly id: string;
   readonly type: DocumentTypeValue;
 }): string {
+  if (doc.type === DocumentType.Quote) {
+    return `/app/documents/quote/${doc.id}/edit`;
+  }
   if (isSalesFormDocumentType(doc.type)) {
     return `/app/documents/sales/${doc.id}/edit`;
   }
