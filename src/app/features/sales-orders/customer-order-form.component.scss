@@ -15,21 +15,6 @@
   justify-content: space-between;
 }
 
-// Colonna filler (P1): assorbe lo spazio residuo quando la somma delle
-// colonne fisse è inferiore al contenitore — con table-layout: fixed le
-// colonne a larghezza fissa non si allargano da sole e la tabella lasciava
-// un vuoto "fuori griglia" a destra. Sui <col> vale solo `width` fisico:
-// 100% = tutto il residuo dopo le colonne fisse (0 quando traboccano).
-.co-form__col--filler {
-  width: 100%;
-}
-
-.co-form__th-filler,
-.co-form__cell--filler {
-  padding: 0;
-  border-inline-end: none;
-}
-
 // Riga di inserimento rapido sempre in fondo alla tabella (§RIGHE).
 .co-form__quick-row td {
   padding: var(--space-2);

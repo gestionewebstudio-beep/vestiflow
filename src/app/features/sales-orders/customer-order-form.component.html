@@ -315,10 +315,6 @@
                   @if (isLineColumnVisible('actions')) {
                     <col [style.width]="lineColumnWidth('actions')" />
                   }
-                  <!-- Filler elastico: con table-layout fixed le colonne a
-                       larghezza fissa non assorbono lo spazio residuo e la
-                       tabella lascerebbe un vuoto a destra (P1). -->
-                  <col class="co-form__col--filler" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -514,7 +510,6 @@
                         <span class="sr-only">Azioni</span>
                       </th>
                     }
-                    <th scope="col" class="co-form__th-filler" aria-hidden="true"></th>
                   </tr>
                 </thead>
                 <tbody formArrayName="lines">
@@ -761,7 +756,6 @@
                           </div>
                         </td>
                       }
-                      <td class="gr-form__cell co-form__cell--filler" aria-hidden="true"></td>
                     </tr>
                   }
                   <!-- Riga di inserimento rapido: sempre in fondo alla tabella
