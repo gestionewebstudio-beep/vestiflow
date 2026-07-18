@@ -81,6 +81,18 @@ export const documentsRoutes: Routes = [
     },
   },
   {
+    // Scarichi manuali: pagina elenco dedicata (prompt Scarico manuale) — il
+    // documento resta qui finché l'operatore non lo elimina.
+    path: 'manual-unload',
+    title: 'VestiFlow · Scarichi manuali',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'manual-unload',
+    },
+  },
+  {
     path: 'proforma/new',
     title: 'VestiFlow · Nuova proforma',
     loadComponent: () =>
@@ -265,25 +277,47 @@ export const documentsRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {
+    // Scarico manuale: stessa maschera del DDT vendita in modalità
+    // manual-unload (prompt Scarico manuale — righe con prezzi e totali,
+    // cliente facoltativo, scarico diretto giacenze al salvataggio).
     path: 'manual-unload/new',
     title: 'VestiFlow · Nuovo scarico manuale',
     loadComponent: () =>
-      import('./stock-operation-form.component').then((m) => m.StockOperationFormComponent),
+      import('@features/sales-orders/customer-order-form.component').then(
+        (m) => m.CustomerOrderFormComponent,
+      ),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
-      stockDocumentType: DocumentType.ManualUnload,
+      customerDocumentKind: 'manual-unload',
     },
   },
   {
     path: 'manual-unload/:id/edit',
     title: 'VestiFlow · Modifica scarico manuale',
     loadComponent: () =>
-      import('./stock-operation-form.component').then((m) => m.StockOperationFormComponent),
+      import('@features/sales-orders/customer-order-form.component').then(
+        (m) => m.CustomerOrderFormComponent,
+      ),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
-      stockDocumentType: DocumentType.ManualUnload,
+      customerDocumentKind: 'manual-unload',
+    },
+  },
+  {
+    // Anteprima dettaglio dedicata (layout Ordine cliente): registrata dopo
+    // `manual-unload/new` così «new» non viene interpretato come id.
+    path: 'manual-unload/:id',
+    title: 'VestiFlow · Dettaglio scarico manuale',
+    loadComponent: () =>
+      import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'manual-unload',
     },
   },
   {

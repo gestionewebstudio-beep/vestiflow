@@ -258,7 +258,7 @@
 <app-confirm-dialog
   [(open)]="deleteDialogOpen"
   title="Elimina documento"
-  message="Il documento verrà eliminato definitivamente. Procedere?"
+  [message]="deleteDialogMessage()"
   confirmLabel="Elimina"
   [danger]="true"
   [busy]="actionSaving()"

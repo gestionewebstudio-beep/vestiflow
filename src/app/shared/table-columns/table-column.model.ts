@@ -7,6 +7,7 @@ export const TableViewId = {
   QuoteDocumentsList: 'quote_documents_list',
   ProformaDocumentsList: 'proforma_documents_list',
   SalesDdtDocumentsList: 'sales_ddt_documents_list',
+  ManualUnloadDocumentsList: 'manual_unload_documents_list',
   InvoiceDraftDocumentsList: 'invoice_draft_documents_list',
   SuppliersList: 'suppliers_list',
   GoodsReceiptLines: 'goods_receipt_lines',
@@ -14,6 +15,7 @@ export const TableViewId = {
   CustomerOrderLines: 'customer_order_lines',
   QuoteLines: 'quote_lines',
   SalesDdtLines: 'sales_ddt_lines',
+  ManualUnloadLines: 'manual_unload_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
 } as const;

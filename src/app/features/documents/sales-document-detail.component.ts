@@ -22,6 +22,7 @@ import { DocumentDetailComponent } from './document-detail.component';
 import { documentReferenceLabel } from './models/document-labels.util';
 import { salesDocumentRegisterConfig } from './models/document-sales-register.config';
 import { isInvoiceDraftDocumentType, isSalesDdtDocumentType } from './models/document-sales.util';
+import { isManualUnloadDocumentType } from './models/document-stock-operation.util';
 import type { DocumentListProfile } from './models/document-list-query.model';
 
 const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
@@ -88,8 +89,16 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
       { label: 'Data documento', value: formatDate(doc.documentDate), numeric: true },
       { label: 'Cliente', value: doc.customerName ?? '—' },
     ];
-    if (isSalesDdtDocumentType(doc.type) && doc.locationName) {
-      facts.push({ label: 'Magazzino di origine', value: doc.locationName });
+    if (
+      (isSalesDdtDocumentType(doc.type) || isManualUnloadDocumentType(doc.type)) &&
+      doc.locationName
+    ) {
+      facts.push({
+        label: isManualUnloadDocumentType(doc.type)
+          ? 'Location di scarico'
+          : 'Magazzino di origine',
+        value: doc.locationName,
+      });
     }
     if (doc.expectedDeliveryDate) {
       facts.push({

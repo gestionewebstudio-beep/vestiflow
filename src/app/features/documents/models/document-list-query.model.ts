@@ -12,6 +12,7 @@ export type DocumentListProfile =
   | 'quote'
   | 'proforma'
   | 'sales-ddt'
+  | 'manual-unload'
   | 'invoice-draft';
 
 /** Query registro documenti (ordinamento fisso: data documento discendente). */

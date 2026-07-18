@@ -39,6 +39,16 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   @IsUUID()
   customerId?: string | null;
 
+  /**
+   * Cliente a testo libero (prompt Scarico manuale): applicato SOLO quando il
+   * documento non ha customerId — snapshot per la stampa, mai in anagrafica.
+   * null = svuota il testo libero.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customerName?: string | null;
+
   @IsOptional()
   @IsUUID()
   locationId?: string | null;

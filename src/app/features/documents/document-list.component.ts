@@ -490,6 +490,11 @@ export class DocumentListComponent {
       SALES_DOCUMENT_LIST_COLUMN_PRESETS,
     );
     this.columnPreferences.registerView(
+      TableViewId.ManualUnloadDocumentsList,
+      SALES_DOCUMENT_LIST_COLUMN_DEFS,
+      SALES_DOCUMENT_LIST_COLUMN_PRESETS,
+    );
+    this.columnPreferences.registerView(
       TableViewId.InvoiceDraftDocumentsList,
       SALES_DOCUMENT_LIST_COLUMN_DEFS,
       SALES_DOCUMENT_LIST_COLUMN_PRESETS,
@@ -502,6 +507,7 @@ export class DocumentListComponent {
       quote: this.columnPreferences.visibleColumns(TableViewId.QuoteDocumentsList),
       proforma: this.columnPreferences.visibleColumns(TableViewId.ProformaDocumentsList),
       'sales-ddt': this.columnPreferences.visibleColumns(TableViewId.SalesDdtDocumentsList),
+      'manual-unload': this.columnPreferences.visibleColumns(TableViewId.ManualUnloadDocumentsList),
       'invoice-draft': this.columnPreferences.visibleColumns(TableViewId.InvoiceDraftDocumentsList),
     };
 
@@ -713,6 +719,17 @@ export class DocumentListComponent {
   protected requestDeleteDocument(doc: DocumentRecord): void {
     this.pendingDeleteDoc = doc;
     this.deleteDialogOpen.set(true);
+  }
+
+  /** Scarico manuale: l'eliminazione NON ripristina le giacenze già scalate. */
+  protected deleteDialogMessage(): string {
+    if (this.pendingDeleteDoc?.type === DocumentType.ManualUnload) {
+      return (
+        'Lo scarico manuale verrà eliminato definitivamente. Le giacenze già ' +
+        'scalate NON verranno ripristinate. Procedere?'
+      );
+    }
+    return 'Il documento verrà eliminato definitivamente. Procedere?';
   }
 
   protected confirmDeleteDocument(): void {

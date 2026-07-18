@@ -580,7 +580,9 @@ describe('DocumentsService', () => {
       expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-b']);
     });
 
-    it('manual_unload: genera movimenti unload alla conferma', async () => {
+    it('manual_unload: alla conferma sottrae la giacenza SENZA creare movimenti', async () => {
+      // Deroga prompt Scarico manuale: giacenza modificata direttamente,
+      // niente StockMovement; push canali comunque eseguito post-commit.
       const { service, channelSync } = createService(
         prisma,
         resolvedSetting({ type: DocumentType.manual_unload, numberPrefix: 'SCA' }),
@@ -595,7 +597,7 @@ describe('DocumentsService', () => {
         number: null,
         reference: null,
         locationId: 'loc-1',
-        internalComment: 'Campione difettoso',
+        internalComment: null,
         lines: [
           {
             id: 'l1',
@@ -616,37 +618,14 @@ describe('DocumentsService', () => {
 
       await service.confirm(tenantId, 'doc-sca');
 
-      expect(prisma.stockMovement.create).toHaveBeenCalledWith(
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+      expect(prisma.inventoryLevel.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            type: 'unload',
-            locationId: 'loc-1',
-            quantity: 3,
-            reason: expect.stringContaining('Campione difettoso'),
-          }),
+          where: expect.objectContaining({ variantId: 'var-1', locationId: 'loc-1' }),
+          data: { onHand: { increment: -3 }, available: { increment: -3 } },
         }),
       );
       expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
-    });
-
-    it('manual_unload: rifiuta conferma senza motivo', async () => {
-      const { service } = createService(
-        prisma,
-        resolvedSetting({ type: DocumentType.manual_unload }),
-      );
-      prisma.document.findFirst.mockResolvedValue({
-        id: 'doc-sca',
-        tenantId,
-        type: DocumentType.manual_unload,
-        status: DocumentStatus.draft,
-        locationId: 'loc-1',
-        internalComment: null,
-        lines: [{ lineNumber: 1, variantId: 'v1', quantity: 1, loadsStock: true }],
-      });
-
-      await expect(service.confirm(tenantId, 'doc-sca')).rejects.toBeInstanceOf(
-        UnprocessableEntityException,
-      );
     });
 
     it('adjustment: genera movimenti adjustment alla conferma', async () => {
@@ -1563,12 +1542,13 @@ describe('DocumentsService', () => {
         ],
       });
 
-      expect(prisma.stockMovement.create).toHaveBeenCalledWith(
+      // Deroga prompt Scarico manuale: riconciliazione a delta diretto
+      // (2 → 4 scarica solo -2) SENZA creare movimenti.
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+      expect(prisma.inventoryLevel.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            type: 'unload',
-            quantity: 2,
-          }),
+          where: expect.objectContaining({ variantId: 'var-1', locationId: 'loc-1' }),
+          data: { onHand: { increment: -2 }, available: { increment: -2 } },
         }),
       );
       expect(prisma.documentRevision.create).toHaveBeenCalled();

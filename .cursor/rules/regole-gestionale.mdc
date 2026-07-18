@@ -84,6 +84,7 @@ L'interfaccia deve privilegiare:
  - `createdBy` + snapshot `createdByName`
 - È VIETATO aggiornare quantità stock senza lasciare traccia del movimento, salvo migrazioni documentate.
 - **Eccezione sync**: i delta di giacenza che arrivano da Shopify (vendite online, rettifiche fatte nell'admin Shopify) generano movimenti con origine `shopify` (`type: sale` o `adjustment`). Non sono "modifiche silenziose" ma nemmeno azioni utente: l'origine deve essere distinguibile nello storico.
+- **DEROGA Scarico manuale (prompt Scarico manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
 
 ## Multi-tenant
 - Tutte le entità di business DEVONO essere tenant-aware.

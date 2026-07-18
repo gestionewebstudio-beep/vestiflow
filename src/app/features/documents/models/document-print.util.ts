@@ -15,6 +15,8 @@ export const PRINTABLE_DOCUMENT_TYPES: readonly DocumentTypeValue[] = [
   DocumentType.GoodsReceipt,
   DocumentType.SupplierDdt,
   DocumentType.SupplierInvoiceAccompanying,
+  // Scarico manuale (prompt Scarico manuale): stampa con prezzi e totali.
+  DocumentType.ManualUnload,
 ] as const;
 
 export function isPrintableDocumentType(type: DocumentTypeValue): boolean {
@@ -30,5 +32,6 @@ export function isTransferPrintType(type: DocumentTypeValue): boolean {
 }
 
 export function isSalesPrintType(type: DocumentTypeValue): boolean {
-  return isSalesDocumentType(type);
+  // Scarico manuale: layout vendita (Cliente + righe con prezzi/totali).
+  return isSalesDocumentType(type) || type === DocumentType.ManualUnload;
 }

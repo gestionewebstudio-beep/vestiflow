@@ -43,11 +43,19 @@
   } @else if (notEditable()) {
     <app-empty-state
       icon="pi-lock"
-      [title]="isQuote ? 'Preventivo non modificabile' : 'Ordine non modificabile'"
+      [title]="
+        isQuote
+          ? 'Preventivo non modificabile'
+          : isManualUnload
+            ? 'Scarico manuale non modificabile'
+            : 'Ordine non modificabile'
+      "
       [description]="
         isQuote
           ? 'Il documento non è un preventivo modificabile da questa maschera.'
-          : 'Solo gli ordini di origine Manuale possono essere modificati da questa maschera.'
+          : isManualUnload
+            ? 'Il documento non è uno scarico manuale modificabile da questa maschera.'
+            : 'Solo gli ordini di origine Manuale possono essere modificati da questa maschera.'
       "
       ctaLabel="Torna al registro"
       (ctaClick)="cancel()"
@@ -94,23 +102,39 @@
         <div class="gr-form__header">
           <div class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact">
             <div class="gr-form__field gr-form__field--span2">
-              <span class="gr-form__label" id="co-customer-label">Cliente</span>
+              <span class="gr-form__label" id="co-customer-label">
+                {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
+              </span>
               <app-select-menu
                 [options]="customerOptions()"
                 [value]="form.controls.customerId.value"
                 ariaLabel="Cliente"
-                placeholder="Seleziona cliente…"
+                [placeholder]="
+                  isManualUnload ? 'Seleziona cliente (facoltativo)…' : 'Seleziona cliente…'
+                "
                 [compact]="true"
                 [fullWidth]="true"
                 [searchable]="true"
                 searchPlaceholder="Cerca cliente…"
                 searchAriaLabel="Cerca cliente"
-                [invalid]="fieldInvalid('customerId')"
+                [invalid]="!isManualUnload && fieldInvalid('customerId')"
                 describedBy="co-customer-error"
                 (valueChange)="onCustomerSelect($event)"
               />
-              @if (fieldInvalid('customerId')) {
+              @if (!isManualUnload && fieldInvalid('customerId')) {
                 <p id="co-customer-error" class="gr-form__error">Seleziona un cliente.</p>
+              }
+              @if (isManualUnload && !form.controls.customerId.value) {
+                <!-- Cliente digitato liberamente (prompt Scarico manuale):
+                     compare solo in stampa, NON viene salvato in anagrafica. -->
+                <input
+                  class="gr-form__input"
+                  type="text"
+                  formControlName="customerFreeText"
+                  placeholder="…oppure digita il nome solo per la stampa"
+                  aria-label="Cliente a testo libero (solo stampa)"
+                  autocomplete="off"
+                />
               }
               <button type="button" class="gr-form__inline-toggle" (click)="toggleCustomerForm()">
                 <i
@@ -189,8 +213,21 @@
               </div>
             }
 
-            <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento. -->
-            @if (!isSalesDdt) {
+            <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
+                 Scarico manuale: solo Rif. (niente consegna/pagamento). -->
+            @if (isManualUnload) {
+              <div class="gr-form__field">
+                <label class="gr-form__label" for="co-external-ref">Rif.</label>
+                <input
+                  id="co-external-ref"
+                  class="gr-form__input"
+                  type="text"
+                  formControlName="externalRef"
+                  placeholder="Es. campionario fiera"
+                  autocomplete="off"
+                />
+              </div>
+            } @else if (!isSalesDdt) {
               <div class="gr-form__field">
                 <label class="gr-form__label" for="co-external-ref">
                   {{ isQuote ? 'Rif.' : 'Rif. ordine cliente' }}
@@ -285,7 +322,11 @@
         @if (headerGateActive()) {
           <p class="gr-form__gate-banner" role="status">
             <i class="pi pi-lock" aria-hidden="true"></i>
-            Seleziona cliente e location per iniziare ad aggiungere righe.
+            {{
+              isManualUnload
+                ? 'Seleziona la location di scarico per iniziare ad aggiungere righe.'
+                : 'Seleziona cliente e location per iniziare ad aggiungere righe.'
+            }}
           </p>
         }
 
@@ -588,7 +629,7 @@
                             <i
                               class="pi pi-info-circle gr-form__th-info"
                               [attr.aria-label]="
-                                isSalesDdt
+                                isSalesDdt || isManualUnload
                                   ? 'Info colonna Scarica magazzino'
                                   : 'Info colonna Impegna magazzino'
                               "
@@ -834,7 +875,9 @@
                           <label class="gr-form__check">
                             <input type="checkbox" formControlName="commitsStock" />
                             <span class="sr-only">{{
-                              isSalesDdt ? 'Scarica magazzino' : 'Impegna magazzino'
+                              isSalesDdt || isManualUnload
+                                ? 'Scarica magazzino'
+                                : 'Impegna magazzino'
                             }}</span>
                           </label>
                         </td>
@@ -1358,7 +1401,9 @@
               ? 'Il preventivo non impegna e non blocca la disponibilità di magazzino'
               : isSalesDdt
                 ? 'Il DDT scarica le giacenze al salvataggio del documento'
-                : 'Gli impegni di magazzino si aggiornano al salvataggio'
+                : isManualUnload
+                  ? 'Lo scarico aggiorna le giacenze al salvataggio; eliminando il documento NON vengono ripristinate'
+                  : 'Gli impegni di magazzino si aggiornano al salvataggio'
           }}
         </p>
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
@@ -1569,10 +1614,15 @@
     aria-modal="true"
     aria-labelledby="co-availability-title"
   >
-    <h2 id="co-availability-title" class="gr-form__exit-title">Quantità oltre la disponibilità</h2>
+    <h2 id="co-availability-title" class="gr-form__exit-title">
+      {{ isManualUnload ? 'Scarico oltre la disponibilità' : 'Quantità oltre la disponibilità' }}
+    </h2>
     <p class="gr-form__exit-message">
-      Alcune righe superano la quantità disponibile reale (Giacenza − Impegnata). Puoi correggere
-      subito oppure salvare comunque: nessun dato viene perso.
+      {{
+        isManualUnload
+          ? 'Stai scaricando più di quanto disponibile. Continuare?'
+          : 'Alcune righe superano la quantità disponibile reale (Giacenza − Impegnata). Puoi correggere subito oppure salvare comunque: nessun dato viene perso.'
+      }}
     </p>
     <ul class="co-form__availability-list">
       @for (issue of availabilityIssues(); track issue.lineNumber) {
@@ -1584,9 +1634,11 @@
     </ul>
     <div class="gr-form__exit-actions">
       <app-button type="button" variant="ghost" (click)="dismissAvailabilityDialog()">
-        Correggi subito
+        {{ isManualUnload ? 'Annulla' : 'Correggi subito' }}
       </app-button>
-      <app-button type="button" (click)="confirmAvailabilityDialog()">Salva comunque</app-button>
+      <app-button type="button" (click)="confirmAvailabilityDialog()">
+        {{ isManualUnload ? 'Sì' : 'Salva comunque' }}
+      </app-button>
     </div>
   </div>
 }
@@ -1626,6 +1678,7 @@
 <app-slide-panel
   [open]="productSearchPanelOpen()"
   title="Cerca prodotto"
+  size="narrow"
   (closed)="closeLineProductSearch()"
 >
   @if (productSearchPanelOpen()) {

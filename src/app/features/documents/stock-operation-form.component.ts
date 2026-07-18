@@ -42,10 +42,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import {
-  isAdjustmentDocumentType,
-  isManualUnloadDocumentType,
-} from './models/document-stock-operation.util';
+import { isAdjustmentDocumentType } from './models/document-stock-operation.util';
 import { DocumentService } from './services/document.service';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
 
@@ -92,10 +89,9 @@ export class StockOperationFormComponent {
   protected readonly documentType = computed(
     () => this.routeData()['stockDocumentType'] as DocumentType,
   );
+  // Dallo spostamento dello Scarico manuale sulla maschera DDT (prompt
+  // Scarico manuale) questo form serve SOLO le Rettifiche di magazzino.
   protected readonly isAdjustment = computed(() => isAdjustmentDocumentType(this.documentType()));
-  protected readonly isManualUnload = computed(() =>
-    isManualUnloadDocumentType(this.documentType()),
-  );
 
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
   protected readonly isEditMode = computed(() => Boolean(this.editDocumentId()));

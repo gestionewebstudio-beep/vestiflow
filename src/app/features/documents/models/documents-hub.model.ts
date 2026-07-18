@@ -71,11 +71,12 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         available: true,
       },
       {
+        // Pagina dedicata (prompt Scarico manuale): elenco con «Nuovo scarico
+        // manuale», eliminazione senza ripristino giacenze e stampa.
         id: 'manual-unload',
         label: 'Scarichi manuali',
         description: 'Scarichi operativi non legati a vendita.',
-        route: ['/app/documents/registro'],
-        queryParams: { type: 'manual_unload' },
+        route: ['/app/documents/manual-unload'],
         icon: 'pi-minus-circle',
         available: true,
       },

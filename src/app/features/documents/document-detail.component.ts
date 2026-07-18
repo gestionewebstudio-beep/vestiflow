@@ -47,6 +47,7 @@ import { documentEditPath } from './models/document-routing.util';
 import { isTransferDocumentType } from './models/document-transfer.util';
 import {
   isAdjustmentDocumentType,
+  isManualUnloadDocumentType,
   isStockOperationDocumentType,
 } from './models/document-stock-operation.util';
 import { isStoreFlowDocumentType } from './models/document-operational.util';
@@ -356,6 +357,11 @@ export class DocumentDetailComponent {
       // Vendite/resi negozio: registro consultabile, gestione solo dalla cassa.
       return false;
     }
+    // Scarico manuale (prompt Scarico manuale): niente annullamento — si
+    // elimina dall'elenco e le giacenze già scalate NON vengono ripristinate.
+    if (isManualUnloadDocumentType(doc.type)) {
+      return false;
+    }
     return this.canManage() && doc.status !== DocumentStatus.Cancelled;
   });
   protected readonly canDelete = computed(() => {
@@ -363,10 +369,27 @@ export class DocumentDetailComponent {
     if (!doc || isStoreFlowDocumentType(doc.type)) {
       return false;
     }
+    // Scarico manuale: eliminabile in qualunque stato (definitiva solo sul
+    // documento, mai sulle giacenze — prompt Scarico manuale).
+    if (isManualUnloadDocumentType(doc.type)) {
+      return this.canManage();
+    }
     return (
       this.canManage() &&
       (doc.status === DocumentStatus.Draft || doc.status === DocumentStatus.Cancelled)
     );
+  });
+
+  /** Scarico manuale: l'eliminazione NON ripristina le giacenze già scalate. */
+  protected readonly deleteDialogMessage = computed(() => {
+    const doc = this.document();
+    if (doc && isManualUnloadDocumentType(doc.type)) {
+      return (
+        'Lo scarico manuale verrà eliminato definitivamente. Le giacenze già ' +
+        'scalate NON verranno ripristinate. Procedere?'
+      );
+    }
+    return 'Il documento verrà eliminato definitivamente. Procedere?';
   });
 
   /** Duplica documento (§2a): disponibile per tutti i tipi tranne vendite/resi negozio. */

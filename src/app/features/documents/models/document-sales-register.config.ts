@@ -4,8 +4,17 @@ import { TableViewId } from '@shared/table-columns/table-column.model';
 
 import type { DocumentListProfile } from './document-list-query.model';
 
-/** Profili lista dedicati ai documenti di vendita (voci sidebar Vendite). */
-export type SalesDocumentRegisterProfile = 'quote' | 'proforma' | 'sales-ddt' | 'invoice-draft';
+/**
+ * Profili lista dedicati con pagina propria (voci sidebar Vendite più lo
+ * Scarico manuale di Magazzino, che riusa la stessa impostazione a pagina
+ * dedicata — prompt Scarico manuale).
+ */
+export type SalesDocumentRegisterProfile =
+  | 'quote'
+  | 'proforma'
+  | 'sales-ddt'
+  | 'manual-unload'
+  | 'invoice-draft';
 
 /**
  * Configurazione delle pagine dedicate ai documenti di vendita: elenco con
@@ -113,6 +122,27 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     detailPanelTitle: 'Dati DDT',
     detailNotFoundTitle: 'DDT vendita non trovato',
   },
+  'manual-unload': {
+    profile: 'manual-unload',
+    type: DocumentType.ManualUnload,
+    pageTitle: 'Scarichi manuali',
+    pageSubtitle:
+      'Scarichi operativi non legati a vendita: la giacenza viene sottratta al salvataggio, senza movimenti; eliminando il documento le giacenze NON vengono ripristinate.',
+    createLabel: 'Nuovo scarico manuale',
+    createPath: '/app/documents/manual-unload/new',
+    listPath: '/app/documents/manual-unload',
+    emptyTitle: 'Nessuno scarico manuale',
+    emptyDescription:
+      'Non ci sono scarichi manuali che corrispondono ai filtri. Crea un nuovo scarico per registrare uscite di merce non legate a vendita (campionario, omaggi, merce deteriorata).',
+    emptyIcon: 'pi-minus-circle',
+    searchPlaceholder: 'Cerca per numero o cliente…',
+    // Salvataggio = conferma immediata: nessun ciclo stati da filtrare.
+    statusOptions: null,
+    showPendingInvoiceFilter: false,
+    viewId: TableViewId.ManualUnloadDocumentsList,
+    detailPanelTitle: 'Dati scarico manuale',
+    detailNotFoundTitle: 'Scarico manuale non trovato',
+  },
   'invoice-draft': {
     profile: 'invoice-draft',
     type: DocumentType.InvoiceDraft,
@@ -138,6 +168,7 @@ export const SALES_DOCUMENT_REGISTER_PROFILES: readonly SalesDocumentRegisterPro
   'quote',
   'proforma',
   'sales-ddt',
+  'manual-unload',
   'invoice-draft',
 ] as const;
 

@@ -145,6 +145,45 @@ export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Operational]: SALES_DDT_ALL_COLUMN_IDS,
 };
 
+// ── Scarico manuale (stessa maschera del DDT vendita, prompt Scarico manuale) ─
+// Stesse colonne del DDT («Scarica mag.», prezzi, totali); niente «Seriali»:
+// lo scarico diretto non gestisce i numeri di serie (nessun movimento).
+export const MANUAL_UNLOAD_LINES_VIEW = TableViewId.ManualUnloadLines;
+
+export const MANUAL_UNLOAD_LINE_COLUMNS: readonly TableColumnDef[] = SALES_DDT_LINE_COLUMNS.filter(
+  (column) => column.id !== 'serials',
+);
+
+const MANUAL_UNLOAD_ALL_COLUMN_IDS = MANUAL_UNLOAD_LINE_COLUMNS.filter(
+  (column) => column.defaultVisible !== false,
+).map((column) => column.id);
+
+export const MANUAL_UNLOAD_LINE_PRESETS: TableViewPresetMap = {
+  [PresetId.Default]: MANUAL_UNLOAD_ALL_COLUMN_IDS,
+  [PresetId.Warehouse]: [
+    'sku',
+    'barcode',
+    'product',
+    'quantity',
+    'stockAvailable',
+    'unitOfMeasure',
+    'commitsStock',
+    'actions',
+  ],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'quantity',
+    'unitPrice',
+    'discount',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Supplier]: MANUAL_UNLOAD_ALL_COLUMN_IDS,
+  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitPrice', 'discountedPrice', 'lineTotal'],
+  [PresetId.Operational]: MANUAL_UNLOAD_ALL_COLUMN_IDS,
+};
+
 // ── Preventivo (stessa maschera dell'Ordine cliente, §Preventivi) ───────────
 // Il preventivo non impegna e non blocca disponibilità di magazzino: niente
 // colonne «Q.tà disponibile» e «Impegna» — il resto della tabella è identico.

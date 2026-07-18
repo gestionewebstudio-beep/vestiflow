@@ -118,6 +118,9 @@ import {
   CUSTOMER_ORDER_LINE_COLUMNS,
   CUSTOMER_ORDER_LINE_PRESETS,
   CUSTOMER_ORDER_LINES_VIEW,
+  MANUAL_UNLOAD_LINE_COLUMNS,
+  MANUAL_UNLOAD_LINE_PRESETS,
+  MANUAL_UNLOAD_LINES_VIEW,
   QUOTE_LINE_COLUMNS,
   QUOTE_LINE_PRESETS,
   QUOTE_LINES_VIEW,
@@ -218,37 +221,49 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /**
    * Modalità della maschera (route data `customerDocumentKind`): 'order' =
    * Ordine cliente manuale (default), 'quote' = Preventivo, 'sales-ddt' =
-   * DDT vendita. Preventivo e DDT usano la STESSA schermata e lo stesso
-   * funzionamento delle righe, persistendo nel registro documenti coi
-   * rispettivi numeratori (PRE / DDT). Differenze chiave:
+   * DDT vendita, 'manual-unload' = Scarico manuale. Le modalità documento
+   * usano la STESSA schermata e lo stesso funzionamento delle righe,
+   * persistendo nel registro documenti coi rispettivi numeratori
+   * (PRE / DDT / SCA). Differenze chiave:
    * - Preventivo: nessuno stato, mai effetti magazzino.
    * - DDT vendita: nessuno stato documento, la colonna «Imp.» diventa
    *   «Scarica mag.» e le giacenze vengono SCARICATE al salvataggio; in più
    *   testata con Pagamento (modalità normativa fatt. elettronica), «Seguirà
    *   doc. di vendita», sezione Trasporto e sezione Indirizzi (prompt DDT).
+   * - Scarico manuale (prompt Scarico manuale): come il DDT per righe, prezzi
+   *   e totali, ma cliente FACOLTATIVO (anagrafica o testo libero solo per la
+   *   stampa), niente trasporto/indirizzi; la giacenza viene sottratta
+   *   direttamente al salvataggio SENZA movimenti di magazzino (deroga
+   *   documentata) e l'eliminazione del documento non la ripristina.
    */
   private readonly formKind =
     (this.route.snapshot.data['customerDocumentKind'] as
       | 'order'
       | 'quote'
       | 'sales-ddt'
+      | 'manual-unload'
       | undefined) ?? 'order';
   protected readonly isQuote = this.formKind === 'quote';
   protected readonly isSalesDdt = this.formKind === 'sales-ddt';
+  protected readonly isManualUnload = this.formKind === 'manual-unload';
   /** Ordine cliente manuale (persistenza in SalesOrder, stati e impegni). */
   protected readonly isOrder = this.formKind === 'order';
-  /** Modalità che persistono nel registro documenti (quote / sales_ddt). */
+  /** Modalità che persistono nel registro documenti (quote / sales_ddt / manual_unload). */
   private readonly isRegistryDocument = !this.isOrder;
   /** Tipo documento del registro per la modalità corrente. */
   private readonly registryDocumentType = this.isSalesDdt
     ? DocumentType.SalesDdt
-    : DocumentType.Quote;
+    : this.isManualUnload
+      ? DocumentType.ManualUnload
+      : DocumentType.Quote;
 
   protected readonly listPath = '/app/sales';
   /** Elenco dedicato del tipo (mai il registro generico filtrato). */
   private readonly registryListPath = this.isSalesDdt
     ? '/app/documents/sales-ddt'
-    : '/app/documents/quote';
+    : this.isManualUnload
+      ? '/app/documents/manual-unload'
+      : '/app/documents/quote';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatVatRate = formatVatRate;
@@ -257,19 +272,25 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     ? QUOTE_LINES_VIEW
     : this.isSalesDdt
       ? SALES_DDT_LINES_VIEW
-      : CUSTOMER_ORDER_LINES_VIEW;
+      : this.isManualUnload
+        ? MANUAL_UNLOAD_LINES_VIEW
+        : CUSTOMER_ORDER_LINES_VIEW;
   private readonly lineColumnDefs = this.isQuote
     ? QUOTE_LINE_COLUMNS
     : this.isSalesDdt
       ? SALES_DDT_LINE_COLUMNS
-      : CUSTOMER_ORDER_LINE_COLUMNS;
-  /** Colonna spunta magazzino: «Imp.» (ordine) o «Scarica mag.» (DDT §RIGHE). */
-  protected readonly commitsColumnLabel = this.isSalesDdt ? 'Scarica mag.' : 'Imp.';
-  protected readonly commitsStockTooltip = this.isSalesDdt
-    ? 'Se attiva, la quantità della riga SCARICA la giacenza di magazzino al salvataggio del documento. ' +
-      'Default dal Tipo prodotto: Articolo ON, Servizio OFF. Sempre modificabile per eccezioni.'
-    : 'Se attiva, la quantità della riga impegna la disponibilità di magazzino (Disponibile = Giacenza − Impegnata). ' +
-      'Default dal Tipo prodotto: Articolo ON, Servizio OFF. Sempre modificabile per eccezioni.';
+      : this.isManualUnload
+        ? MANUAL_UNLOAD_LINE_COLUMNS
+        : CUSTOMER_ORDER_LINE_COLUMNS;
+  /** Colonna spunta magazzino: «Imp.» (ordine) o «Scarica mag.» (DDT/Scarico). */
+  protected readonly commitsColumnLabel =
+    this.isSalesDdt || this.isManualUnload ? 'Scarica mag.' : 'Imp.';
+  protected readonly commitsStockTooltip =
+    this.isSalesDdt || this.isManualUnload
+      ? 'Se attiva, la quantità della riga SCARICA la giacenza di magazzino al salvataggio del documento. ' +
+        'Default dal Tipo prodotto: Articolo ON, Servizio OFF. Sempre modificabile per eccezioni.'
+      : 'Se attiva, la quantità della riga impegna la disponibilità di magazzino (Disponibile = Giacenza − Impegnata). ' +
+        'Default dal Tipo prodotto: Articolo ON, Servizio OFF. Sempre modificabile per eccezioni.';
 
   // ── Routing / stato pagina ──────────────────────────────────────────────
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
@@ -311,6 +332,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (this.isSalesDdt) {
       return this.isEditMode() ? 'Modifica DDT vendita' : 'Nuovo DDT vendita';
     }
+    if (this.isManualUnload) {
+      return this.isEditMode() ? 'Modifica scarico manuale' : 'Nuovo scarico manuale';
+    }
     return this.isEditMode() ? 'Modifica ordine cliente' : 'Nuovo ordine cliente';
   });
 
@@ -318,7 +342,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     ? 'Preventivi'
     : this.isSalesDdt
       ? 'DDT vendita'
-      : 'Ordini cliente';
+      : this.isManualUnload
+        ? 'Scarichi manuali'
+        : 'Ordini cliente';
   protected readonly backHref = this.isRegistryDocument ? this.registryListPath : '/app/sales';
 
   protected readonly stateOptions: readonly SelectMenuOption[] = [
@@ -354,7 +380,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   // ── Form ────────────────────────────────────────────────────────────────
   readonly form = this.fb.group({
-    customerId: this.fb.control('', { validators: [Validators.required] }),
+    // Scarico manuale: cliente FACOLTATIVO (prompt Scarico manuale) — dalla
+    // anagrafica oppure digitato liberamente (customerFreeText, solo stampa).
+    customerId: this.fb.control('', {
+      validators: this.isManualUnload ? [] : [Validators.required],
+    }),
+    /** Cliente a testo libero (solo scarico manuale): mai salvato in anagrafica. */
+    customerFreeText: this.fb.control(''),
     // Obbligatoria: la testata (cliente + location) è il minimo salvabile.
     locationId: this.fb.control('', { validators: [Validators.required] }),
     documentDate: this.fb.control(toIsoDateLocal(new Date()), {
@@ -648,11 +680,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   );
 
   // ── Gate: righe disabilitate finché mancano cliente E location (P5) ─────
+  // Scarico manuale: il cliente è facoltativo, basta la location di scarico.
   protected readonly headerGateActive = computed(() => {
     if (this.formReadOnly()) {
       return false;
     }
     this.formValue();
+    if (this.isManualUnload) {
+      return !this.form.controls.locationId.value;
+    }
     return !this.form.controls.customerId.value || !this.form.controls.locationId.value;
   });
 
@@ -739,11 +775,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // ── Includi documento (logica trasversale, mappa in document-include.util:
   //     l'Ordine cliente include da Preventivo; il DDT vendita da Preventivo
   //     e Ordine cliente; il Preventivo non include da nessun documento) ────
-  protected readonly includeSourceKinds: readonly IncludeSourceKind[] = this.isQuote
-    ? []
-    : this.isSalesDdt
-      ? includeSourceKindsForDocumentType(DocumentType.SalesDdt)
-      : CUSTOMER_ORDER_INCLUDE_SOURCES;
+  protected readonly includeSourceKinds: readonly IncludeSourceKind[] =
+    this.isQuote || this.isManualUnload
+      ? []
+      : this.isSalesDdt
+        ? includeSourceKindsForDocumentType(DocumentType.SalesDdt)
+        : CUSTOMER_ORDER_INCLUDE_SOURCES;
   protected readonly includePanelOpen = signal(false);
   protected readonly includeLaunchSeq = signal(0);
 
@@ -781,7 +818,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         ? QUOTE_LINE_PRESETS
         : this.isSalesDdt
           ? SALES_DDT_LINE_PRESETS
-          : CUSTOMER_ORDER_LINE_PRESETS,
+          : this.isManualUnload
+            ? MANUAL_UNLOAD_LINE_PRESETS
+            : CUSTOMER_ORDER_LINE_PRESETS,
     );
 
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -2135,9 +2174,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       return;
     }
     // Testata minima salvabile: cliente + location (righe opzionali, P6).
+    // Scarico manuale: basta la location — il cliente è facoltativo.
     this.form.controls.customerId.markAsTouched();
     this.form.controls.locationId.markAsTouched();
-    if (!this.form.controls.customerId.value || !this.form.controls.locationId.value) {
+    const missingCustomer = !this.isManualUnload && !this.form.controls.customerId.value;
+    if (missingCustomer || !this.form.controls.locationId.value) {
       this._submitState.set({
         status: 'error',
         error: {
@@ -2146,14 +2187,16 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             ? 'Seleziona cliente e location per salvare il preventivo.'
             : this.isSalesDdt
               ? 'Seleziona cliente e location per salvare il DDT vendita.'
-              : "Seleziona cliente e location di origine per salvare l'ordine.",
+              : this.isManualUnload
+                ? 'Seleziona la location di scarico per salvare lo scarico manuale.'
+                : "Seleziona cliente e location di origine per salvare l'ordine.",
         },
       });
       return;
     }
     if (this.isRegistryDocument) {
-      // Il documento riceve il numero (PRE/DDT) al salvataggio: serve almeno
-      // una riga valida (un documento di sola testata non è numerabile).
+      // Il documento riceve il numero (PRE/DDT/SCA) al salvataggio: serve
+      // almeno una riga valida (un documento di sola testata non è numerabile).
       if (this.validLinesCount() === 0) {
         this._submitState.set({
           status: 'error',
@@ -2161,7 +2204,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             kind: AppErrorKind.Validation,
             message: this.isSalesDdt
               ? 'Aggiungi almeno una riga valida per salvare il DDT vendita.'
-              : 'Aggiungi almeno una riga valida per salvare il preventivo.',
+              : this.isManualUnload
+                ? 'Aggiungi almeno una riga valida per salvare lo scarico manuale.'
+                : 'Aggiungi almeno una riga valida per salvare il preventivo.',
           },
         });
         return;
@@ -2171,14 +2216,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.saveDocument();
         return;
       }
-      // DDT vendita: catena di avvisi non bloccanti prima del salvataggio —
-      // disponibilità → dati trasporto/indirizzi incompleti → copertura
-      // parziale degli ordini inclusi (prompt DDT §AVVISI/§LOGICA MAGAZZINO).
-      const ddtIssues = this.collectAvailabilityIssues();
-      if (ddtIssues.length > 0) {
-        this.availabilityIssues.set(ddtIssues);
+      // DDT vendita e Scarico manuale: avviso disponibilità non bloccante
+      // («Stai scaricando più di quanto disponibile. Continuare?»). Per il
+      // DDT la catena prosegue con dati trasporto/indirizzi e copertura
+      // ordini (prompt DDT §AVVISI); lo scarico salva direttamente.
+      const unloadIssues = this.collectAvailabilityIssues();
+      if (unloadIssues.length > 0) {
+        this.availabilityIssues.set(unloadIssues);
         this.pendingSaveAfterAvailability = true;
         this.availabilityDialogOpen.set(true);
+        return;
+      }
+      if (this.isManualUnload) {
+        this.saveDocument();
         return;
       }
       this.checkIncompleteDataThenSave();
@@ -2478,10 +2528,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         // (cascata "4+10%" → 14): stessa resa dei totali in anteprima.
         discountPercent: parseEffectiveDiscountPercent(raw.discount),
         vatCodeId: raw.vatCodeId || undefined,
-        // Preventivo: mai effetti magazzino. DDT vendita: la spunta
-        // «Scarica mag.» decide se la riga scarica la giacenza (prompt DDT).
-        loadsStock: this.isSalesDdt ? raw.commitsStock && Boolean(raw.variantId) : false,
-        // Seriali consumati dallo scarico (solo DDT, prodotti tracciati).
+        // Preventivo: mai effetti magazzino. DDT vendita e Scarico manuale:
+        // la spunta «Scarica mag.» decide se la riga scarica la giacenza.
+        loadsStock:
+          this.isSalesDdt || this.isManualUnload
+            ? raw.commitsStock && Boolean(raw.variantId)
+            : false,
+        // Seriali consumati dallo scarico (solo DDT, prodotti tracciati):
+        // lo scarico manuale diretto non gestisce i numeri di serie.
         serialNumbers: this.isSalesDdt ? parseSerialNumbersText(raw.serialNumbersText) : undefined,
       });
     }
@@ -2551,10 +2605,16 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
     const ddtCreateFields = this.isSalesDdt ? this.buildSalesDdtHeaderFields() : null;
 
+    // Scarico manuale: cliente facoltativo — anagrafica (customerId) oppure
+    // testo libero solo-stampa (customerName, mai salvato in anagrafica).
+    const freeTextCustomer =
+      this.isManualUnload && !value.customerId ? value.customerFreeText.trim() : '';
+
     const save$ = editId
       ? this.documentService.updateDocument(editId, {
           documentDate: value.documentDate,
-          customerId: value.customerId,
+          customerId: this.isManualUnload ? value.customerId || null : value.customerId,
+          ...(this.isManualUnload ? { customerName: freeTextCustomer || null } : {}),
           locationId: value.locationId || undefined,
           externalRef: value.externalRef.trim() || null,
           paymentTerms: value.paymentTerms.trim() || null,
@@ -2567,7 +2627,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       : this.documentService.createDocument({
           type: this.registryDocumentType,
           documentDate: value.documentDate,
-          customerId: value.customerId,
+          customerId: this.isManualUnload ? value.customerId || undefined : value.customerId,
+          ...(freeTextCustomer ? { customerName: freeTextCustomer } : {}),
           locationId: value.locationId || undefined,
           externalRef: value.externalRef.trim() || undefined,
           paymentTerms: value.paymentTerms.trim() || undefined,
@@ -2593,7 +2654,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.loadedQuoteDoc.set(doc);
         this.dirtySinceLastSave.set(false);
         if (!this.editOrderId()) {
-          const editPath = this.isSalesDdt ? 'sales-ddt' : 'quote';
+          const editPath = this.isSalesDdt
+            ? 'sales-ddt'
+            : this.isManualUnload
+              ? 'manual-unload'
+              : 'quote';
           void this.router.navigate(['/app/documents', editPath, doc.id, 'edit'], {
             replaceUrl: true,
           });
@@ -2624,6 +2689,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     try {
       this.form.patchValue({
         customerId: doc.customerId ?? '',
+        // Scarico manuale: senza anagrafica il nome salvato è il testo libero.
+        customerFreeText: doc.customerId ? '' : (doc.customerName ?? ''),
         locationId: doc.locationId ?? '',
         documentDate: doc.documentDate.slice(0, 10),
         externalRef: doc.externalRef ?? '',
@@ -2660,7 +2727,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             discount:
               line.discountPercent && line.discountPercent > 0 ? `${line.discountPercent}%` : '',
             vatCodeId: line.vatCodeId ?? '',
-            commitsStock: this.isSalesDdt ? line.loadsStock : false,
+            commitsStock: this.isSalesDdt || this.isManualUnload ? line.loadsStock : false,
             unitOfMeasure: '',
             serialNumbersText: (line.serialNumbers ?? []).join(', '),
           },

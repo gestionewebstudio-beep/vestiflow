@@ -21,6 +21,7 @@ import {
 } from '../../models/document-labels.util';
 import { isStoreFlowDocumentType } from '../../models/document-operational.util';
 import { isPrintableDocumentType } from '../../models/document-print.util';
+import { isManualUnloadDocumentType } from '../../models/document-stock-operation.util';
 import { goodsReceiptExternalDocLabel } from '../../utils/goods-receipt-list-export.util';
 
 /** Azioni disponibili dal menu "···" della riga (audit cliente §1: azioni dalla lista). */
@@ -173,7 +174,12 @@ export class DocumentTableComponent {
     if (
       this.canManage() &&
       !isStoreFlowDocumentType(doc.type) &&
-      (doc.status === DocumentStatus.Draft || doc.status === DocumentStatus.Cancelled)
+      (doc.status === DocumentStatus.Draft ||
+        doc.status === DocumentStatus.Cancelled ||
+        // Scarico manuale (prompt Scarico manuale): resta in elenco finché
+        // l'operatore non lo elimina — l'eliminazione NON ripristina le
+        // giacenze già scalate, quindi è disponibile in qualunque stato.
+        isManualUnloadDocumentType(doc.type))
     ) {
       items.push({ id: 'delete', label: 'Elimina', icon: 'pi-trash', danger: true });
     }

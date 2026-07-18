@@ -342,6 +342,11 @@ export interface CreateDocumentBody {
   readonly documentDate: IsoDateString;
   readonly supplierId?: EntityId;
   readonly customerId?: EntityId;
+  /**
+   * Cliente a testo libero (Scarico manuale): usato solo senza customerId —
+   * snapshot per la stampa, mai salvato in anagrafica.
+   */
+  readonly customerName?: string;
   readonly locationId?: EntityId;
   readonly targetLocationId?: EntityId;
   readonly adjustmentDirection?: AdjustmentDirection;
@@ -381,6 +386,8 @@ export interface CreateDocumentBody {
 
 /** Campi di testata svuotabili con null nel PATCH (vedi UpdateDocumentBody). */
 type NullableUpdateHeaderField =
+  | 'customerId'
+  | 'customerName'
   | 'externalRef'
   | 'paymentTerms'
   | 'paymentMethod'

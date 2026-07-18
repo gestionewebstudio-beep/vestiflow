@@ -76,7 +76,6 @@ import {
 import {
   applyDocumentStockManualUnloads,
   reconcileDocumentStockManualUnload,
-  reverseDocumentStockManualUnload,
 } from './document-stock-manual-unload.util';
 import {
   reconcileDocumentStockTransfer,
@@ -734,7 +733,11 @@ export class DocumentsService {
     );
 
     const supplierName = await this.snapshotSupplierName(tenantId, dto.supplierId);
-    const customerName = await this.snapshotCustomerName(tenantId, dto.customerId);
+    // Cliente da anagrafica (snapshot) oppure testo libero solo-stampa
+    // (prompt Scarico manuale): il testo libero NON crea record in anagrafica.
+    const customerName =
+      (await this.snapshotCustomerName(tenantId, dto.customerId)) ??
+      (dto.customerName?.trim() || null);
 
     return this.prisma.$transaction(async (tx) => {
       const created = await tx.document.create({
@@ -1169,10 +1172,7 @@ export class DocumentsService {
           ? await this.snapshotSupplierName(tenantId, dto.supplierId ?? undefined)
           : doc.supplierName,
       customerId: dto.customerId !== undefined ? dto.customerId : doc.customerId,
-      customerName:
-        dto.customerId !== undefined
-          ? await this.snapshotCustomerName(tenantId, dto.customerId ?? undefined)
-          : doc.customerName,
+      customerName: await this.resolveUpdatedCustomerName(tenantId, doc, dto),
       locationId: dto.locationId !== undefined ? dto.locationId : doc.locationId,
       targetLocationId:
         dto.targetLocationId !== undefined ? dto.targetLocationId : doc.targetLocationId,
@@ -1444,6 +1444,9 @@ export class DocumentsService {
       }
 
       if (isConfirmedEdit && doc.type === DocumentType.manual_unload && doc.locationId) {
+        // Scarico manuale diretto: riconciliazione a delta SENZA movimenti
+        // (deroga documentata in document-stock-manual-unload.util) — evita
+        // la doppia sottrazione quando l'operatore risalva il documento.
         const newLinesComputed =
           lines ??
           doc.lines.map((line) => ({
@@ -1464,8 +1467,6 @@ export class DocumentsService {
           }));
         const reconcile = await reconcileDocumentStockManualUnload(tx, {
           tenantId,
-          documentId: id,
-          reference: doc.reference,
           oldLocationId: doc.locationId,
           newLocationId: newLocationId!,
           oldLines: doc.lines,
@@ -1492,7 +1493,6 @@ export class DocumentsService {
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
-          actor,
         });
         stockDeltas = reconcile.deltas;
         const variantIds = new Set([
@@ -1690,7 +1690,9 @@ export class DocumentsService {
       }
 
       if (isConfirmedEdit && lines && saved.lines.length > 0) {
-        if (documentTypeUnloadsStockOnConfirm(saved.type) && saved.locationId) {
+        // Solo DDT vendita: lo scarico manuale diretto non gestisce seriali
+        // (deroga prompt Scarico manuale — nessun movimento, nessun consumo).
+        if (saved.type === DocumentType.sales_ddt && saved.locationId) {
           await assertSerialNumbersForUnloadLines(tx, tenantId, saved.locationId, saved.lines);
           await consumeInventorySerialsFromDocumentLines(
             tx,
@@ -1869,27 +1871,20 @@ export class DocumentsService {
       }
 
       if (doc.type === DocumentType.manual_unload) {
-        await assertSerialNumbersForUnloadLines(tx, tenantId, doc.locationId!, doc.lines);
+        // Scarico manuale diretto (prompt Scarico manuale): la giacenza viene
+        // sottratta SENZA creare movimenti né consumare seriali — deroga
+        // documentata in document-stock-manual-unload.util. Quantità oltre la
+        // giacenza ammesse: l'avviso non bloccante è responsabilità della UI.
         await applyDocumentStockManualUnloads(tx, {
           tenantId,
-          documentId: doc.id,
-          reference,
           locationId: doc.locationId!,
-          reason: doc.internalComment?.trim() || 'Scarico manuale',
           lines: doc.lines,
-          actor: { createdById: actorId, createdByName: actorName },
         });
         for (const line of doc.lines) {
           if (line.variantId && line.loadsStock && line.quantity > 0) {
             syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
           }
         }
-        await consumeInventorySerialsFromDocumentLines(
-          tx,
-          tenantId,
-          doc.locationId!,
-          doc.lines,
-        );
       }
 
       if (documentTypeAdjustsStockOnConfirm(doc.type)) {
@@ -2207,6 +2202,14 @@ export class DocumentsService {
         'Le vendite negozio non si annullano: registra un Reso vendita negozio per il rientro della merce.',
       );
     }
+    // Scarico manuale diretto (prompt Scarico manuale): niente annullamento —
+    // il documento si elimina dall'elenco e le giacenze già scalate NON
+    // vengono ripristinate (scelta esplicita, deroga documentata).
+    if (doc.type === DocumentType.manual_unload) {
+      throw new ConflictException(
+        "Gli scarichi manuali non si annullano: elimina il documento dall'elenco. Le giacenze già scalate non vengono ripristinate.",
+      );
+    }
     if (doc.status === DocumentStatus.cancelled) {
       throw new ConflictException('Il documento è già annullato.');
     }
@@ -2231,10 +2234,6 @@ export class DocumentsService {
       doc.status !== DocumentStatus.draft &&
       doc.type === DocumentType.sales_ddt &&
       doc.onlineSaleId == null &&
-      doc.locationId != null;
-    const wasManualUnloaded =
-      doc.status !== DocumentStatus.draft &&
-      doc.type === DocumentType.manual_unload &&
       doc.locationId != null;
     const wasStockAdjusted =
       doc.status !== DocumentStatus.draft &&
@@ -2294,30 +2293,6 @@ export class DocumentsService {
 
       if (wasStockUnloaded) {
         const reversed = await reverseDocumentStockUnload(tx, {
-          tenantId,
-          documentId: id,
-          reference: doc.reference,
-          locationId: doc.locationId!,
-          lines: doc.lines,
-          actor,
-        });
-        stockDeltas = reversed.deltas;
-        for (const line of doc.lines) {
-          if (line.variantId && line.loadsStock) {
-            syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
-          }
-        }
-        const summary = buildRevisionSummary(false, stockDeltas, true);
-        await this.recordRevision(tx, tenantId, id, summary, actor);
-        await restoreConsumedSerialsForDocument(
-          tx,
-          tenantId,
-          doc.lines.map((line) => line.id),
-        );
-      }
-
-      if (wasManualUnloaded) {
-        const reversed = await reverseDocumentStockManualUnload(tx, {
           tenantId,
           documentId: id,
           reference: doc.reference,
@@ -2463,7 +2438,7 @@ export class DocumentsService {
       // Ordine cliente manuale concluso da questo scarico: l'annullamento del
       // documento riporta l'ordine a Confermato e rifà gli impegni (la merce
       // ricaricata torna assegnata all'ordine, Disponibile coerente).
-      if (wasStockUnloaded || wasManualUnloaded) {
+      if (wasStockUnloaded) {
         const reopenTargets = await this.reopenLinkedManualOrderTx(tx, tenantId, doc.id);
         syncTargets.push(...reopenTargets);
       }
@@ -2510,7 +2485,12 @@ export class DocumentsService {
     const isDeletableReceipt =
       documentTypeLoadsStockOnConfirm(doc.type) || doc.type === DocumentType.supplier_invoice;
 
-    if (isFinalized && !isDeletableReceipt) {
+    // Scarico manuale diretto (prompt Scarico manuale): il documento resta in
+    // elenco finché l'operatore non lo elimina; l'eliminazione è definitiva
+    // SOLO sul documento — le giacenze già scalate NON vengono ripristinate.
+    const isDeletableManualUnload = doc.type === DocumentType.manual_unload;
+
+    if (isFinalized && !isDeletableReceipt && !isDeletableManualUnload) {
       throw new ConflictException(
         'Solo i documenti in bozza o annullati possono essere eliminati.',
       );
@@ -2659,11 +2639,8 @@ export class DocumentsService {
         'Seleziona la location di origine prima di confermare lo scarico.',
       );
     }
-    if (!doc.internalComment?.trim()) {
-      throw new UnprocessableEntityException(
-        'Il motivo dello scarico (commento interno) è obbligatorio.',
-      );
-    }
+    // Niente motivo obbligatorio: la maschera tipo DDT (prompt Scarico
+    // manuale) non prevede il commento interno come campo richiesto.
     for (const line of stockLines) {
       if (!line.variantId) {
         throw new UnprocessableEntityException(
@@ -3227,6 +3204,29 @@ export class DocumentsService {
     });
     if (!customer) return null;
     return partyDisplayName(customer.party) || null;
+  }
+
+  /**
+   * Nome cliente al PATCH: con customerId lo snapshot anagrafica vince sempre;
+   * senza customerId vale il testo libero solo-stampa (prompt Scarico
+   * manuale) — `customerName: null` lo svuota, assente lo lascia invariato.
+   */
+  private async resolveUpdatedCustomerName(
+    tenantId: string,
+    doc: { customerId: string | null; customerName: string | null },
+    dto: UpdateDocumentDto,
+  ): Promise<string | null> {
+    const nextCustomerId = dto.customerId !== undefined ? dto.customerId : doc.customerId;
+    if (nextCustomerId) {
+      return dto.customerId !== undefined
+        ? await this.snapshotCustomerName(tenantId, dto.customerId ?? undefined)
+        : doc.customerName;
+    }
+    if (dto.customerName !== undefined) {
+      return dto.customerName?.trim() || null;
+    }
+    // Cliente anagrafica rimosso senza testo libero: lo snapshot decade.
+    return dto.customerId !== undefined ? null : doc.customerName;
   }
 
   /** Espone la configurazione risolta per un tipo (usata dal controller settings). */

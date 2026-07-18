@@ -323,6 +323,10 @@ export class DocumentPdfService {
         if (document.billingCause) {
           y = drawPdfMetaLine(doc, 'Causale', document.billingCause, y);
         }
+        // Scarico manuale: la location di scarico è il contesto operativo.
+        if (document.type === DocumentType.manual_unload && document.locationId) {
+          y = drawPdfMetaLine(doc, 'Location', locations.get(document.locationId) ?? '—', y);
+        }
         break;
       }
       default: {

@@ -111,6 +111,15 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @IsUUID()
   customerId?: string;
 
+  /**
+   * Cliente a testo libero (prompt Scarico manuale): usato SOLO quando
+   * customerId è assente — snapshot per la stampa, mai salvato in anagrafica.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customerName?: string;
+
   @IsOptional()
   @IsUUID()
   locationId?: string;

@@ -144,7 +144,7 @@ describe('DocumentPdfService', () => {
     await expect(
       service.exportPdf('tenant-1', {
         ...baseDocument,
-        type: DocumentType.manual_unload,
+        type: DocumentType.inventory,
       }),
     ).rejects.toThrow(UnprocessableEntityException);
   });
