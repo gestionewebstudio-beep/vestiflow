@@ -38,7 +38,7 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
     parent: '/app/inventory',
   },
   {
-    label: 'Inventario fisico',
+    label: 'Inventario',
     sub: 'Conteggi di magazzino',
     icon: 'pi-list-check',
     route: '/app/inventory/counts',

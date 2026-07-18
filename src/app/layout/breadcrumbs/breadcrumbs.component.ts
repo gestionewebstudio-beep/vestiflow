@@ -30,7 +30,7 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   import: 'Importa CSV',
   lookup: 'Cerca giacenza',
   movements: 'Movimenti',
-  counts: 'Inventario fisico',
+  counts: 'Inventario',
   register: 'Vendita negozio',
   online: 'Vendite online',
   corrispettivi: 'Corrispettivi',

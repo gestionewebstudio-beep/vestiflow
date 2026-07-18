@@ -80,15 +80,6 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         icon: 'pi-minus-circle',
         available: true,
       },
-      {
-        id: 'inventory',
-        label: 'Inventario',
-        description: 'Documenti di inventario fisico.',
-        route: ['/app/documents/registro'],
-        queryParams: { type: 'inventory' },
-        icon: 'pi-list-check',
-        available: true,
-      },
     ],
   },
   {

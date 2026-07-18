@@ -48,7 +48,7 @@ export const inventoryRoutes: Routes = [
   },
   {
     path: 'counts/new',
-    title: 'VestiFlow · Nuovo inventario fisico',
+    title: 'VestiFlow · Nuovo inventario',
     loadComponent: () =>
       import('./inventory-count-new.component').then((m) => m.InventoryCountNewComponent),
     canActivate: [tenantPermissionGuard],
@@ -56,7 +56,7 @@ export const inventoryRoutes: Routes = [
   },
   {
     path: 'counts/:id',
-    title: 'VestiFlow · Inventario fisico',
+    title: 'VestiFlow · Inventario',
     loadComponent: () =>
       import('./inventory-count-detail.component').then((m) => m.InventoryCountDetailComponent),
     canActivate: [tenantPermissionGuard],
@@ -64,7 +64,7 @@ export const inventoryRoutes: Routes = [
   },
   {
     path: 'counts',
-    title: 'VestiFlow · Inventario fisico',
+    title: 'VestiFlow · Inventario',
     loadComponent: () =>
       import('./inventory-count-list.component').then((m) => m.InventoryCountListComponent),
     canActivate: [tenantPermissionGuard],

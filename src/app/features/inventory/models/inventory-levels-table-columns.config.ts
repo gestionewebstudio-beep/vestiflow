@@ -5,16 +5,14 @@ import {
 } from '@shared/table-columns/table-column.model';
 
 export const INVENTORY_LEVEL_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'title', label: 'Variante', pinnable: true, defaultVisible: true },
-  // Identificatore anagrafico interno (§Codice articolo): colonna
-  // selezionabile, non mostrata di default (fuori dai preset).
-  { id: 'articleCode', label: 'Codice articolo', defaultVisible: false },
+  { id: 'title', label: 'Articolo', pinnable: true, defaultVisible: true },
+  // «Codice» mostra il Cod. articolo VestiFlow (fallback SKU variante se assente).
   { id: 'sku', label: 'Codice', defaultVisible: true },
   { id: 'locationName', label: 'Location', defaultVisible: true },
   { id: 'available', label: 'Disponibile', numeric: true, defaultVisible: true },
   { id: 'onHand', label: 'Giacenza', numeric: true, defaultVisible: true },
   { id: 'committed', label: 'Impegnata', numeric: true, defaultVisible: true },
-  { id: 'incoming', label: 'In arrivo', numeric: true, defaultVisible: true },
+  { id: 'incoming', label: 'In arrivo', numeric: true, defaultVisible: false },
   { id: 'minThreshold', label: 'Soglia min.', numeric: true, defaultVisible: false },
   { id: 'status', label: 'Stato', defaultVisible: true },
 ] as const;
@@ -28,7 +26,6 @@ export const INVENTORY_LEVEL_COLUMN_PRESETS: TableViewPresetMap = {
     'available',
     'onHand',
     'committed',
-    'incoming',
     'status',
   ],
   [TableViewPresetId.Warehouse]: [
