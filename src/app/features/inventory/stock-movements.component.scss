@@ -42,23 +42,6 @@
   }
 }
 
-.stock-movements__hint {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
-.stock-movements__hint-link {
-  color: var(--color-text);
-  font-weight: var(--font-weight-medium);
-  text-decoration: underline;
-  text-underline-offset: var(--space-1);
-
-  &:hover {
-    color: var(--color-primary);
-  }
-}
-
 // Flex con wrap: il numero di campi varia (Dal/Al compaiono solo con periodo
 // «Personalizzato»), la riga resta compatta e va a capo solo se serve.
 .stock-movements__filters {

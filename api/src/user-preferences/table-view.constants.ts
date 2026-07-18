@@ -2,6 +2,7 @@
 export const TABLE_VIEW_IDS = [
   'stock_movements',
   'inventory_levels',
+  'inventory_situation',
   'documents_list',
   'goods_receipt_documents_list',
   'suppliers_list',

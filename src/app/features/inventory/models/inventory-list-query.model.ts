@@ -26,6 +26,8 @@ export interface StockMovementsListQuery {
   readonly variantId?: string;
   /** Cliente o fornitore del documento origine del movimento. */
   readonly partyId?: string;
+  /** Operatore: snapshot `createdByName` del movimento (match esatto). */
+  readonly createdBy?: string;
   readonly from?: string;
   readonly to?: string;
 }

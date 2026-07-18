@@ -9,6 +9,14 @@
   </a>
   <a
     class="inventory-tabs__link"
+    routerLink="/app/inventory/situation"
+    routerLinkActive="inventory-tabs__link--active"
+    [routerLinkActiveOptions]="{ exact: true }"
+  >
+    Situazione
+  </a>
+  <a
+    class="inventory-tabs__link"
     routerLink="/app/inventory/lookup"
     routerLinkActive="inventory-tabs__link--active"
     [routerLinkActiveOptions]="{ exact: true }"

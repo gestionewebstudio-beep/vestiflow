@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import {
   catchError,
   debounceTime,
@@ -34,10 +34,6 @@ import type { Location } from '@core/models/location.model';
 import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 import { AdjustmentDirection } from '@core/models/stock-movement.model';
-import {
-  showSalesOrderHistory,
-  onlineSalesChannelLabel,
-} from '@core/models/tenant-channel-profile.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -57,7 +53,7 @@ import { SupplierService } from '@features/suppliers/services/supplier.service';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { MovementTableComponent } from './components/movement-table/movement-table.component';
-import { movementOriginLabel } from './models/inventory-labels.util';
+import { movementActorLabel, movementOriginLabel } from './models/inventory-labels.util';
 import type { StockMovementRow } from './models/inventory-view.model';
 import {
   STOCK_MOVEMENT_COLUMN_DEFS,
@@ -99,7 +95,6 @@ const SEARCH_DEBOUNCE_MS = 300;
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    RouterLink,
     TableSkeletonComponent,
     SelectMenuComponent,
     DateInputComponent,
@@ -139,17 +134,31 @@ export class StockMovementsComponent {
   ];
 
   /**
-   * Origine del movimento nel registro di magazzino.
-   * Solo le registrazioni manuali nel gestionale: le vendite commerciali Shopify/TikTok
-   * stanno in «Vendite Shopify» (ordini), non qui.
+   * Origine del movimento: tutte le origini reali del registro (qui compare
+   * OGNI movimento che tocca le giacenze, qualunque sia la fonte). Etichette
+   * coerenti con la colonna Origine (movementOriginLabel).
    */
   protected readonly originOptions = computed((): readonly SelectMenuOption[] => {
     const profile = this.authService.currentUser()?.tenantChannelProfile;
     return [
-      { value: MovementOrigin.VestiflowPos, label: 'Negozio fisico' },
-      { value: MovementOrigin.VestiflowOnline, label: onlineSalesChannelLabel(profile) },
-    ];
+      MovementOrigin.Manual,
+      MovementOrigin.Shopify,
+      MovementOrigin.Tiktok,
+      MovementOrigin.VestiflowPos,
+      MovementOrigin.VestiflowOnline,
+    ].map((origin) => ({ value: origin, label: movementOriginLabel(origin, profile) }));
   });
+
+  /** Operatori che hanno generato movimenti (snapshot createdByName). */
+  protected readonly operatorOptions = toSignal(
+    this.inventoryService.getMovementOperators().pipe(
+      map((operators): readonly SelectMenuOption[] =>
+        operators.map((name) => ({ value: name, label: movementActorLabel(name) })),
+      ),
+      catchError(() => of([] as readonly SelectMenuOption[])),
+    ),
+    { initialValue: [] as readonly SelectMenuOption[] },
+  );
 
   /** Scelte rapide periodo; il valore vuoto (placeholder «Tutti») non filtra. */
   protected readonly periodOptions: readonly SelectMenuOption[] = [
@@ -182,36 +191,9 @@ export class StockMovementsComponent {
     { initialValue: [] as readonly SelectMenuOption[] },
   );
 
-  protected readonly showSalesHistoryHint = computed(() =>
-    showSalesOrderHistory(this.authService.currentUser()?.tenantChannelProfile),
+  protected readonly emptyStateCtaLabel = computed(() =>
+    this.canManageInventory() ? 'Registra movimento' : undefined,
   );
-
-  protected readonly salesHistoryRoute = '/app/sales';
-
-  protected readonly emptyStateTitle = computed(() => {
-    if (this.isSaleTypeFilter() && this.showSalesHistoryHint()) {
-      return 'Nessun movimento di magazzino';
-    }
-    return 'Nessun movimento';
-  });
-
-  protected readonly emptyStateDescription = computed(() => {
-    if (this.isSaleTypeFilter() && this.showSalesHistoryHint()) {
-      return (
-        'Le vendite commerciali Shopify (ordini, clienti, importi) sono nella sezione ' +
-        '«Vendite Shopify». Qui compaiono solo scarichi e carichi di magazzino: vendite al ' +
-        'banco, online esterne e eventuali rettifiche da sync inventario.'
-      );
-    }
-    return 'Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento.';
-  });
-
-  protected readonly emptyStateCtaLabel = computed(() => {
-    if (this.isSaleTypeFilter() && this.showSalesHistoryHint()) {
-      return 'Vai a Vendite Shopify';
-    }
-    return this.canManageInventory() ? 'Registra movimento' : undefined;
-  });
 
   private readonly refreshTick = signal(0);
   protected readonly page = signal(1);
@@ -224,6 +206,7 @@ export class StockMovementsComponent {
   protected readonly fromFilter = signal('');
   protected readonly toFilter = signal('');
   protected readonly partyFilter = signal('');
+  protected readonly operatorFilter = signal('');
   protected readonly searchDraft = signal('');
   private readonly search = signal('');
   // La location parte dal contesto globale (selettore topbar).
@@ -277,6 +260,7 @@ export class StockMovementsComponent {
     location: this.locationFilter(),
     search: this.search(),
     party: this.partyFilter(),
+    operator: this.operatorFilter(),
   }));
 
   /** Estremi data effettivi: preset rapido o intervallo custom Dal/Al. */
@@ -297,6 +281,7 @@ export class StockMovementsComponent {
       locationId: locationId || undefined,
       search: this.search().trim() || undefined,
       partyId: this.partyFilter() || undefined,
+      createdBy: this.operatorFilter() || undefined,
       // Inizio/fine giornata (ora locale) per includere i giorni estremi interi.
       from: range.from ? `${range.from}T00:00:00` : undefined,
       to: range.to ? `${range.to}T23:59:59.999` : undefined,
@@ -406,7 +391,8 @@ export class StockMovementsComponent {
       this.toFilter() ||
       this.locationFilter() ||
       this.search().trim() ||
-      this.partyFilter(),
+      this.partyFilter() ||
+      this.operatorFilter(),
     ),
   );
 
@@ -436,6 +422,10 @@ export class StockMovementsComponent {
     this.partyFilter.set(value ?? '');
   }
 
+  protected onOperatorFilterChange(value: string | null): void {
+    this.operatorFilter.set(value ?? '');
+  }
+
   protected onSearchInput(event: Event): void {
     this.searchDraft.set((event.target as HTMLInputElement).value);
   }
@@ -456,6 +446,7 @@ export class StockMovementsComponent {
     this.toFilter.set('');
     this.locationFilter.set('');
     this.partyFilter.set('');
+    this.operatorFilter.set('');
     this.searchDraft.set('');
     this.search.set('');
   }
@@ -478,19 +469,7 @@ export class StockMovementsComponent {
   }
 
   protected onEmptyStateAction(): void {
-    if (this.isSaleTypeFilter() && this.showSalesHistoryHint()) {
-      void this.router.navigateByUrl(this.salesHistoryRoute);
-      return;
-    }
     this.newMovement();
-  }
-
-  private isSaleTypeFilter(): boolean {
-    return (
-      this.typeFilter() === StockMovementType.Sale ||
-      this.typeFilter() === StockMovementType.OnlineSale ||
-      this.typeFilter() === StockMovementType.Return
-    );
   }
 
   /** '+' per ingressi, '−' per uscite, nuda per i trasferimenti (neutri). */

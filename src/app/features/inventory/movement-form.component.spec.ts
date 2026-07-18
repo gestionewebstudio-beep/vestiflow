@@ -4,11 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
-import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { CustomerService } from '@features/customers/services/customer.service';
 import { ProductService } from '@features/products/services/product.service';
+import { SupplierService } from '@features/suppliers/services/supplier.service';
 
 import { MovementFormComponent } from './movement-form.component';
 import { InventoryService } from './services/inventory.service';
@@ -20,7 +21,13 @@ const VARIANT = {
   productName: 'Maglietta',
   title: 'Maglietta / M / Rosso',
   sku: 'MAG-M-ROSSO',
+  articleCode: '00042',
+  sellingPrice: { amountMinor: 1990, currencyCode: 'EUR' },
+  purchasePrice: { amountMinor: 900, currencyCode: 'EUR' },
+  unitOfMeasure: 'pz',
+  stockAvailable: 5,
 };
+const LEVELS = [{ id: 'lvl-1', variantId: 'var-1', locationId: 'loc-1', available: 5, onHand: 6 }];
 
 function operationalLocationsMock() {
   return {
@@ -37,14 +44,15 @@ function operationalLocationsMock() {
 }
 
 describe('MovementFormComponent', () => {
-  async function setup() {
+  async function setup(queryParams: Record<string, string> = {}) {
+    const registerMovementBatch = vi.fn().mockReturnValue(of({ created: 1 }));
     await render(MovementFormComponent, {
       providers: [
         provideRouter([]),
         { provide: APP_CONFIG, useValue: { features: { barcodeScanner: false, shopify: false } } },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { queryParamMap: convertToParamMap({ variantId: 'var-1' }) } },
+          useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
         },
         { provide: OperationalLocationsService, useValue: operationalLocationsMock() },
         {
@@ -61,36 +69,67 @@ describe('MovementFormComponent', () => {
             findVariantByCode: () => of(VARIANT),
           },
         },
-        { provide: InventoryService, useValue: { getLevelsByVariant: () => of([]) } },
-        { provide: AuthService, useValue: { currentUser: () => null } },
+        {
+          provide: InventoryService,
+          useValue: { getLevelsByVariant: () => of(LEVELS), registerMovementBatch },
+        },
+        { provide: SupplierService, useValue: { getSuppliers: () => of([]) } },
+        { provide: CustomerService, useValue: { getAllCustomers: () => of([]) } },
       ],
     });
+    return { registerMovementBatch };
   }
 
-  // Regressione: `review()` legge form.getRawValue() (non reattivo). Rientrando in
-  // fase riepilogo dopo aver cambiato solo un campo del form (quantita'), il
-  // computed deve ricalcolare invece di restare memoizzato sui valori precedenti.
-  it('ricalcola il riepilogo dopo aver modificato la quantita e rientrare in review', async () => {
+  it('deep-link variantId: articolo già in lista con quantità 1', async () => {
+    await setup({ variantId: 'var-1' });
+
+    expect(await screen.findByText('Maglietta / M / Rosso')).toBeVisible();
+    expect(screen.getByLabelText('Quantità per Maglietta / M / Rosso')).toHaveValue(1);
+  });
+
+  it('scarico oltre il disponibile: avviso non bloccante sulla riga', async () => {
+    const user = userEvent.setup();
+    await setup({ variantId: 'var-1' });
+
+    await user.click(screen.getByRole('button', { name: 'Tipo movimento' }));
+    await user.click(screen.getByRole('option', { name: 'Scarico' }));
+
+    const quantity = screen.getByLabelText('Quantità per Maglietta / M / Rosso');
+    await user.clear(quantity);
+    await user.type(quantity, '99');
+
+    expect(screen.getByText(/Supera il disponibile \(5\)/)).toBeVisible();
+    // Non bloccante: il Salva resta attivo.
+    expect(screen.getByRole('button', { name: /Salva/ })).toBeEnabled();
+  });
+
+  it('rettifica: causale precompilata, giacenza attuale readonly e nuova giacenza', async () => {
+    const user = userEvent.setup();
+    await setup({ variantId: 'var-1' });
+
+    await user.click(screen.getByRole('button', { name: 'Tipo movimento' }));
+    await user.click(screen.getByRole('option', { name: 'Rettifica' }));
+
+    expect(screen.getByLabelText(/Causale/)).toHaveValue('Rettifica giacenza');
+
+    // Giacenza attuale calcolata dal sistema (onHand a Milano = 6).
+    expect(screen.getByText('Giacenza attuale')).toBeVisible();
+    expect(screen.getByLabelText('Nuova giacenza per Maglietta / M / Rosso')).toHaveValue(6);
+  });
+
+  it('ricerca in fondo alla lista: aggiunge senza uscire, doppio add incrementa', async () => {
     const user = userEvent.setup();
     await setup();
 
-    const quantityInput = screen.getByLabelText('Quantità');
-    await user.clear(quantityInput);
-    await user.type(quantityInput, '7');
-    await user.click(screen.getByRole('button', { name: 'Continua' }));
+    const search = screen.getByLabelText('Cerca articolo per codice articolo, nome, SKU o EAN');
+    await user.type(search, 'mag');
+    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }));
 
-    expect(screen.getByText('Riepilogo movimento')).toBeVisible();
-    expect(screen.getAllByText('7').length).toBeGreaterThan(0);
+    const quantity = screen.getByLabelText('Quantità per Maglietta / M / Rosso');
+    expect(quantity).toHaveValue(1);
 
-    await user.click(screen.getByRole('button', { name: 'Modifica' }));
-
-    const quantityInputAgain = screen.getByLabelText('Quantità');
-    await user.clear(quantityInputAgain);
-    await user.type(quantityInputAgain, '13');
-    await user.click(screen.getByRole('button', { name: 'Continua' }));
-
-    expect(screen.getByText('Riepilogo movimento')).toBeVisible();
-    expect(screen.getAllByText('13').length).toBeGreaterThan(0);
-    expect(screen.queryByText('7')).toBeNull();
+    await user.type(search, 'mag');
+    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }));
+    expect(quantity).toHaveValue(2);
   });
 });

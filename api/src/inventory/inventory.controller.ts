@@ -45,8 +45,10 @@ import { ExportInventoryLevelsQueryDto } from './dto/export-inventory-levels.que
 import { ImportInventoryBodyDto } from './dto/import-inventory-body.dto';
 import { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
 import { ListInventoryLevelsQueryDto, ListMovementsQueryDto } from './dto/inventory-queries.dto';
+import { ListInventorySituationQueryDto } from './dto/list-inventory-situation.query.dto';
 import { ListReservationsQueryDto } from './dto/list-reservations.query.dto';
 import { RegisterMovementDto } from './dto/register-movement.dto';
+import { RegisterMovementBatchDto } from './dto/register-movement-batch.dto';
 import { SetLicensedLocationsDto } from './dto/set-licensed-locations.dto';
 import { UpdateInventoryLevelDto } from './dto/update-inventory-level.dto';
 import { UpdateCountLineDto } from './dto/update-count-line.dto';
@@ -58,6 +60,10 @@ import {
 import { InventoryExportService } from './inventory-export.service';
 import { InventoryImportService } from './inventory-import.service';
 import { InventoryReportService } from './inventory-report.service';
+import {
+  InventorySituationService,
+  type InventorySituationRowDto,
+} from './inventory-situation.service';
 import { InventoryService, type InventoryLevelWithRefs } from './inventory.service';
 import { LocationLicensingService } from './location-licensing.service';
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
@@ -84,6 +90,7 @@ export class InventoryController {
     private readonly inventoryExport: InventoryExportService,
     private readonly inventoryImport: InventoryImportService,
     private readonly inventoryReport: InventoryReportService,
+    private readonly inventorySituation: InventorySituationService,
     private readonly locationLicensing: LocationLicensingService,
     private readonly stockReservations: StockReservationService,
   ) {}
@@ -170,6 +177,17 @@ export class InventoryController {
     return this.inventoryReport.locationSummary(tenantId, user);
   }
 
+  /** Situazione magazzino: riepilogo per variante (tab Situazione). */
+  @Get('situation')
+  @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
+  listSituation(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: ListInventorySituationQueryDto,
+  ): Promise<Paginated<InventorySituationRowDto>> {
+    return this.inventorySituation.listSituation(tenantId, query, user);
+  }
+
   @Get('levels')
   @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
   listLevels(
@@ -215,6 +233,16 @@ export class InventoryController {
     return this.inventory.updateLevelMinThreshold(tenantId, id, dto.minThreshold, user);
   }
 
+  /** Operatori distinti per il filtro Operatore del registro movimenti. */
+  @Get('movements/operators')
+  @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
+  listMovementOperators(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+  ): Promise<string[]> {
+    return this.inventory.listMovementOperators(tenantId, user);
+  }
+
   @Get('movements')
   @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
   listMovements(
@@ -223,6 +251,17 @@ export class InventoryController {
     @Query() query: ListMovementsQueryDto,
   ): Promise<Paginated<StockMovement>> {
     return this.inventory.listMovements(tenantId, query, user);
+  }
+
+  /** Registrazione multi-articolo dal form Registra movimento. */
+  @Post('movements/batch')
+  @RequirePermissions(TenantPermission.InventoryManage)
+  registerMovementBatch(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Body() dto: RegisterMovementBatchDto,
+  ): Promise<{ created: number }> {
+    return this.inventory.registerMovementBatch(tenantId, dto, user.displayName, user.id, user);
   }
 
   @Post('movements')

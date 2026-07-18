@@ -24,6 +24,13 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
     parent: '/app/inventory',
   },
   {
+    label: 'Situazione magazzino',
+    sub: 'Riepilogo articoli, scorte e riordino',
+    icon: 'pi-chart-bar',
+    route: '/app/inventory/situation',
+    parent: '/app/inventory',
+  },
+  {
     label: 'Cerca giacenza',
     sub: 'Lookup rapido per SKU o barcode',
     icon: 'pi-search',

@@ -61,6 +61,7 @@ describe('InventoryController', () => {
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
   );
 
 

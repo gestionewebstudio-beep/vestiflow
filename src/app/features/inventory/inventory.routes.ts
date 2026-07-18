@@ -17,6 +17,14 @@ export const inventoryRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS },
   },
   {
+    path: 'situation',
+    title: 'VestiFlow · Situazione magazzino',
+    loadComponent: () =>
+      import('./inventory-situation.component').then((m) => m.InventorySituationComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS },
+  },
+  {
     path: 'lookup',
     title: 'VestiFlow · Cerca giacenza',
     loadComponent: () => import('./stock-lookup.component').then((m) => m.StockLookupComponent),

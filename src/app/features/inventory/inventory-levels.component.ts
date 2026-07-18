@@ -30,7 +30,6 @@ import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import {
   canImportExportInventory,
-  canManageInventory,
   canSyncInventoryFromShopify,
 } from '@core/permissions/tenant-permissions.util';
 import { LocationContextService } from '@core/services/location-context.service';
@@ -197,10 +196,6 @@ export class InventoryLevelsComponent {
 
   protected readonly canImportExportInventory = computed(() =>
     canImportExportInventory(this.authService.currentUser()),
-  );
-
-  protected readonly canManageInventory = computed(() =>
-    canManageInventory(this.authService.currentUser()),
   );
 
   private readonly listFilters = computed(() => ({
@@ -461,10 +456,6 @@ export class InventoryLevelsComponent {
           this.reservationsError.set(this.extractErrorMessage(err));
         },
       });
-  }
-
-  protected newMovement(): void {
-    void this.router.navigateByUrl('/app/inventory/movements/new');
   }
 
   protected importInventory(): void {

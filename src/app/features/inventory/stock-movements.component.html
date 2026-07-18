@@ -131,6 +131,21 @@
       />
     </div>
 
+    <div class="stock-movements__field stock-movements__field--select">
+      <app-select-menu
+        chipLabel="Operatore"
+        [options]="operatorOptions()"
+        [value]="operatorFilter()"
+        ariaLabel="Filtra per operatore"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        [searchable]="true"
+        (valueChange)="onOperatorFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
     <div class="stock-movements__filters-action">
       <app-table-column-picker [viewId]="tableViewId" />
       <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
@@ -140,22 +155,14 @@
     </div>
   </div>
 
-  @if (showSalesHistoryHint()) {
-    <p class="stock-movements__hint">
-      Le vendite commerciali Shopify (ordini, importi, clienti) sono in
-      <a class="stock-movements__hint-link" routerLink="/app/sales">Vendite Shopify</a>. Qui vedi
-      solo i movimenti di magazzino (scarichi, carichi, rettifiche).
-    </p>
-  }
-
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (isEmpty()) {
     <app-empty-state
-      [title]="emptyStateTitle()"
-      [description]="emptyStateDescription()"
+      title="Nessun movimento"
+      description="Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento."
       icon="pi-arrow-right-arrow-left"
       [ctaLabel]="emptyStateCtaLabel()"
       (ctaClick)="onEmptyStateAction()"

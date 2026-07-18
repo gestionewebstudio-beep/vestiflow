@@ -31,6 +31,7 @@ import type {
   ListMovementsQueryDto,
 } from './dto/inventory-queries.dto';
 import type { RegisterMovementDto } from './dto/register-movement.dto';
+import type { RegisterMovementBatchDto } from './dto/register-movement-batch.dto';
 import {
   collectDocumentLookupIds,
   collectOnlineSaleLookupIds,
@@ -313,6 +314,7 @@ export class InventoryService {
       ...(query.variantId ? { variantId: query.variantId } : {}),
       ...(query.search ? { variant: buildInventoryVariantSearchWhere(query.search) } : {}),
       ...(partyDocumentIds ? { sourceDocumentId: { in: [...partyDocumentIds] } } : {}),
+      ...(query.createdBy ? { createdByName: query.createdBy } : {}),
       ...(query.type ? { type: query.type } : {}),
       ...(query.origin ? { origin: query.origin } : {}),
       ...(query.from || query.to
@@ -369,6 +371,27 @@ export class InventoryService {
     }));
 
     return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /** Operatori distinti (snapshot createdByName) per il filtro Operatore. */
+  async listMovementOperators(tenantId: string, user?: UserProfileDto): Promise<string[]> {
+    const scope = await resolveOperationalLocationScope(
+      this.prisma,
+      tenantId,
+      user,
+      undefined,
+      INVENTORY_VIEW_SCOPE_MODE,
+    );
+    if (!scope) {
+      return [];
+    }
+    const rows = await this.prisma.stockMovement.findMany({
+      where: { tenantId, ...locationScopeToMovementFilter(scope) },
+      distinct: ['createdByName'],
+      select: { createdByName: true },
+      orderBy: { createdByName: 'asc' },
+    });
+    return rows.map((row) => row.createdByName).filter((name) => name.trim().length > 0);
   }
 
   /**
@@ -437,6 +460,155 @@ export class InventoryService {
     });
 
     return movement;
+  }
+
+  /**
+   * Registra movimento multi-articolo (form Registra movimento): tutte le
+   * righe in un'unica transazione — o si scrive tutto, o niente. Per le
+   * rettifiche ogni riga porta la NUOVA giacenza: il delta è calcolato qui
+   * rispetto alla giacenza attuale (righe a delta zero non generano movimenti).
+   */
+  async registerMovementBatch(
+    tenantId: string,
+    dto: RegisterMovementBatchDto,
+    actorDisplayName: string,
+    actorUserId: string | undefined,
+    user: UserProfileDto,
+  ): Promise<{ created: number }> {
+    assertUserCanAccessLocation(user, dto.locationId, 'write');
+    if (dto.type === StockMovementType.transfer) {
+      if (!dto.targetLocationId) {
+        throw new UnprocessableEntityException('Location di destinazione obbligatoria.');
+      }
+      if (dto.targetLocationId === dto.locationId) {
+        throw new UnprocessableEntityException(
+          'La location di destinazione deve essere diversa dall’origine.',
+        );
+      }
+      assertUserCanAccessLocation(user, dto.targetLocationId, 'transferDestination');
+    }
+    const reason = dto.reason?.trim() || undefined;
+    if (dto.type === StockMovementType.adjustment && !reason) {
+      throw new UnprocessableEntityException('La causale è obbligatoria per le rettifiche.');
+    }
+
+    const createdAt = this.resolveOperationDate(dto.operationDate);
+    const actor = {
+      createdById: actorUserId ?? null,
+      createdByName: actorDisplayName.trim() || 'Utente',
+    };
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      await this.assertLocationExists(tx, tenantId, dto.locationId);
+      if (dto.type === StockMovementType.transfer && dto.targetLocationId) {
+        await this.assertLocationExists(tx, tenantId, dto.targetLocationId);
+      }
+
+      let count = 0;
+      for (const line of dto.lines) {
+        const variant = await tx.productVariant.findFirst({
+          where: { id: line.variantId, tenantId },
+          select: { id: true, sku: true },
+        });
+        if (!variant) {
+          throw new NotFoundException('Variante non trovata');
+        }
+
+        let quantity: number;
+        let direction: AdjustmentDirection | null = null;
+        if (dto.type === StockMovementType.adjustment) {
+          if (line.newOnHand === undefined) {
+            throw new UnprocessableEntityException(
+              'Nuova giacenza mancante su una riga di rettifica.',
+            );
+          }
+          const level = await tx.inventoryLevel.findFirst({
+            where: { tenantId, variantId: line.variantId, locationId: dto.locationId },
+            select: { onHand: true },
+          });
+          const delta = line.newOnHand - (level?.onHand ?? 0);
+          if (delta === 0) {
+            continue;
+          }
+          quantity = Math.abs(delta);
+          direction = delta > 0 ? AdjustmentDirection.increase : AdjustmentDirection.decrease;
+          await applyInventoryDelta(tx, tenantId, line.variantId, dto.locationId, delta);
+        } else {
+          if (!line.quantity) {
+            throw new UnprocessableEntityException('Quantità mancante su una riga.');
+          }
+          quantity = line.quantity;
+          const delta = dto.type === StockMovementType.load ? quantity : -quantity;
+          await applyInventoryDelta(tx, tenantId, line.variantId, dto.locationId, delta);
+          if (dto.type === StockMovementType.transfer && dto.targetLocationId) {
+            await applyInventoryDelta(
+              tx,
+              tenantId,
+              line.variantId,
+              dto.targetLocationId,
+              quantity,
+            );
+          }
+        }
+
+        await tx.stockMovement.create({
+          data: {
+            tenantId,
+            type: dto.type,
+            origin: 'manual',
+            variantId: line.variantId,
+            sku: variant.sku ?? '',
+            locationId: dto.locationId,
+            targetLocationId:
+              dto.type === StockMovementType.transfer ? dto.targetLocationId : null,
+            quantity,
+            direction,
+            reason,
+            partyId: dto.partyId ?? null,
+            partyName: dto.partyName?.trim() || null,
+            unitCostMinor: line.unitAmountMinor ?? null,
+            ...(createdAt ? { createdAt } : {}),
+            ...actor,
+          },
+        });
+        count += 1;
+      }
+      return count;
+    });
+
+    const locationIds =
+      dto.type === StockMovementType.transfer && dto.targetLocationId
+        ? [dto.locationId, dto.targetLocationId]
+        : [dto.locationId];
+    const variantIds = [...new Set(dto.lines.map((line) => line.variantId))];
+    for (const variantId of variantIds) {
+      void Promise.resolve(
+        this.channelSync.pushInventoryLevels(tenantId, variantId, locationIds),
+      ).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Push inventario canali fallito';
+        this.logger.warn(`Push inventario post-movimento (${tenantId}): ${message}`);
+      });
+    }
+
+    return { created };
+  }
+
+  /**
+   * Data operazione (giorno) → createdAt dei movimenti: oggi mantiene l'ora
+   * corrente; un giorno diverso viene registrato alle 12:00 locali per non
+   * slittare di giorno tra fusi. Assente ⇒ default DB (now()).
+   */
+  private resolveOperationDate(operationDate?: string): Date | null {
+    if (!operationDate) {
+      return null;
+    }
+    const day = operationDate.slice(0, 10);
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (day === todayIso) {
+      return null;
+    }
+    return new Date(`${day}T12:00:00`);
   }
 
   /** Variazione (con segno) da applicare alla location di origine. */

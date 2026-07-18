@@ -9,6 +9,7 @@ import { InventoryController } from './inventory.controller';
 import { InventoryExportService } from './inventory-export.service';
 import { InventoryImportService } from './inventory-import.service';
 import { InventoryReportService } from './inventory-report.service';
+import { InventorySituationService } from './inventory-situation.service';
 import { InventoryService } from './inventory.service';
 
 @Module({
@@ -20,6 +21,7 @@ import { InventoryService } from './inventory.service';
     InventoryExportService,
     InventoryImportService,
     InventoryReportService,
+    InventorySituationService,
   ],
   exports: [LocationLicensingModule],
 })

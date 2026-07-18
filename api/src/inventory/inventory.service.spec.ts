@@ -595,4 +595,156 @@ describe('InventoryService', () => {
       ),
     ).resolves.toEqual(movement);
   });
+
+  // ── registerMovementBatch (form Registra movimento multi-articolo) ────────
+
+  function createBatchTx(currentOnHand = 6) {
+    return {
+      productVariant: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'var-1', sku: 'SKU-1' }),
+      },
+      location: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
+      },
+      inventoryLevel: {
+        findFirst: vi.fn().mockResolvedValue({ onHand: currentOnHand }),
+        upsert: vi.fn().mockResolvedValue({ id: 'lvl-1' }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      stockMovement: {
+        create: vi.fn().mockResolvedValue({ id: 'mov-1' }),
+      },
+    };
+  }
+
+  function createBatchService(tx: ReturnType<typeof createBatchTx>) {
+    const prisma = {
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+    };
+    const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      channelSync as unknown as ChannelSyncFacade,
+    );
+    return { service, channelSync };
+  }
+
+  it('registerMovementBatch rettifica: delta dalla nuova giacenza, righe invariate saltate', async () => {
+    const tx = createBatchTx(6);
+    const { service } = createBatchService(tx);
+
+    const result = await service.registerMovementBatch(
+      tenantId,
+      {
+        type: StockMovementType.adjustment,
+        locationId: 'loc-1',
+        reason: 'Rettifica giacenza',
+        lines: [
+          { variantId: 'var-1', newOnHand: 4 },
+          { variantId: 'var-1', newOnHand: 6 },
+        ],
+      },
+      'Mario Rossi',
+      'user-1',
+      ownerUser,
+    );
+
+    // 6 → 4: rettifica in diminuzione di 2; 6 → 6: nessun movimento.
+    expect(result).toEqual({ created: 1 });
+    expect(tx.stockMovement.create).toHaveBeenCalledTimes(1);
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: StockMovementType.adjustment,
+          quantity: 2,
+          direction: AdjustmentDirection.decrease,
+          reason: 'Rettifica giacenza',
+        }),
+      }),
+    );
+    expect(tx.inventoryLevel.updateMany).toHaveBeenCalledWith({
+      where: { tenantId, variantId: 'var-1', locationId: 'loc-1' },
+      data: { onHand: { increment: -2 }, available: { increment: -2 } },
+    });
+  });
+
+  it('registerMovementBatch trasferimento: destinazione uguale all’origine rifiutata', async () => {
+    const tx = createBatchTx();
+    const { service } = createBatchService(tx);
+
+    await expect(
+      service.registerMovementBatch(
+        tenantId,
+        {
+          type: StockMovementType.transfer,
+          locationId: 'loc-1',
+          targetLocationId: 'loc-1',
+          lines: [{ variantId: 'var-1', quantity: 1 }],
+        },
+        'Tester',
+        'user-1',
+        ownerUser,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('registerMovementBatch rettifica senza causale rifiutata', async () => {
+    const tx = createBatchTx();
+    const { service } = createBatchService(tx);
+
+    await expect(
+      service.registerMovementBatch(
+        tenantId,
+        {
+          type: StockMovementType.adjustment,
+          locationId: 'loc-1',
+          lines: [{ variantId: 'var-1', newOnHand: 3 }],
+        },
+        'Tester',
+        'user-1',
+        ownerUser,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('registerMovementBatch carico: righe multiple con controparte e costo, push canali', async () => {
+    const tx = createBatchTx();
+    const { service, channelSync } = createBatchService(tx);
+
+    const result = await service.registerMovementBatch(
+      tenantId,
+      {
+        type: StockMovementType.load,
+        operationDate: '2026-07-01',
+        locationId: 'loc-1',
+        reason: 'Acquisto merce',
+        partyId: 'sup-1',
+        partyName: 'Manifattura Rossi',
+        lines: [
+          { variantId: 'var-1', quantity: 2, unitAmountMinor: 900 },
+          { variantId: 'var-1', quantity: 3 },
+        ],
+      },
+      'Mario Rossi',
+      'user-1',
+      ownerUser,
+    );
+
+    expect(result).toEqual({ created: 2 });
+    expect(tx.stockMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: StockMovementType.load,
+          quantity: 2,
+          partyId: 'sup-1',
+          partyName: 'Manifattura Rossi',
+          unitCostMinor: 900,
+          createdAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
+  });
 });

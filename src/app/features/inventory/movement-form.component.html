@@ -5,249 +5,332 @@
     (click)="$event.preventDefault(); cancel()"
   >
     <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Magazzino
+    Movimenti
   </a>
 
   <h1 class="movement-form__title">Registra movimento</h1>
 
-  @if (phase() === 'edit') {
-    <form class="movement-form__form" [formGroup]="form" (ngSubmit)="toReview()">
-      <div class="movement-form__grid">
-        <div class="movement-form__field">
-          <span class="movement-form__label">Tipo movimento</span>
+  <div class="movement-form__form">
+    <div class="movement-form__grid">
+      <div class="movement-form__field">
+        <span class="movement-form__label">Tipo movimento</span>
+        <app-select-menu
+          [options]="typeSelectOptions"
+          [value]="type()"
+          ariaLabel="Tipo movimento"
+          placeholder="Carico"
+          [compact]="true"
+          [fullWidth]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onTypeSelect($event)"
+        />
+      </div>
+
+      <div class="movement-form__field">
+        <label class="movement-form__label" for="mov-operation-date">Data operazione</label>
+        <app-date-input
+          inputId="mov-operation-date"
+          [value]="operationDate()"
+          ariaLabel="Data operazione"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onOperationDateChange($event)"
+        />
+      </div>
+
+      <div class="movement-form__field">
+        <span class="movement-form__label">
+          {{ isTransfer() ? 'Location di origine' : 'Location' }}
+        </span>
+        @if (isFixedSingleStore() && fixedSingleStoreLabel(); as label) {
+          <span class="movement-form__location-fixed" title="Sede operativa assegnata">
+            <i class="pi pi-shop" aria-hidden="true"></i>
+            {{ label }}
+          </span>
+        } @else {
           <app-select-menu
-            [options]="typeSelectOptions"
-            [value]="form.controls.type.value"
-            ariaLabel="Tipo movimento"
-            placeholder="Carico"
+            [options]="locationSelectOptions()"
+            [value]="locationId()"
+            ariaLabel="Location"
+            placeholder="Seleziona…"
             [compact]="true"
             [fullWidth]="true"
-            [includeEmptyOption]="false"
-            (valueChange)="onTypeSelect($event)"
+            (valueChange)="onLocationSelect($event)"
+          />
+        }
+      </div>
+
+      @if (isTransfer()) {
+        <div class="movement-form__field">
+          <span class="movement-form__label">Location di destinazione</span>
+          <app-select-menu
+            [options]="targetLocationSelectOptions()"
+            [value]="targetLocationId()"
+            ariaLabel="Location di destinazione"
+            placeholder="Seleziona…"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onTargetLocationSelect($event)"
           />
         </div>
+      }
 
-        <div class="movement-form__field movement-form__field--wide">
-          <span class="movement-form__label">Variante</span>
+      @if (isLoad() || isUnload()) {
+        <div class="movement-form__field">
+          <span class="movement-form__label">
+            {{ isLoad() ? 'Provenienza merce (opzionale)' : 'Destinatario merce (opzionale)' }}
+          </span>
           <app-select-menu
-            class="movement-form__variant-select"
-            [options]="variantSelectOptions()"
-            [value]="form.controls.variantId.value"
-            ariaLabel="Variante prodotto"
-            placeholder="Seleziona una variante…"
+            [options]="partyOptions()"
+            [value]="partyId()"
+            [ariaLabel]="isLoad() ? 'Provenienza merce' : 'Destinatario merce'"
+            placeholder="Nessuna controparte"
             [compact]="true"
             [fullWidth]="true"
             [searchable]="true"
-            [filterOptionsLocally]="false"
-            searchPlaceholder="Cerca per prodotto o SKU…"
-            searchAriaLabel="Cerca variante per prodotto o SKU"
-            [invalid]="fieldInvalid('variantId')"
-            describedBy="mov-variant-error"
-            (valueChange)="onVariantSelect($event)"
-            (searchChange)="onVariantSearch($event)"
+            (valueChange)="onPartySelect($event)"
           />
-          @if (fieldInvalid('variantId')) {
-            <p id="mov-variant-error" class="movement-form__error">Seleziona la variante.</p>
-          }
+        </div>
+      }
+
+      @if (!isTransfer()) {
+        <div class="movement-form__field">
+          <label class="movement-form__label" for="mov-reason">
+            Causale {{ isAdjustment() ? '' : '(opzionale)' }}
+          </label>
+          <input
+            id="mov-reason"
+            class="movement-form__input"
+            type="text"
+            list="mov-reason-presets"
+            [value]="reason()"
+            placeholder="Testo libero o causale predefinita…"
+            (input)="onReasonInput($event)"
+          />
+          <datalist id="mov-reason-presets">
+            @for (preset of reasonPresets(); track preset) {
+              <option [value]="preset"></option>
+            }
+          </datalist>
+        </div>
+      }
+    </div>
+
+    <!-- ── Lista articoli ──────────────────────────────────────────────── -->
+    <div class="movement-form__lines">
+      <h2 class="movement-form__lines-title">
+        {{
+          isLoad()
+            ? 'Articoli da caricare'
+            : isUnload()
+              ? 'Articoli da scaricare'
+              : isAdjustment()
+                ? 'Articoli da rettificare'
+                : 'Articoli da trasferire'
+        }}
+      </h2>
+
+      @if (lines().length === 0) {
+        <p class="movement-form__lines-empty">
+          Nessun articolo in lista: cerca qui sotto per codice articolo, nome, SKU o EAN e aggiungi
+          gli articoli senza uscire dal form.
+        </p>
+      } @else {
+        <div class="movement-form__lines-scroll">
+          <table class="movement-form__lines-table">
+            <thead>
+              <tr>
+                <th scope="col">Cod. articolo</th>
+                <th scope="col">Nome prodotto</th>
+                @if (isAdjustment()) {
+                  <th scope="col" class="movement-form__cell--numeric">Giacenza attuale</th>
+                  <th scope="col" class="movement-form__cell--numeric">Nuova giacenza</th>
+                } @else {
+                  <th scope="col" class="movement-form__cell--numeric">Disponibile</th>
+                  <th scope="col" class="movement-form__cell--numeric">Q.tà</th>
+                }
+                <th scope="col">U.m.</th>
+                @if (isLoad()) {
+                  <th scope="col" class="movement-form__cell--numeric">Costo unitario</th>
+                }
+                @if (isUnload()) {
+                  <th scope="col" class="movement-form__cell--numeric">Prezzo unitario</th>
+                }
+                <th scope="col"><span class="sr-only">Azioni</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of lines(); track line.variantId) {
+                <tr>
+                  <td
+                    class="movement-form__cell-code tabular-nums"
+                    [attr.data-label]="'Cod. articolo'"
+                  >
+                    {{ line.articleCode || line.sku || '—' }}
+                  </td>
+                  <td class="movement-form__cell-title" [attr.data-label]="'Nome prodotto'">
+                    {{ line.title }}
+                  </td>
+                  @if (isAdjustment()) {
+                    <td
+                      class="movement-form__cell--numeric tabular-nums"
+                      [attr.data-label]="'Giacenza attuale'"
+                    >
+                      {{ lineOnHand(line) }}
+                    </td>
+                    <td class="movement-form__cell--numeric" [attr.data-label]="'Nuova giacenza'">
+                      <input
+                        class="movement-form__line-input"
+                        type="number"
+                        inputmode="numeric"
+                        min="0"
+                        step="1"
+                        [value]="line.newOnHandText"
+                        [attr.aria-label]="'Nuova giacenza per ' + line.title"
+                        (input)="onLineNewOnHandInput(line.variantId, $event)"
+                      />
+                    </td>
+                  } @else {
+                    <td
+                      class="movement-form__cell--numeric tabular-nums"
+                      [attr.data-label]="'Disponibile'"
+                    >
+                      {{ lineAvailable(line) }}
+                    </td>
+                    <td class="movement-form__cell--numeric" [attr.data-label]="'Q.tà'">
+                      <input
+                        class="movement-form__line-input"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        step="1"
+                        [value]="line.quantityText"
+                        [attr.aria-label]="'Quantità per ' + line.title"
+                        (input)="onLineQuantityInput(line.variantId, $event)"
+                      />
+                      @if (lineExceedsAvailability(line)) {
+                        <p class="movement-form__line-warning" role="alert">
+                          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                          Supera il disponibile ({{ lineAvailable(line) }})
+                        </p>
+                      }
+                    </td>
+                  }
+                  <td [attr.data-label]="'U.m.'">{{ line.unitOfMeasure }}</td>
+                  @if (isLoad() || isUnload()) {
+                    <td
+                      class="movement-form__cell--numeric"
+                      [attr.data-label]="isLoad() ? 'Costo unitario' : 'Prezzo unitario'"
+                    >
+                      <input
+                        class="movement-form__line-input movement-form__line-input--amount"
+                        type="text"
+                        inputmode="decimal"
+                        [value]="line.unitAmountText"
+                        placeholder="0,00"
+                        [attr.aria-label]="
+                          (isLoad() ? 'Costo unitario per ' : 'Prezzo unitario per ') + line.title
+                        "
+                        (input)="onLineUnitAmountInput(line.variantId, $event)"
+                      />
+                    </td>
+                  }
+                  <td class="movement-form__cell-actions">
+                    <button
+                      type="button"
+                      class="movement-form__line-remove"
+                      [attr.aria-label]="'Rimuovi ' + line.title"
+                      (click)="removeLine(line.variantId)"
+                    >
+                      <i class="pi pi-trash" aria-hidden="true"></i>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <!-- ── Ricerca articolo in fondo alla lista ─────────────────────────── -->
+      <div class="movement-form__search">
+        <label class="movement-form__label" for="mov-article-search">Aggiungi articolo</label>
+        <div class="movement-form__search-row">
+          <div class="movement-form__search-box">
+            <i class="pi pi-search movement-form__search-icon" aria-hidden="true"></i>
+            <input
+              id="mov-article-search"
+              class="movement-form__search-input"
+              type="search"
+              [value]="searchDraft()"
+              placeholder="Codice articolo, nome, SKU o EAN…"
+              aria-label="Cerca articolo per codice articolo, nome, SKU o EAN"
+              (input)="onSearchInput($event)"
+            />
+          </div>
           @if (barcodeScannerEnabled) {
             <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
           }
-          @if (scanFeedback(); as message) {
-            <p class="movement-form__scan-feedback" role="status">{{ message }}</p>
-          }
         </div>
+        @if (scanFeedback(); as message) {
+          <p class="movement-form__scan-feedback" role="status">{{ message }}</p>
+        }
 
-        <div class="movement-form__field">
-          <span class="movement-form__label">
-            {{ isTransfer() ? 'Location di origine' : 'Location' }}
-          </span>
-          @if (isFixedSingleStore() && fixedSingleStoreLabel(); as label) {
-            <span class="movement-form__location-fixed" title="Sede operativa assegnata">
-              <i class="pi pi-shop" aria-hidden="true"></i>
-              {{ label }}
-            </span>
-          } @else {
-            <app-select-menu
-              [options]="locationSelectOptions()"
-              [value]="form.controls.locationId.value"
-              ariaLabel="Location"
-              placeholder="Seleziona…"
-              [compact]="true"
-              [fullWidth]="true"
-              [invalid]="fieldInvalid('locationId')"
-              describedBy="mov-location-error"
-              (valueChange)="onLocationSelect($event)"
-            />
-          }
-          @if (fieldInvalid('locationId')) {
-            <p id="mov-location-error" class="movement-form__error">Seleziona la location.</p>
-          }
-        </div>
-
-        @if (isTransfer()) {
-          <div class="movement-form__field">
-            <span class="movement-form__label">Location di destinazione</span>
-            <app-select-menu
-              [options]="targetLocationSelectOptions()"
-              [value]="form.controls.targetLocationId.value"
-              ariaLabel="Location di destinazione"
-              placeholder="Seleziona…"
-              [compact]="true"
-              [fullWidth]="true"
-              [invalid]="fieldInvalid('targetLocationId')"
-              describedBy="mov-target-error"
-              (valueChange)="onTargetLocationSelect($event)"
-            />
-            @if (fieldInvalid('targetLocationId')) {
-              <p id="mov-target-error" class="movement-form__error">
-                Seleziona la location di destinazione.
-              </p>
+        @if (searchResults().length > 0) {
+          <ul class="movement-form__results" role="list">
+            @for (result of searchResults(); track result.variantId) {
+              <li class="movement-form__result">
+                <div class="movement-form__result-info">
+                  <span class="movement-form__result-title">{{ result.title }}</span>
+                  <span class="movement-form__result-meta tabular-nums">
+                    {{ result.articleCode || result.sku }}
+                    · Disponibile: {{ result.stockAvailable ?? 0 }} ·
+                    {{ result.unitOfMeasure || 'pz' }}
+                  </span>
+                </div>
+                <app-button variant="secondary" (click)="addVariant(result)">
+                  <i class="pi pi-plus" aria-hidden="true"></i>
+                  Aggiungi
+                </app-button>
+              </li>
             }
-          </div>
+          </ul>
+        } @else if (searching()) {
+          <p class="movement-form__search-hint" role="status">Ricerca in corso…</p>
         }
-
-        <div class="movement-form__field">
-          <label class="movement-form__label" for="mov-quantity">Quantità</label>
-          <input
-            id="mov-quantity"
-            class="movement-form__input"
-            type="number"
-            inputmode="numeric"
-            min="1"
-            step="1"
-            formControlName="quantity"
-            [attr.aria-invalid]="fieldInvalid('quantity')"
-            aria-describedby="mov-quantity-error"
-          />
-          @if (fieldInvalid('quantity')) {
-            <p id="mov-quantity-error" class="movement-form__error">
-              Inserisci una quantità intera maggiore di zero.
-            </p>
-          }
-        </div>
-
-        @if (isAdjustment()) {
-          <div class="movement-form__field">
-            <span class="movement-form__label">Verso della rettifica</span>
-            <app-select-menu
-              [options]="directionSelectOptions"
-              [value]="form.controls.direction.value"
-              ariaLabel="Verso della rettifica"
-              placeholder="Diminuzione"
-              [compact]="true"
-              [fullWidth]="true"
-              [includeEmptyOption]="false"
-              (valueChange)="onDirectionSelect($event)"
-            />
-          </div>
-        }
-
-        <div class="movement-form__field movement-form__field--wide">
-          <label class="movement-form__label" for="mov-reason">
-            Motivo {{ isAdjustment() ? '(obbligatorio per le rettifiche)' : '(opzionale)' }}
-          </label>
-          <textarea
-            id="mov-reason"
-            class="movement-form__textarea"
-            rows="2"
-            formControlName="reason"
-            [attr.aria-invalid]="fieldInvalid('reason')"
-            aria-describedby="mov-reason-error"
-            placeholder="Es. ricezione fornitore, capo danneggiato, riequilibrio stock…"
-          ></textarea>
-          @if (fieldInvalid('reason')) {
-            <p id="mov-reason-error" class="movement-form__error">
-              Indica il motivo della rettifica (almeno 3 caratteri).
-            </p>
-          }
-        </div>
-      </div>
-
-      <div class="movement-form__actions">
-        <app-button variant="ghost" (click)="cancel()">Annulla</app-button>
-        <app-button type="submit">
-          Continua
-          <i class="pi pi-arrow-right" aria-hidden="true"></i>
-        </app-button>
-      </div>
-    </form>
-  } @else {
-    @let r = review();
-    <div class="movement-form__review" aria-labelledby="review-title">
-      <h2 id="review-title" class="movement-form__review-title">Riepilogo movimento</h2>
-
-      <dl class="movement-form__summary">
-        <div class="movement-form__summary-item">
-          <dt class="movement-form__term">Tipo</dt>
-          <dd class="movement-form__value">{{ r.typeLabel }}</dd>
-        </div>
-        <div class="movement-form__summary-item">
-          <dt class="movement-form__term">Variante</dt>
-          <dd class="movement-form__value">{{ r.variantTitle }} ({{ r.sku }})</dd>
-        </div>
-        <div class="movement-form__summary-item">
-          <dt class="movement-form__term">{{ r.isTransfer ? 'Origine' : 'Location' }}</dt>
-          <dd class="movement-form__value">{{ r.locationName }}</dd>
-        </div>
-        @if (r.isTransfer) {
-          <div class="movement-form__summary-item">
-            <dt class="movement-form__term">Destinazione</dt>
-            <dd class="movement-form__value">{{ r.targetName }}</dd>
-          </div>
-        }
-        <div class="movement-form__summary-item">
-          <dt class="movement-form__term">Quantità</dt>
-          <dd class="movement-form__value tabular-nums">{{ r.quantity }}</dd>
-        </div>
-        @if (r.isAdjustment) {
-          <div class="movement-form__summary-item">
-            <dt class="movement-form__term">Verso</dt>
-            <dd class="movement-form__value">{{ r.directionLabel }}</dd>
-          </div>
-        }
-        @if (r.reason) {
-          <div class="movement-form__summary-item movement-form__summary-item--wide">
-            <dt class="movement-form__term">Motivo</dt>
-            <dd class="movement-form__value">{{ r.reason }}</dd>
-          </div>
-        }
-      </dl>
-
-      <div class="movement-form__impact">
-        <h3 class="movement-form__impact-title">Impatto atteso sul disponibile</h3>
-        <p class="movement-form__impact-line tabular-nums">
-          {{ r.locationName }}: {{ r.originBefore }} → <strong>{{ r.originAfter }}</strong>
-        </p>
-        @if (r.isTransfer) {
-          <p class="movement-form__impact-line tabular-nums">
-            {{ r.targetName }}: {{ r.targetBefore }} → <strong>{{ r.targetAfter }}</strong>
-          </p>
-        }
-        @if (r.originGoesNegative) {
-          <p class="movement-form__warning" role="alert">
-            <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-            Il disponibile in {{ r.locationName }} diventerà negativo (oversell).
-          </p>
-        }
-      </div>
-
-      @if (submitError(); as appError) {
-        <p class="movement-form__submit-error" role="alert">
-          <i class="pi pi-times-circle" aria-hidden="true"></i>
-          {{ appError.message }}
-        </p>
-      }
-
-      <div class="movement-form__actions">
-        <app-button variant="ghost" [disabled]="saving()" (click)="backToEdit()">
-          <i class="pi pi-arrow-left" aria-hidden="true"></i>
-          Modifica
-        </app-button>
-        <app-button [loading]="saving()" [disabled]="saving()" (click)="confirm()">
-          <i class="pi pi-check" aria-hidden="true"></i>
-          Conferma movimento
-        </app-button>
       </div>
     </div>
-  }
+
+    @if (formError(); as message) {
+      <p class="movement-form__submit-error" role="alert">
+        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+        {{ message }}
+      </p>
+    }
+    @if (submitError(); as appError) {
+      <p class="movement-form__submit-error" role="alert">
+        <i class="pi pi-times-circle" aria-hidden="true"></i>
+        {{ appError.message }}
+      </p>
+    }
+
+    <div class="movement-form__actions">
+      <app-button variant="ghost" [disabled]="saving()" (click)="cancel()">Annulla</app-button>
+      <app-button [loading]="saving()" [disabled]="saving()" (click)="save()">
+        <i class="pi pi-check" aria-hidden="true"></i>
+        Salva
+      </app-button>
+    </div>
+  </div>
+
+  <app-confirm-dialog
+    [(open)]="confirmOpen"
+    [title]="'Conferma ' + typeLabel().toLowerCase()"
+    [message]="confirmMessage()"
+    confirmLabel="Registra"
+    [busy]="saving()"
+    (confirmed)="confirmSave()"
+    (dismissed)="dismissConfirm()"
+  />
 </section>

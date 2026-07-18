@@ -11,6 +11,10 @@ export async function openMovementFormForSku(page: Page, sku: string): Promise<v
   await page.getByRole('link', { name: 'Registra movimento' }).click();
   await expect(page).toHaveURL(/\/app\/inventory\/movements\/new/, { timeout: 15_000 });
   await expect(page.locator('h1.movement-form__title')).toHaveText('Registra movimento');
+  // Deep-link ?variantId=: l'articolo compare già nella lista righe.
+  await expect(page.locator('.movement-form__lines-table tbody tr')).toHaveCount(1, {
+    timeout: 15_000,
+  });
 }
 
 export async function selectMovementType(page: Page, typeLabel: string): Promise<void> {
@@ -41,16 +45,15 @@ export async function pickTransferLocations(page: Page): Promise<boolean> {
   return true;
 }
 
-export async function goToMovementReview(page: Page, quantity = '1'): Promise<void> {
-  await page.locator('#mov-quantity').fill(quantity);
-  await page.getByRole('button', { name: 'Continua' }).click();
+/** Imposta la quantità (o la nuova giacenza per le rettifiche) della prima riga. */
+export async function setFirstLineQuantity(page: Page, quantity = '1'): Promise<void> {
+  await page.locator('.movement-form__line-input').first().fill(quantity);
 }
 
+/** Salva → conferma dal dialog di riepilogo → atterra sullo storico movimenti. */
 export async function confirmMovement(page: Page): Promise<void> {
-  await expect(page.locator('h2.movement-form__review-title')).toHaveText('Riepilogo movimento', {
-    timeout: 15_000,
-  });
-  await page.getByRole('button', { name: 'Conferma movimento' }).click();
+  await page.getByRole('button', { name: 'Salva' }).click();
+  await page.getByRole('button', { name: 'Registra', exact: true }).click();
 
   const submitError = page.locator('.movement-form__submit-error');
   await Promise.race([

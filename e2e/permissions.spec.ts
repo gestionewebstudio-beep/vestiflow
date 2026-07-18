@@ -129,8 +129,14 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       await expectButtonAbsent(page, 'Importa CSV');
     });
 
-    test('CTA Registra movimento visibile con inventory.manage', async ({ page }) => {
+    test('CTA Registra movimento solo nel tab Movimenti (non in Giacenze)', async ({ page }) => {
       await page.goto('/app/inventory');
+      await expect(page.locator('h1.inventory-levels__title')).toHaveText('Magazzino', {
+        timeout: 30_000,
+      });
+      await expect(page.getByRole('button', { name: 'Registra movimento' })).toHaveCount(0);
+
+      await page.goto('/app/inventory/movements');
       await expect(page.getByRole('button', { name: 'Registra movimento' })).toBeVisible({
         timeout: 30_000,
       });
@@ -251,12 +257,12 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       expect(syncVisible).toBe(exportVisible);
     });
 
-    test('inventory.manage implica CTA movimento su giacenze', async ({ page }) => {
+    test('inventory.manage implica CTA movimento sul tab Movimenti', async ({ page }) => {
       await page.goto('/app/inventory/movements/new');
       const onForm = /\/inventory\/movements\/new$/.test(page.url());
 
-      await page.goto('/app/inventory');
-      await expect(page.locator('h1.inventory-levels__title')).toHaveText('Magazzino', {
+      await page.goto('/app/inventory/movements');
+      await expect(page.locator('h1.stock-movements__title')).toHaveText('Movimenti di magazzino', {
         timeout: 30_000,
       });
 

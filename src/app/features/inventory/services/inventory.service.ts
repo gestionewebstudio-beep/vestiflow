@@ -52,6 +52,12 @@ import {
   mapInventoryLevelListItem,
   type InventoryLevelListItem,
 } from '../models/inventory-list.mapper';
+import {
+  mapInventorySituationApiRow,
+  type InventorySituationApiRow,
+  type InventorySituationListQuery,
+  type InventorySituationRow,
+} from '../models/inventory-situation.model';
 
 import {
   mapInventoryCountLineApiRow,
@@ -74,6 +80,30 @@ export interface RegisterMovementInput {
   readonly reason?: string;
   readonly createdBy: EntityId;
   readonly createdByName: string;
+}
+
+/** Riga del form Registra movimento multi-articolo. */
+export interface RegisterMovementBatchLineInput {
+  readonly variantId: EntityId;
+  /** Carico/scarico/trasferimento. */
+  readonly quantity?: number;
+  /** Solo rettifiche: nuova giacenza assoluta nella location. */
+  readonly newOnHand?: number;
+  /** Unità minori: costo unitario (carico) o prezzo unitario (scarico). */
+  readonly unitAmountMinor?: number;
+}
+
+/** Input POST /inventory/movements/batch: registra tutte le righe insieme. */
+export interface RegisterMovementBatchInput {
+  readonly type: StockMovement['type'];
+  /** Data operazione YYYY-MM-DD (default oggi). */
+  readonly operationDate?: string;
+  readonly locationId: EntityId;
+  readonly targetLocationId?: EntityId;
+  readonly reason?: string;
+  readonly partyId?: EntityId;
+  readonly partyName?: string;
+  readonly lines: readonly RegisterMovementBatchLineInput[];
 }
 
 const HTTP_TIMEOUT_MS = 15000;
@@ -208,6 +238,34 @@ export class InventoryService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /** Situazione magazzino: riepilogo per variante (tab Situazione). */
+  getSituation(
+    query: InventorySituationListQuery = {},
+  ): Observable<PaginatedResponse<InventorySituationRow>> {
+    let params = new HttpParams()
+      .set('page', String(query.page ?? 1))
+      .set('pageSize', String(query.pageSize ?? DEFAULT_INVENTORY_PAGE_SIZE));
+
+    if (query.locationId) params = params.set('locationId', query.locationId);
+    if (query.supplierId) params = params.set('supplierId', query.supplierId);
+    if (query.category) params = params.set('category', query.category);
+    if (query.stockStatus) params = params.set('stockStatus', query.stockStatus);
+    if (query.search) params = params.set('search', query.search);
+
+    return this.http
+      .get<ApiPaginated<InventorySituationApiRow>>(this.url('/inventory/situation'), { params })
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((response) => {
+          const paginated = toPaginatedResponse(response);
+          return {
+            data: paginated.data.map(mapInventorySituationApiRow),
+            meta: paginated.meta,
+          };
+        }),
+      );
+  }
+
   getMovements(query: StockMovementsListQuery = {}): Observable<PaginatedResponse<StockMovement>> {
     let params = new HttpParams()
       .set('page', String(query.page ?? 1))
@@ -219,6 +277,7 @@ export class InventoryService {
     if (query.origin) params = params.set('origin', query.origin);
     if (query.variantId) params = params.set('variantId', query.variantId);
     if (query.partyId) params = params.set('partyId', query.partyId);
+    if (query.createdBy) params = params.set('createdBy', query.createdBy);
     if (query.from) params = params.set('from', query.from);
     if (query.to) params = params.set('to', query.to);
 
@@ -234,6 +293,13 @@ export class InventoryService {
           };
         }),
       );
+  }
+
+  /** Operatori distinti (snapshot createdByName) per il filtro Operatore. */
+  getMovementOperators(): Observable<readonly string[]> {
+    return this.http
+      .get<readonly string[]>(this.url('/inventory/movements/operators'))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   /** Impegni attivi che compongono la Impegnata di una variante × location. */
@@ -266,6 +332,13 @@ export class InventoryService {
     return this.http
       .post<StockMovementApiRow>(this.url('/inventory/movements'), body)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapStockMovementApiRow));
+  }
+
+  /** Registra tutte le righe del form Registra movimento in una transazione. */
+  registerMovementBatch(input: RegisterMovementBatchInput): Observable<{ created: number }> {
+    return this.http
+      .post<{ created: number }>(this.url('/inventory/movements/batch'), input)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   listInventoryCounts(): Observable<readonly InventoryCountSession[]> {

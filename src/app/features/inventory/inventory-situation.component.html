@@ -1,0 +1,210 @@
+<section class="inventory-situation">
+  <header class="inventory-situation__header">
+    <div>
+      <h1 class="inventory-situation__title">Situazione magazzino</h1>
+      <p class="inventory-situation__intro">
+        Fotografia degli articoli con scorte, dati economici e stato. Seleziona gli articoli da
+        riordinare per creare un ordine fornitore.
+      </p>
+    </div>
+  </header>
+
+  <app-inventory-tabs />
+
+  <div class="inventory-situation__filters">
+    <div class="inventory-situation__field inventory-situation__field--search">
+      <label class="inventory-situation__label" for="situation-search">Ricerca</label>
+      <div class="inventory-situation__search">
+        <i class="pi pi-search inventory-situation__search-icon" aria-hidden="true"></i>
+        <input
+          id="situation-search"
+          class="inventory-situation__search-input"
+          type="search"
+          [value]="searchDraft()"
+          placeholder="Nome, SKU o cod. articolo"
+          aria-label="Cerca per nome prodotto, SKU o codice articolo"
+          (input)="onSearchInput($event)"
+        />
+      </div>
+    </div>
+
+    <div class="inventory-situation__field inventory-situation__field--select">
+      <app-select-menu
+        chipLabel="Stato magazzino"
+        [options]="stockStatusOptions"
+        [value]="statusFilter()"
+        ariaLabel="Filtra per stato magazzino"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onStatusFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="inventory-situation__field inventory-situation__field--select">
+      <app-select-menu
+        chipLabel="Fornitore"
+        [options]="supplierOptions()"
+        [value]="supplierFilter()"
+        ariaLabel="Filtra per fornitore"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        [searchable]="true"
+        (valueChange)="onSupplierFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="inventory-situation__field inventory-situation__field--select">
+      <app-select-menu
+        chipLabel="Categoria"
+        [options]="categoryOptions()"
+        [value]="categoryFilter()"
+        ariaLabel="Filtra per categoria"
+        placeholder="Tutte"
+        [compact]="true"
+        [fullWidth]="true"
+        [searchable]="true"
+        (valueChange)="onCategoryFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="inventory-situation__field inventory-situation__field--select">
+      <app-select-menu
+        chipLabel="Location"
+        [options]="locationOptions()"
+        [value]="locationFilter()"
+        ariaLabel="Filtra per location"
+        placeholder="Tutte"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onLocationFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="inventory-situation__filters-action">
+      <app-table-column-picker [viewId]="tableViewId" />
+      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+        <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        Azzera filtri
+      </app-button>
+    </div>
+  </div>
+
+  @if (selectedCount() > 0) {
+    <div class="inventory-situation__selection-bar" role="status">
+      <span class="inventory-situation__selection-count">
+        {{ selectedCount() }}
+        {{ selectedCount() === 1 ? 'articolo selezionato' : 'articoli selezionati' }}
+      </span>
+      <div class="inventory-situation__selection-actions">
+        <app-button variant="secondary" (click)="clearSelection()">Azzera selezione</app-button>
+        @if (canCreateSupplierOrder()) {
+          <app-button (click)="openOrderPanel()">
+            <i class="pi pi-shopping-bag" aria-hidden="true"></i>
+            Nuovo ordine fornitore
+          </app-button>
+        }
+      </div>
+    </div>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessun articolo"
+      description="Nessun articolo corrisponde ai filtri attuali."
+      icon="pi-chart-bar"
+    />
+  } @else {
+    <app-situation-table
+      [rows]="rows()"
+      [columns]="tableColumns()"
+      [selectedIds]="selectedIds()"
+      (rowToggle)="onRowToggle($event)"
+      (pageToggle)="onPageToggle($event)"
+    />
+    <app-pagination
+      label="Paginazione situazione magazzino"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+
+  <app-slide-panel
+    [open]="orderPanelOpen()"
+    title="Nuovo ordine fornitore"
+    ariaLabel="Crea ordine fornitore dagli articoli selezionati"
+    (closed)="closeOrderPanel()"
+  >
+    <p class="inventory-situation__order-context">
+      L'ordine verrà creato con
+      <strong>{{ selectedCount() }}</strong>
+      {{ selectedCount() === 1 ? 'riga' : 'righe' }} (quantità 1, costo dal prezzo acquisto). Potrai
+      modificare quantità e costi dal documento.
+    </p>
+
+    @if (!newSupplierMode()) {
+      <div class="inventory-situation__order-field">
+        <app-select-menu
+          chipLabel="Fornitore"
+          [options]="supplierOptions()"
+          [value]="orderSupplierId()"
+          ariaLabel="Seleziona il fornitore dell'ordine"
+          placeholder="Seleziona fornitore"
+          [fullWidth]="true"
+          [searchable]="true"
+          (valueChange)="onOrderSupplierChange($event)"
+        />
+      </div>
+    } @else {
+      <div class="inventory-situation__order-field">
+        <label class="inventory-situation__label" for="situation-new-supplier">
+          Nome nuovo fornitore
+        </label>
+        <input
+          id="situation-new-supplier"
+          class="inventory-situation__order-input"
+          type="text"
+          [value]="newSupplierName()"
+          placeholder="Es. Manifattura Rossi"
+          (input)="onNewSupplierNameInput($event)"
+        />
+      </div>
+    }
+
+    <button
+      type="button"
+      class="inventory-situation__order-toggle"
+      (click)="toggleNewSupplierMode()"
+    >
+      {{ newSupplierMode() ? 'Scegli un fornitore esistente' : 'Crea un nuovo fornitore' }}
+    </button>
+
+    @if (orderError(); as message) {
+      <p class="inventory-situation__order-error" role="alert">{{ message }}</p>
+    }
+
+    <div class="inventory-situation__order-actions">
+      <app-button variant="secondary" [disabled]="orderSubmitting()" (click)="closeOrderPanel()">
+        Annulla
+      </app-button>
+      <app-button [disabled]="!canSubmitOrder()" (click)="submitOrder()">
+        @if (orderSubmitting()) {
+          Creazione in corso…
+        } @else {
+          Crea ordine
+        }
+      </app-button>
+    </div>
+  </app-slide-panel>
+</section>

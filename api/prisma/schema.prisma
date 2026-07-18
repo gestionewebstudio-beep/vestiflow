@@ -783,6 +783,10 @@ model StockMovement {
   unitCostMinor      Int?               @map("unit_cost_minor")
   /// Costo totale riga in unità minori — solo carichi documentali.
   totalCostMinor     Int?               @map("total_cost_minor")
+  /// Controparte facoltativa del movimento manuale (provenienza/destinatario merce).
+  partyId            String?            @map("party_id") @db.Uuid
+  /// Snapshot nome controparte (display stabile anche se l'anagrafica cambia).
+  partyName          String?            @map("party_name")
   createdAt        DateTime             @default(now()) @map("created_at")
   createdById      String?              @map("created_by_id") @db.Uuid
   /// Snapshot del nome operatore (audit stabile anche se l'utente cambia nome).

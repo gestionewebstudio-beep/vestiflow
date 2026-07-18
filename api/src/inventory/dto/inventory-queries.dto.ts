@@ -53,6 +53,12 @@ export class ListMovementsQueryDto extends PaginationQueryDto {
   @IsUUID()
   partyId?: string;
 
+  /** Operatore: snapshot `createdByName` del movimento (match esatto). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  createdBy?: string;
+
   @IsOptional()
   @IsEnum(StockMovementType)
   type?: StockMovementType;
