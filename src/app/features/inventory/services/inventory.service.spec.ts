@@ -153,6 +153,86 @@ describe('InventoryService (HTTP)', () => {
     expect(response.meta.page).toBe(2);
   });
 
+  it('getMovementOperators legge gli operatori distinti', async () => {
+    const promise = firstValueFrom(service.getMovementOperators());
+
+    const req = httpMock.expectOne(`${API_BASE}/inventory/movements/operators`);
+    expect(req.request.method).toBe('GET');
+    req.flush(['Mario Rossi', 'Shopify']);
+
+    await expect(promise).resolves.toEqual(['Mario Rossi', 'Shopify']);
+  });
+
+  it('registerMovementBatch invia POST con tutte le righe', async () => {
+    const promise = firstValueFrom(
+      service.registerMovementBatch({
+        type: StockMovementType.Load,
+        operationDate: '2026-07-01',
+        locationId: 'loc-1',
+        reason: 'Acquisto merce',
+        partyId: 'sup-1',
+        partyName: 'Manifattura Rossi',
+        lines: [{ variantId: 'var-1', quantity: 2, unitAmountMinor: 900 }],
+      }),
+    );
+
+    const req = httpMock.expectOne(`${API_BASE}/inventory/movements/batch`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toMatchObject({
+      type: StockMovementType.Load,
+      locationId: 'loc-1',
+      lines: [{ variantId: 'var-1', quantity: 2, unitAmountMinor: 900 }],
+    });
+    req.flush({ created: 1 });
+
+    await expect(promise).resolves.toEqual({ created: 1 });
+  });
+
+  it('getSituation mappa le righe e passa i filtri server-side', async () => {
+    const promise = firstValueFrom(
+      service.getSituation({ stockStatus: 'low', supplierId: 'sup-1', category: 'Giacche' }),
+    );
+
+    const req = httpMock.expectOne((request) =>
+      request.url.startsWith(`${API_BASE}/inventory/situation`),
+    );
+    expect(req.request.params.get('stockStatus')).toBe('low');
+    expect(req.request.params.get('supplierId')).toBe('sup-1');
+    expect(req.request.params.get('category')).toBe('Giacche');
+    req.flush({
+      items: [
+        {
+          variantId: 'var-1',
+          productId: 'prod-1',
+          title: 'Blazer — M',
+          articleCode: '00001',
+          sku: 'SKU-1',
+          category: 'Giacche',
+          supplierId: 'sup-1',
+          supplierName: 'Manifattura Rossi',
+          currency: 'EUR',
+          sellingPriceMinor: 4900,
+          purchasePriceMinor: 2000,
+          available: 3,
+          onHand: 4,
+          committed: 1,
+          incoming: 2,
+          minThreshold: 5,
+          totalIn: 10,
+          totalOut: 7,
+          stockStatus: 'low',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    });
+
+    const response = await promise;
+    expect(response.data[0]).toMatchObject({ code: '00001', status: 'low', available: 3 });
+    expect(response.meta.total).toBe(1);
+  });
+
   it('getLevels mappa le giacenze', async () => {
     const promise = firstValueFrom(service.getLevels());
 
