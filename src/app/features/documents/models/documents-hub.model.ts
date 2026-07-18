@@ -86,6 +86,14 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
     title: 'Vendite',
     items: [
       {
+        id: 'customer-orders',
+        label: 'Ordini cliente',
+        description: 'Registro ordini cliente: manuali e multicanale, con impegni di magazzino.',
+        route: ['/app/sales'],
+        icon: 'pi-shopping-cart',
+        available: true,
+      },
+      {
         id: 'store-sale-register',
         label: 'Vendita negozio',
         description: 'Cassa a carrello per vendite immediate in negozio.',
