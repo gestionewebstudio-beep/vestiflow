@@ -218,6 +218,7 @@ export class InventoryService {
     if (query.type) params = params.set('type', query.type);
     if (query.origin) params = params.set('origin', query.origin);
     if (query.variantId) params = params.set('variantId', query.variantId);
+    if (query.partyId) params = params.set('partyId', query.partyId);
     if (query.from) params = params.set('from', query.from);
     if (query.to) params = params.set('to', query.to);
 

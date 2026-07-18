@@ -19,10 +19,13 @@ export interface StockMovementsListQuery {
   readonly page?: number;
   readonly pageSize?: number;
   readonly locationId?: string;
+  /** Ricerca su SKU, barcode, nome prodotto o codice articolo. */
   readonly search?: string;
   readonly type?: StockMovementType;
   readonly origin?: MovementOrigin;
   readonly variantId?: string;
+  /** Cliente o fornitore del documento origine del movimento. */
+  readonly partyId?: string;
   readonly from?: string;
   readonly to?: string;
 }

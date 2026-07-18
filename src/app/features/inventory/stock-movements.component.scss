@@ -59,19 +59,19 @@
   }
 }
 
+// Flex con wrap: il numero di campi varia (Dal/Al compaiono solo con periodo
+// «Personalizzato»), la riga resta compatta e va a capo solo se serve.
 .stock-movements__filters {
   inline-size: 100%;
+  display: flex;
   gap: var(--space-3);
 
   @include bp.media-up('md') {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
-    align-items: end;
-    column-gap: var(--space-3);
+    flex-wrap: wrap;
+    align-items: flex-end;
   }
 
   @include bp.media-down('md') {
-    display: flex;
     flex-direction: column;
     align-items: stretch;
   }
@@ -82,17 +82,13 @@
   flex-direction: column;
   gap: var(--space-1);
   min-inline-size: 0;
+  align-items: stretch;
+  inline-size: 100%;
+  --select-menu-width: 100%;
 
   @include bp.media-up('md') {
-    align-items: stretch;
-    inline-size: 100%;
-    --select-menu-width: 100%;
-  }
-
-  @include bp.media-down('md') {
-    align-items: stretch;
-    inline-size: 100%;
-    --select-menu-width: 100%;
+    flex: 1 1 9rem;
+    max-inline-size: 15rem;
   }
 }
 
@@ -103,16 +99,46 @@
   gap: var(--space-2);
   flex-shrink: 0;
   white-space: nowrap;
-  margin-inline-start: var(--space-3);
 
   @include bp.media-up('md') {
-    justify-self: end;
+    margin-inline-start: auto;
     padding-inline-start: var(--space-2);
   }
 
   @include bp.media-down('md') {
-    margin-inline-start: 0;
     align-items: stretch;
+  }
+}
+
+.stock-movements__search {
+  position: relative;
+}
+
+.stock-movements__search-icon {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--space-3);
+  transform: translateY(-50%);
+  font-size: var(--text-sm);
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+
+.stock-movements__search-input {
+  inline-size: 100%;
+  box-sizing: border-box;
+  block-size: var(--field-height);
+  padding-inline: var(--space-8) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+
+  &:focus-visible {
+    border-color: var(--color-interactive);
+    outline: none;
+    box-shadow: var(--field-focus-ring);
   }
 }
 

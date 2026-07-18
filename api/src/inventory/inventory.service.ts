@@ -290,10 +290,29 @@ export class InventoryService {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
 
+    // Cliente/fornitore: i movimenti non hanno controparte propria, la
+    // ereditano dal documento origine (arrivo merce, vendita, DDT, …).
+    let partyDocumentIds: readonly string[] | null = null;
+    if (query.partyId) {
+      const partyDocuments = await this.prisma.document.findMany({
+        where: {
+          tenantId,
+          OR: [{ supplierId: query.partyId }, { customerId: query.partyId }],
+        },
+        select: { id: true },
+      });
+      partyDocumentIds = partyDocuments.map((doc) => doc.id);
+      if (partyDocumentIds.length === 0) {
+        return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+      }
+    }
+
     const where: Prisma.StockMovementWhereInput = {
       tenantId,
       ...locationScopeToMovementFilter(scope),
       ...(query.variantId ? { variantId: query.variantId } : {}),
+      ...(query.search ? { variant: buildInventoryVariantSearchWhere(query.search) } : {}),
+      ...(partyDocumentIds ? { sourceDocumentId: { in: [...partyDocumentIds] } } : {}),
       ...(query.type ? { type: query.type } : {}),
       ...(query.origin ? { origin: query.origin } : {}),
       ...(query.from || query.to

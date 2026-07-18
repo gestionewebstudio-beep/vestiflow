@@ -42,6 +42,17 @@ export class ListMovementsQueryDto extends PaginationQueryDto {
   @IsUUID()
   variantId?: string;
 
+  /** Ricerca su SKU, barcode, nome prodotto o codice articolo. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  search?: string;
+
+  /** Cliente o fornitore del documento origine del movimento. */
+  @IsOptional()
+  @IsUUID()
+  partyId?: string;
+
   @IsOptional()
   @IsEnum(StockMovementType)
   type?: StockMovementType;

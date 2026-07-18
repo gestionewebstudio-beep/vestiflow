@@ -9,7 +9,18 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, skip, startWith, switchMap } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  forkJoin,
+  map,
+  of,
+  skip,
+  startWith,
+  switchMap,
+} from 'rxjs';
+import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
@@ -41,6 +52,9 @@ import { TableColumnPickerComponent } from '@shared/components/table-column-pick
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
+import { CustomerService } from '@features/customers/services/customer.service';
+import { SupplierService } from '@features/suppliers/services/supplier.service';
+
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { MovementTableComponent } from './components/movement-table/movement-table.component';
 import { movementOriginLabel } from './models/inventory-labels.util';
@@ -54,6 +68,7 @@ import {
   INVENTORY_PAGE_SIZE_OPTIONS,
 } from './models/inventory-list-query.model';
 import type { StockMovementsListQuery } from './models/inventory-list-query.model';
+import { MovementPeriodPreset, resolveMovementPeriodRange } from './models/movement-period.util';
 import { InventoryService } from './services/inventory.service';
 
 interface MovementsData {
@@ -73,6 +88,8 @@ const EMPTY_META: PageMeta = {
   total: 0,
   totalPages: 1,
 };
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 /** Storico movimenti di magazzino (smart): filtri e paginazione server-side. */
 @Component({
@@ -96,6 +113,8 @@ const EMPTY_META: PageMeta = {
 })
 export class StockMovementsComponent {
   private readonly inventoryService = inject(InventoryService);
+  private readonly customerService = inject(CustomerService);
+  private readonly supplierService = inject(SupplierService);
   private readonly authService = inject(AuthService);
   private readonly locationContext = inject(LocationContextService);
   private readonly operationalLocations = inject(OperationalLocationsService);
@@ -131,6 +150,37 @@ export class StockMovementsComponent {
       { value: MovementOrigin.VestiflowOnline, label: onlineSalesChannelLabel(profile) },
     ];
   });
+
+  /** Scelte rapide periodo; il valore vuoto (placeholder «Tutti») non filtra. */
+  protected readonly periodOptions: readonly SelectMenuOption[] = [
+    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
+    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
+    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
+    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
+    { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
+  ];
+
+  /** Controparti (fornitori + clienti) per il dropdown con ricerca. */
+  protected readonly partyOptions = toSignal(
+    forkJoin({
+      suppliers: this.supplierService.getSuppliers().pipe(catchError(() => of([]))),
+      customers: this.customerService.getAllCustomers().pipe(catchError(() => of([]))),
+    }).pipe(
+      map(({ suppliers, customers }): readonly SelectMenuOption[] => [
+        ...suppliers.map((supplier) => ({
+          value: supplier.id,
+          label: supplier.name,
+          detail: 'Fornitore',
+        })),
+        ...customers.map((customer) => ({
+          value: customer.id,
+          label: `${customer.firstName} ${customer.lastName}`.trim(),
+          detail: 'Cliente',
+        })),
+      ]),
+    ),
+    { initialValue: [] as readonly SelectMenuOption[] },
+  );
 
   protected readonly showSalesHistoryHint = computed(() =>
     showSalesOrderHistory(this.authService.currentUser()?.tenantChannelProfile),
@@ -169,14 +219,26 @@ export class StockMovementsComponent {
 
   protected readonly typeFilter = signal('');
   protected readonly originFilter = signal('');
+  protected readonly periodFilter = signal<MovementPeriodPreset>(MovementPeriodPreset.All);
+  // Dal/Al: usati solo con periodo «Personalizzato».
   protected readonly fromFilter = signal('');
   protected readonly toFilter = signal('');
+  protected readonly partyFilter = signal('');
+  protected readonly searchDraft = signal('');
+  private readonly search = signal('');
   // La location parte dal contesto globale (selettore topbar).
   protected readonly locationFilter = signal(this.locationContext.activeLocationId() ?? '');
+
+  protected readonly isCustomPeriod = computed(
+    () => this.periodFilter() === MovementPeriodPreset.Custom,
+  );
 
   protected readonly canManageInventory = computed(() =>
     canManageInventory(this.authService.currentUser()),
   );
+
+  // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
+  private readonly searchSubscription: Subscription;
 
   constructor() {
     this.columnPreferences.registerView(
@@ -193,6 +255,14 @@ export class StockMovementsComponent {
       this.locationFilter.set(this.locationContext.activeLocationId() ?? '');
     });
 
+    this.searchSubscription = toObservable(this.searchDraft)
+      .pipe(
+        debounceTime(SEARCH_DEBOUNCE_MS),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((value) => this.search.set(value));
+
     toObservable(this.filters)
       .pipe(skip(1), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.page.set(1));
@@ -201,37 +271,37 @@ export class StockMovementsComponent {
   private readonly filters = computed(() => ({
     type: this.typeFilter(),
     origin: this.originFilter(),
+    period: this.periodFilter(),
     from: this.fromFilter(),
     to: this.toFilter(),
     location: this.locationFilter(),
+    search: this.search(),
+    party: this.partyFilter(),
   }));
+
+  /** Estremi data effettivi: preset rapido o intervallo custom Dal/Al. */
+  private readonly dateRange = computed(() =>
+    resolveMovementPeriodRange(this.periodFilter(), this.fromFilter(), this.toFilter()),
+  );
 
   private readonly query = computed((): StockMovementsListQuery => {
     const type = this.typeFilter();
     const origin = this.originFilter();
     const locationId = this.locationFilter();
+    const range = this.dateRange();
     return {
       page: this.page(),
       pageSize: this.pageSize(),
       type: type ? (type as StockMovementType) : undefined,
       origin: origin ? (origin as MovementOrigin) : undefined,
       locationId: locationId || undefined,
-      from: this.isoFrom(),
-      to: this.isoTo(),
+      search: this.search().trim() || undefined,
+      partyId: this.partyFilter() || undefined,
+      // Inizio/fine giornata (ora locale) per includere i giorni estremi interi.
+      from: range.from ? `${range.from}T00:00:00` : undefined,
+      to: range.to ? `${range.to}T23:59:59.999` : undefined,
     };
   });
-
-  /** Inizio giornata (ora locale) per il filtro 'da'. */
-  private isoFrom(): string | undefined {
-    const value = this.fromFilter();
-    return value ? `${value}T00:00:00` : undefined;
-  }
-
-  /** Fine giornata (ora locale) per includere tutto il giorno 'a'. */
-  private isoTo(): string | undefined {
-    const value = this.toFilter();
-    return value ? `${value}T23:59:59.999` : undefined;
-  }
 
   private readonly request = computed(() => ({
     query: this.query(),
@@ -331,9 +401,12 @@ export class StockMovementsComponent {
     Boolean(
       this.typeFilter() ||
       this.originFilter() ||
+      this.periodFilter() ||
       this.fromFilter() ||
       this.toFilter() ||
-      this.locationFilter(),
+      this.locationFilter() ||
+      this.search().trim() ||
+      this.partyFilter(),
     ),
   );
 
@@ -349,6 +422,24 @@ export class StockMovementsComponent {
     this.locationFilter.set(value ?? '');
   }
 
+  protected onPeriodFilterChange(value: string | null): void {
+    const preset = (value ?? MovementPeriodPreset.All) as MovementPeriodPreset;
+    this.periodFilter.set(preset);
+    // Le date custom valgono solo con «Personalizzato»: altrove vanno azzerate.
+    if (preset !== MovementPeriodPreset.Custom) {
+      this.fromFilter.set('');
+      this.toFilter.set('');
+    }
+  }
+
+  protected onPartyFilterChange(value: string | null): void {
+    this.partyFilter.set(value ?? '');
+  }
+
+  protected onSearchInput(event: Event): void {
+    this.searchDraft.set((event.target as HTMLInputElement).value);
+  }
+
   protected onFromFilterChange(value: string): void {
     this.fromFilter.set(value);
   }
@@ -360,9 +451,13 @@ export class StockMovementsComponent {
   protected resetFilters(): void {
     this.typeFilter.set('');
     this.originFilter.set('');
+    this.periodFilter.set(MovementPeriodPreset.All);
     this.fromFilter.set('');
     this.toFilter.set('');
     this.locationFilter.set('');
+    this.partyFilter.set('');
+    this.searchDraft.set('');
+    this.search.set('');
   }
 
   protected goToPage(page: number): void {
