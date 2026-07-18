@@ -556,6 +556,40 @@
   }
 </section>
 
+@if (exitDialogOpen()) {
+  <div class="po-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
+  <div class="po-form__exit-dialog" role="dialog" aria-modal="true" aria-labelledby="po-exit-title">
+    <h2 id="po-exit-title" class="po-form__exit-title">Modifiche non salvate</h2>
+    <p class="po-form__exit-message">
+      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
+    </p>
+    @if (submitError(); as appError) {
+      <p class="po-form__exit-error" role="alert">{{ appError.message }}</p>
+    }
+    <div class="po-form__exit-actions">
+      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
+        Annulla
+      </app-button>
+      <app-button
+        type="button"
+        variant="secondary"
+        [disabled]="saving()"
+        (click)="confirmExitWithoutSaving()"
+      >
+        Chiudi senza salvare
+      </app-button>
+      <app-button
+        type="button"
+        [loading]="saving()"
+        [disabled]="saving()"
+        (click)="confirmExitSaveOrder()"
+      >
+        Salva e chiudi
+      </app-button>
+    </div>
+  </div>
+}
+
 <app-slide-panel [open]="productPanelOpen()" title="Nuovo articolo" (closed)="closeProductPanel()">
   @if (productPanelOpen()) {
     <app-product-form

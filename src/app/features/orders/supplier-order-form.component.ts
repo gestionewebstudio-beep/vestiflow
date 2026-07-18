@@ -22,6 +22,7 @@ import {
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
@@ -92,6 +93,9 @@ function todayIsoDate(): string {
  * supplier_order (Numeratori). Righe con Sconto, IVA e switch costi
  * netto/ivato come l'Arrivo merce. L'ordine nasce Confermato e NON incide
  * su giacenze o disponibilità. Owner: gestionale (CRUD locale).
+ * Uscita protetta con modifiche non salvate (stesso pattern di Arrivo merce
+ * e Ordine cliente): chip «← Ordini Fornitori», Annulla e back del browser
+ * chiedono conferma prima di scartare i dati.
  */
 @Component({
   selector: 'app-supplier-order-form',
@@ -113,7 +117,7 @@ function todayIsoDate(): string {
   templateUrl: './supplier-order-form.component.html',
   styleUrl: './supplier-order-form.component.scss',
 })
-export class SupplierOrderFormComponent {
+export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly orderService = inject(SupplierOrderService);
   private readonly supplierService = inject(SupplierService);
@@ -372,12 +376,61 @@ export class SupplierOrderFormComponent {
     return state.status === 'error' ? state.error : null;
   });
 
+  // ── Uscita con modifiche non salvate (pattern Arrivo merce / Ordine cliente) ──
+  protected readonly dirtySinceLastSave = signal(false);
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+  /** True durante il patch programmatico del form (caricamento in modifica). */
+  private suppressDirtyMarking = false;
+
   constructor() {
     this.columnPreferences.registerView(
       SUPPLIER_ORDER_LINES_VIEW,
       SUPPLIER_ORDER_LINE_COLUMNS,
       SUPPLIER_ORDER_LINE_PRESETS,
     );
+
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.markFormDirty();
+    });
+  }
+
+  private markFormDirty(): void {
+    if (!this.suppressDirtyMarking) {
+      this.dirtySinceLastSave.set(true);
+    }
+  }
+
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.dirtySinceLastSave()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.dirtySinceLastSave.set(false);
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
+  }
+
+  /** «Salva e chiudi» dal dialogo: salva l'ordine e prosegue l'uscita. */
+  protected confirmExitSaveOrder(): void {
+    this.submit(() => {
+      this.exitDialogOpen.set(false);
+      this.pendingDeactivate?.(true);
+      this.pendingDeactivate = null;
+    });
   }
 
   protected isLineColumnVisible(columnId: string): boolean {
@@ -407,6 +460,10 @@ export class SupplierOrderFormComponent {
   }
 
   protected selectCostMode(mode: PurchaseCostEntryMode): void {
+    if (mode !== this.costEntryMode()) {
+      // Lo switch netto/ivato non vive nel form: va marcato a mano.
+      this.markFormDirty();
+    }
     this.costEntryMode.set(mode);
     this.costModeMenuOpen.set(false);
   }
@@ -633,12 +690,23 @@ export class SupplierOrderFormComponent {
       });
   }
 
-  protected submit(): void {
+  protected submit(onSaved?: () => void): void {
     if (this.saving()) {
       return;
     }
     if (this.form.invalid || this.hasInvalidCost() || this.hasInvalidDiscount()) {
       this.form.markAllAsTouched();
+      if (onSaved) {
+        // «Salva e chiudi» dal dialogo di uscita: l'errore va mostrato lì.
+        this._submitState.set({
+          status: 'error',
+          error: {
+            kind: AppErrorKind.Validation,
+            message:
+              'Impossibile salvare: controlla fornitore e righe (campi obbligatori o valori non validi).',
+          },
+        });
+      }
       return;
     }
     const raw = this.form.getRawValue();
@@ -676,6 +744,12 @@ export class SupplierOrderFormComponent {
 
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (order) => {
+        // Ordine salvato: il guard di uscita non deve più fermare la navigazione.
+        this.dirtySinceLastSave.set(false);
+        if (onSaved) {
+          onSaved();
+          return;
+        }
         void this.router.navigate([this.listPath, order.id]);
       },
       error: (err: unknown) => {
@@ -689,6 +763,16 @@ export class SupplierOrderFormComponent {
   }
 
   private patchFormFromOrder(order: SupplierOrder): void {
+    // Patch programmatico: non è una modifica dell'utente.
+    this.suppressDirtyMarking = true;
+    try {
+      this.applyOrderToForm(order);
+    } finally {
+      this.suppressDirtyMarking = false;
+    }
+  }
+
+  private applyOrderToForm(order: SupplierOrder): void {
     this.form.patchValue({
       supplierId: order.supplierId,
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : todayIsoDate(),
@@ -719,7 +803,22 @@ export class SupplierOrderFormComponent {
     }
   }
 
+  /**
+   * Ritorno alla lista (chip «← Ordini Fornitori» e pulsante Annulla): con
+   * modifiche non salvate la conferma appare SEMPRE, direttamente dal
+   * pulsante — il guard di route resta attivo per back del browser e
+   * navigazioni esterne (sidebar, ricerca globale).
+   */
   protected cancel(): void {
+    if (this.dirtySinceLastSave()) {
+      this.exitDialogOpen.set(true);
+      this.pendingDeactivate = (allow) => {
+        if (allow) {
+          void this.router.navigateByUrl(this.listPath);
+        }
+      };
+      return;
+    }
     void this.router.navigateByUrl(this.listPath);
   }
 

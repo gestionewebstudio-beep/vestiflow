@@ -448,6 +448,56 @@
   border-end-end-radius: var(--radius-lg);
 }
 
+// ── Dialogo «Modifiche non salvate» (pattern Arrivo merce / Ordine cliente) ──
+.po-form__exit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background-color: var(--color-backdrop);
+}
+
+.po-form__exit-dialog {
+  position: fixed;
+  z-index: var(--z-modal);
+  inset-inline: 50%;
+  inset-block-start: 50%;
+  translate: -50% -50%;
+  inline-size: min(calc(var(--content-narrow) + var(--space-8)), calc(100% - var(--space-6)));
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.po-form__exit-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.po-form__exit-message {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.po-form__exit-error {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  line-height: var(--leading-normal);
+}
+
+.po-form__exit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
 .po-form__supplier-alert-banner {
   display: flex;
   align-items: flex-start;

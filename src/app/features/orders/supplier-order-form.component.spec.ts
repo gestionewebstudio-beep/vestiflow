@@ -71,7 +71,8 @@ describe('SupplierOrderFormComponent', () => {
 
     const { fixture } = await render(SupplierOrderFormComponent, {
       providers: [
-        provideRouter([]),
+        // Catch-all: il test «ritorno alla lista» naviga davvero verso /app/orders.
+        provideRouter([{ path: '**', children: [] }]),
         {
           provide: SupplierService,
           useValue: {
@@ -145,6 +146,31 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('menuitemradio', { name: 'Usa costi ivati' }));
 
     expect(screen.getByText('Costo ivato')).toBeVisible();
+  });
+
+  it('protegge l’uscita con modifiche non salvate (chip indietro → dialogo)', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    const qtyInput = screen.getByRole('spinbutton');
+    await user.clear(qtyInput);
+    await user.type(qtyInput, '3');
+
+    await user.click(screen.getByRole('link', { name: /Ordini Fornitori/ }));
+
+    expect(await screen.findByRole('dialog')).toBeVisible();
+    expect(screen.getByText('Modifiche non salvate')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Chiudi senza salvare' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Salva e chiudi' })).toBeVisible();
+  });
+
+  it('senza modifiche il ritorno alla lista non chiede conferma', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    await user.click(screen.getByRole('link', { name: /Ordini Fornitori/ }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('mostra errore inline quando il salvataggio fallisce', async () => {

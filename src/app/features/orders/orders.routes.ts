@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
+import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import {
   REQUIRED_TENANT_PERMISSIONS_KEY,
@@ -22,6 +23,7 @@ export const ordersRoutes: Routes = [
     loadComponent: () =>
       import('./supplier-order-form.component').then((m) => m.SupplierOrderFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SupplierOrdersManage },
   },
   {
@@ -30,6 +32,7 @@ export const ordersRoutes: Routes = [
     loadComponent: () =>
       import('./supplier-order-form.component').then((m) => m.SupplierOrderFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SupplierOrdersManage },
   },
   {
