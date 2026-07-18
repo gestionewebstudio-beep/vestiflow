@@ -407,8 +407,10 @@ export class DocumentDetailComponent {
       }
       return isConfirmedEditableDocumentStatus(doc.status) && doc.blockAfterConfirm !== true;
     }
-    // Preventivo: si modifica dalla maschera dedicata finché non bloccato.
-    if (isQuoteDocumentType(doc.type)) {
+    // Preventivo e DDT vendita: si modificano dalla maschera dedicata (layout
+    // Ordine cliente) finché non bloccati. Il DDT gestisce nativamente gli
+    // ordini agganciati, quindi il collegamento non impedisce la modifica.
+    if (isQuoteDocumentType(doc.type) || isSalesDdtDocumentType(doc.type)) {
       if (doc.status === DocumentStatus.Draft) {
         return true;
       }
@@ -458,7 +460,24 @@ export class DocumentDetailComponent {
 
   protected readonly editButtonLabel = computed(() => {
     const doc = this.document();
-    if (doc?.status === DocumentStatus.Draft) {
+    if (!doc) {
+      return 'Modifica documento';
+    }
+    // Etichetta col tipo nelle anteprime dedicate (stesso pattern di
+    // «Modifica ordine» nell'anteprima Ordine cliente).
+    if (isSalesDdtDocumentType(doc.type)) {
+      return 'Modifica DDT';
+    }
+    if (isQuoteDocumentType(doc.type)) {
+      return 'Modifica preventivo';
+    }
+    if (isProformaDocumentType(doc.type)) {
+      return 'Modifica proforma';
+    }
+    if (isInvoiceDraftDocumentType(doc.type)) {
+      return 'Modifica bozza fattura';
+    }
+    if (doc.status === DocumentStatus.Draft) {
       return 'Modifica bozza';
     }
     return 'Modifica documento';

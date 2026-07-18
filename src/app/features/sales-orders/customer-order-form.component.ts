@@ -245,7 +245,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     : DocumentType.Quote;
 
   protected readonly listPath = '/app/sales';
-  protected readonly quoteListPath = '/app/documents/registro';
+  /** Elenco dedicato del tipo (mai il registro generico filtrato). */
+  private readonly registryListPath = this.isSalesDdt
+    ? '/app/documents/sales-ddt'
+    : '/app/documents/quote';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatVatRate = formatVatRate;
@@ -316,11 +319,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     : this.isSalesDdt
       ? 'DDT vendita'
       : 'Ordini cliente';
-  protected readonly backHref = this.isQuote
-    ? '/app/documents/registro?type=quote'
-    : this.isSalesDdt
-      ? '/app/documents/registro?type=sales_ddt'
-      : '/app/sales';
+  protected readonly backHref = this.isRegistryDocument ? this.registryListPath : '/app/sales';
 
   protected readonly stateOptions: readonly SelectMenuOption[] = [
     { value: ManualOrderState.Confirmed, label: 'Confermato' },
@@ -2904,12 +2903,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.navigateToList();
   }
 
-  /** Lista di provenienza: registro documenti (quote/DDT) o Ordini cliente. */
+  /** Lista di provenienza: elenco dedicato (Preventivi/DDT) o Ordini cliente. */
   private navigateToList(): void {
     if (this.isRegistryDocument) {
-      void this.router.navigate([this.quoteListPath], {
-        queryParams: { type: this.registryDocumentType },
-      });
+      void this.router.navigateByUrl(this.registryListPath);
       return;
     }
     void this.router.navigate([this.listPath]);
