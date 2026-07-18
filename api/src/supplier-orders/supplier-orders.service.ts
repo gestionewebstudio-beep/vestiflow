@@ -1,14 +1,15 @@
 import {
   ConflictException,
-  GoneException,
   Injectable,
-  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
+  DocumentStatus,
+  DocumentType,
   Prisma,
   SupplierOrderStatus,
+  type PurchaseCostEntryMode,
   type Supplier,
   type SupplierOrder,
   type SupplierOrderLine,
@@ -18,37 +19,75 @@ import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import {
   resolveReadableListLocationScope,
 } from '../inventory/licensed-location-scope.util';
-import {
-  assertLocationInUserScope,
-  assertLocationReadableInUserScope,
-} from '../inventory/user-location-scope.util';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
+import { DocumentSettingsService } from '../documents/document-settings.service';
+import { formatDocumentReference, nextDocumentNumber } from '../documents/document-totals.util';
+import { computeGoodsReceiptTotals } from '../documents/goods-receipt-vat.util';
+import { computeVatLineAmounts } from '../vat/vat-line-calculation.util';
+import { VatCodesService, type VatCodeWithNature } from '../vat/vat-codes.service';
+import type {
+  CreateSupplierOrderDto,
+  CreateSupplierOrderLineDto,
+} from './dto/create-supplier-order.dto';
 import type { CreateSupplierDto } from './dto/create-supplier.dto';
-import type { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
 import type { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.query.dto';
-import type { ReceiveSupplierOrderDto } from './dto/receive-supplier-order.dto';
 import type { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
-import {
-  applyIncomingForSupplierOrder,
-  reverseIncomingForSupplierOrder,
-} from './supplier-order-incoming.util';
 import { SuppliersService } from './suppliers.service';
 
 export type SupplierOrderListRow = SupplierOrder & { lineCount: number; lines: [] };
 
-export type SupplierOrderWithLines = SupplierOrder & { lines: SupplierOrderLine[] };
+/** Documento collegato (arrivo merce): il collegamento è visibile nell'ordine. */
+export interface SupplierOrderLinkedDocument {
+  readonly id: string;
+  readonly type: DocumentType;
+  readonly reference: string | null;
+  readonly number: number | null;
+  readonly documentDate: Date;
+  readonly status: DocumentStatus;
+}
 
+export type SupplierOrderWithLines = SupplierOrder & {
+  lines: SupplierOrderLine[];
+  linkedDocuments?: SupplierOrderLinkedDocument[];
+};
+
+export interface SupplierOrderMeta {
+  /** Anteprima prossimo riferimento dal numeratore supplier_order. */
+  readonly nextReferencePreview: string;
+}
+
+interface ComputedOrderLine {
+  readonly variantId: string;
+  readonly sku: string;
+  readonly description: string;
+  readonly orderedQuantity: number;
+  readonly unitCostMinor: number;
+  readonly enteredUnitCostMinor: number;
+  readonly discountPercent: number;
+  readonly vatCodeId: string | null;
+  readonly vatSnapshot: Prisma.InputJsonObject | null;
+  readonly lineTotalMinor: number;
+  readonly lineVatTotalMinor: number;
+  readonly vatAffectsSupplierTotal: boolean;
+  readonly effectiveRatePercent: number;
+}
+
+/**
+ * Ordine fornitore (prompt 2026-07): documento SOLO commerciale — non incide
+ * mai su giacenze o disponibilità. Nasce Confermato e diventa Concluso quando
+ * viene incluso/agganciato a un Arrivo merce (collegamento visibile).
+ * Numerazione propria dal numeratore documenti `supplier_order` (Numeratori).
+ */
 @Injectable()
 export class SupplierOrdersService {
-  private readonly logger = new Logger(SupplierOrdersService.name);
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly channelSync: ChannelSyncFacade,
     private readonly suppliers: SuppliersService,
+    private readonly documentSettings: DocumentSettingsService,
+    private readonly vatCodes: VatCodesService,
   ) {}
 
   listSuppliers(tenantId: string): Promise<Supplier[]> {
@@ -59,14 +98,38 @@ export class SupplierOrdersService {
     return this.suppliers.create(tenantId, dto);
   }
 
+  /** Anteprima numerazione (numeratore dedicato supplier_order, come Ordine cliente). */
+  async getMeta(tenantId: string): Promise<SupplierOrderMeta> {
+    const setting = await this.documentSettings.getResolved(
+      tenantId,
+      DocumentType.supplier_order,
+    );
+    const year = new Date().getFullYear();
+    const sequence = await this.prisma.documentSequence.findUnique({
+      where: {
+        tenantId_type_series_year: {
+          tenantId,
+          type: DocumentType.supplier_order,
+          series: setting.defaultSeries,
+          year,
+        },
+      },
+    });
+    const previewNumber = (sequence?.lastNumber ?? 0) + 1;
+    return {
+      nextReferencePreview: formatDocumentReference(setting.numberPrefix, year, previewNumber),
+    };
+  }
+
   /**
-   * Crea un ordine fornitore: snapshot di nome fornitore e SKU, totale calcolato
-   * server-side. Nessun impatto su giacenze finché non si riceve la merce.
+   * Crea un ordine fornitore Confermato: snapshot nome fornitore, SKU e
+   * descrizione articolo, costi netto/ivato con sconto e Codice IVA, totali
+   * calcolati server-side. NESSUN impatto su giacenze o disponibilità.
    */
   async create(
     tenantId: string,
     dto: CreateSupplierOrderDto,
-    user?: UserProfileDto,
+    _user?: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const supplier = await this.prisma.supplier.findFirst({
       where: { id: dto.supplierId, tenantId },
@@ -76,90 +139,67 @@ export class SupplierOrdersService {
       throw new NotFoundException('Fornitore non trovato');
     }
 
-    const location = await this.prisma.location.findFirst({
-      where: { id: dto.destinationLocationId, tenantId },
-      select: { id: true },
-    });
-    if (!location) {
-      throw new NotFoundException('Location di destinazione non trovata');
-    }
-    if (user) {
-      assertLocationInUserScope(user, dto.destinationLocationId, 'write');
-    }
-
-    const variantIds = dto.lines.map((line) => line.variantId);
-    const variants = await this.prisma.productVariant.findMany({
-      where: { tenantId, id: { in: variantIds } },
-      select: { id: true, sku: true },
-    });
-    const skuById = new Map(variants.map((variant) => [variant.id, variant.sku]));
-    for (const line of dto.lines) {
-      if (!skuById.has(line.variantId)) {
-        throw new UnprocessableEntityException(`Variante non trovata: ${line.variantId}`);
-      }
-    }
-
-    const totalMinor = dto.lines.reduce(
-      (sum, line) => sum + line.orderedQuantity * line.unitCostMinor,
-      0,
+    const setting = await this.documentSettings.getResolved(
+      tenantId,
+      DocumentType.supplier_order,
     );
-    const status = this.resolveInitialStatus(dto.status);
-    const reference = await this.nextReference(tenantId);
+    if (!setting.enabled) {
+      throw new UnprocessableEntityException(
+        `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
+      );
+    }
+
+    const costEntryMode = dto.costEntryMode ?? 'vat_excluded';
+    const computedLines = await this.computeLines(tenantId, dto.lines, costEntryMode);
+    const totals = computeGoodsReceiptTotals(computedLines, 0);
+    const orderDate = dto.orderDate ? new Date(dto.orderDate) : new Date();
 
     return this.prisma.$transaction(async (tx) => {
+      const year = orderDate.getFullYear();
+      const number = await nextDocumentNumber(
+        tx,
+        tenantId,
+        DocumentType.supplier_order,
+        setting.defaultSeries,
+        year,
+      );
+      const reference = formatDocumentReference(setting.numberPrefix, year, number);
+
       const order = await tx.supplierOrder.create({
         data: {
           tenantId,
           reference,
           supplierId: supplier.id,
           supplierName: partyDisplayName(supplier.party),
-          destinationLocationId: dto.destinationLocationId,
-          status,
+          status: SupplierOrderStatus.confirmed,
           currency: dto.currency ?? 'EUR',
-          totalMinor,
+          costEntryMode,
+          orderDate,
+          supplierReference: dto.supplierReference?.trim() || null,
+          subtotalMinor: totals.subtotalMinor,
+          taxMinor: totals.taxMinor,
+          totalMinor: totals.totalMinor,
           expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
-          lines: {
-            create: dto.lines.map((line) => ({
-              variantId: line.variantId,
-              sku: skuById.get(line.variantId)!,
-              orderedQuantity: line.orderedQuantity,
-              unitCostMinor: line.unitCostMinor,
-            })),
-          },
+          lines: { create: computedLines.map((line) => this.toLineCreateData(line)) },
         },
         include: { lines: true },
       });
-
-      if (status === SupplierOrderStatus.sent) {
-        await applyIncomingForSupplierOrder(
-          tx,
-          tenantId,
-          order.destinationLocationId,
-          order.lines,
-        );
-      }
-
-      return order;
+      return { ...order, linkedDocuments: [] };
     });
   }
 
-  /** Aggiorna una bozza: righe sostituite integralmente, totale ricalcolato. */
+  /** Aggiorna un ordine Confermato: righe sostituite, totali ricalcolati. */
   async update(
     tenantId: string,
     id: string,
     dto: UpdateSupplierOrderDto,
     user?: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
-    // Nota: niente controllo location qui su getById (lettura interna): la
-    // sede attuale dell'ordine viene verificata sotto, insieme alla nuova.
-    const order = await this.getById(tenantId, id);
-    if (order.status !== SupplierOrderStatus.draft) {
-      throw new ConflictException('Solo gli ordini in bozza possono essere modificati.');
-    }
-    if (user) {
-      // L'utente deve poter operare sia sulla sede attuale dell'ordine sia
-      // (se cambia) sulla nuova destinazione.
-      assertLocationInUserScope(user, order.destinationLocationId, 'write');
+    const order = await this.getById(tenantId, id, user);
+    if (order.status !== SupplierOrderStatus.confirmed) {
+      throw new ConflictException(
+        'Solo gli ordini confermati (non conclusi né annullati) possono essere modificati.',
+      );
     }
 
     const supplier = await this.prisma.supplier.findFirst({
@@ -170,174 +210,68 @@ export class SupplierOrdersService {
       throw new NotFoundException('Fornitore non trovato');
     }
 
-    const destinationLocationId = dto.destinationLocationId ?? order.destinationLocationId;
-    const location = await this.prisma.location.findFirst({
-      where: { id: destinationLocationId, tenantId },
-      select: { id: true },
-    });
-    if (!location) {
-      throw new NotFoundException('Location di destinazione non trovata');
-    }
-    if (user) {
-      assertLocationInUserScope(user, destinationLocationId, 'write');
-    }
-
-    const variantIds = dto.lines.map((line) => line.variantId);
-    const variants = await this.prisma.productVariant.findMany({
-      where: { tenantId, id: { in: variantIds } },
-      select: { id: true, sku: true },
-    });
-    const skuById = new Map(variants.map((variant) => [variant.id, variant.sku]));
-    for (const line of dto.lines) {
-      if (!skuById.has(line.variantId)) {
-        throw new UnprocessableEntityException(`Variante non trovata: ${line.variantId}`);
-      }
-    }
-
-    const totalMinor = dto.lines.reduce(
-      (sum, line) => sum + line.orderedQuantity * line.unitCostMinor,
-      0,
-    );
+    const costEntryMode = dto.costEntryMode ?? order.costEntryMode;
+    const computedLines = await this.computeLines(tenantId, dto.lines, costEntryMode);
+    const totals = computeGoodsReceiptTotals(computedLines, 0);
 
     return this.prisma.$transaction(async (tx) => {
       await tx.supplierOrderLine.deleteMany({ where: { orderId: id } });
-      return tx.supplierOrder.update({
+      const updated = await tx.supplierOrder.update({
         where: { id },
         data: {
           supplierId: supplier.id,
           supplierName: partyDisplayName(supplier.party),
-          destinationLocationId,
           currency: dto.currency ?? order.currency,
-          totalMinor,
+          costEntryMode,
+          orderDate: dto.orderDate ? new Date(dto.orderDate) : order.orderDate,
+          supplierReference:
+            dto.supplierReference === undefined
+              ? order.supplierReference
+              : dto.supplierReference?.trim() || null,
+          subtotalMinor: totals.subtotalMinor,
+          taxMinor: totals.taxMinor,
+          totalMinor: totals.totalMinor,
           expectedAt:
             dto.expectedAt === null
               ? null
               : dto.expectedAt
                 ? new Date(dto.expectedAt)
                 : order.expectedAt,
-          lines: {
-            create: dto.lines.map((line) => ({
-              variantId: line.variantId,
-              sku: skuById.get(line.variantId)!,
-              orderedQuantity: line.orderedQuantity,
-              unitCostMinor: line.unitCostMinor,
-            })),
-          },
+          lines: { create: computedLines.map((line) => this.toLineCreateData(line)) },
         },
         include: { lines: true },
       });
+      return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
     });
   }
 
-  /** Annulla un ordine in bozza o inviato (non ancora ricevuto). */
+  /** Annulla un ordine Confermato (nessun effetto magazzino da stornare). */
   async cancel(
     tenantId: string,
     id: string,
     user?: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
-    const order = await this.getById(tenantId, id);
-    if (user) {
-      assertLocationInUserScope(user, order.destinationLocationId, 'write');
-    }
-    if (
-      order.status !== SupplierOrderStatus.draft &&
-      order.status !== SupplierOrderStatus.sent
-    ) {
+    const order = await this.getById(tenantId, id, user);
+    if (order.status !== SupplierOrderStatus.confirmed) {
       throw new ConflictException(
-        'Solo ordini in bozza o inviati (non ancora ricevuti) possono essere annullati.',
+        'Solo gli ordini confermati possono essere annullati. Un ordine concluso resta collegato al suo arrivo merce.',
       );
     }
-    return this.prisma.$transaction(async (tx) => {
-      if (order.status === SupplierOrderStatus.sent) {
-        await reverseIncomingForSupplierOrder(
-          tx,
-          tenantId,
-          order.destinationLocationId,
-          order.lines,
-        );
-      }
-      return tx.supplierOrder.update({
-        where: { id },
-        data: { status: SupplierOrderStatus.cancelled },
-        include: { lines: true },
-      });
+    const updated = await this.prisma.supplierOrder.update({
+      where: { id },
+      data: { status: SupplierOrderStatus.cancelled },
+      include: { lines: true },
     });
+    return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
   }
 
   /** Elimina definitivamente un ordine annullato (righe in cascade). */
   async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
-    const order = await this.getById(tenantId, id);
-    if (user) {
-      assertLocationInUserScope(user, order.destinationLocationId, 'write');
-    }
+    const order = await this.getById(tenantId, id, user);
     if (order.status !== SupplierOrderStatus.cancelled) {
       throw new ConflictException('Solo gli ordini annullati possono essere eliminati.');
     }
     await this.prisma.supplierOrder.delete({ where: { id } });
-  }
-
-  /** Transizione bozza → inviato (rende l'ordine ricevibile). */
-  async send(
-    tenantId: string,
-    id: string,
-    user?: UserProfileDto,
-  ): Promise<SupplierOrderWithLines> {
-    const order = await this.getById(tenantId, id);
-    if (user) {
-      assertLocationInUserScope(user, order.destinationLocationId, 'write');
-    }
-    if (order.status !== SupplierOrderStatus.draft) {
-      throw new ConflictException('Solo gli ordini in bozza possono essere inviati.');
-    }
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.supplierOrder.update({
-        where: { id },
-        data: { status: SupplierOrderStatus.sent },
-        include: { lines: true },
-      });
-      await applyIncomingForSupplierOrder(
-        tx,
-        tenantId,
-        updated.destinationLocationId,
-        updated.lines,
-      );
-      return updated;
-    });
-  }
-
-  private resolveInitialStatus(status?: SupplierOrderStatus): SupplierOrderStatus {
-    const resolved = status ?? SupplierOrderStatus.draft;
-    if (resolved !== SupplierOrderStatus.draft && resolved !== SupplierOrderStatus.sent) {
-      throw new UnprocessableEntityException(
-        'Stato iniziale consentito: solo bozza o inviato.',
-      );
-    }
-    return resolved;
-  }
-
-  /**
-   * Riferimento progressivo per anno: PO-YYYY-NNNN, univoco per tenant.
-   *
-   * Il prossimo numero deriva dal MASSIMO suffisso esistente + 1, non dal
-   * conteggio: dopo l'eliminazione di un ordine annullato il conteggio cala e
-   * un `count + 1` rigenererebbe un riferimento già presente, violando
-   * `@@unique([tenantId, reference])` (P2002 → 500 permanente). Il massimo è
-   * stabile rispetto ai buchi lasciati dalle eliminazioni.
-   */
-  private async nextReference(tenantId: string): Promise<string> {
-    const prefix = `PO-${new Date().getFullYear()}-`;
-    const existing = await this.prisma.supplierOrder.findMany({
-      where: { tenantId, reference: { startsWith: prefix } },
-      select: { reference: true },
-    });
-    let max = 0;
-    for (const { reference } of existing) {
-      const suffix = reference.slice(prefix.length);
-      if (/^\d+$/.test(suffix)) {
-        max = Math.max(max, Number.parseInt(suffix, 10));
-      }
-    }
-    return `${prefix}${String(max + 1).padStart(4, '0')}`;
   }
 
   async list(
@@ -350,21 +284,33 @@ export class SupplierOrdersService {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
 
+    // Blocchi OR combinati in AND: scope sedi (gli ordini nuovi non hanno
+    // sede — nessun effetto magazzino — e restano visibili a tutti; il
+    // vincolo vale per i vecchi ordini con destinazione) + ricerca libera.
+    const andBlocks: Prisma.SupplierOrderWhereInput[] = [];
+    if (locationScope !== 'unrestricted') {
+      andBlocks.push({
+        OR: [
+          { destinationLocationId: null },
+          { destinationLocationId: { in: [...locationScope] } },
+        ],
+      });
+    }
+    if (query.search) {
+      andBlocks.push({
+        OR: [
+          { reference: { contains: query.search, mode: 'insensitive' } },
+          { supplierName: { contains: query.search, mode: 'insensitive' } },
+          { supplierReference: { contains: query.search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
     const where: Prisma.SupplierOrderWhereInput = {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
-      ...(locationScope !== 'unrestricted'
-        ? { destinationLocationId: { in: [...locationScope] } }
-        : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { reference: { contains: query.search, mode: 'insensitive' } },
-              { supplierName: { contains: query.search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+      ...(andBlocks.length > 0 ? { AND: andBlocks } : {}),
     };
 
     const [rows, total] = await this.prisma.$transaction([
@@ -394,7 +340,21 @@ export class SupplierOrdersService {
   ): Promise<SupplierOrderWithLines> {
     const order = await this.prisma.supplierOrder.findFirst({
       where: { id, tenantId },
-      include: { lines: true },
+      include: {
+        lines: true,
+        documents: {
+          where: { status: { not: DocumentStatus.cancelled } },
+          select: {
+            id: true,
+            type: true,
+            reference: true,
+            number: true,
+            documentDate: true,
+            status: true,
+          },
+          orderBy: { documentDate: 'desc' },
+        },
+      },
     });
     if (!order) {
       throw new NotFoundException('Ordine fornitore non trovato');
@@ -404,19 +364,141 @@ export class SupplierOrdersService {
       order.destinationLocationId,
       'Non sei autorizzato ad accedere a questo ordine fornitore.',
     );
-    return order;
+    const { documents, ...rest } = order;
+    return { ...rest, linkedDocuments: documents };
   }
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
   /**
-   * @deprecated Usa il flusso documento arrivo merce (goods receipt).
+   * Risolve varianti (snapshot SKU/descrizione) e Codici IVA riga, poi calcola
+   * netto/IVA/totale con lo stesso motore dell'Arrivo merce (switch
+   * netto/ivato incluso).
    */
-  async receive(
-    _tenantId: string,
-    _id: string,
-    _dto: ReceiveSupplierOrderDto,
-  ): Promise<SupplierOrderWithLines> {
-    throw new GoneException(
-      'La ricezione merce diretta non è più disponibile. Crea un documento di arrivo merce (goods receipt) collegato all\'ordine fornitore.',
-    );
+  private async computeLines(
+    tenantId: string,
+    lines: readonly CreateSupplierOrderLineDto[],
+    costEntryMode: PurchaseCostEntryMode,
+  ): Promise<ComputedOrderLine[]> {
+    const variantIds = [...new Set(lines.map((line) => line.variantId))];
+    const variants = await this.prisma.productVariant.findMany({
+      where: { tenantId, id: { in: variantIds } },
+      select: {
+        id: true,
+        sku: true,
+        product: { select: { name: true } },
+      },
+    });
+    const variantById = new Map(variants.map((variant) => [variant.id, variant]));
+    for (const line of lines) {
+      if (!variantById.has(line.variantId)) {
+        throw new UnprocessableEntityException(`Variante non trovata: ${line.variantId}`);
+      }
+    }
+
+    const vatCodeIds = [
+      ...new Set(lines.map((line) => line.vatCodeId).filter((id): id is string => id != null)),
+    ];
+    const vatCodesById = new Map<string, VatCodeWithNature>();
+    if (vatCodeIds.length > 0) {
+      const found = await this.prisma.vatCode.findMany({
+        where: { tenantId, id: { in: vatCodeIds }, deletedAt: null },
+        include: { nature: true },
+      });
+      for (const vatCode of found) {
+        vatCodesById.set(vatCode.id, vatCode);
+      }
+      this.assertPurchaseVatCodes(lines, vatCodesById);
+    }
+
+    return lines.map((line) => {
+      const variant = variantById.get(line.variantId)!;
+      const vatCode = line.vatCodeId ? vatCodesById.get(line.vatCodeId) : undefined;
+      const vat = vatCode
+        ? {
+            ratePercent: Number(vatCode.ratePercent),
+            nonDeductiblePercent: Number(vatCode.nonDeductiblePercent),
+            calculationMode: vatCode.calculationMode,
+            vatAffectsSupplierTotal: vatCode.vatAffectsSupplierTotal,
+          }
+        : {
+            ratePercent: 0,
+            nonDeductiblePercent: 0,
+            calculationMode: 'standard' as const,
+            vatAffectsSupplierTotal: false,
+          };
+      const discountPercent = line.discountPercent ?? 0;
+      const amounts = computeVatLineAmounts({
+        enteredUnitCostMinor: line.enteredUnitCostMinor,
+        costEntryMode,
+        quantity: line.orderedQuantity,
+        discountPercent,
+        vat,
+      });
+      return {
+        variantId: line.variantId,
+        sku: variant.sku ?? '',
+        description: line.description?.trim() || variant.product.name,
+        orderedQuantity: line.orderedQuantity,
+        unitCostMinor: amounts.unitNetMinor,
+        enteredUnitCostMinor: line.enteredUnitCostMinor,
+        discountPercent,
+        vatCodeId: vatCode?.id ?? null,
+        vatSnapshot: vatCode ? this.vatCodes.buildSnapshot(vatCode) : null,
+        lineTotalMinor: amounts.lineNetMinor,
+        lineVatTotalMinor: amounts.lineVatMinor,
+        vatAffectsSupplierTotal: vat.vatAffectsSupplierTotal,
+        effectiveRatePercent: vat.ratePercent,
+      };
+    });
+  }
+
+  private toLineCreateData(
+    line: ComputedOrderLine,
+  ): Prisma.SupplierOrderLineCreateWithoutOrderInput {
+    return {
+      variantId: line.variantId,
+      sku: line.sku,
+      description: line.description,
+      orderedQuantity: line.orderedQuantity,
+      unitCostMinor: line.unitCostMinor,
+      enteredUnitCostMinor: line.enteredUnitCostMinor,
+      discountPercent: line.discountPercent,
+      lineTotalMinor: line.lineTotalMinor,
+      vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+      ...(line.vatCodeId ? { vatCode: { connect: { id: line.vatCodeId } } } : {}),
+    };
+  }
+
+  /** Come l'Arrivo merce: i Codici IVA riga devono esistere, essere attivi e utilizzabili in acquisto. */
+  private assertPurchaseVatCodes(
+    lines: readonly CreateSupplierOrderLineDto[],
+    vatCodesById: ReadonlyMap<string, VatCodeWithNature>,
+  ): void {
+    const lineNumberForVatCode = (vatCodeId: string): number => {
+      const index = lines.findIndex((line) => line.vatCodeId === vatCodeId);
+      return index >= 0 ? index + 1 : 1;
+    };
+    const requested = [
+      ...new Set(lines.map((line) => line.vatCodeId).filter((id): id is string => id != null)),
+    ];
+    for (const vatCodeId of requested) {
+      const vatCode = vatCodesById.get(vatCodeId);
+      if (!vatCode) {
+        throw new UnprocessableEntityException(
+          `Riga ${lineNumberForVatCode(vatCodeId)}: il Codice IVA selezionato non esiste più. Scegli un altro codice.`,
+        );
+      }
+      if (!vatCode.isActive) {
+        throw new UnprocessableEntityException(
+          `Riga ${lineNumberForVatCode(vatCodeId)}: il Codice IVA "${vatCode.code}" è disattivato. Scegli un codice attivo.`,
+        );
+      }
+      if (vatCode.usageScope === 'sales') {
+        throw new UnprocessableEntityException(
+          `Riga ${lineNumberForVatCode(vatCodeId)}: il Codice IVA "${vatCode.code}" è riservato alle vendite e non è utilizzabile in acquisto.`,
+        );
+      }
+    }
   }
 }

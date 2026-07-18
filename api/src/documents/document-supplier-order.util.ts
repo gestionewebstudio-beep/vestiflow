@@ -1,12 +1,12 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { SupplierOrderStatus, type DocumentLine, type Prisma } from '@prisma/client';
+import {
+  DocumentStatus,
+  SupplierOrderStatus,
+  type DocumentLine,
+  type Prisma,
+} from '@prisma/client';
 
-import { applyIncomingDelta } from '../inventory/inventory-incoming.util';
-
-type ReceiptLine = Pick<
-  DocumentLine,
-  'variantId' | 'sku' | 'quantity' | 'loadsStock'
-> & {
+type ReceiptLine = Pick<DocumentLine, 'variantId' | 'sku' | 'quantity' | 'loadsStock'> & {
   supplierOrderLineId: string | null;
 };
 
@@ -27,52 +27,42 @@ function aggregateReceiptByOrderLine(
   return map;
 }
 
-function aggregateIncomingByVariant(
-  lines: readonly ReceiptLine[],
-): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const line of lines) {
-    if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
-      continue;
-    }
-    map.set(line.variantId, (map.get(line.variantId) ?? 0) + line.quantity);
-  }
-  return map;
-}
-
-async function applyIncomingDeltaForReceipt(
+/**
+ * Stato ordine (prompt 2026-07): Concluso quando esiste almeno un Arrivo
+ * merce attivo (non annullato) agganciato all'ordine, altrimenti torna
+ * Confermato. Gli ordini annullati non cambiano mai stato da qui.
+ * `excludeDocumentId` serve ad annullo/eliminazione documento: nel momento
+ * della verifica il documento è ancora attivo nel DB ma sta per sparire.
+ */
+export async function syncSupplierOrderConclusion(
   tx: Prisma.TransactionClient,
-  tenantId: string,
-  locationId: string,
-  lines: readonly ReceiptLine[],
-  sign: 1 | -1,
+  supplierOrderId: string,
+  excludeDocumentId?: string,
 ): Promise<void> {
-  const byVariant = aggregateIncomingByVariant(lines);
-  for (const [variantId, quantity] of byVariant) {
-    await applyIncomingDelta(tx, tenantId, variantId, locationId, sign * quantity);
-  }
-}
-
-async function recalculateSupplierOrderStatus(
-  tx: Prisma.TransactionClient,
-  orderId: string,
-): Promise<void> {
-  const lines = await tx.supplierOrderLine.findMany({ where: { orderId } });
-  if (lines.length === 0) {
+  const order = await tx.supplierOrder.findUnique({
+    where: { id: supplierOrderId },
+    select: { status: true },
+  });
+  if (!order || order.status === SupplierOrderStatus.cancelled) {
     return;
   }
-  const allReceived = lines.every((line) => line.receivedQuantity >= line.orderedQuantity);
-  const anyReceived = lines.some((line) => line.receivedQuantity > 0);
-  const nextStatus = allReceived
-    ? SupplierOrderStatus.received
-    : anyReceived
-      ? SupplierOrderStatus.partially_received
-      : SupplierOrderStatus.sent;
-
-  await tx.supplierOrder.update({
-    where: { id: orderId },
-    data: { status: nextStatus },
+  const activeLinkedDocuments = await tx.document.count({
+    where: {
+      supplierOrderId,
+      status: { not: DocumentStatus.cancelled },
+      ...(excludeDocumentId ? { id: { not: excludeDocumentId } } : {}),
+    },
   });
+  const nextStatus =
+    activeLinkedDocuments > 0
+      ? SupplierOrderStatus.concluded
+      : SupplierOrderStatus.confirmed;
+  if (nextStatus !== order.status) {
+    await tx.supplierOrder.update({
+      where: { id: supplierOrderId },
+      data: { status: nextStatus },
+    });
+  }
 }
 
 /** Collega righe documento alle righe ordine fornitore per variante se manca supplierOrderLineId. */
@@ -98,13 +88,17 @@ export async function enrichReceiptLinesWithSupplierOrderLineIds(
   });
 }
 
-/** Decrementa receivedQuantity (annullamento documento collegato). */
+/**
+ * Annullo/eliminazione dell'Arrivo merce collegato: decrementa il ricevuto
+ * delle righe ordine e, se non restano altri documenti attivi agganciati,
+ * riporta l'ordine da Concluso a Confermato. Nessun effetto su giacenze o
+ * disponibilità: l'ordine fornitore non tocca mai il magazzino.
+ */
 export async function reverseSupplierOrderReceipt(
   tx: Prisma.TransactionClient,
   supplierOrderId: string,
   lines: readonly ReceiptLine[],
-  locationId?: string,
-  tenantId?: string,
+  excludeDocumentId?: string,
 ): Promise<void> {
   const aggregated = aggregateReceiptByOrderLine(lines);
   for (const [lineId, entry] of aggregated) {
@@ -118,22 +112,19 @@ export async function reverseSupplierOrderReceipt(
       data: { receivedQuantity: nextReceived },
     });
   }
-  if (aggregated.size > 0) {
-    await recalculateSupplierOrderStatus(tx, supplierOrderId);
-  }
-  if (locationId && tenantId) {
-    await applyIncomingDeltaForReceipt(tx, tenantId, locationId, lines, 1);
-  }
+  await syncSupplierOrderConclusion(tx, supplierOrderId, excludeDocumentId);
 }
 
-/** Riconcilia receivedQuantity dopo modifica documento confermato collegato a PO. */
+/**
+ * Salvataggio di un Arrivo merce agganciato all'ordine: riconcilia il
+ * ricevuto per riga e marca l'ordine Concluso (il collegamento è visibile
+ * in entrambi i documenti).
+ */
 export async function reconcileSupplierOrderReceipt(
   tx: Prisma.TransactionClient,
   supplierOrderId: string,
   oldLines: readonly ReceiptLine[],
   newLines: readonly ReceiptLine[],
-  locationId?: string,
-  tenantId?: string,
 ): Promise<void> {
   const oldMap = aggregateReceiptByOrderLine(oldLines);
   const newMap = aggregateReceiptByOrderLine(newLines);
@@ -165,19 +156,5 @@ export async function reconcileSupplierOrderReceipt(
     });
   }
 
-  if (allLineIds.size > 0) {
-    await recalculateSupplierOrderStatus(tx, supplierOrderId);
-  }
-
-  if (locationId && tenantId) {
-    const oldIncoming = aggregateIncomingByVariant(oldLines);
-    const newIncoming = aggregateIncomingByVariant(newLines);
-    const variantIds = new Set([...oldIncoming.keys(), ...newIncoming.keys()]);
-    for (const variantId of variantIds) {
-      const delta = (newIncoming.get(variantId) ?? 0) - (oldIncoming.get(variantId) ?? 0);
-      if (delta !== 0) {
-        await applyIncomingDelta(tx, tenantId, variantId, locationId, -delta);
-      }
-    }
-  }
+  await syncSupplierOrderConclusion(tx, supplierOrderId);
 }

@@ -32,13 +32,12 @@ import {
   formatMoney,
   moneyToDecimalString,
   parseMoneyInput,
-  zeroMoney,
 } from '@core/utils/money.util';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
-import type { VatCode } from '@core/models/vat-code.model';
+import { isPurchaseVatCode, vatCodeOptionLabel } from '@core/models/vat-code.model';
+import type { PurchaseCostEntryMode, VatCode } from '@core/models/vat-code.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -56,6 +55,7 @@ import {
   SUPPLIER_ORDER_LINE_COLUMNS,
   SUPPLIER_ORDER_LINE_PRESETS,
   SUPPLIER_ORDER_LINES_VIEW,
+  normalizeSupplierOrderColumnId,
 } from './models/supplier-order-line-columns.config';
 
 import type { ProductEmbeddedCreatePrefill } from '@features/products/models/product-form.mapper';
@@ -64,7 +64,6 @@ import { ProductFormComponent } from '@features/products/product-form.component'
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
-import { InventoryService } from '@features/inventory/services/inventory.service';
 
 import { SupplierOrderService } from './services/supplier-order.service';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
@@ -83,10 +82,16 @@ type SubmitState =
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
 
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 /**
- * Creazione ordine fornitore (smart). Righe dinamiche (variante + quantità +
- * costo unitario), totale calcolato a video, salvataggio come bozza o invio
- * diretto. Owner: gestionale (CRUD locale). Creazione fornitore inline.
+ * Maschera Ordine fornitore (prompt 2026-07). Testata: Fornitore, Data,
+ * Consegna prevista, Rif. ordine fornitore; numerazione dal numeratore
+ * supplier_order (Numeratori). Righe con Sconto, IVA e switch costi
+ * netto/ivato come l'Arrivo merce. L'ordine nasce Confermato e NON incide
+ * su giacenze o disponibilità. Owner: gestionale (CRUD locale).
  */
 @Component({
   selector: 'app-supplier-order-form',
@@ -113,8 +118,6 @@ export class SupplierOrderFormComponent {
   private readonly orderService = inject(SupplierOrderService);
   private readonly supplierService = inject(SupplierService);
   private readonly productService = inject(ProductService);
-  private readonly inventoryService = inject(InventoryService);
-  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
@@ -145,7 +148,7 @@ export class SupplierOrderFormComponent {
         }
         return this.orderService.getSupplierOrderById(id).pipe(
           map((order) => {
-            if (order.status !== SupplierOrderStatus.Draft) {
+            if (order.status !== SupplierOrderStatus.Confirmed) {
               return 'not-found' as const;
             }
             this.patchFormFromOrder(order);
@@ -163,6 +166,15 @@ export class SupplierOrderFormComponent {
   protected readonly loadError = computed(() => this.loadState() === 'error');
   protected readonly notEditable = computed(() => this.loadState() === 'not-found');
 
+  /** Anteprima numerazione dal numeratore supplier_order (solo creazione). */
+  protected readonly nextReferencePreview = toSignal(
+    this.orderService.getMeta().pipe(
+      map((meta) => meta.nextReferencePreview),
+      catchError(() => of('')),
+    ),
+    { initialValue: '' },
+  );
+
   private readonly suppliersReload = signal(0);
   private readonly suppliers = toSignal(
     toObservable(this.suppliersReload).pipe(switchMap(() => this.supplierService.getSuppliers())),
@@ -173,16 +185,36 @@ export class SupplierOrderFormComponent {
     this.suppliers().map((supplier) => ({ value: supplier.id, label: supplier.name })),
   );
 
-  // Codici IVA per la tendina "Codice IVA predefinito" nel form nuovo fornitore.
+  // Codici IVA: tendina riga (solo codici acquisto attivi) e form fornitore.
   protected readonly vatCodes = toSignal(
     this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
     { initialValue: [] as readonly VatCode[] },
+  );
+  private readonly purchaseVatCodes = computed(() =>
+    this.vatCodes().filter((vatCode) => vatCode.isActive && isPurchaseVatCode(vatCode)),
+  );
+  protected readonly vatCodeOptions = computed<readonly SelectMenuOption[]>(() => [
+    { value: '', label: '—' },
+    ...this.purchaseVatCodes().map((vatCode) => ({
+      value: vatCode.id,
+      label: vatCodeOptionLabel(vatCode),
+    })),
+  ]);
+  private readonly vatCodesById = computed(
+    () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
   );
 
   /** Voci pagamento del tenant per il form nuovo fornitore inline. */
   protected readonly paymentOptions = toSignal(
     this.paymentOptionsService.list().pipe(catchError(() => of([] as readonly PaymentOption[]))),
     { initialValue: [] as readonly PaymentOption[] },
+  );
+
+  // Switch costi netto/ivato di testata (stesso pattern dell'Arrivo merce).
+  protected readonly costEntryMode = signal<PurchaseCostEntryMode>('vat_excluded');
+  protected readonly costModeMenuOpen = signal(false);
+  protected readonly costModeLabel = computed(() =>
+    this.costEntryMode() === 'vat_included' ? 'Costo ivato' : 'Costo netto',
   );
 
   protected readonly variantSearchDraft = signal('');
@@ -202,17 +234,11 @@ export class SupplierOrderFormComponent {
     { initialValue: [] as readonly VariantSummary[] },
   );
 
-  protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.operationalLocations.writeLocations().map((location) => ({
-      value: location.id,
-      label: location.name,
-    })),
-  );
-
   readonly form = this.fb.group({
     supplierId: this.fb.control('', { validators: [Validators.required] }),
-    destinationLocationId: this.fb.control('', { validators: [Validators.required] }),
+    orderDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
     expectedAt: this.fb.control(''),
+    supplierReference: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
   });
 
@@ -253,21 +279,73 @@ export class SupplierOrderFormComponent {
     ),
   );
 
-  // Snapshot reattivo del form per il totale a video.
+  // Snapshot reattivo del form per totali e celle derivate.
   private readonly formValue = toSignal(this.form.valueChanges, {
     initialValue: this.form.getRawValue(),
   });
 
-  protected readonly orderTotal = computed<Money>(() => {
-    // Dipende dal valore corrente del form.
+  /**
+   * Importi riga client-side allineati al motore server (vat-line-calculation):
+   * costi ivati → scorporo dal totale riga; costi netti → IVA derivata.
+   */
+  private lineAmounts(index: number): {
+    readonly net: number;
+    readonly vat: number;
+    readonly affects: boolean;
+  } {
+    const line = this.lines.at(index);
+    if (!line) {
+      return { net: 0, vat: 0, affects: false };
+    }
+    const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
+    const qty = Number(line.controls.orderedQuantity.value);
+    if (!cost || !Number.isFinite(qty)) {
+      return { net: 0, vat: 0, affects: false };
+    }
+    const discountRaw = Number(line.controls.discountPercent.value);
+    const discount = Number.isFinite(discountRaw) ? Math.min(100, Math.max(0, discountRaw)) : 0;
+    const vatCode = this.vatCodesById().get(line.controls.vatCodeId.value);
+    const rate = vatCode ? Math.max(0, vatCode.ratePercent) : 0;
+    const exposed =
+      vatCode?.calculationMode === 'standard' || vatCode?.calculationMode === 'split_payment';
+    const affects = vatCode?.vatAffectsSupplierTotal ?? false;
+
+    if (this.costEntryMode() === 'vat_included' && exposed && rate > 0) {
+      const gross = Math.round((qty * cost.amountMinor * (100 - discount)) / 100);
+      const net = Math.round((gross * 100) / (100 + rate));
+      return { net, vat: gross - net, affects };
+    }
+    const net = Math.round((qty * cost.amountMinor * (100 - discount)) / 100);
+    const vat = rate > 0 ? Math.round((net * rate) / 100) : 0;
+    return { net, vat, affects };
+  }
+
+  protected readonly orderSubtotal = computed<Money>(() => {
     this.formValue();
-    return this.lines.controls.reduce<Money>((acc, line) => {
-      const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
-      const qty = Number(line.controls.orderedQuantity.value);
-      const amount = cost && Number.isFinite(qty) ? cost.amountMinor * qty : 0;
-      return { amountMinor: acc.amountMinor + amount, currencyCode: this.currency };
-    }, zeroMoney(this.currency));
+    this.costEntryMode();
+    this.vatCodesById();
+    const amount = this.lines.controls.reduce(
+      (sum, _line, index) => sum + this.lineAmounts(index).net,
+      0,
+    );
+    return { amountMinor: amount, currencyCode: this.currency };
   });
+
+  protected readonly orderTax = computed<Money>(() => {
+    this.formValue();
+    this.costEntryMode();
+    this.vatCodesById();
+    const amount = this.lines.controls.reduce((sum, _line, index) => {
+      const amounts = this.lineAmounts(index);
+      return sum + (amounts.affects ? amounts.vat : 0);
+    }, 0);
+    return { amountMinor: amount, currencyCode: this.currency };
+  });
+
+  protected readonly orderTotal = computed<Money>(() => ({
+    amountMinor: this.orderSubtotal().amountMinor + this.orderTax().amountMinor,
+    currencyCode: this.currency,
+  }));
 
   protected readonly formatMoney = formatMoney;
 
@@ -277,10 +355,7 @@ export class SupplierOrderFormComponent {
   private readonly _savingSupplier = signal(false);
   protected readonly savingSupplier = this._savingSupplier.asReadonly();
 
-  // Pannello "Crea nuovo articolo" (stesso pattern del form Arrivo merce):
-  // ProductFormComponent embedded in slide-panel, prefill dal testo di ricerca
-  // digitato e dal costo unitario della riga. La creazione avviene subito via
-  // POST /products, quindi al salvataggio ordine la riga ha già la variante.
+  // Pannello "Crea nuovo articolo" (stesso pattern del form Arrivo merce).
   protected readonly productPanelOpen = signal(false);
   protected readonly productPanelLineIndex = signal<number | null>(null);
   protected readonly productPanelPrefill = signal<ProductEmbeddedCreatePrefill | null>(null);
@@ -306,38 +381,73 @@ export class SupplierOrderFormComponent {
   }
 
   protected isLineColumnVisible(columnId: string): boolean {
-    return this.columnPreferences.isColumnVisible(SUPPLIER_ORDER_LINES_VIEW, columnId);
+    return this.columnPreferences.isColumnVisible(
+      SUPPLIER_ORDER_LINES_VIEW,
+      normalizeSupplierOrderColumnId(columnId),
+    );
   }
 
   protected lineColumnWidth(columnId: string): string {
-    const def = SUPPLIER_ORDER_LINE_COLUMNS.find((col) => col.id === columnId);
+    const normalizedId = normalizeSupplierOrderColumnId(columnId);
+    const def = SUPPLIER_ORDER_LINE_COLUMNS.find((col) => col.id === normalizedId);
     const fallback = def?.defaultWidthPx ?? 96;
-    return `${this.columnPreferences.columnWidth(SUPPLIER_ORDER_LINES_VIEW, columnId, fallback)}px`;
+    return `${this.columnPreferences.columnWidth(SUPPLIER_ORDER_LINES_VIEW, normalizedId, fallback)}px`;
   }
 
   protected onLineColumnResize(columnId: string, widthPx: number): void {
-    this.columnPreferences.setColumnWidth(SUPPLIER_ORDER_LINES_VIEW, columnId, widthPx);
+    this.columnPreferences.setColumnWidth(
+      SUPPLIER_ORDER_LINES_VIEW,
+      normalizeSupplierOrderColumnId(columnId),
+      widthPx,
+    );
   }
 
-  /** Codice articolo del prodotto collegato alla riga (colonna §Codice articolo). */
-  protected lineArticleCode(index: number): string {
+  protected toggleCostModeMenu(): void {
+    this.costModeMenuOpen.update((open) => !open);
+  }
+
+  protected selectCostMode(mode: PurchaseCostEntryMode): void {
+    this.costEntryMode.set(mode);
+    this.costModeMenuOpen.set(false);
+  }
+
+  /** Vista denormalizzata della variante di riga per le colonne display. */
+  protected lineSummary(index: number): VariantSummary | null {
     const variantId = this.lines.at(index)?.controls.variantId.value;
     if (!variantId) {
-      return '—';
+      return null;
     }
-    const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
-      (row) => row.variantId === variantId,
+    return (
+      mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
+        (row) => row.variantId === variantId,
+      ) ?? null
     );
-    return summary?.articleCode || '—';
+  }
+
+  protected lineDisplay(
+    index: number,
+    field: 'articleCode' | 'sku' | 'barcode' | 'supplierSku' | 'unitOfMeasure',
+  ): string {
+    const summary = this.lineSummary(index);
+    const value = summary?.[field];
+    return value?.trim() ? value : '—';
+  }
+
+  protected lineStock(index: number, field: 'stockOnHand' | 'stockAvailable'): string {
+    const summary = this.lineSummary(index);
+    const value = summary?.[field];
+    return value == null ? '—' : String(value);
+  }
+
+  protected linePrice(index: number, field: 'sellingPrice' | 'compareAtPrice'): string {
+    const summary = this.lineSummary(index);
+    const value = summary?.[field];
+    return value ? formatMoney(value) : '—';
   }
 
   protected lineMoney(index: number): Money {
     this.formValue();
-    const line = this.lines.at(index);
-    const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
-    const qty = Number(line.controls.orderedQuantity.value);
-    const amount = cost && Number.isFinite(qty) ? cost.amountMinor * qty : 0;
-    return { amountMinor: amount, currencyCode: this.currency };
+    return { amountMinor: this.lineAmounts(index).net, currencyCode: this.currency };
   }
 
   protected onSupplierSelect(value: string | null): void {
@@ -355,11 +465,6 @@ export class SupplierOrderFormComponent {
     return supplier?.documentCreationAlert?.trim() ?? '';
   });
 
-  protected onLocationSelect(value: string | null): void {
-    this.form.controls.destinationLocationId.setValue(value ?? '');
-    this.form.controls.destinationLocationId.markAsTouched();
-  }
-
   protected onVariantSearch(value: string): void {
     this.variantSearchDraft.set(value);
   }
@@ -368,6 +473,13 @@ export class SupplierOrderFormComponent {
     const control = this.lines.at(index).controls.variantId;
     control.setValue(value ?? '');
     control.markAsTouched();
+    if (value) {
+      this.applyVariantDefaultsToLine(index, value);
+    }
+  }
+
+  protected onLineVatSelect(index: number, value: string | null): void {
+    this.lines.at(index).controls.vatCodeId.setValue(value ?? '');
   }
 
   protected addLine(): void {
@@ -404,7 +516,7 @@ export class SupplierOrderFormComponent {
   protected onProductCreatedFromPanel(event: { readonly variantId: string }): void {
     const lineIndex = this.productPanelLineIndex();
     if (lineIndex != null) {
-      this.attachVariantToLine(lineIndex, event.variantId);
+      this.onVariantSelect(lineIndex, event.variantId);
     }
     this.closeProductPanel();
   }
@@ -414,23 +526,45 @@ export class SupplierOrderFormComponent {
     this.closeProductPanel();
   }
 
-  private attachVariantToLine(index: number, variantId: string): void {
-    this.onVariantSelect(index, variantId);
+  /**
+   * Default di riga dalla variante selezionata: costo d'acquisto se la riga
+   * non ha costo, Codice IVA predefinito del prodotto se non impostato.
+   */
+  private applyVariantDefaultsToLine(index: number, variantId: string): void {
     const line = this.lines.at(index);
-    if (!line || line.controls.unitCost.value.trim()) {
+    if (!line) {
       return;
     }
-    // Riga senza costo: usa il prezzo d'acquisto della variante creata (se presente).
+    const applyFromSummary = (summary: VariantSummary | null): void => {
+      if (!summary) {
+        return;
+      }
+      const purchase = summary.purchasePrice;
+      if (purchase && purchase.amountMinor > 0 && !line.controls.unitCost.value.trim()) {
+        line.controls.unitCost.setValue(moneyToDecimalString(purchase).replace('.', ','));
+      }
+      const defaultVatCodeId = summary.defaultVatCodeId;
+      if (
+        defaultVatCodeId &&
+        !line.controls.vatCodeId.value &&
+        this.purchaseVatCodes().some((vatCode) => vatCode.id === defaultVatCodeId)
+      ) {
+        line.controls.vatCodeId.setValue(defaultVatCodeId);
+      }
+    };
+
+    const known = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
+      (row) => row.variantId === variantId,
+    );
+    if (known) {
+      applyFromSummary(known);
+      return;
+    }
     this.variantCostSubscription = this.productService
       .searchVariantSummaries({ variantId })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (rows) => {
-          const purchase = rows[0]?.purchasePrice;
-          if (purchase && purchase.amountMinor > 0 && !line.controls.unitCost.value.trim()) {
-            line.controls.unitCost.setValue(moneyToDecimalString(purchase).replace('.', ','));
-          }
-        },
+        next: (rows) => applyFromSummary(rows[0] ?? null),
       });
   }
 
@@ -440,7 +574,7 @@ export class SupplierOrderFormComponent {
     }
   }
 
-  protected fieldInvalid(name: 'supplierId' | 'destinationLocationId'): boolean {
+  protected fieldInvalid(name: 'supplierId' | 'orderDate'): boolean {
     const control = this.form.controls[name];
     return control.invalid && (control.touched || control.dirty);
   }
@@ -458,6 +592,16 @@ export class SupplierOrderFormComponent {
     }
     const parsed = parseMoneyInput(control.value, this.currency);
     return control.invalid || parsed === null || parsed.amountMinor < 0;
+  }
+
+  protected discountInvalid(index: number): boolean {
+    const control = this.lines.at(index).controls.discountPercent;
+    const touched = control.touched || control.dirty;
+    if (!touched || !control.value.trim()) {
+      return false;
+    }
+    const parsed = Number(control.value);
+    return !Number.isInteger(parsed) || parsed < 0 || parsed > 100;
   }
 
   protected toggleSupplierForm(): void {
@@ -489,43 +633,46 @@ export class SupplierOrderFormComponent {
       });
   }
 
-  protected submit(status: SupplierOrderStatus): void {
+  protected submit(): void {
     if (this.saving()) {
       return;
     }
-    if (this.form.invalid || this.hasInvalidCost()) {
+    if (this.form.invalid || this.hasInvalidCost() || this.hasInvalidDiscount()) {
       this.form.markAllAsTouched();
       return;
     }
     const raw = this.form.getRawValue();
-    const lines = raw.lines.map((line) => {
+    const lines = raw.lines.map((line, index) => {
       const cost = parseMoneyInput(line.unitCost, this.currency);
+      const discount = Number(line.discountPercent);
+      const summary = this.lineSummary(index);
       return {
         variantId: line.variantId,
+        description: summary?.title || undefined,
         orderedQuantity: Number(line.orderedQuantity),
-        unitCostMinor: cost?.amountMinor ?? 0,
+        enteredUnitCostMinor: cost?.amountMinor ?? 0,
+        discountPercent:
+          line.discountPercent.trim() && Number.isInteger(discount) ? discount : undefined,
+        vatCodeId: line.vatCodeId || undefined,
       };
     });
 
     const body = {
       supplierId: raw.supplierId,
-      destinationLocationId: raw.destinationLocationId,
-      currency: this.currency,
+      orderDate: raw.orderDate ? new Date(raw.orderDate).toISOString() : undefined,
       expectedAt: raw.expectedAt ? new Date(raw.expectedAt).toISOString() : undefined,
+      supplierReference: raw.supplierReference.trim() || undefined,
+      costEntryMode: this.costEntryMode(),
+      currency: this.currency,
       lines,
     };
 
     const editId = this.editOrderId();
     this._submitState.set({ status: 'saving' });
 
-    const save$ = editId
+    const request$ = editId
       ? this.orderService.updateOrder(editId, body)
-      : this.orderService.createOrder({ ...body, status });
-
-    const request$ =
-      editId && status === SupplierOrderStatus.Sent
-        ? save$.pipe(switchMap((order) => this.orderService.sendOrder(order.id)))
-        : save$;
+      : this.orderService.createOrder(body);
 
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (order) => {
@@ -544,9 +691,11 @@ export class SupplierOrderFormComponent {
   private patchFormFromOrder(order: SupplierOrder): void {
     this.form.patchValue({
       supplierId: order.supplierId,
-      destinationLocationId: order.destinationLocationId,
+      orderDate: order.orderDate ? order.orderDate.slice(0, 10) : todayIsoDate(),
       expectedAt: order.expectedAt ? order.expectedAt.slice(0, 10) : '',
+      supplierReference: order.supplierReference ?? '',
     });
+    this.costEntryMode.set(order.costEntryMode);
     this.lines.clear();
     for (const line of order.lines) {
       this.lines.push(
@@ -555,23 +704,19 @@ export class SupplierOrderFormComponent {
           orderedQuantity: this.fb.control(line.orderedQuantity, {
             validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
           }),
-          unitCost: this.fb.control(moneyToDecimalString(line.unitCost).replace('.', ','), {
+          unitCost: this.fb.control(moneyToDecimalString(line.enteredUnitCost).replace('.', ','), {
             validators: [Validators.required],
           }),
+          discountPercent: this.fb.control(
+            line.discountPercent > 0 ? String(line.discountPercent) : '',
+          ),
+          vatCodeId: this.fb.control(line.vatCodeId ?? ''),
         }),
       );
     }
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
     }
-  }
-
-  protected saveDraft(): void {
-    this.submit(SupplierOrderStatus.Draft);
-  }
-
-  protected saveAndSend(): void {
-    this.submit(SupplierOrderStatus.Sent);
   }
 
   protected cancel(): void {
@@ -585,6 +730,17 @@ export class SupplierOrderFormComponent {
     });
   }
 
+  private hasInvalidDiscount(): boolean {
+    return this.lines.controls.some((line) => {
+      const value = line.controls.discountPercent.value.trim();
+      if (!value) {
+        return false;
+      }
+      const parsed = Number(value);
+      return !Number.isInteger(parsed) || parsed < 0 || parsed > 100;
+    });
+  }
+
   private createLine() {
     return this.fb.group({
       variantId: this.fb.control('', { validators: [Validators.required] }),
@@ -592,6 +748,8 @@ export class SupplierOrderFormComponent {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
       unitCost: this.fb.control('', { validators: [Validators.required] }),
+      discountPercent: this.fb.control(''),
+      vatCodeId: this.fb.control(''),
     });
   }
 

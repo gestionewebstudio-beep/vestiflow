@@ -6,11 +6,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AppErrorKind } from '@core/models/app-error.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { ProductService } from '@features/products/services/product.service';
-import { InventoryService } from '@features/inventory/services/inventory.service';
 
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
 import { SupplierOrderService } from './services/supplier-order.service';
@@ -20,16 +18,6 @@ import { signal } from '@angular/core';
 
 const SUPPLIERS = [
   { id: 'sup-1', tenantId: 't1', name: 'Tessuti Italia', email: null, phone: null },
-];
-const LOCATIONS = [
-  {
-    id: 'loc-1',
-    tenantId: 't1',
-    name: 'Milano',
-    code: 'MIL',
-    isActive: true,
-    shopifyLocationId: null,
-  },
 ];
 const VARIANTS = [
   {
@@ -41,22 +29,10 @@ const VARIANTS = [
   },
 ];
 
-function operationalLocationsMock(locations: typeof LOCATIONS) {
-  return {
-    locations: () => locations,
-    writeLocations: () => locations,
-    actionLocations: () => locations,
-    transferTargetLocations: () => locations,
-    isFixedSingleStore: () => false,
-    fixedSingleStoreLocationId: () => null,
-    fixedSingleStoreLabel: () => null,
-  };
-}
-
 function tableColumnPreferenceMock() {
   const defaultState = {
     presetId: 'default' as const,
-    columnOrder: ['variant', 'quantity', 'unitCost', 'lineTotal', 'actions'],
+    columnOrder: ['product', 'quantity', 'unitCost', 'discount', 'vat', 'lineTotal', 'actions'],
     hiddenColumnIds: [] as string[],
     pinnedColumnIds: [] as string[],
     columnWidths: {} as Record<string, number>,
@@ -91,7 +67,7 @@ describe('SupplierOrderFormComponent', () => {
             message: 'Errore del server. Riprova più tardi.',
           })),
         )
-      : vi.fn(() => of({ id: 'po-1', status: SupplierOrderStatus.Draft }));
+      : vi.fn(() => of({ id: 'po-1', status: SupplierOrderStatus.Confirmed }));
 
     const { fixture } = await render(SupplierOrderFormComponent, {
       providers: [
@@ -111,16 +87,11 @@ describe('SupplierOrderFormComponent', () => {
           },
         },
         {
-          provide: InventoryService,
-          useValue: { getLocations: () => of(LOCATIONS) },
-        },
-        {
-          provide: OperationalLocationsService,
-          useValue: operationalLocationsMock(LOCATIONS),
-        },
-        {
           provide: SupplierOrderService,
-          useValue: { createOrder },
+          useValue: {
+            createOrder,
+            getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
+          },
         },
         {
           provide: TableColumnPreferenceService,
@@ -140,14 +111,19 @@ describe('SupplierOrderFormComponent', () => {
     return { fixture, createOrder };
   }
 
+  it('mostra l’anteprima della numerazione dai Numeratori', async () => {
+    await setup();
+
+    expect(await screen.findByText('OF-2026-0042')).toBeVisible();
+  });
+
   it('mostra errori di validazione al submit senza dati obbligatori', async () => {
     const user = userEvent.setup();
     await setup();
 
-    await user.click(screen.getByRole('button', { name: 'Salva bozza' }));
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
 
     expect(await screen.findByText('Seleziona un fornitore.')).toBeVisible();
-    expect(await screen.findByText('Seleziona la location.')).toBeVisible();
   });
 
   it('consente di aggiungere una riga ordine', async () => {
@@ -160,6 +136,17 @@ describe('SupplierOrderFormComponent', () => {
     expect(screen.getAllByRole('button', { name: 'Rimuovi riga' })).toHaveLength(rowsBefore + 1);
   });
 
+  it('permette lo switch costi netto/ivato dall’intestazione colonna', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    expect(screen.getByText('Costo netto')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Modalità costi del documento' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Usa costi ivati' }));
+
+    expect(screen.getByText('Costo ivato')).toBeVisible();
+  });
+
   it('mostra errore inline quando il salvataggio fallisce', async () => {
     const user = userEvent.setup();
     const { createOrder } = await setup({ createFails: true });
@@ -167,11 +154,8 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getByRole('button', { name: 'Location di destinazione' }));
-    await user.click(screen.getByRole('option', { name: 'Milano' }));
-
-    await user.click(screen.getAllByRole('button', { name: 'Variante' })[0]!);
-    await user.type(screen.getByLabelText('Cerca variante per prodotto o SKU'), 'mag');
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
     await user.click(
       await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
     );
@@ -183,9 +167,21 @@ describe('SupplierOrderFormComponent', () => {
     await user.clear(costInput);
     await user.type(costInput, '12,50');
 
-    await user.click(screen.getByRole('button', { name: 'Salva bozza' }));
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
 
-    expect(createOrder).toHaveBeenCalled();
+    expect(createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        supplierId: 'sup-1',
+        costEntryMode: 'vat_excluded',
+        lines: [
+          expect.objectContaining({
+            variantId: 'var-1',
+            orderedQuantity: 2,
+            enteredUnitCostMinor: 1250,
+          }),
+        ],
+      }),
+    );
     expect(await screen.findByRole('alert')).toHaveTextContent('Errore del server');
   });
 });

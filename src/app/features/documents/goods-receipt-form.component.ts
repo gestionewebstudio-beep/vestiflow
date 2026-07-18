@@ -3855,10 +3855,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
+          // Mappa «Includi documento»: l'Arrivo merce può includere solo
+          // ordini fornitore Confermati (non ancora conclusi da un arrivo).
           const orders = response.data.filter(
-            (order) =>
-              order.status === SupplierOrderStatus.Sent ||
-              order.status === SupplierOrderStatus.PartiallyReceived,
+            (order) => order.status === SupplierOrderStatus.Confirmed,
           );
           this.receivableOrders.set(orders);
           this.receivableOrdersLoading.set(false);

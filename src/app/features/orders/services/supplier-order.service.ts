@@ -21,8 +21,14 @@ import {
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
+/** Anteprima numerazione dal numeratore supplier_order (Numeratori). */
+export interface SupplierOrderMeta {
+  readonly nextReferencePreview: string;
+}
+
 /**
- * Accesso HTTP agli ordini fornitori (NestJS). Ricezione merce via POST receive.
+ * Accesso HTTP agli ordini fornitori (NestJS). L'ordine è solo commerciale:
+ * la ricezione merce passa dall'Arrivo merce collegato.
  */
 @Injectable({ providedIn: 'root' })
 export class SupplierOrderService {
@@ -60,24 +66,16 @@ export class SupplierOrderService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
   }
 
+  /** Anteprima prossimo riferimento (numeratore supplier_order). */
+  getMeta(): Observable<SupplierOrderMeta> {
+    return this.http
+      .get<SupplierOrderMeta>(this.url('/supplier-orders/meta'))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   createOrder(body: CreateSupplierOrderBody): Observable<SupplierOrder> {
     return this.http
       .post<SupplierOrderApiRow>(this.url('/supplier-orders'), body)
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
-  }
-
-  sendOrder(id: EntityId): Observable<SupplierOrder> {
-    return this.http
-      .post<SupplierOrderApiRow>(this.url(`/supplier-orders/${id}/send`), {})
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
-  }
-
-  receiveOrder(
-    id: EntityId,
-    lines: readonly { lineId: EntityId; quantity: number }[],
-  ): Observable<SupplierOrder> {
-    return this.http
-      .post<SupplierOrderApiRow>(this.url(`/supplier-orders/${id}/receive`), { lines })
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
   }
 

@@ -3,13 +3,16 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsEnum,
   IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { PurchaseCostEntryMode } from '@prisma/client';
 
 import { CreateSupplierOrderLineDto } from './create-supplier-order.dto';
 
@@ -19,17 +22,26 @@ export class UpdateSupplierOrderDto {
   supplierId?: string;
 
   @IsOptional()
-  @IsUUID()
-  destinationLocationId?: string;
+  @IsISO8601()
+  orderDate?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  expectedAt?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  supplierReference?: string | null;
+
+  @IsOptional()
+  @IsEnum(PurchaseCostEntryMode)
+  costEntryMode?: PurchaseCostEntryMode;
 
   @IsOptional()
   @IsString()
   @Length(3, 3)
   currency?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  expectedAt?: string | null;
 
   @IsArray()
   @ArrayMinSize(1)

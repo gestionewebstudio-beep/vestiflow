@@ -92,10 +92,8 @@ export class SupplierOrderListComponent {
   protected readonly pageSizeOptions = SUPPLIER_ORDER_PAGE_SIZE_OPTIONS;
 
   protected readonly statusOptions: readonly SelectMenuOption[] = [
-    { value: 'draft', label: 'Bozza' },
-    { value: 'sent', label: 'Inviato' },
-    { value: 'partially_received', label: 'Ricevuto parziale' },
-    { value: 'received', label: 'Ricevuto' },
+    { value: 'confirmed', label: 'Confermato' },
+    { value: 'concluded', label: 'Concluso' },
     { value: 'cancelled', label: 'Annullato' },
   ];
 

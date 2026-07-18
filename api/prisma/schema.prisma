@@ -121,11 +121,12 @@ enum TikTokSyncStatus {
   error
 }
 
+/// Stati Ordine fornitore (prompt 2026-07): Confermato è lo stato di
+/// creazione (nessun effetto su giacenze/disponibilità); Concluso scatta
+/// quando l'ordine viene incluso/agganciato a un Arrivo merce.
 enum SupplierOrderStatus {
-  draft
-  sent
-  partially_received
-  received
+  confirmed
+  concluded
   cancelled
 }
 
@@ -914,16 +915,25 @@ model SupplierVariantLink {
 model SupplierOrder {
   id                    String              @id @default(uuid()) @db.Uuid
   tenantId              String              @map("tenant_id") @db.Uuid
-  /// Riferimento leggibile (es. 'PO-2026-0042'), univoco per tenant.
+  /// Riferimento leggibile dal numeratore documenti supplier_order
+  /// (es. 'OF-2026-0042'), univoco per tenant.
   reference             String
   supplierId            String              @map("supplier_id") @db.Uuid
   /// Snapshot nome fornitore (display stabile).
   supplierName          String              @map("supplier_name")
-  /// Location di destinazione merce (il frontend la chiama ancora storeId:
-  /// da allineare al wiring — la semantica è location).
-  destinationLocationId String              @map("destination_location_id") @db.Uuid
-  status                SupplierOrderStatus @default(draft)
+  /// Legacy: destinazione merce dei vecchi ordini. L'ordine fornitore non
+  /// incide sulle giacenze, quindi i nuovi ordini non la valorizzano.
+  destinationLocationId String?             @map("destination_location_id") @db.Uuid
+  status                SupplierOrderStatus @default(confirmed)
   currency              String              @default("EUR")
+  /// Modalità inserimento costi riga (switch netto/ivato come Arrivo merce).
+  costEntryMode         PurchaseCostEntryMode @default(vat_excluded) @map("cost_entry_mode")
+  /// Data ordine (testata).
+  orderDate             DateTime            @default(now()) @map("order_date")
+  /// "Rif. ordine fornitore": riferimento libero comunicato dal fornitore.
+  supplierReference     String?             @map("supplier_reference")
+  subtotalMinor         Int                 @default(0) @map("subtotal_minor")
+  taxMinor              Int                 @default(0) @map("tax_minor")
   totalMinor            Int                 @default(0) @map("total_minor")
   expectedAt            DateTime?           @map("expected_at")
   createdAt             DateTime            @default(now()) @map("created_at")
@@ -931,7 +941,7 @@ model SupplierOrder {
 
   tenant              Tenant              @relation(fields: [tenantId], references: [id])
   supplier            Supplier            @relation(fields: [supplierId], references: [id])
-  destinationLocation Location            @relation(fields: [destinationLocationId], references: [id])
+  destinationLocation Location?           @relation(fields: [destinationLocationId], references: [id])
   lines               SupplierOrderLine[]
   documents           Document[]
 
@@ -946,12 +956,25 @@ model SupplierOrderLine {
   variantId        String @map("variant_id") @db.Uuid
   /// Snapshot SKU al momento dell'ordine.
   sku              String
+  /// Snapshot descrizione articolo (nome prodotto) al momento dell'ordine.
+  description      String @default("")
   orderedQuantity  Int    @map("ordered_quantity")
   receivedQuantity Int    @default(0) @map("received_quantity")
+  /// Costo unitario NETTO canonico in unità minori (riferimento fornitore).
   unitCostMinor    Int    @map("unit_cost_minor")
+  /// Costo digitato dall'utente, nella modalità costEntryMode della testata.
+  enteredUnitCostMinor Int? @map("entered_unit_cost_minor")
+  /// Sconto riga percentuale intero (come DocumentLine.discountPercent).
+  discountPercent  Int    @default(0) @map("discount_percent")
+  vatCodeId        String? @map("vat_code_id") @db.Uuid
+  /// Snapshot Codice IVA (stesso formato di DocumentLine.vatSnapshot).
+  vatSnapshot      Json?  @map("vat_snapshot")
+  /// Totale riga netto (qty × costo netto − sconto), unità minori.
+  lineTotalMinor   Int    @default(0) @map("line_total_minor")
 
   order SupplierOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   documentLines DocumentLine[]
+  vatCode VatCode? @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@map("supplier_order_lines")
@@ -1949,6 +1972,7 @@ model VatCode {
   onlineSaleLines          OnlineSaleLine[]
   corrispettivoEntryLines  CorrispettivoEntryLine[]
   salesOrderLines          SalesOrderLine[]
+  supplierOrderLines       SupplierOrderLine[]
 
   @@unique([tenantId, code])
   @@index([tenantId, sortOrder])

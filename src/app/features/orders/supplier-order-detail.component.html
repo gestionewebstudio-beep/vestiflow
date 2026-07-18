@@ -35,18 +35,7 @@
         @if (canEdit()) {
           <app-button variant="ghost" (click)="goToEdit()">
             <i class="pi pi-pencil" aria-hidden="true"></i>
-            Modifica bozza
-          </app-button>
-        }
-        @if (canSend()) {
-          <app-button
-            variant="secondary"
-            [loading]="actionSaving()"
-            [disabled]="actionSaving()"
-            (click)="requestSend()"
-          >
-            <i class="pi pi-send" aria-hidden="true"></i>
-            Invia ordine
+            Modifica ordine
           </app-button>
         }
         @if (canCancel()) {
@@ -54,14 +43,14 @@
             Annulla ordine
           </app-button>
         }
-        @if (canRegisterGoodsReceipt()) {
+        @if (canCreateGoodsReceipt()) {
           <app-button
             [loading]="actionSaving()"
             [disabled]="actionSaving()"
-            (click)="requestRegisterGoodsReceipt()"
+            (click)="requestCreateGoodsReceipt()"
           >
             <i class="pi pi-box" aria-hidden="true"></i>
-            Registra arrivo merce
+            Crea arrivo merce
           </app-button>
         }
         @if (canDelete()) {
@@ -88,6 +77,27 @@
       <app-detail-facts [facts]="facts()" />
     </section>
 
+    @if (linkedDocuments().length > 0) {
+      <section class="po-detail__panel" aria-labelledby="po-linked">
+        <div class="po-detail__panel-head">
+          <h2 id="po-linked" class="po-detail__panel-title">Arrivo merce collegato</h2>
+        </div>
+        <ul class="po-detail__linked-list">
+          @for (linked of linkedDocuments(); track linked.id) {
+            <li class="po-detail__linked-item">
+              <a
+                class="po-detail__linked-link tabular-nums"
+                [routerLink]="['/app/documents', linked.id]"
+              >
+                <i class="pi pi-box" aria-hidden="true"></i>
+                {{ linkedDocumentLabel(linked) }}
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
     <section class="po-detail__panel" aria-labelledby="po-lines">
       <div class="po-detail__panel-head">
         <h2 id="po-lines" class="po-detail__panel-title">Righe ordine</h2>
@@ -96,29 +106,28 @@
 
       <app-supplier-order-lines-table [lines]="o.lines" />
 
-      <p class="po-detail__total tabular-nums">
-        Totale ordine: <strong>{{ formatMoney(o.totalAmount) }}</strong>
-      </p>
+      <div class="po-detail__totals tabular-nums">
+        <p class="po-detail__total">
+          Imponibile: <strong>{{ formatMoney(o.subtotal) }}</strong>
+        </p>
+        <p class="po-detail__total">
+          IVA: <strong>{{ formatMoney(o.tax) }}</strong>
+        </p>
+        <p class="po-detail__total po-detail__total--grand">
+          Totale ordine: <strong>{{ formatMoney(o.totalAmount) }}</strong>
+        </p>
+      </div>
     </section>
   }
 </section>
 
 <app-confirm-dialog
-  [(open)]="sendDialogOpen"
-  title="Invia ordine fornitore"
-  message="Confermi l'invio dell'ordine al fornitore? Dopo l'invio potrai registrare l'arrivo merce con un documento."
-  confirmLabel="Invia ordine"
-  cancelLabel="Annulla"
-  (confirmed)="sendOrder()"
-/>
-
-<app-confirm-dialog
   [(open)]="goodsReceiptDialogOpen"
-  title="Registra arrivo merce"
-  message="Verrà creata una bozza documento di arrivo merce collegata a questo ordine. Potrai verificare le quantità prima della conferma e del carico magazzino."
-  confirmLabel="Crea bozza documento"
+  title="Crea arrivo merce"
+  message="Verrà aperto un nuovo Arrivo merce con questo ordine incluso. Al salvataggio del documento l'ordine diventerà Concluso e il collegamento resterà visibile."
+  confirmLabel="Crea arrivo merce"
   cancelLabel="Annulla"
-  (confirmed)="registerGoodsReceipt()"
+  (confirmed)="createGoodsReceipt()"
 />
 
 <app-confirm-dialog

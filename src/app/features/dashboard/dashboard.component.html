@@ -60,11 +60,11 @@
         hint="Attivi nel tenant"
       />
       <app-stat-card
-        label="Ordini in arrivo"
+        label="Ordini fornitore aperti"
         icon="pi-truck"
         [value]="incomingOrdersLabel()"
         tone="neutral"
-        hint="Ordini fornitore inviati o parziali"
+        hint="Ordini confermati, non ancora conclusi"
       />
       @if (showRecentShopifySales()) {
         <app-stat-card

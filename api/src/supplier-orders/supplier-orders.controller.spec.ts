@@ -11,11 +11,10 @@ describe('SupplierOrdersController', () => {
   const user = testOwnerUser();
   const supplierOrders = {
     list: vi.fn(),
+    getMeta: vi.fn(),
     getById: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
-    receive: vi.fn(),
-    send: vi.fn(),
     cancel: vi.fn(),
     delete: vi.fn(),
   };
@@ -73,7 +72,7 @@ describe('SupplierOrdersController', () => {
   });
 
   it('update delega al service', async () => {
-    const dto = { destinationLocationId: 'loc-1', lines: [] };
+    const dto = { supplierId: 'sup-1', lines: [] };
     supplierOrders.update.mockResolvedValue({ id: 'po-1' });
 
     await controller.update(tenantId, user, 'po-1', dto as never);
@@ -81,12 +80,13 @@ describe('SupplierOrdersController', () => {
     expect(supplierOrders.update).toHaveBeenCalledWith(tenantId, 'po-1', dto, user);
   });
 
-  it('send delega al service passando l\'utente (scope location)', async () => {
-    supplierOrders.send.mockResolvedValue({ id: 'po-1', status: 'sent' });
+  it('getMeta espone anteprima numerazione', async () => {
+    supplierOrders.getMeta.mockResolvedValue({ nextReferencePreview: 'OF-2026-0042' });
 
-    await controller.send(tenantId, user, 'po-1');
-
-    expect(supplierOrders.send).toHaveBeenCalledWith(tenantId, 'po-1', user);
+    await expect(controller.getMeta(tenantId)).resolves.toEqual({
+      nextReferencePreview: 'OF-2026-0042',
+    });
+    expect(supplierOrders.getMeta).toHaveBeenCalledWith(tenantId);
   });
 
   it('cancel delega al service passando l\'utente (scope location)', async () => {
@@ -95,15 +95,6 @@ describe('SupplierOrdersController', () => {
     await controller.cancel(tenantId, user, 'po-1');
 
     expect(supplierOrders.cancel).toHaveBeenCalledWith(tenantId, 'po-1', user);
-  });
-
-  it('receive delega al service', async () => {
-    const dto = { lines: [{ lineId: 'line-1', receivedQuantity: 2 }] };
-    supplierOrders.receive.mockResolvedValue({ id: 'po-1' });
-
-    await controller.receive(tenantId, 'po-1', dto as never);
-
-    expect(supplierOrders.receive).toHaveBeenCalledWith(tenantId, 'po-1', dto);
   });
 
   it('delete delega al service passando l\'utente (scope location)', async () => {

@@ -9,7 +9,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import type { Subscription } from 'rxjs';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -19,9 +19,8 @@ import {
   canManageSupplierOrders,
   canReceiveSupplierOrders,
 } from '@core/permissions/tenant-permissions.util';
-import type { Location } from '@core/models/location.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
-import type { SupplierOrder } from '@core/models/supplier-order.model';
+import type { SupplierOrder, SupplierOrderLinkedDocument } from '@core/models/supplier-order.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -32,9 +31,6 @@ import type { DetailFact } from '@shared/components/detail-facts/detail-facts.co
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-
-import { InventoryService } from '@features/inventory/services/inventory.service';
-import { DocumentService } from '@features/documents/services/document.service';
 
 import { SupplierOrderLinesTableComponent } from './components/supplier-order-lines-table/supplier-order-lines-table.component';
 import {
@@ -48,18 +44,16 @@ type ActionState =
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
 
-interface DetailData {
-  readonly order: SupplierOrder;
-  readonly locations: readonly Location[];
-}
-
 type DetailState =
   | { readonly status: 'loading' }
-  | { readonly status: 'success'; readonly data: DetailData }
+  | { readonly status: 'success'; readonly order: SupplierOrder }
   | { readonly status: 'not-found' }
   | { readonly status: 'error'; readonly error: AppError };
 
-/** Dettaglio ordine fornitore read-only (smart): dati ordine e righe. */
+/**
+ * Dettaglio ordine fornitore read-only (smart): dati ordine, righe e
+ * collegamento visibile agli Arrivi merce agganciati (stato Concluso).
+ */
 @Component({
   selector: 'app-supplier-order-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -79,8 +73,6 @@ type DetailState =
 })
 export class SupplierOrderDetailComponent {
   private readonly service = inject(SupplierOrderService);
-  private readonly documentService = inject(DocumentService);
-  private readonly inventoryService = inject(InventoryService);
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -92,6 +84,7 @@ export class SupplierOrderDetailComponent {
   protected readonly statusLabel = supplierOrderStatusLabel;
   protected readonly statusTone = supplierOrderStatusTone;
   protected readonly formatMoney = formatMoney;
+  protected readonly formatDate = formatDate;
 
   private readonly refreshTick = signal(0);
 
@@ -104,11 +97,8 @@ export class SupplierOrderDetailComponent {
   private readonly state = toSignal(
     toObservable(this.request).pipe(
       switchMap(({ id }) =>
-        forkJoin({
-          order: this.service.getSupplierOrderById(id),
-          locations: this.inventoryService.getLocations(),
-        }).pipe(
-          map((data): DetailState => ({ status: 'success', data })),
+        this.service.getSupplierOrderById(id).pipe(
+          map((order): DetailState => ({ status: 'success', order })),
           startWith<DetailState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.errorToState(err))),
         ),
@@ -127,63 +117,64 @@ export class SupplierOrderDetailComponent {
 
   protected readonly order = computed(() => {
     const current = this.state();
-    return current.status === 'success' ? current.data.order : null;
+    return current.status === 'success' ? current.order : null;
   });
 
+  /** Arrivi merce attivi agganciati: il collegamento è visibile nel documento. */
+  protected readonly linkedDocuments = computed<readonly SupplierOrderLinkedDocument[]>(
+    () => this.order()?.linkedDocuments ?? [],
+  );
+
+  protected linkedDocumentLabel(linked: SupplierOrderLinkedDocument): string {
+    const identifier =
+      linked.reference ?? (linked.number != null ? `n. ${linked.number}` : linked.id);
+    return `Arrivo merce ${identifier} del ${formatDate(linked.documentDate)}`;
+  }
+
   protected readonly facts = computed<readonly DetailFact[]>(() => {
-    const current = this.state();
-    if (current.status !== 'success') {
+    const order = this.order();
+    if (!order) {
       return [];
     }
-    const { order, locations } = current.data;
-    const destination =
-      locations.find((location) => location.id === order.destinationLocationId)?.name ??
-      order.destinationLocationId;
     return [
       { label: 'Fornitore', value: order.supplierName },
-      { label: 'Destinazione', value: destination },
-      { label: 'Valuta', value: order.currency },
+      { label: 'Data', value: formatDate(order.orderDate), numeric: true },
       {
-        label: 'Attesa il',
+        label: 'Consegna prevista',
         value: order.expectedAt ? formatDate(order.expectedAt) : '—',
         numeric: true,
       },
+      { label: 'Rif. ordine fornitore', value: order.supplierReference || '—' },
+      { label: 'Valuta', value: order.currency },
       { label: 'Creato il', value: formatDate(order.createdAt), numeric: true },
       { label: 'Aggiornato il', value: formatDate(order.updatedAt), numeric: true },
     ];
   });
 
-  protected readonly canSend = computed(
-    () =>
-      this.order()?.status === SupplierOrderStatus.Draft &&
-      canManageSupplierOrders(this.authService.currentUser()),
-  );
   protected readonly canEdit = computed(
     () =>
-      this.order()?.status === SupplierOrderStatus.Draft &&
+      this.order()?.status === SupplierOrderStatus.Confirmed &&
       canManageSupplierOrders(this.authService.currentUser()),
   );
-  protected readonly canCancel = computed(() => {
-    const status = this.order()?.status;
-    return (
-      (status === SupplierOrderStatus.Draft || status === SupplierOrderStatus.Sent) &&
-      canManageSupplierOrders(this.authService.currentUser())
-    );
-  });
+  protected readonly canCancel = computed(
+    () =>
+      this.order()?.status === SupplierOrderStatus.Confirmed &&
+      canManageSupplierOrders(this.authService.currentUser()),
+  );
   protected readonly canDelete = computed(
     () =>
       this.order()?.status === SupplierOrderStatus.Cancelled &&
       canManageSupplierOrders(this.authService.currentUser()),
   );
-  protected readonly canRegisterGoodsReceipt = computed(() => {
-    const status = this.order()?.status;
+  /** «Crea arrivo merce» dall'ordine: solo ordini Confermati (non conclusi). */
+  protected readonly canCreateGoodsReceipt = computed(() => {
     if (!canReceiveSupplierOrders(this.authService.currentUser())) {
       return false;
     }
     if (!canManageDocuments(this.authService.currentUser())) {
       return false;
     }
-    return status === SupplierOrderStatus.Sent || status === SupplierOrderStatus.PartiallyReceived;
+    return this.order()?.status === SupplierOrderStatus.Confirmed;
   });
 
   protected readonly goodsReceiptDialogOpen = signal(false);
@@ -195,7 +186,6 @@ export class SupplierOrderDetailComponent {
     return state.status === 'error' ? state.error : null;
   });
 
-  protected readonly sendDialogOpen = signal(false);
   protected readonly cancelDialogOpen = signal(false);
   protected readonly deleteDialogOpen = signal(false);
 
@@ -212,17 +202,17 @@ export class SupplierOrderDetailComponent {
     void this.router.navigateByUrl(this.listPath);
   }
 
-  protected requestRegisterGoodsReceipt(): void {
+  protected requestCreateGoodsReceipt(): void {
     this.goodsReceiptDialogOpen.set(true);
   }
 
   /**
-   * L'ordine fornitore è un documento solo commerciale: nessuna bozza
-   * pre-creata lato server. Si apre un nuovo Arrivo merce con l'ordine
-   * pre-selezionato; righe (residui) e testata vengono copiate dal form,
-   * e tutto passa dal flusso dedicato «Salva documento».
+   * «Crea arrivo merce» (flusso 3 del prompt): apre un nuovo Arrivo merce con
+   * l'ordine pre-agganciato via ?supplierOrderId=…; righe residue e testata
+   * vengono copiate dal form. Al salvataggio l'ordine diventa Concluso e il
+   * collegamento resta visibile in entrambi i documenti.
    */
-  protected registerGoodsReceipt(): void {
+  protected createGoodsReceipt(): void {
     this.goodsReceiptDialogOpen.set(false);
     const order = this.order();
     if (!order) {
@@ -235,8 +225,8 @@ export class SupplierOrderDetailComponent {
 
   /**
    * Scarica il PDF dell'ordine (stesso pattern blob-download dei documenti).
-   * Disponibile in ogni stato, bozza inclusa: il PDF riflette solo dati reali
-   * già visibili a chi ha il permesso di vista, quindi nessuna restrizione.
+   * Disponibile in ogni stato: il PDF riflette solo dati reali già visibili
+   * a chi ha il permesso di vista, quindi nessuna restrizione.
    */
   protected downloadPdf(): void {
     const order = this.order();
@@ -276,37 +266,12 @@ export class SupplierOrderDetailComponent {
     void this.router.navigateByUrl(`${this.listPath}/${order.id}/edit`);
   }
 
-  protected requestSend(): void {
-    this.sendDialogOpen.set(true);
-  }
-
   protected requestCancel(): void {
     this.cancelDialogOpen.set(true);
   }
 
   protected requestDelete(): void {
     this.deleteDialogOpen.set(true);
-  }
-
-  protected sendOrder(): void {
-    this.sendDialogOpen.set(false);
-    const order = this.order();
-    if (!order || this.actionSaving()) {
-      return;
-    }
-    this._actionState.set({ status: 'saving' });
-    this.actionSubscription = this.service
-      .sendOrder(order.id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this._actionState.set({ status: 'idle' });
-          this.reload();
-        },
-        error: (err: unknown) => {
-          this._actionState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
   }
 
   protected cancelOrder(): void {

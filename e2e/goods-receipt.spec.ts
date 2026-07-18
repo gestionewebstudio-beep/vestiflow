@@ -6,10 +6,9 @@ import {
   saveGoodsReceiptDocument,
 } from './helpers/goods-receipt-form';
 import {
-  fillSupplierOrderDraftForm,
-  registerGoodsReceiptFromOrderDetail,
-  saveSupplierOrderDraft,
-  sendSupplierOrderFromDetail,
+  createGoodsReceiptFromOrderDetail,
+  fillSupplierOrderForm,
+  saveSupplierOrder,
 } from './helpers/supplier-order-form';
 
 test.describe('Arrivo merce (documenti)', () => {
@@ -61,7 +60,7 @@ test.describe('Arrivo merce (documenti)', () => {
     await expect(firstCheckbox).toBeChecked({ checked: wasChecked });
   });
 
-  test('flusso completo: ordine inviato → documento → ricezione parziale', async ({ page }) => {
+  test('flusso completo: ordine confermato → arrivo merce → ordine Concluso', async ({ page }) => {
     test.setTimeout(180_000);
 
     await page.goto('/app/orders');
@@ -75,7 +74,7 @@ test.describe('Arrivo merce (documenti)', () => {
       return;
     }
 
-    await fillSupplierOrderDraftForm(page).catch((error: unknown) => {
+    await fillSupplierOrderForm(page).catch((error: unknown) => {
       if (error instanceof Error && error.message.includes('SKIP_NO_SEED_SUPPLIER')) {
         test.skip(
           true,
@@ -84,20 +83,15 @@ test.describe('Arrivo merce (documenti)', () => {
       }
       throw error;
     });
-    const reference = await saveSupplierOrderDraft(page);
+    const reference = await saveSupplierOrder(page);
 
-    await sendSupplierOrderFromDetail(page);
-    await registerGoodsReceiptFromOrderDetail(page);
-
-    await expect(page.locator('th', { hasText: 'Ord.' })).toBeVisible();
-    await expect(page.locator('th', { hasText: 'Res.' })).toBeVisible();
+    await createGoodsReceiptFromOrderDetail(page);
 
     await confirmGoodsReceiptOnForm(page, { partialQty: 1 });
 
+    // L'aggancio all'arrivo merce conclude l'ordine (anche a ricezione parziale).
     await page.goto('/app/orders');
     await page.getByText(reference, { exact: true }).click();
-    await expect(page.getByText('Ricevuto parziale', { exact: true })).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByText('Concluso', { exact: true })).toBeVisible({ timeout: 15_000 });
   });
 });

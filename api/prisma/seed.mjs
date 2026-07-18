@@ -181,22 +181,26 @@ async function main() {
   });
 
   if (variantMWhite && variantSBlack) {
+    // Ordini fornitore (prompt 2026-07): solo commerciali, stati
+    // Confermato/Concluso, numerazione OF dal numeratore supplier_order.
     const line1Total = 30 * 750;
     const line2Total = 20 * 750;
     await prisma.supplierOrder.upsert({
       where: {
-        tenantId_reference: { tenantId: tenant.id, reference: 'PO-2026-0001' },
+        tenantId_reference: { tenantId: tenant.id, reference: 'OF-2026-0001' },
       },
       update: {},
       create: {
         id: '88888888-8888-4888-8888-888888888888',
         tenantId: tenant.id,
-        reference: 'PO-2026-0001',
+        reference: 'OF-2026-0001',
         supplierId: supplier.id,
         supplierName,
-        destinationLocationId: locationWarehouse.id,
-        status: 'received',
+        status: 'concluded',
         currency: 'EUR',
+        orderDate: new Date('2026-05-20'),
+        supplierReference: 'CONF-1188',
+        subtotalMinor: line1Total + line2Total,
         totalMinor: line1Total + line2Total,
         expectedAt: new Date('2026-06-01'),
         lines: {
@@ -205,17 +209,23 @@ async function main() {
               id: '99999999-9999-4999-8999-999999999991',
               variantId: variantMWhite.id,
               sku: 'TSB-M-WHT',
+              description: 'T-shirt Basic — M / Bianco',
               orderedQuantity: 30,
               receivedQuantity: 30,
               unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: line1Total,
             },
             {
               id: '99999999-9999-4999-8999-999999999992',
               variantId: variantSBlack.id,
               sku: 'TSB-S-BLK',
+              description: 'T-shirt Basic — S / Nero',
               orderedQuantity: 20,
               receivedQuantity: 20,
               unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: line2Total,
             },
           ],
         },
@@ -224,18 +234,19 @@ async function main() {
 
     await prisma.supplierOrder.upsert({
       where: {
-        tenantId_reference: { tenantId: tenant.id, reference: 'PO-2026-0002' },
+        tenantId_reference: { tenantId: tenant.id, reference: 'OF-2026-0002' },
       },
       update: {},
       create: {
         id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         tenantId: tenant.id,
-        reference: 'PO-2026-0002',
+        reference: 'OF-2026-0002',
         supplierId: supplier.id,
         supplierName,
-        destinationLocationId: locationShop.id,
-        status: 'partially_received',
+        status: 'confirmed',
         currency: 'EUR',
+        orderDate: new Date('2026-06-05'),
+        subtotalMinor: 15 * 750,
         totalMinor: 15 * 750,
         expectedAt: new Date('2026-06-20'),
         lines: {
@@ -244,9 +255,12 @@ async function main() {
               id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
               variantId: variantMWhite.id,
               sku: 'TSB-M-WHT',
+              description: 'T-shirt Basic — M / Bianco',
               orderedQuantity: 15,
-              receivedQuantity: 8,
+              receivedQuantity: 0,
               unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: 15 * 750,
             },
           ],
         },
@@ -255,18 +269,20 @@ async function main() {
 
     await prisma.supplierOrder.upsert({
       where: {
-        tenantId_reference: { tenantId: tenant.id, reference: 'PO-2026-0003' },
+        tenantId_reference: { tenantId: tenant.id, reference: 'OF-2026-0003' },
       },
       update: {},
       create: {
         id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
         tenantId: tenant.id,
-        reference: 'PO-2026-0003',
+        reference: 'OF-2026-0003',
         supplierId: supplier.id,
         supplierName,
-        destinationLocationId: locationWarehouse.id,
-        status: 'draft',
+        status: 'confirmed',
         currency: 'EUR',
+        orderDate: new Date('2026-06-18'),
+        supplierReference: 'ORD-STAG-42',
+        subtotalMinor: 10 * 750,
         totalMinor: 10 * 750,
         expectedAt: new Date('2026-07-01'),
         lines: {
@@ -275,9 +291,12 @@ async function main() {
               id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
               variantId: variantLBlack.id,
               sku: 'TSB-L-BLK',
+              description: 'T-shirt Basic — L / Nero',
               orderedQuantity: 10,
               receivedQuantity: 0,
               unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: 10 * 750,
             },
           ],
         },
@@ -286,18 +305,19 @@ async function main() {
 
     await prisma.supplierOrder.upsert({
       where: {
-        tenantId_reference: { tenantId: tenant.id, reference: 'PO-2026-0004' },
+        tenantId_reference: { tenantId: tenant.id, reference: 'OF-2026-0004' },
       },
       update: {},
       create: {
         id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
         tenantId: tenant.id,
-        reference: 'PO-2026-0004',
+        reference: 'OF-2026-0004',
         supplierId: supplier.id,
         supplierName,
-        destinationLocationId: locationShop.id,
-        status: 'sent',
+        status: 'confirmed',
         currency: 'EUR',
+        orderDate: new Date('2026-07-02'),
+        subtotalMinor: 5 * 750,
         totalMinor: 5 * 750,
         expectedAt: new Date('2026-07-15'),
         lines: {
@@ -306,9 +326,12 @@ async function main() {
               id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
               variantId: variantMBlack.id,
               sku: 'TSB-M-BLK',
+              description: 'T-shirt Basic — M / Nero',
               orderedQuantity: 5,
               receivedQuantity: 0,
               unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: 5 * 750,
             },
           ],
         },

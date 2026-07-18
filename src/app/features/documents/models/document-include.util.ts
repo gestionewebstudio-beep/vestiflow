@@ -5,6 +5,11 @@
 // - Ordine cliente: può includere da Preventivo.
 // - DDT vendita: può includere da Preventivo e da Ordine cliente.
 // - Preventivo: non include da nessun documento (si crea sempre da zero).
+// - Arrivo merce: può includere da Ordine Fornitore (solo Confermati).
+//   L'inclusione è implementata nel form dedicato dell'Arrivo merce
+//   (goods-receipt-form, pannello «Includi ordine» + ?supplierOrderId=…):
+//   copia le righe residue e aggancia l'ordine, che al salvataggio diventa
+//   Concluso con collegamento visibile in entrambi i documenti.
 //
 // L'inclusione inserisce una riga di testo descrittiva con il riferimento al
 // documento di origine (es. «Rif. Preventivo PRE-2026-0001 del 17/07/2026»)

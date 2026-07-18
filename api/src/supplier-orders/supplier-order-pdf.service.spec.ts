@@ -7,7 +7,6 @@ import type { SupplierOrderWithLines } from './supplier-orders.service';
 describe('SupplierOrderPdfService', () => {
   const prisma = {
     tenant: { findUniqueOrThrow: vi.fn() },
-    location: { findFirst: vi.fn() },
   };
 
   const service = new SupplierOrderPdfService(prisma as never);
@@ -15,13 +14,18 @@ describe('SupplierOrderPdfService', () => {
   const baseOrder: SupplierOrderWithLines = {
     id: 'po-1',
     tenantId: 'tenant-1',
-    reference: 'PO-2026-0042',
+    reference: 'OF-2026-0042',
     supplierId: 'sup-1',
     supplierName: 'Fornitore Demo Srl',
-    destinationLocationId: 'loc-1',
-    status: SupplierOrderStatus.sent,
+    destinationLocationId: null,
+    status: SupplierOrderStatus.confirmed,
     currency: 'EUR',
-    totalMinor: 30000,
+    costEntryMode: 'vat_excluded',
+    orderDate: new Date('2026-07-10T09:00:00.000Z'),
+    supplierReference: 'ORD-77/2026',
+    subtotalMinor: 30000,
+    taxMinor: 6600,
+    totalMinor: 36600,
     expectedAt: new Date('2026-08-01T00:00:00.000Z'),
     createdAt: new Date('2026-07-10T09:00:00.000Z'),
     updatedAt: new Date('2026-07-10T09:00:00.000Z'),
@@ -31,9 +35,25 @@ describe('SupplierOrderPdfService', () => {
         orderId: 'po-1',
         variantId: 'var-1',
         sku: 'SKU-001',
+        description: 'T-shirt Basic — M / Bianco',
         orderedQuantity: 3,
         receivedQuantity: 0,
         unitCostMinor: 10000,
+        enteredUnitCostMinor: 10000,
+        discountPercent: 0,
+        vatCodeId: 'vat-22',
+        vatSnapshot: { code: '22', ratePercent: 22 },
+        lineTotalMinor: 30000,
+      },
+    ],
+    linkedDocuments: [
+      {
+        id: 'doc-1',
+        type: 'goods_receipt',
+        reference: 'CAR-2026-0005',
+        number: 5,
+        documentDate: new Date('2026-07-12T00:00:00.000Z'),
+        status: 'confirmed',
       },
     ],
   };
@@ -49,19 +69,14 @@ describe('SupplierOrderPdfService', () => {
       city: 'Napoli',
       province: 'NA',
     });
-    prisma.location.findFirst.mockResolvedValue({ name: 'Magazzino centrale' });
 
     const { buffer, filename } = await service.exportPdf('tenant-1', baseOrder);
 
     expect(buffer.subarray(0, 4).toString()).toBe('%PDF');
-    expect(filename).toBe('ordine-fornitore-PO-2026-0042.pdf');
-    expect(prisma.location.findFirst).toHaveBeenCalledWith({
-      where: { tenantId: 'tenant-1', id: 'loc-1' },
-      select: { name: true },
-    });
+    expect(filename).toBe('ordine-fornitore-OF-2026-0042.pdf');
   });
 
-  it('exportPdf gestisce ordine senza data attesa e location mancante', async () => {
+  it('exportPdf gestisce ordine minimale (senza consegna prevista, rif. fornitore e righe)', async () => {
     prisma.tenant.findUniqueOrThrow.mockResolvedValue({
       name: 'Negozio',
       legalName: null,
@@ -72,11 +87,12 @@ describe('SupplierOrderPdfService', () => {
       city: null,
       province: null,
     });
-    prisma.location.findFirst.mockResolvedValue(null);
 
     const { buffer } = await service.exportPdf('tenant-1', {
       ...baseOrder,
       expectedAt: null,
+      supplierReference: null,
+      linkedDocuments: [],
       lines: [],
     });
 

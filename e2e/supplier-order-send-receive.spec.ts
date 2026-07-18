@@ -2,12 +2,15 @@ import { expect, test } from '@playwright/test';
 
 import { confirmGoodsReceiptOnForm } from './helpers/goods-receipt-form';
 import {
-  registerGoodsReceiptFromOrderDetail,
-  sendSupplierOrderFromDetail,
+  createGoodsReceiptFromOrderDetail,
+  fillSupplierOrderForm,
+  saveSupplierOrder,
 } from './helpers/supplier-order-form';
 
-test.describe('Ordine fornitore — invio e registrazione arrivo merce', () => {
-  test('invia bozza seed e registra arrivo merce parziale via documento', async ({ page }) => {
+test.describe('Ordine fornitore — aggancio ad arrivo merce (Concluso)', () => {
+  test('crea ordine Confermato, lo include in un arrivo merce e lo vede Concluso', async ({
+    page,
+  }) => {
     test.setTimeout(180_000);
 
     await page.goto('/app/orders');
@@ -15,28 +18,32 @@ test.describe('Ordine fornitore — invio e registrazione arrivo merce', () => {
       timeout: 30_000,
     });
 
-    const draftRef = page.getByText('PO-2026-0003', { exact: true });
-    if (!(await draftRef.isVisible())) {
-      test.skip(true, 'Seed PO-2026-0003 non presente (DB non seeded).');
+    const createButton = page.getByRole('button', { name: 'Nuovo ordine' });
+    if (!(await createButton.isVisible())) {
+      test.skip(true, 'Utente E2E senza permesso ordini fornitori.');
       return;
     }
 
-    await draftRef.click();
-    await expect(page.locator('h1.po-detail__title')).toContainText('PO-2026-0003');
+    await fillSupplierOrderForm(page).catch((error: unknown) => {
+      if (error instanceof Error && error.message.includes('SKIP_NO_SEED_SUPPLIER')) {
+        test.skip(
+          true,
+          'Tenant senza fornitore seed Confezioni Sud SRL (eseguire prisma db seed).',
+        );
+      }
+      throw error;
+    });
+    const reference = await saveSupplierOrder(page);
 
-    const sendButton = page.getByRole('button', { name: 'Invia ordine' });
-    if (!(await sendButton.isVisible())) {
-      test.skip(true, 'Utente E2E senza permesso invio ordini.');
-      return;
-    }
+    // Flusso 3 del prompt: arrivo merce creato direttamente dall'ordine.
+    await createGoodsReceiptFromOrderDetail(page);
+    await confirmGoodsReceiptOnForm(page);
 
-    await sendSupplierOrderFromDetail(page);
-    await registerGoodsReceiptFromOrderDetail(page);
-    await confirmGoodsReceiptOnForm(page, { partialQty: 3 });
-
+    // L'aggancio marca l'ordine Concluso e il collegamento è visibile.
     await page.goto('/app/orders');
-    await page.getByText('PO-2026-0003', { exact: true }).click();
-    await expect(page.getByText('Ricevuto parziale', { exact: true })).toBeVisible({
+    await page.getByText(reference, { exact: true }).click();
+    await expect(page.getByText('Concluso', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Arrivo merce collegato', { exact: true })).toBeVisible({
       timeout: 15_000,
     });
   });

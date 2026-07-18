@@ -24,7 +24,7 @@ interface TenantPdfHeader {
  * Export PDF dell'ordine fornitore: stesso stack (pdfkit) e stesso layout dei
  * documenti (`DocumentPdfService`): intestazione azienda, meta, tabella righe,
  * totali. L'ordine è un documento solo commerciale: si stampano esclusivamente
- * i dati reali del modello (riferimento, fornitore, destinazione, righe).
+ * i dati reali del modello (riferimento, fornitore, righe con sconto e IVA).
  */
 @Injectable()
 export class SupplierOrderPdfService {
@@ -34,13 +34,10 @@ export class SupplierOrderPdfService {
     tenantId: string,
     order: SupplierOrderWithLines,
   ): Promise<{ buffer: Buffer; filename: string }> {
-    const [tenant, destinationName] = await Promise.all([
-      this.loadTenantHeader(tenantId),
-      this.loadDestinationName(tenantId, order.destinationLocationId),
-    ]);
+    const tenant = await this.loadTenantHeader(tenantId);
 
     const buffer = await renderPdfToBuffer((doc) => {
-      this.renderOrder(doc, { tenant, order, destinationName });
+      this.renderOrder(doc, { tenant, order });
     });
 
     const filename = sanitizePdfFilename(`ordine-fornitore-${order.reference}`);
@@ -75,23 +72,14 @@ export class SupplierOrderPdfService {
     };
   }
 
-  private async loadDestinationName(tenantId: string, locationId: string): Promise<string | null> {
-    const location = await this.prisma.location.findFirst({
-      where: { tenantId, id: locationId },
-      select: { name: true },
-    });
-    return location?.name ?? null;
-  }
-
   private renderOrder(
     doc: PdfDocumentInstance,
     params: {
       readonly tenant: TenantPdfHeader;
       readonly order: SupplierOrderWithLines;
-      readonly destinationName: string | null;
     },
   ): void {
-    const { tenant, order, destinationName } = params;
+    const { tenant, order } = params;
     const left = doc.page.margins.left;
     const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const currency = order.currency || 'EUR';
@@ -116,13 +104,22 @@ export class SupplierOrderPdfService {
       .text(`Ordine fornitore ${order.reference}`, left, y, { width: contentWidth });
     y += 26;
 
-    y = drawPdfMetaLine(doc, 'Data ordine', formatRomeDate(order.createdAt), y);
+    y = drawPdfMetaLine(doc, 'Data', formatRomeDate(order.orderDate), y);
     if (order.expectedAt) {
-      y = drawPdfMetaLine(doc, 'Consegna attesa', formatRomeDate(order.expectedAt), y);
+      y = drawPdfMetaLine(doc, 'Consegna prevista', formatRomeDate(order.expectedAt), y);
     }
     y = drawPdfMetaLine(doc, 'Fornitore', order.supplierName, y);
-    y = drawPdfMetaLine(doc, 'Destinazione merce', destinationName ?? '—', y);
+    if (order.supplierReference) {
+      y = drawPdfMetaLine(doc, 'Rif. ordine fornitore', order.supplierReference, y);
+    }
     y = drawPdfMetaLine(doc, 'Valuta', currency, y);
+    // Collegamento all'Arrivo merce visibile nel documento (stato Concluso).
+    const linkedReceipts = (order.linkedDocuments ?? [])
+      .map((linked) => linked.reference || (linked.number != null ? `n. ${linked.number}` : null))
+      .filter((label): label is string => label != null);
+    if (linkedReceipts.length > 0) {
+      y = drawPdfMetaLine(doc, 'Arrivo merce collegato', linkedReceipts.join(', '), y);
+    }
     y += 8;
 
     if (order.lines.length > 0) {
@@ -133,6 +130,8 @@ export class SupplierOrderPdfService {
     drawPdfTotals(
       doc,
       [
+        { label: 'Imponibile', value: formatMinorAmount(order.subtotalMinor, currency) },
+        { label: 'IVA', value: formatMinorAmount(order.taxMinor, currency) },
         {
           label: 'Totale ordine',
           value: formatMinorAmount(order.totalMinor, currency),
@@ -151,19 +150,25 @@ export class SupplierOrderPdfService {
     contentWidth: number,
   ): number {
     const columns: PdfTableColumn[] = [
-      { header: '#', width: contentWidth * 0.06, align: 'right' },
-      { header: 'SKU', width: contentWidth * 0.4 },
-      { header: 'Q.tà ordinata', width: contentWidth * 0.14, align: 'right' },
-      { header: 'Costo unitario', width: contentWidth * 0.2, align: 'right' },
-      { header: 'Totale riga', width: contentWidth * 0.2, align: 'right' },
+      { header: '#', width: contentWidth * 0.05, align: 'right' },
+      { header: 'SKU', width: contentWidth * 0.16 },
+      { header: 'Descrizione', width: contentWidth * 0.29 },
+      { header: 'Q.tà', width: contentWidth * 0.08, align: 'right' },
+      { header: 'Costo', width: contentWidth * 0.13, align: 'right' },
+      { header: 'Sconto', width: contentWidth * 0.08, align: 'right' },
+      { header: 'IVA', width: contentWidth * 0.07, align: 'right' },
+      { header: 'Totale', width: contentWidth * 0.14, align: 'right' },
     ];
 
     const rows = order.lines.map((line, index) => [
       String(index + 1),
       line.sku,
+      line.description || line.sku,
       String(line.orderedQuantity),
       formatMinorAmount(line.unitCostMinor, currency),
-      formatMinorAmount(line.orderedQuantity * line.unitCostMinor, currency),
+      line.discountPercent > 0 ? `${line.discountPercent}%` : '—',
+      this.vatLabel(line.vatSnapshot),
+      formatMinorAmount(line.lineTotalMinor, currency),
     ]);
 
     return drawPdfTable({
@@ -174,5 +179,19 @@ export class SupplierOrderPdfService {
       columns,
       rows,
     });
+  }
+
+  /** Etichetta IVA dal vatSnapshot riga (codice, altrimenti aliquota). */
+  private vatLabel(vatSnapshot: unknown): string {
+    if (vatSnapshot && typeof vatSnapshot === 'object') {
+      const snapshot = vatSnapshot as { code?: unknown; ratePercent?: unknown };
+      if (typeof snapshot.code === 'string' && snapshot.code.trim()) {
+        return snapshot.code;
+      }
+      if (typeof snapshot.ratePercent === 'number') {
+        return `${snapshot.ratePercent}%`;
+      }
+    }
+    return '—';
   }
 }

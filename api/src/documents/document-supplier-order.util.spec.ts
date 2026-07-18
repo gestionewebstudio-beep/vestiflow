@@ -1,18 +1,17 @@
+import { SupplierOrderStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-vi.mock('../inventory/inventory-incoming.util', () => ({
-  applyIncomingDelta: vi.fn(),
-}));
-
-import { applyIncomingDelta } from '../inventory/inventory-incoming.util';
 
 import {
   enrichReceiptLinesWithSupplierOrderLineIds,
   reconcileSupplierOrderReceipt,
   reverseSupplierOrderReceipt,
+  syncSupplierOrderConclusion,
 } from './document-supplier-order.util';
 
-function createTxMock() {
+function createTxMock(options?: {
+  orderStatus?: SupplierOrderStatus;
+  activeLinkedDocuments?: number;
+}) {
   const orderLines = new Map([
     [
       'line-1',
@@ -27,34 +26,45 @@ function createTxMock() {
     ],
   ]);
 
+  const order = {
+    id: 'order-1',
+    status: options?.orderStatus ?? SupplierOrderStatus.confirmed,
+  };
+
   return {
     supplierOrder: {
-      update: vi.fn(),
+      findUnique: vi.fn(async () => order),
+      update: vi.fn(async ({ data }: { data: { status?: SupplierOrderStatus } }) => {
+        if (data.status) {
+          order.status = data.status;
+        }
+        return order;
+      }),
+    },
+    document: {
+      count: vi.fn(async () => options?.activeLinkedDocuments ?? 0),
     },
     supplierOrderLine: {
-      findMany: vi.fn(async ({ where }: { where: { orderId: string; id?: { in: string[] } } }) => {
-        const lines = [...orderLines.values()].filter((line) => line.orderId === where.orderId);
-        if (where.id?.in) {
-          return lines.filter((line) => where.id!.in.includes(line.id));
-        }
-        return lines;
-      }),
+      findMany: vi.fn(async ({ where }: { where: { orderId: string } }) =>
+        [...orderLines.values()].filter((line) => line.orderId === where.orderId),
+      ),
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => orderLines.get(where.id)),
-      update: vi.fn(async ({ where, data }: { where: { id: string }; data: { receivedQuantity?: number | { increment: number } } }) => {
-        const line = orderLines.get(where.id);
-        if (!line) {
-          return null;
-        }
-        if (typeof data.receivedQuantity === 'number') {
-          line.receivedQuantity = data.receivedQuantity;
-        } else if (data.receivedQuantity?.increment != null) {
-          line.receivedQuantity += data.receivedQuantity.increment;
-        }
-        orderLines.set(where.id, line);
-        return line;
-      }),
+      update: vi.fn(
+        async ({ where, data }: { where: { id: string }; data: { receivedQuantity?: number } }) => {
+          const line = orderLines.get(where.id);
+          if (!line) {
+            return null;
+          }
+          if (typeof data.receivedQuantity === 'number') {
+            line.receivedQuantity = data.receivedQuantity;
+          }
+          orderLines.set(where.id, line);
+          return line;
+        },
+      ),
     },
     _lines: orderLines,
+    _order: order,
   };
 }
 
@@ -63,24 +73,53 @@ describe('document-supplier-order.util', () => {
 
   beforeEach(() => {
     tx = createTxMock();
-    vi.mocked(applyIncomingDelta).mockReset();
   });
 
-  it('reverseSupplierOrderReceipt decrementa receivedQuantity', async () => {
-    await reverseSupplierOrderReceipt(tx as never, 'order-1', [
-      {
-        variantId: 'variant-1',
-        sku: 'SKU-1',
-        quantity: 2,
-        loadsStock: true,
-        supplierOrderLineId: 'line-1',
-      },
-    ]);
+  it('syncSupplierOrderConclusion marca Concluso con un arrivo merce attivo agganciato', async () => {
+    tx = createTxMock({ activeLinkedDocuments: 1 });
 
-    expect(tx._lines.get('line-1')?.receivedQuantity).toBe(0);
+    await syncSupplierOrderConclusion(tx as never, 'order-1');
+
+    expect(tx._order.status).toBe(SupplierOrderStatus.concluded);
   });
 
-  it('reverseSupplierOrderReceipt incrementa incoming al annullamento', async () => {
+  it('syncSupplierOrderConclusion riporta a Confermato senza documenti attivi', async () => {
+    tx = createTxMock({
+      orderStatus: SupplierOrderStatus.concluded,
+      activeLinkedDocuments: 0,
+    });
+
+    await syncSupplierOrderConclusion(tx as never, 'order-1');
+
+    expect(tx._order.status).toBe(SupplierOrderStatus.confirmed);
+  });
+
+  it('syncSupplierOrderConclusion esclude il documento in annullamento dal conteggio', async () => {
+    tx = createTxMock({ orderStatus: SupplierOrderStatus.concluded });
+
+    await syncSupplierOrderConclusion(tx as never, 'order-1', 'doc-cancelling');
+
+    expect(tx.document.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { not: 'doc-cancelling' } }),
+      }),
+    );
+  });
+
+  it('syncSupplierOrderConclusion non tocca gli ordini annullati', async () => {
+    tx = createTxMock({
+      orderStatus: SupplierOrderStatus.cancelled,
+      activeLinkedDocuments: 1,
+    });
+
+    await syncSupplierOrderConclusion(tx as never, 'order-1');
+
+    expect(tx.supplierOrder.update).not.toHaveBeenCalled();
+  });
+
+  it('reverseSupplierOrderReceipt decrementa receivedQuantity e riapre l’ordine', async () => {
+    tx = createTxMock({ orderStatus: SupplierOrderStatus.concluded });
+
     await reverseSupplierOrderReceipt(
       tx as never,
       'order-1',
@@ -93,20 +132,16 @@ describe('document-supplier-order.util', () => {
           supplierOrderLineId: 'line-1',
         },
       ],
-      'loc-1',
-      'tenant-1',
+      'doc-1',
     );
 
-    expect(applyIncomingDelta).toHaveBeenCalledWith(
-      tx,
-      'tenant-1',
-      'variant-1',
-      'loc-1',
-      2,
-    );
+    expect(tx._lines.get('line-1')?.receivedQuantity).toBe(0);
+    expect(tx._order.status).toBe(SupplierOrderStatus.confirmed);
   });
 
-  it('reconcileSupplierOrderReceipt riconcilia incoming al variare quantità', async () => {
+  it('reconcileSupplierOrderReceipt aggiorna il ricevuto e conclude l’ordine', async () => {
+    tx = createTxMock({ activeLinkedDocuments: 1 });
+
     await reconcileSupplierOrderReceipt(
       tx as never,
       'order-1',
@@ -128,17 +163,29 @@ describe('document-supplier-order.util', () => {
           supplierOrderLineId: 'line-1',
         },
       ],
-      'loc-1',
-      'tenant-1',
     );
 
-    expect(applyIncomingDelta).toHaveBeenCalledWith(
-      tx,
-      'tenant-1',
-      'variant-1',
-      'loc-1',
-      -3,
-    );
+    expect(tx._lines.get('line-1')?.receivedQuantity).toBe(5);
+    expect(tx._order.status).toBe(SupplierOrderStatus.concluded);
+  });
+
+  it('reconcileSupplierOrderReceipt rifiuta quantità oltre il residuo ordinato', async () => {
+    await expect(
+      reconcileSupplierOrderReceipt(
+        tx as never,
+        'order-1',
+        [],
+        [
+          {
+            variantId: 'variant-1',
+            sku: 'SKU-1',
+            quantity: 99,
+            loadsStock: true,
+            supplierOrderLineId: 'line-1',
+          },
+        ],
+      ),
+    ).rejects.toThrowError(/Quantità eccessiva/);
   });
 
   it('enrichReceiptLinesWithSupplierOrderLineIds collega righe per variantId', async () => {

@@ -9,6 +9,7 @@ import {
   DocumentStatus,
   DocumentType,
   Prisma,
+  SupplierOrderStatus,
   type Document,
   type DocumentLine,
 } from '@prisma/client';
@@ -312,6 +313,24 @@ export class GoodsReceiptWorkflowService {
         }
       }
 
+      // Mappa «Includi documento»: l'Arrivo merce può includere solo ordini
+      // fornitore Confermati. Un ordine già Concluso è agganciato a un altro
+      // arrivo; il documento già collegato allo STESSO ordine resta valido.
+      if (dto.supplierOrderId && dto.supplierOrderId !== existing?.supplierOrderId) {
+        const linkedOrder = await tx.supplierOrder.findFirst({
+          where: { id: dto.supplierOrderId, tenantId },
+          select: { status: true },
+        });
+        if (!linkedOrder) {
+          throw new NotFoundException('Ordine fornitore non trovato');
+        }
+        if (linkedOrder.status !== SupplierOrderStatus.confirmed) {
+          throw new ConflictException(
+            'Solo ordini fornitore confermati (non ancora conclusi) possono essere agganciati a un arrivo merce.',
+          );
+        }
+      }
+
       const supplierName = await this.snapshotSupplierName(tx, tenantId, dto.supplierId);
       const series = (dto.series ?? existing?.series ?? setting.defaultSeries).trim() || 'A';
       const year = documentDate.getFullYear();
@@ -501,16 +520,10 @@ export class GoodsReceiptWorkflowService {
 
         // Il ricevuto ordine era applicato solo alla conferma nel vecchio flusso:
         // per i documenti mai confermati (bozze legacy) si parte da zero.
+        // L'aggancio marca l'ordine fornitore Concluso (prompt 2026-07).
         const oldLinesForOrder =
           existing && existing.status !== DocumentStatus.draft ? existing.lines : [];
-        await reconcileSupplierOrderReceipt(
-          tx,
-          supplierOrderId,
-          oldLinesForOrder,
-          savedLines,
-          dto.locationId ?? undefined,
-          tenantId,
-        );
+        await reconcileSupplierOrderReceipt(tx, supplierOrderId, oldLinesForOrder, savedLines);
       }
 
       // ── Sync movimenti per riga (§2.3): un movimento per riga, mai duplicati.

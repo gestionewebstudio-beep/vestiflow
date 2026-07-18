@@ -20,18 +20,26 @@
     <app-empty-state
       icon="pi-lock"
       title="Ordine non modificabile"
-      description="Solo le bozze possono essere modificate."
+      description="Solo gli ordini confermati (non conclusi né annullati) possono essere modificati."
       ctaLabel="Torna agli ordini"
       (ctaClick)="cancel()"
     />
   } @else {
-    <form class="po-form__form" [formGroup]="form" (ngSubmit)="saveAndSend()">
+    <form class="po-form__form" [formGroup]="form" (ngSubmit)="submit()">
       @if (supplierDocumentAlert(); as supplierAlert) {
         <p class="po-form__supplier-alert-banner" role="status">
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           {{ supplierAlert }}
         </p>
       }
+
+      @if (!isEditMode() && nextReferencePreview()) {
+        <p class="po-form__hint po-form__numbering tabular-nums">
+          Numerazione (dai Numeratori): prossimo riferimento
+          <strong>{{ nextReferencePreview() }}</strong>
+        </p>
+      }
+
       <div class="po-form__grid">
         <div class="po-form__field">
           <span class="po-form__label" id="po-supplier-label">Fornitore</span>
@@ -64,32 +72,40 @@
         </div>
 
         <div class="po-form__field">
-          <span class="po-form__label">Destinazione merce</span>
-          <app-select-menu
-            [options]="locationOptions()"
-            [value]="form.controls.destinationLocationId.value"
-            ariaLabel="Location di destinazione"
-            placeholder="Seleziona una location…"
+          <label class="po-form__label" for="po-order-date">Data</label>
+          <app-date-input
+            inputId="po-order-date"
+            formControlName="orderDate"
+            ariaLabel="Data ordine"
             [compact]="true"
             [fullWidth]="true"
-            [invalid]="fieldInvalid('destinationLocationId')"
-            describedBy="po-location-error"
-            (valueChange)="onLocationSelect($event)"
           />
-          @if (fieldInvalid('destinationLocationId')) {
-            <p id="po-location-error" class="po-form__error">Seleziona la location.</p>
+          @if (fieldInvalid('orderDate')) {
+            <p class="po-form__error">Indica la data dell'ordine.</p>
           }
         </div>
 
         <div class="po-form__field">
-          <label class="po-form__label" for="po-expected">Data attesa (opzionale)</label>
+          <label class="po-form__label" for="po-expected">Consegna prevista</label>
           <app-date-input
             inputId="po-expected"
             formControlName="expectedAt"
-            ariaLabel="Data attesa consegna"
+            ariaLabel="Consegna prevista"
             placeholder="Nessuna data"
             [compact]="true"
             [fullWidth]="true"
+          />
+        </div>
+
+        <div class="po-form__field">
+          <label class="po-form__label" for="po-supplier-reference">Rif. ordine fornitore</label>
+          <input
+            id="po-supplier-reference"
+            class="po-form__input"
+            type="text"
+            formControlName="supplierReference"
+            placeholder="Es. conferma d'ordine del fornitore"
+            maxlength="120"
           />
         </div>
       </div>
@@ -142,12 +158,36 @@
                     ></span>
                   </th>
                 }
-                @if (isLineColumnVisible('variant')) {
-                  <th scope="col" [style.width]="lineColumnWidth('variant')">
-                    Articolo / SKU
+                @if (isLineColumnVisible('sku')) {
+                  <th scope="col" [style.width]="lineColumnWidth('sku')">
+                    SKU
+                    <span appTableColumnResize (resized)="onLineColumnResize('sku', $event)"></span>
+                  </th>
+                }
+                @if (isLineColumnVisible('barcode')) {
+                  <th scope="col" [style.width]="lineColumnWidth('barcode')">
+                    EAN
                     <span
                       appTableColumnResize
-                      (resized)="onLineColumnResize('variant', $event)"
+                      (resized)="onLineColumnResize('barcode', $event)"
+                    ></span>
+                  </th>
+                }
+                @if (isLineColumnVisible('supplierCode')) {
+                  <th scope="col" [style.width]="lineColumnWidth('supplierCode')">
+                    Cod. fornitore
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('supplierCode', $event)"
+                    ></span>
+                  </th>
+                }
+                @if (isLineColumnVisible('product')) {
+                  <th scope="col" [style.width]="lineColumnWidth('product')">
+                    Nome prodotto
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('product', $event)"
                     ></span>
                   </th>
                 }
@@ -160,18 +200,142 @@
                     ></span>
                   </th>
                 }
+                @if (isLineColumnVisible('unitOfMeasure')) {
+                  <th scope="col" [style.width]="lineColumnWidth('unitOfMeasure')">
+                    U.m.
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('unitOfMeasure', $event)"
+                    ></span>
+                  </th>
+                }
                 @if (isLineColumnVisible('unitCost')) {
-                  <th scope="col" class="po-form__num" [style.width]="lineColumnWidth('unitCost')">
-                    Costo
+                  <th
+                    scope="col"
+                    class="po-form__num po-form__th--menu"
+                    [style.width]="lineColumnWidth('unitCost')"
+                  >
+                    <span class="po-form__th-menu-wrap">
+                      <span class="po-form__th-menu-label">{{ costModeLabel() }}</span>
+                      <button
+                        type="button"
+                        class="po-form__th-menu-trigger"
+                        aria-haspopup="menu"
+                        [attr.aria-expanded]="costModeMenuOpen()"
+                        aria-label="Modalità costi del documento"
+                        (click)="toggleCostModeMenu()"
+                      >
+                        <i class="pi pi-chevron-down" aria-hidden="true"></i>
+                      </button>
+                      @if (costModeMenuOpen()) {
+                        <div class="po-form__th-menu" role="menu" aria-label="Modalità costi">
+                          <button
+                            type="button"
+                            class="po-form__th-menu-item"
+                            role="menuitemradio"
+                            [attr.aria-checked]="costEntryMode() === 'vat_excluded'"
+                            (click)="selectCostMode('vat_excluded')"
+                          >
+                            @if (costEntryMode() === 'vat_excluded') {
+                              <i class="pi pi-check" aria-hidden="true"></i>
+                            } @else {
+                              <span class="po-form__th-menu-check" aria-hidden="true"></span>
+                            }
+                            Usa costi netti
+                          </button>
+                          <button
+                            type="button"
+                            class="po-form__th-menu-item"
+                            role="menuitemradio"
+                            [attr.aria-checked]="costEntryMode() === 'vat_included'"
+                            (click)="selectCostMode('vat_included')"
+                          >
+                            @if (costEntryMode() === 'vat_included') {
+                              <i class="pi pi-check" aria-hidden="true"></i>
+                            } @else {
+                              <span class="po-form__th-menu-check" aria-hidden="true"></span>
+                            }
+                            Usa costi ivati
+                          </button>
+                        </div>
+                      }
+                    </span>
                     <span
                       appTableColumnResize
                       (resized)="onLineColumnResize('unitCost', $event)"
                     ></span>
                   </th>
                 }
+                @if (isLineColumnVisible('discount')) {
+                  <th scope="col" class="po-form__num" [style.width]="lineColumnWidth('discount')">
+                    Sconto
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('discount', $event)"
+                    ></span>
+                  </th>
+                }
+                @if (isLineColumnVisible('vat')) {
+                  <th scope="col" [style.width]="lineColumnWidth('vat')">
+                    IVA
+                    <span appTableColumnResize (resized)="onLineColumnResize('vat', $event)"></span>
+                  </th>
+                }
+                @if (isLineColumnVisible('sellingPrice')) {
+                  <th
+                    scope="col"
+                    class="po-form__num"
+                    [style.width]="lineColumnWidth('sellingPrice')"
+                  >
+                    Prezzo al pubblico
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('sellingPrice', $event)"
+                    ></span>
+                  </th>
+                }
+                @if (isLineColumnVisible('compareAtPrice')) {
+                  <th
+                    scope="col"
+                    class="po-form__num"
+                    [style.width]="lineColumnWidth('compareAtPrice')"
+                  >
+                    Prezzo barrato
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('compareAtPrice', $event)"
+                    ></span>
+                  </th>
+                }
+                @if (isLineColumnVisible('stockOnHand')) {
+                  <th
+                    scope="col"
+                    class="po-form__num"
+                    [style.width]="lineColumnWidth('stockOnHand')"
+                  >
+                    Q.tà giacenza
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('stockOnHand', $event)"
+                    ></span>
+                  </th>
+                }
+                @if (isLineColumnVisible('stockAvailable')) {
+                  <th
+                    scope="col"
+                    class="po-form__num"
+                    [style.width]="lineColumnWidth('stockAvailable')"
+                  >
+                    Q.tà disponibile
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('stockAvailable', $event)"
+                    ></span>
+                  </th>
+                }
                 @if (isLineColumnVisible('lineTotal')) {
                   <th scope="col" class="po-form__num" [style.width]="lineColumnWidth('lineTotal')">
-                    Subtotale
+                    Totale
                   </th>
                 }
                 @if (isLineColumnVisible('actions')) {
@@ -186,28 +350,43 @@
                 <tr class="po-form__table-row" [formGroupName]="i">
                   @if (isLineColumnVisible('articleCode')) {
                     <td class="po-form__cell tabular-nums" data-label="Cod. articolo">
-                      {{ lineArticleCode(i) }}
+                      {{ lineDisplay(i, 'articleCode') }}
                     </td>
                   }
-                  @if (isLineColumnVisible('variant')) {
-                    <td class="po-form__cell po-form__cell--variant" data-label="Articolo / SKU">
+                  @if (isLineColumnVisible('sku')) {
+                    <td class="po-form__cell tabular-nums" data-label="SKU">
+                      {{ lineDisplay(i, 'sku') }}
+                    </td>
+                  }
+                  @if (isLineColumnVisible('barcode')) {
+                    <td class="po-form__cell tabular-nums" data-label="EAN">
+                      {{ lineDisplay(i, 'barcode') }}
+                    </td>
+                  }
+                  @if (isLineColumnVisible('supplierCode')) {
+                    <td class="po-form__cell tabular-nums" data-label="Cod. fornitore">
+                      {{ lineDisplay(i, 'supplierSku') }}
+                    </td>
+                  }
+                  @if (isLineColumnVisible('product')) {
+                    <td class="po-form__cell po-form__cell--variant" data-label="Nome prodotto">
                       <app-select-menu
                         [options]="variantOptions()"
                         [value]="line.controls.variantId.value"
-                        ariaLabel="Variante"
-                        placeholder="Seleziona una variante…"
+                        ariaLabel="Articolo"
+                        placeholder="Seleziona un articolo…"
                         [compact]="true"
                         [fullWidth]="true"
                         [searchable]="true"
                         [filterOptionsLocally]="false"
                         searchPlaceholder="Cerca per prodotto o SKU…"
-                        searchAriaLabel="Cerca variante per prodotto o SKU"
+                        searchAriaLabel="Cerca articolo per prodotto o SKU"
                         [invalid]="lineFieldInvalid(i, 'variantId')"
                         (valueChange)="onVariantSelect(i, $event)"
                         (searchChange)="onVariantSearch($event)"
                       />
                       @if (lineFieldInvalid(i, 'variantId')) {
-                        <p class="po-form__error">Seleziona la variante.</p>
+                        <p class="po-form__error">Seleziona l'articolo.</p>
                       }
                       @if (!line.controls.variantId.value) {
                         <button
@@ -238,8 +417,13 @@
                       }
                     </td>
                   }
+                  @if (isLineColumnVisible('unitOfMeasure')) {
+                    <td class="po-form__cell" data-label="U.m.">
+                      {{ lineDisplay(i, 'unitOfMeasure') }}
+                    </td>
+                  }
                   @if (isLineColumnVisible('unitCost')) {
-                    <td class="po-form__cell po-form__num" data-label="Costo unitario">
+                    <td class="po-form__cell po-form__num" data-label="Costo">
                       <input
                         [id]="'po-cost-' + i"
                         class="po-form__input po-form__input--table po-form__input--num"
@@ -254,8 +438,63 @@
                       }
                     </td>
                   }
+                  @if (isLineColumnVisible('discount')) {
+                    <td class="po-form__cell po-form__num" data-label="Sconto">
+                      <input
+                        [id]="'po-discount-' + i"
+                        class="po-form__input po-form__input--table po-form__input--num"
+                        type="text"
+                        inputmode="numeric"
+                        formControlName="discountPercent"
+                        placeholder="%"
+                        [attr.aria-invalid]="discountInvalid(i)"
+                      />
+                      @if (discountInvalid(i)) {
+                        <p class="po-form__error">0–100.</p>
+                      }
+                    </td>
+                  }
+                  @if (isLineColumnVisible('vat')) {
+                    <td class="po-form__cell" data-label="IVA">
+                      <app-select-menu
+                        [options]="vatCodeOptions()"
+                        [value]="line.controls.vatCodeId.value"
+                        ariaLabel="Codice IVA riga"
+                        placeholder="—"
+                        [compact]="true"
+                        [fullWidth]="true"
+                        (valueChange)="onLineVatSelect(i, $event)"
+                      />
+                    </td>
+                  }
+                  @if (isLineColumnVisible('sellingPrice')) {
+                    <td
+                      class="po-form__cell po-form__num tabular-nums"
+                      data-label="Prezzo al pubblico"
+                    >
+                      {{ linePrice(i, 'sellingPrice') }}
+                    </td>
+                  }
+                  @if (isLineColumnVisible('compareAtPrice')) {
+                    <td class="po-form__cell po-form__num tabular-nums" data-label="Prezzo barrato">
+                      {{ linePrice(i, 'compareAtPrice') }}
+                    </td>
+                  }
+                  @if (isLineColumnVisible('stockOnHand')) {
+                    <td class="po-form__cell po-form__num tabular-nums" data-label="Q.tà giacenza">
+                      {{ lineStock(i, 'stockOnHand') }}
+                    </td>
+                  }
+                  @if (isLineColumnVisible('stockAvailable')) {
+                    <td
+                      class="po-form__cell po-form__num tabular-nums"
+                      data-label="Q.tà disponibile"
+                    >
+                      {{ lineStock(i, 'stockAvailable') }}
+                    </td>
+                  }
                   @if (isLineColumnVisible('lineTotal')) {
-                    <td class="po-form__cell po-form__num tabular-nums" data-label="Subtotale">
+                    <td class="po-form__cell po-form__num tabular-nums" data-label="Totale">
                       {{ formatMoney(lineMoney(i)) }}
                     </td>
                   }
@@ -278,9 +517,17 @@
           </table>
         </div>
 
-        <p class="po-form__total tabular-nums">
-          Totale ordine: <strong>{{ formatMoney(orderTotal()) }}</strong>
-        </p>
+        <div class="po-form__totals tabular-nums">
+          <p class="po-form__total">
+            Imponibile: <strong>{{ formatMoney(orderSubtotal()) }}</strong>
+          </p>
+          <p class="po-form__total">
+            IVA: <strong>{{ formatMoney(orderTax()) }}</strong>
+          </p>
+          <p class="po-form__total po-form__total--grand">
+            Totale ordine: <strong>{{ formatMoney(orderTotal()) }}</strong>
+          </p>
+        </div>
       </section>
 
       @if (submitError(); as appError) {
@@ -300,19 +547,9 @@
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
           Annulla
         </app-button>
-        <app-button
-          type="button"
-          variant="secondary"
-          [disabled]="saving()"
-          [loading]="saving()"
-          (click)="saveDraft()"
-        >
-          <i class="pi pi-save" aria-hidden="true"></i>
-          Salva bozza
-        </app-button>
         <app-button type="submit" [disabled]="saving()" [loading]="saving()">
-          <i class="pi pi-send" aria-hidden="true"></i>
-          {{ isEditMode() ? 'Salva e invia' : 'Crea e invia' }}
+          <i class="pi pi-check" aria-hidden="true"></i>
+          {{ isEditMode() ? 'Salva modifiche' : 'Salva ordine' }}
         </app-button>
       </div>
     </form>

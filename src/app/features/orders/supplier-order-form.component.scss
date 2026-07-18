@@ -330,11 +330,92 @@
   cursor: not-allowed;
 }
 
+.po-form__totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
 .po-form__total {
   margin: 0;
   text-align: right;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.po-form__total--grand {
   font-size: var(--text-base);
   color: var(--color-text);
+}
+
+.po-form__numbering {
+  margin: 0;
+}
+
+// ── Menu intestazione colonna Costo (switch netto/ivato come Arrivo merce) ──
+.po-form__th-menu-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  inline-size: 100%;
+}
+
+.po-form__th-menu-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.po-form__th-menu-trigger,
+.po-form__th-menu-item {
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.po-form__th-menu-trigger {
+  padding: 0 var(--space-1);
+  color: inherit;
+
+  &:hover {
+    color: var(--color-primary);
+  }
+}
+
+.po-form__th-menu {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-end: 0;
+  z-index: var(--z-dropdown);
+  display: grid;
+  padding: var(--space-1);
+  min-inline-size: calc(var(--space-16) * 2);
+  background-color: var(--color-surface-raised);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.po-form__th-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text);
+  text-align: start;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: var(--color-surface-sunken);
+  }
+}
+
+.po-form__th-menu-check {
+  inline-size: var(--space-3);
 }
 
 .po-form__submit-error {

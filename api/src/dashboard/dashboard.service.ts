@@ -79,12 +79,12 @@ export class DashboardService {
       locations,
     ] = await this.prisma.$transaction([
       this.prisma.product.count({ where: { tenantId } }),
+      // Ordini fornitore aperti: Confermati, non ancora conclusi da un
+      // arrivo merce (l'ordine non incide più sulle giacenze).
       this.prisma.supplierOrder.count({
         where: {
           tenantId,
-          status: {
-            in: [SupplierOrderStatus.sent, SupplierOrderStatus.partially_received],
-          },
+          status: SupplierOrderStatus.confirmed,
         },
       }),
       this.prisma.inventoryLevel.aggregate({

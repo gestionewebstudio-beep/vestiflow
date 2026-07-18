@@ -10,45 +10,75 @@ import {
   IsString,
   IsUUID,
   Length,
+  Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { SupplierOrderStatus } from '@prisma/client';
+import { PurchaseCostEntryMode } from '@prisma/client';
 
 export class CreateSupplierOrderLineDto {
   @IsUUID()
   variantId!: string;
 
+  /** Snapshot descrizione articolo; se assente il server usa il nome prodotto. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
   @IsInt()
   @Min(1)
   orderedQuantity!: number;
 
-  /** Costo unitario in unità minori intere (regole-gestionale: mai float). */
+  /**
+   * Costo unitario digitato in unità minori intere (regole-gestionale: mai
+   * float), interpretato netto o ivato secondo costEntryMode di testata.
+   */
   @IsInt()
   @Min(0)
-  unitCostMinor!: number;
+  enteredUnitCostMinor!: number;
+
+  /** Sconto riga percentuale intero (0-100). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  discountPercent?: number;
+
+  @IsOptional()
+  @IsUUID()
+  vatCodeId?: string;
 }
 
 export class CreateSupplierOrderDto {
   @IsUUID()
   supplierId!: string;
 
-  @IsUUID()
-  destinationLocationId!: string;
-
+  /** Data ordine (testata); default: oggi. */
   @IsOptional()
-  @IsString()
-  @Length(3, 3)
-  currency?: string;
+  @IsISO8601()
+  orderDate?: string;
 
   @IsOptional()
   @IsISO8601()
   expectedAt?: string;
 
-  /** Stato iniziale: solo bozza o inviato (gli altri sono transizioni). */
+  /** "Rif. ordine fornitore": riferimento libero comunicato dal fornitore. */
   @IsOptional()
-  @IsEnum(SupplierOrderStatus)
-  status?: SupplierOrderStatus;
+  @IsString()
+  @MaxLength(120)
+  supplierReference?: string;
+
+  /** Switch costi netto/ivato (come Arrivo merce). Default: netti. */
+  @IsOptional()
+  @IsEnum(PurchaseCostEntryMode)
+  costEntryMode?: PurchaseCostEntryMode;
+
+  @IsOptional()
+  @IsString()
+  @Length(3, 3)
+  currency?: string;
 
   @IsArray()
   @ArrayMinSize(1)

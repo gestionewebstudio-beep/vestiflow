@@ -51,7 +51,7 @@ describe('SupplierOrderService (HTTP)', () => {
           supplierId: 'sup-1',
           supplierName: 'Fornitore',
           destinationLocationId: 'loc-1',
-          status: SupplierOrderStatus.Draft,
+          status: SupplierOrderStatus.Confirmed,
           currency: 'EUR',
           totalMinor: 1000,
           createdAt: '2026-01-01T00:00:00.000Z',
@@ -70,42 +70,14 @@ describe('SupplierOrderService (HTTP)', () => {
     expect(result.meta.total).toBe(1);
   });
 
-  it('receiveOrder invia POST con righe ricevute', async () => {
-    const promise = firstValueFrom(
-      service.receiveOrder('ord-1', [{ lineId: 'line-1', quantity: 5 }]),
-    );
+  it('getMeta espone anteprima numerazione', async () => {
+    const promise = firstValueFrom(service.getMeta());
 
-    const req = httpMock.expectOne(`${API_BASE}/supplier-orders/ord-1/receive`);
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ lines: [{ lineId: 'line-1', quantity: 5 }] });
-    req.flush({
-      id: 'ord-1',
-      tenantId: 'tenant-1',
-      reference: 'PO-001',
-      supplierId: 'sup-1',
-      supplierName: 'Fornitore',
-      destinationLocationId: 'loc-1',
-      status: SupplierOrderStatus.PartiallyReceived,
-      currency: 'EUR',
-      totalMinor: 1000,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-02T00:00:00.000Z',
-      lines: [
-        {
-          id: 'line-1',
-          orderId: 'ord-1',
-          variantId: 'var-1',
-          sku: 'SKU-1',
-          orderedQuantity: 10,
-          receivedQuantity: 5,
-          unitCostMinor: 100,
-        },
-      ],
-    });
+    const req = httpMock.expectOne(`${API_BASE}/supplier-orders/meta`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ nextReferencePreview: 'OF-2026-0042' });
 
-    const result = await promise;
-    expect(result.status).toBe(SupplierOrderStatus.PartiallyReceived);
-    expect(result.lines[0]?.receivedQuantity).toBe(5);
+    await expect(promise).resolves.toEqual({ nextReferencePreview: 'OF-2026-0042' });
   });
 
   it('exportPdf richiede il blob PDF', async () => {

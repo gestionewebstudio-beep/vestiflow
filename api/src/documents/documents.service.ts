@@ -2426,13 +2426,9 @@ export class DocumentsService {
       }
 
       if (wasSupplierOrderReceived && doc.supplierOrderId) {
-        await reverseSupplierOrderReceipt(
-          tx,
-          doc.supplierOrderId,
-          doc.lines,
-          doc.locationId ?? undefined,
-          tenantId,
-        );
+        // L'annullo dell'arrivo merce riapre l'ordine fornitore (Concluso →
+        // Confermato) se non restano altri arrivi attivi agganciati.
+        await reverseSupplierOrderReceipt(tx, doc.supplierOrderId, doc.lines, doc.id);
       }
 
       // Ordine cliente manuale concluso da questo scarico: l'annullamento del
@@ -2519,13 +2515,7 @@ export class DocumentsService {
         syncTargets.push(...sync.syncTargets);
 
         if (doc.supplierOrderId) {
-          await reverseSupplierOrderReceipt(
-            tx,
-            doc.supplierOrderId,
-            doc.lines,
-            doc.locationId ?? undefined,
-            tenantId,
-          );
+          await reverseSupplierOrderReceipt(tx, doc.supplierOrderId, doc.lines, doc.id);
         }
         await reverseInventorySerialsForDocument(
           tx,
@@ -3100,12 +3090,9 @@ export class DocumentsService {
       }
       resolvedStatus = order.status;
     }
-    if (
-      resolvedStatus !== SupplierOrderStatus.sent &&
-      resolvedStatus !== SupplierOrderStatus.partially_received
-    ) {
+    if (resolvedStatus !== SupplierOrderStatus.confirmed) {
       throw new ConflictException(
-        'Solo ordini inviati o parzialmente ricevuti possono generare un arrivo merce.',
+        'Solo ordini fornitore confermati (non ancora conclusi) possono essere agganciati a un arrivo merce.',
       );
     }
   }

@@ -186,23 +186,19 @@ describe('ShopifyShopChangeService', () => {
   it('preview segnala ordini fornitore aperti', async () => {
     const { service, prisma } = createService();
     prisma.supplierOrder.findMany.mockResolvedValue([
-      { id: 'po-1', reference: 'PO-2026-0001' },
+      { id: 'po-1', reference: 'OF-2026-0001' },
     ]);
 
     const preview = await service.preview(tenantId);
 
     expect(preview.blockers).toHaveLength(1);
     expect(preview.blockers[0]?.code).toBe('supplier_orders_open');
-    expect(preview.blockers[0]?.references[0]?.reference).toBe('PO-2026-0001');
+    expect(preview.blockers[0]?.references[0]?.reference).toBe('OF-2026-0001');
     expect(prisma.supplierOrder.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           status: {
-            in: [
-              SupplierOrderStatus.draft,
-              SupplierOrderStatus.sent,
-              SupplierOrderStatus.partially_received,
-            ],
+            in: [SupplierOrderStatus.confirmed],
           },
         }),
       }),

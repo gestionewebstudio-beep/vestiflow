@@ -19,15 +19,19 @@ export async function pickSelectMenuOption(
 }
 
 /** Cerca e seleziona una variante (autocomplete server-side, min. 2 caratteri). */
-export async function pickVariantWithSearch(page: Page, searchTerm: string): Promise<void> {
+export async function pickVariantWithSearch(
+  page: Page,
+  searchTerm: string,
+  triggerName = 'Articolo',
+): Promise<void> {
   const term = searchTerm.trim();
   if (term.length < 2) {
     throw new Error('pickVariantWithSearch richiede almeno 2 caratteri.');
   }
 
-  const variantTrigger = page.getByRole('button', { name: 'Variante', exact: true }).first();
+  const variantTrigger = page.getByRole('button', { name: triggerName, exact: true }).first();
   await variantTrigger.click();
-  const search = page.getByRole('searchbox', { name: /Cerca variante/i });
+  const search = page.getByRole('searchbox', { name: /Cerca (variante|articolo)/i });
 
   const summariesResponse = page.waitForResponse(
     (response) =>
@@ -37,7 +41,7 @@ export async function pickVariantWithSearch(page: Page, searchTerm: string): Pro
   await search.fill(term);
   await summariesResponse;
 
-  const listbox = page.getByRole('listbox', { name: 'Variante' });
+  const listbox = page.getByRole('listbox', { name: triggerName });
   let option = listbox
     .getByRole('option')
     .filter({ hasNotText: /^Seleziona/i })

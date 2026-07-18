@@ -12,9 +12,7 @@ import { isShopifyManagedImportLocation } from './shopify-location-import.util';
 import type { PurgeShopifyDataDto } from './dto/purge-shopify-data.dto';
 
 const OPEN_SUPPLIER_ORDER_STATUSES: readonly SupplierOrderStatus[] = [
-  SupplierOrderStatus.draft,
-  SupplierOrderStatus.sent,
-  SupplierOrderStatus.partially_received,
+  SupplierOrderStatus.confirmed,
 ];
 
 /** Purge può coinvolere molte righe (catalogo + movimenti + ordini). */
