@@ -3,6 +3,7 @@ import type { PurchaseCostEntryMode, VatSnapshot } from '@core/models/vat-code.m
 import type {
   AdjustmentDirection,
   CausalGenerationMode,
+  DocumentAddress,
   DocumentAttachment,
   DocumentLine,
   DocumentRecord,
@@ -12,6 +13,8 @@ import type {
   GoodsReceiptLinkStatus,
   LinkedGoodsReceiptInfo,
   LinkedPurchaseInvoiceInfo,
+  LinkedSalesOrderInfo,
+  TransportPort,
 } from '@core/models/document.model';
 
 export interface DocumentLineApiRow {
@@ -87,7 +90,20 @@ export interface DocumentApiRow {
   readonly sourceDocumentId?: EntityId | null;
   readonly billingCause?: string | null;
   readonly paymentTerms?: string | null;
+  readonly paymentMethod?: string | null;
   readonly expectedDeliveryDate?: IsoDateString | null;
+  readonly followedBySalesDoc?: boolean | null;
+  readonly transportCausal?: string | null;
+  readonly transportStartAt?: IsoDateString | null;
+  readonly transportPort?: TransportPort | null;
+  readonly transportCarrier?: string | null;
+  readonly transportPackagesCount?: number | null;
+  readonly transportWeight?: string | null;
+  readonly transportGoodsAspect?: string | null;
+  readonly transportShippingCode?: string | null;
+  readonly transportTrackingCode?: string | null;
+  readonly recipientAddress?: DocumentAddress | null;
+  readonly destinationAddress?: DocumentAddress | null;
   readonly causalText?: string | null;
   readonly causalGenerationMode?: string | null;
   readonly causalTemplateSnapshot?: string | null;
@@ -109,6 +125,7 @@ export interface DocumentApiRow {
   readonly lineCount?: number;
   readonly blockAfterConfirm?: boolean;
   readonly salesOrder?: { readonly id: EntityId; readonly orderNumber: string } | null;
+  readonly linkedSalesOrders?: readonly LinkedSalesOrderApiRow[] | null;
   readonly supplierOrder?: { readonly id: EntityId; readonly reference: string } | null;
   readonly linkedSupplierOrder?: { readonly id: EntityId; readonly reference: string } | null;
   readonly linkedSupplierOrderLines?: readonly {
@@ -131,6 +148,25 @@ export interface DocumentAttachmentApiRow {
   readonly sizeBytes: number;
   readonly createdByName: string;
   readonly createdAt: IsoDateString;
+}
+
+/** Ordine cliente agganciato al documento (payload API, DDT vendita). */
+export interface LinkedSalesOrderApiRow {
+  readonly id: EntityId;
+  readonly orderNumber: string;
+  readonly cancelledAt?: IsoDateString | null;
+  readonly fulfilledAt?: IsoDateString | null;
+  readonly fulfillmentStatus?: string | null;
+}
+
+function mapLinkedSalesOrder(row: LinkedSalesOrderApiRow): LinkedSalesOrderInfo {
+  return {
+    id: row.id,
+    orderNumber: row.orderNumber,
+    cancelledAt: row.cancelledAt ?? undefined,
+    fulfilledAt: row.fulfilledAt ?? undefined,
+    fulfillmentStatus: row.fulfillmentStatus ?? undefined,
+  };
 }
 
 function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine {
@@ -225,7 +261,20 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     sourceDocumentId: row.sourceDocumentId ?? undefined,
     billingCause: row.billingCause ?? undefined,
     paymentTerms: row.paymentTerms ?? undefined,
+    paymentMethod: row.paymentMethod ?? undefined,
     expectedDeliveryDate: row.expectedDeliveryDate ?? undefined,
+    followedBySalesDoc: row.followedBySalesDoc ?? undefined,
+    transportCausal: row.transportCausal ?? undefined,
+    transportStartAt: row.transportStartAt ?? undefined,
+    transportPort: row.transportPort ?? undefined,
+    transportCarrier: row.transportCarrier ?? undefined,
+    transportPackagesCount: row.transportPackagesCount ?? undefined,
+    transportWeight: row.transportWeight ?? undefined,
+    transportGoodsAspect: row.transportGoodsAspect ?? undefined,
+    transportShippingCode: row.transportShippingCode ?? undefined,
+    transportTrackingCode: row.transportTrackingCode ?? undefined,
+    recipientAddress: row.recipientAddress ?? undefined,
+    destinationAddress: row.destinationAddress ?? undefined,
     causalText: row.causalText ?? undefined,
     causalGenerationMode:
       (row.causalGenerationMode as CausalGenerationMode | null | undefined) ?? undefined,
@@ -248,6 +297,7 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     lineCount: row.lineCount,
     blockAfterConfirm: row.blockAfterConfirm,
     linkedSalesOrder: row.salesOrder ?? undefined,
+    linkedSalesOrders: row.linkedSalesOrders?.map(mapLinkedSalesOrder),
     linkedSupplierOrder: row.linkedSupplierOrder ?? row.supplierOrder ?? undefined,
     linkedSupplierOrderLines: row.linkedSupplierOrderLines,
     linkStatus: row.linkStatus ?? undefined,
@@ -307,22 +357,56 @@ export interface CreateDocumentBody {
   readonly documentDiscountPercent?: number;
   /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
   readonly paymentTerms?: string;
+  /** Modalità di pagamento (DDT vendita: voce normativa MP01–MP23). */
+  readonly paymentMethod?: string;
   /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
   readonly expectedDeliveryDate?: IsoDateString;
+  // ── DDT vendita: testata operativa (prompt DDT) ──
+  readonly followedBySalesDoc?: boolean;
+  readonly transportCausal?: string;
+  readonly transportStartAt?: IsoDateString;
+  readonly transportPort?: TransportPort;
+  readonly transportCarrier?: string;
+  readonly transportPackagesCount?: number;
+  readonly transportWeight?: string;
+  readonly transportGoodsAspect?: string;
+  readonly transportShippingCode?: string;
+  readonly transportTrackingCode?: string;
+  readonly recipientAddress?: DocumentAddress;
+  readonly destinationAddress?: DocumentAddress;
+  /** Ordini cliente inclusi nel DDT vendita (aggancio, prompt DDT). */
+  readonly includedSalesOrderIds?: readonly EntityId[];
   readonly lines?: readonly DocumentLineInputBody[];
 }
+
+/** Campi di testata svuotabili con null nel PATCH (vedi UpdateDocumentBody). */
+type NullableUpdateHeaderField =
+  | 'externalRef'
+  | 'paymentTerms'
+  | 'paymentMethod'
+  | 'expectedDeliveryDate'
+  | 'transportCausal'
+  | 'transportStartAt'
+  | 'transportPort'
+  | 'transportCarrier'
+  | 'transportPackagesCount'
+  | 'transportWeight'
+  | 'transportGoodsAspect'
+  | 'transportShippingCode'
+  | 'transportTrackingCode'
+  | 'recipientAddress'
+  | 'destinationAddress';
 
 /**
  * Body PATCH /documents/:id (bozze e documenti confermati editabili).
  * I campi liberi di testata accettano anche null: il PATCH distingue
- * «non toccare» (assente) da «svuota» (null) — usato dal form Preventivo.
+ * «non toccare» (assente) da «svuota» (null) — usato dal form Preventivo
+ * e dal DDT vendita.
  */
 export type UpdateDocumentBody = Partial<
-  Omit<CreateDocumentBody, 'type' | 'externalRef' | 'paymentTerms' | 'expectedDeliveryDate'>
+  Omit<CreateDocumentBody, 'type' | NullableUpdateHeaderField>
 > & {
-  readonly externalRef?: string | null;
-  readonly paymentTerms?: string | null;
-  readonly expectedDeliveryDate?: IsoDateString | null;
+  readonly [K in NullableUpdateHeaderField]?: CreateDocumentBody[K] | null;
 };
 
 /**

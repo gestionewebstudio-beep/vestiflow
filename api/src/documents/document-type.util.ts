@@ -22,10 +22,23 @@ export const PROFORMA_CONVERT_TARGET_TYPES: readonly DocumentType[] = [
   DocumentType.invoice_draft,
 ] as const;
 
+/**
+ * Tipi generabili dal DDT vendita (prompt DDT §GENERAZIONE DOCUMENTI):
+ * Bozza fattura o Proforma — la fattura vera non è prevista in questa fase.
+ */
+export const SALES_DDT_CONVERT_TARGET_TYPES: readonly DocumentType[] = [
+  DocumentType.invoice_draft,
+  DocumentType.proforma,
+] as const;
+
 export function documentTypeDefaultLoadsStock(type: DocumentType): boolean {
   return !(NON_STOCK_DOCUMENT_TYPES as readonly string[]).includes(type);
 }
 
 export function isProformaConvertTarget(type: DocumentType): boolean {
   return (PROFORMA_CONVERT_TARGET_TYPES as readonly string[]).includes(type);
+}
+
+export function isSalesDdtConvertTarget(type: DocumentType): boolean {
+  return (SALES_DDT_CONVERT_TARGET_TYPES as readonly string[]).includes(type);
 }

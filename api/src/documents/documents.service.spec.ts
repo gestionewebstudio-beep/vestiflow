@@ -102,7 +102,11 @@ function createPrismaMock() {
     supplier: { findFirst: vi.fn() },
     customer: { findFirst: vi.fn() },
     // Ordine cliente manuale collegato a scarichi: nessuno di default.
-    salesOrder: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+    salesOrder: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn(),
+    },
     stockReservation: { findMany: vi.fn().mockResolvedValue([]) },
     location: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     supplierOrder: { findFirst: vi.fn() },

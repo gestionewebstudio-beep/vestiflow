@@ -60,14 +60,34 @@ export const documentsRoutes: Routes = [
     },
   },
   {
+    // DDT vendita: stessa maschera dell'Ordine cliente in modalità sales-ddt
+    // (prompt DDT §BASE — righe identiche, testata con Pagamento e «Seguirà
+    // doc. di vendita», sezioni Trasporto e Indirizzi, scarico al salvataggio).
     path: 'sales-ddt/new',
     title: 'VestiFlow · Nuovo DDT vendita',
     loadComponent: () =>
-      import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
+      import('@features/sales-orders/customer-order-form.component').then(
+        (m) => m.CustomerOrderFormComponent,
+      ),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
-      salesDocumentType: DocumentType.SalesDdt,
+      customerDocumentKind: 'sales-ddt',
+    },
+  },
+  {
+    path: 'sales-ddt/:id/edit',
+    title: 'VestiFlow · Modifica DDT vendita',
+    loadComponent: () =>
+      import('@features/sales-orders/customer-order-form.component').then(
+        (m) => m.CustomerOrderFormComponent,
+      ),
+    canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      customerDocumentKind: 'sales-ddt',
     },
   },
   {

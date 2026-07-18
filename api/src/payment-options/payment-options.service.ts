@@ -7,7 +7,7 @@ import {
 import type { PaymentOption, PaymentOptionKind } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { PAYMENT_OPTION_SEED } from './payment-option-seed.data';
+import { PAYMENT_OPTION_SEED, SDI_PAYMENT_METHOD_NAMES } from './payment-option-seed.data';
 
 /**
  * Voci pagamento del tenant (logica Danea): modalità e condizioni sono due
@@ -118,6 +118,10 @@ export class PaymentOptionsService {
   private async seedIfEmpty(tenantId: string): Promise<void> {
     const count = await this.prisma.paymentOption.count({ where: { tenantId } });
     if (count > 0) {
+      // Top-up idempotente: i tenant già inizializzati ricevono le modalità
+      // normative fatturazione elettronica mancanti (MP01–MP23) senza toccare
+      // le voci esistenti o rinominate (unique tenantId+kind+name).
+      await this.ensureSdiPaymentMethods(tenantId);
       return;
     }
     await this.prisma.paymentOption.createMany({
@@ -126,6 +130,30 @@ export class PaymentOptionsService {
         kind: entry.kind,
         name: entry.name,
         sortOrder: entry.sortOrder,
+        isSystem: true,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  private async ensureSdiPaymentMethods(tenantId: string): Promise<void> {
+    const missingCount = await this.prisma.paymentOption.count({
+      where: { tenantId, kind: 'method', name: { in: [...SDI_PAYMENT_METHOD_NAMES] } },
+    });
+    if (missingCount >= SDI_PAYMENT_METHOD_NAMES.length) {
+      return;
+    }
+    const last = await this.prisma.paymentOption.aggregate({
+      where: { tenantId, kind: 'method' },
+      _max: { sortOrder: true },
+    });
+    const base = last._max.sortOrder ?? 0;
+    await this.prisma.paymentOption.createMany({
+      data: SDI_PAYMENT_METHOD_NAMES.map((name, index) => ({
+        tenantId,
+        kind: 'method' as const,
+        name,
+        sortOrder: base + index + 1,
         isSystem: true,
       })),
       skipDuplicates: true,

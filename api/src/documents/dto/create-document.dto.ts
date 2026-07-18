@@ -17,6 +17,8 @@ import {
 } from 'class-validator';
 import { AdjustmentDirection, DocumentType } from '@prisma/client';
 
+import { DocumentAddressDto, DocumentTransportFieldsDto } from './document-transport.dto';
+
 /** Riga documento in input. La testata calcola i totali server-side. */
 export class DocumentLineInputDto {
   @IsOptional()
@@ -89,7 +91,7 @@ export class DocumentLineInputDto {
   serialNumbers?: string[];
 }
 
-export class CreateDocumentDto {
+export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @IsEnum(DocumentType)
   type!: DocumentType;
 
@@ -176,10 +178,44 @@ export class CreateDocumentDto {
   @MaxLength(500)
   paymentTerms?: string;
 
+  /** Modalità di pagamento (DDT vendita: voce normativa MP01–MP23, snapshot nome). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  paymentMethod?: string;
+
   /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
   @IsOptional()
   @IsISO8601()
   expectedDeliveryDate?: string;
+
+  /** "Seguirà doc. di vendita" (DDT vendita, prompt DDT §TESTATA). */
+  @IsOptional()
+  @IsBoolean()
+  followedBySalesDoc?: boolean;
+
+  /** Intestatario documento (snapshot indirizzo, prompt DDT §INDIRIZZI). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DocumentAddressDto)
+  recipientAddress?: DocumentAddressDto;
+
+  /** Destinazione merce (può differire dall'intestatario). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DocumentAddressDto)
+  destinationAddress?: DocumentAddressDto;
+
+  /**
+   * Ordini cliente inclusi nel DDT vendita («Includi documento»): vengono
+   * agganciati al documento, gli impegni rilasciati e lo stato aggiornato
+   * alla conferma (prompt DDT §LOGICA MAGAZZINO).
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID(undefined, { each: true })
+  includedSalesOrderIds?: string[];
 
   @IsOptional()
   @IsArray()

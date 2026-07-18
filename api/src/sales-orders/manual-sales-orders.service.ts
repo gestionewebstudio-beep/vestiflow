@@ -10,6 +10,7 @@ import {
   DocumentType,
   Prisma,
   ReservationStatus,
+  SalesOrderFulfillmentStatus,
   SalesOrderSource,
   type SalesOrder,
   type SalesOrderLine,
@@ -242,16 +243,19 @@ export class ManualSalesOrdersService {
             'Solo gli ordini di origine Manuale sono modificabili da questa maschera.',
           );
         }
-        if (existing.fulfilledAt) {
-          throw new ConflictException(
-            'Ordine concluso: le correzioni si fanno sul documento di scarico associato.',
-          );
-        }
         // Modifica su sede già assegnata: deve restare nello scope utente.
         if (user && existing.locationId) {
           assertLocationInUserScope(user, existing.locationId, 'write');
         }
       }
+
+      // Ordine evaso (anche parzialmente) da un documento di scarico: la
+      // riapertura in modifica è consentita (prompt DDT — l'avviso «collegato
+      // a un DDT» vive nella maschera), ma gli impegni consumati NON vengono
+      // né ricreati né rilasciati: lo scarico reale è già del documento.
+      const isSettled =
+        Boolean(existing?.fulfilledAt) ||
+        existing?.fulfillmentStatus === SalesOrderFulfillmentStatus.partially_fulfilled;
 
       // Numero assegnato al primo salvataggio (numeratore dedicato §2.3).
       let orderNumber = existing?.orderNumber ?? null;
@@ -347,7 +351,10 @@ export class ManualSalesOrdersService {
 
       // Impegni: Confermato → allineati alle righe con spunta ON; Annullato →
       // tutti rilasciati. Ricalcolo atomico nella stessa transazione (§DISPONIBILITÀ).
-      if (status === 'confirmed' && dto.locationId) {
+      // Ordini evasi (isSettled): impegni consumati intoccati.
+      if (isSettled) {
+        // Nessuna variazione impegni: lo scarico è già del documento collegato.
+      } else if (status === 'confirmed' && dto.locationId) {
         const reservationLines = computedLines.filter(effectiveCommits).map((line) => ({
           salesOrderLineId: savedLineIdByIndex.get(line.lineNumber)!,
           variantId: line.variantId!,
@@ -376,7 +383,7 @@ export class ManualSalesOrdersService {
       // Controllo disponibilità NON bloccante (§CONTROLLI): dopo il ricalcolo,
       // una disponibilità negativa segnala righe oltre la giacenza reale.
       const warningMessages: string[] = [];
-      if (status === 'confirmed' && dto.locationId) {
+      if (!isSettled && status === 'confirmed' && dto.locationId) {
         const requestedByVariant = new Map<string, number>();
         for (const line of computedLines.filter(effectiveCommits)) {
           requestedByVariant.set(
@@ -544,6 +551,76 @@ export class ManualSalesOrdersService {
       `Concludi ordine ${order.orderNumber}: creato ${type} ${document.id} (${tenantId})`,
     );
     return { documentId: document.id, documentType: document.type };
+  }
+
+  /**
+   * «Forzare lo stato a Concluso?» (prompt DDT §LOGICA MAGAZZINO): un ordine
+   * Parzialmente concluso — evaso da un DDT che non copre tutti i prodotti —
+   * viene chiuso d'ufficio. Gli eventuali impegni residui vengono rilasciati
+   * (merce mai spedita: torna disponibile, nessun movimento di magazzino).
+   */
+  async forceConclude(
+    tenantId: string,
+    orderId: string,
+    user?: UserProfileDto,
+  ): Promise<void> {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: orderId, tenantId },
+      select: {
+        id: true,
+        orderNumber: true,
+        source: true,
+        cancelledAt: true,
+        fulfilledAt: true,
+        fulfillmentStatus: true,
+        locationId: true,
+      },
+    });
+    if (!order) {
+      throw new NotFoundException('Ordine cliente non trovato');
+    }
+    if (order.source !== SalesOrderSource.manual) {
+      throw new ConflictException('Solo gli ordini manuali si concludono da questa maschera.');
+    }
+    if (order.cancelledAt) {
+      throw new ConflictException('Un ordine annullato non può essere concluso.');
+    }
+    if (order.fulfilledAt) {
+      return; // Già concluso: forzatura idempotente.
+    }
+    if (order.fulfillmentStatus !== SalesOrderFulfillmentStatus.partially_fulfilled) {
+      throw new ConflictException(
+        'Solo un ordine Parzialmente concluso può essere forzato a Concluso.',
+      );
+    }
+    if (user && order.locationId) {
+      assertLocationInUserScope(user, order.locationId, 'write');
+    }
+
+    const syncTargets = new Set<string>();
+    await this.prisma.$transaction(async (tx) => {
+      const active = await tx.stockReservation.findMany({
+        where: { tenantId, salesOrderId: order.id, status: ReservationStatus.active },
+        select: { variantId: true, locationId: true },
+      });
+      await this.reservations.releaseOrderReservationsTx(tx, {
+        tenantId,
+        salesOrderId: order.id,
+        note: `Stato forzato a Concluso (ordine ${order.orderNumber})`,
+      });
+      for (const reservation of active) {
+        syncTargets.add(`${reservation.variantId}:${reservation.locationId}`);
+      }
+      await tx.salesOrder.update({
+        where: { id: order.id },
+        data: {
+          fulfilledAt: new Date(),
+          fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
+        },
+      });
+    });
+    await this.pushInventoryTargets(tenantId, syncTargets);
+    this.logger.log(`Ordine cliente ${order.orderNumber} forzato a Concluso (${tenantId})`);
   }
 
   private async pushInventoryTargets(

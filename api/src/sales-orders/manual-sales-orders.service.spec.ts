@@ -243,19 +243,28 @@ describe('ManualSalesOrdersService.save', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('rifiuta la modifica di un ordine Concluso', async () => {
+  it('consente la modifica di un ordine Concluso senza toccare gli impegni (prompt DDT)', async () => {
     prisma.salesOrder.findFirst.mockResolvedValue({
       id: 'order-1',
+      orderNumber: 'OC-2026-0012',
       source: 'manual',
       fulfilledAt: new Date(),
+      fulfillmentStatus: 'fulfilled',
       locationId: 'loc-1',
       lines: [],
     });
-    const { service } = createService(prisma);
+    prisma.salesOrder.update.mockResolvedValue({ id: 'order-1' });
+    const { service, reservations } = createService(prisma);
 
-    await expect(
-      service.save(tenantId, { ...baseDto, id: '3f0b8f5e-8f5e-4f5e-8f5e-3f0b8f5e8f5e' }, testOwnerUser()),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await service.save(
+      tenantId,
+      { ...baseDto, id: '3f0b8f5e-8f5e-4f5e-8f5e-3f0b8f5e8f5e' },
+      testOwnerUser(),
+    );
+
+    // Gli impegni consumati restano intoccati: né sync né rilascio.
+    expect(reservations.syncOrderReservationsTx).not.toHaveBeenCalled();
+    expect(reservations.releaseOrderReservationsTx).not.toHaveBeenCalled();
   });
 });
 

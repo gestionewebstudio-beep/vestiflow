@@ -4,7 +4,6 @@ import {
   DestroyRef,
   ElementRef,
   computed,
-  effect,
   inject,
   signal,
   viewChild,
@@ -72,11 +71,13 @@ import { GoodsReceiptLineProductCellComponent } from '@features/documents/compon
 import { GoodsReceiptProductSearchPanelComponent } from '@features/documents/components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
 import {
   CUSTOMER_ORDER_INCLUDE_SOURCES,
-  type IncludeSourceKind,
+  IncludeSourceKind,
+  includeSourceKindsForDocumentType,
   type IncludedDocumentPayload,
 } from '@features/documents/models/document-include.util';
 import { documentTypeLabel } from '@features/documents/models/document-labels.util';
 import { documentEditPath } from '@features/documents/models/document-routing.util';
+import { parseSerialNumbersText } from '@features/documents/utils/serial-numbers-input.util';
 import { DocumentService } from '@features/documents/services/document.service';
 import type {
   CreateDocumentBody,
@@ -86,9 +87,10 @@ import type {
 import {
   DocumentStatus,
   DocumentType,
+  TransportPort,
   isConfirmedEditableDocumentStatus,
 } from '@core/models/document.model';
-import type { DocumentRecord } from '@core/models/document.model';
+import type { DocumentAddress, DocumentRecord } from '@core/models/document.model';
 import type { ProductEmbeddedCreatePrefill } from '@features/products/models/product-form.mapper';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductFormComponent } from '@features/products/product-form.component';
@@ -119,6 +121,9 @@ import {
   QUOTE_LINE_COLUMNS,
   QUOTE_LINE_PRESETS,
   QUOTE_LINES_VIEW,
+  SALES_DDT_LINE_COLUMNS,
+  SALES_DDT_LINE_PRESETS,
+  SALES_DDT_LINES_VIEW,
 } from './models/customer-order-line-columns.config';
 import {
   SalesOrderService,
@@ -137,7 +142,8 @@ type CustomerOrderLineFocusField =
   | 'product'
   | 'quantity'
   | 'unitPrice'
-  | 'discount';
+  | 'discount'
+  | 'serials';
 type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
@@ -211,26 +217,56 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /**
    * Modalità della maschera (route data `customerDocumentKind`): 'order' =
-   * Ordine cliente manuale (default), 'quote' = Preventivo. Il Preventivo usa
-   * la STESSA schermata e lo stesso funzionamento, con tre differenze:
-   * nessuno stato documento, nessun impegno/blocco di disponibilità
-   * magazzino, persistenza nel registro documenti (tipo `quote`, numeratore
-   * PRE dedicato dai Numeratori).
+   * Ordine cliente manuale (default), 'quote' = Preventivo, 'sales-ddt' =
+   * DDT vendita. Preventivo e DDT usano la STESSA schermata e lo stesso
+   * funzionamento delle righe, persistendo nel registro documenti coi
+   * rispettivi numeratori (PRE / DDT). Differenze chiave:
+   * - Preventivo: nessuno stato, mai effetti magazzino.
+   * - DDT vendita: nessuno stato documento, la colonna «Imp.» diventa
+   *   «Scarica mag.» e le giacenze vengono SCARICATE al salvataggio; in più
+   *   testata con Pagamento (modalità normativa fatt. elettronica), «Seguirà
+   *   doc. di vendita», sezione Trasporto e sezione Indirizzi (prompt DDT).
    */
   private readonly formKind =
-    (this.route.snapshot.data['customerDocumentKind'] as 'order' | 'quote' | undefined) ?? 'order';
+    (this.route.snapshot.data['customerDocumentKind'] as
+      | 'order'
+      | 'quote'
+      | 'sales-ddt'
+      | undefined) ?? 'order';
   protected readonly isQuote = this.formKind === 'quote';
+  protected readonly isSalesDdt = this.formKind === 'sales-ddt';
+  /** Ordine cliente manuale (persistenza in SalesOrder, stati e impegni). */
+  protected readonly isOrder = this.formKind === 'order';
+  /** Modalità che persistono nel registro documenti (quote / sales_ddt). */
+  private readonly isRegistryDocument = !this.isOrder;
+  /** Tipo documento del registro per la modalità corrente. */
+  private readonly registryDocumentType = this.isSalesDdt
+    ? DocumentType.SalesDdt
+    : DocumentType.Quote;
 
   protected readonly listPath = '/app/sales';
   protected readonly quoteListPath = '/app/documents/registro';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatVatRate = formatVatRate;
-  protected readonly lineColumnsView = this.isQuote ? QUOTE_LINES_VIEW : CUSTOMER_ORDER_LINES_VIEW;
-  private readonly lineColumnDefs = this.isQuote ? QUOTE_LINE_COLUMNS : CUSTOMER_ORDER_LINE_COLUMNS;
-  protected readonly commitsStockTooltip =
-    'Se attiva, la quantità della riga impegna la disponibilità di magazzino (Disponibile = Giacenza − Impegnata). ' +
-    'Default dal Tipo prodotto: Articolo ON, Servizio OFF. Sempre modificabile per eccezioni.';
+  protected readonly TransportPort = TransportPort;
+  protected readonly lineColumnsView = this.isQuote
+    ? QUOTE_LINES_VIEW
+    : this.isSalesDdt
+      ? SALES_DDT_LINES_VIEW
+      : CUSTOMER_ORDER_LINES_VIEW;
+  private readonly lineColumnDefs = this.isQuote
+    ? QUOTE_LINE_COLUMNS
+    : this.isSalesDdt
+      ? SALES_DDT_LINE_COLUMNS
+      : CUSTOMER_ORDER_LINE_COLUMNS;
+  /** Colonna spunta magazzino: «Imp.» (ordine) o «Scarica mag.» (DDT §RIGHE). */
+  protected readonly commitsColumnLabel = this.isSalesDdt ? 'Scarica mag.' : 'Imp.';
+  protected readonly commitsStockTooltip = this.isSalesDdt
+    ? 'Se attiva, la quantità della riga SCARICA la giacenza di magazzino al salvataggio del documento. ' +
+      'Default dal Tipo prodotto: Articolo ON, Servizio OFF. Sempre modificabile per eccezioni.'
+    : 'Se attiva, la quantità della riga impegna la disponibilità di magazzino (Disponibile = Giacenza − Impegnata). ' +
+      'Default dal Tipo prodotto: Articolo ON, Servizio OFF. Sempre modificabile per eccezioni.';
 
   // ── Routing / stato pagina ──────────────────────────────────────────────
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
@@ -238,7 +274,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly isEditMode = computed(() => Boolean(this.editOrderId()));
 
   protected readonly loadedOrder = signal<SalesOrder | null>(null);
-  /** Preventivo caricato in modifica (modalità quote: vive nel registro documenti). */
+  /** Documento caricato in modifica (modalità quote/sales-ddt: registro documenti). */
   protected readonly loadedQuoteDoc = signal<DocumentRecord | null>(null);
   protected readonly saveWarnings = signal<readonly string[]>([]);
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
@@ -253,16 +289,38 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return order ? manualOrderState(order) : ManualOrderState.Confirmed;
   });
   protected readonly isConcluded = computed(() => this.orderState() === ManualOrderState.Concluded);
+  protected readonly isPartiallyConcluded = computed(
+    () => this.orderState() === ManualOrderState.PartiallyConcluded,
+  );
+  /**
+   * Ordine evaso (anche parzialmente) da un documento di scarico: la modifica
+   * resta consentita (prompt DDT), ma alla chiusura con modifiche compare
+   * l'avviso «collegato a un DDT».
+   */
+  protected readonly isSettledOrder = computed(
+    () => this.isConcluded() || this.isPartiallyConcluded(),
+  );
 
   protected readonly pageTitle = computed(() => {
     if (this.isQuote) {
       return this.isEditMode() ? 'Modifica preventivo' : 'Nuovo preventivo';
     }
+    if (this.isSalesDdt) {
+      return this.isEditMode() ? 'Modifica DDT vendita' : 'Nuovo DDT vendita';
+    }
     return this.isEditMode() ? 'Modifica ordine cliente' : 'Nuovo ordine cliente';
   });
 
-  protected readonly backLabel = this.isQuote ? 'Preventivi' : 'Ordini cliente';
-  protected readonly backHref = this.isQuote ? '/app/documents/registro?type=quote' : '/app/sales';
+  protected readonly backLabel = this.isQuote
+    ? 'Preventivi'
+    : this.isSalesDdt
+      ? 'DDT vendita'
+      : 'Ordini cliente';
+  protected readonly backHref = this.isQuote
+    ? '/app/documents/registro?type=quote'
+    : this.isSalesDdt
+      ? '/app/documents/registro?type=sales_ddt'
+      : '/app/sales';
 
   protected readonly stateOptions: readonly SelectMenuOption[] = [
     { value: ManualOrderState.Confirmed, label: 'Confermato' },
@@ -275,17 +333,21 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         return 'Annullato';
       case ManualOrderState.Concluded:
         return 'Concluso';
+      case ManualOrderState.PartiallyConcluded:
+        return 'Parzialmente concluso';
       default:
         return 'Confermato';
     }
   }
 
-  protected stateBadgeTone(): 'success' | 'error' | 'info' {
+  protected stateBadgeTone(): 'success' | 'error' | 'info' | 'warning' {
     switch (this.orderState()) {
       case ManualOrderState.Cancelled:
         return 'error';
       case ManualOrderState.Concluded:
         return 'info';
+      case ManualOrderState.PartiallyConcluded:
+        return 'warning';
       default:
         return 'success';
     }
@@ -303,11 +365,44 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     expectedDeliveryDate: this.fb.control(''),
     status: this.fb.control<'confirmed' | 'cancelled'>('confirmed'),
     paymentTerms: this.fb.control(''),
+    // DDT vendita: modalità di pagamento normativa (dropdown, prompt DDT).
+    paymentMethod: this.fb.control(''),
+    // DDT vendita: «Seguirà doc. di vendita» (prompt DDT §TESTATA).
+    followedBySalesDoc: this.fb.control(false),
     notes: this.fb.control(''),
     // Sconto extra % sull'intero documento (stesso pattern Arrivo merce).
     documentDiscountPercent: this.fb.control(''),
+    // DDT vendita: sezione Trasporto (prompt DDT §TRASPORTO).
+    transport: this.fb.group({
+      causal: this.fb.control(''),
+      startDate: this.fb.control(''),
+      startTime: this.fb.control(''),
+      port: this.fb.control<'' | TransportPort>(''),
+      carrier: this.fb.control(''),
+      packagesCount: this.fb.control(''),
+      weight: this.fb.control(''),
+      goodsAspect: this.fb.control(''),
+      shippingCode: this.fb.control(''),
+      trackingCode: this.fb.control(''),
+    }),
+    // DDT vendita: sezione Indirizzi (prompt DDT §INDIRIZZI).
+    recipientAddress: this.createAddressGroup(),
+    destinationAddress: this.createAddressGroup(),
     lines: this.fb.array([this.createLine()]),
   });
+
+  private createAddressGroup() {
+    return this.fb.group({
+      name: this.fb.control(''),
+      address: this.fb.control(''),
+      zip: this.fb.control(''),
+      city: this.fb.control(''),
+      province: this.fb.control(''),
+      country: this.fb.control(''),
+      fiscalCode: this.fb.control(''),
+      vatNumber: this.fb.control(''),
+    });
+  }
 
   get lines(): FormArray<ReturnType<CustomerOrderFormComponent['createLine']>> {
     return this.form.controls.lines;
@@ -363,6 +458,61 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.paymentOptionsService.list().pipe(catchError(() => of([] as readonly PaymentOption[]))),
     { initialValue: [] as readonly PaymentOption[] },
   );
+
+  /**
+   * Modalità di pagamento per la testata DDT (prompt DDT §TESTATA): voci
+   * normative fatturazione elettronica gestibili in Impostazioni → Pagamenti.
+   * La voce salvata sul documento resta selezionabile anche se disattivata.
+   */
+  protected readonly paymentMethodOptions = computed<readonly SelectMenuOption[]>(() => {
+    this.formValue();
+    const options = this.paymentOptions()
+      .filter((option) => option.kind === 'method' && option.isActive)
+      .map((option) => ({ value: option.name, label: option.name }));
+    const current = this.form.controls.paymentMethod.value.trim();
+    if (current && !options.some((option) => option.value === current)) {
+      return [...options, { value: current, label: current }];
+    }
+    return options;
+  });
+
+  protected onPaymentMethodSelect(value: string | null): void {
+    this.form.controls.paymentMethod.setValue(value ?? '');
+    this.markFormDirty();
+  }
+
+  // ── DDT vendita: trasporto, indirizzi, ordini inclusi (prompt DDT) ──────
+
+  /** Sezione Trasporto collassabile: aperta se contiene già dei dati. */
+  protected readonly transportOpen = signal(false);
+
+  protected toggleTransportSection(): void {
+    this.transportOpen.update((open) => !open);
+  }
+
+  /** "Cambia destinazione": abilita un indirizzo diverso dall'intestatario. */
+  protected readonly destinationDiffers = signal(false);
+
+  /** Intestatario auto-compilato dall'anagrafica: true finché non editato a mano. */
+  private recipientAutoFilled = true;
+
+  /**
+   * Ordini cliente inclusi nel DDT («Includi documento»): id agganciati al
+   * salvataggio + righe per il controllo di copertura (stato Parzialmente
+   * concluso, prompt DDT §LOGICA MAGAZZINO).
+   */
+  protected readonly includedOrders = signal<
+    readonly {
+      readonly id: string;
+      readonly orderNumber: string;
+      readonly lines: readonly { readonly variantId?: string; readonly quantity: number }[];
+    }[]
+  >([]);
+
+  protected removeIncludedOrder(orderId: string): void {
+    this.includedOrders.update((orders) => orders.filter((order) => order.id !== orderId));
+    this.markFormDirty();
+  }
 
   protected toggleCustomerForm(): void {
     this.showCustomerForm.update((open) => !open);
@@ -441,15 +591,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   });
 
   private readonly meta = toSignal(
-    this.isQuote
-      ? of(null)
-      : this.salesOrderService.getManualOrderMeta().pipe(catchError(() => of(null))),
+    this.isOrder
+      ? this.salesOrderService.getManualOrderMeta().pipe(catchError(() => of(null)))
+      : of(null),
     { initialValue: null },
   );
-  /** Anteprima prossimo numero preventivo (numeratore quote → PRE-AAAA-NNNN). */
-  private readonly quotePreviewReference = toSignal(
-    this.isQuote
-      ? this.documentService.previewDocumentNumber(DocumentType.Quote).pipe(
+  /** Anteprima prossimo numero documento (numeratore quote/sales_ddt). */
+  private readonly registryPreviewReference = toSignal(
+    this.isRegistryDocument
+      ? this.documentService.previewDocumentNumber(this.registryDocumentType).pipe(
           map((preview) => preview.reference),
           catchError(() => of(null)),
         )
@@ -457,10 +607,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     { initialValue: null as string | null },
   );
   protected readonly previewReference = computed(() =>
-    this.isQuote ? this.quotePreviewReference() : (this.meta()?.nextReferencePreview ?? null),
+    this.isRegistryDocument
+      ? this.registryPreviewReference()
+      : (this.meta()?.nextReferencePreview ?? null),
   );
   protected readonly internalReferenceLabel = computed(() => {
-    const saved = this.isQuote ? this.loadedQuoteDoc()?.reference : this.loadedOrder()?.orderNumber;
+    const saved = this.isRegistryDocument
+      ? this.loadedQuoteDoc()?.reference
+      : this.loadedOrder()?.orderNumber;
     return saved ?? this.previewReference();
   });
   protected readonly unloadTypeOptions = computed<readonly SelectMenuOption[]>(() =>
@@ -503,7 +657,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return !this.form.controls.customerId.value || !this.form.controls.locationId.value;
   });
 
-  protected readonly formReadOnly = computed(() => this.isConcluded());
+  /**
+   * Nessuno stato blocca più la maschera: anche un ordine Concluso (agganciato
+   * a un DDT) resta modificabile — alla chiusura con modifiche compare
+   * l'avviso «collegato a un DDT» (prompt DDT §LOGICA MAGAZZINO).
+   */
+  protected readonly formReadOnly = computed(() => false);
 
   // ── Caricamento ordine in modifica ──────────────────────────────────────
   private readonly loadTick = signal(0);
@@ -513,11 +672,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         if (!id) {
           return of<'ready' | 'loading' | 'not-editable' | 'error'>('ready');
         }
-        if (this.isQuote) {
+        if (this.isRegistryDocument) {
           return this.documentService.getDocumentById(id).pipe(
             map((doc) => {
               const editable =
-                doc.type === DocumentType.Quote &&
+                doc.type === this.registryDocumentType &&
                 (doc.status === DocumentStatus.Draft ||
                   (isConfirmedEditableDocumentStatus(doc.status) &&
                     doc.blockAfterConfirm !== true));
@@ -526,7 +685,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
                 return 'not-editable' as const;
               }
               this.loadedQuoteDoc.set(doc);
-              this.patchFormFromQuoteDocument(doc);
+              this.patchFormFromRegistryDocument(doc);
               return 'ready' as const;
             }),
             startWith<'ready' | 'loading' | 'not-editable' | 'error'>('loading'),
@@ -579,11 +738,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly attachWithoutAddDialogOpen = signal(false);
 
   // ── Includi documento (logica trasversale, mappa in document-include.util:
-  //     l'Ordine cliente include da Preventivo; il Preventivo non include da
-  //     nessun documento — si crea sempre da zero) ──────────────────────────
+  //     l'Ordine cliente include da Preventivo; il DDT vendita da Preventivo
+  //     e Ordine cliente; il Preventivo non include da nessun documento) ────
   protected readonly includeSourceKinds: readonly IncludeSourceKind[] = this.isQuote
     ? []
-    : CUSTOMER_ORDER_INCLUDE_SOURCES;
+    : this.isSalesDdt
+      ? includeSourceKindsForDocumentType(DocumentType.SalesDdt)
+      : CUSTOMER_ORDER_INCLUDE_SOURCES;
   protected readonly includePanelOpen = signal(false);
   protected readonly includeLaunchSeq = signal(0);
 
@@ -596,6 +757,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly concludeMenuOpen = signal(false);
   protected readonly concluding = signal(false);
 
+  // ── DDT vendita: dialoghi avvisi e generazione documenti (prompt DDT) ───
+  /** «Dati trasporto/indirizzi incompleti. Procedere lo stesso?» */
+  protected readonly incompleteDataDialogOpen = signal(false);
+  /** «Non sono stati evasi tutti i prodotti previsti. Forzare a Concluso?» */
+  protected readonly partialOrdersDialogOpen = signal(false);
+  protected readonly partialOrderNumbers = signal<readonly string[]>([]);
+  private pendingPartialOrderIds: readonly string[] = [];
+  /** Menu «Genera documento» (Bozza fattura / Proforma, §GENERAZIONE). */
+  protected readonly generateMenuOpen = signal(false);
+  protected readonly generating = signal(false);
+
   constructor() {
     // Colonna "Costo" (dato sensibile §permessi): senza il permesso
     // "Visualizza costi d'acquisto" la definizione non viene registrata,
@@ -606,7 +778,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       canSeeCosts
         ? this.lineColumnDefs
         : this.lineColumnDefs.filter((column) => column.id !== 'purchaseCost'),
-      this.isQuote ? QUOTE_LINE_PRESETS : CUSTOMER_ORDER_LINE_PRESETS,
+      this.isQuote
+        ? QUOTE_LINE_PRESETS
+        : this.isSalesDdt
+          ? SALES_DDT_LINE_PRESETS
+          : CUSTOMER_ORDER_LINE_PRESETS,
     );
 
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -626,12 +802,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.applyCustomerDefaults());
 
-    effect(() => {
-      if (this.formReadOnly()) {
-        this.form.disable({ emitEvent: false });
-      }
-    });
+    // Intestatario editato a mano: stop all'auto-compilazione dall'anagrafica.
+    this.form.controls.recipientAddress.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (!this.suppressRecipientAutofillTracking) {
+          this.recipientAutoFilled = false;
+        }
+      });
   }
+
+  /** Alza il flag durante le patch programmatiche dell'intestatario. */
+  private suppressRecipientAutofillTracking = false;
 
   private readonly lineTableColumnState = computed(() =>
     this.columnPreferences.state(this.lineColumnsView)(),
@@ -640,6 +822,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // ── Colonne ─────────────────────────────────────────────────────────────
   protected isLineColumnVisible(columnId: string): boolean {
     this.lineTableColumnState();
+    // Colonna Seriali (solo DDT): nascosta se il tracciamento seriali non è
+    // attivo nelle impostazioni tenant (stesso gate dell'Arrivo merce).
+    if (columnId === 'serials') {
+      const settings = this.tenantSettings();
+      if (settings && !settings.serialsEnabled) {
+        return false;
+      }
+    }
     return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
   }
 
@@ -709,6 +899,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       vatCodeId: this.fb.control(''),
       commitsStock: this.fb.control(true),
       unitOfMeasure: this.fb.control(''),
+      // Seriali consumati dallo scarico (solo DDT, testo "SN001, SN002").
+      serialNumbersText: this.fb.control(''),
     });
   }
 
@@ -728,7 +920,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected duplicateLine(index: number): void {
     const source = this.lines.at(index);
     const copy = this.createLine();
-    copy.setValue({ ...source.getRawValue(), id: '' });
+    // I seriali identificano il singolo pezzo: mai copiati sulla riga duplicata.
+    copy.setValue({ ...source.getRawValue(), id: '', serialNumbersText: '' });
     this.lines.insert(index + 1, copy);
     this.markFormDirty();
   }
@@ -1295,6 +1488,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       'quantity',
       'unitPrice',
       'discount',
+      'serials',
     ];
     const linked = this.lineHasLinkedProduct(index);
     return all.filter((field) => {
@@ -1319,6 +1513,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       quantity: `co-qty-${index}`,
       unitPrice: `co-price-${index}`,
       discount: `co-discount-${index}`,
+      serials: `co-serials-${index}`,
     };
     globalThis.document.getElementById(idMap[field])?.focus();
   }
@@ -1672,6 +1867,48 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   protected onDocumentIncluded(payload: IncludedDocumentPayload): void {
     this.closeIncludePanel();
+
+    // DDT vendita: l'Ordine cliente incluso viene AGGANCIATO al documento
+    // (prompt DDT §LOGICA MAGAZZINO) — al salvataggio l'impegno dell'OC viene
+    // rilasciato, il DDT scarica al suo posto e lo stato dell'OC si aggiorna.
+    if (this.isSalesDdt && payload.kind === IncludeSourceKind.CustomerOrder) {
+      const alreadyIncluded = this.includedOrders().some((order) => order.id === payload.sourceId);
+      if (alreadyIncluded) {
+        this._submitState.set({
+          status: 'error',
+          error: {
+            kind: AppErrorKind.Validation,
+            message:
+              `L'ordine ${payload.sourceReference ?? ''} è già incluso in questo DDT.`.trim(),
+          },
+        });
+        return;
+      }
+      this.includedOrders.update((orders) => [
+        ...orders,
+        {
+          id: payload.sourceId,
+          orderNumber: payload.sourceReference ?? 'Ordine cliente',
+          lines: payload.lines.map((line) => ({
+            variantId: line.variantId,
+            quantity: line.quantity,
+          })),
+        },
+      ]);
+    }
+
+    // DDT vendita: i dati di testata del documento incluso vengono riportati
+    // se presenti; altrimenti restano quelli del DDT corrente (prompt DDT
+    // §INCLUDI DOCUMENTO). Il cliente propaga anche pagamento e intestatario.
+    if (this.isSalesDdt) {
+      if (payload.sourceCustomerId) {
+        this.form.controls.customerId.setValue(payload.sourceCustomerId);
+      }
+      if (payload.sourcePaymentTerms?.trim()) {
+        this.form.controls.paymentTerms.setValue(payload.sourcePaymentTerms.trim());
+      }
+    }
+
     const groups: ReturnType<CustomerOrderFormComponent['createLine']>[] = [];
 
     const referenceLine = this.createLine();
@@ -1763,6 +2000,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (!this.form.controls.paymentTerms.value.trim() && customer.paymentTerms?.trim()) {
       this.form.controls.paymentTerms.setValue(customer.paymentTerms.trim());
     }
+    if (this.isSalesDdt) {
+      // Pagamento DDT: auto-compilato dal tipo di pagamento dell'anagrafica;
+      // senza pagamento in anagrafica resta il dropdown a scelta libera.
+      if (!this.form.controls.paymentMethod.value.trim() && customer.paymentMethod?.trim()) {
+        this.form.controls.paymentMethod.setValue(customer.paymentMethod.trim());
+      }
+      // Incaricato trasporto proposto dall'anagrafica (campo dedicato cliente).
+      const transportControls = this.form.controls.transport.controls;
+      if (!transportControls.carrier.value.trim() && customer.transportResponsible?.trim()) {
+        transportControls.carrier.setValue(customer.transportResponsible.trim());
+      }
+      this.applyRecipientFromCustomer(customer);
+    }
     // Sconto anagrafica sulle righe già compilate senza sconto.
     const discount = customer.customerDiscount?.trim();
     if (discount) {
@@ -1772,6 +2022,59 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         }
       }
     }
+  }
+
+  /**
+   * Intestatario auto-compilato dall'anagrafica del cliente selezionato in
+   * testata (prompt DDT §INDIRIZZI). Non sovrascrive un indirizzo editato a
+   * mano; finché la destinazione coincide, segue l'intestatario.
+   */
+  private applyRecipientFromCustomer(customer: Customer): void {
+    if (!this.recipientAutoFilled) {
+      return;
+    }
+    const address = customer.address;
+    const snapshot = {
+      name: customerDisplayName(customer),
+      address: [address?.line1, address?.line2].filter(Boolean).join(', '),
+      zip: address?.postalCode ?? '',
+      city: address?.city ?? '',
+      province: address?.province ?? '',
+      country: address?.country ?? '',
+      fiscalCode: customer.taxCode ?? '',
+      vatNumber: customer.vatNumber ?? '',
+    };
+    this.suppressRecipientAutofillTracking = true;
+    try {
+      this.form.controls.recipientAddress.patchValue(snapshot);
+      if (!this.destinationDiffers()) {
+        this.form.controls.destinationAddress.patchValue(snapshot, { emitEvent: false });
+      }
+    } finally {
+      this.suppressRecipientAutofillTracking = false;
+    }
+  }
+
+  /** «Cambia destinazione»: parte dall'intestatario e diventa editabile. */
+  protected enableDifferentDestination(): void {
+    if (!this.destinationDiffers()) {
+      this.form.controls.destinationAddress.patchValue(
+        this.form.controls.recipientAddress.getRawValue(),
+        { emitEvent: false },
+      );
+      this.destinationDiffers.set(true);
+      this.markFormDirty();
+    }
+  }
+
+  /** Torna alla destinazione coincidente con l'intestatario. */
+  protected resetDestinationToRecipient(): void {
+    this.destinationDiffers.set(false);
+    this.form.controls.destinationAddress.patchValue(
+      this.form.controls.recipientAddress.getRawValue(),
+      { emitEvent: false },
+    );
+    this.markFormDirty();
   }
 
   // ── Caricamento ordine esistente nel form ───────────────────────────────
@@ -1811,6 +2114,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             vatCodeId: line.vatCodeId ?? '',
             commitsStock: line.commitsStock ?? true,
             unitOfMeasure: line.unitOfMeasure ?? '',
+            serialNumbersText: '',
           },
           { emitEvent: false },
         );
@@ -1841,26 +2145,44 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           kind: AppErrorKind.Validation,
           message: this.isQuote
             ? 'Seleziona cliente e location per salvare il preventivo.'
-            : "Seleziona cliente e location di origine per salvare l'ordine.",
+            : this.isSalesDdt
+              ? 'Seleziona cliente e location per salvare il DDT vendita.'
+              : "Seleziona cliente e location di origine per salvare l'ordine.",
         },
       });
       return;
     }
-    if (this.isQuote) {
-      // Il preventivo riceve il numero PRE al salvataggio: serve almeno una
-      // riga valida (un preventivo di sola testata non è numerabile).
+    if (this.isRegistryDocument) {
+      // Il documento riceve il numero (PRE/DDT) al salvataggio: serve almeno
+      // una riga valida (un documento di sola testata non è numerabile).
       if (this.validLinesCount() === 0) {
         this._submitState.set({
           status: 'error',
           error: {
             kind: AppErrorKind.Validation,
-            message: 'Aggiungi almeno una riga valida per salvare il preventivo.',
+            message: this.isSalesDdt
+              ? 'Aggiungi almeno una riga valida per salvare il DDT vendita.'
+              : 'Aggiungi almeno una riga valida per salvare il preventivo.',
           },
         });
         return;
       }
-      // Nessun controllo disponibilità: il preventivo non impegna magazzino.
-      this.saveDocument();
+      if (this.isQuote) {
+        // Nessun controllo disponibilità: il preventivo non impegna magazzino.
+        this.saveDocument();
+        return;
+      }
+      // DDT vendita: catena di avvisi non bloccanti prima del salvataggio —
+      // disponibilità → dati trasporto/indirizzi incompleti → copertura
+      // parziale degli ordini inclusi (prompt DDT §AVVISI/§LOGICA MAGAZZINO).
+      const ddtIssues = this.collectAvailabilityIssues();
+      if (ddtIssues.length > 0) {
+        this.availabilityIssues.set(ddtIssues);
+        this.pendingSaveAfterAvailability = true;
+        this.availabilityDialogOpen.set(true);
+        return;
+      }
+      this.checkIncompleteDataThenSave();
       return;
     }
     // Controllo disponibilità pre-salvataggio: riepilogo righe critiche,
@@ -1902,6 +2224,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.availabilityDialogOpen.set(false);
     if (this.pendingSaveAfterAvailability) {
       this.pendingSaveAfterAvailability = false;
+      if (this.isSalesDdt) {
+        // La catena avvisi DDT prosegue: dati incompleti → copertura ordini.
+        this.checkIncompleteDataThenSave();
+        return;
+      }
       this.saveDocument();
     }
   }
@@ -1909,6 +2236,141 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected dismissAvailabilityDialog(): void {
     this.availabilityDialogOpen.set(false);
     this.pendingSaveAfterAvailability = false;
+  }
+
+  // ── DDT vendita: avvisi pre-salvataggio (prompt DDT §AVVISI) ────────────
+
+  /**
+   * Dati trasporto/indirizzi «non compilati» (per l'avviso pre-salvataggio):
+   * campi operativi del trasporto (causale, porto, incaricato, colli, aspetto
+   * beni) o blocchi indirizzo essenziali (nome, indirizzo, città) vuoti.
+   * Ora/peso/codici spedizione sono facoltativi e non generano avvisi.
+   */
+  private ddtDataIncomplete(): boolean {
+    const transport = this.form.controls.transport.getRawValue();
+    const transportIncomplete =
+      !transport.causal.trim() ||
+      !transport.port ||
+      !transport.carrier.trim() ||
+      !transport.packagesCount.trim() ||
+      !transport.goodsAspect.trim();
+    const recipient = this.form.controls.recipientAddress.getRawValue();
+    const destination = this.destinationDiffers()
+      ? this.form.controls.destinationAddress.getRawValue()
+      : recipient;
+    const addressIncomplete = (address: typeof recipient): boolean =>
+      !address.name.trim() || !address.address.trim() || !address.city.trim();
+    return transportIncomplete || addressIncomplete(recipient) || addressIncomplete(destination);
+  }
+
+  private checkIncompleteDataThenSave(): void {
+    if (this.ddtDataIncomplete()) {
+      this.incompleteDataDialogOpen.set(true);
+      return;
+    }
+    this.checkPartialCoverageThenSave();
+  }
+
+  /** «Sì»: procedere lo stesso con dati incompleti. */
+  protected confirmIncompleteDataDialog(): void {
+    this.incompleteDataDialogOpen.set(false);
+    this.checkPartialCoverageThenSave();
+  }
+
+  /** «No» / «Annulla»: si resta in maschera per completare i dati. */
+  protected dismissIncompleteDataDialog(): void {
+    this.incompleteDataDialogOpen.set(false);
+  }
+
+  /**
+   * Copertura degli ordini inclusi: quantità per variante delle righe DDT,
+   * allocate in sequenza sugli ordini (stessa regola del backend). Gli ordini
+   * non coperti del tutto diventeranno «Parzialmente concluso».
+   */
+  private computePartialOrders(): readonly { id: string; orderNumber: string }[] {
+    const included = this.includedOrders();
+    if (included.length === 0) {
+      return [];
+    }
+    const remainingByVariant = new Map<string, number>();
+    for (const line of this.lines.controls) {
+      const variantId = line.controls.variantId.value;
+      const quantity = Number(line.controls.quantity.value) || 0;
+      if (variantId && quantity > 0 && !this.lineIsEmpty(line)) {
+        remainingByVariant.set(variantId, (remainingByVariant.get(variantId) ?? 0) + quantity);
+      }
+    }
+    const partials: { id: string; orderNumber: string }[] = [];
+    for (const order of included) {
+      let fullyCovered = true;
+      for (const line of order.lines) {
+        if (!line.variantId || line.quantity <= 0) {
+          continue;
+        }
+        const remaining = remainingByVariant.get(line.variantId) ?? 0;
+        const allocated = Math.min(remaining, line.quantity);
+        remainingByVariant.set(line.variantId, remaining - allocated);
+        if (allocated < line.quantity) {
+          fullyCovered = false;
+        }
+      }
+      if (!fullyCovered) {
+        partials.push({ id: order.id, orderNumber: order.orderNumber });
+      }
+    }
+    return partials;
+  }
+
+  private checkPartialCoverageThenSave(): void {
+    const partials = this.computePartialOrders();
+    if (partials.length > 0) {
+      this.partialOrderNumbers.set(partials.map((order) => order.orderNumber));
+      this.pendingPartialOrderIds = partials.map((order) => order.id);
+      this.partialOrdersDialogOpen.set(true);
+      return;
+    }
+    this.saveDocument();
+  }
+
+  /** «Sì»: salva e forza a Concluso gli ordini parzialmente evasi. */
+  protected confirmPartialOrdersDialog(): void {
+    this.partialOrdersDialogOpen.set(false);
+    const orderIds = this.pendingPartialOrderIds;
+    this.pendingPartialOrderIds = [];
+    this.saveDocument(() => this.forceConcludeOrders(orderIds));
+  }
+
+  /** «No»: salva lasciando gli ordini in «Parzialmente concluso». */
+  protected declinePartialOrdersDialog(): void {
+    this.partialOrdersDialogOpen.set(false);
+    this.pendingPartialOrderIds = [];
+    this.saveDocument();
+  }
+
+  /** «Annulla»: nessun salvataggio, si resta in maschera. */
+  protected dismissPartialOrdersDialog(): void {
+    this.partialOrdersDialogOpen.set(false);
+    this.pendingPartialOrderIds = [];
+  }
+
+  private forceConcludeOrders(orderIds: readonly string[]): void {
+    for (const orderId of orderIds) {
+      this.salesOrderService
+        .forceConcludeManualOrder(orderId)
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          error: () => {
+            this._submitState.set({
+              status: 'error',
+              error: {
+                kind: AppErrorKind.Unknown,
+                message:
+                  'DDT salvato, ma non è stato possibile forzare a Concluso un ordine incluso.',
+              },
+            });
+          },
+        });
+    }
   }
 
   private buildSavePayload(): SaveManualOrderInput {
@@ -1955,8 +2417,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   private saveDocument(onSaved?: () => void): void {
-    if (this.isQuote) {
-      this.saveQuoteDocument(onSaved);
+    if (this.isRegistryDocument) {
+      this.saveRegistryDocument(onSaved);
       return;
     }
     // Righe opzionali (P6): l'ordine si salva anche con la sola testata;
@@ -1996,10 +2458,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       });
   }
 
-  // ── Preventivo: persistenza nel registro documenti (tipo quote) ─────────
+  // ── Preventivo / DDT vendita: persistenza nel registro documenti ────────
 
   /** Righe documento dal form (stessa griglia dell'Ordine cliente). */
-  private buildQuoteLines(): DocumentLineInputBody[] {
+  private buildRegistryLines(): DocumentLineInputBody[] {
     const lines: DocumentLineInputBody[] = [];
     for (const line of this.lines.controls) {
       const raw = line.getRawValue();
@@ -2017,23 +2479,78 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         // (cascata "4+10%" → 14): stessa resa dei totali in anteprima.
         discountPercent: parseEffectiveDiscountPercent(raw.discount),
         vatCodeId: raw.vatCodeId || undefined,
-        // Mai effetti magazzino: il preventivo non impegna e non scarica.
-        loadsStock: false,
+        // Preventivo: mai effetti magazzino. DDT vendita: la spunta
+        // «Scarica mag.» decide se la riga scarica la giacenza (prompt DDT).
+        loadsStock: this.isSalesDdt ? raw.commitsStock && Boolean(raw.variantId) : false,
+        // Seriali consumati dallo scarico (solo DDT, prodotti tracciati).
+        serialNumbers: this.isSalesDdt ? parseSerialNumbersText(raw.serialNumbersText) : undefined,
       });
     }
     return lines;
   }
 
+  /** Data+ora inizio trasporto in ISO (solo se la data è compilata). */
+  private transportStartAtIso(): string | null {
+    const transport = this.form.controls.transport.getRawValue();
+    if (!transport.startDate) {
+      return null;
+    }
+    const time = transport.startTime.trim() || '00:00';
+    return `${transport.startDate}T${time}`;
+  }
+
+  /** Snapshot indirizzo dal gruppo form (null se completamente vuoto). */
+  private addressFromGroup(
+    group: ReturnType<CustomerOrderFormComponent['createAddressGroup']>,
+  ): DocumentAddress | null {
+    const raw = group.getRawValue();
+    const entries = Object.entries(raw)
+      .filter((entry): entry is [string, string] => Boolean(entry[1]?.trim()))
+      .map(([key, value]) => [key, value.trim()]);
+    return entries.length > 0 ? (Object.fromEntries(entries) as DocumentAddress) : null;
+  }
+
+  /** Campi testata specifici del DDT vendita (prompt DDT). */
+  private buildSalesDdtHeaderFields() {
+    const value = this.form.getRawValue();
+    const transport = value.transport;
+    const recipient = this.addressFromGroup(this.form.controls.recipientAddress);
+    const destination = this.destinationDiffers()
+      ? this.addressFromGroup(this.form.controls.destinationAddress)
+      : recipient;
+    const packagesCount = Number.parseInt(transport.packagesCount, 10);
+    return {
+      paymentMethod: value.paymentMethod.trim() || null,
+      followedBySalesDoc: value.followedBySalesDoc,
+      transportCausal: transport.causal.trim() || null,
+      transportStartAt: this.transportStartAtIso(),
+      transportPort: transport.port || null,
+      transportCarrier: transport.carrier.trim() || null,
+      transportPackagesCount: Number.isFinite(packagesCount) ? packagesCount : null,
+      transportWeight: transport.weight.trim() || null,
+      transportGoodsAspect: transport.goodsAspect.trim() || null,
+      transportShippingCode: transport.shippingCode.trim() || null,
+      transportTrackingCode: transport.trackingCode.trim() || null,
+      recipientAddress: recipient,
+      destinationAddress: destination,
+      includedSalesOrderIds: this.includedOrders().map((order) => order.id),
+    };
+  }
+
   /**
-   * Salvataggio Preventivo: crea (o aggiorna) il documento `quote` e lo
-   * conferma subito — il numero PRE arriva dal numeratore dedicato alla prima
-   * conferma e il documento resta senza stato visibile in maschera.
+   * Salvataggio Preventivo/DDT vendita: crea (o aggiorna) il documento e lo
+   * conferma subito — il numero (PRE/DDT) arriva dal numeratore dedicato alla
+   * prima conferma e il documento resta senza stato visibile in maschera.
+   * Per il DDT la conferma esegue anche lo scarico giacenze e l'evasione
+   * degli ordini agganciati (prompt DDT §LOGICA MAGAZZINO).
    */
-  private saveQuoteDocument(onSaved?: () => void): void {
+  private saveRegistryDocument(onSaved?: () => void): void {
     const value = this.form.getRawValue();
     const editId = this.editOrderId();
-    const lines = this.buildQuoteLines();
+    const lines = this.buildRegistryLines();
     this._submitState.set({ status: 'saving' });
+
+    const ddtCreateFields = this.isSalesDdt ? this.buildSalesDdtHeaderFields() : null;
 
     const save$ = editId
       ? this.documentService.updateDocument(editId, {
@@ -2045,10 +2562,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           expectedDeliveryDate: value.expectedDeliveryDate || null,
           notes: value.notes.trim(),
           documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
+          ...(ddtCreateFields ?? {}),
           lines,
         } satisfies UpdateDocumentBody)
       : this.documentService.createDocument({
-          type: DocumentType.Quote,
+          type: this.registryDocumentType,
           documentDate: value.documentDate,
           customerId: value.customerId,
           locationId: value.locationId || undefined,
@@ -2058,6 +2576,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           notes: value.notes.trim() || undefined,
           currency: this.currency,
           documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
+          ...(ddtCreateFields ? this.stripNullFields(ddtCreateFields) : {}),
           lines,
         } satisfies CreateDocumentBody);
 
@@ -2075,11 +2594,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.loadedQuoteDoc.set(doc);
         this.dirtySinceLastSave.set(false);
         if (!this.editOrderId()) {
-          void this.router.navigate(['/app/documents/quote', doc.id, 'edit'], {
+          const editPath = this.isSalesDdt ? 'sales-ddt' : 'quote';
+          void this.router.navigate(['/app/documents', editPath, doc.id, 'edit'], {
             replaceUrl: true,
           });
         } else {
-          this.patchFormFromQuoteDocument(doc);
+          this.reload();
         }
         onSaved?.();
       },
@@ -2089,9 +2609,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     });
   }
 
-  /** Carica il preventivo (documento quote) nel form condiviso. */
-  private patchFormFromQuoteDocument(doc: DocumentRecord): void {
+  /** POST creazione: i campi vuoti si omettono invece di inviare null. */
+  private stripNullFields<T extends Record<string, unknown>>(
+    fields: T,
+  ): { [K in keyof T]?: Exclude<T[K], null> } {
+    return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== null)) as {
+      [K in keyof T]?: Exclude<T[K], null>;
+    };
+  }
+
+  /** Carica il documento del registro (quote/sales_ddt) nel form condiviso. */
+  private patchFormFromRegistryDocument(doc: DocumentRecord): void {
     this.suppressDirtyMarking = true;
+    this.suppressRecipientAutofillTracking = true;
     try {
       this.form.patchValue({
         customerId: doc.customerId ?? '',
@@ -2107,6 +2637,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             ? String(doc.documentDiscountPercent)
             : '',
       });
+      if (this.isSalesDdt) {
+        this.patchSalesDdtHeader(doc);
+      }
       this.lines.clear({ emitEvent: false });
       for (const line of doc.lines ?? []) {
         const group = this.createLine();
@@ -2128,8 +2661,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             discount:
               line.discountPercent && line.discountPercent > 0 ? `${line.discountPercent}%` : '',
             vatCodeId: line.vatCodeId ?? '',
-            commitsStock: false,
+            commitsStock: this.isSalesDdt ? line.loadsStock : false,
             unitOfMeasure: '',
+            serialNumbersText: (line.serialNumbers ?? []).join(', '),
           },
           { emitEvent: false },
         );
@@ -2142,13 +2676,93 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       this.dirtySinceLastSave.set(false);
     } finally {
       this.suppressDirtyMarking = false;
+      this.suppressRecipientAutofillTracking = false;
     }
+  }
+
+  /** Testata DDT dal documento caricato: pagamento, trasporto, indirizzi, OC. */
+  private patchSalesDdtHeader(doc: DocumentRecord): void {
+    const startAt = doc.transportStartAt ?? '';
+    this.form.patchValue({
+      paymentMethod: doc.paymentMethod ?? '',
+      followedBySalesDoc: doc.followedBySalesDoc ?? false,
+      transport: {
+        causal: doc.transportCausal ?? '',
+        startDate: startAt ? startAt.slice(0, 10) : '',
+        startTime: startAt.length >= 16 ? startAt.slice(11, 16) : '',
+        port: doc.transportPort ?? '',
+        carrier: doc.transportCarrier ?? '',
+        packagesCount: doc.transportPackagesCount != null ? String(doc.transportPackagesCount) : '',
+        weight: doc.transportWeight ?? '',
+        goodsAspect: doc.transportGoodsAspect ?? '',
+        shippingCode: doc.transportShippingCode ?? '',
+        trackingCode: doc.transportTrackingCode ?? '',
+      },
+      recipientAddress: { ...this.emptyAddressValue(), ...(doc.recipientAddress ?? {}) },
+      destinationAddress: { ...this.emptyAddressValue(), ...(doc.destinationAddress ?? {}) },
+    });
+    // L'intestatario salvato è uno snapshot: il cambio cliente non lo riscrive.
+    this.recipientAutoFilled = !doc.recipientAddress;
+    this.destinationDiffers.set(
+      JSON.stringify(doc.destinationAddress ?? null) !==
+        JSON.stringify(doc.recipientAddress ?? null) && doc.destinationAddress != null,
+    );
+    const hasTransportData = Boolean(
+      doc.transportCausal ||
+      doc.transportStartAt ||
+      doc.transportPort ||
+      doc.transportCarrier ||
+      doc.transportPackagesCount != null ||
+      doc.transportWeight ||
+      doc.transportGoodsAspect ||
+      doc.transportShippingCode ||
+      doc.transportTrackingCode,
+    );
+    this.transportOpen.set(hasTransportData);
+    // Ordini agganciati: righe ricaricate per il controllo di copertura.
+    const linked = (doc.linkedSalesOrders ?? []).filter((order) => !order.cancelledAt);
+    this.includedOrders.set(
+      linked.map((order) => ({ id: order.id, orderNumber: order.orderNumber, lines: [] })),
+    );
+    for (const order of linked) {
+      this.salesOrderService
+        .getSalesOrderById(order.id)
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe((loaded) => {
+          this.includedOrders.update((orders) =>
+            orders.map((entry) =>
+              entry.id === order.id
+                ? {
+                    ...entry,
+                    lines: loaded.lines.map((line) => ({
+                      variantId: line.variantId,
+                      quantity: line.quantity,
+                    })),
+                  }
+                : entry,
+            ),
+          );
+        });
+    }
+  }
+
+  private emptyAddressValue() {
+    return {
+      name: '',
+      address: '',
+      zip: '',
+      city: '',
+      province: '',
+      country: '',
+      fiscalCode: '',
+      vatNumber: '',
+    };
   }
 
   // ── Concludi ordine (§CONCLUDI ORDINE) ──────────────────────────────────
   protected readonly canConclude = computed(
     () =>
-      !this.isQuote &&
+      this.isOrder &&
       this.isEditMode() &&
       this.orderState() === ManualOrderState.Confirmed &&
       !this.dirtySinceLastSave() &&
@@ -2186,7 +2800,61 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       });
   }
 
+  // ── DDT vendita: Genera documento (Bozza fattura / Proforma, §GENERAZIONE) ──
+  protected readonly canGenerateDocuments = computed(
+    () => this.isSalesDdt && this.isEditMode() && !this.dirtySinceLastSave(),
+  );
+
+  protected readonly generateTargetOptions: readonly SelectMenuOption[] = [
+    { value: DocumentType.InvoiceDraft, label: 'Bozza fattura' },
+    { value: DocumentType.Proforma, label: 'Proforma' },
+  ];
+
+  protected toggleGenerateMenu(): void {
+    this.generateMenuOpen.update((open) => !open);
+  }
+
+  protected generateFromDdt(targetType: string): void {
+    const documentId = this.editOrderId();
+    if (!documentId || this.generating()) {
+      return;
+    }
+    this.generateMenuOpen.set(false);
+    this.generating.set(true);
+    this.documentService
+      .convertDocument(documentId, targetType as DocumentType)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => {
+          this.generating.set(false);
+          void this.router.navigateByUrl(documentEditPath(doc));
+        },
+        error: (err: unknown) => {
+          this.generating.set(false);
+          this._submitState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
+
   // ── Uscita con modifiche non salvate ────────────────────────────────────
+
+  /**
+   * Messaggio del dialogo di uscita: un ordine Concluso/Parzialmente concluso
+   * è collegato a un documento di scarico — l'avviso lo segnala e chiede cosa
+   * fare (prompt DDT §LOGICA MAGAZZINO).
+   */
+  protected readonly exitDialogMessage = computed(() => {
+    if (this.isOrder && this.isSettledOrder()) {
+      const linked = this.loadedOrder()?.linkedDocument;
+      const ref = linked?.reference ? ` ${linked.reference}` : '';
+      return (
+        `Questo ordine è collegato al documento di trasporto${ref}: le modifiche NON aggiornano ` +
+        'il documento già emesso. Vuoi salvare comunque le modifiche prima di chiudere?'
+      );
+    }
+    return 'Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?';
+  });
+
   canDeactivate(): boolean | Promise<boolean> {
     if (!this.dirtySinceLastSave() || this.formReadOnly()) {
       return true;
@@ -2236,11 +2904,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.navigateToList();
   }
 
-  /** Lista di provenienza: registro preventivi (quote) o Ordini cliente. */
+  /** Lista di provenienza: registro documenti (quote/DDT) o Ordini cliente. */
   private navigateToList(): void {
-    if (this.isQuote) {
+    if (this.isRegistryDocument) {
       void this.router.navigate([this.quoteListPath], {
-        queryParams: { type: DocumentType.Quote },
+        queryParams: { type: this.registryDocumentType },
       });
       return;
     }

@@ -1046,8 +1046,10 @@ model SalesOrder {
   placedAt          DateTime                    @map("placed_at")
   shopifyOrderId    String?                     @map("shopify_order_id")
   /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8);
-  /// per gli ordini manuali: documento di scarico generato da "Concludi ordine".
-  documentId        String?                     @unique @map("document_id") @db.Uuid
+  /// per gli ordini manuali: documento di scarico generato da "Concludi
+  /// ordine" o DDT vendita che ha incluso l'ordine (aggancio 1:N: un DDT
+  /// può includere più ordini cliente).
+  documentId        String?                     @map("document_id") @db.Uuid
   // ── Testata Ordine cliente manuale (source = manual) ──
   /// Location/magazzino di origine degli impegni e dello scarico.
   locationId        String?                     @map("location_id") @db.Uuid
@@ -1086,6 +1088,7 @@ model SalesOrder {
   @@unique([tenantId, shopifyOrderId])
   @@index([tenantId, placedAt(sort: Desc)])
   @@index([tenantId, fiscalStatus, placedAt(sort: Desc)])
+  @@index([documentId])
   @@map("sales_orders")
 }
 
@@ -1726,6 +1729,32 @@ model Document {
   paymentTerms      String?        @map("payment_terms")
   /// Data prevista consegna (Preventivo: campo «Consegna prevista», solo giorno).
   expectedDeliveryDate DateTime?   @map("expected_delivery_date") @db.Date
+  // ── DDT vendita: testata operativa (prompt DDT §TESTATA/§TRASPORTO/§INDIRIZZI) ──
+  /// "Seguirà doc. di vendita" (DDT vendita).
+  followedBySalesDoc Boolean       @default(false) @map("followed_by_sales_doc")
+  /// Causale trasporto (es. "Vendita", "Conto visione").
+  transportCausal   String?        @map("transport_causal")
+  /// Data e ora inizio trasporto.
+  transportStartAt  DateTime?      @map("transport_start_at")
+  /// Porto: franco o assegnato.
+  transportPort     String?        @map("transport_port")
+  /// Incaricato del trasporto (vettore/mittente/destinatario).
+  transportCarrier  String?        @map("transport_carrier")
+  /// Numero colli.
+  transportPackagesCount Int?      @map("transport_packages_count")
+  /// Peso (testo libero, es. "12,5 kg").
+  transportWeight   String?        @map("transport_weight")
+  /// Aspetto esteriore dei beni (es. "Scatole").
+  transportGoodsAspect String?     @map("transport_goods_aspect")
+  /// Codice spedizione del vettore.
+  transportShippingCode String?    @map("transport_shipping_code")
+  /// Tracking spedizione (codice o URL).
+  transportTrackingCode String?    @map("transport_tracking_code")
+  /// Intestatario documento (snapshot JSON: nome, indirizzo, CAP, città,
+  /// provincia, nazione, CF, P.IVA — shape DocumentAddress).
+  recipientAddress  Json?          @map("recipient_address")
+  /// Destinazione merce (stesso shape dell'intestatario; può differire).
+  destinationAddress Json?         @map("destination_address")
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id])
   supplier       Supplier?      @relation(fields: [supplierId], references: [id])
@@ -1740,7 +1769,7 @@ model Document {
   sourceDocument Document?      @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   derivedDocuments Document[]     @relation("DocumentConversion")
   supplierOrder  SupplierOrder? @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
-  salesOrder       SalesOrder?
+  salesOrders      SalesOrder[]
   inventoryCountSessions InventoryCountSession[]
   /// Link fattura registrata → arrivi merce inclusi (questo doc è la fattura).
   goodsReceiptLinks      PurchaseInvoiceGoodsReceiptLink[] @relation("LinkInvoice")

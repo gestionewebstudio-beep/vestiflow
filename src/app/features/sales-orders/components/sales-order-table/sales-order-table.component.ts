@@ -54,13 +54,15 @@ export class SalesOrderTableComponent {
   protected readonly formatMoney = formatMoney;
 
   protected orderStateLabel(order: SalesOrder): string {
-    // Ordine manuale: stati del documento (§STATI Ordine cliente).
+    // Ordine manuale: stati del documento (§STATI Ordine cliente + prompt DDT).
     if (order.source === SalesOrderSource.Manual) {
       switch (manualOrderState(order)) {
         case 'cancelled':
           return 'Annullato';
         case 'concluded':
           return 'Concluso';
+        case 'partially_concluded':
+          return 'Parzialmente concluso';
         default:
           return 'Confermato';
       }
@@ -79,7 +81,14 @@ export class SalesOrderTableComponent {
       return 'error';
     }
     if (order.source === SalesOrderSource.Manual) {
-      return manualOrderState(order) === 'concluded' ? 'info' : 'success';
+      switch (manualOrderState(order)) {
+        case 'concluded':
+          return 'info';
+        case 'partially_concluded':
+          return 'warning';
+        default:
+          return 'success';
+      }
     }
     if (order.fulfillmentStatus === 'fulfilled') {
       return 'success';

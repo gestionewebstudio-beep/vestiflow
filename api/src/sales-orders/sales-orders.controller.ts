@@ -115,6 +115,18 @@ export class SalesOrdersController {
     return this.manualOrders.conclude(tenantId, id, dto.documentType, user);
   }
 
+  /** Forza a Concluso un ordine Parzialmente concluso (prompt DDT). */
+  @Post('manual/:id/force-conclude')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  async forceConcludeManual(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ ok: true }> {
+    await this.manualOrders.forceConclude(tenantId, id, user);
+    return { ok: true };
+  }
+
   @Get(':id')
   @RequirePermissions(TenantPermission.ReportsView)
   getById(

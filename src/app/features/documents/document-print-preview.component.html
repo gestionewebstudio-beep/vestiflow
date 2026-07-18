@@ -80,6 +80,35 @@
         </dl>
       }
 
+      @if (transportRows().length > 0) {
+        <!-- DDT vendita: dati di trasporto sotto i totali (prompt DDT). -->
+        <section class="doc-print__notes">
+          <h2 class="doc-print__notes-title">Trasporto</h2>
+          @for (row of transportRows(); track row[0]) {
+            <p class="doc-print__meta">{{ row[0] }}: {{ row[1] }}</p>
+          }
+        </section>
+      }
+
+      @if (recipientAddressLines().length > 0 || destinationAddressLines().length > 0) {
+        <!-- DDT vendita: intestatario e destinazione (prompt DDT §INDIRIZZI). -->
+        <section class="doc-print__notes">
+          <h2 class="doc-print__notes-title">Indirizzi</h2>
+          @if (recipientAddressLines().length > 0) {
+            <p class="doc-print__meta"><strong>Intestatario</strong></p>
+            @for (line of recipientAddressLines(); track line) {
+              <p class="doc-print__meta">{{ line }}</p>
+            }
+          }
+          @if (destinationAddressLines().length > 0) {
+            <p class="doc-print__meta"><strong>Destinazione</strong></p>
+            @for (line of destinationAddressLines(); track line) {
+              <p class="doc-print__meta">{{ line }}</p>
+            }
+          }
+        </section>
+      }
+
       @if (doc.notes) {
         <footer class="doc-print__notes">
           <h2 class="doc-print__notes-title">Note</h2>
@@ -89,3 +118,13 @@
     </article>
   </div>
 }
+
+<app-confirm-dialog
+  [(open)]="incompletePrintDialogOpen"
+  title="Dati incompleti"
+  message="Dati trasporto/indirizzi incompleti. Procedere lo stesso?"
+  confirmLabel="Sì"
+  cancelLabel="No"
+  (confirmed)="confirmIncompletePrint()"
+  (dismissed)="dismissIncompletePrint()"
+/>

@@ -90,6 +90,61 @@ export const CUSTOMER_ORDER_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Operational]: ALL_COLUMN_IDS,
 };
 
+// ── DDT vendita (stessa maschera dell'Ordine cliente, prompt DDT §RIGHE) ───
+// Differenze di colonne: «Imp.» (Impegna magazzino) diventa «Scarica mag.»
+// — il DDT non impegna le giacenze, le scarica — e compare «Seriali»
+// (nascosta di default, visibile solo con tracciamento seriali attivo):
+// lo scarico consuma i seriali come nell'Arrivo merce li carica.
+export const SALES_DDT_LINES_VIEW = TableViewId.SalesDdtLines;
+
+export const SALES_DDT_LINE_COLUMNS: readonly TableColumnDef[] =
+  CUSTOMER_ORDER_LINE_COLUMNS.flatMap((column) => {
+    if (column.id === 'commitsStock') {
+      return [
+        {
+          id: 'serials',
+          label: 'Seriali',
+          defaultVisible: false,
+          defaultWidthPx: 112,
+          minWidthPx: 88,
+        },
+        { ...column, label: 'Scarica mag.', defaultWidthPx: 64, minWidthPx: 48 },
+      ];
+    }
+    return [column];
+  });
+
+const SALES_DDT_ALL_COLUMN_IDS = SALES_DDT_LINE_COLUMNS.filter(
+  (column) => column.defaultVisible !== false,
+).map((column) => column.id);
+
+export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
+  [PresetId.Default]: SALES_DDT_ALL_COLUMN_IDS,
+  [PresetId.Warehouse]: [
+    'sku',
+    'barcode',
+    'product',
+    'quantity',
+    'stockAvailable',
+    'unitOfMeasure',
+    'serials',
+    'commitsStock',
+    'actions',
+  ],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'quantity',
+    'unitPrice',
+    'discount',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Supplier]: SALES_DDT_ALL_COLUMN_IDS,
+  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitPrice', 'discountedPrice', 'lineTotal'],
+  [PresetId.Operational]: SALES_DDT_ALL_COLUMN_IDS,
+};
+
 // ── Preventivo (stessa maschera dell'Ordine cliente, §Preventivi) ───────────
 // Il preventivo non impegna e non blocca disponibilità di magazzino: niente
 // colonne «Q.tà disponibile» e «Impegna» — il resto della tabella è identico.

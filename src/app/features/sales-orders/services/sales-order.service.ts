@@ -179,6 +179,13 @@ export class SalesOrderService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /** Forza a Concluso un ordine Parzialmente concluso (prompt DDT). */
+  forceConcludeManualOrder(id: EntityId): Observable<{ ok: true }> {
+    return this.http
+      .post<{ ok: true }>(this.url(`/sales-orders/manual/${id}/force-conclude`), {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   exportSalesOrdersCsv(query: SalesOrderExportQuery): Observable<Blob> {
     const params = this.appendSalesOrderFilters(new HttpParams(), query);
 

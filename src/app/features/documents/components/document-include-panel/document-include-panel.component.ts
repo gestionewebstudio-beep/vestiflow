@@ -15,7 +15,7 @@ import { catchError, debounceTime, map, of, switchMap, take } from 'rxjs';
 
 import type { EntityId, IsoDateString, Money } from '@core/models/common.model';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
-import { SalesOrderSource } from '@core/models/sales-order.model';
+import { SalesOrderFulfillmentStatus, SalesOrderSource } from '@core/models/sales-order.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
@@ -165,7 +165,15 @@ export class DocumentIncludePanelComponent {
       .pipe(
         map((response) =>
           response.data
-            .filter((order) => !order.cancelledAt)
+            // Includibili solo gli ordini ancora aperti: quelli annullati o già
+            // evasi (anche parzialmente) da un documento di scarico non possono
+            // essere agganciati a un nuovo DDT (prompt DDT §LOGICA MAGAZZINO).
+            .filter(
+              (order) =>
+                !order.cancelledAt &&
+                !order.fulfilledAt &&
+                order.fulfillmentStatus !== SalesOrderFulfillmentStatus.Partial,
+            )
             .map(
               (order): IncludableRow => ({
                 id: order.id,

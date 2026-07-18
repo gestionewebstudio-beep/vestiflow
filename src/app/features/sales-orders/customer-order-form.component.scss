@@ -1,3 +1,5 @@
+@use 'breakpoints' as bp;
+
 // Aggiunte specifiche dell'Ordine cliente manuale. Il grosso dello stile è
 // RIUSATO dall'Arrivo merce (stesse classi gr-form__*, stesso foglio SCSS
 // referenziato in styleUrls): qui vivono solo riga di inserimento rapido,
@@ -122,4 +124,159 @@
   gap: var(--space-1);
   font-size: var(--text-sm);
   color: var(--color-text);
+}
+
+// ── DDT vendita (prompt DDT): ordini agganciati, trasporto, indirizzi ──────
+
+// Spunta di testata «Seguirà doc. di vendita»: allineata alla base dei campi.
+.gr-form__check--header {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--btn-min-height);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+// Ordini cliente agganciati al DDT: chips con sgancio rapido.
+.ddt-form__linked-orders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.ddt-form__linked-order {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background: var(--color-surface-subtle, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  .pi-link {
+    color: var(--color-text-muted);
+  }
+}
+
+.ddt-form__linked-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  color: var(--color-text-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--color-danger, var(--color-text));
+    background: var(--color-surface-hover, var(--color-surface-subtle));
+  }
+}
+
+// Sezioni Trasporto/Indirizzi sotto i totali (prompt DDT §TRASPORTO/§INDIRIZZI).
+.ddt-form__section {
+  margin-block-start: var(--space-4);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+// Trasporto collassabile: intero header cliccabile, chevron come affordance.
+.ddt-form__section-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: var(--btn-min-height);
+  padding: 0;
+  text-align: start;
+  background: none;
+  border: 0;
+  cursor: pointer;
+
+  .gr-form__subtitle {
+    margin: 0;
+  }
+}
+
+.ddt-form__section-title {
+  margin: 0 0 var(--space-3);
+}
+
+.ddt-form__section-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.ddt-form__grid {
+  margin-block-start: var(--space-3);
+}
+
+// Indirizzi: due blocchi affiancati su desktop, impilati su mobile.
+.ddt-form__addresses {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+
+  @include bp.media-up('md') {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.ddt-form__address-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface-subtle, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  > div[formGroupName] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+}
+
+.ddt-form__address-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ddt-form__address-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ddt-form__address-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.ddt-form__address-row--two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.ddt-form__address-same {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
 }

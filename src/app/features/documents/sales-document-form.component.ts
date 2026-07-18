@@ -38,8 +38,6 @@ import {
 } from '@core/utils/discount-percent.util';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
-import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { CustomerService } from '@features/customers/services/customer.service';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
@@ -67,11 +65,9 @@ import { documentTypeLabel } from './models/document-labels.util';
 import {
   isInvoiceDraftDocumentType,
   isProformaDocumentType,
-  isSalesDdtDocumentType,
   isSalesFormDocumentType,
 } from './models/document-sales.util';
 import { DocumentService } from './services/document.service';
-import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
 import { pickVatCodeId, toVatCodeById } from './utils/vat-code-resolution.util';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
@@ -106,8 +102,6 @@ export class SalesDocumentFormComponent {
   private readonly documentService = inject(DocumentService);
   private readonly customerService = inject(CustomerService);
   private readonly productService = inject(ProductService);
-  private readonly operationalLocations = inject(OperationalLocationsService);
-  private readonly locationContext = inject(LocationContextService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly router = inject(Router);
@@ -142,33 +136,25 @@ export class SalesDocumentFormComponent {
   protected readonly isInvoiceDraft = computed(() =>
     isInvoiceDraftDocumentType(this.documentType()),
   );
-  protected readonly isSalesDdt = computed(() => isSalesDdtDocumentType(this.documentType()));
 
-  // ── Includi documento (mappa in document-include.util): il DDT vendita
-  //     include da Preventivo e da Ordine cliente; gli altri tipi nessuno. ──
+  // ── Includi documento (mappa in document-include.util): proforma e bozza
+  //     fattura non includono da nessun documento. ─────────────────────────
   protected readonly includeSourceKinds = computed(() =>
     includeSourceKindsForDocumentType(this.documentType()),
   );
   protected readonly includePanelOpen = signal(false);
   protected readonly includeLaunchSeq = signal(0);
 
-  protected readonly confirmDialogMessage = computed(() =>
-    this.isSalesDdt()
-      ? "Alla conferma verranno scaricate le giacenze dalla location selezionata per le righe con variante. L'operazione non è reversibile senza annullare il documento."
-      : 'Confermando verrà assegnato il numero progressivo. Il documento non muove il magazzino. Procedere?',
+  protected readonly confirmDialogMessage = computed(
+    () =>
+      'Confermando verrà assegnato il numero progressivo. Il documento non muove il magazzino. Procedere?',
   );
 
-  protected readonly confirmDialogTitle = computed(() =>
-    this.isSalesDdt() ? 'Confermare il DDT vendita?' : 'Conferma documento',
-  );
+  protected readonly confirmDialogTitle = computed(() => 'Conferma documento');
 
-  protected readonly confirmButtonLabel = computed(() =>
-    this.isSalesDdt() ? 'Conferma DDT' : 'Conferma',
-  );
+  protected readonly confirmButtonLabel = computed(() => 'Conferma');
 
-  protected readonly submitConfirmLabel = computed(() =>
-    this.isSalesDdt() ? 'Conferma e scarica' : 'Conferma documento',
-  );
+  protected readonly submitConfirmLabel = computed(() => 'Conferma documento');
 
   protected readonly isConfirmedEdit = computed(() => {
     const doc = this.loadedDocument();
@@ -224,7 +210,6 @@ export class SalesDocumentFormComponent {
     toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
       switchMap(({ id }) => {
         if (!id) {
-          this.initDefaultsForCreate();
           return of<'ready' | 'loading' | 'not-found' | 'error'>('ready');
         }
         return this.documentService.getDocumentById(id).pipe(
@@ -270,13 +255,6 @@ export class SalesDocumentFormComponent {
     this.customers().map((c) => ({
       value: c.id,
       label: customerDisplayName(c),
-    })),
-  );
-
-  protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.operationalLocations.writeLocations().map((loc) => ({
-      value: loc.id,
-      label: loc.name,
     })),
   );
 
@@ -416,11 +394,6 @@ export class SalesDocumentFormComponent {
   protected fieldInvalid(name: 'customerId' | 'locationId'): boolean {
     const control = this.form.controls[name];
     return control.invalid && (control.touched || control.dirty);
-  }
-
-  protected onLocationSelect(value: string | null): void {
-    this.form.controls.locationId.setValue(value ?? '');
-    this.form.controls.locationId.markAsTouched();
   }
 
   protected onCustomerSelect(value: string | null): void {
@@ -690,11 +663,6 @@ export class SalesDocumentFormComponent {
   }
 
   private validateForm(): boolean {
-    if (this.isSalesDdt()) {
-      const locationControl = this.form.controls.locationId;
-      locationControl.setValidators([Validators.required]);
-      locationControl.updateValueAndValidity({ emitEvent: false });
-    }
     if (this.form.invalid || this.hasInvalidPrice() || !this.hasValidLine()) {
       this.form.markAllAsTouched();
       return false;
@@ -724,12 +692,10 @@ export class SalesDocumentFormComponent {
       return;
     }
     const raw = this.form.getRawValue();
-    const loadsStockLines = this.isSalesDdt();
     const body = {
       type: this.documentType(),
       documentDate: new Date(raw.documentDate).toISOString(),
       customerId: raw.customerId,
-      locationId: this.isSalesDdt() ? raw.locationId : undefined,
       currency: this.currency,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
@@ -748,10 +714,8 @@ export class SalesDocumentFormComponent {
             vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
             vatCodeId: line.vatCodeId || undefined,
             discountPercent: parseEffectiveDiscountPercent(line.discountPercent),
-            loadsStock: loadsStockLines && Boolean(line.variantId),
-            serialNumbers: loadsStockLines
-              ? parseSerialNumbersText(line.serialNumbersText)
-              : undefined,
+            // Proforma e bozza fattura non movimentano mai il magazzino.
+            loadsStock: false,
           };
         }),
     };
@@ -813,7 +777,6 @@ export class SalesDocumentFormComponent {
           discountPercent: this.fb.control(
             line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
           ),
-          serialNumbersText: this.fb.control((line.serialNumbers ?? []).join(', ')),
         }),
       );
     }
@@ -833,27 +796,7 @@ export class SalesDocumentFormComponent {
       vatRatePercent: this.fb.control('22'),
       vatCodeId: this.fb.control(''),
       discountPercent: this.fb.control(''),
-      serialNumbersText: this.fb.control(''),
     });
-  }
-
-  private initDefaultsForCreate(): void {
-    if (!this.isSalesDdt()) {
-      return;
-    }
-    // Mai fallback "prima location disponibile" (specifica «sede predefinita»):
-    // restano solo la location attiva scelta in topbar e la mono-location.
-    const active = this.locationContext.activeLocationId();
-    const writable = this.operationalLocations.writeLocations();
-    const defaultLoc =
-      active && writable.some((l) => l.id === active)
-        ? active
-        : writable.length === 1
-          ? (writable[0]?.id ?? '')
-          : '';
-    if (defaultLoc && !this.form.controls.locationId.value) {
-      this.form.controls.locationId.setValue(defaultLoc);
-    }
   }
 
   private toAppError(err: unknown): AppError {

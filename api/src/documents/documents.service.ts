@@ -67,6 +67,7 @@ import {
 import {
   documentTypeDefaultLoadsStock,
   isProformaConvertTarget,
+  isSalesDdtConvertTarget,
 } from './document-type.util';
 import {
   reconcileDocumentStockAdjustment,
@@ -102,6 +103,7 @@ import {
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
 import type { ConvertDocumentDto } from './dto/convert-document.dto';
 import type { CreateDocumentDto, DocumentLineInputDto } from './dto/create-document.dto';
+import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import type { RegisterExternalDto } from './dto/register-external.dto';
 import type { MarkExternallyIssuedDto } from './dto/mark-externally-issued.dto';
@@ -142,9 +144,20 @@ export type DocumentListRow = Document & {
   linkedPurchaseInvoice: LinkedPurchaseInvoiceInfo | null;
 };
 
+/** Ordine cliente agganciato a un DDT vendita (aggancio 1:N, prompt DDT). */
+export type LinkedSalesOrderInfo = {
+  readonly id: string;
+  readonly orderNumber: string;
+  readonly cancelledAt: Date | null;
+  readonly fulfilledAt: Date | null;
+  readonly fulfillmentStatus: SalesOrderFulfillmentStatus;
+};
+
 export type DocumentDetail = DocumentWithLines & {
   blockAfterConfirm: boolean;
   salesOrder: { id: string; orderNumber: string } | null;
+  /** Ordini cliente agganciati (DDT vendita può includerne più di uno). */
+  linkedSalesOrders: readonly LinkedSalesOrderInfo[];
   linkedSupplierOrder: { id: string; reference: string } | null;
   linkedSupplierOrderLines: readonly LinkedSupplierOrderLineContext[];
   linkStatus: GoodsReceiptLinkStatus | null;
@@ -500,7 +513,16 @@ export class DocumentsService {
       where: { id, tenantId },
       include: {
         lines: { orderBy: { lineNumber: 'asc' } },
-        salesOrder: { select: { id: true, orderNumber: true } },
+        salesOrders: {
+          select: {
+            id: true,
+            orderNumber: true,
+            cancelledAt: true,
+            fulfilledAt: true,
+            fulfillmentStatus: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
         supplierOrder: {
           select: {
             id: true,
@@ -557,7 +579,13 @@ export class DocumentsService {
     }
     this.assertDocumentLocationReadable(user, doc.locationId);
     const setting = await this.settings.getResolved(tenantId, doc.type);
-    const { salesOrder, supplierOrder, purchaseInvoiceLinks, goodsReceiptLinks, ...rest } = doc;
+    const {
+      salesOrders = [],
+      supplierOrder,
+      purchaseInvoiceLinks,
+      goodsReceiptLinks,
+      ...rest
+    } = doc;
     const linkedSupplierOrderLines =
       supplierOrder?.lines.map((line) => ({
         id: line.id,
@@ -566,10 +594,14 @@ export class DocumentsService {
         orderedQuantity: line.orderedQuantity,
         receivedQuantity: line.receivedQuantity,
       })) ?? [];
+    const firstSalesOrder = salesOrders[0];
     return {
       ...rest,
       blockAfterConfirm: setting.blockAfterConfirm,
-      salesOrder: salesOrder ?? null,
+      salesOrder: firstSalesOrder
+        ? { id: firstSalesOrder.id, orderNumber: firstSalesOrder.orderNumber }
+        : null,
+      linkedSalesOrders: salesOrders,
       linkedSupplierOrder: supplierOrder
         ? { id: supplierOrder.id, reference: supplierOrder.reference }
         : null,
@@ -701,42 +733,178 @@ export class DocumentsService {
       dto.documentDiscountPercent ?? 0,
     );
 
-    return this.prisma.document.create({
-      data: {
-        tenantId,
-        type: dto.type,
-        status: DocumentStatus.draft,
-        series: (dto.series ?? setting.defaultSeries).trim() || 'A',
-        year: documentDate.getFullYear(),
-        documentDate,
-        printTitle: setting.printTitle,
-        notes: dto.notes ?? setting.defaultNotes,
-        internalComment: dto.internalComment ?? null,
-        supplierId: dto.supplierId ?? null,
-        supplierName: await this.snapshotSupplierName(tenantId, dto.supplierId),
-        customerId: dto.customerId ?? null,
-        customerName: await this.snapshotCustomerName(tenantId, dto.customerId),
-        locationId: dto.locationId ?? null,
-        targetLocationId: dto.targetLocationId ?? null,
-        adjustmentDirection: dto.adjustmentDirection ?? null,
-        externalDocNumber: dto.externalDocNumber ?? null,
-        externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
-        sourceDocumentId: dto.sourceDocumentId ?? null,
-        supplierOrderId: dto.supplierOrderId ?? null,
-        billingCause: dto.billingCause?.trim() || null,
-        externalRef: dto.externalRef?.trim() || null,
-        paymentTerms: dto.paymentTerms?.trim() || null,
-        expectedDeliveryDate: dto.expectedDeliveryDate ? new Date(dto.expectedDeliveryDate) : null,
-        currency: dto.currency ?? 'EUR',
-        pricesIncludeVat: setting.pricesIncludeVat,
-        documentDiscountPercent: dto.documentDiscountPercent ?? 0,
-        ...totals,
-        createdById: user?.id ?? null,
-        createdByName: user?.displayName ?? 'API',
-        lines: { create: lines.map((line) => this.toLineCreateData(line, tenantId)) },
-      },
-      include: { lines: { orderBy: { lineNumber: 'asc' } } },
+    const supplierName = await this.snapshotSupplierName(tenantId, dto.supplierId);
+    const customerName = await this.snapshotCustomerName(tenantId, dto.customerId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.document.create({
+        data: {
+          tenantId,
+          type: dto.type,
+          status: DocumentStatus.draft,
+          series: (dto.series ?? setting.defaultSeries).trim() || 'A',
+          year: documentDate.getFullYear(),
+          documentDate,
+          printTitle: setting.printTitle,
+          notes: dto.notes ?? setting.defaultNotes,
+          internalComment: dto.internalComment ?? null,
+          supplierId: dto.supplierId ?? null,
+          supplierName,
+          customerId: dto.customerId ?? null,
+          customerName,
+          locationId: dto.locationId ?? null,
+          targetLocationId: dto.targetLocationId ?? null,
+          adjustmentDirection: dto.adjustmentDirection ?? null,
+          externalDocNumber: dto.externalDocNumber ?? null,
+          externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
+          sourceDocumentId: dto.sourceDocumentId ?? null,
+          supplierOrderId: dto.supplierOrderId ?? null,
+          billingCause: dto.billingCause?.trim() || null,
+          externalRef: dto.externalRef?.trim() || null,
+          paymentTerms: dto.paymentTerms?.trim() || null,
+          paymentMethod: dto.paymentMethod?.trim() || null,
+          expectedDeliveryDate: dto.expectedDeliveryDate
+            ? new Date(dto.expectedDeliveryDate)
+            : null,
+          // DDT vendita: testata operativa (prompt DDT).
+          followedBySalesDoc: dto.followedBySalesDoc ?? false,
+          transportCausal: dto.transportCausal?.trim() || null,
+          transportStartAt: dto.transportStartAt ? new Date(dto.transportStartAt) : null,
+          transportPort: dto.transportPort ?? null,
+          transportCarrier: dto.transportCarrier?.trim() || null,
+          transportPackagesCount: dto.transportPackagesCount ?? null,
+          transportWeight: dto.transportWeight?.trim() || null,
+          transportGoodsAspect: dto.transportGoodsAspect?.trim() || null,
+          transportShippingCode: dto.transportShippingCode?.trim() || null,
+          transportTrackingCode: dto.transportTrackingCode?.trim() || null,
+          recipientAddress: this.addressToJson(dto.recipientAddress),
+          destinationAddress: this.addressToJson(dto.destinationAddress),
+          currency: dto.currency ?? 'EUR',
+          pricesIncludeVat: setting.pricesIncludeVat,
+          documentDiscountPercent: dto.documentDiscountPercent ?? 0,
+          ...totals,
+          createdById: user?.id ?? null,
+          createdByName: user?.displayName ?? 'API',
+          lines: { create: lines.map((line) => this.toLineCreateData(line, tenantId)) },
+        },
+        include: { lines: { orderBy: { lineNumber: 'asc' } } },
+      });
+
+      if (dto.includedSalesOrderIds !== undefined) {
+        await this.syncIncludedSalesOrdersTx(tx, tenantId, created, dto.includedSalesOrderIds);
+      }
+
+      return created;
     });
+  }
+
+  /**
+   * Snapshot indirizzo (intestatario/destinazione DDT): normalizza i campi
+   * compilati e restituisce DbNull quando l'indirizzo è vuoto.
+   */
+  private addressToJson(
+    address: DocumentAddressDto | null | undefined,
+  ): Prisma.InputJsonObject | typeof Prisma.DbNull {
+    if (!address) {
+      return Prisma.DbNull;
+    }
+    const fields: Record<string, string | undefined> = {
+      name: address.name,
+      address: address.address,
+      zip: address.zip,
+      city: address.city,
+      province: address.province,
+      country: address.country,
+      fiscalCode: address.fiscalCode,
+      vatNumber: address.vatNumber,
+    };
+    const entries = Object.entries(fields)
+      .filter((entry): entry is [string, string] => Boolean(entry[1]?.trim()))
+      .map(([key, value]) => [key, value.trim()]);
+    return entries.length > 0 ? (Object.fromEntries(entries) as Prisma.InputJsonObject) : Prisma.DbNull;
+  }
+
+  /**
+   * Allinea gli ordini cliente agganciati a un DDT vendita («Includi
+   * documento», prompt DDT §LOGICA MAGAZZINO): aggancia i nuovi inclusi,
+   * sgancia (e riapre, se già evasi da questo documento) quelli rimossi.
+   * Restituisce i target inventario da sincronizzare verso i canali.
+   */
+  private async syncIncludedSalesOrdersTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    doc: Pick<Document, 'id' | 'type'>,
+    orderIds: readonly string[],
+  ): Promise<Array<{ variantId: string; locationId: string }>> {
+    const uniqueIds = [...new Set(orderIds)];
+    if (doc.type !== DocumentType.sales_ddt) {
+      if (uniqueIds.length > 0) {
+        throw new UnprocessableEntityException(
+          'Solo il DDT vendita può agganciare ordini cliente.',
+        );
+      }
+      return [];
+    }
+
+    const current = await tx.salesOrder.findMany({
+      where: { tenantId, documentId: doc.id },
+      select: { id: true, orderNumber: true },
+    });
+    const currentIds = new Set(current.map((order) => order.id));
+    const syncTargets: Array<{ variantId: string; locationId: string }> = [];
+
+    for (const orderId of uniqueIds.filter((candidate) => !currentIds.has(candidate))) {
+      const order = await tx.salesOrder.findFirst({
+        where: { id: orderId, tenantId },
+        select: {
+          id: true,
+          orderNumber: true,
+          source: true,
+          cancelledAt: true,
+          documentId: true,
+        },
+      });
+      if (!order) {
+        throw new UnprocessableEntityException('Un ordine cliente incluso non esiste più.');
+      }
+      if (order.source !== SalesOrderSource.manual) {
+        throw new UnprocessableEntityException(
+          `L'ordine ${order.orderNumber} non è un ordine manuale: non può essere agganciato al DDT.`,
+        );
+      }
+      if (order.cancelledAt) {
+        throw new UnprocessableEntityException(
+          `L'ordine ${order.orderNumber} è annullato: non può essere agganciato al DDT.`,
+        );
+      }
+      if (order.documentId && order.documentId !== doc.id) {
+        const other = await tx.document.findFirst({
+          where: { id: order.documentId, tenantId },
+          select: { status: true, reference: true },
+        });
+        if (other && other.status !== DocumentStatus.cancelled) {
+          throw new ConflictException(
+            `L'ordine ${order.orderNumber} è già agganciato a un altro documento${
+              other.reference ? ` (${other.reference})` : ''
+            }.`,
+          );
+        }
+      }
+      await tx.salesOrder.update({ where: { id: order.id }, data: { documentId: doc.id } });
+    }
+
+    for (const removed of current.filter((order) => !uniqueIds.includes(order.id))) {
+      const reopenTargets = await this.reopenManualOrderRecordTx(
+        tx,
+        tenantId,
+        removed.id,
+        `Ordine sganciato dal DDT vendita`,
+      );
+      syncTargets.push(...reopenTargets);
+      await tx.salesOrder.update({ where: { id: removed.id }, data: { documentId: null } });
+    }
+
+    return syncTargets;
   }
 
   /**
@@ -1025,10 +1193,50 @@ export class DocumentsService {
     if (dto.paymentTerms !== undefined) {
       data.paymentTerms = dto.paymentTerms?.trim() || null;
     }
+    if (dto.paymentMethod !== undefined) {
+      data.paymentMethod = dto.paymentMethod?.trim() || null;
+    }
     if (dto.expectedDeliveryDate !== undefined) {
       data.expectedDeliveryDate = dto.expectedDeliveryDate
         ? new Date(dto.expectedDeliveryDate)
         : null;
+    }
+    // DDT vendita: testata operativa (prompt DDT §TESTATA/§TRASPORTO/§INDIRIZZI).
+    if (dto.followedBySalesDoc !== undefined) {
+      data.followedBySalesDoc = dto.followedBySalesDoc;
+    }
+    if (dto.transportCausal !== undefined) {
+      data.transportCausal = dto.transportCausal?.trim() || null;
+    }
+    if (dto.transportStartAt !== undefined) {
+      data.transportStartAt = dto.transportStartAt ? new Date(dto.transportStartAt) : null;
+    }
+    if (dto.transportPort !== undefined) {
+      data.transportPort = dto.transportPort ?? null;
+    }
+    if (dto.transportCarrier !== undefined) {
+      data.transportCarrier = dto.transportCarrier?.trim() || null;
+    }
+    if (dto.transportPackagesCount !== undefined) {
+      data.transportPackagesCount = dto.transportPackagesCount ?? null;
+    }
+    if (dto.transportWeight !== undefined) {
+      data.transportWeight = dto.transportWeight?.trim() || null;
+    }
+    if (dto.transportGoodsAspect !== undefined) {
+      data.transportGoodsAspect = dto.transportGoodsAspect?.trim() || null;
+    }
+    if (dto.transportShippingCode !== undefined) {
+      data.transportShippingCode = dto.transportShippingCode?.trim() || null;
+    }
+    if (dto.transportTrackingCode !== undefined) {
+      data.transportTrackingCode = dto.transportTrackingCode?.trim() || null;
+    }
+    if (dto.recipientAddress !== undefined) {
+      data.recipientAddress = this.addressToJson(dto.recipientAddress);
+    }
+    if (dto.destinationAddress !== undefined) {
+      data.destinationAddress = this.addressToJson(dto.destinationAddress);
     }
     if (dto.documentDiscountPercent !== undefined) {
       data.documentDiscountPercent = dto.documentDiscountPercent;
@@ -1462,6 +1670,25 @@ export class DocumentsService {
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
 
+      // Aggancio ordini cliente inclusi (DDT vendita, prompt DDT §LOGICA
+      // MAGAZZINO): allineato a ogni salvataggio che dichiara l'elenco.
+      if (dto.includedSalesOrderIds !== undefined) {
+        const includeTargets = await this.syncIncludedSalesOrdersTx(
+          tx,
+          tenantId,
+          saved,
+          dto.includedSalesOrderIds,
+        );
+        syncTargets.push(...includeTargets);
+        // Documento già confermato: i nuovi ordini agganciati vengono evasi
+        // subito (impegni rilasciati, stato aggiornato) — lo scarico reale è
+        // già gestito dalla riconciliazione righe sopra.
+        if (isConfirmedEdit && saved.type === DocumentType.sales_ddt) {
+          const concludeTargets = await this.concludeLinkedManualOrderTx(tx, tenantId, saved.id);
+          syncTargets.push(...concludeTargets);
+        }
+      }
+
       if (isConfirmedEdit && lines && saved.lines.length > 0) {
         if (documentTypeUnloadsStockOnConfirm(saved.type) && saved.locationId) {
           await assertSerialNumbersForUnloadLines(tx, tenantId, saved.locationId, saved.lines);
@@ -1776,27 +2003,39 @@ export class DocumentsService {
     return confirmed;
   }
 
-  /** Converte una proforma in DDT vendita o bozza fattura (§9.1). */
+  /**
+   * Converte un documento vendita in un altro tipo: proforma → DDT vendita o
+   * bozza fattura (§9.1); DDT vendita → bozza fattura o proforma (prompt DDT
+   * §GENERAZIONE DOCUMENTI — la fattura vera non è prevista in questa fase).
+   */
   async convert(
     tenantId: string,
     id: string,
     dto: ConvertDocumentDto,
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
-    if (!isProformaConvertTarget(dto.targetType)) {
-      throw new UnprocessableEntityException('Tipo di conversione non supportato.');
-    }
-
     const source = await this.getById(tenantId, id, user);
     this.assertDocumentLocationWritable(user, source);
-    if (source.type !== DocumentType.proforma) {
-      throw new ConflictException('Solo le proforme possono essere convertite con questa azione.');
+    const isProformaSource = source.type === DocumentType.proforma;
+    const isSalesDdtSource = source.type === DocumentType.sales_ddt;
+    if (!isProformaSource && !isSalesDdtSource) {
+      throw new ConflictException(
+        'Solo proforme e DDT vendita possono essere convertiti con questa azione.',
+      );
+    }
+    if (isProformaSource && !isProformaConvertTarget(dto.targetType)) {
+      throw new UnprocessableEntityException('Tipo di conversione non supportato.');
+    }
+    if (isSalesDdtSource && !isSalesDdtConvertTarget(dto.targetType)) {
+      throw new UnprocessableEntityException(
+        'Dal DDT vendita si possono generare solo Bozza fattura o Proforma.',
+      );
     }
     if (source.status === DocumentStatus.cancelled) {
       throw new ConflictException('Impossibile convertire un documento annullato.');
     }
     if (source.lines.length === 0) {
-      throw new UnprocessableEntityException('La proforma non ha righe da convertire.');
+      throw new UnprocessableEntityException('Il documento non ha righe da convertire.');
     }
 
     const targetSetting = await this.settings.getResolved(tenantId, dto.targetType);
@@ -1806,8 +2045,12 @@ export class DocumentsService {
       );
     }
 
-    const sourceRef = source.reference ?? `proforma ${source.id.slice(0, 8)}`;
-    const conversionNote = `Convertito da ${sourceRef}`;
+    const sourceRef =
+      source.reference ??
+      `${isSalesDdtSource ? 'DDT vendita' : 'proforma'} ${source.id.slice(0, 8)}`;
+    const conversionNote = isSalesDdtSource
+      ? `Generato da ${sourceRef}`
+      : `Convertito da ${sourceRef}`;
 
     let locationId = source.locationId ?? undefined;
     if (dto.targetType === DocumentType.sales_ddt && !locationId) {
@@ -1832,6 +2075,11 @@ export class DocumentsService {
       sourceDocumentId: source.id,
       billingCause: source.billingCause ?? undefined,
       externalRef: source.reference ?? undefined,
+      // Dal DDT il documento generato eredita pagamento e indirizzi di testata.
+      paymentTerms: source.paymentTerms ?? undefined,
+      paymentMethod: source.paymentMethod ?? undefined,
+      recipientAddress: (source.recipientAddress as DocumentAddressDto | null) ?? undefined,
+      destinationAddress: (source.destinationAddress as DocumentAddressDto | null) ?? undefined,
       lines: source.lines.map((line) => ({
         variantId: line.variantId ?? undefined,
         sku: line.sku ?? undefined,
@@ -2496,17 +2744,20 @@ export class DocumentsService {
   }
 
   /**
-   * Conclude l'Ordine cliente manuale collegato a questo documento di scarico
-   * (§CONCLUDI ORDINE): consuma gli impegni attivi (Impegnata → 0, la
-   * Giacenza è già scesa con lo scarico) e marca l'ordine Concluso. No-op per
-   * documenti non collegati o collegati a ordini di canale (Shopify).
+   * Conclude gli Ordini cliente manuali collegati a questo documento di
+   * scarico (§CONCLUDI ORDINE + prompt DDT §LOGICA MAGAZZINO): consuma gli
+   * impegni attivi (Impegnata → 0, la Giacenza è già scesa con lo scarico) e
+   * aggiorna lo stato. Se il documento non copre tutte le quantità previste
+   * dall'ordine, lo stato diventa «Parzialmente concluso»
+   * (fulfillmentStatus = partial); a copertura piena l'ordine è Concluso.
+   * No-op per documenti non collegati o collegati a ordini di canale.
    */
   private async concludeLinkedManualOrderTx(
     tx: Prisma.TransactionClient,
     tenantId: string,
     documentId: string,
   ): Promise<Array<{ variantId: string; locationId: string }>> {
-    const order = await tx.salesOrder.findFirst({
+    const orders = await tx.salesOrder.findMany({
       where: {
         tenantId,
         documentId,
@@ -2514,60 +2765,137 @@ export class DocumentsService {
         fulfilledAt: null,
         cancelledAt: null,
       },
-      select: { id: true, orderNumber: true },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
+      orderBy: { createdAt: 'asc' },
     });
-    if (!order) {
+    if (orders.length === 0) {
       return [];
     }
 
-    const syncTargets: Array<{ variantId: string; locationId: string }> = [];
-    const active = await tx.stockReservation.findMany({
-      where: { tenantId, salesOrderId: order.id, status: ReservationStatus.active },
+    // Copertura del documento: quantità per variante delle righe articolo.
+    // Allocazione sequenziale sugli ordini: la stessa quantità non può
+    // "evadere" due ordini contemporaneamente.
+    const docLines = await tx.documentLine.findMany({
+      where: { documentId },
+      select: { variantId: true, quantity: true },
     });
-    for (const reservation of active) {
-      await this.stockReservations.consumeReservationTx(
-        tx,
-        reservation,
-        `Concluso con documento di scarico (ordine ${order.orderNumber})`,
-      );
-      syncTargets.push({
-        variantId: reservation.variantId,
-        locationId: reservation.locationId,
-      });
+    const remainingByVariant = new Map<string, number>();
+    for (const line of docLines) {
+      if (line.variantId && line.quantity > 0) {
+        remainingByVariant.set(
+          line.variantId,
+          (remainingByVariant.get(line.variantId) ?? 0) + line.quantity,
+        );
+      }
     }
 
-    await tx.salesOrder.update({
-      where: { id: order.id },
-      data: {
-        fulfilledAt: new Date(),
-        fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
-      },
-    });
-    this.logger.log(`Ordine cliente ${order.orderNumber} concluso (${tenantId})`);
+    const syncTargets: Array<{ variantId: string; locationId: string }> = [];
+    for (const order of orders) {
+      // Impegno rilasciato: il documento scarica le giacenze al posto dell'OC.
+      const active = await tx.stockReservation.findMany({
+        where: { tenantId, salesOrderId: order.id, status: ReservationStatus.active },
+      });
+      for (const reservation of active) {
+        await this.stockReservations.consumeReservationTx(
+          tx,
+          reservation,
+          `Evaso con documento di scarico (ordine ${order.orderNumber})`,
+        );
+        syncTargets.push({
+          variantId: reservation.variantId,
+          locationId: reservation.locationId,
+        });
+      }
+
+      let fullyCovered = true;
+      for (const line of order.lines) {
+        if (!line.variantId || line.quantity <= 0) {
+          continue;
+        }
+        const remaining = remainingByVariant.get(line.variantId) ?? 0;
+        const allocated = Math.min(remaining, line.quantity);
+        remainingByVariant.set(line.variantId, remaining - allocated);
+        if (allocated < line.quantity) {
+          fullyCovered = false;
+        }
+      }
+
+      await tx.salesOrder.update({
+        where: { id: order.id },
+        data: fullyCovered
+          ? {
+              fulfilledAt: new Date(),
+              fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
+            }
+          : { fulfillmentStatus: SalesOrderFulfillmentStatus.partially_fulfilled },
+      });
+      this.logger.log(
+        `Ordine cliente ${order.orderNumber} ${
+          fullyCovered ? 'concluso' : 'parzialmente concluso'
+        } (${tenantId})`,
+      );
+    }
     return syncTargets;
   }
 
   /**
-   * Riapre l'Ordine cliente manuale concluso da questo scarico quando il
-   * documento viene annullato: l'ordine torna Confermato e gli impegni
-   * vengono ricreati dalle righe con spunta "Impegna magazzino" attiva.
+   * Riapre gli Ordini cliente manuali evasi (anche parzialmente) da questo
+   * scarico quando il documento viene annullato: l'ordine torna Confermato e
+   * gli impegni vengono ricreati dalle righe con spunta "Impegna magazzino".
    */
   private async reopenLinkedManualOrderTx(
     tx: Prisma.TransactionClient,
     tenantId: string,
     documentId: string,
   ): Promise<Array<{ variantId: string; locationId: string }>> {
-    const order = await tx.salesOrder.findFirst({
+    const orders = await tx.salesOrder.findMany({
       where: {
         tenantId,
         documentId,
         source: SalesOrderSource.manual,
-        fulfilledAt: { not: null },
         cancelledAt: null,
+        OR: [
+          { fulfilledAt: { not: null } },
+          { fulfillmentStatus: SalesOrderFulfillmentStatus.partially_fulfilled },
+        ],
       },
+      select: { id: true },
+    });
+    const syncTargets: Array<{ variantId: string; locationId: string }> = [];
+    for (const order of orders) {
+      const targets = await this.reopenManualOrderRecordTx(
+        tx,
+        tenantId,
+        order.id,
+        'Scarico annullato: ordine riaperto',
+      );
+      syncTargets.push(...targets);
+    }
+    return syncTargets;
+  }
+
+  /**
+   * Riapre un singolo Ordine cliente manuale evaso (o parzialmente evaso):
+   * stato di nuovo Confermato, impegni consumati ripristinati e riallineati
+   * alle righe. No-op se l'ordine non risulta evaso.
+   */
+  private async reopenManualOrderRecordTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    orderId: string,
+    note: string,
+  ): Promise<Array<{ variantId: string; locationId: string }>> {
+    const order = await tx.salesOrder.findFirst({
+      where: { id: orderId, tenantId, source: SalesOrderSource.manual, cancelledAt: null },
       include: { lines: { orderBy: { lineNumber: 'asc' } } },
     });
     if (!order || !order.locationId) {
+      return [];
+    }
+    const wasFulfilled =
+      order.fulfilledAt != null ||
+      order.fulfillmentStatus === SalesOrderFulfillmentStatus.partially_fulfilled;
+    if (!wasFulfilled) {
       return [];
     }
 
@@ -2599,7 +2927,7 @@ export class DocumentsService {
     await this.stockReservations.restoreConsumedOrderReservationsTx(tx, {
       tenantId,
       salesOrderId: order.id,
-      note: `Scarico annullato: ordine ${order.orderNumber} riaperto`,
+      note: `${note} (${order.orderNumber})`,
     });
 
     const reservationLines = order.lines
@@ -2625,9 +2953,7 @@ export class DocumentsService {
       lines: reservationLines,
     });
 
-    this.logger.log(
-      `Ordine cliente ${order.orderNumber} riaperto: scarico annullato (${tenantId})`,
-    );
+    this.logger.log(`Ordine cliente ${order.orderNumber} riaperto (${tenantId})`);
     return reservationLines.map((line) => ({
       variantId: line.variantId,
       locationId: order.locationId!,

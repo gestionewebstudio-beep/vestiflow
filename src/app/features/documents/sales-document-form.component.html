@@ -9,12 +9,6 @@
   @if (isProforma()) {
     <p class="gr-form__disclaimer" role="note">{{ proformaDisclaimer }}</p>
   }
-  @if (isSalesDdt()) {
-    <p class="gr-form__disclaimer" role="note">
-      DDT vendita manuale: alla conferma le righe con variante scaricano la giacenza dalla location
-      selezionata.
-    </p>
-  }
 
   @if (loading()) {
     <app-table-skeleton [columns]="2" [rows]="6" />
@@ -28,7 +22,7 @@
     <app-empty-state
       icon="pi-lock"
       title="Documento non modificabile"
-      description="Solo bozze o documenti confermati (non bloccati) di proforma, bozza fattura o DDT vendita manuale sono editabili."
+      description="Solo bozze o documenti confermati (non bloccati) di proforma o bozza fattura sono editabili. Il DDT vendita si modifica dalla sua maschera dedicata."
       ctaLabel="Torna al registro"
       (ctaClick)="cancel()"
     />
@@ -68,26 +62,6 @@
             <p class="gr-form__hint" role="note">{{ hint }}</p>
           }
         </div>
-
-        @if (isSalesDdt()) {
-          <div class="gr-form__field">
-            <span class="gr-form__label">Location origine scarico</span>
-            <app-select-menu
-              [options]="locationOptions()"
-              [value]="form.controls.locationId.value"
-              ariaLabel="Location di origine"
-              placeholder="Seleziona location…"
-              [compact]="true"
-              [fullWidth]="true"
-              [invalid]="fieldInvalid('locationId')"
-              describedBy="sd-location-error"
-              (valueChange)="onLocationSelect($event)"
-            />
-            @if (fieldInvalid('locationId')) {
-              <p id="sd-location-error" class="gr-form__error">Seleziona la location di origine.</p>
-            }
-          </div>
-        }
 
         <div class="gr-form__field">
           <label class="gr-form__label" for="sd-date">Data documento</label>
@@ -212,19 +186,6 @@
                     (valueChange)="onLineVatSelect(i, $event)"
                   />
                 </div>
-                @if (isSalesDdt()) {
-                  <div class="gr-form__line-field gr-form__line-field--serials">
-                    <label class="gr-form__label" [for]="'sd-serials-' + i">Seriali</label>
-                    <input
-                      [id]="'sd-serials-' + i"
-                      class="gr-form__input"
-                      type="text"
-                      formControlName="serialNumbersText"
-                      placeholder="SN001, SN002"
-                      autocomplete="off"
-                    />
-                  </div>
-                }
               </div>
               @if (lines.length > 1) {
                 <button type="button" class="gr-form__line-remove" (click)="removeLine(i)">

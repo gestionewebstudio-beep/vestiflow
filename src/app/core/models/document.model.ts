@@ -66,6 +66,38 @@ export const CausalGenerationMode = {
 } as const;
 export type CausalGenerationMode = (typeof CausalGenerationMode)[keyof typeof CausalGenerationMode];
 
+/** Porto del trasporto DDT: franco (spese mittente) o assegnato (destinatario). */
+export const TransportPort = {
+  Franco: 'franco',
+  Assegnato: 'assegnato',
+} as const;
+export type TransportPort = (typeof TransportPort)[keyof typeof TransportPort];
+
+/**
+ * Snapshot indirizzo di testata DDT vendita (prompt DDT §INDIRIZZI):
+ * intestatario e destinazione condividono lo stesso schema.
+ */
+export interface DocumentAddress {
+  readonly name?: string;
+  readonly address?: string;
+  readonly zip?: string;
+  readonly city?: string;
+  readonly province?: string;
+  readonly country?: string;
+  readonly fiscalCode?: string;
+  readonly vatNumber?: string;
+}
+
+/** Ordine cliente agganciato a un DDT vendita (aggancio 1:N, prompt DDT). */
+export interface LinkedSalesOrderInfo {
+  readonly id: EntityId;
+  readonly orderNumber: string;
+  readonly cancelledAt?: IsoDateString;
+  readonly fulfilledAt?: IsoDateString;
+  /** Stato evasione (unfulfilled | partially_fulfilled | fulfilled). */
+  readonly fulfillmentStatus?: string;
+}
+
 /** Fattura registrata collegata a un Arrivo merce. */
 export interface LinkedPurchaseInvoiceInfo {
   readonly id: EntityId;
@@ -162,8 +194,35 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly billingCause?: string;
   /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
   readonly paymentTerms?: string;
+  /** Modalità di pagamento (DDT vendita: voce normativa MP01–MP23, snapshot nome). */
+  readonly paymentMethod?: string;
   /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
   readonly expectedDeliveryDate?: IsoDateString;
+  // ── DDT vendita: testata operativa (prompt DDT) ──
+  /** "Seguirà doc. di vendita". */
+  readonly followedBySalesDoc?: boolean;
+  /** Causale trasporto (es. "Vendita"). */
+  readonly transportCausal?: string;
+  /** Data e ora inizio trasporto. */
+  readonly transportStartAt?: IsoDateString;
+  /** Porto: franco o assegnato. */
+  readonly transportPort?: TransportPort;
+  /** Incaricato del trasporto (vettore/mittente/destinatario). */
+  readonly transportCarrier?: string;
+  /** Numero colli. */
+  readonly transportPackagesCount?: number;
+  /** Peso (testo libero, es. "12,5 kg"). */
+  readonly transportWeight?: string;
+  /** Aspetto esteriore dei beni. */
+  readonly transportGoodsAspect?: string;
+  /** Codice spedizione del vettore. */
+  readonly transportShippingCode?: string;
+  /** Tracking spedizione. */
+  readonly transportTrackingCode?: string;
+  /** Intestatario documento (snapshot indirizzo). */
+  readonly recipientAddress?: DocumentAddress;
+  /** Destinazione merce (può differire dall'intestatario). */
+  readonly destinationAddress?: DocumentAddress;
   /** Causale di carico (Arrivo merce, prompt §9.2). */
   readonly causalText?: string;
   /** Modalità causale: auto (dal modello) o manual (testo utente, §10). */
@@ -196,6 +255,8 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
     readonly id: EntityId;
     readonly orderNumber: string;
   };
+  /** Ordini cliente agganciati (DDT vendita può includerne più di uno). */
+  readonly linkedSalesOrders?: readonly LinkedSalesOrderInfo[];
   /** Ordine fornitore collegato (§10.1). */
   readonly linkedSupplierOrder?: {
     readonly id: EntityId;

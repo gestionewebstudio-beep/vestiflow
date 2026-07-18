@@ -1,10 +1,13 @@
 import { DocumentType } from '@core/models/document.model';
 
-/** Documenti vendita gestiti dal form condiviso (proforma, bozza fattura, DDT). */
+/**
+ * Documenti vendita gestiti dal form condiviso (proforma, bozza fattura).
+ * Il DDT vendita usa la maschera dell'Ordine cliente (prompt DDT §BASE):
+ * rotta dedicata /app/documents/sales-ddt.
+ */
 export const SALES_FORM_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.Proforma,
   DocumentType.InvoiceDraft,
-  DocumentType.SalesDdt,
 ] as const;
 
 /** Documenti vendita con anteprima stampa dedicata. */

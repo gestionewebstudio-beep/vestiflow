@@ -131,25 +131,30 @@ export interface SalesOrder extends TenantScoped, Timestamped {
 }
 
 /**
- * Stato dell'Ordine cliente manuale (§STATI): tre stati derivati.
- * Non esiste Bozza: o Confermato, o non esiste.
+ * Stato dell'Ordine cliente manuale (§STATI + prompt DDT): stati derivati.
+ * Non esiste Bozza: o Confermato, o non esiste. «Parzialmente concluso»
+ * nasce quando il DDT che ha incluso l'ordine non copre tutti i prodotti.
  */
 export const ManualOrderState = {
   Confirmed: 'confirmed',
   Cancelled: 'cancelled',
   Concluded: 'concluded',
+  PartiallyConcluded: 'partially_concluded',
 } as const;
 export type ManualOrderState = (typeof ManualOrderState)[keyof typeof ManualOrderState];
 
-/** Stato derivato: Annullato > Concluso > Confermato. */
+/** Stato derivato: Annullato > Concluso > Parzialmente concluso > Confermato. */
 export function manualOrderState(
-  order: Pick<SalesOrder, 'cancelledAt' | 'fulfilledAt'>,
+  order: Pick<SalesOrder, 'cancelledAt' | 'fulfilledAt' | 'fulfillmentStatus'>,
 ): ManualOrderState {
   if (order.cancelledAt) {
     return ManualOrderState.Cancelled;
   }
   if (order.fulfilledAt) {
     return ManualOrderState.Concluded;
+  }
+  if (order.fulfillmentStatus === SalesOrderFulfillmentStatus.Partial) {
+    return ManualOrderState.PartiallyConcluded;
   }
   return ManualOrderState.Confirmed;
 }

@@ -122,13 +122,16 @@ export class SalesOrderDetailComponent {
     return current.status === 'success' ? current.order : null;
   });
 
-  /** Ordine manuale non concluso: modificabile dalla maschera (§/app/sales). */
+  /**
+   * Ordine manuale modificabile dalla maschera (§/app/sales). Anche un ordine
+   * Concluso resta modificabile: la maschera avvisa che è collegato a un DDT
+   * (prompt DDT §LOGICA MAGAZZINO).
+   */
   protected readonly canEditManualOrder = computed(() => {
     const order = this.order();
     return (
       order != null &&
       order.source === SalesOrderSource.Manual &&
-      manualOrderState(order) !== ManualOrderState.Concluded &&
       canManageDocuments(this.authService.currentUser())
     );
   });
@@ -143,17 +146,21 @@ export class SalesOrderDetailComponent {
         return 'Annullato';
       case ManualOrderState.Concluded:
         return 'Concluso';
+      case ManualOrderState.PartiallyConcluded:
+        return 'Parzialmente concluso';
       default:
         return 'Confermato';
     }
   }
 
-  protected manualStateTone(order: SalesOrder): 'success' | 'error' | 'info' {
+  protected manualStateTone(order: SalesOrder): 'success' | 'error' | 'info' | 'warning' {
     switch (manualOrderState(order)) {
       case ManualOrderState.Cancelled:
         return 'error';
       case ManualOrderState.Concluded:
         return 'info';
+      case ManualOrderState.PartiallyConcluded:
+        return 'warning';
       default:
         return 'success';
     }

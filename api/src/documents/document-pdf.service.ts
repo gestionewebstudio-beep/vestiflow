@@ -29,6 +29,13 @@ interface TenantPdfHeader {
   readonly vatNumber: string | null;
 }
 
+/** Ora inizio trasporto in fuso Europa/Roma (stampa DDT). */
+const ROME_TIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
+  timeZone: 'Europe/Rome',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
 @Injectable()
 export class DocumentPdfService {
   constructor(private readonly prisma: PrismaService) {}
@@ -179,6 +186,10 @@ export class DocumentPdfService {
       );
     }
 
+    if (document.type === DocumentType.sales_ddt) {
+      y = this.renderSalesDdtSections(doc, document, y, left, contentWidth);
+    }
+
     if (document.notes?.trim()) {
       y += 12;
       y = drawPdfSectionTitle(doc, 'Note', y);
@@ -186,6 +197,91 @@ export class DocumentPdfService {
         width: contentWidth,
       });
     }
+  }
+
+  /**
+   * DDT vendita (prompt DDT §TRASPORTO/§INDIRIZZI): dati di trasporto sotto i
+   * totali e blocchi Intestatario/Destinazione. Si stampano solo i campi
+   * compilati — un DDT senza dati trasporto non mostra la sezione vuota.
+   */
+  private renderSalesDdtSections(
+    doc: PdfDocumentInstance,
+    document: DocumentDetail,
+    y: number,
+    left: number,
+    contentWidth: number,
+  ): number {
+    const transportRows: Array<readonly [string, string]> = [];
+    if (document.transportCausal?.trim()) {
+      transportRows.push(['Causale trasporto', document.transportCausal.trim()]);
+    }
+    if (document.transportStartAt) {
+      const time = ROME_TIME_FORMAT.format(document.transportStartAt);
+      transportRows.push([
+        'Inizio trasporto',
+        `${formatRomeDate(document.transportStartAt)}${time !== '00:00' ? ` ${time}` : ''}`,
+      ]);
+    }
+    if (document.transportPort) {
+      transportRows.push([
+        'Porto',
+        document.transportPort === 'franco' ? 'Franco' : 'Assegnato',
+      ]);
+    }
+    if (document.transportCarrier?.trim()) {
+      transportRows.push(['Incaricato trasporto', document.transportCarrier.trim()]);
+    }
+    if (document.transportPackagesCount != null) {
+      transportRows.push(['Numero colli', String(document.transportPackagesCount)]);
+    }
+    if (document.transportWeight?.trim()) {
+      transportRows.push(['Peso', document.transportWeight.trim()]);
+    }
+    if (document.transportGoodsAspect?.trim()) {
+      transportRows.push(['Aspetto beni', document.transportGoodsAspect.trim()]);
+    }
+    if (document.transportShippingCode?.trim()) {
+      transportRows.push(['Codice spedizione', document.transportShippingCode.trim()]);
+    }
+    if (document.transportTrackingCode?.trim()) {
+      transportRows.push(['Tracking', document.transportTrackingCode.trim()]);
+    }
+    if (document.paymentMethod?.trim()) {
+      transportRows.push(['Pagamento', document.paymentMethod.trim()]);
+    }
+    if (document.followedBySalesDoc) {
+      transportRows.push(['Seguirà doc. di vendita', 'Sì']);
+    }
+
+    if (transportRows.length > 0) {
+      y += 12;
+      y = drawPdfSectionTitle(doc, 'Trasporto', y);
+      for (const [label, value] of transportRows) {
+        y = drawPdfMetaLine(doc, label, value, y);
+      }
+    }
+
+    const recipient = formatPdfAddress(document.recipientAddress);
+    const destination = formatPdfAddress(document.destinationAddress);
+    if (recipient || destination) {
+      y += 12;
+      y = drawPdfSectionTitle(doc, 'Indirizzi', y);
+      if (recipient) {
+        doc.font('Helvetica-Bold').fontSize(9).text('Intestatario', left, y);
+        y += 12;
+        doc.font('Helvetica').fontSize(9).text(recipient, left, y, { width: contentWidth });
+        y = doc.y + 6;
+      }
+      if (destination && destination !== recipient) {
+        doc.font('Helvetica-Bold').fontSize(9).text('Destinazione', left, y);
+        y += 12;
+        doc.font('Helvetica').fontSize(9).text(destination, left, y, { width: contentWidth });
+        y = doc.y + 6;
+      }
+      doc.fillColor('#000000');
+    }
+
+    return y;
   }
 
   private renderContextMeta(
@@ -291,6 +387,27 @@ export class DocumentPdfService {
       rows,
     });
   }
+}
+
+/** Snapshot indirizzo (JSON) → riga stampabile: campi compilati in ordine. */
+function formatPdfAddress(value: unknown): string | null {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const address = value as Record<string, unknown>;
+  const read = (key: string): string =>
+    typeof address[key] === 'string' ? (address[key] as string).trim() : '';
+  const cityLine = [read('zip'), read('city'), read('province')].filter(Boolean).join(' ');
+  const fiscalLine = [
+    read('fiscalCode') ? `CF: ${read('fiscalCode')}` : '',
+    read('vatNumber') ? `P.IVA: ${read('vatNumber')}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const parts = [read('name'), read('address'), cityLine, read('country'), fiscalLine].filter(
+    Boolean,
+  );
+  return parts.length > 0 ? parts.join('\n') : null;
 }
 
 function parseSerialNumbers(value: unknown): string[] {

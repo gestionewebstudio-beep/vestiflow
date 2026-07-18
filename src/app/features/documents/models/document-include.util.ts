@@ -59,6 +59,12 @@ export interface IncludedDocumentLine {
 export interface IncludedDocumentPayload {
   readonly kind: IncludeSourceKind;
   readonly sourceId: EntityId;
+  /** Riferimento leggibile del documento di origine (es. «OC-2026-0001»). */
+  readonly sourceReference?: string;
+  /** Cliente del documento di origine (testata riportata se presente, DDT). */
+  readonly sourceCustomerId?: EntityId;
+  /** Condizioni di pagamento del documento di origine (testata riportata). */
+  readonly sourcePaymentTerms?: string;
   /** Riga descrittiva, es. «Rif. Preventivo PRE-2026-0001 del 17/07/2026». */
   readonly referenceText: string;
   readonly lines: readonly IncludedDocumentLine[];
@@ -87,6 +93,9 @@ export function includedPayloadFromQuote(doc: DocumentRecord): IncludedDocumentP
   return {
     kind: IncludeSourceKind.Quote,
     sourceId: doc.id,
+    sourceReference: doc.reference,
+    sourceCustomerId: doc.customerId,
+    sourcePaymentTerms: doc.paymentTerms,
     referenceText: includeReferenceText(IncludeSourceKind.Quote, doc.reference, doc.documentDate),
     lines: (doc.lines ?? []).map((line) => ({
       variantId: line.variantId,
@@ -105,6 +114,9 @@ export function includedPayloadFromSalesOrder(order: SalesOrder): IncludedDocume
   return {
     kind: IncludeSourceKind.CustomerOrder,
     sourceId: order.id,
+    sourceReference: order.orderNumber,
+    sourceCustomerId: order.customerId,
+    sourcePaymentTerms: order.paymentTerms,
     referenceText: includeReferenceText(
       IncludeSourceKind.CustomerOrder,
       order.orderNumber,

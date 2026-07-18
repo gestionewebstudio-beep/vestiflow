@@ -9,8 +9,8 @@
 
     @if (isEditMode()) {
       <div class="gr-form__meta">
-        <!-- Preventivo: nessuno stato documento (resta solo il numero PRE). -->
-        @if (!isQuote) {
+        <!-- Preventivo e DDT vendita: nessuno stato documento (resta il numero). -->
+        @if (isOrder) {
           <app-badge [tone]="stateBadgeTone()">{{ stateBadgeLabel() }}</app-badge>
         }
         @if (internalReferenceLabel(); as ref) {
@@ -54,11 +54,15 @@
     />
   } @else {
     <form class="gr-form__form" [class.gr-form__form--readonly]="formReadOnly()" [formGroup]="form">
-      @if (formReadOnly()) {
+      @if (isOrder && isSettledOrder()) {
         <div class="gr-form__unlock-banner" role="status">
           <p>
-            Ordine concluso: non è più modificabile. Le correzioni si fanno sul documento di scarico
-            associato.
+            {{
+              isPartiallyConcluded()
+                ? 'Ordine parzialmente concluso: non tutti i prodotti sono stati evasi dal documento di trasporto collegato.'
+                : 'Ordine concluso: è collegato a un documento di trasporto.'
+            }}
+            Le modifiche fatte qui NON aggiornano il documento già emesso.
           </p>
           @if (loadedOrder()?.linkedDocument; as doc) {
             <app-button type="button" variant="secondary" (click)="openOrderDetail()">
@@ -164,12 +168,12 @@
               />
             </div>
 
-            <!-- Preventivo: nessuno stato documento in testata. -->
-            @if (!isQuote) {
+            <!-- Preventivo e DDT vendita: nessuno stato documento in testata. -->
+            @if (isOrder) {
               <div class="gr-form__field">
                 <span class="gr-form__label">Stato</span>
-                @if (isConcluded()) {
-                  <p class="gr-form__readonly">Concluso</p>
+                @if (isSettledOrder()) {
+                  <p class="gr-form__readonly">{{ stateBadgeLabel() }}</p>
                 } @else {
                   <app-select-menu
                     [options]="stateOptions"
@@ -185,43 +189,72 @@
               </div>
             }
 
-            <div class="gr-form__field">
-              <label class="gr-form__label" for="co-external-ref">
-                {{ isQuote ? 'Rif.' : 'Rif. ordine cliente' }}
-              </label>
-              <input
-                id="co-external-ref"
-                class="gr-form__input"
-                type="text"
-                formControlName="externalRef"
-                placeholder="Es. PO-2026-15"
-                autocomplete="off"
-              />
-            </div>
+            <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento. -->
+            @if (!isSalesDdt) {
+              <div class="gr-form__field">
+                <label class="gr-form__label" for="co-external-ref">
+                  {{ isQuote ? 'Rif.' : 'Rif. ordine cliente' }}
+                </label>
+                <input
+                  id="co-external-ref"
+                  class="gr-form__input"
+                  type="text"
+                  formControlName="externalRef"
+                  placeholder="Es. PO-2026-15"
+                  autocomplete="off"
+                />
+              </div>
 
-            <div class="gr-form__field gr-form__field--end-md">
-              <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
-              <app-date-input
-                inputId="co-delivery"
-                formControlName="expectedDeliveryDate"
-                ariaLabel="Data prevista consegna"
-                placeholder="Opzionale"
-                [compact]="true"
-                [fullWidth]="true"
-              />
-            </div>
+              <div class="gr-form__field gr-form__field--end-md">
+                <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
+                <app-date-input
+                  inputId="co-delivery"
+                  formControlName="expectedDeliveryDate"
+                  ariaLabel="Data prevista consegna"
+                  placeholder="Opzionale"
+                  [compact]="true"
+                  [fullWidth]="true"
+                />
+              </div>
 
-            <div class="gr-form__field">
-              <label class="gr-form__label" for="co-payment">Pagamento</label>
-              <input
-                id="co-payment"
-                class="gr-form__input"
-                type="text"
-                formControlName="paymentTerms"
-                placeholder="Es. 30 gg d.f."
-                autocomplete="off"
-              />
-            </div>
+              <div class="gr-form__field">
+                <label class="gr-form__label" for="co-payment">Pagamento</label>
+                <input
+                  id="co-payment"
+                  class="gr-form__input"
+                  type="text"
+                  formControlName="paymentTerms"
+                  placeholder="Es. 30 gg d.f."
+                  autocomplete="off"
+                />
+              </div>
+            } @else {
+              <div class="gr-form__field">
+                <span class="gr-form__label" id="co-payment-method-label">Pagamento</span>
+                <!-- Auto-compilato dal tipo di pagamento dell'anagrafica cliente;
+                     voci normative fatturazione elettronica (MP01–MP23),
+                     gestibili in Impostazioni → Pagamenti. -->
+                <app-select-menu
+                  [options]="paymentMethodOptions()"
+                  [value]="form.controls.paymentMethod.value"
+                  ariaLabel="Modalità di pagamento"
+                  placeholder="Seleziona pagamento…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca modalità…"
+                  searchAriaLabel="Cerca modalità di pagamento"
+                  (valueChange)="onPaymentMethodSelect($event)"
+                />
+              </div>
+
+              <div class="gr-form__field gr-form__field--check">
+                <label class="gr-form__check gr-form__check--header">
+                  <input type="checkbox" formControlName="followedBySalesDoc" />
+                  <span>Seguirà doc. di vendita</span>
+                </label>
+              </div>
+            }
           </div>
         </div>
 
@@ -289,6 +322,28 @@
               </div>
             </div>
 
+            @if (isSalesDdt && includedOrders().length > 0) {
+              <!-- Ordini agganciati al DDT (prompt DDT §LOGICA MAGAZZINO): al
+                   salvataggio l'impegno viene rilasciato e il DDT scarica al
+                   posto dell'ordine; lo stato dell'ordine si aggiorna. -->
+              <ul class="ddt-form__linked-orders" aria-label="Ordini cliente agganciati">
+                @for (order of includedOrders(); track order.id) {
+                  <li class="ddt-form__linked-order">
+                    <i class="pi pi-link" aria-hidden="true"></i>
+                    <span>{{ order.orderNumber }}</span>
+                    <button
+                      type="button"
+                      class="ddt-form__linked-remove"
+                      [attr.aria-label]="'Sgancia ordine ' + order.orderNumber"
+                      (click)="removeIncludedOrder(order.id)"
+                    >
+                      <i class="pi pi-times" aria-hidden="true"></i>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+
             <div class="gr-form__table-wrap">
               <table class="gr-form__table">
                 <colgroup>
@@ -328,6 +383,9 @@
                   }
                   @if (isLineColumnVisible('vat')) {
                     <col [style.width]="lineColumnWidth('vat')" />
+                  }
+                  @if (isLineColumnVisible('serials')) {
+                    <col [style.width]="lineColumnWidth('serials')" />
                   }
                   @if (isLineColumnVisible('commitsStock')) {
                     <col [style.width]="lineColumnWidth('commitsStock')" />
@@ -501,14 +559,39 @@
                         ></span>
                       </th>
                     }
+                    @if (isLineColumnVisible('serials')) {
+                      <th scope="col" [style.width]="lineColumnWidth('serials')">
+                        <span class="gr-form__th-label">
+                          Seriali
+                          <app-hover-tooltip
+                            text="Numeri seriali consumati dallo scarico, separati da virgola (es. SN001, SN002). Richiesti per i prodotti con tracciamento seriale."
+                            position="bottom"
+                          >
+                            <i
+                              class="pi pi-info-circle gr-form__th-info"
+                              aria-label="Info colonna Seriali"
+                            ></i>
+                          </app-hover-tooltip>
+                        </span>
+                        <span
+                          appTableColumnResize
+                          [minWidthPx]="lineColumnMinWidth('serials')"
+                          (resized)="onLineColumnResize('serials', $event)"
+                        ></span>
+                      </th>
+                    }
                     @if (isLineColumnVisible('commitsStock')) {
                       <th scope="col" [style.width]="lineColumnWidth('commitsStock')">
                         <span class="gr-form__th-label">
-                          Imp.
+                          {{ commitsColumnLabel }}
                           <app-hover-tooltip [text]="commitsStockTooltip" position="bottom">
                             <i
                               class="pi pi-info-circle gr-form__th-info"
-                              aria-label="Info colonna Impegna magazzino"
+                              [attr.aria-label]="
+                                isSalesDdt
+                                  ? 'Info colonna Scarica magazzino'
+                                  : 'Info colonna Impegna magazzino'
+                              "
                             ></i>
                           </app-hover-tooltip>
                         </span>
@@ -733,11 +816,26 @@
                           />
                         </td>
                       }
+                      @if (isLineColumnVisible('serials')) {
+                        <td class="gr-form__cell gr-form__cell--editable">
+                          <input
+                            [id]="'co-serials-' + i"
+                            class="gr-form__input gr-form__input--table"
+                            type="text"
+                            formControlName="serialNumbersText"
+                            placeholder="SN001, SN002"
+                            autocomplete="off"
+                            (keydown)="onLineFieldKeydown(i, 'serials', $event)"
+                          />
+                        </td>
+                      }
                       @if (isLineColumnVisible('commitsStock')) {
                         <td class="gr-form__cell gr-form__cell--check">
                           <label class="gr-form__check">
                             <input type="checkbox" formControlName="commitsStock" />
-                            <span class="sr-only">Impegna magazzino</span>
+                            <span class="sr-only">{{
+                              isSalesDdt ? 'Scarica magazzino' : 'Impegna magazzino'
+                            }}</span>
                           </label>
                         </td>
                       }
@@ -876,6 +974,373 @@
               </div>
             </div>
           </div>
+
+          @if (isSalesDdt) {
+            <!-- Sezione Trasporto (prompt DDT §TRASPORTO): collassabile — sotto
+                 i totali resta compatta su desktop e non allunga la pagina su
+                 mobile quando i dati non servono. -->
+            <section class="ddt-form__section" formGroupName="transport">
+              <button
+                type="button"
+                class="ddt-form__section-toggle"
+                [attr.aria-expanded]="transportOpen()"
+                aria-controls="ddt-transport-body"
+                (click)="toggleTransportSection()"
+              >
+                <i
+                  class="pi"
+                  [class.pi-chevron-right]="!transportOpen()"
+                  [class.pi-chevron-down]="transportOpen()"
+                  aria-hidden="true"
+                ></i>
+                <h2 class="gr-form__subtitle">Trasporto</h2>
+                <span class="ddt-form__section-hint">Causale, vettore, colli, tracking</span>
+              </button>
+              @if (transportOpen()) {
+                <div id="ddt-transport-body" class="gr-form__grid ddt-form__grid">
+                  <div class="gr-form__field gr-form__field--span2">
+                    <label class="gr-form__label" for="ddt-transport-causal">
+                      Causale trasporto
+                    </label>
+                    <input
+                      id="ddt-transport-causal"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="causal"
+                      placeholder="Es. Vendita"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-transport-start-date">
+                      Data inizio trasporto
+                    </label>
+                    <app-date-input
+                      inputId="ddt-transport-start-date"
+                      formControlName="startDate"
+                      ariaLabel="Data inizio trasporto"
+                      [compact]="true"
+                      [fullWidth]="true"
+                    />
+                  </div>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-transport-start-time">
+                      Ora inizio trasporto
+                    </label>
+                    <input
+                      id="ddt-transport-start-time"
+                      class="gr-form__input"
+                      type="time"
+                      formControlName="startTime"
+                    />
+                  </div>
+                  <div class="gr-form__field">
+                    <span class="gr-form__label" id="ddt-transport-port-label">Porto</span>
+                    <app-select-menu
+                      [options]="[
+                        { value: TransportPort.Franco, label: 'Franco' },
+                        { value: TransportPort.Assegnato, label: 'Assegnato' },
+                      ]"
+                      [value]="form.controls.transport.controls.port.value"
+                      ariaLabel="Porto"
+                      placeholder="—"
+                      [compact]="true"
+                      [fullWidth]="true"
+                      (valueChange)="
+                        form.controls.transport.controls.port.setValue($any($event) ?? '')
+                      "
+                    />
+                  </div>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-transport-carrier">
+                      Incaricato del trasporto
+                    </label>
+                    <input
+                      id="ddt-transport-carrier"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="carrier"
+                      placeholder="Es. Vettore BRT"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-transport-packages">Numero colli</label>
+                    <input
+                      id="ddt-transport-packages"
+                      class="gr-form__input gr-form__input--num"
+                      type="number"
+                      min="0"
+                      step="1"
+                      formControlName="packagesCount"
+                    />
+                  </div>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-transport-weight">Peso</label>
+                    <input
+                      id="ddt-transport-weight"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="weight"
+                      placeholder="Es. 12,5 kg"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-transport-aspect">Aspetto beni</label>
+                    <input
+                      id="ddt-transport-aspect"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="goodsAspect"
+                      placeholder="Es. Scatole"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-transport-shipping-code">
+                      Codice spedizione
+                    </label>
+                    <input
+                      id="ddt-transport-shipping-code"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="shippingCode"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="gr-form__field gr-form__field--span2">
+                    <label class="gr-form__label" for="ddt-transport-tracking">
+                      Tracking spedizione
+                    </label>
+                    <input
+                      id="ddt-transport-tracking"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="trackingCode"
+                      placeholder="Codice o link tracking"
+                      autocomplete="off"
+                    />
+                  </div>
+                </div>
+              }
+            </section>
+
+            <!-- Sezione Indirizzi (prompt DDT §INDIRIZZI): intestatario
+                 auto-compilato dall'anagrafica, destinazione modificabile. -->
+            <section class="ddt-form__section" aria-labelledby="ddt-addresses-title">
+              <h2 id="ddt-addresses-title" class="gr-form__subtitle ddt-form__section-title">
+                Indirizzi
+              </h2>
+              <div class="ddt-form__addresses">
+                <div class="ddt-form__address-block" formGroupName="recipientAddress">
+                  <h3 class="ddt-form__address-title">Intestatario</h3>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-rec-name">Nome / Ragione sociale</label>
+                    <input
+                      id="ddt-rec-name"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="name"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-rec-address">Indirizzo</label>
+                    <input
+                      id="ddt-rec-address"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="address"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="ddt-form__address-row">
+                    <div class="gr-form__field">
+                      <label class="gr-form__label" for="ddt-rec-zip">CAP</label>
+                      <input
+                        id="ddt-rec-zip"
+                        class="gr-form__input"
+                        type="text"
+                        formControlName="zip"
+                        autocomplete="off"
+                      />
+                    </div>
+                    <div class="gr-form__field">
+                      <label class="gr-form__label" for="ddt-rec-city">Città</label>
+                      <input
+                        id="ddt-rec-city"
+                        class="gr-form__input"
+                        type="text"
+                        formControlName="city"
+                        autocomplete="off"
+                      />
+                    </div>
+                    <div class="gr-form__field">
+                      <label class="gr-form__label" for="ddt-rec-province">Provincia</label>
+                      <input
+                        id="ddt-rec-province"
+                        class="gr-form__input"
+                        type="text"
+                        formControlName="province"
+                        autocomplete="off"
+                      />
+                    </div>
+                  </div>
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="ddt-rec-country">Nazione</label>
+                    <input
+                      id="ddt-rec-country"
+                      class="gr-form__input"
+                      type="text"
+                      formControlName="country"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="ddt-form__address-row ddt-form__address-row--two">
+                    <div class="gr-form__field">
+                      <label class="gr-form__label" for="ddt-rec-fiscal">Codice fiscale</label>
+                      <input
+                        id="ddt-rec-fiscal"
+                        class="gr-form__input"
+                        type="text"
+                        formControlName="fiscalCode"
+                        autocomplete="off"
+                      />
+                    </div>
+                    <div class="gr-form__field">
+                      <label class="gr-form__label" for="ddt-rec-vat">Partita IVA</label>
+                      <input
+                        id="ddt-rec-vat"
+                        class="gr-form__input"
+                        type="text"
+                        formControlName="vatNumber"
+                        autocomplete="off"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ddt-form__address-block">
+                  <div class="ddt-form__address-head">
+                    <h3 class="ddt-form__address-title">Destinazione</h3>
+                    @if (!destinationDiffers()) {
+                      <app-button
+                        type="button"
+                        variant="secondary"
+                        (click)="enableDifferentDestination()"
+                      >
+                        Cambia destinazione
+                      </app-button>
+                    } @else {
+                      <app-button
+                        type="button"
+                        variant="ghost"
+                        (click)="resetDestinationToRecipient()"
+                      >
+                        Usa indirizzo intestatario
+                      </app-button>
+                    }
+                  </div>
+                  @if (!destinationDiffers()) {
+                    <p class="ddt-form__address-same">
+                      Coincide con l'intestatario. Usa «Cambia destinazione» per spedire a una sede
+                      diversa.
+                    </p>
+                  } @else {
+                    <div formGroupName="destinationAddress">
+                      <div class="gr-form__field">
+                        <label class="gr-form__label" for="ddt-dest-name">
+                          Nome / Ragione sociale
+                        </label>
+                        <input
+                          id="ddt-dest-name"
+                          class="gr-form__input"
+                          type="text"
+                          formControlName="name"
+                          autocomplete="off"
+                        />
+                      </div>
+                      <div class="gr-form__field">
+                        <label class="gr-form__label" for="ddt-dest-address">Indirizzo</label>
+                        <input
+                          id="ddt-dest-address"
+                          class="gr-form__input"
+                          type="text"
+                          formControlName="address"
+                          autocomplete="off"
+                        />
+                      </div>
+                      <div class="ddt-form__address-row">
+                        <div class="gr-form__field">
+                          <label class="gr-form__label" for="ddt-dest-zip">CAP</label>
+                          <input
+                            id="ddt-dest-zip"
+                            class="gr-form__input"
+                            type="text"
+                            formControlName="zip"
+                            autocomplete="off"
+                          />
+                        </div>
+                        <div class="gr-form__field">
+                          <label class="gr-form__label" for="ddt-dest-city">Città</label>
+                          <input
+                            id="ddt-dest-city"
+                            class="gr-form__input"
+                            type="text"
+                            formControlName="city"
+                            autocomplete="off"
+                          />
+                        </div>
+                        <div class="gr-form__field">
+                          <label class="gr-form__label" for="ddt-dest-province">Provincia</label>
+                          <input
+                            id="ddt-dest-province"
+                            class="gr-form__input"
+                            type="text"
+                            formControlName="province"
+                            autocomplete="off"
+                          />
+                        </div>
+                      </div>
+                      <div class="gr-form__field">
+                        <label class="gr-form__label" for="ddt-dest-country">Nazione</label>
+                        <input
+                          id="ddt-dest-country"
+                          class="gr-form__input"
+                          type="text"
+                          formControlName="country"
+                          autocomplete="off"
+                        />
+                      </div>
+                      <div class="ddt-form__address-row ddt-form__address-row--two">
+                        <div class="gr-form__field">
+                          <label class="gr-form__label" for="ddt-dest-fiscal">Codice fiscale</label>
+                          <input
+                            id="ddt-dest-fiscal"
+                            class="gr-form__input"
+                            type="text"
+                            formControlName="fiscalCode"
+                            autocomplete="off"
+                          />
+                        </div>
+                        <div class="gr-form__field">
+                          <label class="gr-form__label" for="ddt-dest-vat">Partita IVA</label>
+                          <input
+                            id="ddt-dest-vat"
+                            class="gr-form__input"
+                            type="text"
+                            formControlName="vatNumber"
+                            autocomplete="off"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            </section>
+          }
         </fieldset>
       </fieldset>
 
@@ -891,7 +1356,9 @@
           {{
             isQuote
               ? 'Il preventivo non impegna e non blocca la disponibilità di magazzino'
-              : 'Gli impegni di magazzino si aggiornano al salvataggio'
+              : isSalesDdt
+                ? 'Il DDT scarica le giacenze al salvataggio del documento'
+                : 'Gli impegni di magazzino si aggiornano al salvataggio'
           }}
         </p>
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
@@ -926,7 +1393,7 @@
             }
           </div>
         } @else if (
-          !isQuote && isEditMode() && orderState() === 'confirmed' && dirtySinceLastSave()
+          isOrder && isEditMode() && orderState() === 'confirmed' && dirtySinceLastSave()
         ) {
           <app-button
             type="button"
@@ -935,6 +1402,46 @@
             title="Salva il documento prima di concludere l'ordine"
           >
             Concludi ordine
+          </app-button>
+        }
+        @if (canGenerateDocuments()) {
+          <!-- Genera documento dal DDT (prompt DDT §GENERAZIONE): Bozza
+               fattura o Proforma — la fattura vera non è prevista. -->
+          <div class="co-form__conclude">
+            <app-button
+              type="button"
+              variant="secondary"
+              [disabled]="generating()"
+              [loading]="generating()"
+              (click)="toggleGenerateMenu()"
+            >
+              <i class="pi pi-file-export" aria-hidden="true"></i>
+              Genera documento
+              <i class="pi pi-chevron-down" aria-hidden="true"></i>
+            </app-button>
+            @if (generateMenuOpen()) {
+              <div class="co-form__conclude-menu" role="menu" aria-label="Genera documento">
+                @for (option of generateTargetOptions; track option.value) {
+                  <button
+                    type="button"
+                    class="co-form__conclude-item"
+                    role="menuitem"
+                    (click)="generateFromDdt($any(option.value))"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        } @else if (isSalesDdt && isEditMode() && dirtySinceLastSave()) {
+          <app-button
+            type="button"
+            variant="secondary"
+            [disabled]="true"
+            title="Salva il documento prima di generare Bozza fattura o Proforma"
+          >
+            Genera documento
           </app-button>
         }
         @if (!formReadOnly()) {
@@ -987,6 +1494,69 @@
   <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="toggleConcludeMenu()"></div>
 }
 
+@if (generateMenuOpen()) {
+  <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="toggleGenerateMenu()"></div>
+}
+
+@if (incompleteDataDialogOpen()) {
+  <div
+    class="gr-form__exit-backdrop"
+    aria-hidden="true"
+    (click)="dismissIncompleteDataDialog()"
+  ></div>
+  <div
+    class="gr-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="ddt-incomplete-title"
+  >
+    <h2 id="ddt-incomplete-title" class="gr-form__exit-title">Dati incompleti</h2>
+    <p class="gr-form__exit-message">Dati trasporto/indirizzi incompleti. Procedere lo stesso?</p>
+    <div class="gr-form__exit-actions">
+      <app-button type="button" variant="ghost" (click)="dismissIncompleteDataDialog()">
+        Annulla
+      </app-button>
+      <app-button type="button" variant="secondary" (click)="dismissIncompleteDataDialog()">
+        No
+      </app-button>
+      <app-button type="button" (click)="confirmIncompleteDataDialog()">Sì</app-button>
+    </div>
+  </div>
+}
+
+@if (partialOrdersDialogOpen()) {
+  <div
+    class="gr-form__exit-backdrop"
+    aria-hidden="true"
+    (click)="dismissPartialOrdersDialog()"
+  ></div>
+  <div
+    class="gr-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="ddt-partial-title"
+  >
+    <h2 id="ddt-partial-title" class="gr-form__exit-title">Ordine non evaso del tutto</h2>
+    <p class="gr-form__exit-message">
+      Non sono stati evasi tutti i prodotti previsti. Forzare lo stato a Concluso?
+    </p>
+    <ul class="co-form__availability-list">
+      @for (orderNumber of partialOrderNumbers(); track orderNumber) {
+        <li>{{ orderNumber }} → altrimenti resterà «Parzialmente concluso»</li>
+      }
+    </ul>
+    <div class="gr-form__exit-actions">
+      <app-button type="button" variant="ghost" (click)="dismissPartialOrdersDialog()">
+        Annulla
+      </app-button>
+      <app-button type="button" variant="secondary" (click)="declinePartialOrdersDialog()">
+        No
+      </app-button>
+      <app-button type="button" (click)="confirmPartialOrdersDialog()">Sì</app-button>
+    </div>
+  </div>
+}
+
 @if (availabilityDialogOpen()) {
   <div
     class="gr-form__exit-backdrop"
@@ -1025,9 +1595,7 @@
   <div class="gr-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
   <div class="gr-form__exit-dialog" role="dialog" aria-modal="true" aria-labelledby="co-exit-title">
     <h2 id="co-exit-title" class="gr-form__exit-title">Modifiche non salvate</h2>
-    <p class="gr-form__exit-message">
-      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
-    </p>
+    <p class="gr-form__exit-message">{{ exitDialogMessage() }}</p>
     @if (submitError(); as error) {
       <p class="gr-form__exit-error" role="alert">{{ error.message }}</p>
     }

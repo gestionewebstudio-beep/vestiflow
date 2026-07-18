@@ -20,6 +20,10 @@ export function documentEditPath(doc: {
   if (doc.type === DocumentType.Quote) {
     return `/app/documents/quote/${doc.id}/edit`;
   }
+  // DDT vendita: maschera dell'Ordine cliente in modalità sales-ddt (prompt DDT).
+  if (doc.type === DocumentType.SalesDdt) {
+    return `/app/documents/sales-ddt/${doc.id}/edit`;
+  }
   if (isSalesFormDocumentType(doc.type)) {
     return `/app/documents/sales/${doc.id}/edit`;
   }
