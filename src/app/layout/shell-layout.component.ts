@@ -367,12 +367,6 @@ export class ShellLayoutComponent {
         route: '/app/suppliers',
         activeRoutePrefix: '/app/suppliers',
       });
-      mainItems.push({
-        label: 'Ordini Fornitori',
-        icon: 'pi-truck',
-        route: '/app/orders',
-        activeRoutePrefix: '/app/orders',
-      });
     }
 
     if (canViewDocuments(user)) {
@@ -381,14 +375,6 @@ export class ShellLayoutComponent {
         icon: 'pi-file',
         route: '/app/documents',
         activeRoutePrefix: '/app/documents',
-        // Le sezioni vendita hanno voci sidebar proprie: l'evidenza va a loro.
-        activeRouteExclude: [
-          '/app/documents/registro',
-          '/app/documents/quote',
-          '/app/documents/proforma',
-          '/app/documents/sales-ddt',
-          '/app/documents/invoice-draft',
-        ],
       });
     }
 
@@ -407,22 +393,6 @@ export class ShellLayoutComponent {
 
     if (canViewReports(user)) {
       salesItems.push({
-        label: 'Ordini cliente',
-        icon: 'pi-shopping-cart',
-        route: '/app/sales',
-        activeRoutePrefix: '/app/sales',
-        activeRouteExclude: [
-          '/app/sales/register',
-          '/app/sales/shopify',
-          '/app/sales/online',
-          '/app/sales/corrispettivi',
-        ],
-      });
-      if (canViewDocuments(user)) {
-        // Preventivi sotto Ordini cliente (pagina elenco dedicata).
-        salesItems.push(this.quotesNavItem);
-      }
-      salesItems.push({
         label: 'Vendite online',
         icon: 'pi-send',
         route: '/app/sales/online',
@@ -434,34 +404,6 @@ export class ShellLayoutComponent {
         route: '/app/sales/corrispettivi',
         activeRoutePrefix: '/app/sales/corrispettivi',
       });
-    }
-
-    if (canViewDocuments(user)) {
-      // Senza permesso report la voce Ordini cliente non c'è: i Preventivi
-      // restano comunque raggiungibili in testa al blocco documenti vendita.
-      if (!canViewReports(user)) {
-        salesItems.push(this.quotesNavItem);
-      }
-      salesItems.push(
-        {
-          label: 'Proforma',
-          icon: 'pi-file-edit',
-          route: '/app/documents/proforma',
-          activeRoutePrefix: '/app/documents/proforma',
-        },
-        {
-          label: 'DDT vendita',
-          icon: 'pi-truck',
-          route: '/app/documents/sales-ddt',
-          activeRoutePrefix: '/app/documents/sales-ddt',
-        },
-        {
-          label: 'Bozze fattura',
-          icon: 'pi-receipt',
-          route: '/app/documents/invoice-draft',
-          activeRoutePrefix: '/app/documents/invoice-draft',
-        },
-      );
     }
 
     if (salesItems.length > 0) {
@@ -523,14 +465,6 @@ export class ShellLayoutComponent {
 
     return sections;
   });
-
-  /** Preventivi: pagina elenco dedicata, riusata in due punti del menu Vendite. */
-  private readonly quotesNavItem: NavItem = {
-    label: 'Preventivi',
-    icon: 'pi-file',
-    route: '/app/documents/quote',
-    activeRoutePrefix: '/app/documents/quote',
-  };
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).
   // takeUntilDestroyed() gestisce l'unsubscribe automatico.
