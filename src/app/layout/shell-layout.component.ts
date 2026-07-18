@@ -381,7 +381,14 @@ export class ShellLayoutComponent {
         icon: 'pi-file',
         route: '/app/documents',
         activeRoutePrefix: '/app/documents',
-        activeRouteExclude: ['/app/documents/registro'],
+        // Le sezioni vendita hanno voci sidebar proprie: l'evidenza va a loro.
+        activeRouteExclude: [
+          '/app/documents/registro',
+          '/app/documents/quote',
+          '/app/documents/proforma',
+          '/app/documents/sales-ddt',
+          '/app/documents/invoice-draft',
+        ],
       });
     }
 
@@ -412,8 +419,8 @@ export class ShellLayoutComponent {
         ],
       });
       if (canViewDocuments(user)) {
-        // Preventivi sotto Ordini cliente (registro documenti filtrato quote).
-        salesItems.push(this.documentRegisterNavItem('Preventivi', 'pi-file', 'quote'));
+        // Preventivi sotto Ordini cliente (pagina elenco dedicata).
+        salesItems.push(this.quotesNavItem);
       }
       salesItems.push({
         label: 'Vendite online',
@@ -433,12 +440,27 @@ export class ShellLayoutComponent {
       // Senza permesso report la voce Ordini cliente non c'è: i Preventivi
       // restano comunque raggiungibili in testa al blocco documenti vendita.
       if (!canViewReports(user)) {
-        salesItems.push(this.documentRegisterNavItem('Preventivi', 'pi-file', 'quote'));
+        salesItems.push(this.quotesNavItem);
       }
       salesItems.push(
-        this.documentRegisterNavItem('Proforma', 'pi-file-edit', 'proforma'),
-        this.documentRegisterNavItem('DDT vendita', 'pi-truck', 'sales_ddt'),
-        this.documentRegisterNavItem('Bozze fattura', 'pi-receipt', 'invoice_draft'),
+        {
+          label: 'Proforma',
+          icon: 'pi-file-edit',
+          route: '/app/documents/proforma',
+          activeRoutePrefix: '/app/documents/proforma',
+        },
+        {
+          label: 'DDT vendita',
+          icon: 'pi-truck',
+          route: '/app/documents/sales-ddt',
+          activeRoutePrefix: '/app/documents/sales-ddt',
+        },
+        {
+          label: 'Bozze fattura',
+          icon: 'pi-receipt',
+          route: '/app/documents/invoice-draft',
+          activeRoutePrefix: '/app/documents/invoice-draft',
+        },
       );
     }
 
@@ -502,23 +524,13 @@ export class ShellLayoutComponent {
     return sections;
   });
 
-  /** Voce sidebar sul registro documenti filtrato per tipo (Proforma, DDT, Bozze). */
-  private documentRegisterNavItem(label: string, icon: string, type: string): NavItem {
-    return {
-      label,
-      icon,
-      route: '/app/documents/registro',
-      queryParams: { type },
-      // Evidenza limitata: il registro filtrato condivide la route, si evita
-      // di accendere piu' voci insieme lasciando l'evidenza al gruppo Documenti.
-      linkActiveOptions: {
-        paths: 'exact',
-        queryParams: 'subset',
-        matrixParams: 'ignored',
-        fragment: 'ignored',
-      },
-    };
-  }
+  /** Preventivi: pagina elenco dedicata, riusata in due punti del menu Vendite. */
+  private readonly quotesNavItem: NavItem = {
+    label: 'Preventivi',
+    icon: 'pi-file',
+    route: '/app/documents/quote',
+    activeRoutePrefix: '/app/documents/quote',
+  };
 
   // Chiude il drawer a ogni navigazione completata (UX mobile).
   // takeUntilDestroyed() gestisce l'unsubscribe automatico.

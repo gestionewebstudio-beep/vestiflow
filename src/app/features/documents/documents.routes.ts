@@ -38,6 +38,49 @@ export const documentsRoutes: Routes = [
     },
   },
   {
+    // Pagine elenco dedicate ai documenti di vendita (voci sidebar Vendite):
+    // stesso componente del registro con profilo dedicato (titolo, «Nuovo …»,
+    // stato vuoto e filtri propri, senza filtro «Tipo»).
+    path: 'quote',
+    title: 'VestiFlow · Preventivi',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'quote',
+    },
+  },
+  {
+    path: 'proforma',
+    title: 'VestiFlow · Proforma',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'proforma',
+    },
+  },
+  {
+    path: 'sales-ddt',
+    title: 'VestiFlow · DDT vendita',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'sales-ddt',
+    },
+  },
+  {
+    path: 'invoice-draft',
+    title: 'VestiFlow · Bozze fattura',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'invoice-draft',
+    },
+  },
+  {
     path: 'proforma/new',
     title: 'VestiFlow · Nuova proforma',
     loadComponent: () =>
@@ -118,6 +161,52 @@ export const documentsRoutes: Routes = [
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
       customerDocumentKind: 'quote',
+    },
+  },
+  {
+    // Anteprime dettaglio dedicate (layout Ordine cliente): registrate dopo le
+    // rotte `x/new` così «new» non viene mai interpretato come id documento.
+    path: 'quote/:id',
+    title: 'VestiFlow · Dettaglio preventivo',
+    loadComponent: () =>
+      import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'quote',
+    },
+  },
+  {
+    path: 'proforma/:id',
+    title: 'VestiFlow · Dettaglio proforma',
+    loadComponent: () =>
+      import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'proforma',
+    },
+  },
+  {
+    path: 'sales-ddt/:id',
+    title: 'VestiFlow · Dettaglio DDT vendita',
+    loadComponent: () =>
+      import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'sales-ddt',
+    },
+  },
+  {
+    path: 'invoice-draft/:id',
+    title: 'VestiFlow · Dettaglio bozza fattura',
+    loadComponent: () =>
+      import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'invoice-draft',
     },
   },
   {

@@ -1,10 +1,12 @@
 <section class="doc-list">
   <header class="doc-list__header">
     <div class="doc-list__heading">
-      <a class="doc-list__back" routerLink="/app/documents">
-        <i class="pi pi-arrow-left" aria-hidden="true"></i>
-        Documenti
-      </a>
+      @if (!isSalesRegisterList()) {
+        <a class="doc-list__back" routerLink="/app/documents">
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+          Documenti
+        </a>
+      }
       <h1 class="doc-list__title">{{ pageTitle() }}</h1>
       <p class="doc-list__subtitle">
         {{ pageSubtitle() }}
@@ -12,7 +14,12 @@
     </div>
     @if (canManageDocuments()) {
       <div class="doc-list__actions">
-        @if (isGoodsReceiptList()) {
+        @if (salesRegister(); as sales) {
+          <app-button (click)="openNewSalesDocument()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            {{ sales.createLabel }}
+          </app-button>
+        } @else if (isGoodsReceiptList()) {
           <app-button (click)="openNewGoodsReceipt()">
             <i class="pi pi-plus" aria-hidden="true"></i>
             Nuovo arrivo merce
@@ -43,7 +50,7 @@
     }
   </header>
 
-  @if (isAccountantView()) {
+  @if (isAccountantView() && !isSalesRegisterList()) {
     <p class="doc-list__banner" role="status">
       Vista registro commercialista: tipi documento rilevanti per contabilità e fatturazione.
     </p>
@@ -62,11 +69,7 @@
         class="doc-list__input"
         type="search"
         [value]="searchDraft()"
-        [placeholder]="
-          isGoodsReceiptList()
-            ? 'Cerca per numero, fornitore, causale, commento o totale…'
-            : 'Cerca per numero, controparte o documento esterno…'
-        "
+        [placeholder]="searchPlaceholder()"
         aria-label="Cerca documenti"
         (input)="onSearchInput($event)"
       />
@@ -101,7 +104,53 @@
         />
       </div>
 
-      @if (isGoodsReceiptList()) {
+      @if (salesRegister(); as sales) {
+        @if (sales.statusOptions; as salesStatusOptions) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Stato"
+              [options]="salesStatusOptions"
+              [value]="query().status ?? ''"
+              ariaLabel="Filtra per stato documento"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onStatusFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Cliente"
+            [options]="customerOptions()"
+            [value]="query().customerId ?? ''"
+            ariaLabel="Filtra per cliente"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca cliente…"
+            searchAriaLabel="Cerca cliente"
+            (valueChange)="onCustomerFilterChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+
+        @if (sales.showPendingInvoiceFilter) {
+          <div class="doc-list__field">
+            <label class="doc-list__check">
+              <input
+                type="checkbox"
+                [checked]="isPendingInvoiceView()"
+                (change)="onPendingInvoiceFilterChange($any($event.target).checked)"
+              />
+              <span>DDT da fatturare</span>
+            </label>
+          </div>
+        }
+      } @else if (isGoodsReceiptList()) {
         <div class="doc-list__field">
           <app-select-menu
             chipLabel="Fornitore"
@@ -229,15 +278,11 @@
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (isEmpty()) {
     <app-empty-state
-      [title]="isGoodsReceiptList() ? 'Nessun arrivo merce' : 'Nessun documento'"
-      [description]="
-        isGoodsReceiptList()
-          ? 'Non ci sono arrivi merce salvati. Crea un nuovo documento per registrare carichi fornitore e aggiornare le giacenze.'
-          : 'Non ci sono documenti che corrispondono ai filtri. Crea un arrivo merce per registrare carichi fornitore e aggiornare le giacenze.'
-      "
-      icon="pi-file"
-      [ctaLabel]="canManageDocuments() ? 'Nuovo arrivo merce' : undefined"
-      (ctaClick)="openNewGoodsReceipt()"
+      [title]="emptyStateTitle()"
+      [description]="emptyStateDescription()"
+      [icon]="emptyStateIcon()"
+      [ctaLabel]="emptyStateCtaLabel()"
+      (ctaClick)="onEmptyStateCta()"
     />
   } @else {
     @if (actionError(); as err) {

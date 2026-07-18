@@ -117,7 +117,9 @@ export class DocumentDetailComponent {
     externalDocDate: this.fb.control(''),
   });
 
-  protected readonly listPath = computed(() => {
+  // Tipo esplicito string: le anteprime dedicate (SalesDocumentDetailComponent)
+  // sovrascrivono il percorso con la propria pagina elenco.
+  protected readonly listPath = computed<string>(() => {
     const doc = this.document();
     if (doc && isGoodsReceiptDocumentType(doc.type)) {
       return '/app/documents/arrivi-merce';

@@ -67,7 +67,13 @@ import {
   DOCUMENT_LIST_COLUMN_PRESETS,
   GOODS_RECEIPT_LIST_COLUMN_DEFS,
   GOODS_RECEIPT_LIST_COLUMN_PRESETS,
+  QUOTE_LIST_COLUMN_DEFS,
+  QUOTE_LIST_COLUMN_PRESETS,
+  SALES_DOCUMENT_LIST_COLUMN_DEFS,
+  SALES_DOCUMENT_LIST_COLUMN_PRESETS,
 } from './models/document-table-columns.config';
+import { salesDocumentRegisterConfig } from './models/document-sales-register.config';
+import type { SalesDocumentRegisterProfile } from './models/document-sales-register.config';
 import {
   DEFAULT_DOCUMENT_PAGE_SIZE,
   DOCUMENT_PAGE_SIZE_OPTIONS,
@@ -147,15 +153,67 @@ export class DocumentListComponent {
 
   protected readonly isGoodsReceiptList = computed(() => this.listProfile() === 'goods-receipt');
 
-  protected readonly pageTitle = computed(() =>
-    this.isGoodsReceiptList() ? 'Arrivi merce' : 'Registro documenti',
+  /** Pagina dedicata a un documento di vendita (Preventivi, Proforma, DDT, Bozze). */
+  protected readonly salesRegister = computed(() =>
+    salesDocumentRegisterConfig(this.listProfile()),
   );
 
-  protected readonly pageSubtitle = computed(() =>
-    this.isGoodsReceiptList()
+  protected readonly isSalesRegisterList = computed(() => this.salesRegister() !== null);
+
+  protected readonly pageTitle = computed(() => {
+    const sales = this.salesRegister();
+    if (sales) {
+      return sales.pageTitle;
+    }
+    return this.isGoodsReceiptList() ? 'Arrivi merce' : 'Registro documenti';
+  });
+
+  protected readonly pageSubtitle = computed(() => {
+    const sales = this.salesRegister();
+    if (sales) {
+      return sales.pageSubtitle;
+    }
+    return this.isGoodsReceiptList()
       ? 'Registro carichi fornitore, DDT e movimenti di magazzino collegati.'
-      : 'Registro DDT, arrivi merce, trasferimenti, proforma e documenti fiscali.',
-  );
+      : 'Registro DDT, arrivi merce, trasferimenti, proforma e documenti fiscali.';
+  });
+
+  protected readonly searchPlaceholder = computed(() => {
+    const sales = this.salesRegister();
+    if (sales) {
+      return sales.searchPlaceholder;
+    }
+    return this.isGoodsReceiptList()
+      ? 'Cerca per numero, fornitore, causale, commento o totale…'
+      : 'Cerca per numero, controparte o documento esterno…';
+  });
+
+  protected readonly emptyStateTitle = computed(() => {
+    const sales = this.salesRegister();
+    if (sales) {
+      return sales.emptyTitle;
+    }
+    return this.isGoodsReceiptList() ? 'Nessun arrivo merce' : 'Nessun documento';
+  });
+
+  protected readonly emptyStateDescription = computed(() => {
+    const sales = this.salesRegister();
+    if (sales) {
+      return sales.emptyDescription;
+    }
+    return this.isGoodsReceiptList()
+      ? 'Non ci sono arrivi merce salvati. Crea un nuovo documento per registrare carichi fornitore e aggiornare le giacenze.'
+      : 'Non ci sono documenti che corrispondono ai filtri. Crea un arrivo merce per registrare carichi fornitore e aggiornare le giacenze.';
+  });
+
+  protected readonly emptyStateIcon = computed(() => this.salesRegister()?.emptyIcon ?? 'pi-file');
+
+  protected readonly emptyStateCtaLabel = computed(() => {
+    if (!this.canManageDocuments()) {
+      return undefined;
+    }
+    return this.salesRegister()?.createLabel ?? 'Nuovo arrivo merce';
+  });
 
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
     this.operationalLocations.locations().map((loc) => ({
@@ -211,18 +269,32 @@ export class DocumentListComponent {
     { initialValue: [] as readonly SelectMenuOption[] },
   );
 
-  protected readonly tableViewId = computed(() =>
-    this.isGoodsReceiptList() ? TableViewId.GoodsReceiptDocumentsList : TableViewId.DocumentsList,
-  );
+  protected readonly tableViewId = computed(() => {
+    const sales = this.salesRegister();
+    if (sales) {
+      return sales.viewId;
+    }
+    return this.isGoodsReceiptList()
+      ? TableViewId.GoodsReceiptDocumentsList
+      : TableViewId.DocumentsList;
+  });
 
   private readonly genericTableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
   private readonly goodsReceiptTableColumns: ReturnType<
     TableColumnPreferenceService['visibleColumns']
   >;
+  private readonly salesTableColumns: Record<
+    SalesDocumentRegisterProfile,
+    ReturnType<TableColumnPreferenceService['visibleColumns']>
+  >;
 
-  protected readonly tableColumns = computed(() =>
-    this.isGoodsReceiptList() ? this.goodsReceiptTableColumns() : this.genericTableColumns(),
-  );
+  protected readonly tableColumns = computed(() => {
+    const sales = this.salesRegister();
+    if (sales) {
+      return this.salesTableColumns[sales.profile]();
+    }
+    return this.isGoodsReceiptList() ? this.goodsReceiptTableColumns() : this.genericTableColumns();
+  });
 
   protected readonly canManageDocuments = computed(() =>
     canManageDocuments(this.authService.currentUser()),
@@ -255,6 +327,21 @@ export class DocumentListComponent {
 
   protected readonly apiQuery = computed((): DocumentListQuery => {
     const q = this.query();
+    const sales = this.salesRegister();
+    if (sales) {
+      // Pagina dedicata: il tipo è fisso dal profilo, mai dai query param.
+      return {
+        ...q,
+        type: sales.type,
+        types: undefined,
+        supplierId: undefined,
+        linkStatus: undefined,
+        externalDocumentTypeId: undefined,
+        locationId: undefined,
+        accountant: undefined,
+        pendingInvoice: sales.showPendingInvoiceFilter ? q.pendingInvoice : undefined,
+      };
+    }
     if (this.isGoodsReceiptList()) {
       return {
         ...q,
@@ -342,6 +429,13 @@ export class DocumentListComponent {
 
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
+    const sales = this.salesRegister();
+    if (sales) {
+      return (
+        Boolean(q.search ?? q.status ?? q.dateFrom ?? q.dateTo ?? q.customerId) ||
+        (sales.showPendingInvoiceFilter && q.pendingInvoice === true)
+      );
+    }
     if (this.isGoodsReceiptList()) {
       return Boolean(
         q.search ??
@@ -353,15 +447,11 @@ export class DocumentListComponent {
         q.externalDocumentTypeId,
       );
     }
-    return Boolean(
-      q.search ??
-      q.type ??
-      q.status ??
-      q.dateFrom ??
-      q.dateTo ??
-      q.customerId ??
-      q.accountant ??
-      q.pendingInvoice,
+    // accountant/pendingInvoice sono boolean (mai nullish): vanno in OR esplicito.
+    return (
+      Boolean(q.search ?? q.type ?? q.status ?? q.dateFrom ?? q.dateTo ?? q.customerId) ||
+      q.accountant === true ||
+      q.pendingInvoice === true
     );
   });
 
@@ -384,10 +474,36 @@ export class DocumentListComponent {
       GOODS_RECEIPT_LIST_COLUMN_DEFS,
       GOODS_RECEIPT_LIST_COLUMN_PRESETS,
     );
+    this.columnPreferences.registerView(
+      TableViewId.QuoteDocumentsList,
+      QUOTE_LIST_COLUMN_DEFS,
+      QUOTE_LIST_COLUMN_PRESETS,
+    );
+    this.columnPreferences.registerView(
+      TableViewId.ProformaDocumentsList,
+      SALES_DOCUMENT_LIST_COLUMN_DEFS,
+      SALES_DOCUMENT_LIST_COLUMN_PRESETS,
+    );
+    this.columnPreferences.registerView(
+      TableViewId.SalesDdtDocumentsList,
+      SALES_DOCUMENT_LIST_COLUMN_DEFS,
+      SALES_DOCUMENT_LIST_COLUMN_PRESETS,
+    );
+    this.columnPreferences.registerView(
+      TableViewId.InvoiceDraftDocumentsList,
+      SALES_DOCUMENT_LIST_COLUMN_DEFS,
+      SALES_DOCUMENT_LIST_COLUMN_PRESETS,
+    );
     this.genericTableColumns = this.columnPreferences.visibleColumns(TableViewId.DocumentsList);
     this.goodsReceiptTableColumns = this.columnPreferences.visibleColumns(
       TableViewId.GoodsReceiptDocumentsList,
     );
+    this.salesTableColumns = {
+      quote: this.columnPreferences.visibleColumns(TableViewId.QuoteDocumentsList),
+      proforma: this.columnPreferences.visibleColumns(TableViewId.ProformaDocumentsList),
+      'sales-ddt': this.columnPreferences.visibleColumns(TableViewId.SalesDdtDocumentsList),
+      'invoice-draft': this.columnPreferences.visibleColumns(TableViewId.InvoiceDraftDocumentsList),
+    };
 
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
@@ -533,6 +649,13 @@ export class DocumentListComponent {
   }
 
   protected openDocument(doc: DocumentRecord): void {
+    // Pagina dedicata: la riga apre l'anteprima dettaglio della sezione
+    // (layout Ordine cliente), non il dettaglio del registro generico.
+    const sales = this.salesRegister();
+    if (sales) {
+      void this.router.navigate([sales.listPath, doc.id]);
+      return;
+    }
     // Percorso unico Arrivo merce: anche dal registro generico la famiglia
     // carico si apre nel form dedicato (mai nel dettaglio generico, che non
     // può confermarla né modificarla).
@@ -743,7 +866,9 @@ export class DocumentListComponent {
    * allegati sempre). Il fragment posiziona la vista sulla sezione allegati.
    */
   private openDocumentDetail(doc: DocumentRecord, fragment?: string): void {
-    void this.router.navigate(['/app/documents', doc.id], fragment ? { fragment } : {});
+    const sales = this.salesRegister();
+    const commands = sales ? [sales.listPath, doc.id] : ['/app/documents', doc.id];
+    void this.router.navigate(commands, fragment ? { fragment } : {});
   }
 
   protected openHub(): void {
@@ -788,6 +913,23 @@ export class DocumentListComponent {
 
   protected openNewInvoiceDraft(): void {
     void this.router.navigate(['/app/documents/invoice-draft/new']);
+  }
+
+  /** «Nuovo …» della pagina dedicata (Preventivi, Proforma, DDT, Bozze). */
+  protected openNewSalesDocument(): void {
+    const sales = this.salesRegister();
+    if (sales) {
+      void this.router.navigateByUrl(sales.createPath);
+    }
+  }
+
+  /** CTA dello stato vuoto: creazione contestuale alla pagina. */
+  protected onEmptyStateCta(): void {
+    if (this.salesRegister()) {
+      this.openNewSalesDocument();
+      return;
+    }
+    this.openNewGoodsReceipt();
   }
 
   private updateParams(params: Record<string, string | number | null>, replace = false): void {

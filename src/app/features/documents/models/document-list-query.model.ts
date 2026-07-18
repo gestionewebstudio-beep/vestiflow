@@ -6,7 +6,13 @@ export const DEFAULT_DOCUMENT_PAGE_SIZE = 20;
 export const DOCUMENT_PAGE_SIZE_OPTIONS: readonly number[] = [10, 20, 50];
 
 /** Profilo lista documenti (route data). */
-export type DocumentListProfile = 'generic' | 'goods-receipt';
+export type DocumentListProfile =
+  | 'generic'
+  | 'goods-receipt'
+  | 'quote'
+  | 'proforma'
+  | 'sales-ddt'
+  | 'invoice-draft';
 
 /** Query registro documenti (ordinamento fisso: data documento discendente). */
 export interface DocumentListQuery {
