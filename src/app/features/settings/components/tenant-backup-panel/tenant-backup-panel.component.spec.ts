@@ -40,6 +40,11 @@ describe('TenantBackupPanelComponent', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // restoreAllMocks NON annulla vi.stubGlobal: senza unstub la URL globale
+    // resta l'oggetto fittizio di mockDownload e i file di test successivi
+    // nello stesso worker falliscono al caricamento con «URL is not a
+    // constructor» (il module-runner di vite usa la URL del realm).
+    vi.unstubAllGlobals();
   });
 
   async function setup() {

@@ -96,7 +96,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/jsbarcode": "^3.11.4",
     "@types/node": "^20.17.19",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.10",
     "angular-eslint": "^21.4.0",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
@@ -110,7 +110,7 @@
     "sharp": "^0.34.5",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.60.1",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   },
   "lint-staged": {
     "src/**/*.{ts,html}": [

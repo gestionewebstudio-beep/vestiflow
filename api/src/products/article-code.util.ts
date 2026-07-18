@@ -92,7 +92,10 @@ export async function nextArticleCodeInTx(
   tx: Prisma.TransactionClient,
   tenantId: string,
 ): Promise<string> {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('product_article_code'), hashtext(${tenantId}))`;
+  // Cast ::text obbligatorio: pg_advisory_xact_lock restituisce `void`, che
+  // Prisma non sa deserializzare — senza cast la generazione del progressivo
+  // fallisce con 500 «Failed to deserialize column of type 'void'».
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('product_article_code'), hashtext(${tenantId}))::text`;
   const rows = await tx.$queryRaw<{ article_code: string }[]>`
     SELECT article_code
     FROM products
