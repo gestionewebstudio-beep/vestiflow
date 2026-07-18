@@ -76,6 +76,8 @@ interface VariantSummaryApiRow {
   readonly supplierSku?: string | null;
   readonly stockOnHand?: number | null;
   readonly stockAvailable?: number | null;
+  readonly stockMinThreshold?: number | null;
+  readonly imageUrl?: string | null;
   readonly category?: string | null;
   readonly unitOfMeasure?: string | null;
   readonly defaultVatCodeId?: string | null;
@@ -441,6 +443,8 @@ export class ProductService {
       supplierSku: row.supplierSku ?? undefined,
       stockOnHand: row.stockOnHand ?? undefined,
       stockAvailable: row.stockAvailable ?? undefined,
+      stockMinThreshold: row.stockMinThreshold ?? undefined,
+      imageUrl: row.imageUrl ?? undefined,
       category: row.category?.trim() || undefined,
       unitOfMeasure: row.unitOfMeasure?.trim() || undefined,
       defaultVatCodeId: row.defaultVatCodeId ?? undefined,

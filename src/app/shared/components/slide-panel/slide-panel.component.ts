@@ -28,6 +28,8 @@ export class SlidePanelComponent {
   readonly open = input(false);
   readonly title = input.required<string>();
   readonly ariaLabel = input<string>();
+  /** `narrow` = larghezza compatta adatta a contenuti stretti (es. ricerca prodotto). */
+  readonly size = input<'default' | 'narrow'>('default');
 
   readonly closed = output<void>();
 

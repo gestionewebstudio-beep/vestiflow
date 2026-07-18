@@ -26,6 +26,10 @@ export interface VariantSummaryDto {
    * senza: totale multi-sede). Null se la variante non ha righe giacenza.
    */
   readonly stockAvailable?: number | null;
+  /** Soglia minima di riordino (della sede richiesta se passata, altrimenti somma multi-sede); per colorare la disponibilità. */
+  readonly stockMinThreshold?: number | null;
+  /** URL della prima immagine del prodotto (miniatura nella ricerca); null se il prodotto non ha immagini. */
+  readonly imageUrl?: string | null;
   readonly category?: string | null;
   readonly unitOfMeasure?: string | null;
   readonly defaultVatCodeId?: string | null;

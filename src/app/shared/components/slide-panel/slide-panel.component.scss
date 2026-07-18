@@ -1,3 +1,5 @@
+@use 'breakpoints' as bp;
+
 .slide-panel {
   position: fixed;
   inset: 0;
@@ -25,6 +27,16 @@
   background-color: var(--color-surface);
   box-shadow: var(--shadow-lg);
   animation: slide-panel-in var(--motion-duration-fast, 180ms) ease-out;
+}
+
+// Variante compatta: larghezza adatta al contenuto, non alla pagina.
+// Su mobile occupa comunque tutto lo schermo (min con 100vw).
+.slide-panel__sheet--narrow {
+  inline-size: min(28rem, 100vw);
+
+  @include bp.media-down('sm') {
+    inline-size: 100vw;
+  }
 }
 
 @keyframes slide-panel-in {

@@ -13,7 +13,7 @@
       (click)="onBackdropClick()"
     ></button>
 
-    <div class="slide-panel__sheet">
+    <div class="slide-panel__sheet" [class.slide-panel__sheet--narrow]="size() === 'narrow'">
       <header class="slide-panel__header">
         <h2 class="slide-panel__title">{{ title() }}</h2>
         <app-button type="button" variant="ghost" ariaLabel="Chiudi" (click)="onCloseClick()">

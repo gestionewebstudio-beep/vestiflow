@@ -247,6 +247,11 @@ export class ProductsService {
               defaultVatCodeId: true,
               managesStock: true,
               kind: true,
+              images: {
+                select: { url: true },
+                orderBy: { sortOrder: 'asc' },
+                take: 1,
+              },
             },
           },
           ...(query.supplierId
@@ -265,7 +270,7 @@ export class ProductsService {
           // sommate a valle (totale multi-sede invece di nessun dato).
           inventoryLevels: {
             ...(query.locationId ? { where: { locationId: query.locationId }, take: 1 } : {}),
-            select: { onHand: true, available: true },
+            select: { onHand: true, available: true, minThreshold: true },
           },
         },
         orderBy: [{ product: { name: 'asc' } }, { sku: 'asc' }],
@@ -291,6 +296,13 @@ export class ProductsService {
         : levels.length > 0
           ? levels.reduce((sum, level) => sum + level.available, 0)
           : null;
+      // Soglia per colorare la disponibilità: con location quella della sede,
+      // senza somma multi-sede (coerente con l'aggregazione di stockAvailable).
+      const stockMinThreshold = query.locationId
+        ? (levels[0]?.minThreshold ?? null)
+        : levels.length > 0
+          ? levels.reduce((sum, level) => sum + level.minThreshold, 0)
+          : null;
       const purchaseMinor = supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null;
       return {
         variantId: row.id,
@@ -313,6 +325,8 @@ export class ProductsService {
         supplierSku: supplierLink?.supplierSku ?? null,
         stockOnHand,
         stockAvailable,
+        stockMinThreshold,
+        imageUrl: row.product.images?.[0]?.url ?? null,
         category: row.product.category?.trim() || null,
         unitOfMeasure: row.product.unitOfMeasure ?? 'pz',
         defaultVatCodeId: row.product.defaultVatCodeId ?? null,

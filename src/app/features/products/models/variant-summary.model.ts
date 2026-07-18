@@ -23,6 +23,10 @@ export interface VariantSummary {
   readonly stockOnHand?: number | null;
   /** Disponibile = Giacenza − Impegnata (per la location richiesta, se passata). */
   readonly stockAvailable?: number | null;
+  /** Soglia minima di riordino, per colorare la disponibilità (verde/arancione/rosso). */
+  readonly stockMinThreshold?: number | null;
+  /** URL della prima immagine del prodotto (miniatura ricerca); assente se non presente. */
+  readonly imageUrl?: string;
   readonly category?: string;
   readonly unitOfMeasure?: string;
   /** Codice IVA predefinito del prodotto (ereditato dalle righe documento). */

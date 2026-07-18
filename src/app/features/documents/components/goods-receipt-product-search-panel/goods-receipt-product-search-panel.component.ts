@@ -13,6 +13,8 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, debounceTime, of, switchMap } from 'rxjs';
 
+import { StockStatus } from '@core/models/inventory-level.model';
+import { stockStatusOf } from '@core/utils/inventory.util';
 import { formatMoney } from '@core/utils/money.util';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductService } from '@features/products/services/product.service';
@@ -44,6 +46,7 @@ export class GoodsReceiptProductSearchPanelComponent {
   /** Forza riesecuzione ricerca anche se il testo non cambia (Invio / pulsante Cerca). */
   private readonly searchRevision = signal(0);
   protected readonly formatMoney = formatMoney;
+  protected readonly StockStatus = StockStatus;
 
   private readonly searchResults = toSignal(
     toObservable(
@@ -105,23 +108,40 @@ export class GoodsReceiptProductSearchPanelComponent {
     this.dismissed.emit();
   }
 
-  protected resultDetail(variant: VariantSummary): string {
-    const parts: string[] = [variant.sku];
+  /** Riga codici sotto il nome: codice articolo, SKU e EAN (i presenti). */
+  protected resultCodes(variant: VariantSummary): string {
+    const parts: string[] = [];
+    if (variant.articleCode) {
+      parts.push(`Art. ${variant.articleCode}`);
+    }
+    if (variant.sku) {
+      parts.push(`SKU ${variant.sku}`);
+    }
     if (variant.barcode) {
       parts.push(`EAN ${variant.barcode}`);
     }
-    if (variant.category) {
-      parts.push(variant.category);
-    }
-    if (variant.supplierSku) {
-      parts.push(`Cod. forn. ${variant.supplierSku}`);
-    }
-    if (variant.stockOnHand != null) {
-      parts.push(`Disp. ${variant.stockOnHand}`);
-    }
-    if (variant.sellingPrice.amountMinor > 0) {
-      parts.push(formatMoney(variant.sellingPrice));
-    }
     return parts.join(' · ');
+  }
+
+  /** Stato disponibilità (verde/arancione/rosso); null se non gestito a magazzino o senza giacenza. */
+  protected stockStatus(variant: VariantSummary): StockStatus | null {
+    if (variant.managesStock === false || variant.stockAvailable == null) {
+      return null;
+    }
+    return stockStatusOf({
+      available: variant.stockAvailable,
+      minThreshold: variant.stockMinThreshold ?? 0,
+    });
+  }
+
+  protected stockLabel(variant: VariantSummary): string {
+    if (this.stockStatus(variant) === StockStatus.Empty) {
+      return 'Esaurito';
+    }
+    return `Disp. ${variant.stockAvailable}`;
+  }
+
+  protected priceLabel(variant: VariantSummary): string {
+    return variant.sellingPrice.amountMinor > 0 ? formatMoney(variant.sellingPrice) : '';
   }
 }
