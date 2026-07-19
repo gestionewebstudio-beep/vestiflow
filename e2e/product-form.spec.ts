@@ -16,7 +16,7 @@ test.describe('Form prodotto', () => {
 
     await createButton.click();
     await expect(page).toHaveURL(/\/app\/products\/new/);
-    await expect(page.locator('h1.product-form__title')).toHaveText('Nuovo prodotto', {
+    await expect(page.locator('h1.product-form__title')).toHaveText('Anagrafica prodotto', {
       timeout: 30_000,
     });
     await expect(page.getByRole('button', { name: 'Dati generali' })).toBeVisible();

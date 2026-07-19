@@ -2823,16 +2823,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     };
   });
 
-  protected readonly productPanelTitle = computed(() => {
-    if (this.productPanelMode() === 'edit') {
-      return 'Anagrafica prodotto';
-    }
-    if (this.productPanelLineIndex() != null) {
-      return 'Completa anagrafica';
-    }
-    return 'Nuovo prodotto';
-  });
-
   protected openProductAnagraphic(index: number): void {
     const line = this.lines.at(index);
     if (!line) {

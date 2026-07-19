@@ -15,7 +15,7 @@
         <dd>{{ general().name || '—' }}</dd>
       </div>
       <div class="review-step__row">
-        <dt>Brand</dt>
+        <dt>Venditore/Brand</dt>
         <dd>{{ general().brand || '—' }}</dd>
       </div>
       @if (showShopifyIntegration()) {
@@ -40,8 +40,12 @@
         }
       }
       <div class="review-step__row">
-        <dt>Tipo prodotto</dt>
+        <dt>Categoria</dt>
         <dd>{{ general().category || '—' }}</dd>
+      </div>
+      <div class="review-step__row">
+        <dt>Sottocategoria</dt>
+        <dd>{{ general().subcategory || '—' }}</dd>
       </div>
       <div class="review-step__row">
         <dt>Stagione</dt>

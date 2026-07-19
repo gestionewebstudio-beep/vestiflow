@@ -10,6 +10,9 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 
 import { ProductGeneralStepComponent } from './product-general-step.component';
 import type { ProductGeneralDraft } from '../../models/product-form.model';
+import { CatalogCategoryService } from '../../services/catalog-category.service';
+
+const catalogCategoryServiceMock = {} as CatalogCategoryService;
 
 const EMPTY_GENERAL: ProductGeneralDraft = {
   articleCode: '',
@@ -17,6 +20,9 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   description: '',
   brand: '',
   category: '',
+  subcategory: '',
+  internalNotes: '',
+  supplierId: '',
   shopifyTaxonomyCategoryId: '',
   shopifyTaxonomyCategoryFullName: '',
   shopifyCategoryMetafields: [],
@@ -35,6 +41,7 @@ describe('ProductGeneralStepComponent', () => {
     const user = userEvent.setup();
 
     await render(ProductGeneralStepComponent, {
+      providers: [{ provide: CatalogCategoryService, useValue: catalogCategoryServiceMock }],
       configureTestBed: (testBed) => {
         testBed.overrideComponent(ProductGeneralStepComponent, {
           set: { imports: [NgTemplateOutlet, ReactiveFormsModule, SelectMenuComponent] },
@@ -58,6 +65,7 @@ describe('ProductGeneralStepComponent', () => {
     const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
 
     const { fixture } = await render(ProductGeneralStepComponent, {
+      providers: [{ provide: CatalogCategoryService, useValue: catalogCategoryServiceMock }],
       configureTestBed: (testBed) => {
         testBed.overrideComponent(ProductGeneralStepComponent, {
           set: { imports: [NgTemplateOutlet, ReactiveFormsModule, SelectMenuComponent] },
@@ -74,7 +82,7 @@ describe('ProductGeneralStepComponent', () => {
 
     await user.type(screen.getByLabelText('Nome prodotto'), 'Maglietta');
     await user.type(screen.getByLabelText(/Brand/i), 'Brand X');
-    await user.type(screen.getByLabelText(/Categoria/i), 'Top');
+    await user.type(screen.getByLabelText(/^Categoria/), 'Top');
 
     expect(onChange).toHaveBeenCalled();
     const lastCall = onChange.mock.calls.at(-1)?.[0];

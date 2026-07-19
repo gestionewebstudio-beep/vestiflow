@@ -25,7 +25,7 @@ test.describe('CI smoke (mock auth)', () => {
 
   test('wizard nuovo prodotto — step dati generali e opzioni', async ({ page }) => {
     await page.goto('/app/products/new');
-    await expect(page.locator('h1.product-form__title')).toHaveText('Nuovo prodotto', {
+    await expect(page.locator('h1.product-form__title')).toHaveText('Anagrafica prodotto', {
       timeout: 30_000,
     });
 

@@ -23,7 +23,7 @@ import {
   tap,
   take,
 } from 'rxjs';
-import type { Subscription } from 'rxjs';
+import type { Observable, Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -36,7 +36,17 @@ import {
   showShopifyIntegration as isShopifyTenantProfile,
 } from '@core/models/tenant-channel-profile.model';
 import type { ProductImage } from '@core/models/product-image.model';
+import { ProductKind } from '@core/models/product.model';
+import type { Product } from '@core/models/product.model';
+import type { SupplierVariantLink } from '@core/models/supplier.model';
+import { StockMovementType } from '@core/models/stock-movement.model';
+import {
+  canManageInventory,
+  canViewPurchaseCosts,
+} from '@core/permissions/tenant-permissions.util';
 import type { VatCode } from '@core/models/vat-code.model';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { SupplierService } from '@features/suppliers/services/supplier.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -81,11 +91,10 @@ import {
   isValidSku,
 } from './models/product-form.validators';
 import type { ProductFilterOptions } from './models/product-list-query.model';
-import {
-  SHOPIFY_CATALOG_EDIT_TITLE,
-  SHOPIFY_CATALOG_READONLY_BANNER,
-} from './models/catalog-origin.util';
+import { SHOPIFY_CATALOG_READONLY_BANNER } from './models/catalog-origin.util';
 import { ProductService } from './services/product.service';
+import type { CatalogCategory } from './services/catalog-category.service';
+import { CatalogCategoryService } from './services/catalog-category.service';
 import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 
@@ -157,6 +166,8 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   private readonly service = inject(ProductService);
   private readonly vatCodeService = inject(VatCodeService);
+  private readonly catalogCategoryService = inject(CatalogCategoryService);
+  private readonly supplierService = inject(SupplierService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
@@ -165,16 +176,22 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   protected readonly listPath = PRODUCTS_LIST_PATH;
 
-  /** In creazione: rapido (1 SKU) o wizard completo con opzioni. */
+  /** Modalità form: rapido (1 SKU) o wizard completo con opzioni (anche in edit). */
   protected readonly creationMode = signal<ProductCreationMode>('quick');
   private readonly quickVariantStepValid = signal(false);
 
   protected readonly steps = computed(() => {
-    if (this.mode() === 'create' && this.creationMode() === 'quick') {
+    if (this.creationMode() === 'quick') {
       return QUICK_WIZARD_STEPS;
     }
     return WIZARD_STEPS;
   });
+
+  /**
+   * "Inserimento rapido" disponibile solo con al più una variante: per un
+   * prodotto multi-variante il passaggio a rapido scarterebbe le altre.
+   */
+  protected readonly canUseQuickMode = computed(() => this.draft().variants.length <= 1);
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   private readonly productId = computed(() => {
@@ -209,12 +226,8 @@ export class ProductFormComponent implements CanComponentDeactivate {
     () => this.mode() === 'edit' && this.catalogOrigin() === CatalogOrigin.Shopify,
   );
   protected readonly shopifyCatalogBanner = SHOPIFY_CATALOG_READONLY_BANNER;
-  protected readonly formTitle = computed(() => {
-    if (this.mode() === 'create') {
-      return 'Nuovo prodotto';
-    }
-    return this.shopifyCatalogLocked() ? SHOPIFY_CATALOG_EDIT_TITLE : 'Modifica prodotto';
-  });
+  /** Titolo unico ovunque il form sia usato: mai "Nuovo/Modifica prodotto". */
+  protected readonly formTitle = 'Anagrafica prodotto';
 
   // Stato submit (dichiarati prima del pipe di load, che usa resetDraft in init).
   private readonly _submitState = signal<'idle' | 'submitting' | 'error'>('idle');
@@ -240,10 +253,28 @@ export class ProductFormComponent implements CanComponentDeactivate {
         return forkJoin({
           product: this.service.getProductById(id),
           variants: this.service.getProductVariants(id),
+          supplierLinks: this.supplierService
+            .getVariantLinksByProduct(id)
+            .pipe(catchError(() => of([]))),
         }).pipe(
-          tap(({ product, variants }) => {
+          tap(({ product, variants, supplierLinks }) => {
             this.catalogOrigin.set(product.catalogOrigin ?? CatalogOrigin.VestiFlow);
-            this.resetDraft(productToFormDraft(product, variants));
+            const draft = productToFormDraft(product, variants);
+            // Prefill del campo Fornitore: solo se l'articolo è collegato a un
+            // unico fornitore (più fornitori restano gestiti dalla scheda).
+            const supplierIds = [...new Set(supplierLinks.map((link) => link.supplierId))];
+            const withSupplier =
+              supplierIds.length === 1
+                ? { ...draft, general: { ...draft.general, supplierId: supplierIds[0]! } }
+                : draft;
+            this.resetDraft(withSupplier);
+            // Stessa schermata della creazione: rapido se il prodotto ha al
+            // più una variante e nessun asse opzione valorizzato.
+            const quickEligible =
+              withSupplier.variants.length <= 1 &&
+              withSupplier.options.axes.every((axis) => axis.values.length === 0);
+            this.creationMode.set(quickEligible ? 'quick' : 'full');
+            this._currentStep.set(0);
             this.existingImages.set(product.images ?? []);
           }),
           map((): FormLoadState => ({ status: 'ready' })),
@@ -279,6 +310,39 @@ export class ProductFormComponent implements CanComponentDeactivate {
   );
 
   protected readonly categories = computed(() => this.filterOptions()?.categories ?? []);
+
+  // Vocabolario categorie/sottocategorie gestito (gestione inline nello step).
+  private readonly categoriesTick = signal(0);
+  protected readonly catalogCategories = toSignal(
+    toObservable(this.categoriesTick).pipe(
+      switchMap(() =>
+        this.catalogCategoryService
+          .list()
+          .pipe(catchError(() => of([] as readonly CatalogCategory[]))),
+      ),
+    ),
+    { initialValue: [] as readonly CatalogCategory[] },
+  );
+
+  protected reloadCatalogCategories(): void {
+    this.categoriesTick.update((tick) => tick + 1);
+  }
+
+  // Fornitori in anagrafica per il campo "Fornitore" (Altri dati catalogo).
+  protected readonly supplierOptions = toSignal(
+    this.supplierService.getSuppliers().pipe(
+      map((suppliers): readonly SelectMenuOption[] =>
+        suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name })),
+      ),
+      catchError(() => of([] as readonly SelectMenuOption[])),
+    ),
+    { initialValue: [] as readonly SelectMenuOption[] },
+  );
+
+  /** Costo (prezzo acquisto) visibile solo con catalog.view_purchase_costs. */
+  protected readonly canViewPurchaseCosts = computed(() =>
+    canViewPurchaseCosts(this.authService.currentUser()),
+  );
 
   // Codici IVA per la tendina "Codice IVA" (su errore si degrada a lista vuota).
   protected readonly vatCodes = toSignal(
@@ -419,14 +483,13 @@ export class ProductFormComponent implements CanComponentDeactivate {
     return this.draft().general.name.trim() !== '';
   });
 
-  protected readonly isQuickCreate = computed(
-    () => this.mode() === 'create' && this.creationMode() === 'quick',
-  );
+  /** Modalità rapida attiva (in creazione e in modifica: stessa schermata). */
+  protected readonly isQuickMode = computed(() => this.creationMode() === 'quick');
 
   // Step "Opzioni" valido se: c'è almeno una combinazione generata e i nomi degli
   // assi sono validi (non vuoti) e univoci (es. il 3° asse non duplica Taglia/Colore).
   private readonly optionsValid = computed(() => {
-    if (this.isQuickCreate()) {
+    if (this.isQuickMode()) {
       return true;
     }
     if (this.shopifyCatalogLocked()) {
@@ -491,7 +554,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   /** Lo step corrente è valido e consente l'avanzamento. */
   protected readonly canAdvance = computed(() => {
-    if (this.isQuickCreate()) {
+    if (this.isQuickMode()) {
       return false;
     }
     switch (this.currentStepId()) {
@@ -521,13 +584,17 @@ export class ProductFormComponent implements CanComponentDeactivate {
   }
 
   protected setCreationMode(mode: ProductCreationMode): void {
-    if (this.mode() !== 'create' || this.creationMode() === mode) {
+    if (this.creationMode() === mode) {
+      return;
+    }
+    if (mode === 'quick' && !this.canUseQuickMode()) {
       return;
     }
     this.creationMode.set(mode);
     this._currentStep.set(0);
     if (mode === 'quick') {
-      this.draft.update((draft) => ensureQuickModeDraft(draft, false));
+      // In modifica lo SKU esistente va preservato (mai azzerato in silenzio).
+      this.draft.update((draft) => ensureQuickModeDraft(draft, this.mode() === 'edit'));
     }
   }
 
@@ -586,7 +653,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (this.submitting()) {
       return false;
     }
-    if (this.isQuickCreate()) {
+    if (this.isQuickMode()) {
       return this.generalValid() && this.quickVariantStepValid();
     }
     return this.generalValid() && this.optionsValid() && this.variantsValid();
@@ -596,13 +663,43 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (this.isLastStep()) {
       return true;
     }
-    return this.isQuickCreate() && this.isFirstStep();
+    return this.isQuickMode() && this.isFirstStep();
   });
 
   protected onSubmit(attachToDocument = true): void {
     if (this.embeddedPanel()) {
       this.embeddedAttachAfterSave.set(attachToDocument);
     }
+    this.postSaveMovement = null;
+    this.submitProduct();
+  }
+
+  // ── Salva e registra movimento ────────────────────────────────────────────
+
+  /**
+   * Bottoni Carica/Scarica/Rettifica: salvano l'anagrafica e aprono il form
+   * Registra movimento esistente già impostato sul tipo, con le varianti del
+   * prodotto in lista (deep-link productId, stesso pattern del tab Movimenti).
+   * Presenti ovunque il form sia usato, pagina o pannello embedded.
+   */
+  protected readonly movementActions = [
+    { type: StockMovementType.Load, label: 'Carica', icon: 'pi-plus-circle' },
+    { type: StockMovementType.Unload, label: 'Scarica', icon: 'pi-minus-circle' },
+    { type: StockMovementType.Adjustment, label: 'Rettifica', icon: 'pi-sliders-h' },
+  ] as const;
+
+  /** Tipo movimento da aprire dopo il salvataggio (null = flusso normale). */
+  private postSaveMovement: StockMovementType | null = null;
+
+  protected readonly showMovementActions = computed(
+    () =>
+      canManageInventory(this.authService.currentUser()) &&
+      this.draft().general.kind === ProductKind.Article &&
+      this.draft().general.managesStock,
+  );
+
+  protected onSubmitWithMovement(type: StockMovementType): void {
+    this.postSaveMovement = type;
     this.submitProduct();
   }
 
@@ -620,6 +717,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
       ? this.service.updateProduct(id, toUpdateProductDto(draft))
       : this.service.createProduct(toCreateProductDto(draft));
 
+    const supplierId = draft.general.supplierId.trim();
     const request$ = baseRequest$.pipe(
       switchMap((product) => {
         if (pendingFiles.length === 0) {
@@ -629,6 +727,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
           pendingFiles.map((file) => this.service.uploadProductImage(product.id, file)),
         ).pipe(map(() => product));
       }),
+      switchMap((product) => this.linkSupplierToVariants(product, supplierId)),
     );
 
     this._submitState.set('submitting');
@@ -637,6 +736,14 @@ export class ProductFormComponent implements CanComponentDeactivate {
     this.submitSub = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (product) => {
         this.saved.set(true);
+        // Carica/Scarica/Rettifica: priorità sul flusso post-salvataggio
+        // (anche in embedded si va al movimento, non al dettaglio/documento).
+        if (this.postSaveMovement) {
+          void this.router.navigate(['/app/inventory/movements/new'], {
+            queryParams: { type: this.postSaveMovement, productId: product.id },
+          });
+          return;
+        }
         if (this.embeddedPanel()) {
           if (id) {
             this.productUpdatedInPanel.emit({ productId: product.id });
@@ -669,6 +776,40 @@ export class ProductFormComponent implements CanComponentDeactivate {
         this.submitError.set(this.toAppError(err));
       },
     });
+  }
+
+  /**
+   * Campo "Fornitore" (Altri dati catalogo): collega il fornitore alle varianti
+   * dell'articolo dopo il salvataggio. Solo le varianti non ancora collegate a
+   * quel fornitore: i collegamenti esistenti (codici/costi) non vengono toccati.
+   * Non blocca mai il salvataggio del prodotto.
+   */
+  private linkSupplierToVariants(product: Product, supplierId: string): Observable<Product> {
+    if (!supplierId) {
+      return of(product);
+    }
+    return forkJoin({
+      variants: this.service.getProductVariants(product.id),
+      links: this.supplierService
+        .getVariantLinksByProduct(product.id)
+        .pipe(catchError(() => of([] as readonly SupplierVariantLink[]))),
+    }).pipe(
+      switchMap(({ variants, links }) => {
+        const alreadyLinked = new Set(
+          links.filter((link) => link.supplierId === supplierId).map((link) => link.variantId),
+        );
+        const missing = variants.filter((variant) => !alreadyLinked.has(variant.id));
+        if (missing.length === 0) {
+          return of(product);
+        }
+        return forkJoin(
+          missing.map((variant) =>
+            this.supplierService.upsertVariantLink({ supplierId, variantId: variant.id }),
+          ),
+        ).pipe(map(() => product));
+      }),
+      catchError(() => of(product)),
+    );
   }
 
   /** Tornare indietro è sempre consentito; avanzare solo allo step successivo se valido. */

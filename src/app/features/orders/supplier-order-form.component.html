@@ -590,7 +590,11 @@
   </div>
 }
 
-<app-slide-panel [open]="productPanelOpen()" title="Nuovo articolo" (closed)="closeProductPanel()">
+<app-slide-panel
+  [open]="productPanelOpen()"
+  title="Anagrafica prodotto"
+  (closed)="closeProductPanel()"
+>
   @if (productPanelOpen()) {
     <app-product-form
       [embeddedPanel]="true"

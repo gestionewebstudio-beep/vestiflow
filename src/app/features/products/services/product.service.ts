@@ -88,6 +88,8 @@ interface VariantSummaryApiRow {
 export interface VariantSummarySearchQuery {
   readonly search?: string;
   readonly variantId?: EntityId;
+  /** Tutte le varianti di un prodotto (deep-link Registra movimento). */
+  readonly productId?: EntityId;
   readonly supplierId?: EntityId;
   readonly locationId?: EntityId;
   readonly page?: number;
@@ -172,6 +174,9 @@ export class ProductService {
     }
     if (query.variantId) {
       params = params.set('variantId', query.variantId);
+    }
+    if (query.productId) {
+      params = params.set('productId', query.productId);
     }
     if (query.supplierId) {
       params = params.set('supplierId', query.supplierId);

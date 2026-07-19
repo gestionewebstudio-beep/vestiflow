@@ -88,5 +88,22 @@
         <p class="quick-variant__error" role="alert">Inserisci un prezzo valido (≥ 0).</p>
       }
     </div>
+
+    @if (canSeeCosts()) {
+      <div class="quick-variant__field">
+        <label class="quick-variant__label" for="quick-variant-cost">
+          Costo <span class="quick-variant__optional">(prezzo di acquisto)</span>
+        </label>
+        <input
+          id="quick-variant-cost"
+          class="quick-variant__control quick-variant__control--numeric"
+          type="number"
+          inputmode="decimal"
+          min="0"
+          step="0.01"
+          formControlName="purchasePrice"
+        />
+      </div>
+    }
   </div>
 </form>

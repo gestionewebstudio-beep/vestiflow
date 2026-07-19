@@ -63,6 +63,10 @@ export interface Product extends TenantScoped, Timestamped {
   readonly description?: string;
   readonly brand?: string;
   readonly category?: string;
+  /** Sottocategoria VestiFlow collegata alla categoria (vocabolario gestito). */
+  readonly subcategory?: string;
+  /** Note interne gestionale: mai sincronizzate con i canali. */
+  readonly internalNotes?: string;
   readonly shopifyTaxonomyCategoryId?: string;
   readonly shopifyTaxonomyCategoryFullName?: string;
   readonly season?: string;

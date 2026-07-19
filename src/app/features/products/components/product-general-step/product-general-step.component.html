@@ -50,7 +50,7 @@
 
       <div class="general-step__field">
         <label class="general-step__label" for="product-brand">
-          Brand <span class="general-step__optional">(opzionale)</span>
+          Venditore/Brand <span class="general-step__optional">(opzionale)</span>
         </label>
         <input
           id="product-brand"
@@ -61,53 +61,117 @@
         />
       </div>
 
-      @if (shopifyConnected()) {
-        <div class="general-step__field">
-          <label class="general-step__label" for="product-type">
-            Tipo prodotto
-            <span class="general-step__optional">(opzionale)</span>
-          </label>
+      <div class="general-step__field">
+        <div class="general-step__label-row">
+          <span class="general-step__label" id="product-category-label">
+            Categoria <span class="general-step__optional">(opzionale)</span>
+          </span>
+          @if (!catalogReadOnly()) {
+            <button
+              type="button"
+              class="general-step__manage-btn"
+              [attr.aria-expanded]="categoryManagerOpen()"
+              (click)="toggleCategoryManager()"
+            >
+              <i class="pi pi-cog" aria-hidden="true"></i>
+              Gestisci
+            </button>
+          }
+        </div>
+        @if (useCategorySelect()) {
+          <app-select-menu
+            [options]="categorySelectOptions()"
+            [value]="categorySelectValue()"
+            ariaLabel="Categoria prodotto"
+            placeholder="Seleziona categoria"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="true"
+            (valueChange)="onCategorySelect($event)"
+          />
+        } @else {
           <input
-            id="product-type"
+            id="product-category"
             class="general-step__control"
             type="text"
             formControlName="category"
             autocomplete="off"
+            aria-labelledby="product-category-label"
             placeholder="Es. Maglieria, Accessori…"
           />
-        </div>
-      } @else {
-        <div class="general-step__field">
-          @if (useCategorySelect()) {
-            <span class="general-step__label" id="product-category-label">
-              Categoria <span class="general-step__optional">(opzionale)</span>
-            </span>
-            <app-select-menu
-              [options]="categorySelectOptions()"
-              [value]="categorySelectValue()"
-              ariaLabel="Categoria prodotto"
-              placeholder="Seleziona categoria"
-              [compact]="true"
-              [fullWidth]="true"
-              [includeEmptyOption]="true"
-              (valueChange)="onCategorySelect($event)"
-            />
-          } @else {
-            <label class="general-step__label" for="product-category">
-              Categoria <span class="general-step__optional">(opzionale)</span>
-            </label>
-            <input
-              id="product-category"
-              class="general-step__control"
-              type="text"
-              formControlName="category"
-              autocomplete="off"
-              placeholder="Es. Catalogo, Fornitura, Linea…"
-            />
+        }
+      </div>
+
+      <div class="general-step__field">
+        <div class="general-step__label-row">
+          <span class="general-step__label" id="product-subcategory-label">
+            Sottocategoria <span class="general-step__optional">(opzionale)</span>
+          </span>
+          @if (!catalogReadOnly()) {
+            <button
+              type="button"
+              class="general-step__manage-btn"
+              [disabled]="!hasCategory() || ensuringCategory()"
+              [attr.aria-expanded]="subcategoryManagerOpen()"
+              title="Gestisci le sottocategorie della categoria selezionata"
+              (click)="toggleSubcategoryManager()"
+            >
+              <i class="pi pi-cog" aria-hidden="true"></i>
+              Gestisci
+            </button>
           }
         </div>
-      }
+        @if (useSubcategorySelect()) {
+          <app-select-menu
+            [options]="subcategorySelectOptions()"
+            [value]="subcategorySelectValue()"
+            ariaLabel="Sottocategoria prodotto"
+            placeholder="Seleziona sottocategoria"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="true"
+            (valueChange)="onSubcategorySelect($event)"
+          />
+        } @else {
+          <input
+            id="product-subcategory"
+            class="general-step__control"
+            type="text"
+            formControlName="subcategory"
+            autocomplete="off"
+            aria-labelledby="product-subcategory-label"
+            placeholder="Es. T-shirt, Pantaloni…"
+          />
+        }
+      </div>
     </div>
+
+    @if (categoryManagerOpen()) {
+      <div class="general-step__field general-step__field--full">
+        <app-catalog-category-manager
+          [entries]="rootCategoryEntries()"
+          title="Gestione categorie"
+          addPlaceholder="Nuova categoria…"
+          (changed)="categoriesChanged.emit()"
+          (created)="onCategoryCreated($event)"
+          (closed)="categoryManagerOpen.set(false)"
+        />
+      </div>
+    }
+
+    @if (subcategoryManagerOpen() && managedCategory(); as parentCategory) {
+      <div class="general-step__field general-step__field--full">
+        <app-catalog-category-manager
+          [entries]="subcategoryEntries()"
+          [parentId]="parentCategory.id"
+          [title]="'Sottocategorie di “' + parentCategory.name + '”'"
+          addPlaceholder="Nuova sottocategoria…"
+          (changed)="categoriesChanged.emit()"
+          (created)="onSubcategoryCreated($event)"
+          (closed)="subcategoryManagerOpen.set(false)"
+        />
+      </div>
+    }
 
     @if (shopifyConnected()) {
       <div class="general-step__field general-step__field--full">
@@ -267,6 +331,42 @@
         <input type="checkbox" formControlName="managesStock" />
         Gestisce giacenze di magazzino
       </label>
+    </div>
+
+    <div class="general-step__field">
+      <span class="general-step__label" id="product-supplier-label">
+        Fornitore <span class="general-step__optional">(opzionale)</span>
+      </span>
+      <app-select-menu
+        [options]="supplierOptions()"
+        [value]="form.controls.supplierId.value"
+        ariaLabel="Fornitore dell'articolo"
+        placeholder="Nessun fornitore"
+        [compact]="true"
+        [fullWidth]="true"
+        [includeEmptyOption]="true"
+        [searchable]="true"
+        searchPlaceholder="Cerca fornitore…"
+        searchAriaLabel="Cerca fornitore"
+        (valueChange)="onSupplierSelect($event)"
+      />
+      <p class="general-step__hint">
+        Al salvataggio l'articolo viene collegato al fornitore in anagrafica. Codici e costi per
+        variante restano gestibili dalla scheda fornitore.
+      </p>
+    </div>
+
+    <div class="general-step__field general-step__field--full">
+      <label class="general-step__label" for="product-internal-notes">
+        Note interne <span class="general-step__optional">(solo gestionale)</span>
+      </label>
+      <textarea
+        id="product-internal-notes"
+        class="general-step__control general-step__textarea"
+        formControlName="internalNotes"
+        rows="3"
+      ></textarea>
+      <p class="general-step__hint">Mai sincronizzate con Shopify o altri canali.</p>
     </div>
 
     <div class="general-step__field general-step__field--full">

@@ -148,6 +148,22 @@ describe('domain-api.mapper', () => {
       expect(variant.purchasePrice).toBeUndefined();
       expect(variant.compareAtPrice).toBeUndefined();
     });
+
+    it('SKU NULL a DB (facoltativo) diventa stringa vuota nel dominio', () => {
+      const variant = mapProductVariantApiRow({
+        id: 'var-3',
+        tenantId: 'tenant-1',
+        productId: 'prod-1',
+        sku: null,
+        optionValues: [],
+        currency: 'EUR',
+        sellingPriceMinor: 1000,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+
+      expect(variant.sku).toBe('');
+    });
   });
 
   describe('mapLocationApiRow', () => {

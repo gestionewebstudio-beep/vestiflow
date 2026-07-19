@@ -479,6 +479,23 @@ describe('ProductsService', () => {
     expect(where.id).toBe('var-9');
   });
 
+  it('listVariantSummaries applica il filtro productId (deep-link Registra movimento)', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findMany.mockResolvedValue([]);
+    prisma.productVariant.count.mockResolvedValue(0);
+
+    await service.listVariantSummaries(tenantId, {
+      page: 1,
+      pageSize: 10,
+      productId: 'prod-7',
+    } as never);
+
+    const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> })
+      .where;
+    expect(where.tenantId).toBe(tenantId);
+    expect(where.productId).toBe('prod-7');
+  });
+
   describe('duplicateProduct', () => {
     it('lancia NotFoundException se il prodotto originale non esiste', async () => {
       const { service, prisma } = createService();

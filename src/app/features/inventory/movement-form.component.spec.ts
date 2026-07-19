@@ -27,6 +27,12 @@ const VARIANT = {
   unitOfMeasure: 'pz',
   stockAvailable: 5,
 };
+const VARIANT_2 = {
+  ...VARIANT,
+  variantId: 'var-2',
+  title: 'Maglietta / L / Rosso',
+  sku: 'MAG-L-ROSSO',
+};
 const LEVELS = [{ id: 'lvl-1', variantId: 'var-1', locationId: 'loc-1', available: 5, onHand: 6 }];
 
 function operationalLocationsMock() {
@@ -62,10 +68,16 @@ describe('MovementFormComponent', () => {
         {
           provide: ProductService,
           useValue: {
-            searchVariantSummaries: (query?: { search?: string; variantId?: string }) =>
-              query?.variantId || (query?.search && query.search.length >= 2)
-                ? of([VARIANT])
-                : of([]),
+            searchVariantSummaries: (query?: {
+              search?: string;
+              variantId?: string;
+              productId?: string;
+            }) =>
+              query?.productId
+                ? of([VARIANT, VARIANT_2])
+                : query?.variantId || (query?.search && query.search.length >= 2)
+                  ? of([VARIANT])
+                  : of([]),
             findVariantByCode: () => of(VARIANT),
           },
         },
@@ -85,6 +97,15 @@ describe('MovementFormComponent', () => {
 
     expect(await screen.findByText('Maglietta / M / Rosso')).toBeVisible();
     expect(screen.getByLabelText('Quantità per Maglietta / M / Rosso')).toHaveValue(1);
+  });
+
+  it('deep-link productId: tutte le varianti del prodotto già in lista', async () => {
+    await setup({ productId: 'prod-1', type: 'unload' });
+
+    expect(await screen.findByText('Maglietta / M / Rosso')).toBeVisible();
+    expect(await screen.findByText('Maglietta / L / Rosso')).toBeVisible();
+    expect(screen.getByLabelText('Quantità per Maglietta / M / Rosso')).toHaveValue(1);
+    expect(screen.getByLabelText('Quantità per Maglietta / L / Rosso')).toHaveValue(1);
   });
 
   it('scarico oltre il disponibile: avviso non bloccante sulla riga', async () => {

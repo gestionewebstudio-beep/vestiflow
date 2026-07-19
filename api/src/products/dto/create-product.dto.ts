@@ -114,6 +114,18 @@ export class CreateProductDto {
   @MaxLength(100)
   category?: string;
 
+  /** Sottocategoria VestiFlow collegata alla categoria (testo, come category). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  subcategory?: string;
+
+  /** Note interne gestionale: mai sincronizzate con i canali. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  internalNotes?: string;
+
   /** GID Shopify Standard Product Taxonomy (gid://shopify/TaxonomyCategory/...). */
   @IsOptional()
   @IsString()

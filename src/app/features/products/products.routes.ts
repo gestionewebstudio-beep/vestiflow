@@ -22,7 +22,7 @@ export const productsRoutes: Routes = [
       },
       {
         path: 'new',
-        title: 'VestiFlow · Nuovo prodotto',
+        title: 'VestiFlow · Anagrafica prodotto',
         loadComponent: () => import('./product-form.component').then((m) => m.ProductFormComponent),
         canActivate: [tenantPermissionGuard],
         data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogManage },
@@ -54,7 +54,7 @@ export const productsRoutes: Routes = [
       },
       {
         path: ':id/edit',
-        title: 'VestiFlow · Modifica prodotto',
+        title: 'VestiFlow · Anagrafica prodotto',
         loadComponent: () => import('./product-form.component').then((m) => m.ProductFormComponent),
         canActivate: [tenantPermissionGuard],
         data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogManage },

@@ -50,6 +50,12 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
   readonly takenSkus = input<readonly string[]>([]);
   readonly takenBarcodes = input<readonly string[]>([]);
   readonly disabled = input(false);
+  /**
+   * Mostra il campo Costo (prezzo di acquisto). Permesso
+   * catalog.view_purchase_costs: senza, il campo resta nascosto e il valore
+   * esistente non viene mai toccato dall'emit.
+   */
+  readonly canSeeCosts = input(false);
 
   readonly variantChange = output<VariantDraft>();
   readonly validChange = output<boolean>();
@@ -60,6 +66,7 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
     sku: this.fb.control('', { validators: [Validators.pattern(SKU_PATTERN)] }),
     barcode: this.fb.control(''),
     sellingPrice: this.fb.control(0, { validators: [Validators.required, Validators.min(0)] }),
+    purchasePrice: this.fb.control<number | null>(null, { validators: [Validators.min(0)] }),
   });
 
   protected readonly generatingSku = signal(false);
@@ -75,6 +82,7 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
           sku: variant.sku,
           barcode: variant.barcode,
           sellingPrice: variant.sellingPrice ?? 0,
+          purchasePrice: variant.purchasePrice,
         },
         { emitEvent: false },
       );
@@ -101,6 +109,7 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
         sku: variant.sku,
         barcode: variant.barcode,
         sellingPrice: variant.sellingPrice ?? 0,
+        purchasePrice: variant.purchasePrice,
       },
       { emitEvent: false },
     );
@@ -191,6 +200,8 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
       sku: raw.sku,
       barcode: raw.barcode,
       sellingPrice: raw.sellingPrice,
+      // Senza permesso costi il campo è nascosto: il valore esistente resta.
+      ...(this.canSeeCosts() ? { purchasePrice: raw.purchasePrice } : {}),
     });
     this.validChange.emit(this.isFormValid());
   }

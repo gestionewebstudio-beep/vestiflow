@@ -13,6 +13,11 @@ export class ListVariantSummariesQueryDto extends PaginationQueryDto {
   @IsUUID()
   variantId?: string;
 
+  /** Tutte le varianti di un prodotto (deep-link Registra movimento). */
+  @IsOptional()
+  @IsUUID()
+  productId?: string;
+
   /** Filtra per fornitore collegato (codice/prezzo fornitore). */
   @IsOptional()
   @IsUUID()

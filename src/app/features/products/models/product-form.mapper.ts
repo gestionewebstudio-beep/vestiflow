@@ -180,6 +180,9 @@ export function emptyProductFormDraft(): ProductFormDraft {
       description: '',
       brand: '',
       category: '',
+      subcategory: '',
+      internalNotes: '',
+      supplierId: '',
       shopifyTaxonomyCategoryId: '',
       shopifyTaxonomyCategoryFullName: '',
       shopifyCategoryMetafields: [],
@@ -263,6 +266,10 @@ function generalToDto(
     description: trimmedOrUndefined(general.description),
     brand: trimmedOrUndefined(general.brand),
     category: trimmedOrUndefined(general.category),
+    subcategory: trimmedOrUndefined(general.subcategory),
+    internalNotes: trimmedOrUndefined(general.internalNotes),
+    // supplierId resta fuori dal DTO: il collegamento fornitore-varianti viene
+    // creato dal form dopo il salvataggio (upsertVariantLink).
     shopifyTaxonomyCategoryId: trimmedOrUndefined(general.shopifyTaxonomyCategoryId),
     shopifyTaxonomyCategoryFullName: trimmedOrUndefined(general.shopifyTaxonomyCategoryFullName),
     shopifyCategoryMetafields:
@@ -338,6 +345,10 @@ export function productToFormDraft(
     description: product.description ?? '',
     brand: product.brand ?? '',
     category: product.category ?? '',
+    subcategory: product.subcategory ?? '',
+    internalNotes: product.internalNotes ?? '',
+    // Prefillato dal form in edit (dai collegamenti fornitore esistenti).
+    supplierId: '',
     shopifyTaxonomyCategoryId: product.shopifyTaxonomyCategoryId ?? '',
     shopifyTaxonomyCategoryFullName: product.shopifyTaxonomyCategoryFullName ?? '',
     shopifyCategoryMetafields: product.shopifyCategoryMetafields

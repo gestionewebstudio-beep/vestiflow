@@ -102,6 +102,37 @@
   border-color: var(--color-interactive);
 }
 
+.general-step__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+// Bottone "Gestisci" accanto a Categoria/Sottocategoria: apre la gestione
+// inline del vocabolario senza uscire dall'anagrafica.
+.general-step__manage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-interactive);
+  background: none;
+  border: none;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+
+  &:disabled {
+    color: var(--color-text-muted);
+    cursor: default;
+  }
+}
+
 .general-step__textarea {
   block-size: auto;
   min-block-size: var(--space-16);

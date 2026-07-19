@@ -29,6 +29,9 @@ import {
 } from '@core/models/product-catalog.model';
 
 import type { ProductGeneralDraft } from '../../models/product-form.model';
+import type { CatalogCategory } from '../../services/catalog-category.service';
+import { CatalogCategoryService } from '../../services/catalog-category.service';
+import { CatalogCategoryManagerComponent } from '../catalog-category-manager/catalog-category-manager.component';
 import {
   ARTICLE_CODE_FORMAT_MESSAGE,
   ARTICLE_CODE_PATTERN,
@@ -70,6 +73,7 @@ const CUSTOM_OPTION_VALUE = '__custom__';
     SelectMenuComponent,
     ShopifyTaxonomyPickerComponent,
     ShopifyCategoryAttributesComponent,
+    CatalogCategoryManagerComponent,
   ],
   templateUrl: './product-general-step.component.html',
   styleUrl: './product-general-step.component.scss',
@@ -77,11 +81,18 @@ const CUSTOM_OPTION_VALUE = '__custom__';
 export class ProductGeneralStepComponent implements OnInit {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly catalogCategoryService = inject(CatalogCategoryService);
 
   readonly value = input.required<ProductGeneralDraft>();
   readonly valueChange = output<ProductGeneralDraft>();
+  /** Il vocabolario categorie è cambiato (gestione inline): il parent ricarica. */
+  readonly categoriesChanged = output<void>();
 
   readonly categories = input<readonly string[]>([]);
+  /** Vocabolario gestito categorie/sottocategorie (dal parent smart). */
+  readonly catalogCategories = input<readonly CatalogCategory[]>([]);
+  /** Fornitori in anagrafica per il campo "Fornitore" (dal parent smart). */
+  readonly supplierOptions = input<readonly SelectMenuOption[]>([]);
   /** Codici IVA attivi per la tendina "Codice IVA" (dal parent smart). */
   readonly vatCodes = input<readonly VatCode[]>([]);
   readonly shopifyConnected = input(false);
@@ -131,17 +142,68 @@ export class ProductGeneralStepComponent implements OnInit {
   }));
 
   protected readonly customCategory = signal(false);
+  protected readonly customSubcategory = signal(false);
   protected readonly customSeason = signal(false);
   protected readonly taxonomyTouched = signal(false);
 
+  // ── Categoria/Sottocategoria VestiFlow (vocabolario gestito + facets) ──────
+  protected readonly categoryManagerOpen = signal(false);
+  protected readonly subcategoryManagerOpen = signal(false);
+  protected readonly ensuringCategory = signal(false);
+
+  protected readonly rootCategoryEntries = computed(() =>
+    this.catalogCategories().filter((entry) => entry.parentId === null),
+  );
+
+  /** Nomi categoria disponibili: vocabolario gestito + valori già sui prodotti. */
+  private readonly categoryNamePool = computed((): readonly string[] => {
+    const pool = this.rootCategoryEntries().map((entry) => entry.name);
+    for (const value of this.categories()) {
+      if (!pool.some((name) => name.toLowerCase() === value.toLowerCase())) {
+        pool.push(value);
+      }
+    }
+    return pool;
+  });
+
+  protected readonly hasCategory = computed(() => this.categoryValue().trim() !== '');
+
+  /** Voce gestita corrispondente alla categoria selezionata (per le sottocategorie). */
+  protected readonly managedCategory = computed((): CatalogCategory | null => {
+    const current = this.categoryValue().trim().toLowerCase();
+    if (!current) {
+      return null;
+    }
+    return this.rootCategoryEntries().find((entry) => entry.name.toLowerCase() === current) ?? null;
+  });
+
+  protected readonly subcategoryEntries = computed((): readonly CatalogCategory[] => {
+    const parent = this.managedCategory();
+    if (!parent) {
+      return [];
+    }
+    return this.catalogCategories().filter((entry) => entry.parentId === parent.id);
+  });
+
   protected readonly categorySelectOptions = computed((): readonly SelectMenuOption[] => {
-    const values = this.withCurrent(this.categories(), this.categoryValue());
+    const values = this.withCurrent(this.categoryNamePool(), this.categoryValue());
     const options = values.map((value) => ({ value, label: value }));
-    if (this.categories().length > 0) {
+    if (this.categoryNamePool().length > 0) {
       return [...options, { value: CUSTOM_OPTION_VALUE, label: 'Altra categoria…' }];
     }
     return options;
   });
+
+  protected readonly subcategorySelectOptions = computed((): readonly SelectMenuOption[] => {
+    const names = this.subcategoryEntries().map((entry) => entry.name);
+    const values = this.withCurrent(names, this.subcategoryValue());
+    const options = values.map((value) => ({ value, label: value }));
+    return [...options, { value: CUSTOM_OPTION_VALUE, label: 'Altra sottocategoria…' }];
+  });
+
+  protected readonly subcategorySelectValue = computed(() =>
+    this.customSubcategory() ? CUSTOM_OPTION_VALUE : this.subcategoryValue(),
+  );
 
   protected readonly seasonSelectOptions = computed((): readonly SelectMenuOption[] =>
     buildProductSeasonSelectOptions(this.seasonValue()),
@@ -163,6 +225,7 @@ export class ProductGeneralStepComponent implements OnInit {
   );
 
   private readonly categoryValue = signal('');
+  private readonly subcategoryValue = signal('');
   private readonly seasonValue = signal('');
 
   protected readonly form = this.fb.group({
@@ -173,6 +236,9 @@ export class ProductGeneralStepComponent implements OnInit {
     name: this.fb.control('', [Validators.required]),
     brand: this.fb.control(''),
     category: this.fb.control(''),
+    subcategory: this.fb.control(''),
+    internalNotes: this.fb.control(''),
+    supplierId: this.fb.control(''),
     shopifyTaxonomyCategoryId: this.fb.control(''),
     shopifyTaxonomyCategoryFullName: this.fb.control(''),
     shopifyCategoryMetafields: this.fb.control<readonly ShopifyCategoryMetafieldValue[]>([]),
@@ -200,6 +266,11 @@ export class ProductGeneralStepComponent implements OnInit {
         // Il codice articolo e' una proprieta' SOLO VestiFlow: resta
         // modificabile anche quando il catalogo e' gestito da Shopify.
         this.form.controls.articleCode.enable({ emitEvent: false });
+        // Anche sottocategoria, note interne e fornitore sono proprietà solo
+        // VestiFlow: mai gestite da Shopify, sempre modificabili.
+        this.form.controls.subcategory.enable({ emitEvent: false });
+        this.form.controls.internalNotes.enable({ emitEvent: false });
+        this.form.controls.supplierId.enable({ emitEvent: false });
       } else {
         this.form.enable({ emitEvent: false });
       }
@@ -214,14 +285,33 @@ export class ProductGeneralStepComponent implements OnInit {
       this.form.controls.articleCode.updateValueAndValidity({ emitEvent: false });
     }
     this.categoryValue.set(initial.category);
+    this.subcategoryValue.set(initial.subcategory);
     this.seasonValue.set(initial.season);
-    this.customCategory.set(this.shouldUseCustomField(initial.category, this.categories()));
+    this.customCategory.set(this.shouldUseCustomField(initial.category, this.categoryNamePool()));
     this.customSeason.set(initial.season.trim() !== '' && !isStandardProductSeason(initial.season));
     this.form.setValue(initial, { emitEvent: false });
 
+    // La sottocategoria segue la categoria: al cambio si azzera (le voci
+    // proposte sono filtrate sulla categoria selezionata).
+    let previousCategory = initial.category.trim().toLowerCase();
     this.form.controls.category.valueChanges
       .pipe(startWith(initial.category), takeUntilDestroyed(this.destroyRef))
-      .subscribe((value) => this.categoryValue.set(value));
+      .subscribe((value) => {
+        this.categoryValue.set(value);
+        const normalized = value.trim().toLowerCase();
+        if (normalized !== previousCategory) {
+          previousCategory = normalized;
+          if (this.form.controls.subcategory.value !== '') {
+            this.form.controls.subcategory.setValue('');
+          }
+          this.customSubcategory.set(false);
+          this.subcategoryManagerOpen.set(false);
+        }
+      });
+
+    this.form.controls.subcategory.valueChanges
+      .pipe(startWith(initial.subcategory), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => this.subcategoryValue.set(value));
 
     this.form.controls.season.valueChanges
       .pipe(startWith(initial.season), takeUntilDestroyed(this.destroyRef))
@@ -348,6 +438,76 @@ export class ProductGeneralStepComponent implements OnInit {
     }
   }
 
+  protected onSubcategorySelect(value: string | null): void {
+    if (value === CUSTOM_OPTION_VALUE) {
+      this.customSubcategory.set(true);
+      this.form.controls.subcategory.setValue('');
+      this.form.controls.subcategory.markAsTouched();
+      return;
+    }
+    this.customSubcategory.set(false);
+    this.form.controls.subcategory.setValue(value ?? '');
+  }
+
+  protected onSupplierSelect(value: string | null): void {
+    this.form.controls.supplierId.setValue(value ?? '');
+  }
+
+  // ── Gestione inline categorie/sottocategorie ──────────────────────────────
+
+  protected toggleCategoryManager(): void {
+    this.subcategoryManagerOpen.set(false);
+    this.categoryManagerOpen.update((open) => !open);
+  }
+
+  /**
+   * Apre la gestione sottocategorie della categoria selezionata. Se la
+   * categoria è solo testo (non ancora a vocabolario) viene prima creata,
+   * così le sottocategorie hanno una voce padre a cui agganciarsi.
+   */
+  protected toggleSubcategoryManager(): void {
+    if (this.subcategoryManagerOpen()) {
+      this.subcategoryManagerOpen.set(false);
+      return;
+    }
+    const categoryName = this.categoryValue().trim();
+    if (!categoryName || this.ensuringCategory()) {
+      return;
+    }
+    this.categoryManagerOpen.set(false);
+    if (this.managedCategory()) {
+      this.subcategoryManagerOpen.set(true);
+      return;
+    }
+    this.ensuringCategory.set(true);
+    this.catalogCategoryService
+      .create(categoryName, null)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.ensuringCategory.set(false);
+          this.categoriesChanged.emit();
+          this.subcategoryManagerOpen.set(true);
+        },
+        error: () => this.ensuringCategory.set(false),
+      });
+  }
+
+  /** Voce creata dal manager: selezionala subito nel campo corrispondente. */
+  protected onCategoryCreated(entry: CatalogCategory): void {
+    this.customCategory.set(false);
+    this.form.controls.category.setValue(entry.name);
+  }
+
+  protected onSubcategoryCreated(entry: CatalogCategory): void {
+    this.customSubcategory.set(false);
+    this.form.controls.subcategory.setValue(entry.name);
+  }
+
+  protected useSubcategorySelect(): boolean {
+    return !this.customSubcategory() && this.subcategoryEntries().length > 0;
+  }
+
   protected onSeasonSelect(value: string | null): void {
     if (value === PRODUCT_SEASON_CUSTOM_OPTION) {
       this.customSeason.set(true);
@@ -384,8 +544,10 @@ export class ProductGeneralStepComponent implements OnInit {
     return this.form.controls.shopifyCategoryMetafields.value;
   }
 
+  // La Categoria VestiFlow è sempre presente, anche con Shopify attivo: la
+  // Categoria Shopify (tassonomia) è un campo separato aggiuntivo.
   protected useCategorySelect(): boolean {
-    return !this.shopifyConnected() && this.categories().length > 0 && !this.customCategory();
+    return this.categoryNamePool().length > 0 && !this.customCategory();
   }
 
   protected useSeasonSelect(): boolean {

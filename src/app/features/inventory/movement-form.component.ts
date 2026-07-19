@@ -65,6 +65,8 @@ const ADJUSTMENT_DEFAULT_REASON = 'Rettifica giacenza';
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
 const VARIANT_SEARCH_PAGE_SIZE = 8;
+/** Deep-link productId: massimo consentito dall'API (Max(100) su pageSize). */
+const PRODUCT_DEEP_LINK_PAGE_SIZE = 100;
 
 /** Riga articolo del form: quantità per tipo + giacenze per location. */
 interface MovementFormLine {
@@ -263,7 +265,7 @@ export class MovementFormComponent {
       }
     });
 
-    // Deep-link ?variantId= (es. da dettaglio prodotto): articolo già in lista.
+    // Deep-link ?variantId= (es. da Cerca giacenza): articolo già in lista.
     const variantId = this.route.snapshot.queryParamMap.get('variantId');
     if (variantId) {
       this.productService
@@ -272,6 +274,20 @@ export class MovementFormComponent {
         .subscribe((rows) => {
           const summary = rows[0];
           if (summary) {
+            this.addVariant(summary);
+          }
+        });
+    }
+
+    // Deep-link ?productId= (bottoni Carica/Scarica/Rettifica del dettaglio
+    // prodotto): tutte le varianti dell'articolo già in lista.
+    const productId = this.route.snapshot.queryParamMap.get('productId');
+    if (productId) {
+      this.productService
+        .searchVariantSummaries({ productId, pageSize: PRODUCT_DEEP_LINK_PAGE_SIZE })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((rows) => {
+          for (const summary of rows) {
             this.addVariant(summary);
           }
         });

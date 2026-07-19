@@ -5,7 +5,7 @@
       Prodotti
     </a>
 
-    <h1 class="product-form__title">{{ formTitle() }}</h1>
+    <h1 class="product-form__title">{{ formTitle }}</h1>
   }
 
   @if (loading() || !filtersReady()) {
@@ -27,36 +27,38 @@
       </p>
     }
 
-    @if (mode() === 'create') {
-      <div class="product-form__mode" role="radiogroup" aria-label="Modalità inserimento prodotto">
-        <button
-          type="button"
-          class="product-form__mode-btn"
-          [class.product-form__mode-btn--active]="creationMode() === 'quick'"
-          [attr.aria-checked]="creationMode() === 'quick'"
-          role="radio"
-          (click)="setCreationMode('quick')"
-        >
-          Inserimento rapido
-        </button>
-        <button
-          type="button"
-          class="product-form__mode-btn"
-          [class.product-form__mode-btn--active]="creationMode() === 'full'"
-          [attr.aria-checked]="creationMode() === 'full'"
-          role="radio"
-          (click)="setCreationMode('full')"
-        >
-          Con varianti
-        </button>
-      </div>
-      @if (creationMode() === 'quick') {
-        <p class="product-form__mode-hint">
-          Nome e prezzo vendita bastano per creare il prodotto. Lo SKU è facoltativo: puoi lasciarlo
-          vuoto, scriverlo a mano o generarlo. Brand, categoria e altri dettagli restano disponibili
-          e li puoi completare in seguito.
-        </p>
-      }
+    <div class="product-form__mode" role="radiogroup" aria-label="Modalità inserimento prodotto">
+      <button
+        type="button"
+        class="product-form__mode-btn"
+        [class.product-form__mode-btn--active]="creationMode() === 'quick'"
+        [attr.aria-checked]="creationMode() === 'quick'"
+        role="radio"
+        [disabled]="!canUseQuickMode()"
+        [title]="
+          canUseQuickMode() ? '' : 'Il prodotto ha più varianti: usa la modalità Con varianti'
+        "
+        (click)="setCreationMode('quick')"
+      >
+        Inserimento rapido
+      </button>
+      <button
+        type="button"
+        class="product-form__mode-btn"
+        [class.product-form__mode-btn--active]="creationMode() === 'full'"
+        [attr.aria-checked]="creationMode() === 'full'"
+        role="radio"
+        (click)="setCreationMode('full')"
+      >
+        Con varianti
+      </button>
+    </div>
+    @if (creationMode() === 'quick' && mode() === 'create') {
+      <p class="product-form__mode-hint">
+        Nome e prezzo vendita bastano per creare il prodotto. Lo SKU è facoltativo: puoi lasciarlo
+        vuoto, scriverlo a mano o generarlo. Venditore/Brand, categoria e altri dettagli restano
+        disponibili e li puoi completare in seguito.
+      </p>
     }
 
     <ol class="product-form__steps">
@@ -83,15 +85,18 @@
           <app-product-general-step
             [value]="draft().general"
             [categories]="categories()"
+            [catalogCategories]="catalogCategories()"
+            [supplierOptions]="supplierOptions()"
             [vatCodes]="vatCodes()"
             [shopifyConnected]="shopifyConnected()"
             [catalogReadOnly]="shopifyCatalogLocked()"
-            [compactLayout]="mode() === 'create'"
+            [compactLayout]="true"
             [editMode]="mode() === 'edit'"
             [articleCodeTakenBy]="articleCodeTakenBy()"
             (valueChange)="onGeneralChange($event)"
+            (categoriesChanged)="reloadCatalogCategories()"
           />
-          @if (isQuickCreate() && quickVariant(); as variant) {
+          @if (isQuickMode() && quickVariant(); as variant) {
             <app-product-quick-variant-fields
               [variant]="variant"
               [productName]="draft().general.name"
@@ -99,6 +104,7 @@
               [takenSkus]="takenSkus()"
               [takenBarcodes]="takenBarcodes()"
               [disabled]="submitting()"
+              [canSeeCosts]="canViewPurchaseCosts()"
               (variantChange)="onQuickVariantChange($event)"
               (validChange)="onQuickVariantValidChange($event)"
             />
@@ -155,13 +161,25 @@
     <footer class="product-form__footer">
       <app-button variant="secondary" (click)="cancel()">Annulla</app-button>
       <div class="product-form__nav">
-        @if (!isQuickCreate() && !embeddedPanel()) {
+        @if (!isQuickMode() && !embeddedPanel()) {
           <app-button variant="secondary" [disabled]="isFirstStep()" (click)="prev()">
             <i class="pi pi-chevron-left" aria-hidden="true"></i>
             Indietro
           </app-button>
         }
         @if (showSubmitOnCurrentStep()) {
+          @if (showMovementActions()) {
+            @for (action of movementActions; track action.type) {
+              <app-button
+                variant="secondary"
+                [disabled]="!canSubmit()"
+                (click)="onSubmitWithMovement(action.type)"
+              >
+                <i class="pi {{ action.icon }}" aria-hidden="true"></i>
+                {{ action.label }}
+              </app-button>
+            }
+          }
           @if (embeddedPanel() && mode() === 'edit') {
             <app-button [disabled]="!canSubmit()" (click)="onSubmit(false)">
               {{ submitting() ? 'Salvataggio…' : 'Salva modifiche' }}
@@ -190,7 +208,7 @@
             <i class="pi pi-chevron-right" aria-hidden="true"></i>
           </app-button>
         }
-        @if (isQuickCreate() && isFirstStep()) {
+        @if (isQuickMode() && isFirstStep()) {
           <app-button variant="secondary" type="button" (click)="switchToFullWizard()">
             Configura taglia/colore…
           </app-button>

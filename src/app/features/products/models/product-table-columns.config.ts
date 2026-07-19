@@ -11,7 +11,7 @@ export const PRODUCT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   // nella selezione colonne, non mostrata di default.
   { id: 'articleCode', label: 'Codice articolo', defaultVisible: false },
   { id: 'name', label: 'Nome', pinnable: true, defaultVisible: true },
-  { id: 'brand', label: 'Brand', defaultVisible: true },
+  { id: 'brand', label: 'Venditore/Brand', defaultVisible: true },
   { id: 'category', label: 'Categoria', defaultVisible: true },
   { id: 'season', label: 'Stagione', defaultVisible: true },
   { id: 'variants', label: 'Varianti', numeric: true, defaultVisible: true },

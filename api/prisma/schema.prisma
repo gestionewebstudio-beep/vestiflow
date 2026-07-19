@@ -332,6 +332,7 @@ model Tenant {
   locations               Location[]
   products                Product[]
   productImages           ProductImage[]
+  catalogCategories       CatalogCategory[]
   variants                ProductVariant[]
   inventoryLevels         InventoryLevel[]
   stockMovements          StockMovement[]
@@ -542,6 +543,9 @@ model Product {
   brand                           String?
   /// Tipo prodotto Shopify (REST product_type) — organizzazione interna negozio.
   category                        String?
+  /// Sottocategoria VestiFlow collegata alla categoria (vocabolario gestito
+  /// in catalog_categories; salvata come testo, come la categoria).
+  subcategory                     String?
   /// Categoria Standard Product Taxonomy (GraphQL), es. gid://shopify/TaxonomyCategory/...
   shopifyTaxonomyCategoryId       String?                 @map("shopify_taxonomy_category_id")
   shopifyTaxonomyCategoryFullName String?                 @map("shopify_taxonomy_category_full_name")
@@ -590,6 +594,8 @@ model Product {
   /// Shopify. I sync pull/push usano allowlist esplicite: questo campo non vi
   /// compare e il valore scelto dall'operatore persiste alle sync successive.
   kind                            ProductKind             @default(article)
+  /// Note interne gestionale: mai sincronizzate con Shopify o altri canali.
+  internalNotes                   String?                 @map("internal_notes")
   createdAt                       DateTime                @default(now()) @map("created_at")
   updatedAt                       DateTime                @updatedAt @map("updated_at")
 
@@ -605,6 +611,27 @@ model Product {
   @@index([tenantId, shopifyProductId])
   @@index([tenantId, tiktokProductId])
   @@map("products")
+}
+
+/// Vocabolario categorie/sottocategorie catalogo VestiFlow, gestito inline dal
+/// form prodotto. I prodotti salvano i nomi come testo (category/subcategory):
+/// il rename qui viene propagato ai prodotti dal service.
+model CatalogCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  /// null = categoria principale; valorizzato = sottocategoria della parent.
+  parentId  String?  @map("parent_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  parent   CatalogCategory?  @relation("CatalogCategoryParent", fields: [parentId], references: [id], onDelete: Cascade)
+  children CatalogCategory[] @relation("CatalogCategoryParent")
+
+  @@unique([tenantId, parentId, name])
+  @@index([tenantId, parentId])
+  @@map("catalog_categories")
 }
 
 model ProductImage {

@@ -1685,13 +1685,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     };
   });
 
-  protected readonly productPanelTitle = computed(() => {
-    if (this.productPanelMode() === 'edit') {
-      return 'Anagrafica prodotto';
-    }
-    return this.productPanelLineIndex() != null ? 'Completa anagrafica' : 'Nuovo prodotto';
-  });
-
   protected openNewProduct(): void {
     this.attachTargetLineIndex.set(null);
     this.productPanelLineIndex.set(null);

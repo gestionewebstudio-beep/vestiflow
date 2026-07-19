@@ -18,6 +18,8 @@ export interface ProductApiRow {
   readonly description?: string | null;
   readonly brand?: string | null;
   readonly category?: string | null;
+  readonly subcategory?: string | null;
+  readonly internalNotes?: string | null;
   readonly shopifyTaxonomyCategoryId?: string | null;
   readonly shopifyTaxonomyCategoryFullName?: string | null;
   readonly season?: string | null;
@@ -56,7 +58,8 @@ export interface ProductVariantApiRow {
   readonly id: EntityId;
   readonly tenantId: EntityId;
   readonly productId: EntityId;
-  readonly sku: string;
+  /** Facoltativo (specifica cliente §SKU): può restare NULL nel DB. */
+  readonly sku?: string | null;
   readonly optionValues: readonly { name: string; value: string }[];
   readonly barcode?: string | null;
   readonly currency: string;
@@ -220,6 +223,8 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     description: stripHtmlToPlainText(row.description),
     brand: row.brand ?? undefined,
     category: row.category ?? undefined,
+    subcategory: row.subcategory ?? undefined,
+    internalNotes: row.internalNotes ?? undefined,
     shopifyTaxonomyCategoryId: row.shopifyTaxonomyCategoryId ?? undefined,
     shopifyTaxonomyCategoryFullName: row.shopifyTaxonomyCategoryFullName ?? undefined,
     season: row.season ?? undefined,
@@ -261,7 +266,8 @@ export function mapProductVariantApiRow(row: ProductVariantApiRow): ProductVaria
   return {
     id: row.id,
     productId: row.productId,
-    sku: row.sku,
+    // SKU NULL a DB (facoltativo): il dominio frontend usa '' come "assente".
+    sku: row.sku ?? '',
     optionValues: row.optionValues ?? [],
     barcode: row.barcode ?? undefined,
     sellingPrice: { amountMinor: row.sellingPriceMinor, currencyCode: row.currency },

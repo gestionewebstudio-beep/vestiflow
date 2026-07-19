@@ -3,6 +3,8 @@ import { Module } from '@nestjs/common';
 import { ChannelsModule } from '../channels/channels.module';
 import { SupplierOrdersModule } from '../supplier-orders/supplier-orders.module';
 import { ShopifyModule } from '../shopify/shopify.module';
+import { CatalogCategoriesController } from './catalog-categories.controller';
+import { CatalogCategoriesService } from './catalog-categories.service';
 import { ProductMediaService } from './product-media.service';
 import { ProductsController } from './products.controller';
 import { ProductsExportService } from './products-export.service';
@@ -12,13 +14,14 @@ import { SkuGeneratorService } from './sku-generator.service';
 
 @Module({
   imports: [ChannelsModule, ShopifyModule, SupplierOrdersModule],
-  controllers: [ProductsController],
+  controllers: [ProductsController, CatalogCategoriesController],
   providers: [
     ProductsService,
     ProductMediaService,
     ProductsImportService,
     ProductsExportService,
     SkuGeneratorService,
+    CatalogCategoriesService,
   ],
 })
 export class ProductsModule {}

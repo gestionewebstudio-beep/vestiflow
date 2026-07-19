@@ -117,7 +117,7 @@
           <dd class="product-detail__value">{{ p.articleCode || '—' }}</dd>
         </div>
         <div class="product-detail__fact">
-          <dt class="product-detail__term">Brand</dt>
+          <dt class="product-detail__term">Venditore/Brand</dt>
           <dd class="product-detail__value">{{ p.brand ?? '—' }}</dd>
         </div>
         @if (showShopifyIntegration()) {
@@ -142,8 +142,12 @@
           }
         }
         <div class="product-detail__fact">
-          <dt class="product-detail__term">Tipo prodotto</dt>
+          <dt class="product-detail__term">Categoria</dt>
           <dd class="product-detail__value">{{ p.category ?? '—' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Sottocategoria</dt>
+          <dd class="product-detail__value">{{ p.subcategory ?? '—' }}</dd>
         </div>
         <div class="product-detail__fact">
           <dt class="product-detail__term">Stagione</dt>
@@ -175,6 +179,12 @@
           <dt class="product-detail__term">Descrizione</dt>
           <dd class="product-detail__value">{{ p.description ?? '—' }}</dd>
         </div>
+        @if (p.internalNotes) {
+          <div class="product-detail__fact product-detail__fact--wide">
+            <dt class="product-detail__term">Note interne</dt>
+            <dd class="product-detail__value">{{ p.internalNotes }}</dd>
+          </div>
+        }
         @if (p.tags && p.tags.length > 0) {
           <div class="product-detail__fact product-detail__fact--wide">
             <dt class="product-detail__term">Tag</dt>

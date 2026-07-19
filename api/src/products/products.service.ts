@@ -73,6 +73,7 @@ const PRODUCT_LIST_SELECT = {
   description: true,
   brand: true,
   category: true,
+  subcategory: true,
   shopifyTaxonomyCategoryId: true,
   shopifyTaxonomyCategoryFullName: true,
   shopifyCategoryMetafields: true,
@@ -101,6 +102,7 @@ const PRODUCT_LIST_SELECT = {
   inventoryTracking: true,
   managesStock: true,
   kind: true,
+  internalNotes: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -215,6 +217,7 @@ export class ProductsService {
     const where: Prisma.ProductVariantWhereInput = {
       tenantId,
       ...(query.variantId ? { id: query.variantId } : {}),
+      ...(query.productId ? { productId: query.productId } : {}),
       ...(search ? buildInventoryVariantSearchWhere(search) : {}),
       ...(query.supplierId
         ? {
@@ -386,6 +389,8 @@ export class ProductsService {
           description: normalizeProductDescription(dto.description),
           brand: dto.brand,
           category: dto.category,
+          subcategory: dto.subcategory,
+          internalNotes: dto.internalNotes,
           shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
           shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
           shopifyCategoryMetafields: (dto.shopifyCategoryMetafields ??
@@ -468,6 +473,8 @@ export class ProductsService {
         description: original.description,
         brand: original.brand,
         category: original.category,
+        subcategory: original.subcategory,
+        internalNotes: original.internalNotes,
         shopifyTaxonomyCategoryId: original.shopifyTaxonomyCategoryId,
         shopifyTaxonomyCategoryFullName: original.shopifyTaxonomyCategoryFullName,
         shopifyCategoryMetafields: original.shopifyCategoryMetafields as Prisma.InputJsonValue,
@@ -567,6 +574,8 @@ export class ProductsService {
           description: normalizeProductDescription(dto.description),
           brand: dto.brand,
           category: dto.category,
+          subcategory: dto.subcategory,
+          internalNotes: dto.internalNotes,
           ...(dto.shopifyTaxonomyCategoryId !== undefined
             ? {
                 shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,

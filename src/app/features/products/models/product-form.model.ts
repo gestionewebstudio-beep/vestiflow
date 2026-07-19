@@ -22,6 +22,15 @@ export interface ProductGeneralDraft {
   readonly description: string;
   readonly brand: string;
   readonly category: string;
+  /** Sottocategoria collegata alla categoria VestiFlow ('' = nessuna). */
+  readonly subcategory: string;
+  /** Note interne gestionale (mai sincronizzate con i canali). */
+  readonly internalNotes: string;
+  /**
+   * Fornitore collegato all'anagrafica ('' = nessuno). Campo solo-form: al
+   * salvataggio crea i collegamenti fornitore-variante, non è un campo Product.
+   */
+  readonly supplierId: string;
   readonly shopifyTaxonomyCategoryId: string;
   readonly shopifyTaxonomyCategoryFullName: string;
   readonly shopifyCategoryMetafields: readonly ShopifyCategoryMetafieldValue[];
