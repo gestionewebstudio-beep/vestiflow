@@ -6,11 +6,13 @@ import type {
   DocumentAddress,
   DocumentAttachment,
   DocumentLine,
+  DocumentPaymentInstallment,
   DocumentRecord,
   DocumentStatus,
   DocumentType,
   DocumentTypeSetting,
   GoodsReceiptLinkStatus,
+  GoodsReceiptVatBreakdownEntry,
   LinkedGoodsReceiptInfo,
   LinkedPurchaseInvoiceInfo,
   LinkedSalesOrderInfo,
@@ -37,6 +39,8 @@ export interface DocumentLineApiRow {
   readonly lotExpiryDate?: IsoDateString | null;
   readonly serialNumbers?: readonly string[] | null;
   readonly linkedGoodsReceiptId?: EntityId | null;
+  readonly lineVatTotalMinor?: number | null;
+  readonly lineSource?: 'vat_summary' | 'manual' | null;
 }
 
 /** Fattura registrata collegata a un arrivo merce (payload API). */
@@ -49,6 +53,13 @@ export interface LinkedPurchaseInvoiceApiRow {
   readonly totalsCheckPending?: boolean | null;
 }
 
+/** Quota IVA di un arrivo merce (payload API). */
+export interface VatBreakdownApiEntry {
+  readonly ratePercent: number;
+  readonly netMinor: number;
+  readonly vatMinor: number;
+}
+
 /** Arrivo merce incluso in una registrazione fattura (payload API). */
 export interface LinkedGoodsReceiptApiRow {
   readonly id: EntityId;
@@ -59,6 +70,17 @@ export interface LinkedGoodsReceiptApiRow {
   readonly subtotalMinor: number;
   readonly taxMinor: number;
   readonly totalMinor: number;
+  readonly vatBreakdown?: readonly VatBreakdownApiEntry[] | null;
+}
+
+/** Scadenza di pagamento (payload API, Registrazione fattura). */
+export interface PaymentInstallmentApiRow {
+  readonly id: EntityId;
+  readonly position: number;
+  readonly dueDate: IsoDateString;
+  readonly amountMinor: number;
+  readonly settled: boolean;
+  readonly settledAt?: IsoDateString | null;
 }
 
 export interface DocumentApiRow {
@@ -113,6 +135,7 @@ export interface DocumentApiRow {
   readonly subtotalMinor: number;
   readonly taxMinor: number;
   readonly totalMinor: number;
+  readonly outstandingMinor?: number | null;
   readonly documentDiscountPercent?: number;
   readonly pricesIncludeVat: boolean;
   readonly purchaseCostEntryMode?: PurchaseCostEntryMode | null;
@@ -138,6 +161,7 @@ export interface DocumentApiRow {
   readonly linkStatus?: GoodsReceiptLinkStatus | null;
   readonly linkedPurchaseInvoice?: LinkedPurchaseInvoiceApiRow | null;
   readonly linkedGoodsReceipts?: readonly LinkedGoodsReceiptApiRow[] | null;
+  readonly paymentInstallments?: readonly PaymentInstallmentApiRow[] | null;
   readonly attachments?: readonly DocumentAttachmentApiRow[];
 }
 
@@ -190,6 +214,11 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     lotExpiryDate: row.lotExpiryDate ?? undefined,
     serialNumbers: row.serialNumbers ?? undefined,
     linkedGoodsReceiptId: row.linkedGoodsReceiptId ?? undefined,
+    lineVatTotal:
+      row.lineVatTotalMinor != null
+        ? { amountMinor: row.lineVatTotalMinor, currencyCode: currency }
+        : undefined,
+    lineSource: row.lineSource ?? undefined,
   };
 }
 
@@ -202,6 +231,17 @@ function mapLinkedPurchaseInvoice(row: LinkedPurchaseInvoiceApiRow): LinkedPurch
     documentDate: row.documentDate,
     totalsCheckPending: row.totalsCheckPending ?? false,
   };
+}
+
+export function mapVatBreakdown(
+  entries: readonly VatBreakdownApiEntry[] | null | undefined,
+  currency: CurrencyCode,
+): readonly GoodsReceiptVatBreakdownEntry[] | undefined {
+  return entries?.map((entry) => ({
+    ratePercent: entry.ratePercent,
+    net: { amountMinor: entry.netMinor, currencyCode: currency },
+    vat: { amountMinor: entry.vatMinor, currencyCode: currency },
+  }));
 }
 
 function mapLinkedGoodsReceipt(
@@ -217,6 +257,21 @@ function mapLinkedGoodsReceipt(
     subtotal: { amountMinor: row.subtotalMinor, currencyCode: currency },
     tax: { amountMinor: row.taxMinor, currencyCode: currency },
     total: { amountMinor: row.totalMinor, currencyCode: currency },
+    vatBreakdown: mapVatBreakdown(row.vatBreakdown, currency),
+  };
+}
+
+function mapPaymentInstallment(
+  row: PaymentInstallmentApiRow,
+  currency: CurrencyCode,
+): DocumentPaymentInstallment {
+  return {
+    id: row.id,
+    position: row.position,
+    dueDate: row.dueDate,
+    amount: { amountMinor: row.amountMinor, currencyCode: currency },
+    settled: row.settled,
+    settledAt: row.settledAt ?? undefined,
   };
 }
 
@@ -285,6 +340,10 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     subtotal: { amountMinor: row.subtotalMinor, currencyCode: row.currency },
     tax: { amountMinor: row.taxMinor, currencyCode: row.currency },
     total: { amountMinor: row.totalMinor, currencyCode: row.currency },
+    outstanding:
+      row.outstandingMinor != null
+        ? { amountMinor: row.outstandingMinor, currencyCode: row.currency }
+        : undefined,
     documentDiscountPercent: row.documentDiscountPercent ?? 0,
     pricesIncludeVat: row.pricesIncludeVat,
     purchaseCostEntryMode: row.purchaseCostEntryMode ?? undefined,
@@ -306,6 +365,9 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
       : undefined,
     linkedGoodsReceipts: row.linkedGoodsReceipts?.map((receipt) =>
       mapLinkedGoodsReceipt(receipt, row.currency),
+    ),
+    paymentInstallments: row.paymentInstallments?.map((installment) =>
+      mapPaymentInstallment(installment, row.currency),
     ),
     attachments: row.attachments?.map(mapAttachment),
   };
@@ -524,20 +586,46 @@ export interface SaveAdjustmentBody {
   readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
 }
 
+/** Riga manuale della registrazione (voci non legate ad arrivi merce). */
+export interface PurchaseInvoiceManualLineBody {
+  readonly description: string;
+  readonly netMinor: number;
+  readonly vatRatePercent: number;
+  readonly vatMinor: number;
+}
+
+/** Scadenza di pagamento in salvataggio. */
+export interface PurchaseInvoiceInstallmentBody {
+  readonly dueDate: IsoDateString;
+  readonly amountMinor: number;
+  readonly settled?: boolean;
+  readonly settledAt?: IsoDateString;
+}
+
 /** Body POST /documents/purchase-invoice/save (prompt §5-6). */
 export interface SavePurchaseInvoiceBody {
   readonly id?: EntityId;
   readonly supplierId: EntityId;
+  /** Data documento: data della fattura ricevuta dal fornitore. */
   readonly documentDate: IsoDateString;
+  /** Data registrazione interna (default oggi, modificabile). */
+  readonly registrationDate?: IsoDateString;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
   readonly notes?: string;
   readonly internalComment?: string;
+  /** Tipo pagamento (auto-compilato dall'anagrafica fornitore, modificabile). */
+  readonly paymentMethod?: string;
+  /** Indirizzi: snapshot anagrafica fornitore, modificabile per eccezioni. */
+  readonly recipientAddress?: DocumentAddress;
   readonly currency?: CurrencyCode;
-  readonly totalMinor: number;
+  /** Totali legacy: ignorati se la registrazione ha righe (auto o manuali). */
+  readonly totalMinor?: number;
   readonly subtotalMinor?: number;
   readonly taxMinor?: number;
   readonly goodsReceiptIds?: readonly EntityId[];
+  readonly manualLines?: readonly PurchaseInvoiceManualLineBody[];
+  readonly installments?: readonly PurchaseInvoiceInstallmentBody[];
 }
 
 /** Riga GET /documents/linkable-goods-receipts (payload API). */
@@ -553,4 +641,5 @@ export interface LinkableGoodsReceiptApiRow {
   readonly totalMinor: number;
   readonly currency: CurrencyCode;
   readonly locationName?: string | null;
+  readonly vatBreakdown?: readonly VatBreakdownApiEntry[] | null;
 }

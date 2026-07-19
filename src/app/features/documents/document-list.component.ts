@@ -67,6 +67,8 @@ import {
   DOCUMENT_LIST_COLUMN_PRESETS,
   GOODS_RECEIPT_LIST_COLUMN_DEFS,
   GOODS_RECEIPT_LIST_COLUMN_PRESETS,
+  PURCHASE_INVOICE_LIST_COLUMN_DEFS,
+  PURCHASE_INVOICE_LIST_COLUMN_PRESETS,
   QUOTE_LIST_COLUMN_DEFS,
   QUOTE_LIST_COLUMN_PRESETS,
   SALES_DOCUMENT_LIST_COLUMN_DEFS,
@@ -252,6 +254,12 @@ export class DocumentListComponent {
     { value: 'cancelled', label: 'Annullati' },
   ];
 
+  /** Stato saldo delle Registrazioni fattura (spec: Tutti, Da saldare, Saldati). */
+  protected readonly settlementOptions: readonly SelectMenuOption[] = [
+    { value: 'pending', label: 'Da saldare' },
+    { value: 'settled', label: 'Saldati' },
+  ];
+
   /**
    * Filtro "Documento fornitore": tipo documento fornitore realmente
    * configurato dal tenant (DDT/Fattura/Reso/…), non più una whitelist fissa
@@ -334,7 +342,9 @@ export class DocumentListComponent {
         ...q,
         type: sales.type,
         types: undefined,
-        supplierId: undefined,
+        customerId: sales.hideCustomerFilter ? undefined : q.customerId,
+        supplierId: sales.showSupplierFilter ? q.supplierId : undefined,
+        settlement: sales.showSettlementFilter ? q.settlement : undefined,
         linkStatus: undefined,
         externalDocumentTypeId: undefined,
         locationId: undefined,
@@ -432,7 +442,15 @@ export class DocumentListComponent {
     const sales = this.salesRegister();
     if (sales) {
       return (
-        Boolean(q.search ?? q.status ?? q.dateFrom ?? q.dateTo ?? q.customerId) ||
+        Boolean(
+          q.search ??
+          q.status ??
+          q.dateFrom ??
+          q.dateTo ??
+          (sales.hideCustomerFilter ? undefined : q.customerId) ??
+          (sales.showSupplierFilter ? q.supplierId : undefined) ??
+          (sales.showSettlementFilter ? q.settlement : undefined),
+        ) ||
         (sales.showPendingInvoiceFilter && q.pendingInvoice === true)
       );
     }
@@ -499,6 +517,11 @@ export class DocumentListComponent {
       SALES_DOCUMENT_LIST_COLUMN_DEFS,
       SALES_DOCUMENT_LIST_COLUMN_PRESETS,
     );
+    this.columnPreferences.registerView(
+      TableViewId.PurchaseInvoiceDocumentsList,
+      PURCHASE_INVOICE_LIST_COLUMN_DEFS,
+      PURCHASE_INVOICE_LIST_COLUMN_PRESETS,
+    );
     this.genericTableColumns = this.columnPreferences.visibleColumns(TableViewId.DocumentsList);
     this.goodsReceiptTableColumns = this.columnPreferences.visibleColumns(
       TableViewId.GoodsReceiptDocumentsList,
@@ -509,6 +532,9 @@ export class DocumentListComponent {
       'sales-ddt': this.columnPreferences.visibleColumns(TableViewId.SalesDdtDocumentsList),
       'manual-unload': this.columnPreferences.visibleColumns(TableViewId.ManualUnloadDocumentsList),
       'invoice-draft': this.columnPreferences.visibleColumns(TableViewId.InvoiceDraftDocumentsList),
+      'purchase-invoice': this.columnPreferences.visibleColumns(
+        TableViewId.PurchaseInvoiceDocumentsList,
+      ),
     };
 
     this.searchSubscription = toObservable(this.searchDraft)
@@ -579,6 +605,11 @@ export class DocumentListComponent {
     this.updateParams({ linkStatus: value, page: null }, true);
   }
 
+  /** Stato saldo (Registrazioni fattura): Tutti / Da saldare / Saldati. */
+  protected onSettlementFilterChange(value: string | null): void {
+    this.updateParams({ settlement: value, page: null }, true);
+  }
+
   protected onExternalDocTypeFilterChange(value: string | null): void {
     this.updateParams({ externalDocumentTypeId: value, page: null }, true);
   }
@@ -631,6 +662,7 @@ export class DocumentListComponent {
         supplierId: null,
         linkStatus: null,
         externalDocumentTypeId: null,
+        settlement: null,
         accountant: null,
         pendingInvoice: null,
         page: null,
@@ -655,9 +687,19 @@ export class DocumentListComponent {
   }
 
   protected openDocument(doc: DocumentRecord): void {
+    const sales = this.salesRegister();
+    // Registrazioni fattura: la riga apre il form del modulo (il documento è
+    // sempre modificabile), il dettaglio generico resta per le annullate.
+    if (sales?.profile === 'purchase-invoice') {
+      if (doc.status !== DocumentStatus.Cancelled) {
+        void this.router.navigate(['/app/documents/registrazione-fattura', doc.id, 'edit']);
+      } else {
+        void this.router.navigate(['/app/documents', doc.id]);
+      }
+      return;
+    }
     // Pagina dedicata: la riga apre l'anteprima dettaglio della sezione
     // (layout Ordine cliente), non il dettaglio del registro generico.
-    const sales = this.salesRegister();
     if (sales) {
       void this.router.navigate([sales.listPath, doc.id]);
       return;
@@ -884,7 +926,12 @@ export class DocumentListComponent {
    */
   private openDocumentDetail(doc: DocumentRecord, fragment?: string): void {
     const sales = this.salesRegister();
-    const commands = sales ? [sales.listPath, doc.id] : ['/app/documents', doc.id];
+    // Registrazioni fattura: nessuna anteprima dedicata — allegati/etichette
+    // vivono nel dettaglio del registro generico.
+    const commands =
+      sales && sales.profile !== 'purchase-invoice'
+        ? [sales.listPath, doc.id]
+        : ['/app/documents', doc.id];
     void this.router.navigate(commands, fragment ? { fragment } : {});
   }
 

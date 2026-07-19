@@ -6,15 +6,16 @@ import type { DocumentListProfile } from './document-list-query.model';
 
 /**
  * Profili lista dedicati con pagina propria (voci sidebar Vendite più lo
- * Scarico manuale di Magazzino, che riusa la stessa impostazione a pagina
- * dedicata — prompt Scarico manuale).
+ * Scarico manuale di Magazzino e le Registrazioni fattura di Acquisti, che
+ * riusano la stessa impostazione a pagina dedicata).
  */
 export type SalesDocumentRegisterProfile =
   | 'quote'
   | 'proforma'
   | 'sales-ddt'
   | 'manual-unload'
-  | 'invoice-draft';
+  | 'invoice-draft'
+  | 'purchase-invoice';
 
 /**
  * Configurazione delle pagine dedicate ai documenti di vendita: elenco con
@@ -39,6 +40,12 @@ export interface SalesDocumentRegisterConfig {
   readonly statusOptions: readonly SelectMenuOption[] | null;
   /** Checkbox «DDT da fatturare» (solo DDT vendita). */
   readonly showPendingInvoiceFilter: boolean;
+  /** Nasconde il filtro Cliente (pagine lato acquisti). */
+  readonly hideCustomerFilter?: boolean;
+  /** Filtro Fornitore (Registrazioni fattura). */
+  readonly showSupplierFilter?: boolean;
+  /** Filtro Stato saldo Da saldare/Saldati (Registrazioni fattura). */
+  readonly showSettlementFilter?: boolean;
   readonly viewId: TableViewId;
   /** Titolo del pannello dati nell'anteprima dettaglio (es. «Dati preventivo»). */
   readonly detailPanelTitle: string;
@@ -143,6 +150,30 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     detailPanelTitle: 'Dati scarico manuale',
     detailNotFoundTitle: 'Scarico manuale non trovato',
   },
+  'purchase-invoice': {
+    profile: 'purchase-invoice',
+    type: DocumentType.SupplierInvoice,
+    pageTitle: 'Registrazioni fattura',
+    pageSubtitle:
+      'Fatture fornitore registrate: collegano gli arrivi merce alla fattura ricevuta e tracciano le scadenze di pagamento. Mai effetti sul magazzino.',
+    createLabel: 'Nuova registrazione fattura',
+    createPath: '/app/documents/registrazione-fattura/new',
+    listPath: '/app/documents/registrazione-fattura',
+    emptyTitle: 'Nessuna registrazione fattura',
+    emptyDescription:
+      'Non ci sono registrazioni che corrispondono ai filtri. Registra una fattura fornitore per collegare gli arrivi merce e gestire le scadenze di pagamento.',
+    emptyIcon: 'pi-book',
+    searchPlaceholder: 'Cerca per numero fattura, fornitore o commento…',
+    // Lo stato del saldo (Da saldare/Saldati) sostituisce il ciclo documento.
+    statusOptions: null,
+    showPendingInvoiceFilter: false,
+    hideCustomerFilter: true,
+    showSupplierFilter: true,
+    showSettlementFilter: true,
+    viewId: TableViewId.PurchaseInvoiceDocumentsList,
+    detailPanelTitle: 'Dati registrazione',
+    detailNotFoundTitle: 'Registrazione fattura non trovata',
+  },
   'invoice-draft': {
     profile: 'invoice-draft',
     type: DocumentType.InvoiceDraft,
@@ -170,6 +201,7 @@ export const SALES_DOCUMENT_REGISTER_PROFILES: readonly SalesDocumentRegisterPro
   'sales-ddt',
   'manual-unload',
   'invoice-draft',
+  'purchase-invoice',
 ] as const;
 
 function isSalesDocumentRegisterProfile(

@@ -58,6 +58,11 @@ export class ListDocumentsQueryDto extends PaginationQueryDto {
   @IsIn(['suspended', 'linked', 'cancelled'])
   linkStatus?: 'suspended' | 'linked' | 'cancelled';
 
+  /** Stato saldo delle Registrazioni fattura: da saldare o saldate. */
+  @IsOptional()
+  @IsIn(['pending', 'settled'])
+  settlement?: 'pending' | 'settled';
+
   /** Filtro causale di carico (match parziale su causalText). */
   @IsOptional()
   @IsString()

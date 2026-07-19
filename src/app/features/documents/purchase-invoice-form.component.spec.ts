@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
 
 import { PurchaseInvoiceFormComponent } from './purchase-invoice-form.component';
@@ -21,6 +22,13 @@ const RECEIPT_1: LinkableGoodsReceipt = {
   subtotal: { amountMinor: 10000, currencyCode: 'EUR' },
   tax: { amountMinor: 2200, currencyCode: 'EUR' },
   total: { amountMinor: 12200, currencyCode: 'EUR' },
+  vatBreakdown: [
+    {
+      ratePercent: 22,
+      net: { amountMinor: 10000, currencyCode: 'EUR' },
+      vat: { amountMinor: 2200, currencyCode: 'EUR' },
+    },
+  ],
 };
 
 const RECEIPT_2: LinkableGoodsReceipt = {
@@ -32,6 +40,13 @@ const RECEIPT_2: LinkableGoodsReceipt = {
   subtotal: { amountMinor: 5000, currencyCode: 'EUR' },
   tax: { amountMinor: 1100, currencyCode: 'EUR' },
   total: { amountMinor: 6100, currencyCode: 'EUR' },
+  vatBreakdown: [
+    {
+      ratePercent: 22,
+      net: { amountMinor: 5000, currencyCode: 'EUR' },
+      vat: { amountMinor: 1100, currencyCode: 'EUR' },
+    },
+  ],
 };
 
 describe('PurchaseInvoiceFormComponent', () => {
@@ -53,6 +68,10 @@ describe('PurchaseInvoiceFormComponent', () => {
           provide: SupplierService,
           useValue: { getSuppliers: () => of(SUPPLIERS) },
         },
+        {
+          provide: PaymentOptionsService,
+          useValue: { list: () => of([]) },
+        },
         { provide: DocumentService, useValue: documentService },
       ],
     });
@@ -66,44 +85,58 @@ describe('PurchaseInvoiceFormComponent', () => {
   }
 
   async function includeReceipt(user: ReturnType<typeof userEvent.setup>, index: number) {
-    await user.click(screen.getByRole('button', { name: /Includi documento/i }));
+    await user.click(screen.getByRole('button', { name: /Includi arrivo merce/i }));
     const checkboxes = await screen.findAllByRole('checkbox');
     await user.click(checkboxes[index]!);
     await user.click(screen.getByRole('button', { name: 'Includi selezionati' }));
   }
 
-  // Il totale fattura si precompila con la somma degli arrivi inclusi (comodo
-  // default): l'utente non deve ricalcolarlo a mano dal nulla, ma resta libero
-  // di sovrascriverlo con l'importo reale della fattura del fornitore.
-  it('precompila il totale fattura con la somma degli arrivi inclusi', async () => {
+  // Le righe registrazione si generano automaticamente raggruppando gli
+  // imponibili degli arrivi inclusi per aliquota IVA, con il riferimento
+  // automatico agli arrivi (spec RIGHE REGISTRAZIONE).
+  it('raggruppa gli arrivi inclusi in righe per aliquota con riferimento automatico', async () => {
     const user = userEvent.setup();
     await setup();
 
     await selectSupplier(user);
     await includeReceipt(user, 0);
+    expect(screen.getByText('Rif. Arrivo merce 1 del 10/01/2026')).toBeTruthy();
 
-    const totalInput = screen.getByLabelText<HTMLInputElement>('Totale fattura');
-    expect(totalInput.value).toBe('122,00');
-
+    // Il secondo arrivo ha la stessa aliquota: la riga resta una, sommata.
     await includeReceipt(user, 0);
-    expect(totalInput.value).toBe('183,00');
+    expect(screen.getByText('Rif. Arrivo merce 1 del 10/01/2026, 2 del 12/01/2026')).toBeTruthy();
   });
 
-  // Un valore digitato a mano dall'utente è l'importo reale della fattura e non
-  // deve mai essere sovrascritto da un successivo ricalcolo automatico.
-  it('non sovrascrive il totale digitato a mano quando si includono altri arrivi', async () => {
+  // Una riga manuale calcola l'importo IVA da netto × aliquota; il valore
+  // resta comunque modificabile dall'operatore.
+  it('calcola l’IVA della riga manuale da importo netto e aliquota', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    await user.click(screen.getByRole('button', { name: /Aggiungi riga manuale/i }));
+
+    await user.type(screen.getByLabelText('Importo netto riga manuale 1'), '100');
+    await user.type(screen.getByLabelText('Aliquota IVA riga manuale 1'), '22');
+
+    const vatInput = screen.getByLabelText<HTMLInputElement>('Importo IVA riga manuale 1');
+    expect(vatInput.value).toBe('22,00');
+  });
+
+  // Le scadenze si precompilano con il residuo non coperto; la spunta
+  // "Saldato" propone oggi come data saldo (spec PAGAMENTO).
+  it('precompila la scadenza con il residuo e la data saldo alla spunta Saldato', async () => {
     const user = userEvent.setup();
     await setup();
 
     await selectSupplier(user);
     await includeReceipt(user, 0);
 
-    const totalInput = screen.getByLabelText<HTMLInputElement>('Totale fattura');
-    await user.clear(totalInput);
-    await user.type(totalInput, '999,50');
-    expect(totalInput.value).toBe('999,50');
+    await user.click(screen.getByRole('button', { name: /Aggiungi scadenza/i }));
+    const amountInput = screen.getByLabelText<HTMLInputElement>('Importo scadenza 1');
+    expect(amountInput.value).toBe('122,00');
 
-    await includeReceipt(user, 0);
-    expect(totalInput.value).toBe('999,50');
+    await user.click(screen.getByLabelText('Scadenza 1 saldata'));
+    const settledDate = screen.getByLabelText<HTMLInputElement>('Data saldo scadenza 1');
+    expect(settledDate.value).not.toBe('');
   });
 });

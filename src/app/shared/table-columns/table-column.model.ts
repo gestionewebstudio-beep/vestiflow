@@ -10,6 +10,7 @@ export const TableViewId = {
   SalesDdtDocumentsList: 'sales_ddt_documents_list',
   ManualUnloadDocumentsList: 'manual_unload_documents_list',
   InvoiceDraftDocumentsList: 'invoice_draft_documents_list',
+  PurchaseInvoiceDocumentsList: 'purchase_invoice_documents_list',
   SuppliersList: 'suppliers_list',
   GoodsReceiptLines: 'goods_receipt_lines',
   SupplierOrderLines: 'supplier_order_lines',

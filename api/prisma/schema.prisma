@@ -1735,6 +1735,9 @@ model Document {
   subtotalMinor     Int            @default(0) @map("subtotal_minor")
   taxMinor          Int            @default(0) @map("tax_minor")
   totalMinor        Int            @default(0) @map("total_minor")
+  /// Registrazione fattura fornitore: residuo "Ancora da saldare" denormalizzato
+  /// (totale - scadenze saldate), mantenuto dal salvataggio. 0 per gli altri tipi.
+  outstandingMinor  Int            @default(0) @map("outstanding_minor")
   /// Sconto extra percentuale applicato sull'intero documento oltre agli sconti riga.
   documentDiscountPercent Int      @default(0) @map("document_discount_percent")
   pricesIncludeVat  Boolean        @default(false) @map("prices_include_vat")
@@ -1804,6 +1807,8 @@ model Document {
   purchaseInvoiceLinks   PurchaseInvoiceGoodsReceiptLink[] @relation("LinkReceipt")
   /// Righe riepilogative di fatture registrate che puntano a questo arrivo merce.
   summaryLines           DocumentLine[]                    @relation("LineGoodsReceipt")
+  /// Scadenze di pagamento (Registrazione fattura fornitore).
+  paymentInstallments    DocumentPaymentInstallment[]
 
   // Numero univoco per serie/anno/tipo (NULL distinti in Postgres: le bozze non collidono).
   @@unique([tenantId, type, series, year, number])
@@ -1867,6 +1872,9 @@ model DocumentLine {
   serialNumbers   Json     @default("[]") @map("serial_numbers")
   /// Riga riepilogativa di registrazione fattura: arrivo merce riepilogato.
   linkedGoodsReceiptId String? @map("linked_goods_receipt_id") @db.Uuid
+  /// Origine riga di registrazione fattura: 'vat_summary' (riepilogo automatico
+  /// per aliquota dagli arrivi inclusi) o 'manual' (voce libera). Null altrove.
+  lineSource      String?  @map("line_source")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -1881,6 +1889,28 @@ model DocumentLine {
   @@index([tenantId])
   @@index([linkedGoodsReceiptId])
   @@map("document_lines")
+}
+
+/// Scadenza di pagamento di una Registrazione fattura fornitore: data,
+/// importo, flag saldato e data saldo. Ricreate a ogni salvataggio del form.
+model DocumentPaymentInstallment {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  documentId  String    @map("document_id") @db.Uuid
+  /// Ordine di visualizzazione (1-based).
+  position    Int       @default(1)
+  dueDate     DateTime  @map("due_date") @db.Date
+  amountMinor Int       @default(0) @map("amount_minor")
+  settled     Boolean   @default(false)
+  settledAt   DateTime? @map("settled_at") @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([tenantId])
+  @@map("document_payment_installments")
 }
 
 /// Tipo documento fornitore per Arrivo merce (DDT, Fattura, Reso + tipi

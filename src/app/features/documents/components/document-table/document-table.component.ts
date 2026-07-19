@@ -107,6 +107,28 @@ export class DocumentTableComponent {
     return doc.internalComment?.trim() || doc.notes?.trim() || '—';
   }
 
+  protected registrationDateLabel(doc: DocumentRecord): string {
+    return doc.registrationDate ? formatDate(doc.registrationDate) : '—';
+  }
+
+  /** N. fattura fornitore (elenco Registrazioni fattura): solo il numero. */
+  protected invoiceNumberLabel(doc: DocumentRecord): string {
+    return doc.externalDocNumber?.trim() || '—';
+  }
+
+  /** "Ancora da saldare": importo residuo, null = tutto saldato (badge). */
+  protected outstandingLabel(doc: DocumentRecord): string | null {
+    const outstanding = doc.outstanding;
+    if (!outstanding || outstanding.amountMinor <= 0) {
+      return null;
+    }
+    return formatMoney(outstanding);
+  }
+
+  protected paymentMethodLabel(doc: DocumentRecord): string {
+    return doc.paymentMethod?.trim() || '—';
+  }
+
   protected locationLabel(doc: DocumentRecord): string {
     return doc.locationName ?? '—';
   }

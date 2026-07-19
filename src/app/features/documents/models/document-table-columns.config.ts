@@ -85,6 +85,60 @@ function presetsWithoutColumn(presets: TableViewPresetMap, columnId: string): Ta
   return result;
 }
 
+/**
+ * Elenco Registrazioni fattura fornitore: colonne della spec (Data documento,
+ * Data registrazione, Fornitore, N. fattura, Commento, Totale, Ancora da
+ * saldare, Pagamento) — mai la colonna "Tipo".
+ */
+export const PURCHASE_INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+  { id: 'documentDate', label: 'Data documento', pinnable: true, defaultVisible: true },
+  { id: 'registrationDate', label: 'Data registrazione', defaultVisible: true },
+  { id: 'counterparty', label: 'Fornitore', defaultVisible: true },
+  { id: 'invoiceNumber', label: 'N. fattura', defaultVisible: true },
+  { id: 'notes', label: 'Commento', defaultVisible: true },
+  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  { id: 'outstanding', label: 'Ancora da saldare', numeric: true, defaultVisible: true },
+  { id: 'paymentMethod', label: 'Pagamento', defaultVisible: true },
+] as const;
+
+export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
+  [TableViewPresetId.Default]: [
+    'documentDate',
+    'registrationDate',
+    'counterparty',
+    'invoiceNumber',
+    'notes',
+    'total',
+    'outstanding',
+    'paymentMethod',
+  ],
+  [TableViewPresetId.Warehouse]: ['documentDate', 'counterparty', 'invoiceNumber', 'notes'],
+  [TableViewPresetId.Accountant]: [
+    'documentDate',
+    'registrationDate',
+    'counterparty',
+    'invoiceNumber',
+    'total',
+    'outstanding',
+  ],
+  [TableViewPresetId.Supplier]: [
+    'documentDate',
+    'counterparty',
+    'invoiceNumber',
+    'total',
+    'outstanding',
+    'paymentMethod',
+  ],
+  [TableViewPresetId.Analysis]: ['documentDate', 'total', 'outstanding', 'paymentMethod'],
+  [TableViewPresetId.Operational]: [
+    'documentDate',
+    'registrationDate',
+    'counterparty',
+    'invoiceNumber',
+    'notes',
+  ],
+};
+
 export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
   { id: 'reference', label: 'N.', defaultVisible: true },

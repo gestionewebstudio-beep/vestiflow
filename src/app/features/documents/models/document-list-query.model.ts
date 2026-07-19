@@ -13,7 +13,8 @@ export type DocumentListProfile =
   | 'proforma'
   | 'sales-ddt'
   | 'manual-unload'
-  | 'invoice-draft';
+  | 'invoice-draft'
+  | 'purchase-invoice';
 
 /** Query registro documenti (ordinamento fisso: data documento discendente). */
 export interface DocumentListQuery {
@@ -33,6 +34,8 @@ export interface DocumentListQuery {
   readonly linkStatus?: GoodsReceiptLinkStatus;
   /** Filtro tipo documento fornitore strutturato (DDT/Fattura/Reso/…, solo Arrivi merce). */
   readonly externalDocumentTypeId?: string;
+  /** Stato saldo delle Registrazioni fattura (Da saldare / Saldati). */
+  readonly settlement?: 'pending' | 'settled';
   readonly accountant?: boolean;
   readonly pendingInvoice?: boolean;
 }
@@ -56,6 +59,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
   const supplierId = params.get('supplierId') ?? '';
   const linkStatus = params.get('linkStatus') ?? '';
   const externalDocumentTypeId = params.get('externalDocumentTypeId') ?? '';
+  const settlement = params.get('settlement') ?? '';
 
   return {
     page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -75,6 +79,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
       ? (linkStatus as GoodsReceiptLinkStatus)
       : undefined,
     externalDocumentTypeId: isUuid(externalDocumentTypeId) ? externalDocumentTypeId : undefined,
+    settlement: settlement === 'pending' || settlement === 'settled' ? settlement : undefined,
     accountant: params.get('accountant') === '1',
     pendingInvoice: params.get('pendingInvoice') === '1',
   };

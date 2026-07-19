@@ -7,7 +7,14 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormArray,
+  FormControl,
+  FormGroup,
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
@@ -16,7 +23,10 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import type { Money } from '@core/models/common.model';
 import { DocumentType } from '@core/models/document.model';
-import type { DocumentRecord } from '@core/models/document.model';
+import type { DocumentRecord, GoodsReceiptVatBreakdownEntry } from '@core/models/document.model';
+import type { PaymentOption } from '@core/models/payment-option.model';
+import type { Supplier } from '@core/models/supplier.model';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import {
   DEFAULT_CURRENCY,
   formatMoney,
@@ -37,6 +47,10 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import type { LinkableGoodsReceipt } from './models/goods-receipt-causal.model';
 import { DocumentService } from './services/document.service';
+import type {
+  PurchaseInvoiceInstallmentBody,
+  PurchaseInvoiceManualLineBody,
+} from './services/document-api.mapper';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -53,11 +67,62 @@ interface IncludedReceiptRow {
   readonly subtotal: Money;
   readonly tax: Money;
   readonly total: Money;
+  /** Quote IVA dell'arrivo: alimentano le righe per aliquota. */
+  readonly vatBreakdown: readonly GoodsReceiptVatBreakdownEntry[];
+}
+
+/** Riga registrazione generata automaticamente (gruppo per aliquota IVA). */
+interface AutoVatRow {
+  readonly ratePercent: number;
+  readonly net: Money;
+  readonly vat: Money;
+  readonly description: string;
+}
+
+type ManualLineForm = FormGroup<{
+  description: FormControl<string>;
+  netText: FormControl<string>;
+  rateText: FormControl<string>;
+  vatText: FormControl<string>;
+}>;
+
+type InstallmentForm = FormGroup<{
+  dueDate: FormControl<string>;
+  amountText: FormControl<string>;
+  settled: FormControl<boolean>;
+  settledAt: FormControl<string>;
+}>;
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** dd/MM/yyyy per i riferimenti automatici (stesso formato del backend). */
+const SHORT_DATE_FORMAT = new Intl.DateTimeFormat('it-IT', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+
+function formatShortDate(iso: string): string {
+  return SHORT_DATE_FORMAT.format(new Date(iso));
+}
+
+/** Aliquota IVA da testo utente ("22", "10,5", "4%"): null se non valida. */
+function parseRatePercent(value: string): number | null {
+  const trimmed = value.trim().replace('%', '').replace(',', '.');
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
 }
 
 /**
  * Registrazione fattura fornitore (prompt §5-7): documento contabile che
- * collega uno o più Arrivi merce alla fattura ricevuta. NON movimenta mai il
+ * collega uno o più Arrivi merce alla fattura ricevuta. Le righe si generano
+ * raggruppando gli imponibili per aliquota IVA (più eventuali righe manuali);
+ * il pagamento è gestito a scadenze con stato saldato. NON movimenta mai il
  * magazzino: le giacenze restano quelle caricate dagli Arrivi merce.
  */
 @Component({
@@ -82,11 +147,12 @@ export class PurchaseInvoiceFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
   private readonly supplierService = inject(SupplierService);
+  private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly listPath = '/app/documents/registro';
+  protected readonly listPath = '/app/documents/registrazione-fattura';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatDate = formatDate;
@@ -101,14 +167,38 @@ export class PurchaseInvoiceFormComponent {
 
   readonly form = this.fb.group({
     supplierId: this.fb.control('', { validators: [Validators.required] }),
-    documentDate: this.fb.control(new Date().toISOString().slice(0, 10), {
-      validators: [Validators.required],
-    }),
+    /** Data documento: la data della fattura ricevuta dal fornitore. */
+    documentDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
     externalDocNumber: this.fb.control(''),
-    externalDocDate: this.fb.control(''),
-    totalText: this.fb.control('', { validators: [Validators.required] }),
+    /** Data registrazione interna: default oggi, modificabile. */
+    registrationDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
+    internalComment: this.fb.control(''),
+    paymentMethod: this.fb.control(''),
     notes: this.fb.control(''),
+    recipient: this.fb.group({
+      name: this.fb.control(''),
+      address: this.fb.control(''),
+      zip: this.fb.control(''),
+      city: this.fb.control(''),
+      province: this.fb.control(''),
+      country: this.fb.control(''),
+      fiscalCode: this.fb.control(''),
+      vatNumber: this.fb.control(''),
+    }),
+    manualLines: this.fb.array<ManualLineForm>([]),
+    installments: this.fb.array<InstallmentForm>([]),
   });
+
+  /** Tick reattivo su ogni modifica del form (totali e opzioni derivate). */
+  private readonly formChanges = toSignal(this.form.valueChanges, { initialValue: null });
+
+  protected get manualLines(): FormArray<ManualLineForm> {
+    return this.form.controls.manualLines;
+  }
+
+  protected get installments(): FormArray<InstallmentForm> {
+    return this.form.controls.installments;
+  }
 
   private readonly loadedDocument = signal<DocumentRecord | null>(null);
   protected readonly loadedReference = computed(() => this.loadedDocument()?.reference ?? null);
@@ -137,6 +227,26 @@ export class PurchaseInvoiceFormComponent {
     this.suppliers().map((supplier) => ({ value: supplier.id, label: supplier.name })),
   );
 
+  /** Voci "Modalità di pagamento" da Impostazioni → Pagamenti. */
+  private readonly paymentOptions = toSignal(
+    this.paymentOptionsService.list('method').pipe(catchError(() => of([] as PaymentOption[]))),
+    { initialValue: [] as readonly PaymentOption[] },
+  );
+
+  protected readonly paymentMethodOptions = computed<readonly SelectMenuOption[]>(() => {
+    this.formChanges();
+    const current = this.form.controls.paymentMethod.value.trim();
+    const names = this.paymentOptions()
+      .filter((option) => option.isActive)
+      .map((option) => option.name);
+    const options = names.map((name): SelectMenuOption => ({ value: name, label: name }));
+    // Valore storico non più in elenco: resta selezionabile (snapshot).
+    if (current && !names.includes(current)) {
+      options.unshift({ value: current, label: current });
+    }
+    return options;
+  });
+
   /** "Mostra avviso" (anagrafica fornitore): banner alla selezione. */
   protected readonly supplierDocumentAlert = computed(() => {
     const supplierId = this.selectedSupplierId();
@@ -152,28 +262,106 @@ export class PurchaseInvoiceFormComponent {
   /** Ultima nota anagrafica inserita in automatico nelle note documento. */
   private lastAutoInsertedNote = '';
 
+  // ── Righe registrazione (auto per aliquota + manuali) ───────────────────────
+
   /**
-   * Ultimo importo scritto automaticamente nel campo "Totale fattura" come
-   * comodo default (somma degli arrivi inclusi). Distingue un default non
-   * ancora toccato da un valore inserito a mano, che va sempre rispettato:
-   * il confronto/controllo tra i due totali non è un requisito (il totale
-   * fattura reale può legittimamente differire per sconti, spese o
-   * arrotondamenti non presenti sugli arrivi).
+   * Righe generate dagli arrivi inclusi: imponibili raggruppati per aliquota
+   * IVA con riferimento automatico ("Rif. Arrivo merce 6 del 15/07/2026, …").
+   * Stessa logica del backend, che resta autoritativo al salvataggio.
    */
-  private readonly autoFilledTotalMinor = signal<number | null>(null);
+  protected readonly autoRows = computed<readonly AutoVatRow[]>(() => {
+    const receipts = [...this.includedReceipts()].sort(
+      (a, b) => a.documentDate.localeCompare(b.documentDate) || (a.number ?? 0) - (b.number ?? 0),
+    );
+    const byRate = new Map<number, { net: number; vat: number; refs: string[] }>();
+    for (const receipt of receipts) {
+      const label = receipt.number != null ? String(receipt.number) : (receipt.reference ?? '—');
+      const ref = `${label} del ${formatShortDate(receipt.documentDate)}`;
+      const quotas: readonly GoodsReceiptVatBreakdownEntry[] =
+        receipt.vatBreakdown.length > 0
+          ? receipt.vatBreakdown
+          : receipt.subtotal.amountMinor !== 0 || receipt.tax.amountMinor !== 0
+            ? [
+                {
+                  ratePercent:
+                    receipt.subtotal.amountMinor > 0 && receipt.tax.amountMinor > 0
+                      ? Math.round((receipt.tax.amountMinor / receipt.subtotal.amountMinor) * 100)
+                      : 0,
+                  net: receipt.subtotal,
+                  vat: receipt.tax,
+                },
+              ]
+            : [];
+      for (const quota of quotas) {
+        const entry = byRate.get(quota.ratePercent) ?? { net: 0, vat: 0, refs: [] };
+        entry.net += quota.net.amountMinor;
+        entry.vat += quota.vat.amountMinor;
+        if (!entry.refs.includes(ref)) {
+          entry.refs.push(ref);
+        }
+        byRate.set(quota.ratePercent, entry);
+      }
+    }
+    return [...byRate.entries()]
+      .map(
+        ([ratePercent, entry]): AutoVatRow => ({
+          ratePercent,
+          net: { amountMinor: entry.net, currencyCode: this.currency },
+          vat: { amountMinor: entry.vat, currencyCode: this.currency },
+          description: `Rif. Arrivo merce ${entry.refs.join(', ')}`,
+        }),
+      )
+      .sort((a, b) => a.ratePercent - b.ratePercent);
+  });
 
-  protected readonly receiptsTotal = computed<Money>(() => ({
-    amountMinor: this.includedReceipts().reduce((sum, row) => sum + row.total.amountMinor, 0),
+  /** Importi netti/IVA delle righe manuali (reattivi sul form). */
+  private readonly manualTotals = computed(() => {
+    this.formChanges();
+    let net = 0;
+    let vat = 0;
+    for (const line of this.form.getRawValue().manualLines) {
+      net += parseMoneyInput(line.netText, this.currency)?.amountMinor ?? 0;
+      vat += parseMoneyInput(line.vatText, this.currency)?.amountMinor ?? 0;
+    }
+    return { net, vat };
+  });
+
+  // ── Totali (sempre visibili in fondo): Tot. netto, IVA, Totale ─────────────
+
+  protected readonly totalNet = computed<Money>(() => ({
+    amountMinor:
+      this.autoRows().reduce((sum, row) => sum + row.net.amountMinor, 0) + this.manualTotals().net,
     currencyCode: this.currency,
   }));
 
-  protected readonly receiptsSubtotal = computed<Money>(() => ({
-    amountMinor: this.includedReceipts().reduce((sum, row) => sum + row.subtotal.amountMinor, 0),
+  protected readonly totalVat = computed<Money>(() => ({
+    amountMinor:
+      this.autoRows().reduce((sum, row) => sum + row.vat.amountMinor, 0) + this.manualTotals().vat,
     currencyCode: this.currency,
   }));
 
-  protected readonly receiptsTax = computed<Money>(() => ({
-    amountMinor: this.includedReceipts().reduce((sum, row) => sum + row.tax.amountMinor, 0),
+  protected readonly totalGross = computed<Money>(() => ({
+    amountMinor: this.totalNet().amountMinor + this.totalVat().amountMinor,
+    currencyCode: this.currency,
+  }));
+
+  /** Totale scadenze saldate ("Saldato"). */
+  protected readonly settledTotal = computed<Money>(() => {
+    this.formChanges();
+    const amountMinor = this.form
+      .getRawValue()
+      .installments.filter((installment) => installment.settled)
+      .reduce(
+        (sum, installment) =>
+          sum + (parseMoneyInput(installment.amountText, this.currency)?.amountMinor ?? 0),
+        0,
+      );
+    return { amountMinor, currencyCode: this.currency };
+  });
+
+  /** Residuo "Da saldare" = totale registrazione - scadenze saldate. */
+  protected readonly outstandingTotal = computed<Money>(() => ({
+    amountMinor: Math.max(0, this.totalGross().amountMinor - this.settledTotal().amountMinor),
     currencyCode: this.currency,
   }));
 
@@ -209,18 +397,9 @@ export class PurchaseInvoiceFormComponent {
     this.loadTick.update((tick) => tick + 1);
   }
 
-  protected fieldInvalid(name: 'supplierId' | 'documentDate' | 'totalText'): boolean {
+  protected fieldInvalid(name: 'supplierId' | 'documentDate' | 'registrationDate'): boolean {
     const control = this.form.controls[name];
     return control.invalid && (control.touched || control.dirty);
-  }
-
-  protected totalInvalid(): boolean {
-    const control = this.form.controls.totalText;
-    if (!(control.touched || control.dirty) || !control.value.trim()) {
-      return false;
-    }
-    const parsed = parseMoneyInput(control.value, this.currency);
-    return parsed === null || parsed.amountMinor < 0;
   }
 
   protected onSupplierSelect(value: string | null): void {
@@ -228,25 +407,29 @@ export class PurchaseInvoiceFormComponent {
     this.form.controls.supplierId.setValue(value ?? '');
     this.form.controls.supplierId.markAsTouched();
     this.selectedSupplierId.set(value ?? '');
-    this.applySupplierDocumentNote(value ?? '');
+    const supplier = value ? (this.suppliers().find((entry) => entry.id === value) ?? null) : null;
+    this.applySupplierDocumentNote(supplier);
+    this.applySupplierPaymentDefault(supplier);
+    this.applySupplierAddress(supplier);
     if (previous && previous !== value && this.includedReceipts().length > 0) {
       // Gli arrivi inclusi appartengono al fornitore precedente: non più validi.
       this.includedReceipts.set([]);
-      this.syncAutoTotal();
     }
+  }
+
+  protected onPaymentMethodChange(value: string | null): void {
+    this.form.controls.paymentMethod.setValue(value ?? '');
+    this.form.controls.paymentMethod.markAsDirty();
   }
 
   /**
    * "Inserisci nota" (anagrafica fornitore): compila le note della
    * registrazione senza sovrascrivere testo digitato dall'operatore.
    */
-  private applySupplierDocumentNote(supplierId: string): void {
+  private applySupplierDocumentNote(supplier: Supplier | null): void {
     if (this.isEditMode()) {
       return;
     }
-    const supplier = supplierId
-      ? (this.suppliers().find((entry) => entry.id === supplierId) ?? null)
-      : null;
     const note = supplier?.documentCreationNote?.trim() ?? '';
     const control = this.form.controls.notes;
     const current = control.value.trim();
@@ -259,7 +442,135 @@ export class PurchaseInvoiceFormComponent {
     }
   }
 
-  // ── Includi documento (prompt §5.1) ─────────────────────────────────────────
+  /** Tipo pagamento dall'anagrafica fornitore (modificabile, mai sovrascritto se toccato). */
+  private applySupplierPaymentDefault(supplier: Supplier | null): void {
+    const control = this.form.controls.paymentMethod;
+    if (control.dirty) {
+      return;
+    }
+    control.setValue(supplier?.paymentMethod?.trim() ?? '');
+  }
+
+  /** Indirizzi dall'anagrafica fornitore (modificabili per eccezioni). */
+  private applySupplierAddress(supplier: Supplier | null): void {
+    const group = this.form.controls.recipient;
+    if (group.dirty) {
+      return;
+    }
+    const addressLine = [supplier?.addressLine1?.trim(), supplier?.addressLine2?.trim()]
+      .filter(Boolean)
+      .join(' ');
+    group.patchValue({
+      name: supplier?.name ?? '',
+      address: addressLine,
+      zip: supplier?.postalCode ?? '',
+      city: supplier?.city ?? '',
+      province: supplier?.province ?? '',
+      country: supplier?.countryCode ?? '',
+      fiscalCode: supplier?.taxCode ?? '',
+      vatNumber: supplier?.vatNumber ?? '',
+    });
+  }
+
+  // ── Righe manuali ───────────────────────────────────────────────────────────
+
+  private buildManualLine(init?: {
+    description?: string;
+    netText?: string;
+    rateText?: string;
+    vatText?: string;
+  }): ManualLineForm {
+    return this.fb.group({
+      description: this.fb.control(init?.description ?? ''),
+      netText: this.fb.control(init?.netText ?? ''),
+      rateText: this.fb.control(init?.rateText ?? ''),
+      vatText: this.fb.control(init?.vatText ?? ''),
+    });
+  }
+
+  protected addManualLine(): void {
+    this.manualLines.push(this.buildManualLine());
+    this.manualLines.markAsDirty();
+  }
+
+  protected removeManualLine(index: number): void {
+    this.manualLines.removeAt(index);
+    this.manualLines.markAsDirty();
+  }
+
+  /** IVA riga ricalcolata da netto × aliquota (resta comunque modificabile). */
+  protected recalcManualLineVat(index: number): void {
+    const group = this.manualLines.at(index);
+    if (!group) {
+      return;
+    }
+    const net = parseMoneyInput(group.controls.netText.value, this.currency);
+    const rate = parseRatePercent(group.controls.rateText.value);
+    if (net === null || rate === null) {
+      return;
+    }
+    const vatMinor = Math.round((net.amountMinor * rate) / 100);
+    group.controls.vatText.setValue(
+      this.moneyToInputText({ amountMinor: vatMinor, currencyCode: this.currency }),
+    );
+  }
+
+  // ── Scadenze di pagamento ───────────────────────────────────────────────────
+
+  private buildInstallment(init?: {
+    dueDate?: string;
+    amountText?: string;
+    settled?: boolean;
+    settledAt?: string;
+  }): InstallmentForm {
+    return this.fb.group({
+      dueDate: this.fb.control(init?.dueDate ?? ''),
+      amountText: this.fb.control(init?.amountText ?? ''),
+      settled: this.fb.control(init?.settled ?? false),
+      settledAt: this.fb.control(init?.settledAt ?? ''),
+    });
+  }
+
+  protected addInstallment(): void {
+    // Comodo default: il residuo non ancora coperto dalle scadenze esistenti.
+    const covered = this.form
+      .getRawValue()
+      .installments.reduce(
+        (sum, installment) =>
+          sum + (parseMoneyInput(installment.amountText, this.currency)?.amountMinor ?? 0),
+        0,
+      );
+    const residualMinor = Math.max(0, this.totalGross().amountMinor - covered);
+    this.installments.push(
+      this.buildInstallment({
+        amountText:
+          residualMinor > 0
+            ? this.moneyToInputText({ amountMinor: residualMinor, currencyCode: this.currency })
+            : '',
+      }),
+    );
+    this.installments.markAsDirty();
+  }
+
+  protected removeInstallment(index: number): void {
+    this.installments.removeAt(index);
+    this.installments.markAsDirty();
+  }
+
+  /** Spunta "Saldato": propone oggi come data saldo se assente. */
+  protected onInstallmentSettledChange(index: number, checked: boolean): void {
+    const group = this.installments.at(index);
+    if (!group) {
+      return;
+    }
+    group.controls.settled.setValue(checked);
+    group.controls.settled.markAsDirty();
+    if (checked && !group.controls.settledAt.value) {
+      group.controls.settledAt.setValue(todayIsoDate());
+    }
+  }
+
+  // ── Includi arrivo merce (prompt §5.1) ──────────────────────────────────────
 
   protected openIncludePanel(): void {
     const supplierId = this.form.controls.supplierId.value;
@@ -332,16 +643,15 @@ export class PurchaseInvoiceFormComponent {
           subtotal: row.subtotal,
           tax: row.tax,
           total: row.total,
+          vatBreakdown: row.vatBreakdown ?? [],
         }),
       ),
     ]);
     this.includePanelOpen.set(false);
-    this.syncAutoTotal();
   }
 
   protected removeReceipt(id: string): void {
     this.includedReceipts.update((current) => current.filter((row) => row.id !== id));
-    this.syncAutoTotal();
   }
 
   /** Riga riepilogativa (§5.2): "Arrivo merce n. 3 del 30/05/2026 - DDT 145…". */
@@ -351,37 +661,6 @@ export class PurchaseInvoiceFormComponent {
     return row.causalText?.trim() ? `${base} - ${row.causalText.trim()}` : base;
   }
 
-  /**
-   * Precompila il campo "Totale fattura" con la somma degli arrivi inclusi
-   * (comodo default), ma solo finché l'utente non lo ha modificato a mano:
-   * il valore digitato manualmente non viene mai sovrascritto, perché è
-   * l'importo reale della fattura del fornitore che deve arrivare ai report.
-   */
-  private syncAutoTotal(): void {
-    if (!this.isTotalTextAutoSafe()) {
-      return;
-    }
-    const sumMinor = this.includedReceipts().reduce((sum, row) => sum + row.total.amountMinor, 0);
-    this.autoFilledTotalMinor.set(sumMinor);
-    this.form.controls.totalText.setValue(
-      this.moneyToInputText({ amountMinor: sumMinor, currencyCode: this.currency }),
-    );
-  }
-
-  /** True se il campo totale è ancora "vergine" oppure coincide con l'ultimo default scritto da noi. */
-  private isTotalTextAutoSafe(): boolean {
-    const control = this.form.controls.totalText;
-    if (control.dirty) {
-      return false;
-    }
-    const raw = control.value.trim();
-    if (raw === '') {
-      return true;
-    }
-    const parsed = parseMoneyInput(raw, this.currency);
-    return parsed !== null && parsed.amountMinor === this.autoFilledTotalMinor();
-  }
-
   // ── Salvataggio ─────────────────────────────────────────────────────────────
 
   protected save(): void {
@@ -389,53 +668,109 @@ export class PurchaseInvoiceFormComponent {
       return;
     }
     this.form.markAllAsTouched();
-    if (this.form.controls.supplierId.invalid || this.form.controls.documentDate.invalid) {
+    if (
+      this.form.controls.supplierId.invalid ||
+      this.form.controls.documentDate.invalid ||
+      this.form.controls.registrationDate.invalid
+    ) {
       this._submitState.set({
         status: 'error',
         error: {
           kind: AppErrorKind.Validation,
-          message: 'Compila fornitore e data registrazione prima di salvare.',
-        },
-      });
-      return;
-    }
-    const total = parseMoneyInput(this.form.controls.totalText.value, this.currency);
-    if (total === null || total.amountMinor < 0) {
-      this._submitState.set({
-        status: 'error',
-        error: {
-          kind: AppErrorKind.Validation,
-          message: 'Inserisci il totale della fattura ricevuta dal fornitore.',
+          message: 'Compila fornitore, data documento e data registrazione prima di salvare.',
         },
       });
       return;
     }
 
     const raw = this.form.getRawValue();
+
+    const manualLines: PurchaseInvoiceManualLineBody[] = [];
+    for (const [index, line] of raw.manualLines.entries()) {
+      const description = line.description.trim();
+      const hasContent =
+        description || line.netText.trim() || line.rateText.trim() || line.vatText.trim();
+      if (!hasContent) {
+        continue;
+      }
+      const net = parseMoneyInput(line.netText, this.currency);
+      if (!description || net === null) {
+        this._submitState.set({
+          status: 'error',
+          error: {
+            kind: AppErrorKind.Validation,
+            message: `Riga manuale ${index + 1}: inserisci descrizione e importo netto validi.`,
+          },
+        });
+        return;
+      }
+      manualLines.push({
+        description,
+        netMinor: net.amountMinor,
+        vatRatePercent: parseRatePercent(line.rateText) ?? 0,
+        vatMinor: parseMoneyInput(line.vatText, this.currency)?.amountMinor ?? 0,
+      });
+    }
+
+    const installments: PurchaseInvoiceInstallmentBody[] = [];
+    for (const [index, installment] of raw.installments.entries()) {
+      const hasContent =
+        installment.dueDate.trim() || installment.amountText.trim() || installment.settled;
+      if (!hasContent) {
+        continue;
+      }
+      const amount = parseMoneyInput(installment.amountText, this.currency);
+      if (!installment.dueDate || amount === null || amount.amountMinor < 0) {
+        this._submitState.set({
+          status: 'error',
+          error: {
+            kind: AppErrorKind.Validation,
+            message: `Scadenza ${index + 1}: inserisci data scadenza e importo validi.`,
+          },
+        });
+        return;
+      }
+      installments.push({
+        dueDate: new Date(installment.dueDate).toISOString(),
+        amountMinor: amount.amountMinor,
+        settled: installment.settled,
+        settledAt: installment.settledAt
+          ? new Date(installment.settledAt).toISOString()
+          : undefined,
+      });
+    }
+
     this._submitState.set({ status: 'saving' });
     this.documentService
       .savePurchaseInvoice({
         id: this.editDocumentId() ?? this.loadedDocument()?.id ?? undefined,
         supplierId: raw.supplierId,
         documentDate: new Date(raw.documentDate).toISOString(),
+        registrationDate: new Date(raw.registrationDate).toISOString(),
         externalDocNumber: raw.externalDocNumber.trim() || undefined,
-        externalDocDate: raw.externalDocDate
-          ? new Date(raw.externalDocDate).toISOString()
-          : undefined,
+        internalComment: raw.internalComment.trim() || undefined,
+        paymentMethod: raw.paymentMethod.trim() || undefined,
         notes: raw.notes.trim() || undefined,
+        recipientAddress: {
+          name: raw.recipient.name.trim() || undefined,
+          address: raw.recipient.address.trim() || undefined,
+          zip: raw.recipient.zip.trim() || undefined,
+          city: raw.recipient.city.trim() || undefined,
+          province: raw.recipient.province.trim() || undefined,
+          country: raw.recipient.country.trim() || undefined,
+          fiscalCode: raw.recipient.fiscalCode.trim() || undefined,
+          vatNumber: raw.recipient.vatNumber.trim() || undefined,
+        },
         currency: this.currency,
-        totalMinor: total.amountMinor,
         goodsReceiptIds: this.includedReceipts().map((row) => row.id),
+        manualLines,
+        installments,
       })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        // Il totale fattura inserito a mano è sempre quello registrato: il
-        // confronto con la somma degli arrivi è puramente informativo (vedi
-        // tfoot della tabella arrivi inclusi) e non blocca né condiziona il
-        // salvataggio.
-        next: ({ document }) => {
+        next: () => {
           this._submitState.set({ status: 'idle' });
-          void this.router.navigate(['/app/documents', document.id]);
+          void this.router.navigateByUrl(this.listPath);
         },
         error: (err: unknown) => {
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
@@ -444,7 +779,7 @@ export class PurchaseInvoiceFormComponent {
   }
 
   protected cancel(): void {
-    void this.router.navigateByUrl(this.listPath + '?type=supplier_invoice');
+    void this.router.navigateByUrl(this.listPath);
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
@@ -453,10 +788,52 @@ export class PurchaseInvoiceFormComponent {
       supplierId: doc.supplierId ?? '',
       documentDate: doc.documentDate.slice(0, 10),
       externalDocNumber: doc.externalDocNumber ?? '',
-      externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
-      totalText: this.moneyToInputText(doc.total),
+      registrationDate: doc.registrationDate ? doc.registrationDate.slice(0, 10) : todayIsoDate(),
+      internalComment: doc.internalComment ?? '',
+      paymentMethod: doc.paymentMethod ?? '',
       notes: doc.notes ?? '',
+      recipient: {
+        name: doc.recipientAddress?.name ?? '',
+        address: doc.recipientAddress?.address ?? '',
+        zip: doc.recipientAddress?.zip ?? '',
+        city: doc.recipientAddress?.city ?? '',
+        province: doc.recipientAddress?.province ?? '',
+        country: doc.recipientAddress?.country ?? '',
+        fiscalCode: doc.recipientAddress?.fiscalCode ?? '',
+        vatNumber: doc.recipientAddress?.vatNumber ?? '',
+      },
     });
+
+    this.manualLines.clear();
+    for (const line of doc.lines ?? []) {
+      if (line.lineSource !== 'manual') {
+        continue;
+      }
+      this.manualLines.push(
+        this.buildManualLine({
+          description: line.description,
+          netText: this.moneyToInputText(line.lineTotal),
+          rateText:
+            line.vatSnapshot?.ratePercent != null
+              ? String(line.vatSnapshot.ratePercent).replace('.', ',')
+              : '',
+          vatText: line.lineVatTotal ? this.moneyToInputText(line.lineVatTotal) : '',
+        }),
+      );
+    }
+
+    this.installments.clear();
+    for (const installment of doc.paymentInstallments ?? []) {
+      this.installments.push(
+        this.buildInstallment({
+          dueDate: installment.dueDate.slice(0, 10),
+          amountText: this.moneyToInputText(installment.amount),
+          settled: installment.settled,
+          settledAt: installment.settledAt ? installment.settledAt.slice(0, 10) : '',
+        }),
+      );
+    }
+
     this.includedReceipts.set(
       (doc.linkedGoodsReceipts ?? []).map(
         (receipt): IncludedReceiptRow => ({
@@ -468,6 +845,7 @@ export class PurchaseInvoiceFormComponent {
           subtotal: receipt.subtotal,
           tax: receipt.tax,
           total: receipt.total,
+          vatBreakdown: receipt.vatBreakdown ?? [],
         }),
       ),
     );

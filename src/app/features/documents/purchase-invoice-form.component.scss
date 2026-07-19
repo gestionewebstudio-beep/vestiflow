@@ -207,7 +207,7 @@
   color: var(--status-error-fg);
 }
 
-// Footer azioni sticky in basso (restyle spec §Form).
+// Footer sticky in basso: totali sempre visibili + azioni (spec §TOTALI).
 .pi-form__actions {
   position: sticky;
   inset-block-end: 0;
@@ -216,12 +216,77 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-2) var(--space-4);
   padding: var(--space-3) var(--space-4);
   background-color: var(--color-surface-raised);
   border-block-start: var(--border-width) solid var(--color-border);
   border-end-start-radius: var(--radius-lg);
   border-end-end-radius: var(--radius-lg);
+}
+
+.pi-form__actions-spacer {
+  flex: 1 1 auto;
+}
+
+.pi-form__totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.pi-form__totals-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+
+  dt {
+    color: var(--color-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text);
+  }
+}
+
+.pi-form__totals-item--grand dd {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Campo full-width nella griglia testata (Commento interno).
+.pi-form__field--wide {
+  grid-column: 1 / -1;
+}
+
+// Input dentro le tabelle (righe manuali e scadenze).
+.pi-form__table-input {
+  inline-size: 100%;
+  min-inline-size: 6rem;
+}
+
+.pi-form__table-input--rate {
+  min-inline-size: 4rem;
+  max-inline-size: 6rem;
+}
+
+.pi-form__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--btn-min-height);
+  cursor: pointer;
+}
+
+// Totali del pannello Pagamento (Da saldare / Saldato).
+.pi-form__payment-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
 }
 
 // ── Pannello "Includi documento" ────────────────────────────────────────────

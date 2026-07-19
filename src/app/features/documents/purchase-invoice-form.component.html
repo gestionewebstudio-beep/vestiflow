@@ -1,5 +1,5 @@
 <section class="pi-form">
-  <a class="pi-form__back" [routerLink]="[listPath]" [queryParams]="{ type: 'supplier_invoice' }">
+  <a class="pi-form__back" [routerLink]="[listPath]">
     <i class="pi pi-arrow-left" aria-hidden="true"></i>
     Registrazioni fattura
   </a>
@@ -23,7 +23,7 @@
       icon="pi-lock"
       title="Documento non modificabile"
       description="Questa pagina gestisce solo le registrazioni fattura fornitore."
-      ctaLabel="Torna al registro"
+      ctaLabel="Torna all'elenco"
       (ctaClick)="cancel()"
     />
   } @else {
@@ -34,6 +34,8 @@
           {{ supplierAlert }}
         </p>
       }
+
+      <!-- ── Testata ─────────────────────────────────────────────────────── -->
       <div class="pi-form__grid">
         <div class="pi-form__field">
           <span class="pi-form__label" id="pi-supplier-label">Fornitore</span>
@@ -57,18 +59,19 @@
         </div>
 
         <div class="pi-form__field">
-          <label class="pi-form__label" for="pi-date">Data registrazione</label>
+          <label class="pi-form__label" for="pi-doc-date">Data documento</label>
           <app-date-input
-            inputId="pi-date"
+            inputId="pi-doc-date"
             formControlName="documentDate"
-            ariaLabel="Data registrazione"
+            ariaLabel="Data documento (data della fattura del fornitore)"
             [compact]="true"
             [fullWidth]="true"
           />
+          <p class="pi-form__hint">Data della fattura ricevuta dal fornitore.</p>
         </div>
 
         <div class="pi-form__field">
-          <label class="pi-form__label" for="pi-ext-num">N. fattura fornitore</label>
+          <label class="pi-form__label" for="pi-ext-num">Numero fattura</label>
           <input
             id="pi-ext-num"
             class="pi-form__input"
@@ -79,48 +82,35 @@
         </div>
 
         <div class="pi-form__field">
-          <label class="pi-form__label" for="pi-ext-date">Data fattura fornitore</label>
+          <label class="pi-form__label" for="pi-reg-date">Data registrazione</label>
           <app-date-input
-            inputId="pi-ext-date"
-            formControlName="externalDocDate"
-            ariaLabel="Data fattura fornitore"
-            placeholder="Opzionale"
+            inputId="pi-reg-date"
+            formControlName="registrationDate"
+            ariaLabel="Data registrazione"
             [compact]="true"
             [fullWidth]="true"
           />
         </div>
 
-        <div class="pi-form__field">
-          <label class="pi-form__label" for="pi-total">Totale fattura</label>
+        <div class="pi-form__field pi-form__field--wide">
+          <label class="pi-form__label" for="pi-comment">Commento interno</label>
           <input
-            id="pi-total"
-            class="pi-form__input pi-form__input--num"
+            id="pi-comment"
+            class="pi-form__input"
             type="text"
-            inputmode="decimal"
-            formControlName="totalText"
-            placeholder="0,00"
-            [attr.aria-invalid]="totalInvalid() || fieldInvalid('totalText')"
-            aria-describedby="pi-total-error"
+            formControlName="internalComment"
+            placeholder="Nota interna, mai in stampa"
           />
-          @if (totalInvalid()) {
-            <p id="pi-total-error" class="pi-form__error">Inserisci un importo valido.</p>
-          } @else if (fieldInvalid('totalText')) {
-            <p id="pi-total-error" class="pi-form__error">Il totale fattura è obbligatorio.</p>
-          } @else {
-            <p class="pi-form__hint">
-              Precompilato con la somma degli arrivi inclusi: sovrascrivilo con l'importo esatto
-              della fattura del fornitore, usato per i report.
-            </p>
-          }
         </div>
       </div>
 
+      <!-- ── Arrivi merce inclusi ─────────────────────────────────────────── -->
       <section class="pi-form__receipts" aria-labelledby="pi-receipts-title">
         <div class="pi-form__receipts-head">
           <h2 id="pi-receipts-title" class="pi-form__subtitle">Arrivi merce inclusi</h2>
           <app-button type="button" variant="secondary" (click)="openIncludePanel()">
             <i class="pi pi-link" aria-hidden="true"></i>
-            Includi documento
+            Includi arrivo merce
           </app-button>
         </div>
 
@@ -128,7 +118,7 @@
           <app-empty-state
             icon="pi-inbox"
             title="Nessun arrivo merce incluso"
-            description="Usa “Includi documento” per collegare gli arrivi merce di questo fornitore con la spunta «Seguirà fattura». Il collegamento è solo documentale: le giacenze non vengono toccate."
+            description="Usa “Includi arrivo merce” per collegare gli arrivi di questo fornitore non ancora agganciati a una fattura. Il collegamento è solo documentale: le giacenze non vengono toccate."
           />
         } @else {
           <div class="pi-form__table-wrap">
@@ -170,24 +160,311 @@
                   </tr>
                 }
               </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      <!-- ── Righe registrazione (auto per aliquota + manuali) ───────────── -->
+      <section class="pi-form__receipts" aria-labelledby="pi-lines-title">
+        <div class="pi-form__receipts-head">
+          <h2 id="pi-lines-title" class="pi-form__subtitle">Righe registrazione</h2>
+          <app-button type="button" variant="secondary" (click)="addManualLine()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Aggiungi riga manuale
+          </app-button>
+        </div>
+
+        @if (autoRows().length === 0 && manualLines.length === 0) {
+          <app-empty-state
+            icon="pi-list"
+            title="Nessuna riga"
+            description="Le righe si generano automaticamente dagli arrivi merce inclusi, raggruppate per aliquota IVA. Puoi aggiungere righe manuali per voci non legate ad arrivi."
+          />
+        } @else {
+          <div class="pi-form__table-wrap">
+            <table class="pi-form__table" formArrayName="manualLines">
+              <thead>
+                <tr>
+                  <th scope="col">Descrizione</th>
+                  <th scope="col" class="pi-form__cell--num">Importo netto</th>
+                  <th scope="col" class="pi-form__cell--num">IVA %</th>
+                  <th scope="col" class="pi-form__cell--num">Importo IVA</th>
+                  <th scope="col">
+                    <span class="sr-only">Azioni</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of autoRows(); track row.ratePercent) {
+                  <tr>
+                    <td [attr.data-label]="'Descrizione'">{{ row.description }}</td>
+                    <td class="pi-form__cell--num tabular-nums" [attr.data-label]="'Importo netto'">
+                      {{ formatMoney(row.net) }}
+                    </td>
+                    <td class="pi-form__cell--num tabular-nums" [attr.data-label]="'IVA %'">
+                      {{ row.ratePercent }}%
+                    </td>
+                    <td class="pi-form__cell--num tabular-nums" [attr.data-label]="'Importo IVA'">
+                      {{ formatMoney(row.vat) }}
+                    </td>
+                    <td class="pi-form__cell--actions"></td>
+                  </tr>
+                }
+                @for (group of manualLines.controls; track group; let i = $index) {
+                  <tr [formGroupName]="i">
+                    <td [attr.data-label]="'Descrizione'">
+                      <input
+                        class="pi-form__input pi-form__table-input"
+                        type="text"
+                        formControlName="description"
+                        placeholder="Es. spese di trasporto"
+                        [attr.aria-label]="'Descrizione riga manuale ' + (i + 1)"
+                      />
+                    </td>
+                    <td class="pi-form__cell--num" [attr.data-label]="'Importo netto'">
+                      <input
+                        class="pi-form__input pi-form__input--num pi-form__table-input"
+                        type="text"
+                        inputmode="decimal"
+                        formControlName="netText"
+                        placeholder="0,00"
+                        [attr.aria-label]="'Importo netto riga manuale ' + (i + 1)"
+                        (input)="recalcManualLineVat(i)"
+                      />
+                    </td>
+                    <td class="pi-form__cell--num" [attr.data-label]="'IVA %'">
+                      <input
+                        class="pi-form__input pi-form__input--num pi-form__table-input pi-form__table-input--rate"
+                        type="text"
+                        inputmode="decimal"
+                        formControlName="rateText"
+                        placeholder="22"
+                        [attr.aria-label]="'Aliquota IVA riga manuale ' + (i + 1)"
+                        (input)="recalcManualLineVat(i)"
+                      />
+                    </td>
+                    <td class="pi-form__cell--num" [attr.data-label]="'Importo IVA'">
+                      <input
+                        class="pi-form__input pi-form__input--num pi-form__table-input"
+                        type="text"
+                        inputmode="decimal"
+                        formControlName="vatText"
+                        placeholder="0,00"
+                        [attr.aria-label]="'Importo IVA riga manuale ' + (i + 1)"
+                      />
+                    </td>
+                    <td class="pi-form__cell--actions">
+                      <button
+                        type="button"
+                        class="pi-form__remove-btn"
+                        [attr.aria-label]="'Rimuovi riga manuale ' + (i + 1)"
+                        (click)="removeManualLine(i)"
+                      >
+                        <i class="pi pi-times" aria-hidden="true"></i>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      <!-- ── Pagamento ────────────────────────────────────────────────────── -->
+      <section class="pi-form__receipts" aria-labelledby="pi-payment-title">
+        <div class="pi-form__receipts-head">
+          <h2 id="pi-payment-title" class="pi-form__subtitle">Pagamento</h2>
+          <app-button type="button" variant="secondary" (click)="addInstallment()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Aggiungi scadenza
+          </app-button>
+        </div>
+
+        <div class="pi-form__grid">
+          <div class="pi-form__field">
+            <span class="pi-form__label">Tipo pagamento</span>
+            <app-select-menu
+              [options]="paymentMethodOptions()"
+              [value]="form.controls.paymentMethod.value"
+              ariaLabel="Tipo pagamento"
+              placeholder="Seleziona…"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onPaymentMethodChange($event)"
+            />
+            <p class="pi-form__hint">Si auto-compila dall'anagrafica fornitore.</p>
+          </div>
+        </div>
+
+        @if (installments.length > 0) {
+          <div class="pi-form__table-wrap">
+            <table class="pi-form__table" formArrayName="installments">
+              <thead>
+                <tr>
+                  <th scope="col">Data scadenza</th>
+                  <th scope="col" class="pi-form__cell--num">Importo</th>
+                  <th scope="col">Saldato</th>
+                  <th scope="col">Data saldo</th>
+                  <th scope="col">
+                    <span class="sr-only">Azioni</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (group of installments.controls; track group; let i = $index) {
+                  <tr [formGroupName]="i">
+                    <td [attr.data-label]="'Data scadenza'">
+                      <app-date-input
+                        [inputId]="'pi-installment-due-' + i"
+                        formControlName="dueDate"
+                        [ariaLabel]="'Data scadenza ' + (i + 1)"
+                        [compact]="true"
+                        [fullWidth]="true"
+                      />
+                    </td>
+                    <td class="pi-form__cell--num" [attr.data-label]="'Importo'">
+                      <input
+                        class="pi-form__input pi-form__input--num pi-form__table-input"
+                        type="text"
+                        inputmode="decimal"
+                        formControlName="amountText"
+                        placeholder="0,00"
+                        [attr.aria-label]="'Importo scadenza ' + (i + 1)"
+                      />
+                    </td>
+                    <td [attr.data-label]="'Saldato'">
+                      <label class="pi-form__check">
+                        <input
+                          type="checkbox"
+                          [checked]="group.controls.settled.value"
+                          [attr.aria-label]="'Scadenza ' + (i + 1) + ' saldata'"
+                          (change)="onInstallmentSettledChange(i, $any($event.target).checked)"
+                        />
+                      </label>
+                    </td>
+                    <td [attr.data-label]="'Data saldo'">
+                      <app-date-input
+                        [inputId]="'pi-installment-settled-' + i"
+                        formControlName="settledAt"
+                        [ariaLabel]="'Data saldo scadenza ' + (i + 1)"
+                        placeholder="—"
+                        [compact]="true"
+                        [fullWidth]="true"
+                      />
+                    </td>
+                    <td class="pi-form__cell--actions">
+                      <button
+                        type="button"
+                        class="pi-form__remove-btn"
+                        [attr.aria-label]="'Rimuovi scadenza ' + (i + 1)"
+                        (click)="removeInstallment(i)"
+                      >
+                        <i class="pi pi-times" aria-hidden="true"></i>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
               <tfoot>
                 <tr>
-                  <th scope="row">Somma arrivi inclusi</th>
-                  <td class="pi-form__cell--num tabular-nums">
-                    {{ formatMoney(receiptsSubtotal()) }}
-                  </td>
-                  <td class="pi-form__cell--num tabular-nums">{{ formatMoney(receiptsTax()) }}</td>
-                  <td class="pi-form__cell--num tabular-nums">
-                    <strong>{{ formatMoney(receiptsTotal()) }}</strong>
+                  <th scope="row">Totali</th>
+                  <td colspan="3" class="pi-form__payment-totals">
+                    <span>
+                      Da saldare:
+                      <strong class="tabular-nums">{{ formatMoney(outstandingTotal()) }}</strong>
+                    </span>
+                    <span>
+                      Saldato:
+                      <strong class="tabular-nums">{{ formatMoney(settledTotal()) }}</strong>
+                    </span>
                   </td>
                   <td></td>
                 </tr>
               </tfoot>
             </table>
           </div>
+        } @else {
+          <p class="pi-form__hint">
+            Nessuna scadenza: aggiungi le scadenze di pagamento per tracciare saldo e residuo
+            ("Ancora da saldare" nell'elenco registrazioni).
+          </p>
         }
       </section>
 
+      <!-- ── Indirizzi ────────────────────────────────────────────────────── -->
+      <section
+        class="pi-form__receipts"
+        aria-labelledby="pi-address-title"
+        formGroupName="recipient"
+      >
+        <h2 id="pi-address-title" class="pi-form__subtitle">Indirizzi</h2>
+        <p class="pi-form__hint">
+          Compilati automaticamente dall'anagrafica fornitore, modificabili per eccezioni.
+        </p>
+        <div class="pi-form__grid">
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-addr-fiscal">Cod. fiscale</label>
+            <input
+              id="pi-addr-fiscal"
+              class="pi-form__input"
+              type="text"
+              formControlName="fiscalCode"
+            />
+          </div>
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-addr-vat">Partita IVA</label>
+            <input
+              id="pi-addr-vat"
+              class="pi-form__input"
+              type="text"
+              formControlName="vatNumber"
+            />
+          </div>
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-addr-name">Intestatario</label>
+            <input id="pi-addr-name" class="pi-form__input" type="text" formControlName="name" />
+          </div>
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-addr-street">Indirizzo</label>
+            <input
+              id="pi-addr-street"
+              class="pi-form__input"
+              type="text"
+              formControlName="address"
+            />
+          </div>
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-addr-zip">CAP</label>
+            <input id="pi-addr-zip" class="pi-form__input" type="text" formControlName="zip" />
+          </div>
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-addr-city">Città</label>
+            <input id="pi-addr-city" class="pi-form__input" type="text" formControlName="city" />
+          </div>
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-addr-prov">Provincia</label>
+            <input
+              id="pi-addr-prov"
+              class="pi-form__input"
+              type="text"
+              formControlName="province"
+            />
+          </div>
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-addr-country">Nazione</label>
+            <input
+              id="pi-addr-country"
+              class="pi-form__input"
+              type="text"
+              formControlName="country"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Note ─────────────────────────────────────────────────────────── -->
       <div class="pi-form__field">
         <label class="pi-form__label" for="pi-notes">Note</label>
         <textarea id="pi-notes" class="pi-form__textarea" rows="2" formControlName="notes">
@@ -198,7 +475,23 @@
         <p class="pi-form__submit-error" role="alert">{{ appError.message }}</p>
       }
 
+      <!-- ── Totali sempre visibili + azioni ─────────────────────────────── -->
       <div class="pi-form__actions">
+        <dl class="pi-form__totals" aria-label="Totali registrazione">
+          <div class="pi-form__totals-item">
+            <dt>Tot. netto</dt>
+            <dd class="tabular-nums">{{ formatMoney(totalNet()) }}</dd>
+          </div>
+          <div class="pi-form__totals-item">
+            <dt>IVA</dt>
+            <dd class="tabular-nums">{{ formatMoney(totalVat()) }}</dd>
+          </div>
+          <div class="pi-form__totals-item pi-form__totals-item--grand">
+            <dt>Totale registrazione</dt>
+            <dd class="tabular-nums">{{ formatMoney(totalGross()) }}</dd>
+          </div>
+        </dl>
+        <span class="pi-form__actions-spacer"></span>
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
           Chiudi
         </app-button>
@@ -219,7 +512,7 @@
     <div class="pi-form__include">
       <p class="pi-form__include-hint">
         Arrivi merce del fornitore selezionato con la spunta «Seguirà fattura», non annullati e non
-        ancora collegati ad altre fatture.
+        ancora collegati ad altre fatture. Puoi selezionarne più di uno.
       </p>
       @if (linkableLoading()) {
         <app-table-skeleton [columns]="1" [rows]="4" />

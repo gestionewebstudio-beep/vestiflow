@@ -16,6 +16,7 @@ import {
   SupplierOrderStatus,
   type Document,
   type DocumentLine,
+  type DocumentPaymentInstallment,
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
@@ -46,6 +47,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
+import {
+  receiptVatBreakdown,
+  type VatBreakdownEntry,
+} from './purchase-invoice-vat-summary.util';
 import {
   syncGoodsReceiptLineMovements,
 } from './document-goods-receipt-sync.util';
@@ -131,6 +136,8 @@ export type LinkedGoodsReceiptInfo = {
   readonly subtotalMinor: number;
   readonly taxMinor: number;
   readonly totalMinor: number;
+  /** Quote IVA dell'arrivo: alimentano le righe per aliquota del form. */
+  readonly vatBreakdown: readonly VatBreakdownEntry[];
 };
 
 /** Stato collegamento fattura di un arrivo merce (prompt §3): mai in stampa. */
@@ -162,6 +169,8 @@ export type DocumentDetail = DocumentWithLines & {
   linkStatus: GoodsReceiptLinkStatus | null;
   linkedPurchaseInvoice: LinkedPurchaseInvoiceInfo | null;
   linkedGoodsReceipts: readonly LinkedGoodsReceiptInfo[];
+  /** Scadenze di pagamento (Registrazione fattura fornitore). */
+  paymentInstallments: readonly DocumentPaymentInstallment[];
 };
 
 export type LinkedSupplierOrderLineContext = {
@@ -184,6 +193,7 @@ const CONFIRMED_EDITABLE_STATUSES: readonly DocumentStatus[] = [
  * riconciliazione stock (il flusso IVA completo vive nell'Arrivo merce).
  */
 const EMPTY_LINE_VAT_FIELDS = {
+  lineSource: null,
   vatCodeId: null,
   vatSnapshot: null,
   enteredUnitCost: null,
@@ -299,6 +309,12 @@ export class DocumentsService {
         ? { externalDocumentTypeId: query.externalDocumentTypeId }
         : {}),
       ...this.buildLinkStatusClause(query.linkStatus),
+      // Stato saldo (Registrazioni fattura): residuo denormalizzato sul documento.
+      ...(query.settlement === 'pending'
+        ? { outstandingMinor: { gt: 0 } }
+        : query.settlement === 'settled'
+          ? { outstandingMinor: { lte: 0 } }
+          : {}),
       ...(query.accountant ? { type: { in: [...ACCOUNTANT_DOCUMENT_TYPES] } } : {}),
       ...(query.pendingInvoice
         ? {
@@ -566,11 +582,16 @@ export class DocumentsService {
                 subtotalMinor: true,
                 taxMinor: true,
                 totalMinor: true,
+                lines: {
+                  select: { lineTotalMinor: true, lineVatTotalMinor: true, vatSnapshot: true },
+                },
               },
             },
           },
           orderBy: { createdAt: 'asc' },
         },
+        // Scadenze di pagamento (Registrazione fattura fornitore).
+        paymentInstallments: { orderBy: { position: 'asc' } },
       },
     });
     if (!doc) {
@@ -606,7 +627,13 @@ export class DocumentsService {
         : null,
       linkedSupplierOrderLines,
       ...this.resolveLinkInfo(doc, purchaseInvoiceLinks),
-      linkedGoodsReceipts: goodsReceiptLinks.map((link) => link.goodsReceipt),
+      linkedGoodsReceipts: goodsReceiptLinks.map(({ goodsReceipt }) => {
+        const { lines: receiptLines, ...receipt } = goodsReceipt;
+        return {
+          ...receipt,
+          vatBreakdown: receiptVatBreakdown({ ...receipt, lines: receiptLines }),
+        };
+      }),
     };
   }
 

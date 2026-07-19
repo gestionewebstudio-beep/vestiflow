@@ -16,6 +16,7 @@ import type { DocumentListQuery } from '../models/document-list-query.model';
 import type { LinkableGoodsReceipt } from '../models/goods-receipt-causal.model';
 import {
   mapDocumentApiRow,
+  mapVatBreakdown,
   type CreateDocumentBody,
   type DocumentApiRow,
   type GoodsReceiptCreatedProductApiRow,
@@ -57,6 +58,7 @@ export class DocumentService {
     if (query.externalDocumentTypeId) {
       params = params.set('externalDocumentTypeId', query.externalDocumentTypeId);
     }
+    if (query.settlement) params = params.set('settlement', query.settlement);
     if (query.accountant) params = params.set('accountant', '1');
     if (query.pendingInvoice) params = params.set('pendingInvoice', '1');
 
@@ -205,6 +207,7 @@ export class DocumentService {
             tax: { amountMinor: row.taxMinor, currencyCode: row.currency },
             total: { amountMinor: row.totalMinor, currencyCode: row.currency },
             locationName: row.locationName ?? undefined,
+            vatBreakdown: mapVatBreakdown(row.vatBreakdown, row.currency),
           })),
         ),
       );

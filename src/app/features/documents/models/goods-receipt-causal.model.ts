@@ -1,4 +1,5 @@
 import type { EntityId, IsoDateString, Money } from '@core/models/common.model';
+import type { GoodsReceiptVatBreakdownEntry } from '@core/models/document.model';
 
 /** Causale di carico Arrivo merce gestita per tenant (finestra "Gestione causali"). */
 export interface GoodsReceiptCausal {
@@ -24,4 +25,6 @@ export interface LinkableGoodsReceipt {
   readonly tax: Money;
   readonly total: Money;
   readonly locationName?: string;
+  /** Quote IVA dell'arrivo: alimentano le righe per aliquota del form. */
+  readonly vatBreakdown?: readonly GoodsReceiptVatBreakdownEntry[];
 }

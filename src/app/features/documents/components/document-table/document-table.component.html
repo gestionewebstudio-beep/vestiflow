@@ -151,6 +151,44 @@
                 {{ externalDocLabel(doc) }}
               </td>
             }
+            @case ('registrationDate') {
+              <td
+                class="doc-table__date tabular-nums"
+                [class.doc-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ registrationDateLabel(doc) }}
+              </td>
+            }
+            @case ('invoiceNumber') {
+              <td
+                class="tabular-nums"
+                [class.doc-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ invoiceNumberLabel(doc) }}
+              </td>
+            }
+            @case ('outstanding') {
+              <td
+                class="doc-table__cell--total tabular-nums"
+                [class.doc-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                @if (outstandingLabel(doc); as label) {
+                  {{ label }}
+                } @else {
+                  <span class="doc-table__cell-value">
+                    <app-badge tone="success">Saldata</app-badge>
+                  </span>
+                }
+              </td>
+            }
+            @case ('paymentMethod') {
+              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ paymentMethodLabel(doc) }}
+              </td>
+            }
             @case ('lineCount') {
               <td
                 class="doc-table__cell--lines tabular-nums"

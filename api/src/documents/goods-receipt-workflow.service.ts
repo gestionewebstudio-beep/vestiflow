@@ -46,7 +46,13 @@ import {
 } from './goods-receipt-vat.util';
 import { DocumentSettingsService } from './document-settings.service';
 import { ExternalDocumentTypesService } from './external-document-types.service';
+import {
+  buildPurchaseInvoiceVatSummary,
+  receiptVatBreakdown,
+  type VatBreakdownEntry,
+} from './purchase-invoice-vat-summary.util';
 import { VatCodesService, type VatCodeWithNature } from '../vat/vat-codes.service';
+import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import type { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
 
@@ -72,6 +78,8 @@ export interface LinkableGoodsReceiptRow {
   readonly totalMinor: number;
   readonly currency: string;
   readonly locationName: string | null;
+  /** Quote IVA dell'arrivo: alimentano le righe per aliquota del form. */
+  readonly vatBreakdown: readonly VatBreakdownEntry[];
 }
 
 export interface PurchaseInvoiceSaveResult {
@@ -649,7 +657,12 @@ export class GoodsReceiptWorkflowService {
           },
         },
       },
-      include: { location: { select: { name: true } } },
+      include: {
+        location: { select: { name: true } },
+        lines: {
+          select: { lineTotalMinor: true, lineVatTotalMinor: true, vatSnapshot: true },
+        },
+      },
       orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
       take: 200,
     });
@@ -665,6 +678,7 @@ export class GoodsReceiptWorkflowService {
       totalMinor: row.totalMinor,
       currency: row.currency,
       locationName: row.location?.name ?? null,
+      vatBreakdown: receiptVatBreakdown(row),
     }));
   }
 
@@ -694,6 +708,9 @@ export class GoodsReceiptWorkflowService {
             purchaseInvoiceLinks: {
               where: { purchaseInvoice: { status: { not: DocumentStatus.cancelled } } },
               select: { purchaseInvoiceId: true },
+            },
+            lines: {
+              select: { lineTotalMinor: true, lineVatTotalMinor: true, vatSnapshot: true },
             },
           },
         })
@@ -728,9 +745,31 @@ export class GoodsReceiptWorkflowService {
       }
     }
 
-    const receiptsSubtotal = receipts.reduce((sum, receipt) => sum + receipt.subtotalMinor, 0);
-    const receiptsTax = receipts.reduce((sum, receipt) => sum + receipt.taxMinor, 0);
     const receiptsTotal = receipts.reduce((sum, receipt) => sum + receipt.totalMinor, 0);
+
+    // Righe per aliquota IVA dagli arrivi inclusi + righe manuali del form.
+    const vatSummaryLines = buildPurchaseInvoiceVatSummary(receipts);
+    const manualLines = dto.manualLines ?? [];
+    const linesNet =
+      vatSummaryLines.reduce((sum, line) => sum + line.netMinor, 0) +
+      manualLines.reduce((sum, line) => sum + line.netMinor, 0);
+    const linesVat =
+      vatSummaryLines.reduce((sum, line) => sum + line.vatMinor, 0) +
+      manualLines.reduce((sum, line) => sum + line.vatMinor, 0);
+
+    // Totali sempre derivati dalle righe; fallback ai totali del payload solo
+    // per registrazioni senza righe (compatibilità con vecchi client).
+    const hasLines = vatSummaryLines.length > 0 || manualLines.length > 0;
+    const subtotalMinor = hasLines ? linesNet : (dto.subtotalMinor ?? 0);
+    const taxMinor = hasLines ? linesVat : (dto.taxMinor ?? 0);
+    const totalMinor = hasLines ? linesNet + linesVat : (dto.totalMinor ?? 0);
+
+    // Scadenze di pagamento: il residuo "Ancora da saldare" è denormalizzato.
+    const installments = dto.installments ?? [];
+    const settledMinor = installments
+      .filter((installment) => installment.settled === true)
+      .reduce((sum, installment) => sum + installment.amountMinor, 0);
+    const outstandingMinor = Math.max(0, totalMinor - settledMinor);
 
     const documentDate = new Date(dto.documentDate);
     const actor = {
@@ -777,20 +816,31 @@ export class GoodsReceiptWorkflowService {
         reference,
         status: DocumentStatus.confirmed,
         confirmedAt: existing?.confirmedAt ?? new Date(),
-        registrationDate: existing?.registrationDate ?? new Date(),
+        // Data registrazione: default oggi, modificabile dal form.
+        registrationDate: dto.registrationDate
+          ? new Date(dto.registrationDate)
+          : (existing?.registrationDate ?? new Date()),
         documentDate,
         printTitle: setting.printTitle,
         supplierId: dto.supplierId,
         supplierName,
         externalDocNumber: dto.externalDocNumber?.trim() || null,
-        externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
+        // La data della fattura è la Data documento: lo snapshot esterno resta
+        // allineato per le etichette "Fattura forn. n. X del …".
+        externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : documentDate,
         notes: dto.notes ?? existing?.notes ?? setting.defaultNotes,
         internalComment: dto.internalComment?.trim() || null,
+        paymentMethod: dto.paymentMethod?.trim() || null,
+        recipientAddress: purchaseInvoiceAddressToJson(
+          dto.recipientAddress,
+          existing?.recipientAddress,
+        ),
         currency: dto.currency ?? existing?.currency ?? 'EUR',
         pricesIncludeVat: setting.pricesIncludeVat,
-        subtotalMinor: dto.subtotalMinor ?? receiptsSubtotal,
-        taxMinor: dto.taxMinor ?? receiptsTax,
-        totalMinor: dto.totalMinor,
+        subtotalMinor,
+        taxMinor,
+        totalMinor,
+        outstandingMinor,
       } satisfies Prisma.DocumentUncheckedUpdateInput;
 
       let documentId: string;
@@ -810,29 +860,61 @@ export class GoodsReceiptWorkflowService {
         documentId = created.id;
       }
 
-      // Righe riepilogative: una per ogni arrivo incluso (§5.2), mai le righe articolo.
+      // Righe registrazione: gruppi per aliquota IVA dagli arrivi inclusi
+      // (con riferimento automatico) seguiti dalle righe manuali del form.
       await tx.documentLine.deleteMany({ where: { documentId } });
       const sortedReceipts = [...receipts].sort(
         (a, b) => a.documentDate.getTime() - b.documentDate.getTime(),
       );
-      for (let index = 0; index < sortedReceipts.length; index += 1) {
-        const receipt = sortedReceipts[index];
-        if (!receipt) {
-          continue;
-        }
-        await tx.documentLine.create({
-          data: {
+      const lineRows = [
+        ...vatSummaryLines.map((line) => ({
+          description: line.description,
+          netMinor: line.netMinor,
+          ratePercent: line.ratePercent,
+          vatMinor: line.vatMinor,
+          lineSource: 'vat_summary',
+        })),
+        ...manualLines.map((line) => ({
+          description: line.description.trim(),
+          netMinor: line.netMinor,
+          ratePercent: line.vatRatePercent,
+          vatMinor: line.vatMinor,
+          lineSource: 'manual',
+        })),
+      ];
+      if (lineRows.length > 0) {
+        await tx.documentLine.createMany({
+          data: lineRows.map((line, index) => ({
             tenantId,
             documentId,
             lineNumber: index + 1,
-            description: buildReceiptSummaryDescription(receipt),
+            description: line.description,
             quantity: 1,
-            unitPriceMinor: receipt.totalMinor,
+            unitPriceMinor: line.netMinor,
             discountPercent: 0,
-            lineTotalMinor: receipt.totalMinor,
+            lineTotalMinor: line.netMinor,
+            lineVatTotalMinor: line.vatMinor,
+            lineGrossTotalMinor: line.netMinor + line.vatMinor,
+            vatSnapshot: { ratePercent: line.ratePercent } as Prisma.InputJsonObject,
             loadsStock: false,
-            linkedGoodsReceiptId: receipt.id,
-          },
+            lineSource: line.lineSource,
+          })),
+        });
+      }
+
+      // Scadenze di pagamento: la lista viene sostituita integralmente.
+      await tx.documentPaymentInstallment.deleteMany({ where: { documentId } });
+      if (installments.length > 0) {
+        await tx.documentPaymentInstallment.createMany({
+          data: installments.map((installment, index) => ({
+            tenantId,
+            documentId,
+            position: index + 1,
+            dueDate: new Date(installment.dueDate),
+            amountMinor: installment.amountMinor,
+            settled: installment.settled === true,
+            settledAt: installment.settledAt ? new Date(installment.settledAt) : null,
+          })),
         });
       }
 
@@ -881,7 +963,7 @@ export class GoodsReceiptWorkflowService {
     return {
       document,
       receiptsTotalMinor: receiptsTotal,
-      totalsMatch: receiptsTotal === dto.totalMinor,
+      totalsMatch: receiptsTotal === totalMinor,
     };
   }
 
@@ -992,6 +1074,38 @@ export class GoodsReceiptWorkflowService {
     if (!supplier) return null;
     return partyDisplayName(supplier.party) || null;
   }
+}
+
+/**
+ * Snapshot indirizzo fornitore → Json documento: campi vuoti esclusi; payload
+ * assente = conserva lo snapshot esistente (mirror di addressToJson del
+ * dominio documenti, qui in versione standalone per la registrazione fattura).
+ */
+function purchaseInvoiceAddressToJson(
+  address: DocumentAddressDto | undefined,
+  existing: Prisma.JsonValue | null | undefined,
+): Prisma.InputJsonObject | typeof Prisma.DbNull {
+  if (address === undefined) {
+    return existing && typeof existing === 'object' && !Array.isArray(existing)
+      ? (existing as Prisma.InputJsonObject)
+      : Prisma.DbNull;
+  }
+  const fields: Record<string, string | undefined> = {
+    name: address.name,
+    address: address.address,
+    zip: address.zip,
+    city: address.city,
+    province: address.province,
+    country: address.country,
+    fiscalCode: address.fiscalCode,
+    vatNumber: address.vatNumber,
+  };
+  const entries = Object.entries(fields)
+    .filter((entry): entry is [string, string] => Boolean(entry[1]?.trim()))
+    .map(([key, value]) => [key, value.trim()]);
+  return entries.length > 0
+    ? (Object.fromEntries(entries) as Prisma.InputJsonObject)
+    : Prisma.DbNull;
 }
 
 /** Descrizione riga riepilogativa: "Arrivo merce n. 3 del 11/07/2026 - DDT 145 del 08/05/2026". */

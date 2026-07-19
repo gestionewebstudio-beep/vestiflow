@@ -65,6 +65,7 @@ describe('DocumentPdfService', () => {
     subtotalMinor: 10000,
     taxMinor: 2200,
     totalMinor: 12200,
+    outstandingMinor: 0,
     documentDiscountPercent: 0,
     pricesIncludeVat: false,
     purchaseCostEntryMode: 'vat_excluded',
@@ -83,6 +84,7 @@ describe('DocumentPdfService', () => {
     linkStatus: null,
     linkedPurchaseInvoice: null,
     linkedGoodsReceipts: [],
+    paymentInstallments: [],
     lines: [
       {
         id: 'line-1',
@@ -113,6 +115,7 @@ describe('DocumentPdfService', () => {
         lotCode: null,
         lotExpiryDate: null,
         linkedGoodsReceiptId: null,
+        lineSource: null,
         serialNumbers: ['SN-001'],
         createdAt: new Date(),
         updatedAt: new Date(),

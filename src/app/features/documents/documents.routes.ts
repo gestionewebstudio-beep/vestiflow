@@ -81,6 +81,18 @@ export const documentsRoutes: Routes = [
     },
   },
   {
+    // Elenco Registrazioni fattura fornitore (Documenti → Acquisti e
+    // fornitori): colonne e filtri della spec, stato saldo incluso.
+    path: 'registrazione-fattura',
+    title: 'VestiFlow · Registrazioni fattura',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'purchase-invoice',
+    },
+  },
+  {
     // Scarichi manuali: pagina elenco dedicata (prompt Scarico manuale) — il
     // documento resta qui finché l'operatore non lo elimina.
     path: 'manual-unload',

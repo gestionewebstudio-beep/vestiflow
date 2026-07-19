@@ -109,6 +109,13 @@ export interface LinkedPurchaseInvoiceInfo {
   readonly totalsCheckPending?: boolean;
 }
 
+/** Quota IVA di un arrivo merce (righe per aliquota della Registrazione fattura). */
+export interface GoodsReceiptVatBreakdownEntry {
+  readonly ratePercent: number;
+  readonly net: Money;
+  readonly vat: Money;
+}
+
 /** Arrivo merce incluso in una Registrazione fattura. */
 export interface LinkedGoodsReceiptInfo {
   readonly id: EntityId;
@@ -119,6 +126,18 @@ export interface LinkedGoodsReceiptInfo {
   readonly subtotal: Money;
   readonly tax: Money;
   readonly total: Money;
+  /** Quote IVA dell'arrivo: alimentano le righe per aliquota del form. */
+  readonly vatBreakdown?: readonly GoodsReceiptVatBreakdownEntry[];
+}
+
+/** Scadenza di pagamento di una Registrazione fattura fornitore. */
+export interface DocumentPaymentInstallment {
+  readonly id: EntityId;
+  readonly position: number;
+  readonly dueDate: IsoDateString;
+  readonly amount: Money;
+  readonly settled: boolean;
+  readonly settledAt?: IsoDateString;
 }
 
 /** Riga di un documento (§2, §3.2). */
@@ -150,6 +169,10 @@ export interface DocumentLine {
   readonly serialNumbers?: readonly string[];
   /** Arrivo merce collegato (righe riepilogative Registrazione fattura). */
   readonly linkedGoodsReceiptId?: EntityId;
+  /** IVA totale della riga (righe Registrazione fattura). */
+  readonly lineVatTotal?: Money;
+  /** Origine riga Registrazione fattura: riepilogo per aliquota o voce manuale. */
+  readonly lineSource?: 'vat_summary' | 'manual';
 }
 
 /** Allegato documento (PDF/XML — B4). */
@@ -237,6 +260,8 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly subtotal: Money;
   readonly tax: Money;
   readonly total: Money;
+  /** Residuo "Ancora da saldare" (Registrazione fattura fornitore). */
+  readonly outstanding?: Money;
   readonly documentDiscountPercent?: number;
   readonly pricesIncludeVat: boolean;
   /** Modalità costi dell'Arrivo merce: netti o ivati (§11.1). */
@@ -270,6 +295,8 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly linkedPurchaseInvoice?: LinkedPurchaseInvoiceInfo;
   /** Arrivi merce inclusi (solo Registrazione fattura). */
   readonly linkedGoodsReceipts?: readonly LinkedGoodsReceiptInfo[];
+  /** Scadenze di pagamento (solo Registrazione fattura, dettaglio). */
+  readonly paymentInstallments?: readonly DocumentPaymentInstallment[];
   /** Allegati caricati sul documento (dettaglio). */
   readonly attachments?: readonly DocumentAttachment[];
 }

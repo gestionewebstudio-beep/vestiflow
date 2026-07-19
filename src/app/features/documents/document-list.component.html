@@ -121,22 +121,59 @@
           </div>
         }
 
-        <div class="doc-list__field">
-          <app-select-menu
-            chipLabel="Cliente"
-            [options]="customerOptions()"
-            [value]="query().customerId ?? ''"
-            ariaLabel="Filtra per cliente"
-            placeholder="Tutti"
-            [compact]="true"
-            [fullWidth]="true"
-            [searchable]="true"
-            searchPlaceholder="Cerca cliente…"
-            searchAriaLabel="Cerca cliente"
-            (valueChange)="onCustomerFilterChange($event)"
-            [filterChip]="true"
-          />
-        </div>
+        @if (sales.showSettlementFilter) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Stato"
+              [options]="settlementOptions"
+              [value]="query().settlement ?? ''"
+              ariaLabel="Filtra per stato saldo"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onSettlementFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (sales.showSupplierFilter) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Fornitore"
+              [options]="supplierOptions()"
+              [value]="query().supplierId ?? ''"
+              ariaLabel="Filtra per fornitore"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca fornitore…"
+              searchAriaLabel="Cerca fornitore"
+              (valueChange)="onSupplierFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (!sales.hideCustomerFilter) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Cliente"
+              [options]="customerOptions()"
+              [value]="query().customerId ?? ''"
+              ariaLabel="Filtra per cliente"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca cliente…"
+              searchAriaLabel="Cerca cliente"
+              (valueChange)="onCustomerFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
 
         @if (sales.showPendingInvoiceFilter) {
           <div class="doc-list__field">
