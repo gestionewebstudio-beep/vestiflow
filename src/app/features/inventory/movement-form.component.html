@@ -8,24 +8,10 @@
     Movimenti
   </a>
 
-  <h1 class="movement-form__title">Registra movimento</h1>
+  <h1 class="movement-form__title">Registra {{ typeLabel().toLowerCase() }}</h1>
 
   <div class="movement-form__form">
     <div class="movement-form__grid">
-      <div class="movement-form__field">
-        <span class="movement-form__label">Tipo movimento</span>
-        <app-select-menu
-          [options]="typeSelectOptions"
-          [value]="type()"
-          ariaLabel="Tipo movimento"
-          placeholder="Carico"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="false"
-          (valueChange)="onTypeSelect($event)"
-        />
-      </div>
-
       <div class="movement-form__field">
         <label class="movement-form__label" for="mov-operation-date">Data operazione</label>
         <app-date-input
@@ -186,7 +172,7 @@
                         inputmode="numeric"
                         min="0"
                         step="1"
-                        [value]="line.newOnHandText"
+                        [value]="lineNewOnHandValue(line)"
                         [attr.aria-label]="'Nuova giacenza per ' + line.title"
                         (input)="onLineNewOnHandInput(line.variantId, $event)"
                       />

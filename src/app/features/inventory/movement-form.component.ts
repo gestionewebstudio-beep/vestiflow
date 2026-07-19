@@ -124,11 +124,6 @@ export class MovementFormComponent {
   protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
   protected readonly scanFeedback = signal<string | null>(null);
 
-  protected readonly MovementType = StockMovementType;
-  protected readonly typeSelectOptions: readonly SelectMenuOption[] = MANUAL_TYPES.map(
-    (option) => ({ value: option.value, label: option.label }),
-  );
-
   // ── Testata ────────────────────────────────────────────────────────────────
   protected readonly type = signal<StockMovementType>(StockMovementType.Load);
   protected readonly operationDate = signal(todayIsoDate());
@@ -242,6 +237,16 @@ export class MovementFormComponent {
   });
 
   constructor() {
+    // Tipo scelto A MONTE (bottoni del tab Movimenti, query param `type`):
+    // il form nasce già impostato, senza selettore interno. Default: Carico.
+    const typeParam = this.route.snapshot.queryParamMap.get('type');
+    const initialType =
+      MANUAL_TYPES.find((option) => option.value === typeParam)?.value ?? StockMovementType.Load;
+    this.type.set(initialType);
+    if (initialType === StockMovementType.Adjustment) {
+      this.reason.set(ADJUSTMENT_DEFAULT_REASON);
+    }
+
     effect(() => {
       const fixedId = this.operationalLocations.fixedSingleStoreLocationId();
       if (fixedId) {
@@ -295,6 +300,14 @@ export class MovementFormComponent {
     return this.onHandAt(line, this.locationId());
   }
 
+  /**
+   * Nuova giacenza mostrata: quella digitata, altrimenti la giacenza attuale
+   * (segue location e caricamento giacenze — riga invariata = nessun delta).
+   */
+  protected lineNewOnHandValue(line: MovementFormLine): string {
+    return line.newOnHandText !== '' ? line.newOnHandText : String(this.lineOnHand(line));
+  }
+
   /** Avviso non bloccante: la quantità supera la disponibilità attuale. */
   protected lineExceedsAvailability(line: MovementFormLine): boolean {
     if (!this.isUnload() && !this.isTransfer()) {
@@ -305,44 +318,6 @@ export class MovementFormComponent {
   }
 
   // ── Gestione testata ──────────────────────────────────────────────────────
-
-  protected onTypeSelect(value: string | null): void {
-    if (!value) {
-      return;
-    }
-    const previous = this.type();
-    const next = value as StockMovementType;
-    this.type.set(next);
-    this.formError.set(null);
-
-    // Causale a contesto: la rettifica parte precompilata (modificabile).
-    if (next === StockMovementType.Adjustment && !this.reason().trim()) {
-      this.reason.set(ADJUSTMENT_DEFAULT_REASON);
-    }
-    if (previous === StockMovementType.Adjustment && this.reason() === ADJUSTMENT_DEFAULT_REASON) {
-      this.reason.set('');
-    }
-    // Controparte solo per carico/scarico.
-    if (next === StockMovementType.Adjustment || next === StockMovementType.Transfer) {
-      this.partyId.set('');
-    }
-    // Rettifica: nuova giacenza parte dalla giacenza attuale (delta zero).
-    if (next === StockMovementType.Adjustment) {
-      this.lines.update((lines) =>
-        lines.map((line) => ({
-          ...line,
-          newOnHandText: line.newOnHandText || String(this.lineOnHand(line)),
-        })),
-      );
-    }
-    // Costo (carico) / prezzo (scarico): prefill solo dei campi vuoti.
-    this.lines.update((lines) =>
-      lines.map((line) => ({
-        ...line,
-        unitAmountText: line.unitAmountText || this.defaultUnitAmountText(line, next),
-      })),
-    );
-  }
 
   protected onOperationDateChange(value: string): void {
     this.operationDate.set(value);
@@ -435,18 +410,7 @@ export class MovementFormComponent {
       .subscribe((levels) => {
         this.lines.update((lines) =>
           lines.map((current) =>
-            current.variantId === summary.variantId
-              ? {
-                  ...current,
-                  levels,
-                  newOnHandText: this.isAdjustment()
-                    ? current.newOnHandText ||
-                      String(
-                        levels.find((level) => level.locationId === this.locationId())?.onHand ?? 0,
-                      )
-                    : current.newOnHandText,
-                }
-              : current,
+            current.variantId === summary.variantId ? { ...current, levels } : current,
           ),
         );
       });
@@ -519,7 +483,9 @@ export class MovementFormComponent {
       lines: this.lines().map((line) => ({
         variantId: line.variantId,
         quantity: this.isAdjustment() ? undefined : (parsePositiveInt(line.quantityText) ?? 1),
-        newOnHand: this.isAdjustment() ? (parseNonNegativeInt(line.newOnHandText) ?? 0) : undefined,
+        newOnHand: this.isAdjustment()
+          ? (parseNonNegativeInt(this.lineNewOnHandValue(line)) ?? 0)
+          : undefined,
         unitAmountMinor: withAmount
           ? (parseMoneyInput(line.unitAmountText)?.amountMinor ?? undefined)
           : undefined,
@@ -572,7 +538,7 @@ export class MovementFormComponent {
     }
     for (const line of this.lines()) {
       if (this.isAdjustment()) {
-        if (parseNonNegativeInt(line.newOnHandText) === null) {
+        if (parseNonNegativeInt(this.lineNewOnHandValue(line)) === null) {
           return `Nuova giacenza non valida per «${line.title}».`;
         }
       } else if (parsePositiveInt(line.quantityText) === null) {

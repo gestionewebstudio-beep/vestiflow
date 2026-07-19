@@ -191,8 +191,16 @@ export class StockMovementsComponent {
     { initialValue: [] as readonly SelectMenuOption[] },
   );
 
+  /** Azioni registrazione per tipo: aprono il form già impostato sul tipo. */
+  protected readonly movementActions = [
+    { type: StockMovementType.Load, label: 'Carico', icon: 'pi-plus-circle' },
+    { type: StockMovementType.Unload, label: 'Scarico', icon: 'pi-minus-circle' },
+    { type: StockMovementType.Adjustment, label: 'Rettifica', icon: 'pi-sliders-h' },
+    { type: StockMovementType.Transfer, label: 'Trasferimento', icon: 'pi-arrow-right-arrow-left' },
+  ] as const;
+
   protected readonly emptyStateCtaLabel = computed(() =>
-    this.canManageInventory() ? 'Registra movimento' : undefined,
+    this.canManageInventory() ? 'Registra carico' : undefined,
   );
 
   private readonly refreshTick = signal(0);
@@ -464,12 +472,12 @@ export class StockMovementsComponent {
     this.refreshTick.update((tick) => tick + 1);
   }
 
-  protected newMovement(): void {
-    void this.router.navigateByUrl('/app/inventory/movements/new');
+  protected newMovement(type: StockMovementType): void {
+    void this.router.navigate(['/app/inventory/movements/new'], { queryParams: { type } });
   }
 
   protected onEmptyStateAction(): void {
-    this.newMovement();
+    this.newMovement(StockMovementType.Load);
   }
 
   /** '+' per ingressi, '−' per uscite, nuda per i trasferimenti (neutri). */

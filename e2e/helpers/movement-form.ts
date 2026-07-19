@@ -2,6 +2,25 @@ import { expect, type Page } from '@playwright/test';
 
 import { pickSelectMenuOption } from './select-menu';
 
+export type MovementTypeLabel = 'Carico' | 'Scarico' | 'Rettifica' | 'Trasferimento';
+
+/** Dal tab Movimenti: click sul bottone del tipo → form già impostato. */
+export async function openMovementFormOfType(
+  page: Page,
+  typeLabel: MovementTypeLabel,
+): Promise<void> {
+  await page.goto('/app/inventory/movements');
+  await expect(page.locator('h1.stock-movements__title')).toHaveText('Movimenti di magazzino', {
+    timeout: 30_000,
+  });
+  await page.getByRole('button', { name: typeLabel, exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/inventory\/movements\/new\?type=/, { timeout: 15_000 });
+  await expect(page.locator('h1.movement-form__title')).toHaveText(
+    `Registra ${typeLabel.toLowerCase()}`,
+  );
+}
+
+/** Deep-link da Cerca giacenza (?variantId=): form Carico con l'articolo in lista. */
 export async function openMovementFormForSku(page: Page, sku: string): Promise<void> {
   await page.goto('/app/inventory/lookup');
   await page.locator('#stock-code').fill(sku);
@@ -10,15 +29,22 @@ export async function openMovementFormForSku(page: Page, sku: string): Promise<v
 
   await page.getByRole('link', { name: 'Registra movimento' }).click();
   await expect(page).toHaveURL(/\/app\/inventory\/movements\/new/, { timeout: 15_000 });
-  await expect(page.locator('h1.movement-form__title')).toHaveText('Registra movimento');
+  await expect(page.locator('h1.movement-form__title')).toHaveText(/Registra carico/);
   // Deep-link ?variantId=: l'articolo compare già nella lista righe.
   await expect(page.locator('.movement-form__lines-table tbody tr')).toHaveCount(1, {
     timeout: 15_000,
   });
 }
 
-export async function selectMovementType(page: Page, typeLabel: string): Promise<void> {
-  await pickSelectMenuOption(page, 'Tipo movimento', { name: typeLabel });
+/** Ricerca inline in fondo alla lista: aggiunge il primo risultato per SKU. */
+export async function addArticleBySku(page: Page, sku: string): Promise<void> {
+  await page.getByLabel('Cerca articolo per codice articolo, nome, SKU o EAN').fill(sku);
+  const firstResult = page.locator('.movement-form__result').first();
+  await expect(firstResult).toBeVisible({ timeout: 15_000 });
+  await firstResult.getByRole('button', { name: /Aggiungi/ }).click();
+  await expect(page.locator('.movement-form__lines-table tbody tr')).toHaveCount(1, {
+    timeout: 15_000,
+  });
 }
 
 export async function pickFirstLocation(page: Page): Promise<void> {

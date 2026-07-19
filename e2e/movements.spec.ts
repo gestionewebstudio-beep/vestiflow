@@ -2,12 +2,13 @@ import { expect, test } from '@playwright/test';
 
 import { resolveTestSku } from './helpers/catalog';
 import {
+  addArticleBySku,
   confirmMovement,
   expectMovementInHistory,
   openMovementFormForSku,
+  openMovementFormOfType,
   pickFirstLocation,
   pickTransferLocations,
-  selectMovementType,
   setFirstLineQuantity,
 } from './helpers/movement-form';
 
@@ -24,6 +25,11 @@ test.describe('Movimenti di magazzino', () => {
     const error = page.locator('app-error-state');
 
     await expect(skeleton.or(table).or(empty).or(error)).toBeVisible({ timeout: 30_000 });
+  });
+
+  test('bottoni per tipo aprono il form già impostato', async ({ page }) => {
+    await openMovementFormOfType(page, 'Scarico');
+    await expect(page.locator('h1.movement-form__title')).toHaveText('Registra scarico');
   });
 
   test('salva chiede conferma con riepilogo (dialog)', async ({ page }) => {
@@ -60,9 +66,9 @@ test.describe('Movimenti di magazzino — scrittura reale', () => {
     test.setTimeout(120_000);
     const sku = await resolveTestSku(page);
 
-    await openMovementFormForSku(page, sku);
-    await selectMovementType(page, 'Rettifica');
+    await openMovementFormOfType(page, 'Rettifica');
     await pickFirstLocation(page);
+    await addArticleBySku(page, sku);
     await page.locator('#mov-reason').fill('');
     await page.getByRole('button', { name: 'Salva' }).click();
 
@@ -75,9 +81,9 @@ test.describe('Movimenti di magazzino — scrittura reale', () => {
     const sku = await resolveTestSku(page);
     const reason = `E2E rettifica ${Date.now()}`;
 
-    await openMovementFormForSku(page, sku);
-    await selectMovementType(page, 'Rettifica');
+    await openMovementFormOfType(page, 'Rettifica');
     await pickFirstLocation(page);
+    await addArticleBySku(page, sku);
 
     // Nuova giacenza = giacenza attuale + 1 (rettifica in aumento).
     const newOnHand = page.locator('.movement-form__line-input').first();
@@ -95,9 +101,9 @@ test.describe('Movimenti di magazzino — scrittura reale', () => {
     test.setTimeout(120_000);
     const sku = await resolveTestSku(page);
 
-    await openMovementFormForSku(page, sku);
-    await selectMovementType(page, 'Scarico');
+    await openMovementFormOfType(page, 'Scarico');
     await pickFirstLocation(page);
+    await addArticleBySku(page, sku);
     await setFirstLineQuantity(page, '1');
     await confirmMovement(page);
 
@@ -108,8 +114,7 @@ test.describe('Movimenti di magazzino — scrittura reale', () => {
     test.setTimeout(120_000);
     const sku = await resolveTestSku(page);
 
-    await openMovementFormForSku(page, sku);
-    await selectMovementType(page, 'Trasferimento');
+    await openMovementFormOfType(page, 'Trasferimento');
 
     const hasTwoLocations = await pickTransferLocations(page);
     if (!hasTwoLocations) {
@@ -117,6 +122,7 @@ test.describe('Movimenti di magazzino — scrittura reale', () => {
       return;
     }
 
+    await addArticleBySku(page, sku);
     await setFirstLineQuantity(page, '1');
     await confirmMovement(page);
 

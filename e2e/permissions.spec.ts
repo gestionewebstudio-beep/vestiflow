@@ -129,17 +129,21 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       await expectButtonAbsent(page, 'Importa CSV');
     });
 
-    test('CTA Registra movimento solo nel tab Movimenti (non in Giacenze)', async ({ page }) => {
+    test('CTA registrazione per tipo solo nel tab Movimenti (non in Giacenze)', async ({
+      page,
+    }) => {
       await page.goto('/app/inventory');
       await expect(page.locator('h1.inventory-levels__title')).toHaveText('Magazzino', {
         timeout: 30_000,
       });
-      await expect(page.getByRole('button', { name: 'Registra movimento' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Carico', exact: true })).toHaveCount(0);
 
       await page.goto('/app/inventory/movements');
-      await expect(page.getByRole('button', { name: 'Registra movimento' })).toBeVisible({
-        timeout: 30_000,
-      });
+      for (const label of ['Carico', 'Scarico', 'Rettifica', 'Trasferimento']) {
+        await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible({
+          timeout: 30_000,
+        });
+      }
     });
 
     test('route import giacenze CSV bloccata', async ({ page }) => {
@@ -156,7 +160,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
 
       await page.goto('/app/inventory/movements/new');
       await expect(page).toHaveURL(/\/app\/inventory\/movements\/new$/, { timeout: 15_000 });
-      await expect(page.locator('h1.movement-form__title')).toHaveText('Registra movimento');
+      await expect(page.locator('h1.movement-form__title')).toHaveText(/Registra carico/);
     });
 
     test('storico movimenti: CTA movimento coerente con inventory.manage', async ({ page }) => {
@@ -164,7 +168,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       await expect(page.locator('h1.stock-movements__title')).toHaveText('Movimenti di magazzino', {
         timeout: 30_000,
       });
-      await expect(page.getByRole('button', { name: 'Registra movimento' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Carico', exact: true })).toBeVisible();
     });
   });
 
@@ -266,7 +270,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
         timeout: 30_000,
       });
 
-      const movementCta = page.getByRole('button', { name: 'Registra movimento' });
+      const movementCta = page.getByRole('button', { name: 'Carico', exact: true });
       if (onForm) {
         await expect(movementCta).toBeVisible();
       } else {

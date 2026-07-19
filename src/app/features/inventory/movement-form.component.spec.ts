@@ -89,10 +89,9 @@ describe('MovementFormComponent', () => {
 
   it('scarico oltre il disponibile: avviso non bloccante sulla riga', async () => {
     const user = userEvent.setup();
-    await setup({ variantId: 'var-1' });
+    await setup({ variantId: 'var-1', type: 'unload' });
 
-    await user.click(screen.getByRole('button', { name: 'Tipo movimento' }));
-    await user.click(screen.getByRole('option', { name: 'Scarico' }));
+    expect(screen.getByRole('heading', { name: 'Registra scarico' })).toBeVisible();
 
     const quantity = screen.getByLabelText('Quantità per Maglietta / M / Rosso');
     await user.clear(quantity);
@@ -104,12 +103,9 @@ describe('MovementFormComponent', () => {
   });
 
   it('rettifica: causale precompilata, giacenza attuale readonly e nuova giacenza', async () => {
-    const user = userEvent.setup();
-    await setup({ variantId: 'var-1' });
+    await setup({ variantId: 'var-1', type: 'adjustment' });
 
-    await user.click(screen.getByRole('button', { name: 'Tipo movimento' }));
-    await user.click(screen.getByRole('option', { name: 'Rettifica' }));
-
+    expect(screen.getByRole('heading', { name: 'Registra rettifica' })).toBeVisible();
     expect(screen.getByLabelText(/Causale/)).toHaveValue('Rettifica giacenza');
 
     // Giacenza attuale calcolata dal sistema (onHand a Milano = 6).

@@ -3,10 +3,12 @@
     <h1 class="stock-movements__title">Movimenti di magazzino</h1>
     @if (canManageInventory()) {
       <div class="stock-movements__header-actions">
-        <app-button (click)="newMovement()">
-          <i class="pi pi-plus" aria-hidden="true"></i>
-          Registra movimento
-        </app-button>
+        @for (action of movementActions; track action.type) {
+          <app-button variant="secondary" (click)="newMovement(action.type)">
+            <i class="pi {{ action.icon }}" aria-hidden="true"></i>
+            {{ action.label }}
+          </app-button>
+        }
       </div>
     }
   </header>
