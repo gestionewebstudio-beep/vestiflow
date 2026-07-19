@@ -61,6 +61,9 @@ serviceAccountKey.json
 /e2e/.auth
 /backups
 
+# Script di collaudo usa-e-getta generati dall'agente di test (rigenerati a ogni giro)
+/e2e-collaudo
+
 # System files
 .DS_Store
 Thumbs.db
