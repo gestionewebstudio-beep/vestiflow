@@ -58,7 +58,6 @@ import { ProductGeneralStepComponent } from './components/product-general-step/p
 import { ProductImagesFieldComponent } from './components/product-images-field/product-images-field.component';
 import { ProductOptionsStepComponent } from './components/product-options-step/product-options-step.component';
 import { ProductQuickVariantFieldsComponent } from './components/product-quick-variant-fields/product-quick-variant-fields.component';
-import { ProductReviewStepComponent } from './components/product-review-step/product-review-step.component';
 import { ProductVariantsStepComponent } from './components/product-variants-step/product-variants-step.component';
 import type { ProductEmbeddedCreatePrefill } from './models/product-form.mapper';
 import {
@@ -91,6 +90,7 @@ import {
   isValidSku,
 } from './models/product-form.validators';
 import type { ProductFilterOptions } from './models/product-list-query.model';
+import type { VariantSummary } from './models/variant-summary.model';
 import { SHOPIFY_CATALOG_READONLY_BANNER } from './models/catalog-origin.util';
 import { ProductService } from './services/product.service';
 import type { CatalogCategory } from './services/catalog-category.service';
@@ -104,21 +104,20 @@ const PRODUCTS_LIST_PATH = '/app/products';
 
 type ProductFormMode = 'create' | 'edit';
 
-interface WizardStep {
-  readonly id: 'general' | 'options' | 'variants' | 'review';
+/** Tab dell'anagrafica prodotto: navigazione libera, un'unica schermata. */
+type ProductFormTab = 'article' | 'catalog' | 'variants' | 'stock';
+
+interface ProductFormTabDef {
+  readonly id: ProductFormTab;
   readonly label: string;
 }
 
-const WIZARD_STEPS: readonly WizardStep[] = [
-  { id: 'general', label: 'Dati generali' },
-  { id: 'options', label: 'Opzioni' },
+const FORM_TABS: readonly ProductFormTabDef[] = [
+  { id: 'article', label: 'Articolo' },
+  { id: 'catalog', label: 'Catalogo' },
   { id: 'variants', label: 'Varianti' },
-  { id: 'review', label: 'Riepilogo' },
+  { id: 'stock', label: 'Magazzino' },
 ];
-
-const QUICK_WIZARD_STEPS: readonly WizardStep[] = [{ id: 'general', label: 'Dati essenziali' }];
-
-type ProductCreationMode = 'quick' | 'full';
 
 type FormLoadState =
   | { readonly status: 'loading' }
@@ -145,7 +144,6 @@ type FormLoadState =
     ProductOptionsStepComponent,
     ProductQuickVariantFieldsComponent,
     ProductVariantsStepComponent,
-    ProductReviewStepComponent,
     ConfirmDialogComponent,
   ],
   templateUrl: './product-form.component.html',
@@ -176,22 +174,25 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   protected readonly listPath = PRODUCTS_LIST_PATH;
 
-  /** Modalità form: rapido (1 SKU) o wizard completo con opzioni (anche in edit). */
-  protected readonly creationMode = signal<ProductCreationMode>('quick');
+  /** Tab dell'anagrafica (Articolo, Catalogo, Varianti, Magazzino). */
+  protected readonly tabs = FORM_TABS;
+  protected readonly activeTab = signal<ProductFormTab>('article');
   private readonly quickVariantStepValid = signal(false);
 
-  protected readonly steps = computed(() => {
-    if (this.creationMode() === 'quick') {
-      return QUICK_WIZARD_STEPS;
-    }
-    return WIZARD_STEPS;
-  });
+  protected setActiveTab(tab: ProductFormTab): void {
+    this.activeTab.set(tab);
+  }
 
   /**
-   * "Inserimento rapido" disponibile solo con al più una variante: per un
-   * prodotto multi-variante il passaggio a rapido scarterebbe le altre.
+   * Articolo semplice: al più una variante e nessun asse opzione valorizzato.
+   * SKU, EAN e prezzi si compilano nel tab Articolo; con le varianti attive
+   * (tab Varianti) gli stessi dati passano alla tabella per variante.
    */
-  protected readonly canUseQuickMode = computed(() => this.draft().variants.length <= 1);
+  protected readonly isSingleVariant = computed(
+    () =>
+      this.draft().variants.length <= 1 &&
+      this.draft().options.axes.every((axis) => axis.values.length === 0),
+  );
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   private readonly productId = computed(() => {
@@ -242,7 +243,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
       switchMap(({ id }) => {
         if (!id) {
           this.catalogOrigin.set(CatalogOrigin.VestiFlow);
-          this.creationMode.set('quick');
+          this.activeTab.set('article');
           const prefill = this.embeddedPrefill();
           const initialDraft = prefill
             ? productFormDraftFromEmbeddedPrefill(prefill)
@@ -267,14 +268,14 @@ export class ProductFormComponent implements CanComponentDeactivate {
               supplierIds.length === 1
                 ? { ...draft, general: { ...draft.general, supplierId: supplierIds[0]! } }
                 : draft;
-            this.resetDraft(withSupplier);
-            // Stessa schermata della creazione: rapido se il prodotto ha al
-            // più una variante e nessun asse opzione valorizzato.
-            const quickEligible =
-              withSupplier.variants.length <= 1 &&
-              withSupplier.options.axes.every((axis) => axis.values.length === 0);
-            this.creationMode.set(quickEligible ? 'quick' : 'full');
-            this._currentStep.set(0);
+            // Prodotto senza varianti (caso limite): seme di variante singola
+            // così il tab Articolo ha sempre SKU/EAN/prezzi compilabili.
+            const seeded =
+              withSupplier.variants.length === 0
+                ? ensureQuickModeDraft(withSupplier, true)
+                : withSupplier;
+            this.resetDraft(seeded);
+            this.activeTab.set('article');
             this.existingImages.set(product.images ?? []);
           }),
           map((): FormLoadState => ({ status: 'ready' })),
@@ -328,7 +329,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
     this.categoriesTick.update((tick) => tick + 1);
   }
 
-  // Fornitori in anagrafica per il campo "Fornitore" (Altri dati catalogo).
+  // Fornitori in anagrafica per il campo "Fornitore" (tab Articolo).
   protected readonly supplierOptions = toSignal(
     this.supplierService.getSuppliers().pipe(
       map((suppliers): readonly SelectMenuOption[] =>
@@ -343,6 +344,25 @@ export class ProductFormComponent implements CanComponentDeactivate {
   protected readonly canViewPurchaseCosts = computed(() =>
     canViewPurchaseCosts(this.authService.currentUser()),
   );
+
+  // ── Tab Magazzino: giacenze per variante in sola lettura ──────────────────
+  protected readonly stockRows = toSignal(
+    toObservable(this.loadRequest).pipe(
+      switchMap(({ id }) =>
+        id
+          ? this.service
+              .searchVariantSummaries({ productId: id, pageSize: 100 })
+              .pipe(catchError(() => of([] as readonly VariantSummary[])))
+          : of([] as readonly VariantSummary[]),
+      ),
+    ),
+    { initialValue: [] as readonly VariantSummary[] },
+  );
+
+  /** Impegnato = giacenza − disponibile (totali multi-sede della variante). */
+  protected stockCommitted(row: VariantSummary): number {
+    return (row.stockOnHand ?? 0) - (row.stockAvailable ?? 0);
+  }
 
   // Codici IVA per la tendina "Codice IVA" (su errore si degrada a lista vuota).
   protected readonly vatCodes = toSignal(
@@ -454,11 +474,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
   });
   protected readonly ready = computed(() => this.loadState().status === 'ready');
 
-  private readonly _currentStep = signal(0);
-  protected readonly currentStep = this._currentStep.asReadonly();
-  protected readonly currentStepId = computed(() => this.steps()[this._currentStep()]?.id);
-  protected readonly isFirstStep = computed(() => this._currentStep() === 0);
-  protected readonly isLastStep = computed(() => this._currentStep() === this.steps().length - 1);
   protected readonly quickVariant = computed(() => this.draft().variants[0] ?? null);
 
   // Validità "Dati generali": nome obbligatorio + regole codice articolo
@@ -483,13 +498,10 @@ export class ProductFormComponent implements CanComponentDeactivate {
     return this.draft().general.name.trim() !== '';
   });
 
-  /** Modalità rapida attiva (in creazione e in modifica: stessa schermata). */
-  protected readonly isQuickMode = computed(() => this.creationMode() === 'quick');
-
-  // Step "Opzioni" valido se: c'è almeno una combinazione generata e i nomi degli
-  // assi sono validi (non vuoti) e univoci (es. il 3° asse non duplica Taglia/Colore).
+  // Tab "Varianti" (assi) valido se: c'è almeno una combinazione generata e i
+  // nomi degli assi sono validi (non vuoti) e univoci.
   private readonly optionsValid = computed(() => {
-    if (this.isQuickMode()) {
+    if (this.isSingleVariant()) {
       return true;
     }
     if (this.shopifyCatalogLocked()) {
@@ -552,23 +564,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
     );
   });
 
-  /** Lo step corrente è valido e consente l'avanzamento. */
-  protected readonly canAdvance = computed(() => {
-    if (this.isQuickMode()) {
-      return false;
-    }
-    switch (this.currentStepId()) {
-      case 'general':
-        return this.generalValid();
-      case 'options':
-        return this.optionsValid();
-      case 'variants':
-        return this.variantsValid();
-      default:
-        return true;
-    }
-  });
-
   // Lo SKU non dipende MAI dal nome/categoria (specifica cliente §SKU): un
   // cambio dei dati generali aggiorna solo `general`, mai la variante.
   protected onGeneralChange(value: ProductGeneralDraft): void {
@@ -581,25 +576,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   protected onQuickVariantValidChange(valid: boolean): void {
     this.quickVariantStepValid.set(valid);
-  }
-
-  protected setCreationMode(mode: ProductCreationMode): void {
-    if (this.creationMode() === mode) {
-      return;
-    }
-    if (mode === 'quick' && !this.canUseQuickMode()) {
-      return;
-    }
-    this.creationMode.set(mode);
-    this._currentStep.set(0);
-    if (mode === 'quick') {
-      // In modifica lo SKU esistente va preservato (mai azzerato in silenzio).
-      this.draft.update((draft) => ensureQuickModeDraft(draft, this.mode() === 'edit'));
-    }
-  }
-
-  protected switchToFullWizard(): void {
-    this.setCreationMode('full');
   }
 
   protected onPendingImagesChange(files: readonly File[]): void {
@@ -647,23 +623,16 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private submitSub?: Subscription;
 
-  // L'intero draft è valido: ogni step gating soddisfatto. Indipendente dallo
-  // step corrente, così il bottone Salva non dipende da dove ci si trova.
+  // L'intero draft è valido, indipendentemente dal tab attivo: il bottone
+  // Salva non dipende da dove ci si trova.
   protected readonly canSubmit = computed(() => {
     if (this.submitting()) {
       return false;
     }
-    if (this.isQuickMode()) {
+    if (this.isSingleVariant()) {
       return this.generalValid() && this.quickVariantStepValid();
     }
     return this.generalValid() && this.optionsValid() && this.variantsValid();
-  });
-
-  protected readonly showSubmitOnCurrentStep = computed(() => {
-    if (this.isLastStep()) {
-      return true;
-    }
-    return this.isQuickMode() && this.isFirstStep();
   });
 
   protected onSubmit(attachToDocument = true): void {
@@ -779,7 +748,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Campo "Fornitore" (Altri dati catalogo): collega il fornitore alle varianti
+   * Campo "Fornitore" (tab Articolo): collega il fornitore alle varianti
    * dell'articolo dopo il salvataggio. Solo le varianti non ancora collegate a
    * quel fornitore: i collegamenti esistenti (codici/costi) non vengono toccati.
    * Non blocca mai il salvataggio del prodotto.
@@ -810,29 +779,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
       }),
       catchError(() => of(product)),
     );
-  }
-
-  /** Tornare indietro è sempre consentito; avanzare solo allo step successivo se valido. */
-  protected canReachStep(index: number): boolean {
-    return index <= this._currentStep() || (index === this._currentStep() + 1 && this.canAdvance());
-  }
-
-  protected next(): void {
-    if (!this.isLastStep() && this.canAdvance()) {
-      this._currentStep.update((index) => index + 1);
-    }
-  }
-
-  protected prev(): void {
-    if (!this.isFirstStep()) {
-      this._currentStep.update((index) => index - 1);
-    }
-  }
-
-  protected goToStep(index: number): void {
-    if (this.canReachStep(index)) {
-      this._currentStep.set(index);
-    }
   }
 
   protected reload(): void {

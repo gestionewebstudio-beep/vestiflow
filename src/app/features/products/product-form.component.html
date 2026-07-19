@@ -27,62 +27,28 @@
       </p>
     }
 
-    <div class="product-form__mode" role="radiogroup" aria-label="Modalità inserimento prodotto">
-      <button
-        type="button"
-        class="product-form__mode-btn"
-        [class.product-form__mode-btn--active]="creationMode() === 'quick'"
-        [attr.aria-checked]="creationMode() === 'quick'"
-        role="radio"
-        [disabled]="!canUseQuickMode()"
-        [title]="
-          canUseQuickMode() ? '' : 'Il prodotto ha più varianti: usa la modalità Con varianti'
-        "
-        (click)="setCreationMode('quick')"
-      >
-        Inserimento rapido
-      </button>
-      <button
-        type="button"
-        class="product-form__mode-btn"
-        [class.product-form__mode-btn--active]="creationMode() === 'full'"
-        [attr.aria-checked]="creationMode() === 'full'"
-        role="radio"
-        (click)="setCreationMode('full')"
-      >
-        Con varianti
-      </button>
-    </div>
-    @if (creationMode() === 'quick' && mode() === 'create') {
-      <p class="product-form__mode-hint">
-        Nome e prezzo vendita bastano per creare il prodotto. Lo SKU è facoltativo: puoi lasciarlo
-        vuoto, scriverlo a mano o generarlo. Venditore/Brand, categoria e altri dettagli restano
-        disponibili e li puoi completare in seguito.
-      </p>
-    }
-
-    <ol class="product-form__steps">
-      @for (step of steps(); track step.id; let i = $index) {
+    <ol class="product-form__steps" role="tablist" aria-label="Sezioni anagrafica prodotto">
+      @for (tab of tabs; track tab.id) {
         <li class="product-form__step">
           <button
             type="button"
+            role="tab"
             class="product-form__step-btn"
-            [class.product-form__step-btn--active]="currentStep() === i"
-            [attr.aria-current]="currentStep() === i ? 'step' : null"
-            [disabled]="!canReachStep(i)"
-            (click)="goToStep(i)"
+            [class.product-form__step-btn--active]="activeTab() === tab.id"
+            [attr.aria-selected]="activeTab() === tab.id"
+            (click)="setActiveTab(tab.id)"
           >
-            <span class="product-form__step-index tabular-nums">{{ i + 1 }}</span>
-            {{ step.label }}
+            {{ tab.label }}
           </button>
         </li>
       }
     </ol>
 
     <div class="product-form__body">
-      @switch (currentStepId()) {
-        @case ('general') {
+      @switch (activeTab()) {
+        @case ('article') {
           <app-product-general-step
+            section="article"
             [value]="draft().general"
             [categories]="categories()"
             [catalogCategories]="catalogCategories()"
@@ -90,13 +56,12 @@
             [vatCodes]="vatCodes()"
             [shopifyConnected]="shopifyConnected()"
             [catalogReadOnly]="shopifyCatalogLocked()"
-            [compactLayout]="true"
             [editMode]="mode() === 'edit'"
             [articleCodeTakenBy]="articleCodeTakenBy()"
             (valueChange)="onGeneralChange($event)"
             (categoriesChanged)="reloadCatalogCategories()"
           />
-          @if (isQuickMode() && quickVariant(); as variant) {
+          @if (isSingleVariant() && quickVariant(); as variant) {
             <app-product-quick-variant-fields
               [variant]="variant"
               [productName]="draft().general.name"
@@ -108,6 +73,11 @@
               (variantChange)="onQuickVariantChange($event)"
               (validChange)="onQuickVariantValidChange($event)"
             />
+          } @else {
+            <p class="product-form__tab-note">
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+              Prodotto con varianti: SKU, EAN e prezzi si gestiscono nel tab Varianti.
+            </p>
           }
           @if (!shopifyCatalogLocked()) {
             <app-product-images-field
@@ -119,7 +89,23 @@
             />
           }
         }
-        @case ('options') {
+        @case ('catalog') {
+          <app-product-general-step
+            section="catalog"
+            [value]="draft().general"
+            [categories]="categories()"
+            [catalogCategories]="catalogCategories()"
+            [supplierOptions]="supplierOptions()"
+            [vatCodes]="vatCodes()"
+            [shopifyConnected]="shopifyConnected()"
+            [catalogReadOnly]="shopifyCatalogLocked()"
+            [editMode]="mode() === 'edit'"
+            [articleCodeTakenBy]="articleCodeTakenBy()"
+            (valueChange)="onGeneralChange($event)"
+            (categoriesChanged)="reloadCatalogCategories()"
+          />
+        }
+        @case ('variants') {
           <app-product-options-step
             [options]="draft().options"
             [variants]="draft().variants"
@@ -128,8 +114,6 @@
             [catalogReadOnly]="shopifyCatalogLocked()"
             (optionsChange)="onOptionsChange($event)"
           />
-        }
-        @case ('variants') {
           <app-product-variants-step
             [variants]="draft().variants"
             [productName]="draft().general.name"
@@ -141,76 +125,110 @@
             (stepValidChange)="onVariantsValidChange($event)"
           />
         }
-        @case ('review') {
-          <app-product-review-step
-            [general]="draft().general"
-            [options]="draft().options"
-            [variants]="draft().variants"
-            [showShopifyIntegration]="showShopifyIntegration()"
-          />
-          @if (submitError(); as err) {
-            <p class="product-form__submit-error" role="alert">
-              <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-              {{ err.message }}
-            </p>
-          }
+        @case ('stock') {
+          <section class="product-form__stock" aria-label="Magazzino">
+            @if (showMovementActions()) {
+              <div class="product-form__stock-actions">
+                @for (action of movementActions; track action.type) {
+                  <app-button
+                    variant="secondary"
+                    [disabled]="!canSubmit()"
+                    (click)="onSubmitWithMovement(action.type)"
+                  >
+                    <i class="pi {{ action.icon }}" aria-hidden="true"></i>
+                    {{ action.label }}
+                  </app-button>
+                }
+              </div>
+              <p class="product-form__tab-note">
+                <i class="pi pi-info-circle" aria-hidden="true"></i>
+                Salvano l'anagrafica e aprono il movimento con l'articolo già in lista.
+              </p>
+            }
+
+            @if (mode() === 'create') {
+              <app-empty-state
+                icon="pi-box"
+                title="Nessuna giacenza"
+                description="Le giacenze compaiono dopo il primo salvataggio e i primi movimenti."
+              />
+            } @else if (stockRows().length === 0) {
+              <app-empty-state
+                icon="pi-box"
+                title="Nessuna giacenza registrata"
+                description="Registra un carico per iniziare a movimentare l'articolo."
+              />
+            } @else {
+              <div class="product-form__stock-table-wrap">
+                <table class="product-form__stock-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Articolo</th>
+                      <th scope="col">SKU</th>
+                      <th scope="col" class="product-form__stock-num">Giacenza</th>
+                      <th scope="col" class="product-form__stock-num">Impegnato</th>
+                      <th scope="col" class="product-form__stock-num">Disponibile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of stockRows(); track row.variantId) {
+                      <tr>
+                        <td>{{ row.title }}</td>
+                        <td class="tabular-nums">{{ row.sku || '—' }}</td>
+                        <td class="product-form__stock-num tabular-nums">
+                          {{ row.stockOnHand ?? 0 }}
+                        </td>
+                        <td class="product-form__stock-num tabular-nums">
+                          {{ stockCommitted(row) }}
+                        </td>
+                        <td class="product-form__stock-num tabular-nums">
+                          {{ row.stockAvailable ?? 0 }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="product-form__tab-note">
+                <i class="pi pi-info-circle" aria-hidden="true"></i>
+                Totali su tutte le sedi. La giacenza per negozio è gestita nella sezione Magazzino.
+              </p>
+            }
+          </section>
         }
+      }
+
+      @if (submitError(); as err) {
+        <p class="product-form__submit-error" role="alert">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+          {{ err.message }}
+        </p>
       }
     </div>
 
     <footer class="product-form__footer">
       <app-button variant="secondary" (click)="cancel()">Annulla</app-button>
       <div class="product-form__nav">
-        @if (!isQuickMode() && !embeddedPanel()) {
-          <app-button variant="secondary" [disabled]="isFirstStep()" (click)="prev()">
-            <i class="pi pi-chevron-left" aria-hidden="true"></i>
-            Indietro
+        @if (embeddedPanel() && mode() === 'edit') {
+          <app-button [disabled]="!canSubmit()" (click)="onSubmit(false)">
+            {{ submitting() ? 'Salvataggio…' : 'Salva modifiche' }}
           </app-button>
-        }
-        @if (showSubmitOnCurrentStep()) {
-          @if (showMovementActions()) {
-            @for (action of movementActions; track action.type) {
-              <app-button
-                variant="secondary"
-                [disabled]="!canSubmit()"
-                (click)="onSubmitWithMovement(action.type)"
-              >
-                <i class="pi {{ action.icon }}" aria-hidden="true"></i>
-                {{ action.label }}
-              </app-button>
-            }
-          }
-          @if (embeddedPanel() && mode() === 'edit') {
-            <app-button [disabled]="!canSubmit()" (click)="onSubmit(false)">
-              {{ submitting() ? 'Salvataggio…' : 'Salva modifiche' }}
-            </app-button>
-          } @else if (embeddedPanel()) {
-            <app-button variant="secondary" [disabled]="!canSubmit()" (click)="onSubmit(false)">
-              Salva senza aggiungere
-            </app-button>
-            <app-button [disabled]="!canSubmit()" (click)="onSubmit(true)">
-              Salva e aggiungi al documento
-            </app-button>
-          } @else {
-            <app-button [disabled]="!canSubmit()" (click)="onSubmit()">
-              {{
-                submitting()
-                  ? 'Salvataggio…'
-                  : mode() === 'edit'
-                    ? 'Salva modifiche'
-                    : 'Crea prodotto'
-              }}
-            </app-button>
-          }
-        } @else if (!embeddedPanel()) {
-          <app-button [disabled]="!canAdvance()" (click)="next()">
-            Avanti
-            <i class="pi pi-chevron-right" aria-hidden="true"></i>
+        } @else if (embeddedPanel()) {
+          <app-button variant="secondary" [disabled]="!canSubmit()" (click)="onSubmit(false)">
+            Salva senza aggiungere
           </app-button>
-        }
-        @if (isQuickMode() && isFirstStep()) {
-          <app-button variant="secondary" type="button" (click)="switchToFullWizard()">
-            Configura taglia/colore…
+          <app-button [disabled]="!canSubmit()" (click)="onSubmit(true)">
+            Salva e aggiungi al documento
+          </app-button>
+        } @else {
+          <app-button [disabled]="!canSubmit()" (click)="onSubmit()">
+            {{
+              submitting()
+                ? 'Salvataggio…'
+                : mode() === 'edit'
+                  ? 'Salva modifiche'
+                  : 'Crea prodotto'
+            }}
           </app-button>
         }
       </div>

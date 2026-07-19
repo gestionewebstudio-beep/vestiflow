@@ -10,7 +10,7 @@ test.describe('Form prodotto', () => {
     });
   });
 
-  test('apre il wizard nuovo prodotto', async ({ page }) => {
+  test('apre l’anagrafica nuovo prodotto', async ({ page }) => {
     const createButton = page.getByRole('button', { name: 'Aggiungi prodotto' });
     await expect(createButton).toBeVisible({ timeout: 15_000 });
 
@@ -19,11 +19,11 @@ test.describe('Form prodotto', () => {
     await expect(page.locator('h1.product-form__title')).toHaveText('Anagrafica prodotto', {
       timeout: 30_000,
     });
-    await expect(page.getByRole('button', { name: 'Dati generali' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Articolo' })).toBeVisible();
     await expect(page.locator('#product-name')).toBeVisible();
   });
 
-  test('percorre il wizard fino al riepilogo senza salvare', async ({ page }) => {
+  test('compila i tab Articolo, Catalogo e Varianti senza salvare', async ({ page }) => {
     test.setTimeout(120_000);
     const createButton = page.getByRole('button', { name: 'Aggiungi prodotto' });
     await expect(createButton).toBeVisible({ timeout: 15_000 });
@@ -37,10 +37,11 @@ test.describe('Form prodotto', () => {
     await page.locator('#product-name').fill(`Prodotto E2E ${uniqueSuffix}`);
     await page.locator('#product-brand').fill('VestiFlow Test');
 
+    // Categoria Shopify: nel tab Catalogo (solo con integrazione attiva).
+    await page.getByRole('tab', { name: 'Catalogo' }).click();
     await selectShopifyTaxonomyCategory(page);
-    await expect(page.getByRole('button', { name: 'Avanti' })).toBeEnabled({ timeout: 30_000 });
 
-    await page.getByRole('button', { name: 'Avanti' }).click();
+    await page.getByRole('tab', { name: 'Varianti' }).click();
     await expect(page.getByText('Definisci le opzioni che generano le varianti')).toBeVisible({
       timeout: 15_000,
     });
@@ -48,17 +49,14 @@ test.describe('Form prodotto', () => {
     await addOptionValue(page, 'Taglia', 'M');
     await addOptionValue(page, 'Colori varianti', 'Nero');
 
-    await page.getByRole('button', { name: 'Avanti' }).click();
     await expect(page.locator('.variants-step-table')).toBeVisible({ timeout: 15_000 });
 
     const skuInput = page.locator('.variants-step__input--sku').first();
     await skuInput.fill(`E2E-${uniqueSuffix}`);
     await page.locator('input[formcontrolname="sellingPrice"]').first().fill('19.90');
 
-    await page.getByRole('button', { name: 'Avanti' }).click();
-    await expect(page.getByRole('button', { name: 'Crea prodotto' })).toBeVisible({
+    await expect(page.getByRole('button', { name: 'Crea prodotto' })).toBeEnabled({
       timeout: 15_000,
     });
-    await expect(page.getByText('Prodotto E2E', { exact: false })).toBeVisible();
   });
 });

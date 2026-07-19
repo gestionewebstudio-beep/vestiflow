@@ -66,6 +66,7 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
     sku: this.fb.control('', { validators: [Validators.pattern(SKU_PATTERN)] }),
     barcode: this.fb.control(''),
     sellingPrice: this.fb.control(0, { validators: [Validators.required, Validators.min(0)] }),
+    compareAtPrice: this.fb.control<number | null>(null, { validators: [Validators.min(0)] }),
     purchasePrice: this.fb.control<number | null>(null, { validators: [Validators.min(0)] }),
   });
 
@@ -109,6 +110,7 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
         sku: variant.sku,
         barcode: variant.barcode,
         sellingPrice: variant.sellingPrice ?? 0,
+        compareAtPrice: variant.compareAtPrice,
         purchasePrice: variant.purchasePrice,
       },
       { emitEvent: false },
@@ -200,6 +202,7 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
       sku: raw.sku,
       barcode: raw.barcode,
       sellingPrice: raw.sellingPrice,
+      compareAtPrice: raw.compareAtPrice,
       // Senza permesso costi il campo è nascosto: il valore esistente resta.
       ...(this.canSeeCosts() ? { purchasePrice: raw.purchasePrice } : {}),
     });

@@ -23,7 +23,7 @@ test.describe('CI smoke (mock auth)', () => {
     await expect(page.getByRole('link', { name: 'Prodotti' })).toBeVisible();
   });
 
-  test('wizard nuovo prodotto — step dati generali e opzioni', async ({ page }) => {
+  test('anagrafica nuovo prodotto — tab Articolo e Varianti', async ({ page }) => {
     await page.goto('/app/products/new');
     await expect(page.locator('h1.product-form__title')).toHaveText('Anagrafica prodotto', {
       timeout: 30_000,
@@ -33,10 +33,10 @@ test.describe('CI smoke (mock auth)', () => {
     await page.locator('#product-brand').fill('Brand Test');
     await page.locator('#product-category').fill('Abbigliamento');
 
-    await page.getByRole('button', { name: 'Avanti' }).click();
-    await expect(page.getByRole('button', { name: 'Opzioni' })).toHaveAttribute(
-      'aria-current',
-      'step',
+    await page.getByRole('tab', { name: 'Varianti' }).click();
+    await expect(page.getByRole('tab', { name: 'Varianti' })).toHaveAttribute(
+      'aria-selected',
+      'true',
     );
     await expect(page.getByText('Definisci le opzioni che generano le varianti')).toBeVisible();
   });

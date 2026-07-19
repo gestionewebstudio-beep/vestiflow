@@ -1,4 +1,3 @@
-import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -68,7 +67,6 @@ const CUSTOM_OPTION_VALUE = '__custom__';
   selector: 'app-product-general-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    NgTemplateOutlet,
     ReactiveFormsModule,
     SelectMenuComponent,
     ShopifyTaxonomyPickerComponent,
@@ -97,8 +95,13 @@ export class ProductGeneralStepComponent implements OnInit {
   readonly vatCodes = input<readonly VatCode[]>([]);
   readonly shopifyConnected = input(false);
   readonly catalogReadOnly = input(false);
-  /** In creazione: campi secondari in sezione collassabile. */
-  readonly compactLayout = input(false);
+  /**
+   * Sezione da mostrare: 'article' = tab Articolo (identificativi, categorie,
+   * stato, U.M., IVA, tipo, fornitore); 'catalog' = tab Catalogo (Shopify,
+   * stagione, tracciamento, tag, descrizione, note interne). Il form resta
+   * unico: ogni istanza emette sempre il draft completo.
+   */
+  readonly section = input<'article' | 'catalog'>('article');
   /**
    * true = modifica di un articolo esistente: il codice articolo diventa
    * obbligatorio (in creazione può restare vuoto: il backend genera il
