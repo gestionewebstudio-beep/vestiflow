@@ -25,6 +25,41 @@
   max-inline-size: 100%;
 }
 
+// ── Larghezza a contenuto: trigger dimensionato sull'opzione più larga ───────
+:host(.select-menu-host--fit) {
+  display: inline-block;
+  inline-size: auto;
+  max-inline-size: 100%;
+}
+
+:host(.select-menu-host--fit) .select-menu {
+  inline-size: max-content;
+  max-inline-size: 100%;
+}
+
+:host(.select-menu-host--fit) .select-menu__trigger {
+  inline-size: auto;
+  min-block-size: var(--field-height);
+}
+
+:host(.select-menu-host--fit) .select-menu__trigger-label {
+  white-space: nowrap;
+}
+
+// Sizer invisibile dentro il trigger: impila i testi possibili così la
+// larghezza resta stabile al cambio di selezione (niente salti di layout).
+.select-menu__sizer {
+  display: block;
+  block-size: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.select-menu__sizer-item {
+  display: block;
+  white-space: nowrap;
+}
+
 .select-menu__trigger {
   display: inline-flex;
   align-items: center;

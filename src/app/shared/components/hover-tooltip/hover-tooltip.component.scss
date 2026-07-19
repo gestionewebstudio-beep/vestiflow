@@ -4,6 +4,21 @@
   max-inline-size: 100%;
 }
 
+// Modalità inline: icona/trigger in linea col testo (es. etichette campo).
+:host(.hover-tooltip-host--inline) {
+  display: inline-flex;
+  inline-size: auto;
+  max-inline-size: none;
+  vertical-align: text-bottom;
+}
+
+:host(.hover-tooltip-host--inline) .hover-tooltip,
+:host(.hover-tooltip-host--inline) .hover-tooltip__trigger {
+  display: inline-flex;
+  inline-size: auto;
+  max-inline-size: none;
+}
+
 .hover-tooltip {
   position: relative;
   display: block;

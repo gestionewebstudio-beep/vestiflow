@@ -125,7 +125,7 @@
 .product-form__body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-8);
   min-block-size: var(--space-16);
   padding: var(--space-3);
   background-color: var(--color-surface);
@@ -137,6 +137,11 @@
   .product-form__body {
     padding: var(--space-5);
   }
+}
+
+// I campi variante (SKU/EAN/prezzi) staccati un po' di più dai dati generali.
+.product-form__body app-product-quick-variant-fields {
+  margin-block-start: var(--space-4);
 }
 
 // Nota informativa nei tab (varianti attive, hint giacenze).

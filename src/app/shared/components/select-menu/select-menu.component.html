@@ -29,7 +29,16 @@
     @if (chipLabel(); as chipPrefix) {
       <span class="select-menu__chip-label">{{ chipPrefix }}:</span>
     }
-    <span class="select-menu__trigger-label">{{ selectedLabel() }}</span>
+    <span class="select-menu__trigger-label">
+      {{ selectedLabel() }}
+      @if (fitContent()) {
+        <span class="select-menu__sizer" aria-hidden="true">
+          @for (sizerLabel of sizerLabels(); track $index) {
+            <span class="select-menu__sizer-item">{{ sizerLabel }}</span>
+          }
+        </span>
+      }
+    </span>
     @if (!chipActive()) {
       <i class="select-menu__chevron pi pi-chevron-down" aria-hidden="true"></i>
     }

@@ -15,6 +15,7 @@ import { catchError, of, take } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 
 import { generateDistinctEan13Barcode } from '../../models/barcode.util';
 import type { VariantDraft } from '../../models/product-form.model';
@@ -34,7 +35,7 @@ const OVERWRITE_SKU_WARNING =
 @Component({
   selector: 'app-product-quick-variant-fields',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, ReactiveFormsModule],
+  imports: [ButtonComponent, HoverTooltipComponent, ReactiveFormsModule],
   templateUrl: './product-quick-variant-fields.component.html',
   styleUrl: './product-quick-variant-fields.component.scss',
 })

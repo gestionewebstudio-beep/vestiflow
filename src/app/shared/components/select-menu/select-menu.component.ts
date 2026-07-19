@@ -24,6 +24,7 @@ import type { SelectMenuOption } from './select-menu.model';
   host: {
     class: 'select-menu-host',
     '[class.select-menu-host--full]': 'fullWidth()',
+    '[class.select-menu-host--fit]': 'fitContent()',
     '[class.select-menu-host--toolbar]': 'toolbarChip()',
     '[class.select-menu-host--match-input]': 'matchInputHeight()',
     '[class.select-menu-host--chip]': 'filterChip()',
@@ -58,6 +59,12 @@ export class SelectMenuComponent {
   readonly toolbarChip = input<boolean>(false);
   /** Trigger e pannello a larghezza piena del contenitore (es. filtri mobile). */
   readonly fullWidth = input<boolean>(false);
+  /**
+   * Larghezza a contenuto: il trigger si dimensiona sull'opzione più larga
+   * (via sizer invisibile), senza saltare al cambio di selezione e senza
+   * occupare tutta la cella. Mai oltre il contenitore.
+   */
+  readonly fitContent = input<boolean>(false);
   /** Voce placeholder con valore vuoto (es. "Tutti"); disabilita per select obbligati. */
   readonly includeEmptyOption = input<boolean>(true);
   readonly matchInputHeight = input<boolean>(false);
@@ -135,7 +142,23 @@ export class SelectMenuComponent {
       }
       return `${labels.length} selezionati`;
     }
-    return this.selectedOption()?.label ?? this.placeholder();
+    const selected = this.selectedOption();
+    return selected ? (selected.triggerLabel ?? selected.label) : this.placeholder();
+  });
+
+  /**
+   * Testi che il trigger può mostrare (placeholder + triggerLabel/label di
+   * ogni opzione): il sizer invisibile li impila per fissare la larghezza
+   * del trigger sulla voce più larga.
+   */
+  protected readonly sizerLabels = computed(() => {
+    if (!this.fitContent()) {
+      return [] as readonly string[];
+    }
+    return [
+      this.placeholder(),
+      ...this.options().map((option) => option.triggerLabel ?? option.label),
+    ];
   });
 
   protected readonly selectedSwatchCssColor = computed(() => {

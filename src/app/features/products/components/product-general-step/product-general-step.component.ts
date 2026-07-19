@@ -17,7 +17,8 @@ import type { Subscription } from 'rxjs';
 
 import { PRODUCT_KIND_LABELS, ProductKind, ProductStatus } from '@core/models/product.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
-import { vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { formatVatRate, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -68,6 +69,7 @@ const CUSTOM_OPTION_VALUE = '__custom__';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    HoverTooltipComponent,
     SelectMenuComponent,
     ShopifyTaxonomyPickerComponent,
     ShopifyCategoryAttributesComponent,
@@ -126,7 +128,13 @@ export class ProductGeneralStepComponent implements OnInit {
     const currentId = this.value().defaultVatCodeId;
     return this.vatCodes()
       .filter((entry) => entry.isActive || entry.id === currentId)
-      .map((entry) => ({ value: entry.id, label: vatCodeOptionLabel(entry) }));
+      .map((entry) => ({
+        value: entry.id,
+        // Specifica completa solo nella tendina; a selezione avvenuta il
+        // trigger mostra la sola aliquota (es. "22%").
+        label: vatCodeOptionLabel(entry),
+        triggerLabel: formatVatRate(entry.ratePercent),
+      }));
   });
 
   protected readonly trackingSelectOptions: readonly SelectMenuOption[] = (

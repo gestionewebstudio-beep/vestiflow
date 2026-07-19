@@ -40,6 +40,25 @@
   color: var(--color-text-muted);
 }
 
+// Icona info in linea col nome del campo: la descrizione vive nel tooltip.
+.quick-variant__info {
+  margin-inline-start: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  cursor: help;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--color-interactive);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-interactive);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+}
+
 .quick-variant__barcode {
   display: flex;
   align-items: flex-start;
@@ -81,7 +100,21 @@
 }
 
 @include bp.media-up('md') {
+  // La riga occupa tutta la larghezza disponibile: SKU/EAN pesano il doppio
+  // dei prezzi (input + bottone Genera), i prezzi restano più stretti.
   .quick-variant__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-8) var(--space-4);
+  }
+
+  .quick-variant__field {
+    flex: 2 1 14rem;
+    min-inline-size: 0;
+  }
+
+  .quick-variant__field--price {
+    flex: 1 1 8rem;
   }
 }

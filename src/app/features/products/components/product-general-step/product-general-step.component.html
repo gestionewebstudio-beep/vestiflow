@@ -2,11 +2,16 @@
   <div class="general-step__grid">
     @if (section() === 'article') {
       <div class="general-step__essentials general-step__field--full">
-        <div class="general-step__field">
+        <div class="general-step__field general-step__field--fill">
           <label class="general-step__label" for="product-article-code">
             Codice articolo
             @if (!editMode()) {
-              <span class="general-step__optional">(vuoto = generato automaticamente)</span>
+              <app-hover-tooltip
+                [inline]="true"
+                text="Se lasciato vuoto viene generato automaticamente (progressivo numerico)."
+              >
+                <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              </app-hover-tooltip>
             }
           </label>
           <div class="general-step__code-row">
@@ -37,7 +42,7 @@
           }
         </div>
 
-        <div class="general-step__field">
+        <div class="general-step__field general-step__field--grow">
           <label class="general-step__label" for="product-name">Nome prodotto</label>
           <input
             id="product-name"
@@ -55,9 +60,12 @@
           }
         </div>
 
-        <div class="general-step__field">
+        <div class="general-step__field general-step__field--fill">
           <label class="general-step__label" for="product-brand">
-            Venditore/Brand <span class="general-step__optional">(opzionale)</span>
+            Venditore/Brand
+            <app-hover-tooltip [inline]="true" text="Campo opzionale.">
+              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            </app-hover-tooltip>
           </label>
           <input
             id="product-brand"
@@ -68,20 +76,29 @@
           />
         </div>
 
+        <span class="general-step__break" aria-hidden="true"></span>
+
         <div class="general-step__field">
           <div class="general-step__label-row">
             <span class="general-step__label" id="product-category-label">
-              Categoria <span class="general-step__optional">(opzionale)</span>
+              Categoria
+              <app-hover-tooltip
+                [inline]="true"
+                text="Campo opzionale. Con “Gestisci” organizzi l'elenco delle categorie."
+              >
+                <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              </app-hover-tooltip>
             </span>
             @if (!catalogReadOnly()) {
               <button
                 type="button"
                 class="general-step__manage-btn"
+                aria-label="Gestisci categorie"
+                title="Gestisci categorie"
                 [attr.aria-expanded]="categoryManagerOpen()"
                 (click)="toggleCategoryManager()"
               >
                 <i class="pi pi-cog" aria-hidden="true"></i>
-                Gestisci
               </button>
             }
           </div>
@@ -92,14 +109,14 @@
               ariaLabel="Categoria prodotto"
               placeholder="Seleziona categoria"
               [compact]="true"
-              [fullWidth]="true"
+              [fitContent]="true"
               [includeEmptyOption]="true"
               (valueChange)="onCategorySelect($event)"
             />
           } @else {
             <input
               id="product-category"
-              class="general-step__control"
+              class="general-step__control general-step__control--vocab"
               type="text"
               formControlName="category"
               autocomplete="off"
@@ -109,22 +126,28 @@
           }
         </div>
 
-        <div class="general-step__field">
+        <div class="general-step__field general-step__field--gap-start">
           <div class="general-step__label-row">
             <span class="general-step__label" id="product-subcategory-label">
-              Sottocategoria <span class="general-step__optional">(opzionale)</span>
+              Sottocategoria
+              <app-hover-tooltip
+                [inline]="true"
+                text="Campo opzionale: le voci proposte dipendono dalla categoria selezionata."
+              >
+                <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              </app-hover-tooltip>
             </span>
             @if (!catalogReadOnly()) {
               <button
                 type="button"
                 class="general-step__manage-btn"
+                aria-label="Gestisci sottocategorie"
                 [disabled]="!hasCategory() || ensuringCategory()"
                 [attr.aria-expanded]="subcategoryManagerOpen()"
                 title="Gestisci le sottocategorie della categoria selezionata"
                 (click)="toggleSubcategoryManager()"
               >
                 <i class="pi pi-cog" aria-hidden="true"></i>
-                Gestisci
               </button>
             }
           </div>
@@ -135,14 +158,14 @@
               ariaLabel="Sottocategoria prodotto"
               placeholder="Seleziona sottocategoria"
               [compact]="true"
-              [fullWidth]="true"
+              [fitContent]="true"
               [includeEmptyOption]="true"
               (valueChange)="onSubcategorySelect($event)"
             />
           } @else {
             <input
               id="product-subcategory"
-              class="general-step__control"
+              class="general-step__control general-step__control--vocab"
               type="text"
               formControlName="subcategory"
               autocomplete="off"
@@ -151,128 +174,144 @@
             />
           }
         </div>
-      </div>
 
-      @if (categoryManagerOpen()) {
-        <div class="general-step__field general-step__field--full">
-          <app-catalog-category-manager
-            [entries]="rootCategoryEntries()"
-            title="Gestione categorie"
-            addPlaceholder="Nuova categoria…"
-            (changed)="categoriesChanged.emit()"
-            (created)="onCategoryCreated($event)"
-            (closed)="categoryManagerOpen.set(false)"
+        <div class="general-step__field general-step__field--push-end">
+          <span class="general-step__label">Stato</span>
+          <app-select-menu
+            [options]="statusSelectOptions"
+            [value]="form.controls.status.value"
+            ariaLabel="Stato prodotto"
+            placeholder="Bozza"
+            [compact]="true"
+            [fitContent]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onStatusSelect($event)"
           />
         </div>
-      }
 
-      @if (subcategoryManagerOpen() && managedCategory(); as parentCategory) {
-        <div class="general-step__field general-step__field--full">
-          <app-catalog-category-manager
-            [entries]="subcategoryEntries()"
-            [parentId]="parentCategory.id"
-            [title]="'Sottocategorie di “' + parentCategory.name + '”'"
-            addPlaceholder="Nuova sottocategoria…"
-            (changed)="categoriesChanged.emit()"
-            (created)="onSubcategoryCreated($event)"
-            (closed)="subcategoryManagerOpen.set(false)"
+        <div class="general-step__field">
+          <span class="general-step__label" id="product-uom-label">U.M.</span>
+          <app-select-menu
+            [options]="uomSelectOptions"
+            [value]="form.controls.unitOfMeasure.value"
+            ariaLabel="Unità di misura"
+            placeholder="pz"
+            [compact]="true"
+            [fitContent]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onUomSelect($event)"
           />
         </div>
-      }
 
-      <div class="general-step__field">
-        <span class="general-step__label">Stato</span>
-        <app-select-menu
-          [options]="statusSelectOptions"
-          [value]="form.controls.status.value"
-          ariaLabel="Stato prodotto"
-          placeholder="Bozza"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="false"
-          (valueChange)="onStatusSelect($event)"
-        />
-      </div>
+        <div class="general-step__field">
+          <span class="general-step__label" id="product-vat-label">
+            Codice IVA
+            <app-hover-tooltip
+              [inline]="true"
+              text="Vuoto = usa il Codice IVA predefinito aziendale."
+            >
+              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            </app-hover-tooltip>
+          </span>
+          <app-select-menu
+            [options]="vatSelectOptions()"
+            [value]="vatSelectValue()"
+            ariaLabel="Codice IVA del prodotto"
+            placeholder="Predefinito aziendale"
+            [compact]="true"
+            [fitContent]="true"
+            [includeEmptyOption]="true"
+            [searchable]="true"
+            (valueChange)="onVatSelect($event)"
+          />
+        </div>
 
-      <div class="general-step__field">
-        <span class="general-step__label" id="product-uom-label">Unità di misura</span>
-        <app-select-menu
-          [options]="uomSelectOptions"
-          [value]="form.controls.unitOfMeasure.value"
-          ariaLabel="Unità di misura"
-          placeholder="pz"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="false"
-          (valueChange)="onUomSelect($event)"
-        />
-      </div>
+        <div class="general-step__field">
+          <span class="general-step__label" id="product-kind-label">
+            Tipo
+            <app-hover-tooltip
+              [inline]="true"
+              text="Un Servizio non movimenta il magazzino e non conta in giacenza. Proprietà interna VestiFlow: non viene mai inviata a Shopify."
+            >
+              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            </app-hover-tooltip>
+          </span>
+          <app-select-menu
+            [options]="kindSelectOptions"
+            [value]="form.controls.kind.value"
+            ariaLabel="Tipo prodotto (Articolo o Servizio)"
+            placeholder="Articolo"
+            [compact]="true"
+            [fitContent]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onKindSelect($event)"
+          />
+        </div>
 
-      <div class="general-step__field">
-        <span class="general-step__label" id="product-vat-label">Codice IVA</span>
-        <app-select-menu
-          [options]="vatSelectOptions()"
-          [value]="vatSelectValue()"
-          ariaLabel="Codice IVA del prodotto"
-          placeholder="Predefinito aziendale"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="true"
-          [searchable]="true"
-          (valueChange)="onVatSelect($event)"
-        />
-      </div>
+        <div class="general-step__field">
+          <span class="general-step__label" id="product-supplier-label">
+            Fornitore
+            <app-hover-tooltip
+              [inline]="true"
+              text="Campo opzionale. Al salvataggio l'articolo viene collegato al fornitore in anagrafica; codici e costi per variante restano gestibili dalla scheda fornitore."
+            >
+              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            </app-hover-tooltip>
+          </span>
+          <app-select-menu
+            [options]="supplierOptions()"
+            [value]="form.controls.supplierId.value"
+            ariaLabel="Fornitore dell'articolo"
+            placeholder="Nessun fornitore"
+            [compact]="true"
+            [fitContent]="true"
+            [includeEmptyOption]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca fornitore…"
+            searchAriaLabel="Cerca fornitore"
+            (valueChange)="onSupplierSelect($event)"
+          />
+        </div>
 
-      <div class="general-step__field">
-        <span class="general-step__label" id="product-kind-label">Tipo</span>
-        <app-select-menu
-          [options]="kindSelectOptions"
-          [value]="form.controls.kind.value"
-          ariaLabel="Tipo prodotto (Articolo o Servizio)"
-          placeholder="Articolo"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="false"
-          (valueChange)="onKindSelect($event)"
-        />
-        <p class="general-step__hint">
-          Un Servizio non movimenta il magazzino e non conta in giacenza. Proprietà interna
-          VestiFlow: non viene mai inviata a Shopify.
-        </p>
-      </div>
+        @if (categoryManagerOpen()) {
+          <div class="general-step__field general-step__field--full">
+            <app-catalog-category-manager
+              [entries]="rootCategoryEntries()"
+              title="Gestione categorie"
+              addPlaceholder="Nuova categoria…"
+              (changed)="categoriesChanged.emit()"
+              (created)="onCategoryCreated($event)"
+              (closed)="categoryManagerOpen.set(false)"
+            />
+          </div>
+        }
 
-      <div class="general-step__field">
-        <span class="general-step__label" id="product-supplier-label">
-          Fornitore <span class="general-step__optional">(opzionale)</span>
-        </span>
-        <app-select-menu
-          [options]="supplierOptions()"
-          [value]="form.controls.supplierId.value"
-          ariaLabel="Fornitore dell'articolo"
-          placeholder="Nessun fornitore"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="true"
-          [searchable]="true"
-          searchPlaceholder="Cerca fornitore…"
-          searchAriaLabel="Cerca fornitore"
-          (valueChange)="onSupplierSelect($event)"
-        />
-        <p class="general-step__hint">
-          Al salvataggio l'articolo viene collegato al fornitore in anagrafica. Codici e costi per
-          variante restano gestibili dalla scheda fornitore.
-        </p>
+        @if (subcategoryManagerOpen() && managedCategory(); as parentCategory) {
+          <div class="general-step__field general-step__field--full">
+            <app-catalog-category-manager
+              [entries]="subcategoryEntries()"
+              [parentId]="parentCategory.id"
+              [title]="'Sottocategorie di “' + parentCategory.name + '”'"
+              addPlaceholder="Nuova sottocategoria…"
+              (changed)="categoriesChanged.emit()"
+              (created)="onSubcategoryCreated($event)"
+              (closed)="subcategoryManagerOpen.set(false)"
+            />
+          </div>
+        }
       </div>
     } @else {
       @if (shopifyConnected()) {
         <div class="general-step__field general-step__field--full">
           <span class="general-step__label" id="product-shopify-category-label">
             Categoria Shopify
-            <span class="general-step__optional">(consigliata per sync)</span>
+            <app-hover-tooltip
+              [inline]="true"
+              text="Consigliata per la sincronizzazione. Stessa tassonomia usata in Shopify Admin; puoi completarla anche dopo la creazione."
+            >
+              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            </app-hover-tooltip>
           </span>
-          <p class="general-step__hint">
-            Stessa tassonomia usata in Shopify Admin. Puoi completarla anche dopo la creazione.
-          </p>
           <app-shopify-taxonomy-picker
             [categoryId]="form.controls.shopifyTaxonomyCategoryId.value"
             [categoryFullName]="form.controls.shopifyTaxonomyCategoryFullName.value"
@@ -296,7 +335,12 @@
         @if (useSeasonSelect()) {
           <span class="general-step__label" id="product-season-label">
             Stagione
-            <span class="general-step__optional">(opzionale)</span>
+            <app-hover-tooltip
+              [inline]="true"
+              text="Campo opzionale: codice collezione (es. SS26, FW25)."
+            >
+              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            </app-hover-tooltip>
           </span>
           <app-select-menu
             [options]="seasonSelectOptions()"
@@ -304,14 +348,19 @@
             ariaLabel="Stagione prodotto"
             placeholder="Seleziona stagione"
             [compact]="true"
-            [fullWidth]="true"
+            [fitContent]="true"
             [includeEmptyOption]="true"
             (valueChange)="onSeasonSelect($event)"
           />
         } @else {
           <label class="general-step__label" for="product-season">
             Stagione
-            <span class="general-step__optional">(opzionale, codice collezione)</span>
+            <app-hover-tooltip
+              [inline]="true"
+              text="Campo opzionale: codice collezione (es. SS26, FW25)."
+            >
+              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            </app-hover-tooltip>
           </label>
           <input
             id="product-season"
@@ -332,7 +381,7 @@
           ariaLabel="Tracciamento inventario"
           placeholder="Standard"
           [compact]="true"
-          [fullWidth]="true"
+          [fitContent]="true"
           [includeEmptyOption]="false"
           (valueChange)="onTrackingSelect($event)"
         />
@@ -347,7 +396,13 @@
 
       <div class="general-step__field general-step__field--full">
         <label class="general-step__label" for="product-tags">
-          Tag <span class="general-step__optional">(opzionale, separati da virgola)</span>
+          Tag
+          <app-hover-tooltip
+            [inline]="true"
+            text="Campo opzionale: più tag separati da virgola (es. estate, donna, saldi)."
+          >
+            <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+          </app-hover-tooltip>
         </label>
         <input
           id="product-tags"
@@ -361,7 +416,10 @@
 
       <div class="general-step__field general-step__field--full">
         <label class="general-step__label" for="product-description">
-          Descrizione <span class="general-step__optional">(opzionale)</span>
+          Descrizione
+          <app-hover-tooltip [inline]="true" text="Campo opzionale.">
+            <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+          </app-hover-tooltip>
         </label>
         <textarea
           id="product-description"
@@ -373,7 +431,13 @@
 
       <div class="general-step__field general-step__field--full">
         <label class="general-step__label" for="product-internal-notes">
-          Note interne <span class="general-step__optional">(solo gestionale)</span>
+          Note interne
+          <app-hover-tooltip
+            [inline]="true"
+            text="Solo gestionale: mai sincronizzate con Shopify o altri canali."
+          >
+            <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+          </app-hover-tooltip>
         </label>
         <textarea
           id="product-internal-notes"
@@ -381,7 +445,6 @@
           formControlName="internalNotes"
           rows="3"
         ></textarea>
-        <p class="general-step__hint">Mai sincronizzate con Shopify o altri canali.</p>
       </div>
     }
   </div>

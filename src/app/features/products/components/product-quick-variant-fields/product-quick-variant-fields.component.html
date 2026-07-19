@@ -1,13 +1,14 @@
 <form class="quick-variant" [formGroup]="form" novalidate>
-  <p class="quick-variant__intro">
-    Prodotto con una sola variante. Lo SKU è facoltativo: lascialo vuoto, scrivilo a mano oppure
-    generane uno con "Genera SKU".
-  </p>
-
   <div class="quick-variant__grid">
     <div class="quick-variant__field">
       <label class="quick-variant__label" for="quick-variant-sku">
-        SKU <span class="quick-variant__optional">(opzionale)</span>
+        SKU
+        <app-hover-tooltip
+          [inline]="true"
+          text="Facoltativo: lascialo vuoto, scrivilo a mano oppure generane uno con “Genera SKU”."
+        >
+          <i class="pi pi-info-circle quick-variant__info" tabindex="0" aria-hidden="true"></i>
+        </app-hover-tooltip>
       </label>
       <div class="quick-variant__barcode">
         <input
@@ -42,7 +43,13 @@
 
     <div class="quick-variant__field">
       <label class="quick-variant__label" for="quick-variant-ean">
-        EAN <span class="quick-variant__optional">(opzionale)</span>
+        EAN
+        <app-hover-tooltip
+          [inline]="true"
+          text="Facoltativo: puoi generare un codice EAN-13 con “Genera”."
+        >
+          <i class="pi pi-info-circle quick-variant__info" tabindex="0" aria-hidden="true"></i>
+        </app-hover-tooltip>
       </label>
       <div class="quick-variant__barcode">
         <input
@@ -72,7 +79,7 @@
       }
     </div>
 
-    <div class="quick-variant__field">
+    <div class="quick-variant__field quick-variant__field--price">
       <label class="quick-variant__label" for="quick-variant-price">Prezzo vendita</label>
       <input
         id="quick-variant-price"
@@ -89,9 +96,15 @@
       }
     </div>
 
-    <div class="quick-variant__field">
+    <div class="quick-variant__field quick-variant__field--price">
       <label class="quick-variant__label" for="quick-variant-compare-at">
-        Prezzo barrato <span class="quick-variant__optional">(opzionale)</span>
+        Prezzo barrato
+        <app-hover-tooltip
+          [inline]="true"
+          text="Campo opzionale: prezzo pieno da mostrare barrato accanto al prezzo di vendita."
+        >
+          <i class="pi pi-info-circle quick-variant__info" tabindex="0" aria-hidden="true"></i>
+        </app-hover-tooltip>
       </label>
       <input
         id="quick-variant-compare-at"
@@ -105,9 +118,12 @@
     </div>
 
     @if (canSeeCosts()) {
-      <div class="quick-variant__field">
+      <div class="quick-variant__field quick-variant__field--price">
         <label class="quick-variant__label" for="quick-variant-cost">
-          Costo <span class="quick-variant__optional">(prezzo di acquisto)</span>
+          Costo
+          <app-hover-tooltip [inline]="true" text="Prezzo di acquisto dell'articolo.">
+            <i class="pi pi-info-circle quick-variant__info" tabindex="0" aria-hidden="true"></i>
+          </app-hover-tooltip>
         </label>
         <input
           id="quick-variant-cost"

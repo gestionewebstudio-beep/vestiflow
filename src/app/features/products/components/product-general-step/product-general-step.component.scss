@@ -40,10 +40,39 @@
   color: var(--color-text-muted);
 }
 
+// Nota su riga propria sotto il nome del campo (es. Codice articolo).
+.general-step__optional--block {
+  display: block;
+}
+
 .general-step__hint {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+// Icona info in linea col nome del campo: la descrizione vive nel tooltip.
+.general-step__label app-hover-tooltip {
+  display: inline-flex;
+  vertical-align: text-bottom;
+}
+
+.general-step__info {
+  margin-inline-start: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  cursor: help;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--color-interactive);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-interactive);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
 }
 
 .general-step__control {
@@ -84,6 +113,14 @@
   text-transform: uppercase;
 }
 
+// Categoria/Sottocategoria a testo libero: larghezza contenuta, così il campo
+// resta vicino ai vicini di riga come le select fit-content.
+.general-step__control--vocab {
+  @include bp.media-up('md') {
+    inline-size: 14rem;
+  }
+}
+
 .general-step__code-restore {
   flex-shrink: 0;
   min-block-size: var(--btn-min-height);
@@ -102,11 +139,18 @@
   border-color: var(--color-interactive);
 }
 
+// "Gestisci" allineato al nome del campo e ancorato al margine destro del
+// controllo sottostante (il campo ora è largo quanto il suo contenuto).
 .general-step__label-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--space-3);
+}
+
+// Interruzione di riga esplicita nel layout a pacchetto (solo desktop).
+.general-step__break {
+  display: none;
 }
 
 // Bottone "Gestisci" accanto a Categoria/Sottocategoria: apre la gestione
@@ -116,6 +160,7 @@
   align-items: center;
   gap: var(--space-1);
   padding: 0;
+  line-height: 1;
   font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-interactive);
@@ -213,16 +258,66 @@
 }
 
 @include bp.media-up('md') {
-  .general-step__grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
+  // Righe compatte: i campi si impacchettano da sinistra nell'ordine del
+  // template, larghi quanto il loro contenuto (i select fit-content si
+  // dimensionano da soli; gli input hanno larghezze assegnate).
+  .general-step__grid,
   .general-step__essentials {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    // Righe ben separate in verticale (chiarezza visiva), campi compatti
+    // in orizzontale.
+    gap: var(--space-8) var(--space-4);
   }
 
-  .general-step__field--full {
-    grid-column: 1 / -1;
+  .general-step__field {
+    flex: 0 0 auto;
+    max-inline-size: 100%;
+  }
+
+  .general-step__field--w3 {
+    inline-size: 12rem;
+  }
+
+  .general-step__field--w4 {
+    inline-size: 16rem;
+  }
+
+  .general-step__field--w6 {
+    inline-size: 22rem;
+  }
+
+  // Riga a larghezza piena: codice e brand crescono con peso 1, il nome
+  // prodotto con peso 2 — insieme riempiono tutto lo spazio disponibile.
+  .general-step__field--fill {
+    flex: 1 1 12rem;
+  }
+
+  .general-step__field--grow {
+    flex: 2 1 16rem;
+  }
+
+  // Spinge il campo (e i successivi sulla stessa riga) verso il margine
+  // destro: da Stato in poi il gruppo si allinea a destra.
+  .general-step__field--push-end {
+    margin-inline-start: auto;
+  }
+
+  // Respiro extra prima del campo (es. tra Categoria e Sottocategoria).
+  .general-step__field--gap-start {
+    margin-inline-start: var(--space-5);
+  }
+
+  .general-step__field--full,
+  .general-step__essentials {
+    flex: 1 0 100%;
+  }
+
+  .general-step__break {
+    display: block;
+    flex: 1 0 100%;
+    block-size: 0;
   }
 
   .general-step__details-body {

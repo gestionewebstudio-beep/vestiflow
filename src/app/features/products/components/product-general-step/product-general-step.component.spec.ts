@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ProductKind, ProductStatus } from '@core/models/product.model';
 import { InventoryTrackingMode } from '@core/models/product-catalog.model';
+import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 
 import { ProductGeneralStepComponent } from './product-general-step.component';
@@ -44,7 +45,14 @@ describe('ProductGeneralStepComponent', () => {
       providers: [{ provide: CatalogCategoryService, useValue: catalogCategoryServiceMock }],
       configureTestBed: (testBed) => {
         testBed.overrideComponent(ProductGeneralStepComponent, {
-          set: { imports: [NgTemplateOutlet, ReactiveFormsModule, SelectMenuComponent] },
+          set: {
+            imports: [
+              NgTemplateOutlet,
+              ReactiveFormsModule,
+              SelectMenuComponent,
+              HoverTooltipComponent,
+            ],
+          },
         });
       },
       componentInputs: {
@@ -68,7 +76,14 @@ describe('ProductGeneralStepComponent', () => {
       providers: [{ provide: CatalogCategoryService, useValue: catalogCategoryServiceMock }],
       configureTestBed: (testBed) => {
         testBed.overrideComponent(ProductGeneralStepComponent, {
-          set: { imports: [NgTemplateOutlet, ReactiveFormsModule, SelectMenuComponent] },
+          set: {
+            imports: [
+              NgTemplateOutlet,
+              ReactiveFormsModule,
+              SelectMenuComponent,
+              HoverTooltipComponent,
+            ],
+          },
         });
       },
       componentInputs: {

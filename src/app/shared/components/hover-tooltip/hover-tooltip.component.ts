@@ -18,12 +18,20 @@ const BUBBLE_MAX_WIDTH_PX = 352;
 @Component({
   selector: 'app-hover-tooltip',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[class.hover-tooltip-host--inline]': 'inline()',
+  },
   templateUrl: './hover-tooltip.component.html',
   styleUrl: './hover-tooltip.component.scss',
 })
 export class HoverTooltipComponent {
   readonly text = input.required<string>();
   readonly position = input<'top' | 'bottom'>('top');
+  /**
+   * In linea col testo circostante (es. icona info accanto all'etichetta di
+   * un campo): il wrapper non occupa più la riga intera.
+   */
+  readonly inline = input(false);
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
