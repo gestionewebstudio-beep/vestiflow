@@ -343,7 +343,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     : this.isSalesDdt
       ? 'DDT vendita'
       : this.isManualUnload
-        ? 'Scarichi manuali'
+        ? 'Scarico manuale giacenze'
         : 'Ordini cliente';
   protected readonly backHref = this.isRegistryDocument ? this.registryListPath : '/app/sales';
 

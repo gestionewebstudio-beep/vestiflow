@@ -73,8 +73,8 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         // Pagina dedicata (prompt Scarico manuale): elenco con «Nuovo scarico
         // manuale», eliminazione senza ripristino giacenze e stampa.
         id: 'manual-unload',
-        label: 'Scarichi manuali',
-        description: 'Scarichi operativi non legati a vendita.',
+        label: 'Scarico manuale giacenze',
+        description: 'Attenzione! Scarico diretto delle giacenze.',
         route: ['/app/documents/manual-unload'],
         icon: 'pi-minus-circle',
         available: true,

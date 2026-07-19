@@ -132,9 +132,8 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
   'manual-unload': {
     profile: 'manual-unload',
     type: DocumentType.ManualUnload,
-    pageTitle: 'Scarichi manuali',
-    pageSubtitle:
-      'Scarichi operativi non legati a vendita: la giacenza viene sottratta al salvataggio, senza movimenti; eliminando il documento le giacenze NON vengono ripristinate.',
+    pageTitle: 'Scarico manuale giacenze',
+    pageSubtitle: 'Attenzione! Scarico diretto delle giacenze.',
     createLabel: 'Nuovo scarico manuale',
     createPath: '/app/documents/manual-unload/new',
     listPath: '/app/documents/manual-unload',

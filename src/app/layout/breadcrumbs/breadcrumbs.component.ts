@@ -42,7 +42,7 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   'registrazione-fattura': 'Registrazioni fattura',
   transfer: 'Trasferimento',
   adjustment: 'Rettifica',
-  'manual-unload': 'Scarichi manuali',
+  'manual-unload': 'Scarico manuale giacenze',
   proforma: 'Proforma',
   'invoice-draft': 'Bozze fattura',
   'sales-ddt': 'DDT vendita',
