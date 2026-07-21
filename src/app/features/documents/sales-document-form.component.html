@@ -102,14 +102,19 @@
               [includeEmptyOption]="false"
               (valueChange)="onAddLinkedDdt($event)"
             />
+            <!--
+              Riusa le classi della lista causali (stessa forma: voci con
+              etichetta e bottone di rimozione) invece di introdurne di nuove:
+              lo SCSS del form è a ridosso del budget `anyComponentStyle`.
+            -->
             @if (linkedDdts().length > 0) {
-              <ul class="gr-form__chip-list">
+              <ul class="gr-form__causal-manage-list">
                 @for (ddt of linkedDdts(); track ddt.id) {
-                  <li class="gr-form__chip">
-                    <span>{{ ddt.label }}</span>
+                  <li class="gr-form__causal-manage-item">
+                    <span class="gr-form__causal-manage-label">{{ ddt.label }}</span>
                     <button
                       type="button"
-                      class="gr-form__chip-remove"
+                      class="gr-form__causal-icon-btn"
                       (click)="onRemoveLinkedDdt(ddt.id)"
                       [attr.aria-label]="'Rimuovi ' + ddt.label"
                     >
