@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import type { Observable, Subscription } from 'rxjs';
@@ -74,9 +74,29 @@ type DetailState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
+ * Tipi documento che espongono l'azione «Inviata al commercialista»
+ * (registrazione esterna). Nessun altro tipo mostra azioni di ciclo di vita
+ * fiscale: per abilitarne uno nuovo basta aggiungerlo a questo elenco.
+ */
+const EXTERNAL_REGISTRATION_DOCUMENT_TYPES: readonly DocumentType[] = [
+  DocumentType.InvoiceDraft,
+  DocumentType.Proforma,
+] as const;
+
+function supportsExternalRegistration(type: DocumentType): boolean {
+  return (EXTERNAL_REGISTRATION_DOCUMENT_TYPES as readonly string[]).includes(type);
+}
+
+/** Etichetta dell'azione e testo del dialogo di conferma (unico per tutti i tipi). */
+const EXTERNAL_REGISTRATION_LABEL = 'Inviata al commercialista';
+const EXTERNAL_REGISTRATION_MESSAGE =
+  'Segna questo documento come inviato al commercialista per la registrazione. Non modifica le giacenze.';
+
+/**
  * Dettaglio documento (smart, sola lettura). Espone le transizioni di stato
- * (conferma, stampa, invio, registrazione esterna, annullamento) con conferma
- * per le azioni sensibili. L'editing delle righe arriva negli step successivi.
+ * (conferma, annullamento, eliminazione) con dialogo per le azioni sensibili.
+ * L'unica azione di ciclo di vita fiscale è «Inviata al commercialista», e
+ * solo per i tipi in EXTERNAL_REGISTRATION_DOCUMENT_TYPES.
  */
 @Component({
   selector: 'app-document-detail',
@@ -106,12 +126,6 @@ export class DocumentDetailComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(NonNullableFormBuilder);
-
-  protected readonly registerExternalForm = this.fb.group({
-    externalDocNumber: this.fb.control('', { validators: [Validators.required] }),
-    externalDocDate: this.fb.control(''),
-    note: this.fb.control(''),
-  });
 
   protected readonly markExternallyIssuedForm = this.fb.group({
     externalDocNumber: this.fb.control(''),
@@ -291,40 +305,29 @@ export class DocumentDetailComponent {
       !isGoodsReceiptDocumentType(doc.type)
     );
   });
-  protected readonly canPrint = computed(() => {
-    const status = this.document()?.status;
-    return (
-      this.canManage() &&
-      (status === DocumentStatus.Confirmed ||
-        status === DocumentStatus.Sent ||
-        status === DocumentStatus.ExternallyRegistered)
-    );
-  });
-  protected readonly canSend = computed(() => {
-    const status = this.document()?.status;
-    return (
-      this.canManage() && (status === DocumentStatus.Confirmed || status === DocumentStatus.Printed)
-    );
-  });
+  /**
+   * «Inviata al commercialista» (registrazione esterna): unica azione di ciclo
+   * di vita fiscale esposta, e solo per i tipi in
+   * EXTERNAL_REGISTRATION_DOCUMENT_TYPES. Gli altri documenti non mostrano
+   * alcuna azione di stato (niente stampato/inviato/registrato).
+   *
+   * Per la Bozza fattura resta il prerequisito dell'emissione esterna
+   * («Segna emessa esternamente»): senza `externallyIssuedAt` il backend
+   * rifiuta la registrazione, quindi il pulsante non va offerto prima.
+   */
   protected readonly canRegisterExternal = computed(() => {
     const doc = this.document();
-    if (!this.canManage() || !doc) {
+    if (!this.canManage() || !doc || !supportsExternalRegistration(doc.type)) {
       return false;
     }
-    if (isInvoiceDraftDocumentType(doc.type)) {
-      return (
-        Boolean(doc.externallyIssuedAt) &&
-        (doc.status === DocumentStatus.Sent ||
-          doc.status === DocumentStatus.Confirmed ||
-          doc.status === DocumentStatus.Printed)
-      );
+    const registrableStatus =
+      doc.status === DocumentStatus.Confirmed ||
+      doc.status === DocumentStatus.Printed ||
+      doc.status === DocumentStatus.Sent;
+    if (!registrableStatus) {
+      return false;
     }
-    const status = doc.status;
-    return (
-      status === DocumentStatus.Confirmed ||
-      status === DocumentStatus.Printed ||
-      status === DocumentStatus.Sent
-    );
+    return isInvoiceDraftDocumentType(doc.type) ? Boolean(doc.externallyIssuedAt) : true;
   });
 
   protected readonly canMarkExternallyIssued = computed(() => {
@@ -458,25 +461,8 @@ export class DocumentDetailComponent {
     return doc != null && isPrintableDocumentType(doc.type);
   });
 
-  protected readonly sendButtonLabel = computed(() => {
-    const doc = this.document();
-    if (doc?.type === DocumentType.InvoiceDraft) {
-      return 'Inviata al commercialista';
-    }
-    return 'Segna inviato';
-  });
-
-  protected readonly isInvoiceDraftRegister = computed(() => {
-    const doc = this.document();
-    return doc != null && isInvoiceDraftDocumentType(doc.type);
-  });
-
-  protected readonly registerDialogMessage = computed(() => {
-    if (this.isInvoiceDraftRegister()) {
-      return 'Conferma la registrazione della fattura emessa esternamente nel gestionale fiscale.';
-    }
-    return 'Segna il documento come registrato esternamente (fattura/commercialista). Non modifica le giacenze.';
-  });
+  protected readonly registerButtonLabel = EXTERNAL_REGISTRATION_LABEL;
+  protected readonly registerDialogMessage = EXTERNAL_REGISTRATION_MESSAGE;
 
   protected readonly markExternallyIssuedMessage =
     'Segna la bozza fattura come emessa esternamente (gestionale fiscale o commercialista). Potrai registrarla in un secondo momento.';
@@ -640,11 +626,6 @@ export class DocumentDetailComponent {
     this.confirmDialogOpen.set(true);
   }
   protected requestRegister(): void {
-    this.registerExternalForm.reset({
-      externalDocNumber: docExternalNumber(this.document()),
-      externalDocDate: docExternalDate(this.document()),
-      note: '',
-    });
     this.registerDialogOpen.set(true);
   }
   protected requestMarkExternallyIssued(): void {
@@ -666,31 +647,14 @@ export class DocumentDetailComponent {
     this.runAction((id) => this.service.confirmDocument(id));
   }
 
-  protected printDocument(): void {
-    this.runAction((id) => this.service.markPrinted(id));
-  }
-
-  protected sendDocument(): void {
-    this.runAction((id) => this.service.markSent(id));
-  }
-
+  /**
+   * Registrazione esterna: numero e data del documento esterno restano quelli
+   * già acquisiti (per la Bozza fattura da «Segna emessa esternamente»), il
+   * dialogo è una semplice conferma.
+   */
   protected registerExternal(): void {
-    if (this.isInvoiceDraftRegister()) {
-      this.registerExternalForm.markAllAsTouched();
-      if (this.registerExternalForm.invalid) {
-        return;
-      }
-    }
     this.registerDialogOpen.set(false);
-    const raw = this.registerExternalForm.getRawValue();
-    const body = this.isInvoiceDraftRegister()
-      ? {
-          externalDocNumber: raw.externalDocNumber.trim(),
-          externalDocDate: raw.externalDocDate.trim() || undefined,
-          note: raw.note.trim() || undefined,
-        }
-      : {};
-    this.runAction((id) => this.service.registerExternal(id, body));
+    this.runAction((id) => this.service.registerExternal(id, {}));
   }
 
   protected markExternallyIssued(): void {
@@ -811,12 +775,4 @@ export class DocumentDetailComponent {
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
   }
-}
-
-function docExternalNumber(doc: DocumentRecord | null): string {
-  return doc?.externalDocNumber ?? '';
-}
-
-function docExternalDate(doc: DocumentRecord | null): string {
-  return doc?.externalDocDate ? doc.externalDocDate.slice(0, 10) : '';
 }

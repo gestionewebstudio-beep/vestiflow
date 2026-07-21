@@ -35,7 +35,7 @@ const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
  * DDT vendita, Bozze fattura): stesso layout a pannelli dell'anteprima Ordine
  * cliente, adattato ai campi specifici di ciascun tipo. Estende il dettaglio
  * documento generico per riusarne caricamento, permessi e transizioni di stato
- * (conferma, stampa, invio, conversione, annullamento) senza duplicare logica.
+ * (conferma, conversione, annullamento) senza duplicare logica.
  */
 @Component({
   selector: 'app-sales-document-detail',

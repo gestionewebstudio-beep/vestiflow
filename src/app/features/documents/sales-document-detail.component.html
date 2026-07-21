@@ -60,16 +60,6 @@
         @if (canConfirm()) {
           <app-button [disabled]="actionSaving()" (click)="requestConfirm()">Conferma</app-button>
         }
-        @if (canPrint()) {
-          <app-button variant="secondary" [disabled]="actionSaving()" (click)="printDocument()">
-            Segna stampato
-          </app-button>
-        }
-        @if (canSend()) {
-          <app-button variant="secondary" [disabled]="actionSaving()" (click)="sendDocument()">
-            {{ sendButtonLabel() }}
-          </app-button>
-        }
         @if (canMarkExternallyIssued()) {
           <app-button
             variant="secondary"
@@ -81,7 +71,7 @@
         }
         @if (canRegisterExternal()) {
           <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestRegister()">
-            Registra esternamente
+            {{ registerButtonLabel }}
           </app-button>
         }
         @if (canCancel()) {
@@ -233,47 +223,17 @@
   </form>
 </app-confirm-dialog>
 
+<!-- Conferma semplice: numero e data del documento esterno restano quelli
+     già acquisiti (Bozza fattura: «Segna emessa esternamente»). -->
 <app-confirm-dialog
   [(open)]="registerDialogOpen"
-  title="Registra esternamente"
-  [message]="registerDialogMessage()"
-  confirmLabel="Registra"
+  [title]="registerButtonLabel"
+  [message]="registerDialogMessage"
+  confirmLabel="Conferma"
+  cancelLabel="Annulla"
   [busy]="actionSaving()"
   (confirmed)="registerExternal()"
->
-  @if (isInvoiceDraftRegister()) {
-    <form class="sales-doc-detail__register-form" [formGroup]="registerExternalForm">
-      <label class="sales-doc-detail__register-field" for="register-external-number">
-        Numero fattura esterna
-        <input
-          id="register-external-number"
-          class="sales-doc-detail__register-input"
-          type="text"
-          formControlName="externalDocNumber"
-          autocomplete="off"
-        />
-      </label>
-      <label class="sales-doc-detail__register-field" for="register-external-date">
-        Data fattura esterna
-        <app-date-input
-          inputId="register-external-date"
-          formControlName="externalDocDate"
-          ariaLabel="Data fattura esterna"
-        />
-      </label>
-      <label class="sales-doc-detail__register-field" for="register-external-note">
-        Note (opzionale)
-        <input
-          id="register-external-note"
-          class="sales-doc-detail__register-input"
-          type="text"
-          formControlName="note"
-          autocomplete="off"
-        />
-      </label>
-    </form>
-  }
-</app-confirm-dialog>
+/>
 
 <app-confirm-dialog
   [(open)]="cancelDialogOpen"
