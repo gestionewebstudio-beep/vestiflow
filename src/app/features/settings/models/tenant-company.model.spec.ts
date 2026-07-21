@@ -25,6 +25,7 @@ const baseCompany = (profile: Partial<TenantCompany['profile']> = {}): TenantCom
     phone: null,
     pec: null,
     sdiCode: null,
+    iban: null,
     addressLine1: null,
     addressLine2: null,
     city: null,

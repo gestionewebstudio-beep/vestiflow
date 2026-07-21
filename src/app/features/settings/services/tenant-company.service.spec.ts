@@ -48,6 +48,7 @@ describe('TenantCompanyService (HTTP)', () => {
         phone: '+39 081 0000000',
         pec: null,
         sdiCode: null,
+        iban: null,
         addressLine1: 'Via Roma 1',
         addressLine2: null,
         city: 'Napoli',

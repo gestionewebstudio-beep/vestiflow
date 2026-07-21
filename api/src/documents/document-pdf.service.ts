@@ -14,7 +14,7 @@ import {
 } from '../common/pdf/pdf-layout.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
-import { PROFORMA_FISCAL_DISCLAIMER } from './document-type.util';
+import { PROFORMA_FISCAL_DISCLAIMER, isSalesInvoiceDocumentType } from './document-type.util';
 import { DEFAULT_PRINT_TITLE } from './document-defaults';
 import {
   documentPrintKind,
@@ -40,7 +40,10 @@ const ROME_TIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
 export class DocumentPdfService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async exportPdf(tenantId: string, document: DocumentDetail): Promise<{ buffer: Buffer; filename: string }> {
+  async exportPdf(
+    tenantId: string,
+    document: DocumentDetail,
+  ): Promise<{ buffer: Buffer; filename: string }> {
     if (!isPrintableDocumentType(document.type)) {
       throw new UnprocessableEntityException(
         'Export PDF non disponibile per questo tipo di documento.',
@@ -165,29 +168,52 @@ export class DocumentPdfService {
     y += 16;
     y = drawPdfMetaLine(doc, 'Data', formatRomeDate(document.documentDate), y);
 
+    if (isSalesInvoiceDocumentType(document.type)) {
+      y = this.renderInvoiceHeader(doc, document, y, left, contentWidth);
+    }
+
     y = this.renderContextMeta(doc, document, locations, y);
     y += 8;
 
     if (document.lines.length > 0) {
       y = drawPdfSectionTitle(doc, 'Righe documento', y);
       y = this.renderLinesTable(doc, document, currency, y, contentWidth);
-      y = drawPdfTotals(
-        doc,
-        [
-          { label: 'Imponibile', value: formatMinorAmount(document.subtotalMinor, currency) },
-          { label: 'IVA', value: formatMinorAmount(document.taxMinor, currency) },
-          {
-            label: 'Totale',
-            value: formatMinorAmount(document.totalMinor, currency),
-            bold: true,
-          },
-        ],
-        y,
+      const totalRows: Array<{ label: string; value: string; bold?: boolean }> = [
+        { label: 'Imponibile', value: formatMinorAmount(document.subtotalMinor, currency) },
+      ];
+      // Dettaglio per aliquota: aggiunge informazione solo se le righe usano
+      // aliquote diverse fra loro.
+      const vatRows = invoiceVatBreakdown(document);
+      if (isSalesInvoiceDocumentType(document.type) && vatRows.length > 1) {
+        for (const row of vatRows) {
+          totalRows.push({
+            label: `IVA ${row.ratePercent}% su ${formatMinorAmount(row.taxableMinor, currency)}`,
+            value: formatMinorAmount(row.vatMinor, currency),
+          });
+        }
+      }
+      totalRows.push(
+        { label: 'IVA', value: formatMinorAmount(document.taxMinor, currency) },
+        {
+          label: isSalesInvoiceDocumentType(document.type) ? 'Totale documento' : 'Totale',
+          value: formatMinorAmount(document.totalMinor, currency),
+          bold: true,
+        },
       );
+      y = drawPdfTotals(doc, totalRows, y);
     }
 
-    if (document.type === DocumentType.sales_ddt) {
+    // Trasporto e destinazione: DDT vendita e Fattura accompagnatoria
+    // condividono gli stessi blocchi (è la stessa merce che viaggia).
+    if (
+      document.type === DocumentType.sales_ddt ||
+      document.type === DocumentType.invoice_accompanying
+    ) {
       y = this.renderSalesDdtSections(doc, document, y, left, contentWidth);
+    }
+
+    if (isSalesInvoiceDocumentType(document.type)) {
+      y = this.renderPaymentSection(doc, document, y, left, contentWidth);
     }
 
     if (document.notes?.trim()) {
@@ -197,6 +223,79 @@ export class DocumentPdfService {
         width: contentWidth,
       });
     }
+  }
+
+  /**
+   * Testata fattura: dati del cessionario e riferimento ai DDT agganciati.
+   * Come per il DDT, si stampa solo ciò che è compilato.
+   */
+  private renderInvoiceHeader(
+    doc: PdfDocumentInstance,
+    document: DocumentDetail,
+    y: number,
+    left: number,
+    contentWidth: number,
+  ): number {
+    let next = y;
+    const recipient = formatPdfAddress(document.recipientAddress);
+    const customerName = document.customerName?.trim();
+
+    if (customerName || recipient) {
+      next += 12;
+      next = drawPdfSectionTitle(doc, 'Cliente', next);
+      if (customerName) {
+        doc.font('Helvetica-Bold').fontSize(10).text(customerName, left, next);
+        next += 14;
+      }
+      if (recipient) {
+        doc.font('Helvetica').fontSize(9).fillColor('#444444').text(recipient, left, next, {
+          width: contentWidth,
+        });
+        doc.fillColor('#000000');
+        next += 24;
+      }
+    }
+
+    const ddtRefs = document.linkedSalesDdts
+      .map((ddt) => ddt.reference)
+      .filter((reference): reference is string => Boolean(reference));
+    if (ddtRefs.length > 0) {
+      next = drawPdfMetaLine(doc, 'Riferimento DDT', ddtRefs.join(', '), next);
+    }
+    if (document.billingCause?.trim()) {
+      next = drawPdfMetaLine(doc, 'Causale', document.billingCause.trim(), next);
+    }
+    return next;
+  }
+
+  /** Dati pagamento in fattura: condizioni, scadenza e IBAN, se presenti. */
+  private renderPaymentSection(
+    doc: PdfDocumentInstance,
+    document: DocumentDetail,
+    y: number,
+    left: number,
+    contentWidth: number,
+  ): number {
+    const rows: Array<readonly [string, string]> = [];
+    if (document.paymentTerms?.trim()) {
+      rows.push(['Condizioni di pagamento', document.paymentTerms.trim()]);
+    }
+    if (document.paymentDueDate) {
+      rows.push(['Scadenza', formatRomeDate(document.paymentDueDate)]);
+    }
+    if (document.iban?.trim()) {
+      rows.push(['IBAN', document.iban.trim()]);
+    }
+    if (rows.length === 0) {
+      return y;
+    }
+
+    let next = y + 12;
+    next = drawPdfSectionTitle(doc, 'Dati pagamento', next);
+    for (const [label, value] of rows) {
+      next = drawPdfMetaLine(doc, label, value, next);
+    }
+    return next;
   }
 
   /**
@@ -223,10 +322,7 @@ export class DocumentPdfService {
       ]);
     }
     if (document.transportPort) {
-      transportRows.push([
-        'Porto',
-        document.transportPort === 'franco' ? 'Franco' : 'Assegnato',
-      ]);
+      transportRows.push(['Porto', document.transportPort === 'franco' ? 'Franco' : 'Assegnato']);
     }
     if (document.transportCarrier?.trim()) {
       transportRows.push(['Incaricato trasporto', document.transportCarrier.trim()]);
@@ -394,6 +490,31 @@ export class DocumentPdfService {
 }
 
 /** Snapshot indirizzo (JSON) → riga stampabile: campi compilati in ordine. */
+/**
+ * Quote IVA per aliquota, dallo snapshot salvato sulle righe. Legge lo
+ * snapshot e non i Codici IVA correnti: la stampa di una fattura vecchia deve
+ * restare quella di allora anche se l'aliquota è cambiata nel frattempo.
+ */
+function invoiceVatBreakdown(
+  document: DocumentDetail,
+): Array<{ ratePercent: number; taxableMinor: number; vatMinor: number }> {
+  const byRate = new Map<number, { taxableMinor: number; vatMinor: number }>();
+  for (const line of document.lines) {
+    const snapshot = (line.vatSnapshot ?? null) as { ratePercent?: number } | null;
+    const ratePercent = snapshot?.ratePercent ?? 0;
+    const entry = byRate.get(ratePercent) ?? { taxableMinor: 0, vatMinor: 0 };
+    entry.taxableMinor += line.lineTotalMinor;
+    byRate.set(ratePercent, entry);
+  }
+  return [...byRate.entries()]
+    .map(([ratePercent, entry]) => ({
+      ratePercent,
+      taxableMinor: entry.taxableMinor,
+      vatMinor: Math.round((entry.taxableMinor * ratePercent) / 100),
+    }))
+    .sort((a, b) => a.ratePercent - b.ratePercent);
+}
+
 function formatPdfAddress(value: unknown): string | null {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) {
     return null;

@@ -7,6 +7,8 @@ export interface TenantCompanyProfileDto {
   readonly phone: string | null;
   readonly pec: string | null;
   readonly sdiCode: string | null;
+  /** IBAN di incasso: precompila i dati pagamento in fattura. */
+  readonly iban: string | null;
   readonly addressLine1: string | null;
   readonly addressLine2: string | null;
   readonly city: string | null;

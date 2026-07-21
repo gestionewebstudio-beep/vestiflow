@@ -67,6 +67,8 @@ import {
   DOCUMENT_LIST_COLUMN_PRESETS,
   GOODS_RECEIPT_LIST_COLUMN_DEFS,
   GOODS_RECEIPT_LIST_COLUMN_PRESETS,
+  INVOICE_LIST_COLUMN_DEFS,
+  INVOICE_LIST_COLUMN_PRESETS,
   PURCHASE_INVOICE_LIST_COLUMN_DEFS,
   PURCHASE_INVOICE_LIST_COLUMN_PRESETS,
   QUOTE_LIST_COLUMN_DEFS,
@@ -74,7 +76,10 @@ import {
   SALES_DOCUMENT_LIST_COLUMN_DEFS,
   SALES_DOCUMENT_LIST_COLUMN_PRESETS,
 } from './models/document-table-columns.config';
-import { salesDocumentRegisterConfig } from './models/document-sales-register.config';
+import {
+  INVOICE_TYPE_FILTER_OPTIONS,
+  salesDocumentRegisterConfig,
+} from './models/document-sales-register.config';
 import type { SalesDocumentRegisterProfile } from './models/document-sales-register.config';
 import {
   DEFAULT_DOCUMENT_PAGE_SIZE,
@@ -210,11 +215,49 @@ export class DocumentListComponent {
 
   protected readonly emptyStateIcon = computed(() => this.salesRegister()?.emptyIcon ?? 'pi-file');
 
+  // ── Elenco condiviso da più tipi (Fatture) ────────────────────────────────
+  /** Opzioni del filtro «Tipo»; vuoto = elenco a tipo singolo, filtro assente. */
+  protected readonly sharedTypeOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.salesRegister()?.types ? INVOICE_TYPE_FILTER_OPTIONS : [],
+  );
+
+  protected readonly showSharedTypeFilter = computed(() => this.sharedTypeOptions().length > 0);
+
+  /**
+   * Tipo attivo nel filtro: il query param se valido per il profilo, altrimenti
+   * «Tutti» (stringa vuota). La voce hub di provenienza lo preimposta passando
+   * `?type=`, ma da qui in poi comanda la scelta dell'operatore.
+   */
+  protected readonly sharedTypeFilter = computed(() => {
+    const types = this.salesRegister()?.types;
+    const current = this.query().type;
+    return types && current && types.includes(current) ? current : '';
+  });
+
+  /**
+   * Variante di creazione attiva: segue il filtro «Tipo» così che «Nuovo …»
+   * crei il documento che l'operatore sta guardando. Su «Tutti» resta la
+   * variante predefinita del profilo (la Fattura semplice).
+   */
+  private readonly activeCreateVariant = computed(() => {
+    const sales = this.salesRegister();
+    const variants = sales?.createVariants;
+    if (!sales || !variants) {
+      return null;
+    }
+    const selected = this.sharedTypeFilter();
+    return variants.find((v) => v.type === selected) ?? variants.find((v) => v.type === sales.type);
+  });
+
+  protected readonly salesCreateLabel = computed(
+    () => this.activeCreateVariant()?.label ?? this.salesRegister()?.createLabel,
+  );
+
   protected readonly emptyStateCtaLabel = computed(() => {
     if (!this.canManageDocuments()) {
       return undefined;
     }
-    return this.salesRegister()?.createLabel ?? 'Nuovo arrivo merce';
+    return this.salesCreateLabel() ?? 'Nuovo arrivo merce';
   });
 
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
@@ -327,7 +370,8 @@ export class DocumentListComponent {
     { value: 'sales-ddt', label: 'DDT vendita' },
     { value: 'quote', label: 'Preventivo' },
     { value: 'proforma', label: 'Proforma' },
-    { value: 'invoice-draft', label: 'Bozza fattura' },
+    { value: 'invoice', label: 'Fattura' },
+    { value: 'invoice-accompanying', label: 'Fattura accompagnatoria' },
   ];
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
@@ -338,10 +382,15 @@ export class DocumentListComponent {
     const sales = this.salesRegister();
     if (sales) {
       // Pagina dedicata: il tipo è fisso dal profilo, mai dai query param.
+      // Eccezione: gli elenchi condivisi da più tipi (Fatture) espongono un
+      // filtro «Tipo» — se l'operatore ne sceglie uno vince quello, se sceglie
+      // «Tutti» si interrogano tutti i tipi del profilo.
+      const shared = sales.types;
+      const pickedType = shared?.includes(q.type as DocumentType) ? q.type : undefined;
       return {
         ...q,
-        type: sales.type,
-        types: undefined,
+        type: shared ? pickedType : sales.type,
+        types: shared && !pickedType ? [...shared] : undefined,
         customerId: sales.hideCustomerFilter ? undefined : q.customerId,
         supplierId: sales.showSupplierFilter ? q.supplierId : undefined,
         settlement: sales.showSettlementFilter ? q.settlement : undefined,
@@ -512,10 +561,11 @@ export class DocumentListComponent {
       SALES_DOCUMENT_LIST_COLUMN_DEFS,
       SALES_DOCUMENT_LIST_COLUMN_PRESETS,
     );
+    // Fatture: set con la colonna «Tipo» (elenco condiviso fra i due tipi).
     this.columnPreferences.registerView(
       TableViewId.InvoiceDraftDocumentsList,
-      SALES_DOCUMENT_LIST_COLUMN_DEFS,
-      SALES_DOCUMENT_LIST_COLUMN_PRESETS,
+      INVOICE_LIST_COLUMN_DEFS,
+      INVOICE_LIST_COLUMN_PRESETS,
     );
     this.columnPreferences.registerView(
       TableViewId.PurchaseInvoiceDocumentsList,
@@ -531,7 +581,7 @@ export class DocumentListComponent {
       proforma: this.columnPreferences.visibleColumns(TableViewId.ProformaDocumentsList),
       'sales-ddt': this.columnPreferences.visibleColumns(TableViewId.SalesDdtDocumentsList),
       'manual-unload': this.columnPreferences.visibleColumns(TableViewId.ManualUnloadDocumentsList),
-      'invoice-draft': this.columnPreferences.visibleColumns(TableViewId.InvoiceDraftDocumentsList),
+      invoice: this.columnPreferences.visibleColumns(TableViewId.InvoiceDraftDocumentsList),
       'purchase-invoice': this.columnPreferences.visibleColumns(
         TableViewId.PurchaseInvoiceDocumentsList,
       ),
@@ -640,8 +690,11 @@ export class DocumentListComponent {
       case 'proforma':
         this.openNewProforma();
         break;
-      case 'invoice-draft':
-        this.openNewInvoiceDraft();
+      case 'invoice':
+        this.openNewInvoice(DocumentType.InvoiceDraft);
+        break;
+      case 'invoice-accompanying':
+        this.openNewInvoice(DocumentType.InvoiceAccompanying);
         break;
       default:
         break;
@@ -975,16 +1028,26 @@ export class DocumentListComponent {
     void this.router.navigate(['/app/documents/quote/new']);
   }
 
-  protected openNewInvoiceDraft(): void {
-    void this.router.navigate(['/app/documents/invoice-draft/new']);
+  /** Nuova fattura del tipo scelto: le due varianti condividono il form. */
+  protected openNewInvoice(type: DocumentType): void {
+    const path =
+      type === DocumentType.InvoiceAccompanying
+        ? '/app/documents/fattura-accompagnatoria/new'
+        : '/app/documents/fattura/new';
+    void this.router.navigate([path]);
   }
 
-  /** «Nuovo …» della pagina dedicata (Preventivi, Proforma, DDT, Bozze). */
+  /** «Nuovo …» della pagina dedicata (Preventivi, Proforma, DDT, Fatture). */
   protected openNewSalesDocument(): void {
     const sales = this.salesRegister();
     if (sales) {
-      void this.router.navigateByUrl(sales.createPath);
+      void this.router.navigateByUrl(this.activeCreateVariant()?.path ?? sales.createPath);
     }
+  }
+
+  /** Cambio filtro «Tipo» sugli elenchi condivisi (Fatture). */
+  protected onSharedTypeFilterChange(value: string | null): void {
+    this.updateParams({ type: value || null, page: null });
   }
 
   /** CTA dello stato vuoto: creazione contestuale alla pagina. */

@@ -5,12 +5,15 @@ import { formatDate } from '@core/utils/date.util';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
 import { isOperationalDocumentType } from './document-operational.util';
+import { isSalesInvoiceDocumentType } from './document-sales.util';
 
 const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.SupplierOrder]: 'Ordine fornitore',
   [DocumentType.GoodsReceipt]: 'Arrivo merce',
   [DocumentType.SupplierDdt]: 'DDT fornitore',
-  [DocumentType.SupplierInvoiceAccompanying]: 'Fattura accompagnatoria',
+  // Disambiguata dall'omonima di vendita (InvoiceAccompanying): nel registro
+  // generico le due comparirebbero altrimenti con la stessa etichetta.
+  [DocumentType.SupplierInvoiceAccompanying]: 'Fattura accomp. fornitore',
   [DocumentType.SupplierInvoice]: 'Fattura fornitore',
   [DocumentType.ManualLoad]: 'Carico manuale',
   [DocumentType.InitialLoad]: 'Carico iniziale',
@@ -20,7 +23,8 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.Adjustment]: 'Rettifica',
   [DocumentType.Inventory]: 'Inventario',
   [DocumentType.Proforma]: 'Proforma',
-  [DocumentType.InvoiceDraft]: 'Bozza fattura',
+  [DocumentType.InvoiceDraft]: 'Fattura',
+  [DocumentType.InvoiceAccompanying]: 'Fattura accompagnatoria',
   [DocumentType.StoreSale]: 'Vendita negozio',
   [DocumentType.StoreReturn]: 'Reso vendita negozio',
   [DocumentType.Quote]: 'Preventivo',
@@ -58,7 +62,9 @@ export function documentStatusLabelForType(
   status: DocumentStatus,
   doc: Pick<DocumentRecord, 'externallyIssuedAt'>,
 ): string {
-  if (type === DocumentType.InvoiceDraft) {
+  // Stati fiscali condivisi da Fattura e Fattura accompagnatoria: entrambe
+  // seguono lo stesso ciclo «Da emettere → Inviata al commercialista → …».
+  if (isSalesInvoiceDocumentType(type)) {
     if (status === DocumentStatus.ExternallyRegistered) {
       return 'Registrata esternamente';
     }

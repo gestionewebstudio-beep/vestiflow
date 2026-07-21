@@ -16,11 +16,28 @@ export const INVOICE_LINKABLE_RECEIPT_TYPES: readonly DocumentType[] = [
   DocumentType.supplier_invoice_accompanying,
 ] as const;
 
-/** Tipi documento che generano scarichi di magazzino alla conferma (§2, §5). */
+/**
+ * Tipi documento che generano scarichi di magazzino alla conferma (§2, §5).
+ *
+ * La Fattura accompagnatoria è l'unico tipo condizionale dell'elenco: scarica
+ * SOLO se non ha DDT agganciati, perché con un DDT le giacenze sono già scese.
+ * La condizione non è esprimibile qui (dipende dai link del singolo
+ * documento): la verifica vive in `invoiceAccompanyingUnloadsStock`.
+ */
 export const DOCUMENT_STOCK_UNLOAD_TYPES: readonly DocumentType[] = [
   DocumentType.sales_ddt,
   DocumentType.manual_unload,
+  DocumentType.invoice_accompanying,
 ] as const;
+
+/**
+ * Fattura accompagnatoria: lo scarico avviene solo senza DDT agganciato.
+ * Con almeno un DDT il documento è puramente fiscale — un secondo scarico
+ * porterebbe le giacenze in negativo per la stessa merce.
+ */
+export function invoiceAccompanyingUnloadsStock(linkedSalesDdtCount: number): boolean {
+  return linkedSalesDdtCount === 0;
+}
 
 /** Tipi documento con rettifica inventario alla conferma (§2 adjustment). */
 export const DOCUMENT_STOCK_ADJUSTMENT_TYPES: readonly DocumentType[] = [

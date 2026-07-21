@@ -35,6 +35,7 @@ import type { Paginated } from '../common/dto/pagination.dto';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import { DocumentAttachmentsService } from './document-attachments.service';
 import { DocumentPdfService } from './document-pdf.service';
+import { DocumentXmlService } from './document-xml.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { ConvertDocumentDto } from './dto/convert-document.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
@@ -66,6 +67,7 @@ export class DocumentsController {
     private readonly documents: DocumentsService,
     private readonly attachments: DocumentAttachmentsService,
     private readonly documentPdf: DocumentPdfService,
+    private readonly documentXml: DocumentXmlService,
     private readonly goodsReceiptWorkflow: GoodsReceiptWorkflowService,
     private readonly transferAdjustmentWorkflow: TransferAdjustmentWorkflowService,
   ) {}
@@ -252,6 +254,22 @@ export class DocumentsController {
     const { buffer, filename } = await this.documentPdf.exportPdf(tenantId, document);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Get(':id/export/xml')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  @Header('Content-Type', 'application/xml')
+  async exportXml(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StreamableFile> {
+    const document = await this.documents.getById(tenantId, id, user);
+    const { xml, filename } = await this.documentXml.exportXml(tenantId, document);
+    return new StreamableFile(Buffer.from(xml, 'utf-8'), {
+      type: 'application/xml',
       disposition: `attachment; filename="${filename}"`,
     });
   }

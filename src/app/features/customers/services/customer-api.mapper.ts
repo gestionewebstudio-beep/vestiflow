@@ -26,6 +26,7 @@ export interface CustomerApiRow {
   readonly vatNumber?: string | null;
   readonly taxCode?: string | null;
   readonly pec?: string | null;
+  readonly sdiCode?: string | null;
   readonly website?: string | null;
   readonly contactName?: string | null;
   readonly customerDiscount?: string | null;
@@ -77,6 +78,7 @@ export function mapCustomerApiRow(row: CustomerApiRow): Customer {
     vatNumber: row.vatNumber ?? undefined,
     taxCode: row.taxCode ?? undefined,
     pec: row.pec ?? undefined,
+    sdiCode: row.sdiCode ?? undefined,
     website: row.website ?? undefined,
     contactName: row.contactName ?? undefined,
     customerDiscount: row.customerDiscount ?? undefined,

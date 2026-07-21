@@ -125,6 +125,17 @@
         <span class="create-client__field-label">Codice destinatario SDI (opzionale)</span>
         <input id="tenant-sdi" class="create-client__input" type="text" formControlName="sdiCode" />
       </label>
+      <label class="create-client__field" for="tenant-iban">
+        <span class="create-client__field-label">IBAN (opzionale)</span>
+        <input
+          id="tenant-iban"
+          class="create-client__input"
+          type="text"
+          formControlName="iban"
+          maxlength="34"
+          placeholder="IT60X0542811101000000123456"
+        />
+      </label>
     </div>
   </section>
 </div>

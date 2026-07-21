@@ -21,9 +21,10 @@ import {
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
+import { formatDate } from '@core/utils/date.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import { DocumentStatus, DocumentType, TransportPort } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import {
@@ -46,6 +47,8 @@ import { mergeVariantSummaries } from '@features/products/utils/variant-summary-
 import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
 import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
 import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
+import type { TenantCompany } from '@features/settings/models/tenant-company.model';
+import { TenantCompanyService } from '@features/settings/services/tenant-company.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -63,9 +66,11 @@ import {
 } from './models/document-include.util';
 import { documentTypeLabel } from './models/document-labels.util';
 import {
+  isInvoiceAccompanyingDocumentType,
   isInvoiceDraftDocumentType,
   isProformaDocumentType,
   isSalesFormDocumentType,
+  isSalesInvoiceDocumentType,
 } from './models/document-sales.util';
 import { DocumentService } from './services/document.service';
 import { pickVatCodeId, toVatCodeById } from './utils/vat-code-resolution.util';
@@ -104,6 +109,7 @@ export class SalesDocumentFormComponent {
   private readonly productService = inject(ProductService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
+  private readonly tenantCompanyService = inject(TenantCompanyService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -137,6 +143,27 @@ export class SalesDocumentFormComponent {
     isInvoiceDraftDocumentType(this.documentType()),
   );
 
+  /** Fattura o Fattura accompagnatoria: testata fiscale e dati pagamento. */
+  protected readonly isSalesInvoice = computed(() =>
+    isSalesInvoiceDocumentType(this.documentType()),
+  );
+
+  /** Solo accompagnatoria: sezioni Trasporto e Destinazione. */
+  protected readonly isInvoiceAccompanying = computed(() =>
+    isInvoiceAccompanyingDocumentType(this.documentType()),
+  );
+
+  protected readonly hasLinkedDdt = computed(() => this.linkedDdtIds().length > 0);
+
+  /**
+   * Colonna «Scarica mag.»: presente solo nella Fattura accompagnatoria e solo
+   * se non è agganciato alcun DDT. Con un DDT le giacenze sono già state
+   * scaricate da quel documento, quindi la colonna non viene renderizzata.
+   */
+  protected readonly showLoadsStockColumn = computed(
+    () => this.isInvoiceAccompanying() && !this.hasLinkedDdt(),
+  );
+
   // ── Includi documento (mappa in document-include.util): proforma e bozza
   //     fattura non includono da nessun documento. ─────────────────────────
   protected readonly includeSourceKinds = computed(() =>
@@ -145,10 +172,18 @@ export class SalesDocumentFormComponent {
   protected readonly includePanelOpen = signal(false);
   protected readonly includeLaunchSeq = signal(0);
 
-  protected readonly confirmDialogMessage = computed(
-    () =>
-      'Confermando verrà assegnato il numero progressivo. Il documento non muove il magazzino. Procedere?',
-  );
+  protected readonly confirmDialogMessage = computed(() => {
+    const base = 'Confermando verrà assegnato il numero progressivo.';
+    // L'accompagnatoria senza DDT scarica davvero le giacenze: dirlo prima
+    // della conferma, non dopo.
+    if (this.showLoadsStockColumn()) {
+      return `${base} Le righe con «Scarica mag.» attivo scaricheranno le giacenze. Procedere?`;
+    }
+    if (this.isInvoiceAccompanying()) {
+      return `${base} Le giacenze sono già state scaricate dal DDT agganciato. Procedere?`;
+    }
+    return `${base} Il documento non muove il magazzino. Procedere?`;
+  });
 
   protected readonly confirmDialogTitle = computed(() => 'Conferma documento');
 
@@ -182,8 +217,35 @@ export class SalesDocumentFormComponent {
     notes: this.fb.control(this.routeType === DocumentType.Proforma ? PROFORMA_DISCLAIMER : ''),
     internalComment: this.fb.control(''),
     documentDiscountPercent: this.fb.control(''),
+    // ── Fattura: dati pagamento in testata ──────────────────────────────
+    paymentTerms: this.fb.control(''),
+    paymentDueDate: this.fb.control(''),
+    iban: this.fb.control(''),
+    // ── Fattura accompagnatoria: trasporto (identico al DDT vendita) ────
+    transportCausal: this.fb.control(''),
+    transportStartAt: this.fb.control(''),
+    transportPort: this.fb.control(''),
+    transportCarrier: this.fb.control(''),
+    transportPackagesCount: this.fb.control(''),
+    transportWeight: this.fb.control(''),
+    transportGoodsAspect: this.fb.control(''),
+    transportShippingCode: this.fb.control(''),
+    transportTrackingCode: this.fb.control(''),
+    // ── Fattura accompagnatoria: indirizzo di destinazione ──────────────
+    destinationName: this.fb.control(''),
+    destinationAddress: this.fb.control(''),
+    destinationZip: this.fb.control(''),
+    destinationCity: this.fb.control(''),
+    destinationProvince: this.fb.control(''),
+    destinationCountry: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
   });
+
+  /** DDT agganciati («Riferimento DDT»): id selezionati, testata condivisa. */
+  protected readonly linkedDdtIds = signal<readonly string[]>([]);
+
+  /** «Cambia destinazione»: finché è false i campi restano quelli del cliente. */
+  protected readonly destinationOverridden = signal(false);
 
   // Snapshot reattivo del form: i totali stimati (lineTotals) leggono valori dai
   // FormControl, che non sono signal. Senza questa dipendenza il computed
@@ -290,6 +352,62 @@ export class SalesDocumentFormComponent {
     return (fromSettings ?? fallback)?.id ?? '';
   });
 
+  /** Dati cedente (Impostazioni negozio): precompilano l'IBAN in fattura. */
+  private readonly tenantCompany = toSignal(
+    this.tenantCompanyService.getCompany().pipe(catchError(() => of(null))),
+    { initialValue: null as TenantCompany | null },
+  );
+
+  /**
+   * DDT vendita agganciabili: quelli confermati del cliente selezionato.
+   * L'elenco si ricarica al cambio cliente — un DDT di un altro cliente non
+   * ha senso come riferimento di questa fattura.
+   */
+  private readonly selectableDdts = toSignal(
+    toObservable(computed(() => this.form.controls.customerId.value)).pipe(
+      switchMap((customerId) => {
+        if (!customerId) {
+          return of({ data: [] as readonly DocumentRecord[] });
+        }
+        return this.documentService
+          .getDocuments({
+            type: DocumentType.SalesDdt,
+            customerId,
+            page: 1,
+            pageSize: 50,
+          })
+          .pipe(catchError(() => of({ data: [] as readonly DocumentRecord[] })));
+      }),
+      map((response) => response.data),
+    ),
+    { initialValue: [] as readonly DocumentRecord[] },
+  );
+
+  protected readonly ddtOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.selectableDdts()
+      .filter((ddt) => ddt.status !== DocumentStatus.Cancelled)
+      .map((ddt) => ({
+        value: ddt.id,
+        label: `${ddt.reference ?? `Bozza ${ddt.series}`} del ${formatDate(ddt.documentDate)}`,
+      })),
+  );
+
+  /** DDT agganciati con etichetta, per i chip di riepilogo in testata. */
+  protected readonly linkedDdts = computed(() => {
+    const options = this.ddtOptions();
+    return this.linkedDdtIds().map((id) => ({
+      id,
+      label: options.find((option) => option.value === id)?.label ?? id,
+    }));
+  });
+
+  /** Porto: stesse voci del DDT vendita. */
+  protected readonly transportPortOptions: readonly SelectMenuOption[] = [
+    { value: '', label: 'Non indicato' },
+    { value: 'franco', label: 'Franco' },
+    { value: 'assegnato', label: 'Assegnato' },
+  ];
+
   protected readonly variantSearchDraft = signal('');
 
   private readonly searchedVariants = toSignal(
@@ -372,6 +490,46 @@ export class SalesDocumentFormComponent {
     };
   });
 
+  /**
+   * Dettaglio IVA per aliquota: mostrato nei totali quando le righe usano
+   * aliquote miste. Lo sconto extra documento è già applicato, come nei totali,
+   * così la somma delle quote coincide sempre con l'IVA totale.
+   */
+  protected readonly vatBreakdown = computed(() => {
+    this.formValue();
+    const docDiscount = parseEffectiveDiscountPercent(
+      this.form.controls.documentDiscountPercent.value,
+    );
+    const docMultiplier = (100 - docDiscount) / 100;
+    const byRate = new Map<number, { netMinor: number; vatMinor: number }>();
+    for (const line of this.lines.controls) {
+      const qty = Number(line.controls.quantity.value) || 0;
+      const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
+      const rate = Number(line.controls.vatRatePercent.value) || 0;
+      const gross = Math.round(qty * (price?.amountMinor ?? 0));
+      const net = Math.round(
+        applyDiscountMinor(gross, line.controls.discountPercent.value) * docMultiplier,
+      );
+      if (net === 0) {
+        continue;
+      }
+      const entry = byRate.get(rate) ?? { netMinor: 0, vatMinor: 0 };
+      entry.netMinor += net;
+      entry.vatMinor += Math.round((net * rate) / 100);
+      byRate.set(rate, entry);
+    }
+    return [...byRate.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([ratePercent, entry]) => ({
+        ratePercent,
+        net: { amountMinor: entry.netMinor, currencyCode: this.currency },
+        vat: { amountMinor: entry.vatMinor, currencyCode: this.currency },
+      }));
+  });
+
+  /** Aliquote miste: solo allora il dettaglio per aliquota aggiunge informazione. */
+  protected readonly hasMixedVatRates = computed(() => this.vatBreakdown().length > 1);
+
   constructor() {
     // Applica il Codice IVA predefinito alle righe ancora senza scelta non
     // appena i Codici IVA sono disponibili (caricamento asincrono): copre la
@@ -384,6 +542,17 @@ export class SalesDocumentFormComponent {
       for (const line of this.lines.controls) {
         this.ensureLineVatCode(line);
       }
+    });
+
+    // IBAN precompilato da Impostazioni negozio: solo in creazione e solo se
+    // l'operatore non ha già digitato il proprio. Su un documento caricato
+    // vince sempre l'IBAN salvato (snapshot storico).
+    effect(() => {
+      const iban = this.tenantCompany()?.profile.iban;
+      if (!iban || this.isEditMode() || this.form.controls.iban.value.trim()) {
+        return;
+      }
+      this.form.controls.iban.setValue(iban, { emitEvent: false });
     });
   }
 
@@ -431,7 +600,42 @@ export class SalesDocumentFormComponent {
       internalControl.setValue(commentParts.join('\n'));
     }
 
+    // Condizioni di pagamento dai tipi pagamento in VestiFlow (anagrafica).
+    const termsControl = this.form.controls.paymentTerms;
+    if (customer.paymentTerms?.trim() && !termsControl.value.trim()) {
+      termsControl.setValue(customer.paymentTerms.trim());
+    }
+
+    // Incaricato del trasporto configurato sull'anagrafica del cliente.
+    const carrierControl = this.form.controls.transportCarrier;
+    if (customer.transportResponsible?.trim() && !carrierControl.value.trim()) {
+      carrierControl.setValue(customer.transportResponsible.trim());
+    }
+
+    this.applyDestinationFromCustomer(customer);
     this.applyCustomerDocumentNote(customer);
+  }
+
+  /**
+   * Indirizzo di destinazione precompilato dall'anagrafica cliente. Non tocca
+   * nulla dopo un «Cambia destinazione»: da quel momento i campi appartengono
+   * all'operatore e un cambio cliente non deve sovrascriverli in silenzio.
+   */
+  private applyDestinationFromCustomer(customer: Customer): void {
+    if (this.destinationOverridden()) {
+      return;
+    }
+    this.form.patchValue(
+      {
+        destinationName: customerDisplayName(customer),
+        destinationAddress: customer.address?.line1 ?? '',
+        destinationZip: customer.address?.postalCode ?? '',
+        destinationCity: customer.address?.city ?? '',
+        destinationProvince: customer.address?.province ?? '',
+        destinationCountry: customer.address?.country ?? '',
+      },
+      { emitEvent: false },
+    );
   }
 
   /**
@@ -454,6 +658,23 @@ export class SalesDocumentFormComponent {
     }
   }
 
+  // ── Riferimento DDT (aggancio opzionale 1:N) ────────────────────────────
+  protected onAddLinkedDdt(value: string | null): void {
+    if (!value || this.linkedDdtIds().includes(value)) {
+      return;
+    }
+    this.linkedDdtIds.update((ids) => [...ids, value]);
+  }
+
+  protected onRemoveLinkedDdt(id: string): void {
+    this.linkedDdtIds.update((ids) => ids.filter((current) => current !== id));
+  }
+
+  /** «Cambia destinazione»: sblocca i campi precompilati dall'anagrafica. */
+  protected onChangeDestination(): void {
+    this.destinationOverridden.set(true);
+  }
+
   protected onVariantSearch(value: string): void {
     this.variantSearchDraft.set(value);
   }
@@ -464,6 +685,9 @@ export class SalesDocumentFormComponent {
     const match = this.searchedVariants().find((v) => v.variantId === variantId);
     if (match) {
       line.controls.description.setValue(match.productName);
+      // «Scarica mag.» segue il tipo articolo già esistente in VestiFlow:
+      // un Articolo scarica, un Servizio no. Resta modificabile a mano.
+      line.controls.loadsStock.setValue(match.managesStock !== false, { emitEvent: false });
       line.controls.unitPrice.setValue(moneyToDecimalString(match.sellingPrice).replace('.', ','));
       // Precedenza Codice IVA (§Piano IVA fase 3): articolo → aliquota legacy
       // già presente (reverse-match) → predefinito aziendale.
@@ -702,6 +926,41 @@ export class SalesDocumentFormComponent {
       billingCause: raw.billingCause.trim() || undefined,
       externalRef: raw.relatedDdtRef.trim() || undefined,
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
+      ...(this.isSalesInvoice()
+        ? {
+            paymentTerms: raw.paymentTerms.trim() || undefined,
+            paymentDueDate: raw.paymentDueDate
+              ? new Date(raw.paymentDueDate).toISOString()
+              : undefined,
+            iban: raw.iban.trim() || undefined,
+            linkedSalesDdtIds: [...this.linkedDdtIds()],
+          }
+        : {}),
+      ...(this.isInvoiceAccompanying()
+        ? {
+            transportCausal: raw.transportCausal.trim() || undefined,
+            transportStartAt: raw.transportStartAt
+              ? new Date(raw.transportStartAt).toISOString()
+              : undefined,
+            transportPort: (raw.transportPort as TransportPort) || undefined,
+            transportCarrier: raw.transportCarrier.trim() || undefined,
+            transportPackagesCount: raw.transportPackagesCount
+              ? Number(raw.transportPackagesCount)
+              : undefined,
+            transportWeight: raw.transportWeight.trim() || undefined,
+            transportGoodsAspect: raw.transportGoodsAspect.trim() || undefined,
+            transportShippingCode: raw.transportShippingCode.trim() || undefined,
+            transportTrackingCode: raw.transportTrackingCode.trim() || undefined,
+            destinationAddress: {
+              name: raw.destinationName.trim() || undefined,
+              address: raw.destinationAddress.trim() || undefined,
+              zip: raw.destinationZip.trim() || undefined,
+              city: raw.destinationCity.trim() || undefined,
+              province: raw.destinationProvince.trim() || undefined,
+              country: raw.destinationCountry.trim() || undefined,
+            },
+          }
+        : {}),
       lines: raw.lines
         .filter((line) => line.description.trim() || line.variantId)
         .map((line) => {
@@ -714,8 +973,10 @@ export class SalesDocumentFormComponent {
             vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
             vatCodeId: line.vatCodeId || undefined,
             discountPercent: parseEffectiveDiscountPercent(line.discountPercent),
-            // Proforma e bozza fattura non movimentano mai il magazzino.
-            loadsStock: false,
+            // Proforma e Fattura non movimentano mai il magazzino. La Fattura
+            // accompagnatoria lo fa solo senza DDT agganciato: con un DDT le
+            // giacenze sono già scese, quindi le righe non devono scaricare.
+            loadsStock: this.showLoadsStockColumn() ? line.loadsStock : false,
           };
         }),
     };
@@ -757,7 +1018,31 @@ export class SalesDocumentFormComponent {
         doc.documentDiscountPercent && doc.documentDiscountPercent > 0
           ? String(doc.documentDiscountPercent)
           : '',
+      paymentTerms: doc.paymentTerms ?? '',
+      paymentDueDate: doc.paymentDueDate?.slice(0, 10) ?? '',
+      iban: doc.iban ?? '',
+      transportCausal: doc.transportCausal ?? '',
+      // datetime-local vuole «YYYY-MM-DDTHH:mm», senza secondi né fuso.
+      transportStartAt: doc.transportStartAt?.slice(0, 16) ?? '',
+      transportPort: doc.transportPort ?? '',
+      transportCarrier: doc.transportCarrier ?? '',
+      transportPackagesCount:
+        doc.transportPackagesCount != null ? String(doc.transportPackagesCount) : '',
+      transportWeight: doc.transportWeight ?? '',
+      transportGoodsAspect: doc.transportGoodsAspect ?? '',
+      transportShippingCode: doc.transportShippingCode ?? '',
+      transportTrackingCode: doc.transportTrackingCode ?? '',
+      destinationName: doc.destinationAddress?.name ?? '',
+      destinationAddress: doc.destinationAddress?.address ?? '',
+      destinationZip: doc.destinationAddress?.zip ?? '',
+      destinationCity: doc.destinationAddress?.city ?? '',
+      destinationProvince: doc.destinationAddress?.province ?? '',
+      destinationCountry: doc.destinationAddress?.country ?? '',
     });
+    this.linkedDdtIds.set((doc.linkedSalesDdts ?? []).map((ddt) => ddt.id));
+    // Una destinazione già salvata è per definizione quella voluta: il
+    // pulsante «Cambia destinazione» parte quindi già in modalità modifica.
+    this.destinationOverridden.set(Boolean(doc.destinationAddress?.address));
     if (doc.customerId) {
       const customer = this.customers().find((c) => c.id === doc.customerId) ?? null;
       this.selectedCustomer.set(customer);
@@ -777,6 +1062,7 @@ export class SalesDocumentFormComponent {
           discountPercent: this.fb.control(
             line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
           ),
+          loadsStock: this.fb.control(line.loadsStock),
         }),
       );
     }
@@ -796,6 +1082,9 @@ export class SalesDocumentFormComponent {
       vatRatePercent: this.fb.control('22'),
       vatCodeId: this.fb.control(''),
       discountPercent: this.fb.control(''),
+      // «Scarica mag.»: il default segue il tipo articolo già in VestiFlow
+      // (Articolo scarica, Servizio no). Righe senza variante non muovono nulla.
+      loadsStock: this.fb.control(false),
     });
   }
 

@@ -10,6 +10,7 @@ import { OperationalLocationsService } from '@core/services/operational-location
 import { VatCodeService } from '@core/services/vat-code.service';
 import { CustomerService } from '@features/customers/services/customer.service';
 import { ProductService } from '@features/products/services/product.service';
+import { TenantCompanyService } from '@features/settings/services/tenant-company.service';
 import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
 
 import { SalesDocumentFormComponent } from './sales-document-form.component';
@@ -53,10 +54,14 @@ describe('SalesDocumentFormComponent', () => {
         { provide: ProductService, useValue: { searchVariantSummaries: () => of([]) } },
         { provide: VatCodeService, useValue: { list: () => of([]) } },
         { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
+        // Dati cedente: alimentano l'IBAN precompilato in fattura.
+        { provide: TenantCompanyService, useValue: { getCompany: () => of(null) } },
         {
           provide: DocumentService,
           useValue: {
             getDocumentById: vi.fn(),
+            // DDT agganciabili in fattura (mai richiesti senza cliente).
+            getDocuments: () => of({ data: [], page: 1, pageSize: 50, total: 0 }),
             createDocument: vi.fn(),
             updateDocument: vi.fn(),
             confirmDocument: vi.fn(),

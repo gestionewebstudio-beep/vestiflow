@@ -122,6 +122,24 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   @IsISO8601()
   expectedDeliveryDate?: string | null;
 
+  /** Scadenza pagamento (Fattura). */
+  @IsOptional()
+  @IsISO8601()
+  paymentDueDate?: string | null;
+
+  /** IBAN di incasso: precompilato da Impostazioni, modificabile qui. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(34)
+  iban?: string | null;
+
+  /** DDT vendita agganciati: sostituisce integralmente i link esistenti. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID('4', { each: true })
+  linkedSalesDdtIds?: string[];
+
   /** "Seguirà doc. di vendita" (DDT vendita, prompt DDT §TESTATA). */
   @IsOptional()
   @IsBoolean()

@@ -27,6 +27,8 @@ export interface Customer extends TenantScoped, Timestamped {
   readonly vatNumber?: string;
   readonly taxCode?: string;
   readonly pec?: string;
+  /** Codice destinatario SDI: dove il commercialista trasmette la fattura. */
+  readonly sdiCode?: string;
   readonly website?: string;
   readonly contactName?: string;
   readonly customerDiscount?: string;
@@ -67,6 +69,8 @@ export interface CustomerInput {
   readonly vatNumber?: string;
   readonly taxCode?: string;
   readonly pec?: string;
+  /** Codice destinatario SDI: dove il commercialista trasmette la fattura. */
+  readonly sdiCode?: string;
   readonly website?: string;
   readonly contactName?: string;
   readonly code?: string;

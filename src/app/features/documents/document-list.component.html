@@ -14,10 +14,11 @@
     </div>
     @if (canManageDocuments()) {
       <div class="doc-list__actions">
-        @if (salesRegister(); as sales) {
+        @if (salesRegister()) {
+          <!-- Elenchi condivisi (Fatture): l'etichetta segue il filtro «Tipo». -->
           <app-button (click)="openNewSalesDocument()">
             <i class="pi pi-plus" aria-hidden="true"></i>
-            {{ sales.createLabel }}
+            {{ salesCreateLabel() }}
           </app-button>
         } @else if (isGoodsReceiptList()) {
           <app-button (click)="openNewGoodsReceipt()">
@@ -105,6 +106,26 @@
       </div>
 
       @if (salesRegister(); as sales) {
+        <!--
+          Filtro «Tipo» degli elenchi condivisi (Fatture): preimpostato dalla
+          voce hub di provenienza ma sempre modificabile, «Tutti» incluso.
+        -->
+        @if (showSharedTypeFilter()) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Tipo"
+              [options]="sharedTypeOptions()"
+              [value]="sharedTypeFilter()"
+              ariaLabel="Filtra per tipo di fattura"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onSharedTypeFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
         @if (sales.statusOptions; as salesStatusOptions) {
           <div class="doc-list__field">
             <app-select-menu

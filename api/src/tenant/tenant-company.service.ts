@@ -41,6 +41,7 @@ export class TenantCompanyService {
         phone: tenant.phone,
         pec: tenant.pec,
         sdiCode: tenant.sdiCode,
+        iban: tenant.iban,
         addressLine1: tenant.addressLine1,
         addressLine2: tenant.addressLine2,
         city: tenant.city,

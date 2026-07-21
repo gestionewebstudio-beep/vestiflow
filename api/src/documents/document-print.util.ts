@@ -4,6 +4,7 @@ import { DocumentType } from '@prisma/client';
 export const PRINTABLE_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
   DocumentType.invoice_draft,
+  DocumentType.invoice_accompanying,
   DocumentType.sales_ddt,
   DocumentType.quote,
   DocumentType.transfer,
@@ -26,6 +27,7 @@ const SALES_TYPES: readonly DocumentType[] = [
   DocumentType.sales_ddt,
   DocumentType.proforma,
   DocumentType.invoice_draft,
+  DocumentType.invoice_accompanying,
   DocumentType.quote,
   // Scarico manuale: layout vendita (Cliente + righe con prezzi/totali).
   DocumentType.manual_unload,

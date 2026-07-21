@@ -26,6 +26,7 @@ type PartyWriteData = {
   taxCode?: string | null;
   email?: string | null;
   pec?: string | null;
+  sdiCode?: string | null;
   phone?: string | null;
   website?: string | null;
   contactName?: string | null;
@@ -388,6 +389,7 @@ export class CustomersService {
     assign('taxCode', dto.taxCode);
     assign('email', dto.email);
     assign('pec', dto.pec);
+    assign('sdiCode', dto.sdiCode);
     assign('phone', dto.phone);
     assign('website', dto.website);
     assign('contactName', dto.contactName);

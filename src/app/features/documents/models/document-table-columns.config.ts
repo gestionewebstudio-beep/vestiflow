@@ -40,8 +40,9 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 
 /**
  * Colonne delle liste dedicate ai documenti di vendita (Preventivi, Proforma,
- * DDT vendita, Bozze fattura): niente colonna "Tipo" — la pagina è già
- * dedicata a un solo tipo — e controparte etichettata "Cliente".
+ * DDT vendita): niente colonna "Tipo" — la pagina è già dedicata a un solo
+ * tipo — e controparte etichettata "Cliente". Le Fatture fanno eccezione e
+ * usano INVOICE_LIST_COLUMN_DEFS, perché condividono un elenco fra due tipi.
  */
 export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
@@ -66,6 +67,45 @@ export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'counterparty', 'total'],
   [TableViewPresetId.Analysis]: ['documentDate', 'status', 'lineCount', 'total'],
   [TableViewPresetId.Operational]: ['documentDate', 'reference', 'status', 'counterparty'],
+};
+
+/**
+ * Fatture: unica lista di vendita con la colonna "Tipo", perché l'elenco è
+ * condiviso da Fattura e Fattura accompagnatoria (numeratore unico). La
+ * colonna sta subito dopo il Numero, dove l'operatore la cerca leggendo la riga.
+ */
+export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
+  { id: 'reference', label: 'Numero', defaultVisible: true },
+  { id: 'type', label: 'Tipo', defaultVisible: true },
+  { id: 'counterparty', label: 'Cliente', defaultVisible: true },
+  { id: 'status', label: 'Stato', defaultVisible: true },
+  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
+  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+] as const;
+
+export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
+  [TableViewPresetId.Default]: [
+    'documentDate',
+    'reference',
+    'type',
+    'counterparty',
+    'status',
+    'lineCount',
+    'total',
+  ],
+  [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'type', 'counterparty', 'lineCount'],
+  [TableViewPresetId.Accountant]: [
+    'documentDate',
+    'reference',
+    'type',
+    'counterparty',
+    'status',
+    'total',
+  ],
+  [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'type', 'counterparty', 'total'],
+  [TableViewPresetId.Analysis]: ['documentDate', 'type', 'status', 'lineCount', 'total'],
+  [TableViewPresetId.Operational]: ['documentDate', 'reference', 'type', 'status', 'counterparty'],
 };
 
 /** Preventivi: nessun ciclo di stato documento — la colonna "Stato" non esiste. */
