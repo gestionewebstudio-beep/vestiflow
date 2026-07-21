@@ -47,6 +47,9 @@ const NON_STOCK_SUMMARY = {
   variantId: 'var-nostock',
   productId: 'prod-nostock',
   sku: 'SRV-1',
+  // I mapper garantiscono sempre una stringa (`?? ''`): la colonna
+  // «Cod. articolo» la legge dal form control senza fallback.
+  articleCode: '00099',
   productName: 'Servizio sartoria',
   title: 'Servizio sartoria',
   barcode: undefined,

@@ -11,15 +11,9 @@ export const GOODS_RECEIPT_LINES_VIEW = TableViewId.GoodsReceiptLines;
 // — l'IVA porta due cifre, non le serve piu' di 72px; SKU/EAN devono invece
 // respirare. Con `table-layout: fixed` attivo questi default sono rispettati.
 export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
-  // Identificatore anagrafico interno (§Codice articolo): colonna
-  // selezionabile, non mostrata di default.
-  {
-    id: 'articleCode',
-    label: 'Codice articolo',
-    defaultVisible: false,
-    defaultWidthPx: 96,
-    minWidthPx: 64,
-  },
+  // Identificatore anagrafico interno (§Codice articolo): funzione primaria di
+  // ricerca articolo nei documenti, quindi visibile di default.
+  { id: 'articleCode', label: 'Cod. articolo', defaultWidthPx: 96, minWidthPx: 64 },
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
   {
@@ -114,6 +108,7 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
 
 export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Default]: [
+    'articleCode',
     'sku',
     'barcode',
     'product',
@@ -128,6 +123,7 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
     'actions',
   ],
   [PresetId.Warehouse]: [
+    'articleCode',
     'sku',
     'barcode',
     'product',
@@ -157,6 +153,7 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Accountant]: ['sku', 'product', 'quantity', 'unitCost', 'vat', 'lineTotal'],
   [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitCost', 'lineTotal'],
   [PresetId.Operational]: [
+    'articleCode',
     'sku',
     'barcode',
     'product',

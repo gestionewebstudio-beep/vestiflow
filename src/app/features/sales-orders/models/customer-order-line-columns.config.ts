@@ -10,15 +10,9 @@ export const CUSTOMER_ORDER_LINES_VIEW = TableViewId.CustomerOrderLines;
 // Stesse larghezze "per contenuto" della tabella righe Arrivo merce (v4):
 // SKU/EAN respirano, quantità e IVA restano strette, il nome prodotto domina.
 export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
-  // Identificatore anagrafico interno (§Codice articolo): colonna
-  // selezionabile, non mostrata di default.
-  {
-    id: 'articleCode',
-    label: 'Codice articolo',
-    defaultVisible: false,
-    defaultWidthPx: 96,
-    minWidthPx: 64,
-  },
+  // Identificatore anagrafico interno (§Codice articolo): funzione primaria di
+  // ricerca articolo nei documenti, quindi visibile di default.
+  { id: 'articleCode', label: 'Cod. articolo', defaultWidthPx: 96, minWidthPx: 64 },
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
   { id: 'product', label: 'Nome prodotto', defaultWidthPx: 300, minWidthPx: 160 },
@@ -59,7 +53,7 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
 ];
 
 // I preset partono dalle colonne visibili di default: quelle opzionali
-// (defaultVisible: false, es. Codice articolo) restano selezionabili a mano.
+// (defaultVisible: false, es. Costo d'acquisto) restano selezionabili a mano.
 const ALL_COLUMN_IDS = CUSTOMER_ORDER_LINE_COLUMNS.filter(
   (column) => column.defaultVisible !== false,
 ).map((column) => column.id);
@@ -67,6 +61,7 @@ const ALL_COLUMN_IDS = CUSTOMER_ORDER_LINE_COLUMNS.filter(
 export const CUSTOMER_ORDER_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Default]: ALL_COLUMN_IDS,
   [PresetId.Warehouse]: [
+    'articleCode',
     'sku',
     'barcode',
     'product',
@@ -121,6 +116,7 @@ const SALES_DDT_ALL_COLUMN_IDS = SALES_DDT_LINE_COLUMNS.filter(
 export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Default]: SALES_DDT_ALL_COLUMN_IDS,
   [PresetId.Warehouse]: [
+    'articleCode',
     'sku',
     'barcode',
     'product',
@@ -161,6 +157,7 @@ const MANUAL_UNLOAD_ALL_COLUMN_IDS = MANUAL_UNLOAD_LINE_COLUMNS.filter(
 export const MANUAL_UNLOAD_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Default]: MANUAL_UNLOAD_ALL_COLUMN_IDS,
   [PresetId.Warehouse]: [
+    'articleCode',
     'sku',
     'barcode',
     'product',
@@ -201,7 +198,15 @@ const QUOTE_ALL_COLUMN_IDS = QUOTE_LINE_COLUMNS.filter(
 
 export const QUOTE_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Default]: QUOTE_ALL_COLUMN_IDS,
-  [PresetId.Warehouse]: ['sku', 'barcode', 'product', 'quantity', 'unitOfMeasure', 'actions'],
+  [PresetId.Warehouse]: [
+    'articleCode',
+    'sku',
+    'barcode',
+    'product',
+    'quantity',
+    'unitOfMeasure',
+    'actions',
+  ],
   [PresetId.Accountant]: [
     'sku',
     'product',
