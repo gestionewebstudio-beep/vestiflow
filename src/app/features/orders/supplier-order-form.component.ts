@@ -23,6 +23,8 @@ import {
 import type { Subscription } from 'rxjs';
 
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
+import { AuthService } from '@core/auth';
+import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
@@ -118,6 +120,7 @@ function todayIsoDate(): string {
   styleUrl: './supplier-order-form.component.scss',
 })
 export class SupplierOrderFormComponent implements CanComponentDeactivate {
+  private readonly authService = inject(AuthService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly orderService = inject(SupplierOrderService);
   private readonly supplierService = inject(SupplierService);
@@ -277,9 +280,18 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly VariantSummary[] },
   );
 
+  /**
+   * Costo d'acquisto nel selettore articolo (dato sensibile §permessi): senza
+   * "Visualizza costi d'acquisto" non viene mostrato.
+   */
+  private readonly canSeeCosts = computed(() =>
+    canViewPurchaseCosts(this.authService.currentUser()),
+  );
+
   protected readonly variantOptions = computed(() =>
     toVariantSelectMenuOptions(
       mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()),
+      { canSeeCosts: this.canSeeCosts() },
     ),
   );
 

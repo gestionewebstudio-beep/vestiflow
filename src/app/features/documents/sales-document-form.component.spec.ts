@@ -1,4 +1,5 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { AuthService } from '@core/auth';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
@@ -33,6 +34,8 @@ describe('SalesDocumentFormComponent', () => {
   async function setup() {
     await render(SalesDocumentFormComponent, {
       providers: [
+        // Nessun permesso costi: il selettore articolo non deve mostrare il costo.
+        { provide: AuthService, useValue: { currentUser: () => null } },
         provideRouter([]),
         {
           provide: ActivatedRoute,

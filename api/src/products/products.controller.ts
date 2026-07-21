@@ -37,6 +37,8 @@ import {
 } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { GenerateSkuDto } from './dto/generate-sku.dto';
@@ -119,13 +121,17 @@ export class ProductsController {
     return this.products.getFacets(tenantId);
   }
 
+  // L'utente serve al service per decidere se includere il costo d'acquisto
+  // nella risposta (dato sensibile §permessi): il filtro è server-side, non
+  // una semplice omissione nella UI.
   @Get('variants/summaries')
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   listVariantSummaries(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListVariantSummariesQueryDto,
   ) {
-    return this.products.listVariantSummaries(tenantId, query);
+    return this.products.listVariantSummaries(tenantId, query, user);
   }
 
   @Get('sku-availability')

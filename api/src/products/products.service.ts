@@ -15,6 +15,8 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { canViewPurchaseCosts } from '../auth/user-permissions.util';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { buildInventoryVariantSearchWhere } from '../inventory/inventory-variant-search.util';
 import { buildVariantTitle } from '../inventory/import/inventory-csv.util';
@@ -208,11 +210,23 @@ export class ProductsService {
     };
   }
 
-  /** Vista leggera varianti per select/report (paginata, ricerca server-side). */
+  /**
+   * Vista leggera varianti per select/report (paginata, ricerca server-side).
+   *
+   * `purchasePrice` è un dato sensibile (§permessi): viene incluso solo per
+   * chi ha "Visualizza costi d'acquisto". Il filtro sta qui e non nella UI
+   * perché il costo, se serializzato, resterebbe leggibile nella risposta HTTP
+   * anche quando l'interfaccia non lo mostra.
+   *
+   * `user` è opzionale per non rompere i chiamanti interni; quando è assente
+   * il costo NON viene esposto (default prudente).
+   */
   async listVariantSummaries(
     tenantId: string,
     query: ListVariantSummariesQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<VariantSummaryDto>> {
+    const showPurchaseCosts = canViewPurchaseCosts(user);
     const search = query.search?.trim();
     const where: Prisma.ProductVariantWhereInput = {
       tenantId,
@@ -306,7 +320,10 @@ export class ProductsService {
         : levels.length > 0
           ? levels.reduce((sum, level) => sum + level.minThreshold, 0)
           : null;
-      const purchaseMinor = supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null;
+      // Senza permesso il costo non entra proprio nella risposta.
+      const purchaseMinor = showPurchaseCosts
+        ? (supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null)
+        : null;
       return {
         variantId: row.id,
         productId: row.productId,

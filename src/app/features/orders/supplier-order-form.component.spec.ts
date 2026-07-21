@@ -1,4 +1,5 @@
 import { provideRouter } from '@angular/router';
+import { AuthService } from '@core/auth';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
@@ -71,6 +72,8 @@ describe('SupplierOrderFormComponent', () => {
 
     const { fixture } = await render(SupplierOrderFormComponent, {
       providers: [
+        // Nessun permesso costi: il selettore articolo non deve mostrare il costo.
+        { provide: AuthService, useValue: { currentUser: () => null } },
         // Catch-all: il test «ritorno alla lista» naviga davvero verso /app/orders.
         provideRouter([{ path: '**', children: [] }]),
         {

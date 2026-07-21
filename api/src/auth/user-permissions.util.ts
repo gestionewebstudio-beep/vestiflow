@@ -4,6 +4,7 @@ import type { UserProfileDto } from './dto/user-profile.dto';
 import {
   ALL_TENANT_PERMISSIONS,
   ROLE_DEFAULT_PERMISSIONS,
+  TenantPermission,
   type TenantPermissionKey,
   isTenantPermissionKey,
 } from './tenant-permission.constants';
@@ -42,6 +43,18 @@ export function hasTenantPermission(
   permission: TenantPermissionKey,
 ): boolean {
   return resolveEffectivePermissions(user).includes(permission);
+}
+
+/**
+ * Costo d'acquisto (dato sensibile §permessi): stessa regola del frontend
+ * (`canViewPurchaseCosts`), applicata però alla RISPOSTA dell'API — nascondere
+ * il campo solo nella UI lo lascerebbe leggibile nel traffico di rete.
+ */
+export function canViewPurchaseCosts(user: PermissionUser | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasTenantPermission(user, TenantPermission.CatalogViewPurchaseCosts);
 }
 
 export function hasAnyTenantPermission(

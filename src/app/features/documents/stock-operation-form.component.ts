@@ -21,6 +21,8 @@ import {
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
+import { AuthService } from '@core/auth';
+import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { AdjustmentDirection, DocumentStatus, DocumentType } from '@core/models/document.model';
@@ -71,6 +73,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
   styleUrl: './goods-receipt-form.component.scss',
 })
 export class StockOperationFormComponent {
+  private readonly authService = inject(AuthService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
   private readonly productService = inject(ProductService);
@@ -247,9 +250,18 @@ export class StockOperationFormComponent {
     { initialValue: [] as readonly VariantSummary[] },
   );
 
+  /**
+   * Costo d'acquisto nel selettore articolo (dato sensibile §permessi): senza
+   * "Visualizza costi d'acquisto" non viene mostrato.
+   */
+  private readonly canSeeCosts = computed(() =>
+    canViewPurchaseCosts(this.authService.currentUser()),
+  );
+
   protected readonly variantOptions = computed(() =>
     toVariantSelectMenuOptions(
       mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()),
+      { canSeeCosts: this.canSeeCosts() },
     ),
   );
 

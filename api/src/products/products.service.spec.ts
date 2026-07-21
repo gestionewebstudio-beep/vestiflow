@@ -14,6 +14,31 @@ import { ProductsService } from './products.service';
 describe('ProductsService', () => {
   const tenantId = 'tenant-1';
 
+  // Utenti per i controlli sul costo d'acquisto (dato sensibile §permessi).
+  const userWithCosts = {
+    role: 'owner',
+    permissions: [],
+    supportSession: false,
+  } as never;
+  const userWithoutCosts = {
+    role: 'staff',
+    permissions: ['catalog.view'],
+    supportSession: false,
+  } as never;
+
+  // Riga variante con costo valorizzato, per i test di visibilità.
+  const variantRowWithCost = {
+    id: 'var-1',
+    productId: 'prod-1',
+    sku: 'SKU-1',
+    barcode: '8001234567890',
+    optionValues: [{ name: 'Taglia', value: 'M' }],
+    currency: 'EUR',
+    sellingPriceMinor: 1990,
+    purchasePriceMinor: 990,
+    product: { name: 'Maglietta' },
+  } as never;
+
   function createService() {
     const prisma = {
       product: {
@@ -442,10 +467,11 @@ describe('ProductsService', () => {
     ]);
     prisma.productVariant.count.mockResolvedValue(1);
 
-    const result = await service.listVariantSummaries(tenantId, {
-      page: 1,
-      pageSize: 20,
-    } as never);
+    const result = await service.listVariantSummaries(
+      tenantId,
+      { page: 1, pageSize: 20 } as never,
+      userWithCosts,
+    );
 
     expect(result.total).toBe(1);
     expect(result.items[0]).toMatchObject({
@@ -459,6 +485,41 @@ describe('ProductsService', () => {
     const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: { tenantId: string } })
       .where;
     expect(where.tenantId).toBe(tenantId);
+  });
+
+  // Costo d'acquisto = dato sensibile (§permessi). Il filtro deve stare qui,
+  // lato server: nasconderlo solo nella UI lo lascerebbe leggibile nella
+  // risposta HTTP a chiunque sappia aprire gli strumenti di rete.
+  it('listVariantSummaries omette il costo per chi non ha il permesso costi', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findMany.mockResolvedValue([variantRowWithCost]);
+    prisma.productVariant.count.mockResolvedValue(1);
+
+    const result = await service.listVariantSummaries(
+      tenantId,
+      { page: 1, pageSize: 20 } as never,
+      userWithoutCosts,
+    );
+
+    expect(result.items[0]?.purchasePrice).toBeNull();
+    // Il resto della riga deve restare intatto: si nasconde il costo, non la variante.
+    expect(result.items[0]).toMatchObject({
+      variantId: 'var-1',
+      sellingPrice: { amountMinor: 1990, currencyCode: 'EUR' },
+    });
+  });
+
+  it('listVariantSummaries omette il costo senza utente nel chiamante', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findMany.mockResolvedValue([variantRowWithCost]);
+    prisma.productVariant.count.mockResolvedValue(1);
+
+    const result = await service.listVariantSummaries(tenantId, {
+      page: 1,
+      pageSize: 20,
+    } as never);
+
+    expect(result.items[0]?.purchasePrice).toBeNull();
   });
 
   it('listVariantSummaries applica ricerca e filtro variantId', async () => {
