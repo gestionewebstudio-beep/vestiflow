@@ -13,7 +13,7 @@ import type { DetailFact } from '@shared/components/detail-facts/detail-facts.co
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { storeSalePaymentMethodLabel } from '@features/store-sales/models/store-sale-payment.util';
+import { storeSalePaymentMethodLabelWithNote } from '@features/store-sales/models/store-sale-payment.util';
 
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
@@ -129,9 +129,13 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
     if (doc.paymentMethod) {
       // La cassa salva il codice grezzo (`cash`/`card`/`other`), i DDT lo
       // snapshot già leggibile della voce normativa: solo il primo va tradotto.
+      // «Altro» mostra in coda l'eventuale descrizione libera.
       facts.push(
         isStoreFlowDocumentType(doc.type)
-          ? { label: 'Metodo pagamento', value: storeSalePaymentMethodLabel(doc.paymentMethod) }
+          ? {
+              label: 'Metodo pagamento',
+              value: storeSalePaymentMethodLabelWithNote(doc.paymentMethod, doc.paymentMethodNote),
+            }
           : { label: 'Modalità di pagamento', value: doc.paymentMethod },
       );
     }

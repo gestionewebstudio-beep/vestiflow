@@ -1792,6 +1792,9 @@ model Document {
   externallyIssuedAt DateTime?     @map("externally_issued_at")
   /// Modalità di pagamento (Vendita in negozio, fase 3 §7): cash/card/other.
   paymentMethod     String?        @map("payment_method")
+  /// Descrizione libera quando paymentMethod = 'other' (Vendita in negozio):
+  /// es. «Assegno», «Bonifico». Mostrata accanto ad «Altro» in elenco/dettaglio.
+  paymentMethodNote String?        @map("payment_method_note")
   /// Condizioni di pagamento in testata (Preventivo: campo «Pagamento»,
   /// stesso snapshot testo dell'Ordine cliente manuale).
   paymentTerms      String?        @map("payment_terms")

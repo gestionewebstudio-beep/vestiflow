@@ -34,6 +34,8 @@ export interface StoreSaleLineInput {
 export interface CreateStoreSalePayload {
   readonly locationId: EntityId;
   readonly paymentMethod: StoreSalePaymentMethod;
+  /** Testo libero quando paymentMethod = 'other' (es. «Assegno»). */
+  readonly paymentMethodNote?: string;
   readonly customerId?: EntityId;
   readonly notes?: string;
   readonly lines: readonly StoreSaleLineInput[];

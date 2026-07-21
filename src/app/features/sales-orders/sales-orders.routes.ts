@@ -66,8 +66,11 @@ export const salesOrdersRoutes: Routes = [
   },
   {
     path: 'register',
-    title: 'VestiFlow · Vendita negozio',
+    title: 'VestiFlow · Vendita/Reso in negozio',
     canActivate: [retailSalesRegisterGuard],
+    // Uscita con carrello/reso in corso: conferma a tre scelte (salva, esci,
+    // annulla) delegata al componente tramite CanComponentDeactivate.
+    canDeactivate: [unsavedChangesGuard],
     // Fase 3 §7: cassa a carrello (sostituisce lo scan singolo per il negozio).
     loadComponent: () =>
       import('@features/store-sales/store-sale-register.component').then(

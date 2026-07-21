@@ -113,6 +113,7 @@ export interface DocumentApiRow {
   readonly billingCause?: string | null;
   readonly paymentTerms?: string | null;
   readonly paymentMethod?: string | null;
+  readonly paymentMethodNote?: string | null;
   readonly expectedDeliveryDate?: IsoDateString | null;
   readonly followedBySalesDoc?: boolean | null;
   readonly transportCausal?: string | null;
@@ -317,6 +318,7 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     billingCause: row.billingCause ?? undefined,
     paymentTerms: row.paymentTerms ?? undefined,
     paymentMethod: row.paymentMethod ?? undefined,
+    paymentMethodNote: row.paymentMethodNote ?? undefined,
     expectedDeliveryDate: row.expectedDeliveryDate ?? undefined,
     followedBySalesDoc: row.followedBySalesDoc ?? undefined,
     transportCausal: row.transportCausal ?? undefined,

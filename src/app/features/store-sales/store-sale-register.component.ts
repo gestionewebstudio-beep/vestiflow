@@ -17,8 +17,10 @@ import type { Subscription } from 'rxjs';
 import { catchError, map, of, switchMap, take } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
+import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import type { Money } from '@core/models/money.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
@@ -33,6 +35,8 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import { CustomerService } from '@features/customers/services/customer.service';
+import { GoodsReceiptProductSearchPanelComponent } from '@features/documents/components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
 import type { ProductEmbeddedCreatePrefill } from '@features/products/models/product-form.mapper';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
 import { ProductFormComponent } from '@features/products/product-form.component';
@@ -115,14 +119,16 @@ function looksLikeBarcode(code: string): boolean {
     SelectMenuComponent,
     SlidePanelComponent,
     ProductFormComponent,
+    GoodsReceiptProductSearchPanelComponent,
   ],
   templateUrl: './store-sale-register.component.html',
   styleUrl: './store-sale-register.component.scss',
 })
-export class StoreSaleRegisterComponent {
+export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private readonly service = inject(StoreSalesService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly productService = inject(ProductService);
+  private readonly customerService = inject(CustomerService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
   private readonly vatCodeService = inject(VatCodeService);
@@ -192,6 +198,22 @@ export class StoreSaleRegisterComponent {
     }
   });
 
+  // ── Cliente (opzionale, per fidelizzazione) ─────────────────────────────
+
+  private readonly customers = toSignal(
+    this.customerService.getAllCustomers().pipe(catchError(() => of([] as readonly Customer[]))),
+    { initialValue: [] as readonly Customer[] },
+  );
+
+  protected readonly customerOptions = computed((): readonly SelectMenuOption[] =>
+    this.customers().map((customer) => ({
+      value: customer.id,
+      label: customerDisplayName(customer),
+    })),
+  );
+
+  protected readonly selectedCustomerId = signal<EntityId | null>(null);
+
   // ── Vendita: ricerca articolo e carrello ────────────────────────────────
 
   protected readonly searchDraft = signal('');
@@ -210,8 +232,17 @@ export class StoreSaleRegisterComponent {
   /** AudioContext lazy per il beep di errore scansione (nessun file audio). */
   private audioContext: AudioContext | null = null;
 
+  // ── Ricerca articolo con il pannello condiviso degli altri documenti ────
+
+  protected readonly searchPanelOpen = signal(false);
+  protected readonly searchPanelLaunchTerm = signal('');
+  /** Incrementato a ogni apertura: reinizializza la query del pannello. */
+  protected readonly searchPanelLaunchSeq = signal(0);
+
   protected readonly cart = signal<readonly CartLine[]>([]);
   protected readonly paymentMethod = signal<StoreSalePaymentMethod>('cash');
+  /** Testo libero quando il metodo è «Altro» (es. «Assegno», «Bonifico»). */
+  protected readonly paymentOtherText = signal('');
   protected readonly saleNotes = signal('');
   protected readonly salePending = signal(false);
   protected readonly saleError = signal<string | null>(null);
@@ -271,6 +302,21 @@ export class StoreSaleRegisterComponent {
       !this.returnPending(),
   );
 
+  // ── Uscita con operazione in corso (guard) ──────────────────────────────
+
+  /** Lavoro non salvato: carrello di vendita pieno o reso con quantità inserite. */
+  protected readonly hasPendingWork = computed(() =>
+    this.mode() === 'sale' ? this.cart().length > 0 : this.returnableQuantity() > 0,
+  );
+
+  /** «Salva e concludi» abilitato solo se l'operazione attiva è concludibile. */
+  protected readonly canSaveAndClose = computed(() =>
+    this.mode() === 'sale' ? this.canConcludeSale() : this.canConcludeReturn(),
+  );
+
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+
   // takeUntilDestroyed() gestisce l'unsubscribe; i campi evitano subscription "ignorate".
   private lookupSubscription: Subscription | null = null;
   private quickAddSubscription: Subscription | null = null;
@@ -316,6 +362,10 @@ export class StoreSaleRegisterComponent {
     this.unresolvedCode.set(null);
   }
 
+  protected onCustomerChange(value: string | null): void {
+    this.selectedCustomerId.set(value || null);
+  }
+
   // ── Vendita: ricerca ─────────────────────────────────────────────────────
 
   protected onSearchInput(event: Event): void {
@@ -337,6 +387,27 @@ export class StoreSaleRegisterComponent {
     this.lookupResults.set(null);
     this.searchDraft.set('');
     this.focusSearchInput();
+  }
+
+  // ── Ricerca articolo: pannello condiviso (come gli altri documenti) ──────
+
+  /** «Cerca»: apre il pannello di ricerca articolo comune ai documenti. */
+  protected openProductSearchPanel(): void {
+    this.searchPanelLaunchTerm.set(this.searchDraft().trim());
+    this.searchPanelLaunchSeq.update((seq) => seq + 1);
+    this.searchPanelOpen.set(true);
+  }
+
+  protected closeProductSearchPanel(): void {
+    this.searchPanelOpen.set(false);
+    this.focusSearchInput();
+  }
+
+  /** Variante scelta dal pannello: risolta come articolo di carrello e aggiunta. */
+  protected onVariantSelectedFromSearch(event: { readonly variantId: string }): void {
+    this.searchPanelOpen.set(false);
+    this.searchDraft.set('');
+    this.addVariantToCartById(event.variantId);
   }
 
   /**
@@ -439,6 +510,8 @@ export class StoreSaleRegisterComponent {
       };
       return [...lines, next];
     });
+    // Conferma sonora: l'operatore sa che l'articolo è entrato senza guardare.
+    this.playSuccessBeep();
   }
 
   // ── EAN non trovato: azioni di recupero ──────────────────────────────────
@@ -473,7 +546,7 @@ export class StoreSaleRegisterComponent {
   protected onProductCreatedFromPanel(event: { readonly variantId: string }): void {
     this.productPanelOpen.set(false);
     this.productPanelPrefill.set(null);
-    this.addCreatedVariantToCart(event.variantId);
+    this.addVariantToCartById(event.variantId);
   }
 
   /** «Salva senza aggiungere»: prodotto creato ma non aggiunto al carrello. */
@@ -482,11 +555,12 @@ export class StoreSaleRegisterComponent {
   }
 
   /**
-   * Carica i dati di carrello della variante creata: lookup cassa per
-   * barcode/SKU (prezzo, IVA risolta e disponibilità alla location) con
-   * fallback sul riepilogo variante (articolo nuovo: disponibilità 0).
+   * Carica i dati di carrello di una variante per id (creata al volo o scelta
+   * dal pannello di ricerca): lookup cassa per barcode/SKU (prezzo, IVA
+   * risolta e disponibilità alla location) con fallback sul riepilogo
+   * variante (articolo nuovo: disponibilità 0).
    */
-  private addCreatedVariantToCart(variantId: string): void {
+  private addVariantToCartById(variantId: string): void {
     const locationId = this.selectedLocationId();
     this.quickAddPending.set(true);
     this.quickAddSubscription = this.productService
@@ -562,10 +636,29 @@ export class StoreSaleRegisterComponent {
   }
 
   /**
-   * Beep di errore via Web Audio API: oscillatore ~200ms, nessun file audio.
-   * AudioContext creato lazy al primo errore; l'audio mancante non blocca.
+   * Beep di errore via Web Audio API: onda quadra grave ~200ms. Timbro netto
+   * e "negativo", distinto dal beep di conferma. AudioContext lazy.
    */
   private playErrorBeep(): void {
+    this.playBeep({ type: 'square', frequency: 220, gain: 0.08, durationSec: 0.2 });
+  }
+
+  /**
+   * Beep di conferma articolo aggiunto: onda sinusoidale acuta e breve,
+   * chiaramente diversa dal beep di errore così l'operatore distingue i due
+   * esiti senza guardare lo schermo.
+   */
+  private playSuccessBeep(): void {
+    this.playBeep({ type: 'sine', frequency: 880, gain: 0.06, durationSec: 0.09 });
+  }
+
+  /** Genera un tono via Web Audio API; l'audio mancante non blocca la cassa. */
+  private playBeep(options: {
+    type: OscillatorType;
+    frequency: number;
+    gain: number;
+    durationSec: number;
+  }): void {
     try {
       const AudioContextCtor =
         window.AudioContext ??
@@ -580,16 +673,16 @@ export class StoreSaleRegisterComponent {
       }
       const oscillator = context.createOscillator();
       const gain = context.createGain();
-      oscillator.type = 'square';
-      oscillator.frequency.value = 220;
-      gain.gain.value = 0.08;
+      oscillator.type = options.type;
+      oscillator.frequency.value = options.frequency;
+      gain.gain.value = options.gain;
       oscillator.connect(gain);
       gain.connect(context.destination);
       const now = context.currentTime;
       oscillator.start(now);
-      oscillator.stop(now + 0.2);
+      oscillator.stop(now + options.durationSec);
     } catch {
-      // Audio non disponibile (permessi/ambiente): resta il messaggio a video.
+      // Audio non disponibile (permessi/ambiente): resta il feedback a video.
     }
   }
 
@@ -685,6 +778,10 @@ export class StoreSaleRegisterComponent {
     }
   }
 
+  protected onPaymentOtherInput(event: Event): void {
+    this.paymentOtherText.set((event.target as HTMLInputElement).value);
+  }
+
   protected onSaleNotesInput(event: Event): void {
     this.saleNotes.set((event.target as HTMLTextAreaElement).value);
   }
@@ -710,17 +807,21 @@ export class StoreSaleRegisterComponent {
     );
   });
 
-  protected concludeSale(): void {
+  protected concludeSale(onDone?: () => void): void {
     const locationId = this.selectedLocationId();
     if (!locationId || this.salePending()) {
       return;
     }
+    const method = this.paymentMethod();
     this.salePending.set(true);
     this.saleError.set(null);
     this.saleSubscription = this.service
       .createSale({
         locationId,
-        paymentMethod: this.paymentMethod(),
+        paymentMethod: method,
+        paymentMethodNote:
+          method === 'other' ? this.paymentOtherText().trim() || undefined : undefined,
+        customerId: this.selectedCustomerId() ?? undefined,
         notes: this.saleNotes().trim() || undefined,
         lines: this.cart().map((line) => ({
           variantId: line.variantId,
@@ -738,7 +839,10 @@ export class StoreSaleRegisterComponent {
           this.lastSaleResult.set(result);
           this.cart.set([]);
           this.saleNotes.set('');
+          this.paymentOtherText.set('');
+          this.selectedCustomerId.set(null);
           this.focusSearchInput();
+          onDone?.();
         },
         error: (err: unknown) => {
           this.salePending.set(false);
@@ -851,7 +955,7 @@ export class StoreSaleRegisterComponent {
     );
   });
 
-  protected concludeReturn(): void {
+  protected concludeReturn(onDone?: () => void): void {
     const locationId = this.selectedLocationId();
     const sale = this.selectedSale();
     if (!locationId || this.returnPending()) {
@@ -886,6 +990,7 @@ export class StoreSaleRegisterComponent {
           this.lastReturnResult.set(result);
           this.clearSelectedSale();
           this.loadRecentSales();
+          onDone?.();
         },
         error: (err: unknown) => {
           this.returnPending.set(false);
@@ -893,6 +998,59 @@ export class StoreSaleRegisterComponent {
           this.returnError.set(this.errorMessage(err));
         },
       });
+  }
+
+  // ── Uscita con operazione in corso ───────────────────────────────────────
+
+  /**
+   * Guard di route: con lavoro in corso (carrello o reso) chiede conferma con
+   * tre scelte. Risolve la Promise quando l'operatore decide.
+   */
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.hasPendingWork()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  /** «Annulla»: resta sulla schermata. */
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  /** «Esci senza salvare»: svuota il lavoro in corso e procede. */
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.cart.set([]);
+    this.clearSelectedSale();
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
+  }
+
+  /**
+   * «Salva e chiudi»: conclude l'operazione attiva e, solo a salvataggio
+   * riuscito, lascia proseguire la navigazione. Su errore resta sulla
+   * schermata col messaggio già mostrato dal flusso di conclusione.
+   */
+  protected confirmExitSaveAndClose(): void {
+    if (!this.canSaveAndClose()) {
+      return;
+    }
+    const done = (): void => {
+      this.exitDialogOpen.set(false);
+      this.pendingDeactivate?.(true);
+      this.pendingDeactivate = null;
+    };
+    if (this.mode() === 'sale') {
+      this.concludeSale(done);
+    } else {
+      this.concludeReturn(done);
+    }
   }
 
   // ── Utils ────────────────────────────────────────────────────────────────

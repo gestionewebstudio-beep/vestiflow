@@ -51,6 +51,16 @@ export class CreateStoreSaleDto {
   @IsIn(STORE_SALE_PAYMENT_METHODS)
   paymentMethod!: StoreSalePaymentMethod;
 
+  /**
+   * Descrizione libera quando paymentMethod = 'other' (es. «Assegno»). Il
+   * codice resta 'other' per il filtro dell'elenco; questo testo si mostra
+   * accanto ad «Altro». Ignorato per cash/card.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  paymentMethodNote?: string;
+
   /** Cliente opzionale: la vendita immediata non lo richiede (§7). */
   @IsOptional()
   @IsUUID()

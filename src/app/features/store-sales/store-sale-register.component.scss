@@ -8,6 +8,25 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  padding: var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-lg);
+  // Cambio modalità visibile con la coda dell'occhio: cornice + fondo tenue.
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base);
+}
+
+// Verde tenue per la Vendita, arancione tenue per il Reso: l'operatore capisce
+// la modalità attiva senza cercarla.
+.pos--sale {
+  border-color: var(--status-success-border);
+  background-color: var(--status-success-bg);
+}
+
+.pos--return {
+  border-color: var(--status-warning-border);
+  background-color: var(--status-warning-bg);
 }
 
 .pos__header {
@@ -59,7 +78,19 @@
   }
 }
 
-.pos__location {
+.pos__context-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  @include bp.media-up('md') {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+}
+
+.pos__location,
+.pos__customer {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -79,15 +110,19 @@
   display: flex;
   gap: var(--space-1);
   padding: var(--space-1);
-  background-color: var(--color-surface-sunken);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
 .pos__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   min-block-size: var(--btn-min-height);
-  padding-inline: var(--space-4);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
+  padding-inline: var(--space-5);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
   background: none;
   border: none;
@@ -95,10 +130,18 @@
   cursor: pointer;
 }
 
-.pos__tab--active {
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+// Stato attivo colorato per modalità: la scelta corrente è inequivocabile
+// anche a colpo d'occhio, coerente con il tint dell'intera schermata.
+.pos__tab--sale.pos__tab--active {
+  color: var(--status-success-fg);
+  background-color: var(--status-success-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--status-success-border);
+}
+
+.pos__tab--return.pos__tab--active {
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--status-warning-border);
 }
 
 .pos__panel {
@@ -182,6 +225,13 @@
   border-color: var(--color-interactive);
   outline: none;
   box-shadow: var(--field-focus-ring);
+}
+
+// Campo di scansione: protagonista della zona centrale, alto e leggibile.
+.pos__input--scan {
+  block-size: var(--space-12);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
 }
 
 .pos__textarea {
@@ -455,6 +505,28 @@
   }
 }
 
+// Barra sticky in fondo: totale e conclusione sempre visibili mentre il
+// carrello scorre, così l'operatore legge il totale sparando l'ultimo pezzo.
+.pos__sticky-bar {
+  position: sticky;
+  inset-block-end: var(--space-3);
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+
+  @include bp.media-up('md') {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
 .pos__total-row {
   display: flex;
   align-items: baseline;
@@ -530,4 +602,55 @@
   font-size: var(--text-sm);
   color: var(--color-text);
   cursor: pointer;
+}
+
+// ── Dialog di uscita con operazione in corso ────────────────────────────────
+
+.pos__exit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background-color: var(--color-backdrop);
+}
+
+.pos__exit-dialog {
+  position: fixed;
+  z-index: var(--z-modal);
+  inset-inline: 50%;
+  inset-block-start: 50%;
+  translate: -50% -50%;
+  inline-size: min(calc(var(--content-narrow) + var(--space-8)), calc(100% - var(--space-6)));
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.pos__exit-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.pos__exit-message {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.pos__exit-error {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  line-height: var(--leading-normal);
+}
+
+.pos__exit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }

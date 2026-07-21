@@ -1,7 +1,11 @@
-<section class="pos">
+<section
+  class="pos"
+  [class.pos--sale]="mode() === 'sale'"
+  [class.pos--return]="mode() === 'return'"
+>
   <header class="pos__header">
     <div class="pos__heading">
-      <h1 class="pos__title">Vendita negozio</h1>
+      <h1 class="pos__title">Vendita/Reso in negozio</h1>
       <p class="pos__subtitle">
         Cassa interna non fiscale: lo scontrino viene emesso sulla cassa esterna. Alla conclusione
         la giacenza e la disponibilità vengono scaricate; l'impegnata resta invariata.
@@ -11,45 +15,64 @@
   </header>
 
   <div class="pos__context">
-    <div class="pos__location">
-      <span class="pos__label">Location negozio</span>
-      @if (isFixedSingleStore() && fixedLocationLabel(); as label) {
-        <span class="pos__location-fixed" title="Sede operativa assegnata">
-          <i class="pi pi-shop" aria-hidden="true"></i>
-          {{ label }}
-        </span>
-      } @else {
+    <div class="pos__context-fields">
+      <div class="pos__location">
+        <span class="pos__label">Location negozio</span>
+        @if (isFixedSingleStore() && fixedLocationLabel(); as label) {
+          <span class="pos__location-fixed" title="Sede operativa assegnata">
+            <i class="pi pi-shop" aria-hidden="true"></i>
+            {{ label }}
+          </span>
+        } @else {
+          <app-select-menu
+            [options]="locationOptions()"
+            [value]="selectedLocationId() ?? ''"
+            ariaLabel="Location negozio"
+            placeholder="Seleziona location"
+            [fullWidth]="true"
+            (valueChange)="onLocationChange($event)"
+          />
+        }
+      </div>
+
+      <div class="pos__customer">
+        <span class="pos__label">Cliente (facoltativo)</span>
         <app-select-menu
-          [options]="locationOptions()"
-          [value]="selectedLocationId() ?? ''"
-          ariaLabel="Location negozio"
-          placeholder="Seleziona location"
+          [options]="customerOptions()"
+          [value]="selectedCustomerId() ?? ''"
+          ariaLabel="Cliente"
+          placeholder="Nessun cliente"
           [fullWidth]="true"
-          (valueChange)="onLocationChange($event)"
+          [searchable]="true"
+          searchPlaceholder="Cerca cliente…"
+          searchAriaLabel="Cerca cliente"
+          (valueChange)="onCustomerChange($event)"
         />
-      }
+      </div>
     </div>
 
     <div class="pos__tabs" role="tablist" aria-label="Operazione di cassa">
       <button
         type="button"
-        class="pos__tab"
+        class="pos__tab pos__tab--sale"
         role="tab"
         [class.pos__tab--active]="mode() === 'sale'"
         [attr.aria-selected]="mode() === 'sale'"
         (click)="setMode('sale')"
       >
+        <i class="pi pi-shopping-cart" aria-hidden="true"></i>
         Vendita
       </button>
       <button
         type="button"
-        class="pos__tab"
+        class="pos__tab pos__tab--return"
         role="tab"
         [class.pos__tab--active]="mode() === 'return'"
         [attr.aria-selected]="mode() === 'return'"
         (click)="setMode('return')"
       >
-        Reso vendita negozio
+        <i class="pi pi-replay" aria-hidden="true"></i>
+        Reso
       </button>
     </div>
   </div>
@@ -65,7 +88,7 @@
           <input
             #searchInput
             id="pos-search"
-            class="pos__input"
+            class="pos__input pos__input--scan"
             type="text"
             autocomplete="off"
             spellcheck="false"
@@ -79,7 +102,14 @@
           @if (barcodeScannerEnabled) {
             <app-barcode-scanner label="Scansiona barcode" (scanned)="onBarcodeScanned($event)" />
           }
-          <app-button type="submit" [loading]="lookupPending()" [disabled]="lookupPending()">
+          <app-button
+            type="button"
+            variant="secondary"
+            [loading]="lookupPending()"
+            [disabled]="lookupPending()"
+            (click)="openProductSearchPanel()"
+          >
+            <i class="pi pi-search" aria-hidden="true"></i>
             Cerca
           </app-button>
         </div>
@@ -91,7 +121,9 @@
 
       @if (unresolvedCode()) {
         <div class="pos__notfound-actions" role="group" aria-label="Articolo non trovato: azioni">
-          <app-button variant="secondary" (click)="focusManualSearch()">Cerca articolo</app-button>
+          <app-button variant="secondary" (click)="openProductSearchPanel()">
+            Cerca articolo
+          </app-button>
           <app-button [loading]="quickAddPending()" (click)="openQuickProductCreate()">
             Crea articolo rapido
           </app-button>
@@ -256,6 +288,21 @@
                 (valueChange)="onPaymentMethodChange($event)"
               />
             </div>
+            @if (paymentMethod() === 'other') {
+              <label class="pos__field pos__field--grow" for="pos-payment-other">
+                <span class="pos__label">Dettaglio pagamento (facoltativo)</span>
+                <input
+                  id="pos-payment-other"
+                  class="pos__input"
+                  type="text"
+                  maxlength="100"
+                  autocomplete="off"
+                  placeholder="Es. Assegno, Bonifico…"
+                  [value]="paymentOtherText()"
+                  (input)="onPaymentOtherInput($event)"
+                />
+              </label>
+            }
             <label class="pos__field pos__field--grow" for="pos-sale-notes">
               <span class="pos__label">Note (facoltative)</span>
               <textarea
@@ -267,19 +314,6 @@
               ></textarea>
             </label>
           </div>
-
-          <div class="pos__total-row">
-            <span class="pos__total-label">Totale</span>
-            <span class="pos__total-value tabular-nums">{{ money(cartTotalMinor()) }}</span>
-          </div>
-
-          <app-button
-            [disabled]="!canConcludeSale()"
-            [loading]="salePending()"
-            (click)="openSaleConfirm()"
-          >
-            Concludi vendita
-          </app-button>
         </div>
       }
 
@@ -303,6 +337,24 @@
         </div>
       }
     </section>
+
+    <!-- Totale sticky: sempre visibile mentre il carrello scorre, così
+         l'operatore può leggere il totale al cliente sparando l'ultimo pezzo. -->
+    @if (cart().length > 0) {
+      <div class="pos__sticky-bar">
+        <div class="pos__total-row">
+          <span class="pos__total-label">Totale</span>
+          <span class="pos__total-value tabular-nums">{{ money(cartTotalMinor()) }}</span>
+        </div>
+        <app-button
+          [disabled]="!canConcludeSale()"
+          [loading]="salePending()"
+          (click)="openSaleConfirm()"
+        >
+          Concludi vendita
+        </app-button>
+      </div>
+    }
 
     <app-confirm-dialog
       title="Concludi vendita"
@@ -424,21 +476,6 @@
               ></textarea>
             </label>
           </div>
-
-          <div class="pos__total-row">
-            <span class="pos__total-label">Articoli da rendere</span>
-            <span class="pos__total-value tabular-nums">
-              {{ returnableQuantity() }} (in giacenza: {{ restockQuantity() }})
-            </span>
-          </div>
-
-          <app-button
-            [disabled]="!canConcludeReturn()"
-            [loading]="returnPending()"
-            (click)="openReturnConfirm()"
-          >
-            Registra reso
-          </app-button>
         </div>
       } @else {
         <form class="pos__search-form" (submit)="onRecentSearchSubmit($event)">
@@ -506,6 +543,24 @@
       }
     </section>
 
+    @if (selectedSale() && returnableQuantity() > 0) {
+      <div class="pos__sticky-bar">
+        <div class="pos__total-row">
+          <span class="pos__total-label">Articoli da rendere</span>
+          <span class="pos__total-value tabular-nums">
+            {{ returnableQuantity() }} (in giacenza: {{ restockQuantity() }})
+          </span>
+        </div>
+        <app-button
+          [disabled]="!canConcludeReturn()"
+          [loading]="returnPending()"
+          (click)="openReturnConfirm()"
+        >
+          Registra reso
+        </app-button>
+      </div>
+    }
+
     <app-confirm-dialog
       title="Registra reso"
       [message]="returnConfirmMessage()"
@@ -515,4 +570,69 @@
       (confirmed)="concludeReturn()"
     />
   }
+
+  <!-- Ricerca articolo condivisa con gli altri documenti VestiFlow. -->
+  <app-slide-panel
+    [open]="searchPanelOpen()"
+    title="Cerca prodotto"
+    size="narrow"
+    (closed)="closeProductSearchPanel()"
+  >
+    @if (searchPanelOpen()) {
+      <app-goods-receipt-product-search-panel
+        [launchTerm]="searchPanelLaunchTerm()"
+        [launchSeq]="searchPanelLaunchSeq()"
+        [locationId]="selectedLocationId()"
+        (variantSelected)="onVariantSelectedFromSearch($event)"
+        (dismissed)="closeProductSearchPanel()"
+      />
+    }
+  </app-slide-panel>
 </section>
+
+<!-- Uscita con operazione in corso: tre scelte esplicite (guard di route). -->
+@if (exitDialogOpen()) {
+  <div class="pos__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
+  <div class="pos__exit-dialog" role="dialog" aria-modal="true" aria-labelledby="pos-exit-title">
+    <h2 id="pos-exit-title" class="pos__exit-title">Operazione in corso</h2>
+    <p class="pos__exit-message">
+      @if (mode() === 'sale') {
+        Hai una vendita in corso con articoli nel carrello. Cosa vuoi fare?
+      } @else {
+        Hai un reso in corso non ancora registrato. Cosa vuoi fare?
+      }
+    </p>
+    @if (saleError(); as message) {
+      <p class="pos__exit-error" role="alert">{{ message }}</p>
+    }
+    @if (returnError(); as message) {
+      <p class="pos__exit-error" role="alert">{{ message }}</p>
+    }
+    <div class="pos__exit-actions">
+      <app-button
+        type="button"
+        variant="ghost"
+        [disabled]="salePending() || returnPending()"
+        (click)="cancelExitDialog()"
+      >
+        Annulla
+      </app-button>
+      <app-button
+        type="button"
+        variant="secondary"
+        [disabled]="salePending() || returnPending()"
+        (click)="confirmExitWithoutSaving()"
+      >
+        Esci senza salvare
+      </app-button>
+      <app-button
+        type="button"
+        [loading]="salePending() || returnPending()"
+        [disabled]="!canSaveAndClose() || salePending() || returnPending()"
+        (click)="confirmExitSaveAndClose()"
+      >
+        {{ mode() === 'sale' ? 'Salva e chiudi' : 'Registra e chiudi' }}
+      </app-button>
+    </div>
+  </div>
+}

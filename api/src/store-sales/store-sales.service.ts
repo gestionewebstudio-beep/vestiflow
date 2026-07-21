@@ -160,6 +160,9 @@ export class StoreSalesService {
           customerName,
           locationId: dto.locationId,
           paymentMethod: dto.paymentMethod,
+          // Testo libero solo per «Altro»: per cash/card resta null.
+          paymentMethodNote:
+            dto.paymentMethod === 'other' ? dto.paymentMethodNote?.trim() || null : null,
           currency: 'EUR',
           subtotalMinor: totalMinor - taxMinor,
           taxMinor,

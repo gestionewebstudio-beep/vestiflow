@@ -97,6 +97,7 @@ describe('StoreSaleRegisterComponent', () => {
   async function setup(options?: {
     readonly variantIdByCode?: string | null;
     readonly lookupItems?: readonly StoreSaleLookupItem[];
+    readonly createSale?: ReturnType<typeof vi.fn>;
   }) {
     const variantId = options?.variantIdByCode;
     const findVariantByCode = vi.fn(() =>
@@ -124,7 +125,7 @@ describe('StoreSaleRegisterComponent', () => {
       return of([]);
     });
 
-    await render(StoreSaleRegisterComponent, {
+    const rendered = await render(StoreSaleRegisterComponent, {
       providers: [
         provideRouter([]),
         {
@@ -140,7 +141,7 @@ describe('StoreSaleRegisterComponent', () => {
           provide: StoreSalesService,
           useValue: {
             lookupItems,
-            createSale: vi.fn(),
+            createSale: options?.createSale ?? vi.fn(),
             createReturn: vi.fn(),
             getRecentSales: vi.fn(() => of([])),
           },
@@ -176,7 +177,13 @@ describe('StoreSaleRegisterComponent', () => {
       ],
     });
 
-    return { findVariantByCode, lookupItems, createProduct, getProductVariants };
+    return {
+      findVariantByCode,
+      lookupItems,
+      createProduct,
+      getProductVariants,
+      fixture: rendered.fixture,
+    };
   }
 
   async function scan(code: string) {
@@ -272,5 +279,60 @@ describe('StoreSaleRegisterComponent', () => {
     const qty = screen.getByLabelText<HTMLInputElement>(/^Quantità/);
     expect(qty.value).toBe('1');
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('conclude vendita con metodo «Altro»: invia il codice other e la nota libera', async () => {
+    const createSale = vi.fn(() =>
+      of({
+        id: 'doc-1',
+        reference: 'VN-2026-0001',
+        documentDate: '2026-07-22',
+        totalMinor: 1990,
+        currency: 'EUR',
+        lines: [],
+      }),
+    );
+    const { fixture } = await setup({
+      variantIdByCode: 'var-1',
+      lookupItems: [ITEM],
+      createSale,
+    });
+    await scan(EAN);
+
+    // Metodo «Altro» con descrizione libera: il codice resta 'other' (il filtro
+    // dell'elenco continua a funzionare) e il testo viaggia in paymentMethodNote.
+    const component = fixture.componentInstance as unknown as {
+      paymentMethod: { set(value: string): void };
+      paymentOtherText: { set(value: string): void };
+      concludeSale(): void;
+    };
+    component.paymentMethod.set('other');
+    component.paymentOtherText.set('Assegno');
+    component.concludeSale();
+
+    expect(createSale).toHaveBeenCalledTimes(1);
+    expect(createSale).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentMethod: 'other', paymentMethodNote: 'Assegno' }),
+    );
+  });
+
+  it('guard di uscita: consente a carrello vuoto, chiede conferma con lavoro in corso', async () => {
+    const { fixture } = await setup({ variantIdByCode: 'var-1', lookupItems: [ITEM] });
+    const component = fixture.componentInstance as unknown as {
+      canDeactivate(): boolean | Promise<boolean>;
+      confirmExitWithoutSaving(): void;
+      cart: () => readonly unknown[];
+    };
+
+    expect(component.canDeactivate()).toBe(true);
+
+    await scan(EAN);
+    const pending = component.canDeactivate();
+    expect(pending).toBeInstanceOf(Promise);
+
+    // «Esci senza salvare» svuota il carrello e lascia proseguire l'uscita.
+    component.confirmExitWithoutSaving();
+    await expect(pending).resolves.toBe(true);
+    expect(component.cart().length).toBe(0);
   });
 });

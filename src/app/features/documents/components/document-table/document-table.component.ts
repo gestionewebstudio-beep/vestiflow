@@ -9,7 +9,7 @@ import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.
 import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
-import { storeSalePaymentMethodLabel } from '@features/store-sales/models/store-sale-payment.util';
+import { storeSalePaymentMethodLabelWithNote } from '@features/store-sales/models/store-sale-payment.util';
 
 import { isGoodsReceiptDocumentType } from '../../models/document-goods-receipt.util';
 import {
@@ -132,8 +132,11 @@ export class DocumentTableComponent {
       return '—';
     }
     // La cassa salva il codice (`cash`/`card`/`other`), i DDT lo snapshot
-    // testuale della voce normativa: solo i primi vanno tradotti.
-    return isStoreFlowDocumentType(doc.type) ? storeSalePaymentMethodLabel(raw) : raw;
+    // testuale della voce normativa: solo i primi vanno tradotti. «Altro»
+    // mostra in coda l'eventuale descrizione libera.
+    return isStoreFlowDocumentType(doc.type)
+      ? storeSalePaymentMethodLabelWithNote(raw, doc.paymentMethodNote)
+      : raw;
   }
 
   protected locationLabel(doc: DocumentRecord): string {

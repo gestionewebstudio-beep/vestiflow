@@ -44,6 +44,7 @@ describe('DocumentPdfService', () => {
     supplierOrderId: null,
     billingCause: 'Vendita',
     paymentMethod: null,
+    paymentMethodNote: null,
     paymentTerms: null,
     expectedDeliveryDate: null,
     paymentDueDate: null,
