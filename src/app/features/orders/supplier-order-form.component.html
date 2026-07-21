@@ -326,7 +326,7 @@
                     class="po-form__num"
                     [style.width]="lineColumnWidth('stockAvailable')"
                   >
-                    Q.tà disponibile
+                    Q.tà disp.
                     <span
                       appTableColumnResize
                       (resized)="onLineColumnResize('stockAvailable', $event)"
@@ -486,10 +486,7 @@
                     </td>
                   }
                   @if (isLineColumnVisible('stockAvailable')) {
-                    <td
-                      class="po-form__cell po-form__num tabular-nums"
-                      data-label="Q.tà disponibile"
-                    >
+                    <td class="po-form__cell po-form__num tabular-nums" data-label="Q.tà disp.">
                       {{ lineStock(i, 'stockAvailable') }}
                     </td>
                   }

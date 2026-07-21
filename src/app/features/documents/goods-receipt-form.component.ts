@@ -2033,7 +2033,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Q.tà disponibile con anteprima live: giacenza attuale + quantità in
+   * Q.tà disp. con anteprima live: giacenza attuale + quantità in
    * arrivo su questa riga. Sul documento confermato i movimenti sono già
    * applicati (la giacenza del server include le righe salvate): per quelle
    * righe si mostra la giacenza così com'è, senza sommare di nuovo.
@@ -2051,7 +2051,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return String(summary.stockOnHand + incoming);
   }
 
-  /** Tooltip della Q.tà disponibile: esplicita giacenza attuale + in arrivo. */
+  /** Tooltip della Q.tà disp.: esplicita giacenza attuale + in arrivo. */
   protected lineStockAvailableTitle(index: number): string | null {
     const summary = this.lineVariantSummary(index);
     if (!summary || summary.stockOnHand == null) {

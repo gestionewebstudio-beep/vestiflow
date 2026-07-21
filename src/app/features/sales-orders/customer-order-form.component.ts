@@ -1167,7 +1167,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return summary.stockAvailable + ownReserved;
   }
 
-  /** Testo colonna "Q.tà disponibile": — per i Servizi (nessun controllo). */
+  /** Testo colonna "Q.tà disp.": — per i Servizi (nessun controllo). */
   protected lineStockAvailable(index: number): string {
     this.formValue();
     const available = this.lineEffectiveAvailable(index);

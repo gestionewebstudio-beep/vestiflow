@@ -10,7 +10,7 @@ export const SUPPLIER_ORDER_LINES_VIEW = TableViewId.SupplierOrderLines;
 // Colonne righe Ordine fornitore (prompt 2026-07). Visibili di default:
 // Cod. articolo, SKU, EAN, Cod. fornitore, Nome prodotto, Q.tà, U.m.,
 // Costo (netto/ivato), Sconto, IVA, Totale. Attivabili dal selettore:
-// Prezzo al pubblico, Prezzo barrato, Q.tà giacenza, Q.tà disponibile.
+// Prezzo al pubblico, Prezzo barrato, Q.tà giacenza, Q.tà disp.
 // NESSUNA colonna "Mag.": l'ordine fornitore non incide sulle giacenze.
 export const SUPPLIER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'articleCode', label: 'Cod. articolo', defaultWidthPx: 96, minWidthPx: 64 },
@@ -49,7 +49,7 @@ export const SUPPLIER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   },
   {
     id: 'stockAvailable',
-    label: 'Q.tà disponibile',
+    label: 'Q.tà disp.',
     numeric: true,
     defaultVisible: false,
     defaultWidthPx: 64,

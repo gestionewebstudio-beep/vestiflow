@@ -19,7 +19,7 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 56, minWidthPx: 44 },
   {
     id: 'stockAvailable',
-    label: 'Q.tà disponibile',
+    label: 'Q.tà disp.',
     numeric: true,
     defaultWidthPx: 76,
     minWidthPx: 52,
@@ -183,7 +183,7 @@ export const MANUAL_UNLOAD_LINE_PRESETS: TableViewPresetMap = {
 
 // ── Preventivo (stessa maschera dell'Ordine cliente, §Preventivi) ───────────
 // Il preventivo non impegna e non blocca disponibilità di magazzino: niente
-// colonne «Q.tà disponibile» e «Impegna» — il resto della tabella è identico.
+// colonne «Q.tà disp.» e «Impegna» — il resto della tabella è identico.
 export const QUOTE_LINES_VIEW = TableViewId.QuoteLines;
 
 const QUOTE_EXCLUDED_COLUMN_IDS: readonly string[] = ['stockAvailable', 'commitsStock'];
