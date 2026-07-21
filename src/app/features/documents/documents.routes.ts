@@ -101,6 +101,30 @@ export const documentsRoutes: Routes = [
     },
   },
   {
+    // Vendita/Reso in negozio: elenco condiviso dai due tipi creati dalla
+    // cassa. Sola consultazione — i documenti nascono in transazione con i
+    // movimenti di magazzino e non si modificano né si eliminano da qui.
+    path: 'vendite-negozio',
+    title: 'VestiFlow · Vendita/Reso in negozio',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'store-sale',
+    },
+  },
+  {
+    path: 'vendite-negozio/:id',
+    title: 'VestiFlow · Dettaglio vendita in negozio',
+    loadComponent: () =>
+      import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      documentListProfile: 'store-sale',
+    },
+  },
+  {
     // Scarico manuale giacenze: pagina elenco dedicata (prompt Scarico
     // manuale) — il documento resta qui finché l'operatore non lo elimina.
     path: 'manual-unload',

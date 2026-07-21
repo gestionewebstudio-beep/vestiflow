@@ -9,6 +9,7 @@ import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.
 import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import { storeSalePaymentMethodLabel } from '@features/store-sales/models/store-sale-payment.util';
 
 import { isGoodsReceiptDocumentType } from '../../models/document-goods-receipt.util';
 import {
@@ -126,7 +127,13 @@ export class DocumentTableComponent {
   }
 
   protected paymentMethodLabel(doc: DocumentRecord): string {
-    return doc.paymentMethod?.trim() || '—';
+    const raw = doc.paymentMethod?.trim();
+    if (!raw) {
+      return '—';
+    }
+    // La cassa salva il codice (`cash`/`card`/`other`), i DDT lo snapshot
+    // testuale della voce normativa: solo i primi vanno tradotti.
+    return isStoreFlowDocumentType(doc.type) ? storeSalePaymentMethodLabel(raw) : raw;
   }
 
   protected locationLabel(doc: DocumentRecord): string {
@@ -176,7 +183,10 @@ export class DocumentTableComponent {
    * questo tipo/stato documento — mai voci disabilitate silenziosamente.
    */
   protected rowActions(doc: DocumentRecord): readonly ActionMenuItem[] {
-    const items: ActionMenuItem[] = [{ id: 'open', label: 'Apri / Modifica', icon: 'pi-pencil' }];
+    // Vendite/resi negozio: il dettaglio è di sola lettura, mai una modifica.
+    const items: ActionMenuItem[] = isStoreFlowDocumentType(doc.type)
+      ? [{ id: 'open', label: 'Apri', icon: 'pi-eye' }]
+      : [{ id: 'open', label: 'Apri / Modifica', icon: 'pi-pencil' }];
 
     if (this.canManage() && !isStoreFlowDocumentType(doc.type)) {
       items.push({ id: 'duplicate', label: 'Duplica', icon: 'pi-copy' });

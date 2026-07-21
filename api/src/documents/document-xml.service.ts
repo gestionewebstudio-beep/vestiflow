@@ -1,5 +1,4 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
-import { DocumentType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 

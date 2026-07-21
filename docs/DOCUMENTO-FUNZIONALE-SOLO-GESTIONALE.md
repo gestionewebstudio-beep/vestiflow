@@ -319,7 +319,7 @@ Route `/app/documents`: scelta della tipologia, organizzata per flusso:
 
 - **Acquisti e fornitori:** Ordini fornitore (→ `/app/orders`) · Arrivi merce (`/app/documents/arrivi-merce`) · Registrazione fattura (registro filtrato `supplier_invoice`).
 - **Magazzino:** Trasferimenti · Rettifiche (registri filtrati) · Scarichi manuali (pagina dedicata `/app/documents/manual-unload`) · Inventario (registro filtrato).
-- **Vendite:** Vendita negozio (→ cassa) · Registro vendite negozio (`store_sale`) · Resi vendita negozio (`store_return`) · Proforma · DDT vendita · Bozze fattura · Preventivi (registro filtrato `quote`).
+- **Vendite:** Vendita negozio (→ cassa) · Vendita/Reso in negozio (pagina dedicata `/app/documents/vendite-negozio`, elenco condiviso `store_sale` + `store_return` con filtro «Tipo») · Proforma · DDT vendita · Bozze fattura · Preventivi (registro filtrato `quote`).
 - **Registro:** Tutti i documenti (`/app/documents/registro`).
 
 ### 10.2 Tipi di documento
@@ -426,7 +426,9 @@ Pannello **Reso** nella stessa schermata:
 
 ### 11.3 Tracciabilità
 
-Ogni vendita/reso è consultabile in: **Documenti → Registro vendite negozio / Resi vendita negozio**, e in **Magazzino → Movimenti** (tipo Vendita/Reso, origine vendita negozio). Il pannello «Storico movimenti» della cassa linka le operazioni recenti.
+Ogni vendita/reso è consultabile in **Documenti → Vendita/Reso in negozio** (`/app/documents/vendite-negozio`) e in **Magazzino → Movimenti** (tipo Vendita/Reso, origine vendita negozio). Il pannello «Storico movimenti» della cassa linka le operazioni recenti.
+
+L'elenco mostra Data, Numero, Tipo, Cliente, Totale, Metodo pagamento e Righe, con filtri per periodo, tipo, cliente, metodo di pagamento e operatore; la riga apre l'anteprima di dettaglio. Elenco e dettaglio sono di **sola consultazione**: vendite e resi nascono in un'unica transazione con i movimenti di magazzino, quindi non si modificano né si eliminano da qui — una merce che rientra si registra come **Reso** dalla cassa.
 
 ---
 

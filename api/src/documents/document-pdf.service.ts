@@ -213,7 +213,7 @@ export class DocumentPdfService {
     }
 
     if (isSalesInvoiceDocumentType(document.type)) {
-      y = this.renderPaymentSection(doc, document, y, left, contentWidth);
+      y = this.renderPaymentSection(doc, document, y);
     }
 
     if (document.notes?.trim()) {
@@ -273,8 +273,6 @@ export class DocumentPdfService {
     doc: PdfDocumentInstance,
     document: DocumentDetail,
     y: number,
-    left: number,
-    contentWidth: number,
   ): number {
     const rows: Array<readonly [string, string]> = [];
     if (document.paymentTerms?.trim()) {

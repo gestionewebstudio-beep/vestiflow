@@ -1,4 +1,5 @@
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import { STORE_SALE_PAYMENT_METHOD_OPTIONS } from '@features/store-sales/models/store-sale-payment.util';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 
@@ -16,7 +17,8 @@ export type SalesDocumentRegisterProfile =
   | 'sales-ddt'
   | 'manual-unload'
   | 'invoice'
-  | 'purchase-invoice';
+  | 'purchase-invoice'
+  | 'store-sale';
 
 /**
  * Configurazione delle pagine dedicate ai documenti di vendita: elenco con
@@ -56,16 +58,34 @@ export interface SalesDocumentRegisterConfig {
    */
   readonly types?: readonly DocumentType[];
   /**
+   * Opzioni del filtro «Tipo» (con la voce «Tutti»). Obbligatorie quando
+   * `types` è valorizzato: senza, l'elenco condiviso non saprebbe come
+   * etichettare i tipi che mostra.
+   */
+  readonly typeFilterOptions?: readonly SelectMenuOption[];
+  /**
    * Varianti creabili dalla pagina, una per tipo. Presenti solo quando
    * l'elenco è condiviso: il bottone «Nuovo …» segue il filtro «Tipo» attivo.
    */
   readonly createVariants?: readonly SalesDocumentCreateVariant[];
+  /**
+   * Nasconde il bottone di creazione: la pagina è di sola consultazione perché
+   * i documenti nascono altrove (Vendita/Reso in negozio → cassa).
+   */
+  readonly hideCreateAction?: boolean;
   /** Nasconde il filtro Cliente (pagine lato acquisti). */
   readonly hideCustomerFilter?: boolean;
   /** Filtro Fornitore (Registrazioni fattura). */
   readonly showSupplierFilter?: boolean;
   /** Filtro Stato saldo Da saldare/Saldati (Registrazioni fattura). */
   readonly showSettlementFilter?: boolean;
+  /**
+   * Opzioni del filtro «Metodo pagamento»; assenti = filtro nascosto. Sono
+   * per profilo perché il vocabolario cambia: codici cassa vs voci MP01–MP23.
+   */
+  readonly paymentMethodOptions?: readonly SelectMenuOption[];
+  /** Filtro «Operatore» (opzioni caricate dai documenti dei tipi mostrati). */
+  readonly showOperatorFilter?: boolean;
   readonly viewId: TableViewId;
   /** Titolo del pannello dati nell'anteprima dettaglio (es. «Dati preventivo»). */
   readonly detailPanelTitle: string;
@@ -89,6 +109,20 @@ const INVOICE_STATUS_OPTIONS: readonly SelectMenuOption[] = [
   { value: DocumentStatus.Sent, label: 'Inviata al commercialista' },
   { value: DocumentStatus.ExternallyRegistered, label: 'Registrata esternamente' },
   { value: DocumentStatus.Cancelled, label: 'Annullata' },
+];
+
+/** Opzioni del filtro «Tipo» dell'elenco fatture (con la voce «Tutti»). */
+export const INVOICE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
+  { value: '', label: 'Tutti' },
+  { value: DocumentType.InvoiceDraft, label: 'Fattura' },
+  { value: DocumentType.InvoiceAccompanying, label: 'Fattura accompagnatoria' },
+];
+
+/** Opzioni del filtro «Tipo» dell'elenco Vendita/Reso in negozio. */
+export const STORE_SALE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
+  { value: '', label: 'Tutti' },
+  { value: DocumentType.StoreSale, label: 'Vendita' },
+  { value: DocumentType.StoreReturn, label: 'Reso' },
 ];
 
 const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig> = {
@@ -199,6 +233,7 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     profile: 'invoice',
     type: DocumentType.InvoiceDraft,
     types: SALES_INVOICE_DOCUMENT_TYPES,
+    typeFilterOptions: INVOICE_TYPE_FILTER_OPTIONS,
     pageTitle: 'Fatture',
     pageSubtitle:
       'Fatture fiscali da inviare al commercialista, con o senza trasporto merce incluso.',
@@ -228,14 +263,36 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     detailPanelTitle: 'Dati fattura',
     detailNotFoundTitle: 'Fattura non trovata',
   },
+  // Elenco condiviso da Vendita e Reso in negozio: entrambi nascono dalla
+  // cassa in un'unica transazione con i movimenti, quindi la pagina è di sola
+  // consultazione — nessun «Nuovo …», nessuna azione di riga distruttiva.
+  'store-sale': {
+    profile: 'store-sale',
+    type: DocumentType.StoreSale,
+    types: [DocumentType.StoreSale, DocumentType.StoreReturn],
+    typeFilterOptions: STORE_SALE_TYPE_FILTER_OPTIONS,
+    pageTitle: 'Vendita/Reso in negozio',
+    pageSubtitle:
+      'Vendite e resi registrati dalla cassa negozio, con i movimenti di magazzino già applicati.',
+    createLabel: 'Nuova vendita in negozio',
+    createPath: '/app/sales/register',
+    hideCreateAction: true,
+    listPath: '/app/documents/vendite-negozio',
+    emptyTitle: 'Nessuna vendita o reso in negozio',
+    emptyDescription:
+      'Non ci sono vendite o resi che corrispondono ai filtri. Vendite e resi si registrano dalla cassa negozio.',
+    emptyIcon: 'pi-shopping-bag',
+    searchPlaceholder: 'Cerca per numero o cliente…',
+    // Nascono già confermati alla conclusione della vendita: nessun ciclo stati.
+    statusOptions: null,
+    showPendingInvoiceFilter: false,
+    paymentMethodOptions: STORE_SALE_PAYMENT_METHOD_OPTIONS,
+    showOperatorFilter: true,
+    viewId: TableViewId.StoreSaleDocumentsList,
+    detailPanelTitle: 'Dati documento',
+    detailNotFoundTitle: 'Documento non trovato',
+  },
 };
-
-/** Opzioni del filtro «Tipo» dell'elenco fatture (con la voce «Tutti»). */
-export const INVOICE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
-  { value: '', label: 'Tutti' },
-  { value: DocumentType.InvoiceDraft, label: 'Fattura' },
-  { value: DocumentType.InvoiceAccompanying, label: 'Fattura accompagnatoria' },
-];
 
 export const SALES_DOCUMENT_REGISTER_PROFILES: readonly SalesDocumentRegisterProfile[] = [
   'quote',
@@ -244,6 +301,7 @@ export const SALES_DOCUMENT_REGISTER_PROFILES: readonly SalesDocumentRegisterPro
   'manual-unload',
   'invoice',
   'purchase-invoice',
+  'store-sale',
 ] as const;
 
 function isSalesDocumentRegisterProfile(

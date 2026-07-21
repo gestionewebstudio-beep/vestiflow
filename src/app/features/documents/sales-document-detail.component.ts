@@ -13,11 +13,13 @@ import type { DetailFact } from '@shared/components/detail-facts/detail-facts.co
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { storeSalePaymentMethodLabel } from '@features/store-sales/models/store-sale-payment.util';
 
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
 import { DocumentDetailComponent } from './document-detail.component';
-import { documentReferenceLabel } from './models/document-labels.util';
+import { documentReferenceLabel, documentTypeLabel } from './models/document-labels.util';
+import { isStoreFlowDocumentType } from './models/document-operational.util';
 import { salesDocumentRegisterConfig } from './models/document-sales-register.config';
 import { isInvoiceDraftDocumentType, isSalesDdtDocumentType } from './models/document-sales.util';
 import { isManualUnloadDocumentType } from './models/document-stock-operation.util';
@@ -70,6 +72,16 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
   /** La navigazione «indietro» e post-eliminazione resta nella sezione dedicata. */
   protected override readonly listPath = computed(() => this.config().listPath);
 
+  /**
+   * Tipi ammessi dalla pagina: l'elenco condiviso ne dichiara più d'uno
+   * (Fattura/Fattura accompagnatoria, Vendita/Reso negozio). Confrontare col
+   * solo `type` scaccerebbe al registro generico i documenti dell'altro tipo.
+   */
+  private readonly allowedTypes = computed(() => {
+    const config = this.config();
+    return config.types ?? [config.type];
+  });
+
   protected readonly referenceTitle = computed(() => {
     const doc = this.document();
     return doc ? documentReferenceLabel(doc.type, doc.reference, doc.series) : '';
@@ -83,8 +95,16 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
     }
     const facts: DetailFact[] = [
       { label: 'Data documento', value: formatDate(doc.documentDate), numeric: true },
-      { label: 'Cliente', value: doc.customerName ?? '—' },
     ];
+    // Elenchi condivisi da più tipi: il tipo è un dato di testata, non un
+    // dettaglio implicito nella pagina che si sta guardando.
+    if (this.allowedTypes().length > 1) {
+      facts.push({ label: 'Tipo', value: documentTypeLabel(doc.type) });
+    }
+    facts.push({ label: 'Cliente', value: doc.customerName ?? '—' });
+    if (isStoreFlowDocumentType(doc.type) && doc.locationName) {
+      facts.push({ label: 'Negozio', value: doc.locationName });
+    }
     if (
       (isSalesDdtDocumentType(doc.type) || isManualUnloadDocumentType(doc.type)) &&
       doc.locationName
@@ -107,7 +127,13 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
       facts.push({ label: 'Pagamento', value: doc.paymentTerms });
     }
     if (doc.paymentMethod) {
-      facts.push({ label: 'Modalità di pagamento', value: doc.paymentMethod });
+      // La cassa salva il codice grezzo (`cash`/`card`/`other`), i DDT lo
+      // snapshot già leggibile della voce normativa: solo il primo va tradotto.
+      facts.push(
+        isStoreFlowDocumentType(doc.type)
+          ? { label: 'Metodo pagamento', value: storeSalePaymentMethodLabel(doc.paymentMethod) }
+          : { label: 'Modalità di pagamento', value: doc.paymentMethod },
+      );
     }
     if (isSalesDdtDocumentType(doc.type) && doc.followedBySalesDoc) {
       facts.push({ label: 'Seguirà doc. di vendita', value: 'Sì' });
@@ -229,7 +255,7 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
     // dettaglio del registro generico invece di mostrare una pagina incoerente.
     effect(() => {
       const doc = this.document();
-      if (doc && doc.type !== this.config().type) {
+      if (doc && !this.allowedTypes().includes(doc.type)) {
         void this.detailRouter.navigate(['/app/documents', doc.id], { replaceUrl: true });
       }
     });

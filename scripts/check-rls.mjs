@@ -20,13 +20,67 @@
  *
  * Uso locale:  SUPABASE_URL=... SUPABASE_ANON_KEY=... node scripts/check-rls.mjs
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const schemaPath = join(root, 'api/prisma/schema.prisma');
+const migrationsDir = join(root, 'api/prisma/migrations');
 
+const schema = readFileSync(schemaPath, 'utf8');
+const tables = [...schema.matchAll(/@@map\("([^"]+)"\)/g)].map((m) => m[1]);
+
+if (tables.length === 0) {
+  console.error('[check-rls] Nessuna tabella trovata nello schema Prisma.');
+  process.exit(2);
+}
+
+// ── Fase 1 (offline): ogni tabella ha una ENABLE ROW LEVEL SECURITY? ─────────
+//
+// La sonda live della fase 2 non basta da sola: una tabella SENZA RLS ma vuota
+// risponde `200 []` esattamente come una tabella protetta, quindi passerebbe il
+// controllo fino al primo dato reale. Questo confronto statico schema ⇄
+// migrazioni non dipende dai dati e intercetta la tabella nuova al primo PR.
+const migrationSql = readdirSync(migrationsDir, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => {
+    try {
+      return readFileSync(join(migrationsDir, entry.name, 'migration.sql'), 'utf8');
+    } catch {
+      return '';
+    }
+  })
+  .join('\n');
+
+const rlsEnabled = new Set(
+  [...migrationSql.matchAll(/ALTER\s+TABLE\s+"?([\w.]+)"?\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/gi)].map(
+    (m) => m[1].replace(/^public\./, ''),
+  ),
+);
+
+const unprotected = tables.filter((table) => !rlsEnabled.has(table));
+
+if (unprotected.length > 0) {
+  console.error(
+    `[check-rls] FALLITO: ${unprotected.length} tabella/e senza ENABLE ROW LEVEL SECURITY ` +
+      'in nessuna migrazione:',
+  );
+  for (const table of unprotected) {
+    console.error(`  - ${table}`);
+  }
+  console.error(
+    '\nAggiungi alla migrazione che crea la tabella:\n' +
+      '  ALTER TABLE "<tabella>" ENABLE ROW LEVEL SECURITY;\n' +
+      '  REVOKE ALL ON "<tabella>" FROM anon, authenticated;\n' +
+      'Vedi 0003_enable_rls per il razionale.',
+  );
+  process.exit(1);
+}
+
+console.log(`[check-rls] Fase 1 OK: tutte le ${tables.length} tabelle abilitano la RLS.`);
+
+// ── Fase 2 (live): la anon key riesce comunque a leggere righe? ──────────────
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/+$/, '');
 const anonKey = process.env.SUPABASE_ANON_KEY;
 
@@ -35,14 +89,6 @@ if (!supabaseUrl || !anonKey) {
     '[check-rls] SUPABASE_URL e SUPABASE_ANON_KEY sono obbligatorie ' +
       '(impostale come GitHub repo variables: entrambe pubbliche).',
   );
-  process.exit(2);
-}
-
-const schema = readFileSync(schemaPath, 'utf8');
-const tables = [...schema.matchAll(/@@map\("([^"]+)"\)/g)].map((m) => m[1]);
-
-if (tables.length === 0) {
-  console.error('[check-rls] Nessuna tabella trovata nello schema Prisma.');
   process.exit(2);
 }
 

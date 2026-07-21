@@ -110,6 +110,7 @@ import type { ResolvedDocumentTypeSetting } from './document-defaults';
 import type { ConvertDocumentDto } from './dto/convert-document.dto';
 import type { CreateDocumentDto, DocumentLineInputDto } from './dto/create-document.dto';
 import type { DocumentAddressDto } from './dto/document-transport.dto';
+import type { ListDocumentOperatorsQueryDto } from './dto/list-document-operators.query.dto';
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import type { RegisterExternalDto } from './dto/register-external.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
@@ -316,6 +317,8 @@ export class DocumentsService {
       ...(query.causal
         ? { causalText: { contains: query.causal, mode: 'insensitive' } }
         : {}),
+      ...(query.paymentMethod ? { paymentMethod: query.paymentMethod } : {}),
+      ...(query.createdById ? { createdById: query.createdById } : {}),
       ...(query.externalDocumentTypeId
         ? { externalDocumentTypeId: query.externalDocumentTypeId }
         : {}),
@@ -383,6 +386,42 @@ export class DocumentsService {
     );
 
     return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /**
+   * Operatori che hanno creato almeno un documento dei tipi indicati, per il
+   * filtro «Operatore» delle pagine elenco. Usa lo snapshot `createdByName`
+   * salvato sul documento: resta corretto anche per utenti poi rinominati o
+   * disattivati, che altrimenti sparirebbero dalla tendina lasciando
+   * documenti non filtrabili.
+   */
+  async listOperators(
+    tenantId: string,
+    query: ListDocumentOperatorsQueryDto,
+    user?: UserProfileDto,
+  ): Promise<Array<{ id: string; name: string }>> {
+    const locationScope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
+    if (locationScope === null) {
+      return [];
+    }
+
+    const rows = await this.prisma.document.findMany({
+      where: {
+        tenantId,
+        createdById: { not: null },
+        ...(query.types?.length ? { type: { in: query.types } } : {}),
+        ...(locationScope !== 'unrestricted'
+          ? { OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }] }
+          : {}),
+      },
+      select: { createdById: true, createdByName: true },
+      distinct: ['createdById'],
+      orderBy: { createdByName: 'asc' },
+    });
+
+    return rows
+      .filter((row): row is { createdById: string; createdByName: string } => row.createdById != null)
+      .map((row) => ({ id: row.createdById, name: row.createdByName }));
   }
 
   /**

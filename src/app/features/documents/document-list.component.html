@@ -15,11 +15,16 @@
     @if (canManageDocuments()) {
       <div class="doc-list__actions">
         @if (salesRegister()) {
-          <!-- Elenchi condivisi (Fatture): l'etichetta segue il filtro «Tipo». -->
-          <app-button (click)="openNewSalesDocument()">
-            <i class="pi pi-plus" aria-hidden="true"></i>
-            {{ salesCreateLabel() }}
-          </app-button>
+          <!--
+            Elenchi condivisi (Fatture): l'etichetta segue il filtro «Tipo».
+            Vendita/Reso negozio: nessun bottone — si registrano dalla cassa.
+          -->
+          @if (showCreateAction()) {
+            <app-button (click)="openNewSalesDocument()">
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              {{ salesCreateLabel() }}
+            </app-button>
+          }
         } @else if (isGoodsReceiptList()) {
           <app-button (click)="openNewGoodsReceipt()">
             <i class="pi pi-plus" aria-hidden="true"></i>
@@ -107,8 +112,9 @@
 
       @if (salesRegister(); as sales) {
         <!--
-          Filtro «Tipo» degli elenchi condivisi (Fatture): preimpostato dalla
-          voce hub di provenienza ma sempre modificabile, «Tutti» incluso.
+          Filtro «Tipo» degli elenchi condivisi (Fatture, Vendita/Reso
+          negozio): preimpostato dalla voce hub di provenienza ma sempre
+          modificabile, «Tutti» incluso.
         -->
         @if (showSharedTypeFilter()) {
           <div class="doc-list__field">
@@ -116,7 +122,7 @@
               chipLabel="Tipo"
               [options]="sharedTypeOptions()"
               [value]="sharedTypeFilter()"
-              ariaLabel="Filtra per tipo di fattura"
+              ariaLabel="Filtra per tipo di documento"
               placeholder="Tutti"
               [compact]="true"
               [fullWidth]="true"
@@ -191,6 +197,41 @@
               searchPlaceholder="Cerca cliente…"
               searchAriaLabel="Cerca cliente"
               (valueChange)="onCustomerFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (sales.paymentMethodOptions; as paymentMethodOptions) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Metodo pagamento"
+              [options]="paymentMethodOptions"
+              [value]="query().paymentMethod ?? ''"
+              ariaLabel="Filtra per metodo di pagamento"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onPaymentMethodFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (sales.showOperatorFilter) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Operatore"
+              [options]="operatorOptions()"
+              [value]="query().createdById ?? ''"
+              ariaLabel="Filtra per operatore"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca operatore…"
+              searchAriaLabel="Cerca operatore"
+              (valueChange)="onOperatorFilterChange($event)"
               [filterChip]="true"
             />
           </div>

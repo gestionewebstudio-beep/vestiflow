@@ -179,6 +179,59 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   ],
 };
 
+/**
+ * Vendita/Reso in negozio: elenco condiviso dai due tipi creati dalla cassa,
+ * quindi con la colonna "Tipo". Niente colonna "Stato" — nascono già
+ * confermati e non hanno ciclo di vita (§11 documento funzionale).
+ */
+export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
+  { id: 'reference', label: 'Numero', defaultVisible: true },
+  { id: 'type', label: 'Tipo', defaultVisible: true },
+  { id: 'counterparty', label: 'Cliente', defaultVisible: true },
+  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  { id: 'paymentMethod', label: 'Metodo pagamento', defaultVisible: true },
+  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
+  { id: 'location', label: 'Negozio', defaultVisible: false },
+] as const;
+
+export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
+  [TableViewPresetId.Default]: [
+    'documentDate',
+    'reference',
+    'type',
+    'counterparty',
+    'total',
+    'paymentMethod',
+    'lineCount',
+  ],
+  [TableViewPresetId.Warehouse]: [
+    'documentDate',
+    'reference',
+    'type',
+    'counterparty',
+    'lineCount',
+    'location',
+  ],
+  [TableViewPresetId.Accountant]: [
+    'documentDate',
+    'reference',
+    'type',
+    'counterparty',
+    'total',
+    'paymentMethod',
+  ],
+  [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'type', 'counterparty', 'total'],
+  [TableViewPresetId.Analysis]: ['documentDate', 'type', 'total', 'paymentMethod', 'lineCount'],
+  [TableViewPresetId.Operational]: [
+    'documentDate',
+    'reference',
+    'type',
+    'counterparty',
+    'paymentMethod',
+  ],
+};
+
 export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
   { id: 'reference', label: 'N.', defaultVisible: true },

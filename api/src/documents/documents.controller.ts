@@ -38,6 +38,7 @@ import { DocumentPdfService } from './document-pdf.service';
 import { DocumentXmlService } from './document-xml.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { ConvertDocumentDto } from './dto/convert-document.dto';
+import { ListDocumentOperatorsQueryDto } from './dto/list-document-operators.query.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import { RegisterExternalDto } from './dto/register-external.dto';
 import { PreviewDocumentNumberQueryDto } from './dto/preview-document-number.query.dto';
@@ -79,6 +80,17 @@ export class DocumentsController {
     @Query() query: ListDocumentsQueryDto,
   ): Promise<Paginated<DocumentListRow>> {
     return this.documents.list(tenantId, query, user);
+  }
+
+  /** Operatori che hanno creato documenti dei tipi indicati (filtro elenco). */
+  @Get('operators')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  listOperators(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: ListDocumentOperatorsQueryDto,
+  ): Promise<Array<{ id: string; name: string }>> {
+    return this.documents.listOperators(tenantId, query, user);
   }
 
   /** Arrivi merce includibili in una registrazione fattura (prompt §5.1). */

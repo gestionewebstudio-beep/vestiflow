@@ -100,22 +100,14 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         icon: 'pi-shopping-bag',
         available: true,
       },
+      // Vendite e resi negozio condividono un'unica pagina elenco con filtro
+      // «Tipo»: stesso numeratore di provenienza (la cassa) e stesse colonne.
       {
         id: 'store-sales',
-        label: 'Registro vendite negozio',
-        description: 'Elenco vendite negozio registrate dalla cassa.',
-        route: ['/app/documents/registro'],
-        queryParams: { type: 'store_sale' },
+        label: 'Vendita/Reso in negozio',
+        description: 'Elenco di vendite e resi registrati dalla cassa negozio.',
+        route: ['/app/documents/vendite-negozio'],
         icon: 'pi-shopping-cart',
-        available: true,
-      },
-      {
-        id: 'store-returns',
-        label: 'Resi vendita negozio',
-        description: 'Resi collegati alle vendite negozio, con stato vendibile.',
-        route: ['/app/documents/registro'],
-        queryParams: { type: 'store_return' },
-        icon: 'pi-replay',
         available: true,
       },
       // Documenti di vendita: pagine elenco DEDICATE (titolo, «Nuovo …» del

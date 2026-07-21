@@ -31,6 +31,12 @@ import {
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
+/** Operatore che ha creato almeno un documento (filtro elenco). */
+export interface DocumentOperator {
+  readonly id: EntityId;
+  readonly name: string;
+}
+
 /**
  * Accesso HTTP al registro documenti (NestJS). Numerazione e transizioni di
  * stato sono gestite server-side.
@@ -59,6 +65,8 @@ export class DocumentService {
       params = params.set('externalDocumentTypeId', query.externalDocumentTypeId);
     }
     if (query.settlement) params = params.set('settlement', query.settlement);
+    if (query.paymentMethod) params = params.set('paymentMethod', query.paymentMethod);
+    if (query.createdById) params = params.set('createdById', query.createdById);
     if (query.accountant) params = params.set('accountant', '1');
     if (query.pendingInvoice) params = params.set('pendingInvoice', '1');
 
@@ -72,6 +80,20 @@ export class DocumentService {
         };
       }),
     );
+  }
+
+  /**
+   * Operatori da proporre nel filtro «Operatore» di una pagina elenco,
+   * ristretti ai tipi documento che quella pagina mostra.
+   */
+  getOperators(types: readonly DocumentType[] = []): Observable<readonly DocumentOperator[]> {
+    let params = new HttpParams();
+    if (types.length > 0) {
+      params = params.set('types', types.join(','));
+    }
+    return this.http
+      .get<readonly DocumentOperator[]>(this.url('/documents/operators'), { params })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   getDocumentById(id: EntityId): Observable<DocumentRecord> {

@@ -15,7 +15,9 @@ export type DocumentListProfile =
   | 'manual-unload'
   // Elenco condiviso Fattura / Fattura accompagnatoria (ex 'invoice-draft').
   | 'invoice'
-  | 'purchase-invoice';
+  | 'purchase-invoice'
+  // Elenco condiviso Vendita / Reso in negozio (documenti creati dalla cassa).
+  | 'store-sale';
 
 /** Query registro documenti (ordinamento fisso: data documento discendente). */
 export interface DocumentListQuery {
@@ -37,6 +39,10 @@ export interface DocumentListQuery {
   readonly externalDocumentTypeId?: string;
   /** Stato saldo delle Registrazioni fattura (Da saldare / Saldati). */
   readonly settlement?: 'pending' | 'settled';
+  /** Metodo di pagamento, confronto esatto sullo snapshot salvato. */
+  readonly paymentMethod?: string;
+  /** Operatore che ha creato il documento. */
+  readonly createdById?: string;
   readonly accountant?: boolean;
   readonly pendingInvoice?: boolean;
 }
@@ -61,6 +67,8 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
   const linkStatus = params.get('linkStatus') ?? '';
   const externalDocumentTypeId = params.get('externalDocumentTypeId') ?? '';
   const settlement = params.get('settlement') ?? '';
+  const paymentMethod = params.get('paymentMethod')?.trim() ?? '';
+  const createdById = params.get('createdById') ?? '';
 
   return {
     page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -81,6 +89,8 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
       : undefined,
     externalDocumentTypeId: isUuid(externalDocumentTypeId) ? externalDocumentTypeId : undefined,
     settlement: settlement === 'pending' || settlement === 'settled' ? settlement : undefined,
+    paymentMethod: paymentMethod || undefined,
+    createdById: isUuid(createdById) ? createdById : undefined,
     accountant: params.get('accountant') === '1',
     pendingInvoice: params.get('pendingInvoice') === '1',
   };

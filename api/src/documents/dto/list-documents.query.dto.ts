@@ -68,6 +68,19 @@ export class ListDocumentsQueryDto extends PaginationQueryDto {
   @IsString()
   causal?: string;
 
+  /**
+   * Metodo di pagamento, confronto esatto sullo snapshot salvato: la cassa
+   * scrive il codice (`cash`/`card`/`other`), i DDT la voce normativa.
+   */
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  /** Operatore che ha creato il documento (`documents.created_by_id`). */
+  @IsOptional()
+  @IsUUID()
+  createdById?: string;
+
   /** Filtro tipo documento fornitore strutturato (DDT/Fattura/Reso/…, Arrivi merce). */
   @IsOptional()
   @IsUUID()

@@ -75,11 +75,10 @@ import {
   QUOTE_LIST_COLUMN_PRESETS,
   SALES_DOCUMENT_LIST_COLUMN_DEFS,
   SALES_DOCUMENT_LIST_COLUMN_PRESETS,
+  STORE_SALE_LIST_COLUMN_DEFS,
+  STORE_SALE_LIST_COLUMN_PRESETS,
 } from './models/document-table-columns.config';
-import {
-  INVOICE_TYPE_FILTER_OPTIONS,
-  salesDocumentRegisterConfig,
-} from './models/document-sales-register.config';
+import { salesDocumentRegisterConfig } from './models/document-sales-register.config';
 import type { SalesDocumentRegisterProfile } from './models/document-sales-register.config';
 import {
   DEFAULT_DOCUMENT_PAGE_SIZE,
@@ -215,10 +214,10 @@ export class DocumentListComponent {
 
   protected readonly emptyStateIcon = computed(() => this.salesRegister()?.emptyIcon ?? 'pi-file');
 
-  // ── Elenco condiviso da più tipi (Fatture) ────────────────────────────────
+  // ── Elenchi condivisi da più tipi (Fatture, Vendita/Reso negozio) ─────────
   /** Opzioni del filtro «Tipo»; vuoto = elenco a tipo singolo, filtro assente. */
-  protected readonly sharedTypeOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.salesRegister()?.types ? INVOICE_TYPE_FILTER_OPTIONS : [],
+  protected readonly sharedTypeOptions = computed<readonly SelectMenuOption[]>(
+    () => this.salesRegister()?.typeFilterOptions ?? [],
   );
 
   protected readonly showSharedTypeFilter = computed(() => this.sharedTypeOptions().length > 0);
@@ -253,8 +252,13 @@ export class DocumentListComponent {
     () => this.activeCreateVariant()?.label ?? this.salesRegister()?.createLabel,
   );
 
+  /** Pagine di sola consultazione (Vendita/Reso negozio): nessun «Nuovo …». */
+  protected readonly showCreateAction = computed(
+    () => this.salesRegister()?.hideCreateAction !== true,
+  );
+
   protected readonly emptyStateCtaLabel = computed(() => {
-    if (!this.canManageDocuments()) {
+    if (!this.canManageDocuments() || !this.showCreateAction()) {
       return undefined;
     }
     return this.salesCreateLabel() ?? 'Nuovo arrivo merce';
@@ -286,6 +290,32 @@ export class DocumentListComponent {
         suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name })),
       ),
       catchError(() => of([] as readonly SelectMenuOption[])),
+    ),
+    { initialValue: [] as readonly SelectMenuOption[] },
+  );
+
+  /**
+   * Operatori del filtro omonimo, caricati solo per i profili che lo espongono
+   * e ristretti ai tipi documento della pagina.
+   */
+  protected readonly operatorOptions = toSignal(
+    toObservable(this.salesRegister).pipe(
+      switchMap((sales) => {
+        if (!sales?.showOperatorFilter) {
+          return of([] as readonly SelectMenuOption[]);
+        }
+        return this.service.getOperators(sales.types ?? [sales.type]).pipe(
+          map((operators) =>
+            operators.map(
+              (operator): SelectMenuOption => ({
+                value: operator.id,
+                label: operator.name,
+              }),
+            ),
+          ),
+          catchError(() => of([] as readonly SelectMenuOption[])),
+        );
+      }),
     ),
     { initialValue: [] as readonly SelectMenuOption[] },
   );
@@ -394,6 +424,8 @@ export class DocumentListComponent {
         customerId: sales.hideCustomerFilter ? undefined : q.customerId,
         supplierId: sales.showSupplierFilter ? q.supplierId : undefined,
         settlement: sales.showSettlementFilter ? q.settlement : undefined,
+        paymentMethod: sales.paymentMethodOptions ? q.paymentMethod : undefined,
+        createdById: sales.showOperatorFilter ? q.createdById : undefined,
         linkStatus: undefined,
         externalDocumentTypeId: undefined,
         locationId: undefined,
@@ -496,9 +528,13 @@ export class DocumentListComponent {
           q.status ??
           q.dateFrom ??
           q.dateTo ??
+          // Elenchi condivisi: anche il filtro «Tipo» è azzerabile.
+          (sales.types ? this.sharedTypeFilter() || undefined : undefined) ??
           (sales.hideCustomerFilter ? undefined : q.customerId) ??
           (sales.showSupplierFilter ? q.supplierId : undefined) ??
-          (sales.showSettlementFilter ? q.settlement : undefined),
+          (sales.showSettlementFilter ? q.settlement : undefined) ??
+          (sales.paymentMethodOptions ? q.paymentMethod : undefined) ??
+          (sales.showOperatorFilter ? q.createdById : undefined),
         ) ||
         (sales.showPendingInvoiceFilter && q.pendingInvoice === true)
       );
@@ -572,6 +608,12 @@ export class DocumentListComponent {
       PURCHASE_INVOICE_LIST_COLUMN_DEFS,
       PURCHASE_INVOICE_LIST_COLUMN_PRESETS,
     );
+    // Vendita/Reso negozio: set con «Tipo» e «Metodo pagamento», senza «Stato».
+    this.columnPreferences.registerView(
+      TableViewId.StoreSaleDocumentsList,
+      STORE_SALE_LIST_COLUMN_DEFS,
+      STORE_SALE_LIST_COLUMN_PRESETS,
+    );
     this.genericTableColumns = this.columnPreferences.visibleColumns(TableViewId.DocumentsList);
     this.goodsReceiptTableColumns = this.columnPreferences.visibleColumns(
       TableViewId.GoodsReceiptDocumentsList,
@@ -585,6 +627,7 @@ export class DocumentListComponent {
       'purchase-invoice': this.columnPreferences.visibleColumns(
         TableViewId.PurchaseInvoiceDocumentsList,
       ),
+      'store-sale': this.columnPreferences.visibleColumns(TableViewId.StoreSaleDocumentsList),
     };
 
     this.searchSubscription = toObservable(this.searchDraft)
@@ -664,6 +707,14 @@ export class DocumentListComponent {
     this.updateParams({ externalDocumentTypeId: value, page: null }, true);
   }
 
+  protected onPaymentMethodFilterChange(value: string | null): void {
+    this.updateParams({ paymentMethod: value, page: null }, true);
+  }
+
+  protected onOperatorFilterChange(value: string | null): void {
+    this.updateParams({ createdById: value, page: null }, true);
+  }
+
   protected onCreateDocumentType(value: string | null): void {
     if (!value) {
       return;
@@ -716,6 +767,8 @@ export class DocumentListComponent {
         linkStatus: null,
         externalDocumentTypeId: null,
         settlement: null,
+        paymentMethod: null,
+        createdById: null,
         accountant: null,
         pendingInvoice: null,
         page: null,
