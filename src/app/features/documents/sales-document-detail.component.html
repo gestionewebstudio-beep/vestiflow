@@ -225,3 +225,13 @@
   [busy]="actionSaving()"
   (confirmed)="deleteDocument()"
 />
+
+<app-confirm-dialog
+  [(open)]="incompletePrintDialogOpen"
+  [title]="incompletePrintTitle"
+  [message]="incompletePrintMessage"
+  confirmLabel="Sì"
+  cancelLabel="No"
+  (confirmed)="confirmIncompletePrint()"
+  (dismissed)="dismissIncompletePrint()"
+/>

@@ -57,6 +57,11 @@ import {
   isSalesFormDocumentType,
   isSalesInvoiceDocumentType,
 } from './models/document-sales.util';
+import {
+  TRANSPORT_INCOMPLETE_MESSAGE,
+  TRANSPORT_INCOMPLETE_TITLE,
+  transportDataIncomplete,
+} from './models/document-transport.util';
 import { DocumentService } from './services/document.service';
 import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
 import { take } from 'rxjs';
@@ -563,7 +568,37 @@ export class DocumentDetailComponent {
       });
   }
 
+  // ── Avviso pre-stampa (§AVVISI): dati trasporto/indirizzi incompleti ────
+  // Il PDF scaricato dal dettaglio non passa dall'anteprima, quindi l'avviso
+  // va agganciato anche qui: è il foglio che accompagna la merce. Mai
+  // bloccante — l'operatore può scaricare comunque.
+
+  protected readonly incompletePrintDialogOpen = signal(false);
+  protected readonly incompletePrintMessage = TRANSPORT_INCOMPLETE_MESSAGE;
+  protected readonly incompletePrintTitle = TRANSPORT_INCOMPLETE_TITLE;
+
+  protected confirmIncompletePrint(): void {
+    this.incompletePrintDialogOpen.set(false);
+    this.runPdfDownload();
+  }
+
+  protected dismissIncompletePrint(): void {
+    this.incompletePrintDialogOpen.set(false);
+  }
+
   protected downloadDocumentPdf(): void {
+    const doc = this.document();
+    if (!doc || this.downloadingPdf()) {
+      return;
+    }
+    if (transportDataIncomplete(doc.type, doc)) {
+      this.incompletePrintDialogOpen.set(true);
+      return;
+    }
+    this.runPdfDownload();
+  }
+
+  private runPdfDownload(): void {
     const doc = this.document();
     if (!doc || this.downloadingPdf()) {
       return;

@@ -77,6 +77,7 @@ import {
 } from '@features/documents/models/document-include.util';
 import { documentTypeLabel } from '@features/documents/models/document-labels.util';
 import { documentEditPath } from '@features/documents/models/document-routing.util';
+import { transportDataIncomplete } from '@features/documents/models/document-transport.util';
 import { parseSerialNumbersText } from '@features/documents/utils/serial-numbers-input.util';
 import { DocumentService } from '@features/documents/services/document.service';
 import type {
@@ -2283,26 +2284,25 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // ── DDT vendita: avvisi pre-salvataggio (prompt DDT §AVVISI) ────────────
 
   /**
-   * Dati trasporto/indirizzi «non compilati» (per l'avviso pre-salvataggio):
-   * campi operativi del trasporto (causale, porto, incaricato, colli, aspetto
-   * beni) o blocchi indirizzo essenziali (nome, indirizzo, città) vuoti.
-   * Ora/peso/codici spedizione sono facoltativi e non generano avvisi.
+   * Dati trasporto/indirizzi «non compilati» (per l'avviso pre-salvataggio).
+   * La regola è condivisa con la stampa e con la Fattura accompagnatoria
+   * (document-transport.util): qui si passano solo i valori correnti del form.
    */
   private ddtDataIncomplete(): boolean {
     const transport = this.form.controls.transport.getRawValue();
-    const transportIncomplete =
-      !transport.causal.trim() ||
-      !transport.port ||
-      !transport.carrier.trim() ||
-      !transport.packagesCount.trim() ||
-      !transport.goodsAspect.trim();
     const recipient = this.form.controls.recipientAddress.getRawValue();
     const destination = this.destinationDiffers()
       ? this.form.controls.destinationAddress.getRawValue()
       : recipient;
-    const addressIncomplete = (address: typeof recipient): boolean =>
-      !address.name.trim() || !address.address.trim() || !address.city.trim();
-    return transportIncomplete || addressIncomplete(recipient) || addressIncomplete(destination);
+    return transportDataIncomplete(DocumentType.SalesDdt, {
+      transportCausal: transport.causal,
+      transportPort: transport.port,
+      transportCarrier: transport.carrier,
+      transportPackagesCount: transport.packagesCount,
+      transportGoodsAspect: transport.goodsAspect,
+      recipientAddress: recipient,
+      destinationAddress: destination,
+    });
   }
 
   private checkIncompleteDataThenSave(): void {

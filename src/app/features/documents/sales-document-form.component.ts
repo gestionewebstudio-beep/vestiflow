@@ -72,6 +72,11 @@ import {
   isSalesFormDocumentType,
   isSalesInvoiceDocumentType,
 } from './models/document-sales.util';
+import {
+  TRANSPORT_INCOMPLETE_MESSAGE,
+  TRANSPORT_INCOMPLETE_TITLE,
+  transportDataIncomplete,
+} from './models/document-transport.util';
 import { DocumentService } from './services/document.service';
 import { pickVatCodeId, toVatCodeById } from './utils/vat-code-resolution.util';
 
@@ -862,12 +867,70 @@ export class SalesDocumentFormComponent {
     return !line.controls.description.value.trim() && !line.controls.variantId.value;
   }
 
+  // ── Avviso dati trasporto/indirizzi (Fattura accompagnatoria, §AVVISI) ──
+  // Promemoria non bloccante al salvataggio: il documento viaggia con la
+  // merce, quindi i dati mancanti vanno segnalati — mai impediti.
+
+  protected readonly incompleteDataDialogOpen = signal(false);
+  protected readonly incompleteDataTitle = TRANSPORT_INCOMPLETE_TITLE;
+  protected readonly incompleteDataMessage = TRANSPORT_INCOMPLETE_MESSAGE;
+  /** Flusso sospeso in attesa della scelta: true = conferma, false = bozza. */
+  private pendingConfirmAfterIncomplete: boolean | null = null;
+
+  /** Dati trasporto/destinazione incompleti nei valori correnti del form. */
+  private transportIncomplete(): boolean {
+    const raw = this.form.getRawValue();
+    return transportDataIncomplete(this.documentType(), {
+      transportCausal: raw.transportCausal,
+      transportPort: raw.transportPort,
+      transportCarrier: raw.transportCarrier,
+      transportPackagesCount: raw.transportPackagesCount,
+      transportGoodsAspect: raw.transportGoodsAspect,
+      destinationAddress: {
+        name: raw.destinationName,
+        address: raw.destinationAddress,
+        zip: raw.destinationZip,
+        city: raw.destinationCity,
+        province: raw.destinationProvince,
+        country: raw.destinationCountry,
+      },
+    });
+  }
+
+  /** «Sì»: prosegue il flusso sospeso (salvataggio bozza o conferma). */
+  protected confirmIncompleteData(): void {
+    this.incompleteDataDialogOpen.set(false);
+    const confirmAfter = this.pendingConfirmAfterIncomplete;
+    this.pendingConfirmAfterIncomplete = null;
+    if (confirmAfter) {
+      this.confirmDialogOpen.set(true);
+      return;
+    }
+    void this.persist(false);
+  }
+
+  /** «No»: si resta in maschera per completare i dati. */
+  protected dismissIncompleteData(): void {
+    this.incompleteDataDialogOpen.set(false);
+    this.pendingConfirmAfterIncomplete = null;
+  }
+
   protected saveDraft(): void {
+    if (this.transportIncomplete()) {
+      this.pendingConfirmAfterIncomplete = false;
+      this.incompleteDataDialogOpen.set(true);
+      return;
+    }
     void this.persist(false);
   }
 
   protected requestConfirm(): void {
     if (!this.validateForm()) {
+      return;
+    }
+    if (this.transportIncomplete()) {
+      this.pendingConfirmAfterIncomplete = true;
+      this.incompleteDataDialogOpen.set(true);
       return;
     }
     this.confirmDialogOpen.set(true);

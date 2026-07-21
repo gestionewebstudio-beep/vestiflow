@@ -567,3 +567,13 @@
     }
   </app-slide-panel>
 </section>
+
+<app-confirm-dialog
+  [(open)]="incompleteDataDialogOpen"
+  [title]="incompleteDataTitle"
+  [message]="incompleteDataMessage"
+  confirmLabel="Sì"
+  cancelLabel="No"
+  (confirmed)="confirmIncompleteData()"
+  (dismissed)="dismissIncompleteData()"
+/>

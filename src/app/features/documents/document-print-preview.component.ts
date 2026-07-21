@@ -27,6 +27,12 @@ import {
   isTransferPrintType,
 } from './models/document-print.util';
 import { isProformaDocumentType } from './models/document-sales.util';
+import {
+  TRANSPORT_INCOMPLETE_MESSAGE,
+  TRANSPORT_INCOMPLETE_TITLE,
+  documentTravelsWithGoods,
+  transportDataIncomplete,
+} from './models/document-transport.util';
 import { DocumentService } from './services/document.service';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
@@ -129,12 +135,13 @@ export class DocumentPrintPreviewComponent {
     return all.find((loc) => loc.id === locationId)?.name ?? null;
   }
 
-  // ── DDT vendita: trasporto e indirizzi in anteprima (prompt DDT) ────────
+  // ── Trasporto e indirizzi in anteprima: documenti che viaggiano con la
+  //    merce (DDT vendita e Fattura accompagnatoria), come nel PDF ─────────
 
-  /** Righe etichetta/valore del trasporto (solo campi compilati, solo DDT). */
+  /** Righe etichetta/valore del trasporto (solo i campi compilati). */
   protected readonly transportRows = computed<readonly (readonly [string, string])[]>(() => {
     const doc = this.document();
-    if (!doc || doc.type !== DocumentType.SalesDdt) {
+    if (!doc || !documentTravelsWithGoods(doc.type)) {
       return [];
     }
     const rows: (readonly [string, string])[] = [];
@@ -196,6 +203,7 @@ export class DocumentPrintPreviewComponent {
     );
   }
 
+  /** Intestatario: blocco proprio del DDT (sulla fattura è il cliente stesso). */
   protected readonly recipientAddressLines = computed(() => {
     const doc = this.document();
     return doc?.type === DocumentType.SalesDdt ? this.addressLines(doc.recipientAddress) : [];
@@ -203,7 +211,7 @@ export class DocumentPrintPreviewComponent {
 
   protected readonly destinationAddressLines = computed(() => {
     const doc = this.document();
-    if (doc?.type !== DocumentType.SalesDdt || !doc.destinationAddress) {
+    if (!doc || !documentTravelsWithGoods(doc.type) || !doc.destinationAddress) {
       return [];
     }
     const destination = this.addressLines(doc.destinationAddress);
@@ -212,30 +220,19 @@ export class DocumentPrintPreviewComponent {
     return destination.join('\n') === recipient.join('\n') ? [] : destination;
   });
 
-  // ── Avviso pre-stampa DDT (prompt DDT §AVVISI): dati trasporto/indirizzi ──
+  // ── Avviso pre-stampa (§AVVISI): dati trasporto/indirizzi incompleti ────
+  // Vale per i documenti che viaggiano con la merce (DDT vendita e Fattura
+  // accompagnatoria): è alla stampa che il dato serve davvero, perché il
+  // foglio sta per accompagnare la spedizione. Mai bloccante.
 
   protected readonly incompletePrintDialogOpen = signal(false);
+  protected readonly incompletePrintMessage = TRANSPORT_INCOMPLETE_MESSAGE;
+  protected readonly incompletePrintTitle = TRANSPORT_INCOMPLETE_TITLE;
   private pendingPrintAction: 'print' | 'pdf' | null = null;
 
-  /** DDT vendita con dati trasporto o indirizzi non compilati. */
-  private ddtDataIncomplete(): boolean {
+  private transportIncomplete(): boolean {
     const doc = this.document();
-    if (!doc || doc.type !== DocumentType.SalesDdt) {
-      return false;
-    }
-    const transportIncomplete =
-      !doc.transportCausal?.trim() ||
-      !doc.transportPort ||
-      !doc.transportCarrier?.trim() ||
-      doc.transportPackagesCount == null ||
-      !doc.transportGoodsAspect?.trim();
-    const addressIncomplete = (address: DocumentAddress | undefined): boolean =>
-      !address?.name?.trim() || !address.address?.trim() || !address.city?.trim();
-    return (
-      transportIncomplete ||
-      addressIncomplete(doc.recipientAddress) ||
-      addressIncomplete(doc.destinationAddress ?? doc.recipientAddress)
-    );
+    return doc != null && transportDataIncomplete(doc.type, doc);
   }
 
   protected confirmIncompletePrint(): void {
@@ -255,7 +252,7 @@ export class DocumentPrintPreviewComponent {
   }
 
   protected print(): void {
-    if (this.ddtDataIncomplete()) {
+    if (this.transportIncomplete()) {
       this.pendingPrintAction = 'print';
       this.incompletePrintDialogOpen.set(true);
       return;
@@ -264,7 +261,7 @@ export class DocumentPrintPreviewComponent {
   }
 
   protected downloadPdf(): void {
-    if (this.ddtDataIncomplete()) {
+    if (this.transportIncomplete()) {
       this.pendingPrintAction = 'pdf';
       this.incompletePrintDialogOpen.set(true);
       return;

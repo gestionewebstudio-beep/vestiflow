@@ -121,8 +121,8 @@
 
 <app-confirm-dialog
   [(open)]="incompletePrintDialogOpen"
-  title="Dati incompleti"
-  message="Dati trasporto/indirizzi incompleti. Procedere lo stesso?"
+  [title]="incompletePrintTitle"
+  [message]="incompletePrintMessage"
   confirmLabel="Sì"
   cancelLabel="No"
   (confirmed)="confirmIncompletePrint()"
