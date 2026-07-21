@@ -112,7 +112,6 @@ import type { CreateDocumentDto, DocumentLineInputDto } from './dto/create-docum
 import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import type { RegisterExternalDto } from './dto/register-external.dto';
-import type { MarkExternallyIssuedDto } from './dto/mark-externally-issued.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
 
 export type DocumentWithLines = Document & { lines: DocumentLine[] };
@@ -2237,71 +2236,12 @@ export class DocumentsService {
     return this.create(tenantId, createDto, user);
   }
 
-  async markPrinted(
-    tenantId: string,
-    id: string,
-    user?: UserProfileDto,
-  ): Promise<DocumentWithLines> {
-    return this.transition(
-      tenantId,
-      id,
-      DocumentStatus.printed,
-      [DocumentStatus.confirmed, DocumentStatus.sent, DocumentStatus.externally_registered],
-      user,
-    );
-  }
-
-  async markSent(
-    tenantId: string,
-    id: string,
-    user?: UserProfileDto,
-  ): Promise<DocumentWithLines> {
-    return this.transition(
-      tenantId,
-      id,
-      DocumentStatus.sent,
-      [DocumentStatus.confirmed, DocumentStatus.printed],
-      user,
-    );
-  }
-
-  /** Segna emissione fattura esterna su bozza fattura (§9.2, B6). */
-  async markExternallyIssued(
-    tenantId: string,
-    id: string,
-    dto: MarkExternallyIssuedDto,
-    user?: UserProfileDto,
-  ): Promise<DocumentWithLines> {
-    const doc = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, doc);
-    if (doc.type !== DocumentType.invoice_draft) {
-      throw new UnprocessableEntityException(
-        'Solo le bozze fattura possono essere marcate come emesse esternamente.',
-      );
-    }
-    if (
-      doc.status !== DocumentStatus.confirmed &&
-      doc.status !== DocumentStatus.printed &&
-      doc.status !== DocumentStatus.sent
-    ) {
-      throw new ConflictException(
-        'Solo documenti confermati, stampati o inviati possono essere marcati come emessi esternamente.',
-      );
-    }
-
-    return this.prisma.document.update({
-      where: { id },
-      data: {
-        externallyIssuedAt: new Date(),
-        externalDocNumber: dto.externalDocNumber ?? doc.externalDocNumber,
-        externalDocDate: dto.externalDocDate
-          ? new Date(dto.externalDocDate)
-          : doc.externalDocDate,
-      },
-      include: { lines: { orderBy: { lineNumber: 'asc' } } },
-    });
-  }
-
+  /**
+   * «Inviata al commercialista»: unica azione di ciclo di vita fiscale, esposta
+   * dall'interfaccia su Fattura, Fattura accompagnatoria e Proforma. Gli stati
+   * stampato/inviato non sono più raggiungibili ma restano accettati in ingresso
+   * per i documenti storici che li hanno già.
+   */
   async registerExternal(
     tenantId: string,
     id: string,
@@ -2317,11 +2257,6 @@ export class DocumentsService {
     ) {
       throw new ConflictException(
         'Solo documenti confermati, stampati o inviati possono essere registrati esternamente.',
-      );
-    }
-    if (doc.type === DocumentType.invoice_draft && !doc.externallyIssuedAt) {
-      throw new UnprocessableEntityException(
-        'Registra prima l\'emissione esterna della fattura (mark-externally-issued).',
       );
     }
     return this.prisma.document.update({

@@ -3343,12 +3343,12 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. Dal dettaglio documento confermato: **Stampa** / scarica PDF.
-2. Se disponibile: **Invia** (email o canale configurato) e verifica stato «inviato».
-3. **Registra esternamente** (es. commercialista/ERP) se previsto; verifica badge o avviso in lista/dettaglio.
-4. Tenta modifica righe su documento già stampato/inviato/registrato.
+1. Dal dettaglio documento confermato: **Anteprima stampa** / scarica PDF.
+2. Verifica che sull'arrivo merce non compaia alcuna azione di ciclo di vita fiscale.
+3. Su una **Fattura**, **Fattura accompagnatoria** o **Proforma** confermata: **Inviata al commercialista**, conferma il dialogo e verifica il badge in lista/dettaglio.
+4. Tenta modifica righe su documento già inviato al commercialista.
 
-**Risultato atteso:** azioni lifecycle disponibili dopo conferma. Avvisi visibili se documento già stampato/inviato/registrato. Modifiche distruttive bloccate o con conferma esplicita.
+**Risultato atteso:** «Inviata al commercialista» è l'unica azione di stato ed è presente solo su Fattura, Fattura accompagnatoria e Proforma. Modifiche distruttive bloccate o con conferma esplicita.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |

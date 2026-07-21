@@ -241,10 +241,6 @@ export class DocumentService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
-  markPrinted(id: EntityId): Observable<DocumentRecord> {
-    return this.action(id, 'print');
-  }
-
   exportPdf(id: EntityId): Observable<Blob> {
     return this.http
       .get(this.url(`/documents/${id}/export/pdf`), { responseType: 'blob' })
@@ -258,25 +254,13 @@ export class DocumentService {
       .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 
-  markSent(id: EntityId): Observable<DocumentRecord> {
-    return this.action(id, 'send');
-  }
-
+  /** «Inviata al commercialista»: registrazione esterna del documento fiscale. */
   registerExternal(
     id: EntityId,
     body: { externalDocNumber?: string; externalDocDate?: string; note?: string },
   ): Observable<DocumentRecord> {
     return this.http
       .post<DocumentApiRow>(this.url(`/documents/${id}/register-external`), body)
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
-  }
-
-  markExternallyIssued(
-    id: EntityId,
-    body: { externalDocNumber?: string; externalDocDate?: string },
-  ): Observable<DocumentRecord> {
-    return this.http
-      .post<DocumentApiRow>(this.url(`/documents/${id}/mark-externally-issued`), body)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 

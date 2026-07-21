@@ -63,10 +63,13 @@ export function documentStatusLabelForType(
   doc: Pick<DocumentRecord, 'externallyIssuedAt'>,
 ): string {
   // Stati fiscali condivisi da Fattura e Fattura accompagnatoria: entrambe
-  // seguono lo stesso ciclo «Da emettere → Inviata al commercialista → …».
+  // seguono lo stesso ciclo «Da emettere → Inviata al commercialista».
+  // ExternallyRegistered è lo stato impostato dall'azione «Inviata al
+  // commercialista»; Sent non è più raggiungibile e resta mappato solo per i
+  // documenti storici che lo hanno già.
   if (isSalesInvoiceDocumentType(type)) {
     if (status === DocumentStatus.ExternallyRegistered) {
-      return 'Registrata esternamente';
+      return 'Inviata al commercialista';
     }
     if (status === DocumentStatus.Sent && doc.externallyIssuedAt) {
       return 'Emessa esternamente';

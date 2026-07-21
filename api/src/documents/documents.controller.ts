@@ -39,7 +39,6 @@ import { DocumentXmlService } from './document-xml.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { ConvertDocumentDto } from './dto/convert-document.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
-import { MarkExternallyIssuedDto } from './dto/mark-externally-issued.dto';
 import { RegisterExternalDto } from './dto/register-external.dto';
 import { PreviewDocumentNumberQueryDto } from './dto/preview-document-number.query.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
@@ -347,26 +346,7 @@ export class DocumentsController {
     return this.documents.convert(tenantId, id, dto, user);
   }
 
-  @Post(':id/print')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  markPrinted(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<DocumentWithLines> {
-    return this.documents.markPrinted(tenantId, id, user);
-  }
-
-  @Post(':id/send')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  markSent(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<DocumentWithLines> {
-    return this.documents.markSent(tenantId, id, user);
-  }
-
+  /** «Inviata al commercialista»: unica azione di ciclo di vita fiscale. */
   @Post(':id/register-external')
   @RequirePermissions(TenantPermission.DocumentsManage)
   registerExternal(
@@ -376,17 +356,6 @@ export class DocumentsController {
     @Body() dto: RegisterExternalDto,
   ): Promise<DocumentWithLines> {
     return this.documents.registerExternal(tenantId, id, dto, user);
-  }
-
-  @Post(':id/mark-externally-issued')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  markExternallyIssued(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: MarkExternallyIssuedDto,
-  ): Promise<DocumentWithLines> {
-    return this.documents.markExternallyIssued(tenantId, id, dto, user);
   }
 
   @Post(':id/cancel')

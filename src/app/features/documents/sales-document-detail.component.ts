@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { TransportPort } from '@core/models/document.model';
@@ -9,7 +8,6 @@ import { formatDate, formatDateTime } from '@core/utils/date.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
-import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -42,11 +40,9 @@ const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
-    ReactiveFormsModule,
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
-    DateInputComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,

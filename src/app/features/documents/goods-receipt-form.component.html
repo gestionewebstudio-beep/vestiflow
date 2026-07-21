@@ -106,9 +106,9 @@
         </p>
       }
 
-      <!-- Niente azioni di ciclo vita fiscale (Segna stampato/inviato, Registra
-           esternamente): l'arrivo merce è un documento operativo interno e la
-           copertura contabile è tracciata dal collegamento fattura (lista). -->
+      <!-- Niente azioni di ciclo vita fiscale: l'arrivo merce è un documento
+           operativo interno e la copertura contabile è tracciata dal
+           collegamento fattura (lista). -->
       @if (isConfirmedEdit() && canExportPdf()) {
         <div class="gr-form__post-actions" aria-label="Azioni documento confermato">
           <app-button type="button" variant="secondary" (click)="openPrintPreview()">

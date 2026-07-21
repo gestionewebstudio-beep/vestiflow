@@ -780,7 +780,7 @@ Da **Documenti**, pulsante **Nuovo documento** (se hai **Gestire documenti**):
 - **Righe in griglia:** menu **Colonne** (preset, resize intestazioni, **Ripristina colonne**); cerca articolo per **nome, SKU o barcode/EAN**; **Crea articolo rapido** o **Crea anagrafica completa** (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag **Carica magazzino**, totale riga.
 - **Ordine fornitore collegato:** se apri l'arrivo da **Registra arrivo merce** sull'ordine, compaiono anche colonne **Ordinato / Già ricevuto / Residuo** per ogni riga.
 - **Conferma:** se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede, compare un dialog per **aggiornare i prezzi fornitore**.
-- **Documento già confermato:** avvisi se stampato/inviato/registrato esternamente; azioni **Segna stampato**, **Segna inviato**, **Registra esternamente** disponibili nel form.
+- **Documento già confermato:** dal form restano disponibili **Anteprima stampa** e il download del PDF. L'arrivo merce non ha azioni di ciclo di vita fiscale: la copertura contabile è tracciata dal collegamento alla fattura fornitore.
 - Opzionali per riga: **lotto**, **scadenza lotto**, **numeri seriali** (testo separato da virgola).
 
 Alla **conferma** dell'arrivo merce (o carico manuale/iniziale) VestiFlow registra i **carichi** in magazzino, aggiorna le giacenze e, se collegato, l'ordine fornitore e l'**in arrivo** (e Shopify/TikTok se collegati).

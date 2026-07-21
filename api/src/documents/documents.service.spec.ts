@@ -779,47 +779,6 @@ describe('DocumentsService', () => {
   });
 
   describe('transizioni di stato', () => {
-    it('markPrinted consente il passaggio da confermato', async () => {
-      const { service } = createService(prisma);
-      prisma.document.findFirst.mockResolvedValue({
-        id: 'doc-1',
-        status: DocumentStatus.confirmed,
-        lines: [],
-      });
-      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
-
-      await service.markPrinted(tenantId, 'doc-1');
-
-      expect(prisma.document.update.mock.calls[0]![0]!.data.status).toBe(DocumentStatus.printed);
-    });
-
-    it('markPrinted rifiuta il passaggio da bozza', async () => {
-      const { service } = createService(prisma);
-      prisma.document.findFirst.mockResolvedValue({
-        id: 'doc-1',
-        status: DocumentStatus.draft,
-        lines: [],
-      });
-
-      await expect(service.markPrinted(tenantId, 'doc-1')).rejects.toBeInstanceOf(
-        ConflictException,
-      );
-    });
-
-    it('markSent consente il passaggio da stampato', async () => {
-      const { service } = createService(prisma);
-      prisma.document.findFirst.mockResolvedValue({
-        id: 'doc-1',
-        status: DocumentStatus.printed,
-        lines: [],
-      });
-      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
-
-      await service.markSent(tenantId, 'doc-1');
-
-      expect(prisma.document.update.mock.calls[0]![0]!.data.status).toBe(DocumentStatus.sent);
-    });
-
     it('registerExternal registra data e riferimenti esterni', async () => {
       const { service } = createService(prisma);
       prisma.document.findFirst.mockResolvedValue({
@@ -855,6 +814,29 @@ describe('DocumentsService', () => {
 
       await expect(service.registerExternal(tenantId, 'doc-1', {})).rejects.toBeInstanceOf(
         ConflictException,
+      );
+    });
+
+    // «Inviata al commercialista» è l'unica azione fiscale: sulla Fattura non
+    // richiede più un passaggio preliminare di emissione esterna.
+    it('registerExternal accetta una fattura confermata senza emissione esterna', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findFirst.mockResolvedValue({
+        id: 'doc-1',
+        type: DocumentType.invoice_draft,
+        status: DocumentStatus.confirmed,
+        externallyIssuedAt: null,
+        externalDocNumber: null,
+        externalDocDate: null,
+        externalRef: null,
+        lines: [],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
+
+      await service.registerExternal(tenantId, 'doc-1', {});
+
+      expect(prisma.document.update.mock.calls[0]![0]!.data.status).toBe(
+        DocumentStatus.externally_registered,
       );
     });
 
@@ -1988,14 +1970,14 @@ describe('DocumentsService', () => {
       expect(prisma.document.create).not.toHaveBeenCalled();
     });
 
-    it('markPrinted (transizione di stato) rifiuta con 403 una sede non assegnata', async () => {
+    it('registerExternal (transizione di stato) rifiuta con 403 una sede non assegnata', async () => {
       const { service } = createService(prisma);
       prisma.document.findFirst.mockResolvedValue(
         docInLocB({ status: DocumentStatus.confirmed }),
       );
 
       await expect(
-        service.markPrinted(tenantId, 'doc-b', clerkViewAll()),
+        service.registerExternal(tenantId, 'doc-b', {}, clerkViewAll()),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.document.update).not.toHaveBeenCalled();
     });

@@ -7,7 +7,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import type { Observable, Subscription } from 'rxjs';
@@ -25,7 +24,6 @@ import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
-import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -81,6 +79,7 @@ type DetailState =
  */
 const EXTERNAL_REGISTRATION_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.InvoiceDraft,
+  DocumentType.InvoiceAccompanying,
   DocumentType.Proforma,
 ] as const;
 
@@ -91,7 +90,7 @@ function supportsExternalRegistration(type: DocumentType): boolean {
 /** Etichetta dell'azione e testo del dialogo di conferma (unico per tutti i tipi). */
 const EXTERNAL_REGISTRATION_LABEL = 'Inviata al commercialista';
 const EXTERNAL_REGISTRATION_MESSAGE =
-  'Segna questo documento come inviato al commercialista per la registrazione. Non modifica le giacenze.';
+  'Segna questo documento come inviato al commercialista per la registrazione.';
 
 /**
  * Dettaglio documento (smart, sola lettura). Espone le transizioni di stato
@@ -103,11 +102,9 @@ const EXTERNAL_REGISTRATION_MESSAGE =
   selector: 'app-document-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ReactiveFormsModule,
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
-    DateInputComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -126,12 +123,6 @@ export class DocumentDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly fb = inject(NonNullableFormBuilder);
-
-  protected readonly markExternallyIssuedForm = this.fb.group({
-    externalDocNumber: this.fb.control(''),
-    externalDocDate: this.fb.control(''),
-  });
 
   // Tipo esplicito string: le anteprime dedicate (SalesDocumentDetailComponent)
   // sovrascrivono il percorso con la propria pagina elenco.
@@ -310,37 +301,20 @@ export class DocumentDetailComponent {
    * «Inviata al commercialista» (registrazione esterna): unica azione di ciclo
    * di vita fiscale esposta, e solo per i tipi in
    * EXTERNAL_REGISTRATION_DOCUMENT_TYPES. Gli altri documenti non mostrano
-   * alcuna azione di stato (niente stampato/inviato/registrato).
+   * alcuna azione di stato.
    *
-   * Per la Bozza fattura resta il prerequisito dell'emissione esterna
-   * («Segna emessa esternamente»): senza `externallyIssuedAt` il backend
-   * rifiuta la registrazione, quindi il pulsante non va offerto prima.
+   * Gli stati Stampato/Inviato non sono più raggiungibili dall'interfaccia ma
+   * restano ammessi qui per i documenti storici già in quegli stati.
    */
   protected readonly canRegisterExternal = computed(() => {
     const doc = this.document();
     if (!this.canManage() || !doc || !supportsExternalRegistration(doc.type)) {
       return false;
     }
-    const registrableStatus =
+    return (
       doc.status === DocumentStatus.Confirmed ||
       doc.status === DocumentStatus.Printed ||
-      doc.status === DocumentStatus.Sent;
-    if (!registrableStatus) {
-      return false;
-    }
-    return isInvoiceDraftDocumentType(doc.type) ? Boolean(doc.externallyIssuedAt) : true;
-  });
-
-  protected readonly canMarkExternallyIssued = computed(() => {
-    const doc = this.document();
-    return (
-      this.canManage() &&
-      doc != null &&
-      isInvoiceDraftDocumentType(doc.type) &&
-      !doc.externallyIssuedAt &&
-      (doc.status === DocumentStatus.Confirmed ||
-        doc.status === DocumentStatus.Printed ||
-        doc.status === DocumentStatus.Sent)
+      doc.status === DocumentStatus.Sent
     );
   });
 
@@ -465,9 +439,6 @@ export class DocumentDetailComponent {
   protected readonly registerButtonLabel = EXTERNAL_REGISTRATION_LABEL;
   protected readonly registerDialogMessage = EXTERNAL_REGISTRATION_MESSAGE;
 
-  protected readonly markExternallyIssuedMessage =
-    'Segna la bozza fattura come emessa esternamente (gestionale fiscale o commercialista). Potrai registrarla in un secondo momento.';
-
   protected readonly editButtonLabel = computed(() => {
     const doc = this.document();
     if (!doc) {
@@ -530,7 +501,6 @@ export class DocumentDetailComponent {
   });
 
   protected readonly confirmDialogOpen = signal(false);
-  protected readonly markExternallyIssuedDialogOpen = signal(false);
   protected readonly registerDialogOpen = signal(false);
   protected readonly cancelDialogOpen = signal(false);
   protected readonly deleteDialogOpen = signal(false);
@@ -659,13 +629,6 @@ export class DocumentDetailComponent {
   protected requestRegister(): void {
     this.registerDialogOpen.set(true);
   }
-  protected requestMarkExternallyIssued(): void {
-    this.markExternallyIssuedForm.reset({
-      externalDocNumber: '',
-      externalDocDate: '',
-    });
-    this.markExternallyIssuedDialogOpen.set(true);
-  }
   protected requestCancel(): void {
     this.cancelDialogOpen.set(true);
   }
@@ -680,23 +643,11 @@ export class DocumentDetailComponent {
 
   /**
    * Registrazione esterna: numero e data del documento esterno restano quelli
-   * già acquisiti (per la Bozza fattura da «Segna emessa esternamente»), il
-   * dialogo è una semplice conferma.
+   * già acquisiti sul documento, il dialogo è una semplice conferma.
    */
   protected registerExternal(): void {
     this.registerDialogOpen.set(false);
     this.runAction((id) => this.service.registerExternal(id, {}));
-  }
-
-  protected markExternallyIssued(): void {
-    this.markExternallyIssuedDialogOpen.set(false);
-    const raw = this.markExternallyIssuedForm.getRawValue();
-    this.runAction((id) =>
-      this.service.markExternallyIssued(id, {
-        externalDocNumber: raw.externalDocNumber.trim() || undefined,
-        externalDocDate: raw.externalDocDate.trim() || undefined,
-      }),
-    );
   }
 
   protected printLabels(): void {
