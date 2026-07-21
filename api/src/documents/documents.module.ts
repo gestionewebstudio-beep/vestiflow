@@ -5,6 +5,7 @@ import { OrderReservationsModule } from '../order-reservations/order-reservation
 import { VatModule } from '../vat/vat.module';
 import { DocumentAttachmentsService } from './document-attachments.service';
 import { DocumentPdfService } from './document-pdf.service';
+import { DocumentXmlService } from './document-xml.service';
 import { DocumentSettingsController } from './document-settings.controller';
 import { DocumentSettingsService } from './document-settings.service';
 import { DocumentsController } from './documents.controller';
@@ -29,6 +30,7 @@ import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflo
     DocumentSettingsService,
     DocumentAttachmentsService,
     DocumentPdfService,
+    DocumentXmlService,
     GoodsReceiptCausalsService,
     ExternalDocumentTypesService,
     GoodsReceiptWorkflowService,

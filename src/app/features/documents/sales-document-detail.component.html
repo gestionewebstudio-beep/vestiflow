@@ -40,6 +40,16 @@
             Scarica PDF
           </app-button>
         }
+        @if (canDownloadXml()) {
+          <app-button
+            variant="secondary"
+            [loading]="downloadingXml()"
+            [disabled]="downloadingXml()"
+            (click)="downloadDocumentXml()"
+          >
+            Scarica XML
+          </app-button>
+        }
         @if (canDuplicate()) {
           <app-button variant="secondary" [disabled]="actionSaving()" (click)="duplicateDocument()">
             Duplica

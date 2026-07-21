@@ -10,6 +10,32 @@ export const NON_STOCK_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.quote,
 ] as const;
 
+/**
+ * Fatture di vendita: Fattura e Fattura accompagnatoria. Condividono elenco,
+ * numeratore e form base; si differenziano per trasporto/destinazione e per lo
+ * scarico di magazzino (solo l'accompagnatoria, e solo senza DDT agganciato).
+ */
+export const SALES_INVOICE_DOCUMENT_TYPES: readonly DocumentType[] = [
+  DocumentType.invoice_draft,
+  DocumentType.invoice_accompanying,
+] as const;
+
+export function isSalesInvoiceDocumentType(type: DocumentType): boolean {
+  return (SALES_INVOICE_DOCUMENT_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Tipo su cui chiavare il numeratore (DocumentSequence).
+ *
+ * Di norma coincide col tipo del documento. Fanno eccezione le fatture di
+ * vendita: Fattura e Fattura accompagnatoria condividono UN SOLO progressivo,
+ * quindi entrambe numerano sotto `invoice_draft`. La numerazione non si divide
+ * per tipo — due fatture di tipo diverso non possono avere lo stesso numero.
+ */
+export function documentNumberingType(type: DocumentType): DocumentType {
+  return type === DocumentType.invoice_accompanying ? DocumentType.invoice_draft : type;
+}
+
 /** Avviso obbligatorio in stampa/note proforma (§9.1). */
 export const PROFORMA_FISCAL_DISCLAIMER =
   'Documento non fiscale / Proforma non valida ai fini IVA.';

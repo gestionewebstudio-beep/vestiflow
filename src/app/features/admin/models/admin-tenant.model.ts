@@ -8,6 +8,7 @@ export interface TenantProfileFields {
   readonly phone?: string;
   readonly pec?: string;
   readonly sdiCode?: string;
+  readonly iban?: string;
   readonly addressLine1?: string;
   readonly addressLine2?: string;
   readonly city?: string;
@@ -87,6 +88,7 @@ export interface TenantDetail {
     readonly phone: string | null;
     readonly pec: string | null;
     readonly sdiCode: string | null;
+    readonly iban: string | null;
     readonly addressLine1: string | null;
     readonly addressLine2: string | null;
     readonly city: string | null;

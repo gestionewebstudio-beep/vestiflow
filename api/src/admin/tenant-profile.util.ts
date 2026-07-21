@@ -12,6 +12,7 @@ export function tenantProfileCreateData(
   | 'phone'
   | 'pec'
   | 'sdiCode'
+  | 'iban'
   | 'addressLine1'
   | 'addressLine2'
   | 'city'
@@ -28,6 +29,7 @@ export function tenantProfileCreateData(
     phone: dto.phone ?? null,
     pec: dto.pec ?? null,
     sdiCode: dto.sdiCode ?? null,
+    iban: dto.iban ?? null,
     addressLine1: dto.addressLine1 ?? null,
     addressLine2: dto.addressLine2 ?? null,
     city: dto.city ?? null,
@@ -47,6 +49,7 @@ export function tenantProfileReplaceData(
   | 'phone'
   | 'pec'
   | 'sdiCode'
+  | 'iban'
   | 'addressLine1'
   | 'addressLine2'
   | 'city'
@@ -63,6 +66,7 @@ export function tenantProfileReplaceData(
     phone: dto.phone ?? null,
     pec: dto.pec ?? null,
     sdiCode: dto.sdiCode ?? null,
+    iban: dto.iban ?? null,
     addressLine1: dto.addressLine1 ?? null,
     addressLine2: dto.addressLine2 ?? null,
     city: dto.city ?? null,

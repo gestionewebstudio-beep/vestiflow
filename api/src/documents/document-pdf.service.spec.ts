@@ -46,6 +46,8 @@ describe('DocumentPdfService', () => {
     paymentMethod: null,
     paymentTerms: null,
     expectedDeliveryDate: null,
+    paymentDueDate: null,
+    iban: null,
     causalText: null,
     causalGenerationMode: null,
     causalTemplateSnapshot: null,
@@ -85,6 +87,7 @@ describe('DocumentPdfService', () => {
     linkedPurchaseInvoice: null,
     linkedGoodsReceipts: [],
     paymentInstallments: [],
+    linkedSalesDdts: [],
     lines: [
       {
         id: 'line-1',

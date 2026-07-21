@@ -68,8 +68,10 @@ import {
   documentTypeLoadsStockOnConfirm,
   documentTypeTransfersStockOnConfirm,
   documentTypeUnloadsStockOnConfirm,
+  invoiceAccompanyingUnloadsStock,
 } from './document-stock.constants';
 import {
+  documentNumberingType,
   documentTypeDefaultLoadsStock,
   isProformaConvertTarget,
   isSalesDdtConvertTarget,
@@ -171,6 +173,16 @@ export type DocumentDetail = DocumentWithLines & {
   linkedGoodsReceipts: readonly LinkedGoodsReceiptInfo[];
   /** Scadenze di pagamento (Registrazione fattura fornitore). */
   paymentInstallments: readonly DocumentPaymentInstallment[];
+  /** DDT vendita agganciati alla fattura («Riferimento DDT»). */
+  linkedSalesDdts: readonly LinkedSalesDdtInfo[];
+};
+
+/** DDT vendita agganciato a una fattura (riferimento documentale). */
+export type LinkedSalesDdtInfo = {
+  readonly id: string;
+  readonly number: number | null;
+  readonly reference: string | null;
+  readonly documentDate: Date;
 };
 
 export type LinkedSupplierOrderLineContext = {
@@ -590,6 +602,20 @@ export class DocumentsService {
           },
           orderBy: { createdAt: 'asc' },
         },
+        // Fattura → DDT vendita agganciati («Riferimento DDT»).
+        ddtLinks: {
+          include: {
+            salesDdt: {
+              select: {
+                id: true,
+                number: true,
+                reference: true,
+                documentDate: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
         // Scadenze di pagamento (Registrazione fattura fornitore).
         paymentInstallments: { orderBy: { position: 'asc' } },
       },
@@ -604,6 +630,7 @@ export class DocumentsService {
       supplierOrder,
       purchaseInvoiceLinks,
       goodsReceiptLinks,
+      ddtLinks = [],
       ...rest
     } = doc;
     const linkedSupplierOrderLines =
@@ -634,6 +661,7 @@ export class DocumentsService {
           vatBreakdown: receiptVatBreakdown({ ...receipt, lines: receiptLines }),
         };
       }),
+      linkedSalesDdts: ddtLinks.map(({ salesDdt }) => salesDdt),
     };
   }
 
@@ -668,18 +696,23 @@ export class DocumentsService {
     }
     const resolvedSeries = (series ?? setting.defaultSeries).trim() || 'A';
     const resolvedYear = year ?? new Date().getFullYear();
+    // Stessa chiave (e stesso prefisso) usati dalla conferma: l'anteprima di
+    // una Fattura accompagnatoria legge il progressivo condiviso della Fattura.
+    const numberingType = documentNumberingType(type);
+    const numberingSetting =
+      numberingType === type ? setting : await this.settings.getResolved(tenantId, numberingType);
     const sequence = await this.prisma.documentSequence.findUnique({
       where: {
         tenantId_type_series_year: {
           tenantId,
-          type,
+          type: numberingType,
           series: resolvedSeries,
           year: resolvedYear,
         },
       },
     });
     const previewNumber = (sequence?.lastNumber ?? 0) + 1;
-    const prefix = (setting.numberPrefix ?? 'DOC').trim() || 'DOC';
+    const prefix = (numberingSetting.numberPrefix ?? 'DOC').trim() || 'DOC';
     return {
       reference: this.formatReference(prefix, resolvedYear, previewNumber),
       previewNumber,
@@ -796,6 +829,9 @@ export class DocumentsService {
           expectedDeliveryDate: dto.expectedDeliveryDate
             ? new Date(dto.expectedDeliveryDate)
             : null,
+          // Fattura: dati pagamento in testata.
+          paymentDueDate: dto.paymentDueDate ? new Date(dto.paymentDueDate) : null,
+          iban: dto.iban?.trim() || null,
           // DDT vendita: testata operativa (prompt DDT).
           followedBySalesDoc: dto.followedBySalesDoc ?? false,
           transportCausal: dto.transportCausal?.trim() || null,
@@ -819,6 +855,10 @@ export class DocumentsService {
         },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
+
+      if (dto.linkedSalesDdtIds !== undefined) {
+        await this.syncLinkedSalesDdtsTx(tx, tenantId, created.id, dto.linkedSalesDdtIds);
+      }
 
       if (dto.includedSalesOrderIds !== undefined) {
         await this.syncIncludedSalesOrdersTx(tx, tenantId, created, dto.includedSalesOrderIds);
@@ -860,6 +900,49 @@ export class DocumentsService {
    * sgancia (e riapre, se già evasi da questo documento) quelli rimossi.
    * Restituisce i target inventario da sincronizzare verso i canali.
    */
+  /**
+   * Aggancio «Riferimento DDT» della fattura: sostituisce integralmente i link
+   * esistenti con quelli richiesti. È un collegamento SOLO documentale — non
+   * crea né annulla movimenti di magazzino. L'effetto indiretto è sulla
+   * Fattura accompagnatoria, che smette di scaricare le giacenze quando un DDT
+   * è agganciato (le ha già scaricate il DDT).
+   *
+   * Accetta solo DDT vendita del tenant non annullati; un id che non rispetta
+   * questi vincoli è un errore esplicito, non un link scartato in silenzio.
+   */
+  private async syncLinkedSalesDdtsTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    invoiceId: string,
+    ddtIds: readonly string[],
+  ): Promise<void> {
+    const uniqueIds = [...new Set(ddtIds)];
+
+    if (uniqueIds.length > 0) {
+      const found = await tx.document.findMany({
+        where: {
+          id: { in: uniqueIds },
+          tenantId,
+          type: DocumentType.sales_ddt,
+          cancelledAt: null,
+        },
+        select: { id: true },
+      });
+      if (found.length !== uniqueIds.length) {
+        throw new UnprocessableEntityException(
+          'Uno o più DDT indicati non esistono, non sono DDT vendita o sono annullati.',
+        );
+      }
+    }
+
+    await tx.invoiceSalesDdtLink.deleteMany({ where: { tenantId, invoiceId } });
+    if (uniqueIds.length > 0) {
+      await tx.invoiceSalesDdtLink.createMany({
+        data: uniqueIds.map((salesDdtId) => ({ tenantId, invoiceId, salesDdtId })),
+      });
+    }
+  }
+
   private async syncIncludedSalesOrdersTx(
     tx: Prisma.TransactionClient,
     tenantId: string,
@@ -1227,6 +1310,13 @@ export class DocumentsService {
       data.expectedDeliveryDate = dto.expectedDeliveryDate
         ? new Date(dto.expectedDeliveryDate)
         : null;
+    }
+    // Fattura: dati pagamento in testata.
+    if (dto.paymentDueDate !== undefined) {
+      data.paymentDueDate = dto.paymentDueDate ? new Date(dto.paymentDueDate) : null;
+    }
+    if (dto.iban !== undefined) {
+      data.iban = dto.iban?.trim() || null;
     }
     // DDT vendita: testata operativa (prompt DDT §TESTATA/§TRASPORTO/§INDIRIZZI).
     if (dto.followedBySalesDoc !== undefined) {
@@ -1697,6 +1787,11 @@ export class DocumentsService {
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
 
+      // Aggancio DDT della fattura: allineato a ogni salvataggio che lo dichiara.
+      if (dto.linkedSalesDdtIds !== undefined) {
+        await this.syncLinkedSalesDdtsTx(tx, tenantId, saved.id, dto.linkedSalesDdtIds);
+      }
+
       // Aggancio ordini cliente inclusi (DDT vendita, prompt DDT §LOGICA
       // MAGAZZINO): allineato a ogni salvataggio che dichiara l'elenco.
       if (dto.includedSalesOrderIds !== undefined) {
@@ -1854,15 +1949,40 @@ export class DocumentsService {
       let number = doc.number;
       let reference = doc.reference;
       if (setting.autoNumbering && number == null) {
+        // Prefisso preso dal tipo che possiede il numeratore: la Fattura
+        // accompagnatoria eredita quello della Fattura, così le due serie
+        // condivise producono riferimenti omogenei (FT-2026-0001, 0002…).
+        const numberingSetting = await this.settings.getResolved(
+          tenantId,
+          documentNumberingType(doc.type),
+        );
         number = await this.nextNumber(tx, tenantId, doc.type, doc.series, doc.year);
-        reference = this.formatReference(setting.numberPrefix, doc.year, number);
+        reference = this.formatReference(numberingSetting.numberPrefix, doc.year, number);
       }
 
       // Fase 2 §9: DDT collegato a una Vendita online che ha GIÀ scaricato il
       // magazzino ⇒ nessun movimento, nessun consumo impegni, nessun secondo
       // scarico. La scelta non è attivabile dall'utente: è forzata dal link.
-      if (doc.type === DocumentType.sales_ddt && !doc.onlineSaleId) {
-        const reason = reference ? `DDT vendita ${reference}` : `DDT vendita ${doc.type}`;
+      // Scarico alla conferma dei documenti di vendita che movimentano.
+      // La Fattura accompagnatoria rientra qui solo SENZA DDT agganciato:
+      // con un DDT la merce è già uscita e un secondo scarico duplicherebbe
+      // il movimento (giacenze in negativo per la stessa merce).
+      const accompanyingUnloads =
+        doc.type === DocumentType.invoice_accompanying &&
+        invoiceAccompanyingUnloadsStock(
+          await tx.invoiceSalesDdtLink.count({ where: { tenantId, invoiceId: doc.id } }),
+        );
+
+      if (accompanyingUnloads) {
+        this.assertStockUnloadDocument(doc);
+      }
+
+      if ((doc.type === DocumentType.sales_ddt && !doc.onlineSaleId) || accompanyingUnloads) {
+        const label =
+          doc.type === DocumentType.invoice_accompanying
+            ? 'Fattura accompagnatoria'
+            : 'DDT vendita';
+        const reason = reference ? `${label} ${reference}` : `${label} ${doc.type}`;
         await assertSerialNumbersForUnloadLines(tx, tenantId, doc.locationId!, doc.lines);
         for (const line of doc.lines) {
           if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
@@ -2627,7 +2747,7 @@ export class DocumentsService {
     }
     if (!doc.customerId) {
       throw new UnprocessableEntityException(
-        'Seleziona un cliente prima di confermare il DDT vendita.',
+        'Seleziona un cliente prima di confermare il documento.',
       );
     }
     if (!doc.locationId) {
@@ -2717,7 +2837,13 @@ export class DocumentsService {
     });
   }
 
-  /** Prossimo numero progressivo (atomico via upsert) per serie/anno/tipo. */
+  /**
+   * Prossimo numero progressivo (atomico via upsert) per serie/anno/tipo.
+   *
+   * La chiave usa `documentNumberingType`, non il tipo grezzo: le fatture di
+   * vendita (Fattura e Fattura accompagnatoria) condividono un unico
+   * progressivo, quindi incrementano la stessa riga di DocumentSequence.
+   */
   private async nextNumber(
     tx: Prisma.TransactionClient,
     tenantId: string,
@@ -2725,9 +2851,10 @@ export class DocumentsService {
     series: string,
     year: number,
   ): Promise<number> {
+    const numberingType = documentNumberingType(type);
     const sequence = await tx.documentSequence.upsert({
-      where: { tenantId_type_series_year: { tenantId, type, series, year } },
-      create: { tenantId, type, series, year, lastNumber: 1 },
+      where: { tenantId_type_series_year: { tenantId, type: numberingType, series, year } },
+      create: { tenantId, type: numberingType, series, year, lastNumber: 1 },
       update: { lastNumber: { increment: 1 } },
     });
     return sequence.lastNumber;

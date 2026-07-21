@@ -198,6 +198,29 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @IsISO8601()
   expectedDeliveryDate?: string;
 
+  /** Scadenza pagamento (Fattura). */
+  @IsOptional()
+  @IsISO8601()
+  paymentDueDate?: string;
+
+  /** IBAN di incasso: precompilato da Impostazioni, modificabile qui. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(34)
+  iban?: string;
+
+  /**
+   * DDT vendita agganciati alla fattura («Riferimento DDT», opzionale).
+   * Collegamento solo documentale: non muove magazzino, ma la sua presenza
+   * sopprime lo scarico della Fattura accompagnatoria, perché le giacenze
+   * sono già scese col DDT.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID('4', { each: true })
+  linkedSalesDdtIds?: string[];
+
   /** "Seguirà doc. di vendita" (DDT vendita, prompt DDT §TESTATA). */
   @IsOptional()
   @IsBoolean()

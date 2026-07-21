@@ -43,6 +43,12 @@ export class CreateCustomerDto {
   @IsEmail()
   pec?: string;
 
+  /** Codice destinatario SDI: 7 caratteri (6 per la PA). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  sdiCode?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(50)

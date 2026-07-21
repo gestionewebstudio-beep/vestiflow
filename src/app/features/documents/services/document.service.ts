@@ -251,6 +251,13 @@ export class DocumentService {
       .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 
+  /** Export XML FatturaPA: disponibile solo per le fatture di vendita. */
+  exportXml(id: EntityId): Observable<Blob> {
+    return this.http
+      .get(this.url(`/documents/${id}/export/xml`), { responseType: 'blob' })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
+  }
+
   markSent(id: EntityId): Observable<DocumentRecord> {
     return this.action(id, 'send');
   }

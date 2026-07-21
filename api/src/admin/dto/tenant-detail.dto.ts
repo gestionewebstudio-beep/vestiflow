@@ -7,6 +7,7 @@ export interface TenantProfileDto {
   readonly phone: string | null;
   readonly pec: string | null;
   readonly sdiCode: string | null;
+  readonly iban: string | null;
   readonly addressLine1: string | null;
   readonly addressLine2: string | null;
   readonly city: string | null;

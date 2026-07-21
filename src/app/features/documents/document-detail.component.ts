@@ -57,6 +57,7 @@ import {
   isQuoteDocumentType,
   isSalesDdtDocumentType,
   isSalesFormDocumentType,
+  isSalesInvoiceDocumentType,
 } from './models/document-sales.util';
 import { DocumentService } from './services/document.service';
 import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
@@ -561,6 +562,36 @@ export class DocumentDetailComponent {
   }
 
   protected readonly downloadingPdf = signal(false);
+
+  /** «Scarica XML»: solo fatture — l'XML FatturaPA non esiste per altri tipi. */
+  protected readonly canDownloadXml = computed(() => {
+    const doc = this.document();
+    return doc != null && isSalesInvoiceDocumentType(doc.type);
+  });
+
+  protected readonly downloadingXml = signal(false);
+
+  protected downloadDocumentXml(): void {
+    const doc = this.document();
+    if (!doc || this.downloadingXml()) {
+      return;
+    }
+    this.downloadingXml.set(true);
+    this.service
+      .exportXml(doc.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          this.downloadingXml.set(false);
+          const reference = documentReferenceLabel(doc.type, doc.reference, doc.series);
+          this.downloadBlob(blob, `${reference}.xml`);
+        },
+        error: (err: unknown) => {
+          this.downloadingXml.set(false);
+          this._actionState.set({ status: 'error', error: this.toAppError(err) });
+        },
+      });
+  }
 
   protected downloadDocumentPdf(): void {
     const doc = this.document();

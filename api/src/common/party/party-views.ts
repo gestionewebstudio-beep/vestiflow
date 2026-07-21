@@ -32,6 +32,7 @@ type PartyCommonView = Pick<
   | 'taxCode'
   | 'email'
   | 'pec'
+  | 'sdiCode'
   | 'phone'
   | 'website'
   | 'contactName'
@@ -108,6 +109,7 @@ function partyCommonView(party: Party): PartyCommonView {
     taxCode: party.taxCode,
     email: party.email,
     pec: party.pec,
+    sdiCode: party.sdiCode,
     phone: party.phone,
     website: party.website,
     contactName: party.contactName,

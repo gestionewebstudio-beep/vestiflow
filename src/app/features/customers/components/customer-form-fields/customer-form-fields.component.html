@@ -85,6 +85,23 @@
       />
     </div>
     <div class="customer-fields__field">
+      <label class="customer-fields__label" [for]="idPrefix() + '-sdiCode'"
+        >Codice destinatario SDI</label
+      >
+      <input
+        [id]="idPrefix() + '-sdiCode'"
+        class="customer-fields__control"
+        type="text"
+        formControlName="sdiCode"
+        maxlength="7"
+        autocomplete="off"
+        placeholder="Es. ABC1234"
+      />
+      <p class="customer-fields__hint">
+        Dove il commercialista trasmette la fattura. In alternativa si usa la PEC.
+      </p>
+    </div>
+    <div class="customer-fields__field">
       <label class="customer-fields__label" [for]="idPrefix() + '-phone'">Telefono</label>
       <input
         [id]="idPrefix() + '-phone'"

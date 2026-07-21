@@ -233,7 +233,12 @@ enum DocumentType {
   adjustment // Rettifica
   inventory // Inventario fisico
   proforma // Proforma (non fiscale)
-  invoice_draft // Bozza fattura / dati per fatturazione
+  invoice_draft // Fattura (fiscale, da trasmettere al commercialista)
+  /// Fattura accompagnatoria: stessa fattura fiscale con trasporto merce
+  /// incluso. Condivide numeratore e form con invoice_draft (vedi
+  /// `documentNumberingType`), si differenzia per sezioni trasporto e
+  /// destinazione e per lo scarico di magazzino quando non aggancia un DDT.
+  invoice_accompanying
   online_sale // Vendita online (documento interno generato dall'evasione, fase 2)
   corrispettivo // Corrispettivo collegato alla Vendita online (registro interno, fase 2)
   customer_order // Ordine cliente manuale (numeratore dedicato; l'ordine vive in SalesOrder)
@@ -312,6 +317,9 @@ model Tenant {
   phone                          String?
   pec                            String?
   sdiCode                        String?              @map("sdi_code")
+  /// IBAN del negozio: precompila i dati pagamento in fattura (modificabile
+  /// sul singolo documento) e alimenta DatiPagamento nell'XML FatturaPA.
+  iban                           String?
   addressLine1                   String?              @map("address_line1")
   addressLine2                   String?              @map("address_line2")
   city                           String?
@@ -852,6 +860,9 @@ model Party {
   taxCode      String?  @map("tax_code")
   email        String?
   pec          String?
+  /// Codice destinatario SDI del soggetto: dove il commercialista trasmette
+  /// la fattura. Alternativo alla PEC (CessionarioCommittente, FatturaPA).
+  sdiCode      String?  @map("sdi_code")
   phone        String?
   website      String?
   contactName  String?  @map("contact_name")
@@ -1786,6 +1797,11 @@ model Document {
   paymentTerms      String?        @map("payment_terms")
   /// Data prevista consegna (Preventivo: campo «Consegna prevista», solo giorno).
   expectedDeliveryDate DateTime?   @map("expected_delivery_date") @db.Date
+  /// Scadenza pagamento (Fattura: solo giorno, alimenta DatiPagamento XML).
+  paymentDueDate    DateTime?      @map("payment_due_date") @db.Date
+  /// IBAN di incasso: snapshot precompilato da Impostazioni negozio e
+  /// modificabile sul documento (Fattura). Storico stabile se l'IBAN cambia.
+  iban              String?
   // ── DDT vendita: testata operativa (prompt DDT §TESTATA/§TRASPORTO/§INDIRIZZI) ──
   /// "Seguirà doc. di vendita" (DDT vendita).
   followedBySalesDoc Boolean       @default(false) @map("followed_by_sales_doc")
@@ -1836,6 +1852,10 @@ model Document {
   summaryLines           DocumentLine[]                    @relation("LineGoodsReceipt")
   /// Scadenze di pagamento (Registrazione fattura fornitore).
   paymentInstallments    DocumentPaymentInstallment[]
+  /// Link fattura → DDT vendita agganciati (questo doc è la fattura).
+  ddtLinks               InvoiceSalesDdtLink[]             @relation("InvoiceLinkInvoice")
+  /// Link DDT vendita → fatture che lo agganciano (questo doc è il DDT).
+  invoiceLinks           InvoiceSalesDdtLink[]             @relation("InvoiceLinkDdt")
 
   // Numero univoco per serie/anno/tipo (NULL distinti in Postgres: le bozze non collidono).
   @@unique([tenantId, type, series, year, number])
@@ -2086,6 +2106,26 @@ model PurchaseInvoiceGoodsReceiptLink {
   @@index([tenantId, goodsReceiptId])
   @@index([tenantId, purchaseInvoiceId])
   @@map("purchase_invoice_goods_receipt_links")
+}
+
+/// Collegamento documentale Fattura ↔ DDT vendita (aggancio 1:N, opzionale).
+/// Solo informativo: NON genera movimenti di magazzino. La presenza di almeno
+/// un link è però ciò che sopprime la colonna «Scarica mag.» nella Fattura
+/// accompagnatoria, perché le giacenze sono già state scaricate dal DDT.
+model InvoiceSalesDdtLink {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  invoiceId  String   @map("invoice_id") @db.Uuid
+  salesDdtId String   @map("sales_ddt_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  invoice  Document @relation("InvoiceLinkInvoice", fields: [invoiceId], references: [id], onDelete: Cascade)
+  salesDdt Document @relation("InvoiceLinkDdt", fields: [salesDdtId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, salesDdtId])
+  @@index([tenantId, invoiceId])
+  @@index([tenantId, salesDdtId])
+  @@map("invoice_sales_ddt_links")
 }
 
 /// Storico leggero modifiche documento confermato (§4 piano funzionale).

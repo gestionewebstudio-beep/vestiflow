@@ -3,6 +3,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { TableViewId } from '@shared/table-columns/table-column.model';
 
 import type { DocumentListProfile } from './document-list-query.model';
+import { SALES_INVOICE_DOCUMENT_TYPES } from './document-sales.util';
 
 /**
  * Profili lista dedicati con pagina propria (voci sidebar Vendite più lo
@@ -14,7 +15,7 @@ export type SalesDocumentRegisterProfile =
   | 'proforma'
   | 'sales-ddt'
   | 'manual-unload'
-  | 'invoice-draft'
+  | 'invoice'
   | 'purchase-invoice';
 
 /**
@@ -22,6 +23,13 @@ export type SalesDocumentRegisterProfile =
  * titolo, bottone «Nuovo», stato vuoto e filtri propri (mai il filtro «Tipo»)
  * più anteprima dettaglio con il layout dell'Ordine cliente.
  */
+/** Voce «Nuovo …» di una pagina elenco condivisa da più tipi documento. */
+export interface SalesDocumentCreateVariant {
+  readonly type: DocumentType;
+  readonly label: string;
+  readonly path: string;
+}
+
 export interface SalesDocumentRegisterConfig {
   readonly profile: SalesDocumentRegisterProfile;
   readonly type: DocumentType;
@@ -40,6 +48,18 @@ export interface SalesDocumentRegisterConfig {
   readonly statusOptions: readonly SelectMenuOption[] | null;
   /** Checkbox «DDT da fatturare» (solo DDT vendita). */
   readonly showPendingInvoiceFilter: boolean;
+  /**
+   * Tipi mostrati nell'elenco. Quasi tutte le pagine dedicate ne hanno uno solo
+   * (= `type`) e nascondono il filtro «Tipo». Le Fatture fanno eccezione:
+   * Fattura e Fattura accompagnatoria condividono un unico elenco, quindi qui
+   * ci sono entrambi i tipi e la lista mostra colonna e filtro «Tipo».
+   */
+  readonly types?: readonly DocumentType[];
+  /**
+   * Varianti creabili dalla pagina, una per tipo. Presenti solo quando
+   * l'elenco è condiviso: il bottone «Nuovo …» segue il filtro «Tipo» attivo.
+   */
+  readonly createVariants?: readonly SalesDocumentCreateVariant[];
   /** Nasconde il filtro Cliente (pagine lato acquisti). */
   readonly hideCustomerFilter?: boolean;
   /** Filtro Fornitore (Registrazioni fattura). */
@@ -62,8 +82,8 @@ const GENERIC_STATUS_OPTIONS: readonly SelectMenuOption[] = [
   { value: DocumentStatus.Cancelled, label: 'Annullato' },
 ];
 
-/** Bozze fattura: etichette del ciclo fiscale (B6), non quelle generiche. */
-const INVOICE_DRAFT_STATUS_OPTIONS: readonly SelectMenuOption[] = [
+/** Fatture: etichette del ciclo fiscale (B6), non quelle generiche. */
+const INVOICE_STATUS_OPTIONS: readonly SelectMenuOption[] = [
   { value: DocumentStatus.Draft, label: 'Bozza' },
   { value: DocumentStatus.Confirmed, label: 'Da emettere' },
   { value: DocumentStatus.Sent, label: 'Inviata al commercialista' },
@@ -173,33 +193,56 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     detailPanelTitle: 'Dati registrazione',
     detailNotFoundTitle: 'Registrazione fattura non trovata',
   },
-  'invoice-draft': {
-    profile: 'invoice-draft',
+  // Elenco condiviso da Fattura e Fattura accompagnatoria: un solo numeratore,
+  // una sola pagina, filtro «Tipo» preimpostato dalla voce hub di provenienza.
+  invoice: {
+    profile: 'invoice',
     type: DocumentType.InvoiceDraft,
-    pageTitle: 'Bozze fattura',
-    pageSubtitle: 'Bozze fattura da emettere e inviare al commercialista.',
-    createLabel: 'Nuova bozza fattura',
-    createPath: '/app/documents/invoice-draft/new',
-    listPath: '/app/documents/invoice-draft',
-    emptyTitle: 'Nessuna bozza fattura',
+    types: SALES_INVOICE_DOCUMENT_TYPES,
+    pageTitle: 'Fatture',
+    pageSubtitle:
+      'Fatture fiscali da inviare al commercialista, con o senza trasporto merce incluso.',
+    createLabel: 'Nuova fattura',
+    createPath: '/app/documents/fattura/new',
+    createVariants: [
+      {
+        type: DocumentType.InvoiceDraft,
+        label: 'Nuova fattura',
+        path: '/app/documents/fattura/new',
+      },
+      {
+        type: DocumentType.InvoiceAccompanying,
+        label: 'Nuova fattura accompagnatoria',
+        path: '/app/documents/fattura-accompagnatoria/new',
+      },
+    ],
+    listPath: '/app/documents/fattura',
+    emptyTitle: 'Nessuna fattura',
     emptyDescription:
-      'Non ci sono bozze fattura che corrispondono ai filtri. Crea una nuova bozza per preparare i dati della fattura da emettere.',
+      'Non ci sono fatture che corrispondono ai filtri. Crea una nuova fattura per preparare i dati da trasmettere al commercialista.',
     emptyIcon: 'pi-receipt',
     searchPlaceholder: 'Cerca per numero o cliente…',
-    statusOptions: INVOICE_DRAFT_STATUS_OPTIONS,
+    statusOptions: INVOICE_STATUS_OPTIONS,
     showPendingInvoiceFilter: false,
     viewId: TableViewId.InvoiceDraftDocumentsList,
-    detailPanelTitle: 'Dati bozza fattura',
-    detailNotFoundTitle: 'Bozza fattura non trovata',
+    detailPanelTitle: 'Dati fattura',
+    detailNotFoundTitle: 'Fattura non trovata',
   },
 };
+
+/** Opzioni del filtro «Tipo» dell'elenco fatture (con la voce «Tutti»). */
+export const INVOICE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
+  { value: '', label: 'Tutti' },
+  { value: DocumentType.InvoiceDraft, label: 'Fattura' },
+  { value: DocumentType.InvoiceAccompanying, label: 'Fattura accompagnatoria' },
+];
 
 export const SALES_DOCUMENT_REGISTER_PROFILES: readonly SalesDocumentRegisterProfile[] = [
   'quote',
   'proforma',
   'sales-ddt',
   'manual-unload',
-  'invoice-draft',
+  'invoice',
   'purchase-invoice',
 ] as const;
 

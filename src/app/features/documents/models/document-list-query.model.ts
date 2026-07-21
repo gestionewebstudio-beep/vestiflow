@@ -13,7 +13,8 @@ export type DocumentListProfile =
   | 'proforma'
   | 'sales-ddt'
   | 'manual-unload'
-  | 'invoice-draft'
+  // Elenco condiviso Fattura / Fattura accompagnatoria (ex 'invoice-draft').
+  | 'invoice'
   | 'purchase-invoice';
 
 /** Query registro documenti (ordinamento fisso: data documento discendente). */

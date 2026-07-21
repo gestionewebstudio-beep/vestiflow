@@ -48,6 +48,13 @@ export class TenantProfileFieldsDto {
   @Transform(trimToUndefined)
   sdiCode?: string;
 
+  /** IBAN di incasso: 34 caratteri è il massimo previsto dallo standard. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(34)
+  @Transform(trimToUndefined)
+  iban?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)

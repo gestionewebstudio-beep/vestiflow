@@ -122,6 +122,7 @@ export class CustomerDetailComponent {
       { label: 'Codice fiscale', value: customer.taxCode ?? '—', numeric: true },
       { label: 'Email', value: customer.email ?? '—' },
       { label: 'PEC', value: customer.pec ?? '—' },
+      { label: 'Codice destinatario SDI', value: customer.sdiCode ?? '—' },
       { label: 'Telefono', value: customer.phone ?? '—', numeric: true },
       { label: 'Sito web', value: customer.website ?? '—' },
       { label: 'Referente', value: customer.contactName ?? '—' },

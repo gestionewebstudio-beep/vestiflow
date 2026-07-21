@@ -23,7 +23,13 @@ export const DocumentType = {
   Adjustment: 'adjustment',
   Inventory: 'inventory',
   Proforma: 'proforma',
+  /** Fattura fiscale da inviare al commercialista. */
   InvoiceDraft: 'invoice_draft',
+  /**
+   * Fattura accompagnatoria: fattura fiscale con trasporto merce incluso.
+   * Condivide elenco, numeratore e form base con InvoiceDraft.
+   */
+  InvoiceAccompanying: 'invoice_accompanying',
   // Fase 3: creati solo dal flusso cassa (mai dai form documenti generici).
   StoreSale: 'store_sale',
   StoreReturn: 'store_return',
@@ -96,6 +102,14 @@ export interface LinkedSalesOrderInfo {
   readonly fulfilledAt?: IsoDateString;
   /** Stato evasione (unfulfilled | partially_fulfilled | fulfilled). */
   readonly fulfillmentStatus?: string;
+}
+
+/** DDT vendita agganciato a una fattura (riferimento documentale). */
+export interface LinkedSalesDdtInfo {
+  readonly id: EntityId;
+  readonly number?: number;
+  readonly reference?: string;
+  readonly documentDate: IsoDateString;
 }
 
 /** Fattura registrata collegata a un Arrivo merce. */
@@ -221,6 +235,10 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly paymentMethod?: string;
   /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
   readonly expectedDeliveryDate?: IsoDateString;
+  /** Scadenza pagamento (Fattura). */
+  readonly paymentDueDate?: IsoDateString;
+  /** IBAN di incasso: precompilato da Impostazioni, modificabile sul documento. */
+  readonly iban?: string;
   // ── DDT vendita: testata operativa (prompt DDT) ──
   /** "Seguirà doc. di vendita". */
   readonly followedBySalesDoc?: boolean;
@@ -299,6 +317,8 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly paymentInstallments?: readonly DocumentPaymentInstallment[];
   /** Allegati caricati sul documento (dettaglio). */
   readonly attachments?: readonly DocumentAttachment[];
+  /** DDT vendita agganciati alla fattura («Riferimento DDT»). */
+  readonly linkedSalesDdts?: readonly LinkedSalesDdtInfo[];
 }
 
 /** Contesto riga ordine fornitore collegato (arrivo merce). */

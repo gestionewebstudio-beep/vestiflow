@@ -71,14 +71,22 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    path: 'invoice-draft',
-    title: 'VestiFlow · Bozze fattura',
+    // Elenco condiviso Fattura / Fattura accompagnatoria: il filtro «Tipo» si
+    // preimposta dal query param `type` della voce hub, ma resta modificabile.
+    path: 'fattura',
+    title: 'VestiFlow · Fatture',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
-      documentListProfile: 'invoice-draft',
+      documentListProfile: 'invoice',
     },
+  },
+  {
+    // Vecchio percorso «Bozze fattura»: preserva i link salvati dagli utenti.
+    path: 'invoice-draft',
+    redirectTo: 'fattura',
+    pathMatch: 'full',
   },
   {
     // Elenco Registrazioni fattura fornitore (Documenti → Acquisti e
@@ -116,14 +124,27 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    path: 'invoice-draft/new',
-    title: 'VestiFlow · Nuova bozza fattura',
+    path: 'fattura/new',
+    title: 'VestiFlow · Nuova fattura',
     loadComponent: () =>
       import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
       salesDocumentType: DocumentType.InvoiceDraft,
+    },
+  },
+  {
+    // Stesso form: le sezioni Trasporto e Destinazione e la colonna «Scarica
+    // mag.» compaiono in base al tipo, non a un componente separato.
+    path: 'fattura-accompagnatoria/new',
+    title: 'VestiFlow · Nuova fattura accompagnatoria',
+    loadComponent: () =>
+      import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      salesDocumentType: DocumentType.InvoiceAccompanying,
     },
   },
   {
@@ -223,14 +244,15 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    path: 'invoice-draft/:id',
-    title: 'VestiFlow · Dettaglio bozza fattura',
+    // Dettaglio condiviso: il titolo segue il tipo del documento caricato.
+    path: 'fattura/:id',
+    title: 'VestiFlow · Dettaglio fattura',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
-      documentListProfile: 'invoice-draft',
+      documentListProfile: 'invoice',
     },
   },
   {

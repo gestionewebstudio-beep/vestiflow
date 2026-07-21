@@ -7,6 +7,8 @@ export interface TenantCompanyProfile {
   readonly phone: string | null;
   readonly pec: string | null;
   readonly sdiCode: string | null;
+  /** IBAN di incasso: precompila i dati pagamento in fattura. */
+  readonly iban: string | null;
   readonly addressLine1: string | null;
   readonly addressLine2: string | null;
   readonly city: string | null;
@@ -57,6 +59,7 @@ export function tenantCompanyFromDto(dto: TenantCompanyDto): TenantCompany {
       phone: dto.profile.phone?.trim() || null,
       pec: dto.profile.pec?.trim() || null,
       sdiCode: dto.profile.sdiCode?.trim() || null,
+      iban: dto.profile.iban?.trim() || null,
       addressLine1: dto.profile.addressLine1?.trim() || null,
       addressLine2: dto.profile.addressLine2?.trim() || null,
       city: dto.profile.city?.trim() || null,
@@ -111,6 +114,7 @@ export function buildTenantClientExtendedFields(
   push('Telefono', profile.phone);
   push('PEC', profile.pec);
   push('Codice destinatario SDI', profile.sdiCode, true);
+  push('IBAN', profile.iban, true);
 
   return fields;
 }

@@ -137,12 +137,25 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         icon: 'pi-truck',
         available: true,
       },
+      // Fattura e Fattura accompagnatoria: voci separate ma stesso elenco e
+      // stesso numeratore. Il `type` in query preimposta il filtro Tipo della
+      // lista condivisa, che resta comunque modificabile dall'operatore.
       {
-        id: 'invoice-draft',
-        label: 'Bozze fattura',
-        description: 'Bozze fattura e invio al commercialista.',
-        route: ['/app/documents/invoice-draft'],
+        id: 'invoice',
+        label: 'Fattura',
+        description: 'Fattura fiscale da inviare al commercialista.',
+        route: ['/app/documents/fattura'],
+        queryParams: { type: 'invoice_draft' },
         icon: 'pi-receipt',
+        available: true,
+      },
+      {
+        id: 'invoice-accompanying',
+        label: 'Fattura accompagnatoria',
+        description: 'Fattura fiscale con trasporto merce incluso.',
+        route: ['/app/documents/fattura'],
+        queryParams: { type: 'invoice_accompanying' },
+        icon: 'pi-truck',
         available: true,
       },
       {

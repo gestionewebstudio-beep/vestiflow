@@ -74,7 +74,7 @@
           />
         </div>
 
-        @if (isInvoiceDraft()) {
+        @if (isSalesInvoice()) {
           <div class="gr-form__field">
             <label class="gr-form__label" for="sd-cause">Causale</label>
             <input
@@ -84,15 +84,74 @@
               formControlName="billingCause"
             />
           </div>
+
+          <!--
+            Riferimento DDT: aggancio opzionale a uno o più DDT esistenti.
+            Sull'accompagnatoria comanda anche lo scarico — con un DDT
+            agganciato la colonna «Scarica mag.» sparisce dalle righe.
+          -->
           <div class="gr-form__field">
-            <label class="gr-form__label" for="sd-ddt">Riferimento DDT</label>
+            <span class="gr-form__label">Riferimento DDT (opzionale)</span>
+            <app-select-menu
+              [options]="ddtOptions()"
+              value=""
+              ariaLabel="Aggancia un DDT vendita"
+              placeholder="Aggancia un DDT…"
+              [compact]="true"
+              [fullWidth]="true"
+              [includeEmptyOption]="false"
+              (valueChange)="onAddLinkedDdt($event)"
+            />
+            @if (linkedDdts().length > 0) {
+              <ul class="gr-form__chip-list">
+                @for (ddt of linkedDdts(); track ddt.id) {
+                  <li class="gr-form__chip">
+                    <span>{{ ddt.label }}</span>
+                    <button
+                      type="button"
+                      class="gr-form__chip-remove"
+                      (click)="onRemoveLinkedDdt(ddt.id)"
+                      [attr.aria-label]="'Rimuovi ' + ddt.label"
+                    >
+                      <i class="pi pi-times" aria-hidden="true"></i>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+
+          <div class="gr-form__field">
+            <label class="gr-form__label" for="sd-payment-terms">Condizioni di pagamento</label>
             <input
-              id="sd-ddt"
+              id="sd-payment-terms"
               class="gr-form__input"
               type="text"
-              formControlName="relatedDdtRef"
-              placeholder="Es. DDT-2026-0012"
+              formControlName="paymentTerms"
+              placeholder="Es. Bonifico 30 gg d.f."
             />
+          </div>
+          <div class="gr-form__field">
+            <label class="gr-form__label" for="sd-payment-due">Scadenza pagamento</label>
+            <app-date-input
+              inputId="sd-payment-due"
+              [value]="form.controls.paymentDueDate.value"
+              ariaLabel="Scadenza pagamento"
+              placeholder="gg/mm/aaaa"
+              [fullWidth]="true"
+              (valueChange)="form.controls.paymentDueDate.setValue($event)"
+            />
+          </div>
+          <div class="gr-form__field">
+            <label class="gr-form__label" for="sd-iban">IBAN</label>
+            <input
+              id="sd-iban"
+              class="gr-form__input"
+              type="text"
+              formControlName="iban"
+              maxlength="34"
+            />
+            <p class="gr-form__hint">Precompilato da Impostazioni negozio, modificabile qui.</p>
           </div>
         }
       </div>
@@ -186,6 +245,19 @@
                     (valueChange)="onLineVatSelect(i, $event)"
                   />
                 </div>
+                <!--
+                  «Scarica mag.»: solo Fattura accompagnatoria e solo senza DDT
+                  agganciato. Con un DDT le giacenze sono già state scaricate da
+                  quel documento, quindi la colonna non viene proprio resa.
+                -->
+                @if (showLoadsStockColumn()) {
+                  <div class="gr-form__line-field gr-form__line-field--check">
+                    <label class="gr-form__check" [for]="'sd-stock-' + i">
+                      <input [id]="'sd-stock-' + i" type="checkbox" formControlName="loadsStock" />
+                      <span>Scarica mag.</span>
+                    </label>
+                  </div>
+                }
               </div>
               @if (lines.length > 1) {
                 <button type="button" class="gr-form__line-remove" (click)="removeLine(i)">
@@ -196,9 +268,13 @@
           }
         </div>
 
+        <!--
+          Sulle fatture i totali sono definitivi, non una stima: la parola
+          «stimato» resta solo sui documenti non fiscali (proforma).
+        -->
         <dl class="gr-form__totals">
           <div class="gr-form__total-row">
-            <dt>Imponibile stimato</dt>
+            <dt>{{ isSalesInvoice() ? 'Imponibile righe' : 'Imponibile stimato' }}</dt>
             <dd class="tabular-nums">
               @if (lineTotals().hasDocumentDiscount) {
                 <span class="gr-form__total-struck">{{
@@ -208,12 +284,21 @@
               {{ formatMoney(lineTotals().subtotal) }}
             </dd>
           </div>
+          <!-- Dettaglio per aliquota: solo con aliquote miste. -->
+          @if (isSalesInvoice() && hasMixedVatRates()) {
+            @for (entry of vatBreakdown(); track entry.ratePercent) {
+              <div class="gr-form__total-row gr-form__total-row--detail">
+                <dt>IVA {{ entry.ratePercent }}% su {{ formatMoney(entry.net) }}</dt>
+                <dd class="tabular-nums">{{ formatMoney(entry.vat) }}</dd>
+              </div>
+            }
+          }
           <div class="gr-form__total-row">
-            <dt>IVA stimata</dt>
+            <dt>{{ isSalesInvoice() ? 'IVA' : 'IVA stimata' }}</dt>
             <dd class="tabular-nums">{{ formatMoney(lineTotals().tax) }}</dd>
           </div>
           <div class="gr-form__total-row gr-form__total-row--grand">
-            <dt>Totale stimato</dt>
+            <dt>{{ isSalesInvoice() ? 'Totale documento' : 'Totale stimato' }}</dt>
             <dd class="tabular-nums">{{ formatMoney(lineTotals().total) }}</dd>
           </div>
         </dl>
@@ -230,6 +315,185 @@
           />
         </div>
       </section>
+
+      <!--
+        Trasporto e Destinazione: solo Fattura accompagnatoria, con gli stessi
+        campi del DDT vendita (è la stessa merce che viaggia).
+      -->
+      @if (isInvoiceAccompanying()) {
+        <section class="gr-form__lines" aria-labelledby="sd-transport-title">
+          <h2 id="sd-transport-title" class="gr-form__subtitle">Trasporto</h2>
+          <div class="gr-form__grid">
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-tr-causal">Causale trasporto</label>
+              <input
+                id="sd-tr-causal"
+                class="gr-form__input"
+                type="text"
+                formControlName="transportCausal"
+                placeholder="Es. Vendita"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-tr-start">Data e ora inizio trasporto</label>
+              <input
+                id="sd-tr-start"
+                class="gr-form__input"
+                type="datetime-local"
+                formControlName="transportStartAt"
+              />
+            </div>
+            <div class="gr-form__field">
+              <span class="gr-form__label">Porto</span>
+              <app-select-menu
+                [options]="transportPortOptions"
+                [value]="form.controls.transportPort.value"
+                ariaLabel="Porto del trasporto"
+                placeholder="Non indicato"
+                [fullWidth]="true"
+                (valueChange)="form.controls.transportPort.setValue($event ?? '')"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-tr-carrier">Incaricato del trasporto</label>
+              <input
+                id="sd-tr-carrier"
+                class="gr-form__input"
+                type="text"
+                formControlName="transportCarrier"
+                placeholder="Es. Vettore"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-tr-packages">Numero colli</label>
+              <input
+                id="sd-tr-packages"
+                class="gr-form__input"
+                type="number"
+                min="0"
+                formControlName="transportPackagesCount"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-tr-weight">Peso</label>
+              <input
+                id="sd-tr-weight"
+                class="gr-form__input"
+                type="text"
+                formControlName="transportWeight"
+                placeholder="Es. 12,5 kg"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-tr-aspect">Aspetto beni</label>
+              <input
+                id="sd-tr-aspect"
+                class="gr-form__input"
+                type="text"
+                formControlName="transportGoodsAspect"
+                placeholder="Es. Scatole"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-tr-shipping">Codice spedizione</label>
+              <input
+                id="sd-tr-shipping"
+                class="gr-form__input"
+                type="text"
+                formControlName="transportShippingCode"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-tr-tracking">Tracking</label>
+              <input
+                id="sd-tr-tracking"
+                class="gr-form__input"
+                type="text"
+                formControlName="transportTrackingCode"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section class="gr-form__lines" aria-labelledby="sd-destination-title">
+          <div class="gr-form__lines-head">
+            <h2 id="sd-destination-title" class="gr-form__subtitle">Indirizzo di destinazione</h2>
+            @if (!destinationOverridden()) {
+              <app-button type="button" variant="ghost" (click)="onChangeDestination()">
+                <i class="pi pi-pencil" aria-hidden="true"></i>
+                Cambia destinazione
+              </app-button>
+            }
+          </div>
+          @if (!destinationOverridden()) {
+            <p class="gr-form__hint">
+              Dati precompilati dall'anagrafica cliente. Usa «Cambia destinazione» per modificarli.
+            </p>
+          }
+          <div class="gr-form__grid">
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-dest-name">Nome / Ragione sociale</label>
+              <input
+                id="sd-dest-name"
+                class="gr-form__input"
+                type="text"
+                formControlName="destinationName"
+                [readOnly]="!destinationOverridden()"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-dest-address">Indirizzo</label>
+              <input
+                id="sd-dest-address"
+                class="gr-form__input"
+                type="text"
+                formControlName="destinationAddress"
+                [readOnly]="!destinationOverridden()"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-dest-zip">CAP</label>
+              <input
+                id="sd-dest-zip"
+                class="gr-form__input"
+                type="text"
+                formControlName="destinationZip"
+                [readOnly]="!destinationOverridden()"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-dest-city">Città</label>
+              <input
+                id="sd-dest-city"
+                class="gr-form__input"
+                type="text"
+                formControlName="destinationCity"
+                [readOnly]="!destinationOverridden()"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-dest-province">Provincia</label>
+              <input
+                id="sd-dest-province"
+                class="gr-form__input"
+                type="text"
+                formControlName="destinationProvince"
+                [readOnly]="!destinationOverridden()"
+              />
+            </div>
+            <div class="gr-form__field">
+              <label class="gr-form__label" for="sd-dest-country">Nazione</label>
+              <input
+                id="sd-dest-country"
+                class="gr-form__input"
+                type="text"
+                formControlName="destinationCountry"
+                [readOnly]="!destinationOverridden()"
+              />
+            </div>
+          </div>
+        </section>
+      }
 
       <div class="gr-form__field">
         <label class="gr-form__label" for="sd-notes">Note (visibili in stampa)</label>
