@@ -511,8 +511,8 @@
   @if (includePanelOpen()) {
     <div class="pi-form__include">
       <p class="pi-form__include-hint">
-        Arrivi merce del fornitore selezionato con la spunta «Seguirà fattura», non annullati e non
-        ancora collegati ad altre fatture. Puoi selezionarne più di uno.
+        Arrivi merce del fornitore selezionato con la spunta «Seguirà registrazione fattura», non
+        annullati e non ancora collegati ad altre fatture. Puoi selezionarne più di uno.
       </p>
       @if (linkableLoading()) {
         <app-table-skeleton [columns]="1" [rows]="4" />
@@ -526,7 +526,7 @@
         <app-empty-state
           icon="pi-inbox"
           title="Nessun arrivo merce disponibile"
-          description="Non ci sono arrivi merce da includere per questo fornitore: verifica che nei documenti sia attiva la spunta «Seguirà fattura»."
+          description="Non ci sono arrivi merce da includere per questo fornitore: verifica che nei documenti sia attiva la spunta «Seguirà registrazione fattura»."
         />
       } @else {
         <ul class="pi-form__include-list">

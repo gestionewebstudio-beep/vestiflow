@@ -48,6 +48,43 @@ export function applyPresetToState(
   };
 }
 
+/**
+ * Riconcilia uno stato persistito con le definizioni correnti: le colonne
+ * aggiunte dopo il salvataggio delle preferenze mancano da `columnOrder` e,
+ * senza questa riconciliazione, non verrebbero mai renderizzate anche se
+ * l'utente le spunta (resolveVisibleColumns filtra su columnOrder). Le colonne
+ * mancanti vengono appese in coda (ordine di definizione) e nascoste se hanno
+ * `defaultVisible === false`; gli id ormai inesistenti vengono ripuliti. Le
+ * scelte dell'utente sulle colonne già note restano invariate.
+ */
+export function reconcileStateWithDefs(
+  state: TableViewState,
+  defs: readonly TableColumnDef[],
+): TableViewState {
+  const knownIds = new Set(defs.map((def) => def.id));
+  const inOrder = new Set(state.columnOrder);
+  const missing = defs.filter((def) => !inOrder.has(def.id));
+  if (missing.length === 0 && state.columnOrder.every((id) => knownIds.has(id))) {
+    return state;
+  }
+  const columnOrder = [
+    ...state.columnOrder.filter((id) => knownIds.has(id)),
+    ...missing.map((def) => def.id),
+  ];
+  const hidden = new Set(state.hiddenColumnIds.filter((id) => knownIds.has(id)));
+  for (const def of missing) {
+    if (def.defaultVisible === false) {
+      hidden.add(def.id);
+    }
+  }
+  return {
+    ...state,
+    columnOrder,
+    hiddenColumnIds: [...hidden],
+    pinnedColumnIds: state.pinnedColumnIds.filter((id) => knownIds.has(id)),
+  };
+}
+
 export function resolveVisibleColumns(
   defs: readonly TableColumnDef[],
   state: TableViewState,

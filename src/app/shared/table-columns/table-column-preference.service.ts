@@ -16,6 +16,7 @@ import { TableViewPresetId as PresetId } from './table-column.model';
 import type { TableViewPresetMap } from './table-column.model';
 import {
   createDefaultViewState,
+  reconcileStateWithDefs,
   resolveVisibleColumns,
   toggleColumnPin,
   toggleColumnVisibility,
@@ -157,13 +158,16 @@ export class TableColumnPreferenceService {
       return;
     }
     const fallback = createDefaultViewState(defs, presets);
-    const merged: TableViewState = {
-      presetId: remote.presetId ?? PresetId.Default,
-      columnOrder: remote.columnOrder?.length ? remote.columnOrder : fallback.columnOrder,
-      hiddenColumnIds: remote.hiddenColumnIds ?? [],
-      pinnedColumnIds: remote.pinnedColumnIds ?? [],
-      columnWidths: remote.columnWidths ?? fallback.columnWidths,
-    };
+    const merged: TableViewState = reconcileStateWithDefs(
+      {
+        presetId: remote.presetId ?? PresetId.Default,
+        columnOrder: remote.columnOrder?.length ? remote.columnOrder : fallback.columnOrder,
+        hiddenColumnIds: remote.hiddenColumnIds ?? [],
+        pinnedColumnIds: remote.pinnedColumnIds ?? [],
+        columnWidths: remote.columnWidths ?? fallback.columnWidths,
+      },
+      defs,
+    );
     this.states.get(viewId)!.set(merged);
     this.persistLocal(viewId, merged);
   }
@@ -202,13 +206,16 @@ export class TableColumnPreferenceService {
       if (!parsed) {
         return fallback;
       }
-      return {
-        presetId: parsed.presetId ?? PresetId.Default,
-        columnOrder: parsed.columnOrder.length ? parsed.columnOrder : fallback.columnOrder,
-        hiddenColumnIds: parsed.hiddenColumnIds,
-        pinnedColumnIds: parsed.pinnedColumnIds,
-        columnWidths: parsed.columnWidths,
-      };
+      return reconcileStateWithDefs(
+        {
+          presetId: parsed.presetId ?? PresetId.Default,
+          columnOrder: parsed.columnOrder.length ? parsed.columnOrder : fallback.columnOrder,
+          hiddenColumnIds: parsed.hiddenColumnIds,
+          pinnedColumnIds: parsed.pinnedColumnIds,
+          columnWidths: parsed.columnWidths,
+        },
+        defs,
+      );
     } catch {
       return fallback;
     }

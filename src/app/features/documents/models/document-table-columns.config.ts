@@ -233,21 +233,22 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 };
 
 export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+  // Colonne visibili di default (ordine di lettura della riga).
   { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
   { id: 'reference', label: 'N.', defaultVisible: true },
   { id: 'counterparty', label: 'Soggetto', defaultVisible: true },
+  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
+  { id: 'total', label: 'Tot. documento', numeric: true, defaultVisible: true },
+  { id: 'linkStatus', label: 'Stato', defaultVisible: true },
+  { id: 'location', label: 'Magazzino', defaultVisible: true },
+  { id: 'externalDocNumber', label: 'Doc. fornitore', defaultVisible: true },
   // Colonne opzionali (attivabili da «Colonne»): dati di dettaglio non
   // necessari alla lettura rapida della riga.
   { id: 'supplierCode', label: 'Cod. soggetto', defaultVisible: false },
-  { id: 'linkStatus', label: 'Stato', defaultVisible: true },
   { id: 'paymentMethod', label: 'Pagamento', defaultVisible: false },
   { id: 'causal', label: 'Causale carico', defaultVisible: false },
-  { id: 'externalDocNumber', label: 'Doc. fornitore', defaultVisible: false },
   { id: 'notes', label: 'Commento', defaultVisible: false },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
   { id: 'subtotal', label: 'Tot. netto', numeric: true, defaultVisible: false },
-  { id: 'total', label: 'Tot. documento', numeric: true, defaultVisible: true },
-  { id: 'location', label: 'Magazzino', defaultVisible: true },
   // Niente colonna "Stato documento": l'Arrivo merce non ha più il ciclo
   // Bozza/Confermato selezionabile (il salvataggio conferma sempre) e
   // l'annullamento è già esposto dalla colonna "Stato" (collegamento fattura).
@@ -260,10 +261,11 @@ export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'documentDate',
     'reference',
     'counterparty',
-    'linkStatus',
     'lineCount',
     'total',
+    'linkStatus',
     'location',
+    'externalDocNumber',
   ],
   [TableViewPresetId.Warehouse]: [
     'documentDate',
