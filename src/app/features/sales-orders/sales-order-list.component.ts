@@ -76,6 +76,10 @@ import {
 } from './components/sales-order-table/sales-order-table.component';
 import { sourceLabel } from './models/sales-order-labels.util';
 import {
+  buildSalesOrderListCsv,
+  buildSalesOrderListPrintHtml,
+} from './utils/sales-order-list-export.util';
+import {
   DEFAULT_SALES_PAGE_SIZE,
   SALES_PAGE_SIZE_OPTIONS,
   parseSalesOrderListQuery,
@@ -730,6 +734,77 @@ export class SalesOrderListComponent {
 
   protected clearSelection(): void {
     this.selectedIds.set(new Set());
+  }
+
+  // ── Operazioni massive: elenco (CSV/stampa) e PDF documenti ──────────────
+
+  protected readonly bulkPdfBusy = signal(false);
+
+  /** CSV apribile in Excel degli ordini selezionati, con riga totali. */
+  protected exportSelectionCsv(): void {
+    const orders = this.selectedOrders();
+    if (orders.length === 0) {
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 10);
+    this.downloadBlob(
+      new Blob([buildSalesOrderListCsv(orders)], { type: 'text/csv;charset=utf-8' }),
+      `ordini-cliente-${stamp}.csv`,
+    );
+  }
+
+  /** Elenco stampabile dei selezionati con totali ("Salva come PDF" incluso). */
+  protected printSelectionList(): void {
+    const orders = this.selectedOrders();
+    if (orders.length === 0) {
+      return;
+    }
+    const printWindow = globalThis.open('', '_blank');
+    if (!printWindow) {
+      this.actionError.set({
+        kind: AppErrorKind.Unknown,
+        message: 'Il browser ha bloccato la finestra di stampa. Consenti i popup e riprova.',
+      });
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(buildSalesOrderListPrintHtml(orders));
+    printWindow.document.close();
+    const runPrint = (): void => {
+      printWindow.focus();
+      printWindow.print();
+    };
+    if (printWindow.document.readyState === 'complete') {
+      runPrint();
+    } else {
+      printWindow.addEventListener('load', runPrint, { once: true });
+    }
+  }
+
+  /** Scarica in sequenza il PDF di ogni ordine selezionato. */
+  protected downloadSelectionPdfs(): void {
+    const orders = this.selectedOrders();
+    if (orders.length === 0 || this.bulkPdfBusy()) {
+      return;
+    }
+    this.bulkPdfBusy.set(true);
+    from(orders)
+      .pipe(
+        concatMap((order) =>
+          this.service.exportOrderPdf(order.id).pipe(map((blob) => ({ order, blob }))),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: ({ order, blob }) => {
+          this.downloadBlob(blob, `ordine-cliente-${order.orderNumber}.pdf`);
+        },
+        complete: () => this.bulkPdfBusy.set(false),
+        error: (err: unknown) => {
+          this.bulkPdfBusy.set(false);
+          this.actionError.set(this.toAppError(err));
+        },
+      });
   }
 
   protected requestDeleteOrder(order: SalesOrder): void {

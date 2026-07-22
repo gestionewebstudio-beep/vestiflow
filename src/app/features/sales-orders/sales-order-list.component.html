@@ -206,6 +206,23 @@
         {{ selectedOrders().length }}
         {{ selectedOrders().length === 1 ? 'ordine selezionato' : 'ordini selezionati' }}
       </span>
+      <app-button variant="secondary" (click)="printSelectionList()">
+        <i class="pi pi-print" aria-hidden="true"></i>
+        Stampa / PDF elenco
+      </app-button>
+      <app-button variant="secondary" (click)="exportSelectionCsv()">
+        <i class="pi pi-file-excel" aria-hidden="true"></i>
+        Esporta Excel (CSV)
+      </app-button>
+      <app-button
+        variant="secondary"
+        [loading]="bulkPdfBusy()"
+        [disabled]="bulkPdfBusy()"
+        (click)="downloadSelectionPdfs()"
+      >
+        <i class="pi pi-file-pdf" aria-hidden="true"></i>
+        PDF documenti
+      </app-button>
       @if (deletableSelectedOrders().length > 0) {
         <app-button variant="danger" [disabled]="deleteBusy()" (click)="requestDeleteSelection()">
           <i class="pi pi-trash" aria-hidden="true"></i>
