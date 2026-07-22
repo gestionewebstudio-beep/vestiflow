@@ -183,6 +183,13 @@ export class SalesOrderService {
       );
   }
 
+  /** Stampa PDF dell'ordine cliente (blob per il download). */
+  exportOrderPdf(id: EntityId): Observable<Blob> {
+    return this.http
+      .get(this.url(`/sales-orders/${id}/export/pdf`), { responseType: 'blob' })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
+  }
+
   getManualOrderReservations(id: EntityId): Observable<readonly ManualOrderReservation[]> {
     return this.http
       .get<readonly ManualOrderReservation[]>(this.url(`/sales-orders/manual/${id}/reservations`))

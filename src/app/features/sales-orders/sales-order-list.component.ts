@@ -372,6 +372,8 @@ export class SalesOrderListComponent {
   protected readonly deleteConfirmOpen = signal(false);
   protected readonly deleteBusy = signal(false);
   protected readonly actionError = signal<AppError | null>(null);
+  /** Ordine in stampa PDF (blocca doppio click sull'azione di riga). */
+  protected readonly printingId = signal<string | null>(null);
 
   protected readonly deleteWarnTitle = computed(() => {
     const count = this.pendingDeleteOrders().length;
@@ -600,9 +602,43 @@ export class SalesOrderListComponent {
       this.startDuplicate(event.order);
       return;
     }
+    if (event.action === 'print') {
+      this.printOrder(event.order);
+      return;
+    }
     if (event.action === 'delete') {
       this.requestDeleteOrder(event.order);
     }
+  }
+
+  /** Scarica il PDF dell'ordine (azione di riga «Stampa PDF»). */
+  protected printOrder(order: SalesOrder): void {
+    if (this.printingId()) {
+      return;
+    }
+    this.printingId.set(order.id);
+    this.service
+      .exportOrderPdf(order.id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          this.printingId.set(null);
+          this.downloadBlob(blob, `ordine-cliente-${order.orderNumber}.pdf`);
+        },
+        error: (err: unknown) => {
+          this.printingId.set(null);
+          this.actionError.set(this.toAppError(err));
+        },
+      });
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename.replace(/[^\w\s.-]/g, '-');
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   // ── Duplica con scelta cliente ────────────────────────────────────────────

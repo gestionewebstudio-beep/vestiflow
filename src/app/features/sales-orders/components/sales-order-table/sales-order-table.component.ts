@@ -27,7 +27,7 @@ import {
 export type SalesOrderTableProfile = 'customer-orders' | 'shopify-orders';
 
 /** Azioni dal menu «···» di riga (senza Etichette per i documenti di vendita). */
-export type SalesOrderTableActionId = 'open' | 'duplicate' | 'delete';
+export type SalesOrderTableActionId = 'open' | 'duplicate' | 'print' | 'delete';
 
 export interface SalesOrderTableActionEvent {
   readonly action: SalesOrderTableActionId;
@@ -163,9 +163,11 @@ export class SalesOrderTableComponent {
     ];
     if (this.canManage()) {
       // Duplica: crea un NUOVO ordine manuale, quindi vale anche per i non
-      // manuali (l'originale non si tocca). Stampa PDF / Allegati: fasi dopo.
+      // manuali (l'originale non si tocca).
       items.push({ id: 'duplicate', label: 'Duplica', icon: 'pi-copy' });
     }
+    // Stampa PDF: azione di sola lettura, disponibile per qualunque ordine.
+    items.push({ id: 'print', label: 'Stampa PDF', icon: 'pi-print' });
     if (this.canManage() && isManual) {
       items.push({ id: 'delete', label: 'Elimina', icon: 'pi-trash', danger: true });
     }

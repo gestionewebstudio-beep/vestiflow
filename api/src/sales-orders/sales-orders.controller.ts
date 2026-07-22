@@ -33,6 +33,7 @@ import {
   type ManualSalesOrderMeta,
   type ManualSalesOrderSaveResult,
 } from './manual-sales-orders.service';
+import { SalesOrderPdfService } from './sales-order-pdf.service';
 import { SalesOrdersExportService } from './sales-orders-export.service';
 import {
   SalesOrdersService,
@@ -47,6 +48,7 @@ export class SalesOrdersController {
     private readonly salesOrders: SalesOrdersService,
     private readonly salesOrdersExport: SalesOrdersExportService,
     private readonly manualOrders: ManualSalesOrdersService,
+    private readonly salesOrderPdf: SalesOrderPdfService,
   ) {}
 
   @Get()
@@ -152,6 +154,22 @@ export class SalesOrdersController {
     @Body() dto: DuplicateManualSalesOrderDto,
   ): Promise<ManualSalesOrderSaveResult> {
     return this.manualOrders.duplicate(tenantId, id, dto.customerId, user);
+  }
+
+  /** Stampa PDF dell'ordine cliente (qualunque origine). */
+  @Get(':id/export/pdf')
+  @RequirePermissions(TenantPermission.ReportsView)
+  @Header('Content-Type', 'application/pdf')
+  async exportPdf(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StreamableFile> {
+    const order = await this.salesOrders.getById(tenantId, id);
+    const { buffer, filename } = await this.salesOrderPdf.exportPdf(tenantId, order);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 
   @Get(':id')
