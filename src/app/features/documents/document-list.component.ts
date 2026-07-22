@@ -479,7 +479,6 @@ export class DocumentListComponent {
         createdById: sales.showOperatorFilter ? q.createdById : undefined,
         linkStatus: undefined,
         externalDocumentTypeId: undefined,
-        causal: undefined,
         locationId: undefined,
         accountant: undefined,
         pendingInvoice: sales.showPendingInvoiceFilter ? q.pendingInvoice : undefined,
@@ -536,8 +535,6 @@ export class DocumentListComponent {
   });
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
-  /** Bozza filtro «Causale carico» (debounced come la ricerca libera). */
-  protected readonly causalDraft = signal(this.route.snapshot.queryParamMap.get('causal') ?? '');
 
   private readonly request = computed(() => ({ query: this.apiQuery(), tick: this.refreshTick() }));
 
@@ -614,7 +611,6 @@ export class DocumentListComponent {
         q.supplierId ??
         q.linkStatus ??
         q.externalDocumentTypeId ??
-        q.causal ??
         q.paymentMethod,
       );
     }
@@ -631,7 +627,6 @@ export class DocumentListComponent {
 
   // takeUntilDestroyed() gestisce l'unsubscribe; i campi evitano subscription "ignorate".
   private readonly searchSubscription: Subscription;
-  private readonly causalSubscription: Subscription;
   private readonly selectionPruneSubscription: Subscription;
   private bulkPdfSubscription: Subscription | null = null;
 
@@ -707,14 +702,6 @@ export class DocumentListComponent {
       )
       .subscribe((value) => this.applySearch(value));
 
-    this.causalSubscription = toObservable(this.causalDraft)
-      .pipe(
-        debounceTime(SEARCH_DEBOUNCE_MS),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((value) => this.applyCausal(value));
-
     // Al cambio pagina/filtri la selezione si restringe alle righe visibili:
     // le azioni massive operano solo su documenti che l'utente vede.
     this.selectionPruneSubscription = toObservable(this.documents)
@@ -733,21 +720,10 @@ export class DocumentListComponent {
         this.searchDraft.set(fromUrl);
       }
     });
-
-    effect(() => {
-      const fromUrl = this.query().causal ?? '';
-      if (fromUrl !== this.causalDraft()) {
-        this.causalDraft.set(fromUrl);
-      }
-    });
   }
 
   protected onSearchInput(event: Event): void {
     this.searchDraft.set((event.target as HTMLInputElement).value);
-  }
-
-  protected onCausalInput(event: Event): void {
-    this.causalDraft.set((event.target as HTMLInputElement).value);
   }
 
   /** Cambio preset periodo: calcola Dal/Al o mantiene i campi custom. */
@@ -858,7 +834,6 @@ export class DocumentListComponent {
 
   protected resetFilters(): void {
     this.searchDraft.set('');
-    this.causalDraft.set('');
     this.periodPreset.set(MovementPeriodPreset.All);
     this.updateParams(
       {
@@ -872,7 +847,6 @@ export class DocumentListComponent {
         supplierId: null,
         linkStatus: null,
         externalDocumentTypeId: null,
-        causal: null,
         settlement: null,
         paymentMethod: null,
         createdById: null,
@@ -1363,15 +1337,6 @@ export class DocumentListComponent {
       return;
     }
     this.updateParams({ search: trimmed || null, page: null }, true);
-  }
-
-  private applyCausal(value: string): void {
-    const trimmed = value.trim();
-    const current = this.query().causal ?? '';
-    if (trimmed === current) {
-      return;
-    }
-    this.updateParams({ causal: trimmed || null, page: null }, true);
   }
 
   private toAppError(err: unknown): AppError {

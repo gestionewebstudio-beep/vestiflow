@@ -24,6 +24,8 @@ import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -107,6 +109,7 @@ const EXTERNAL_REGISTRATION_MESSAGE =
   selector: 'app-document-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
@@ -128,6 +131,17 @@ export class DocumentDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+
+  constructor() {
+    // Breadcrumb: al posto del generico «Dettaglio», il numero del documento.
+    bindBreadcrumbEntityLabel(() => {
+      const doc = this.document();
+      return {
+        id: this.params().get('id') || null,
+        label: doc ? documentReferenceLabel(doc.type, doc.reference, doc.series) : null,
+      };
+    });
+  }
 
   // Tipo esplicito string: le anteprime dedicate (SalesDocumentDetailComponent)
   // sovrascrivono il percorso con la propria pagina elenco.

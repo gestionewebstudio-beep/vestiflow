@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { TransportPort } from '@core/models/document.model';
 import type { DocumentAddress } from '@core/models/document.model';
 import { formatDate, formatDateTime } from '@core/utils/date.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -41,7 +42,7 @@ const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
   selector: 'app-sales-document-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
+    BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,

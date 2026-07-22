@@ -15,7 +15,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import type { AppError } from '@core/models/app-error.model';
@@ -35,6 +35,8 @@ import {
 } from '@core/utils/money.util';
 import { formatDate } from '@core/utils/date.util';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -130,7 +132,7 @@ function parseRatePercent(value: string): number | null {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
-    RouterLink,
+    BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
     DateInputComponent,
@@ -151,6 +153,14 @@ export class PurchaseInvoiceFormComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+
+  constructor() {
+    // Breadcrumb: numero del documento al posto del generico «Dettaglio».
+    bindBreadcrumbEntityLabel(() => ({
+      id: this.editDocumentId() || null,
+      label: this.loadedReference(),
+    }));
+  }
 
   protected readonly listPath = '/app/documents/registrazione-fattura';
   protected readonly currency = DEFAULT_CURRENCY;

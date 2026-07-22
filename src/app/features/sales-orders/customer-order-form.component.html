@@ -1,8 +1,5 @@
 <section class="gr-form co-form">
-  <a class="gr-form__back" [href]="backHref" (click)="$event.preventDefault(); cancel()">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    {{ backLabel }}
-  </a>
+  <app-back-button />
 
   <div class="gr-form__head-row">
     <h1 class="gr-form__title">{{ pageTitle() }}</h1>

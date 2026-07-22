@@ -1,8 +1,5 @@
 <section class="gr-form">
-  <a class="gr-form__back" href="/app/documents" (click)="$event.preventDefault(); cancel()">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Documenti
-  </a>
+  <app-back-button />
 
   <h1 class="gr-form__title">{{ pageTitle() }}</h1>
   <p class="gr-form__disclaimer" role="note">

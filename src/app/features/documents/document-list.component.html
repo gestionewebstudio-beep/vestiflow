@@ -343,19 +343,6 @@
             [filterChip]="true"
           />
         </div>
-
-        <div class="doc-list__field doc-list__field--causal">
-          <label class="doc-list__label" for="doc-causal">Causale carico</label>
-          <input
-            id="doc-causal"
-            class="doc-list__causal-input"
-            type="search"
-            [value]="causalDraft()"
-            placeholder="Cerca causale…"
-            aria-label="Filtra per causale di carico"
-            (input)="onCausalInput($event)"
-          />
-        </div>
       } @else {
         <div class="doc-list__field">
           <app-select-menu

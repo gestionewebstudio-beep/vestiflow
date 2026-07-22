@@ -1,8 +1,5 @@
 <section class="sales-doc-detail">
-  <a class="sales-doc-detail__back" [routerLink]="config().listPath">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    {{ config().pageTitle }}
-  </a>
+  <app-back-button />
 
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />

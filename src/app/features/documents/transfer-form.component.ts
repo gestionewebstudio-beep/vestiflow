@@ -42,6 +42,8 @@ import type { VariantSummary } from '@features/products/models/variant-summary.m
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
+import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -77,6 +79,7 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
@@ -97,6 +100,14 @@ export class TransferFormComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+
+  constructor() {
+    // Breadcrumb: numero del documento al posto del generico «Dettaglio».
+    bindBreadcrumbEntityLabel(() => ({
+      id: this.editDocumentId() || null,
+      label: this.loadedDocument()?.reference ?? null,
+    }));
+  }
 
   protected readonly listPath = '/app/documents';
   protected readonly currency = DEFAULT_CURRENCY;

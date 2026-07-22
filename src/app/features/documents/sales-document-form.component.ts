@@ -41,6 +41,7 @@ import {
 } from '@core/utils/discount-percent.util';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { CustomerService } from '@features/customers/services/customer.service';
 import type { VariantSummary } from '@features/products/models/variant-summary.model';
@@ -51,6 +52,7 @@ import type { TenantFeatureSettings } from '@features/settings/models/tenant-fea
 import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
 import type { TenantCompany } from '@features/settings/models/tenant-company.model';
 import { TenantCompanyService } from '@features/settings/services/tenant-company.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -96,6 +98,7 @@ type SubmitState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
@@ -550,6 +553,11 @@ export class SalesDocumentFormComponent {
   protected readonly hasMixedVatRates = computed(() => this.vatBreakdown().length > 1);
 
   constructor() {
+    // Breadcrumb: numero del documento al posto del generico «Dettaglio».
+    bindBreadcrumbEntityLabel(() => ({
+      id: this.editDocumentId() || null,
+      label: this.loadedDocument()?.reference ?? null,
+    }));
     // Applica il Codice IVA predefinito alle righe ancora senza scelta non
     // appena i Codici IVA sono disponibili (caricamento asincrono): copre la
     // riga iniziale in creazione, senza toccare righe già valorizzate da un

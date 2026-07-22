@@ -1,0 +1,27 @@
+:host {
+  display: inline-flex;
+}
+
+// Stile tenue, coerente con i vecchi link «indietro» delle pagine: chevron
+// discreto + parola, colore muted che si accende all'hover.
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.back-button:hover {
+  color: var(--color-text);
+}
+
+.back-button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}

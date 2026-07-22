@@ -77,6 +77,7 @@ import {
 import { SupplierOrderService } from '@features/orders/services/supplier-order.service';
 import { SupplierOrderStatus, type SupplierOrder } from '@core/models/supplier-order.model';
 import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -202,6 +203,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,

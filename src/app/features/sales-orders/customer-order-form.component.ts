@@ -104,6 +104,7 @@ import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
 import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
@@ -189,6 +190,7 @@ interface AvailabilityIssue {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    BackButtonComponent,
     BadgeComponent,
     AttachmentsPanelComponent,
     ButtonComponent,
@@ -356,15 +358,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     }
     return this.isEditMode() ? 'Modifica ordine cliente' : 'Nuovo ordine cliente';
   });
-
-  protected readonly backLabel = this.isQuote
-    ? 'Preventivi'
-    : this.isSalesDdt
-      ? 'DDT vendita'
-      : this.isManualUnload
-        ? 'Scarico manuale giacenze'
-        : 'Ordini cliente';
-  protected readonly backHref = this.isRegistryDocument ? this.registryListPath : '/app/sales';
 
   protected readonly stateOptions: readonly SelectMenuOption[] = [
     { value: ManualOrderState.Confirmed, label: 'Confermato' },

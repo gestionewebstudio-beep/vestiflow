@@ -13,10 +13,7 @@
   } @else if (document(); as doc) {
     <header class="doc-detail__header">
       <div class="doc-detail__heading">
-        <button type="button" class="doc-detail__back" (click)="goToList()">
-          <i class="pi pi-arrow-left" aria-hidden="true"></i>
-          {{ listPath().includes('arrivi-merce') ? 'Arrivi merce' : 'Registro documenti' }}
-        </button>
+        <app-back-button />
         <h1 class="doc-detail__title">
           {{ title() }}
           @if (statusDisplayLabel(doc.type, doc.status, doc); as label) {
