@@ -164,6 +164,13 @@ export class SalesOrderService {
       );
   }
 
+  /** Elimina un ordine cliente manuale dall'elenco (rilascia gli impegni). */
+  deleteManualOrder(id: EntityId): Observable<void> {
+    return this.http
+      .delete<void>(this.url(`/sales-orders/manual/${id}`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   getManualOrderReservations(id: EntityId): Observable<readonly ManualOrderReservation[]> {
     return this.http
       .get<readonly ManualOrderReservation[]>(this.url(`/sales-orders/manual/${id}/reservations`))

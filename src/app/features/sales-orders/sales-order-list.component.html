@@ -196,6 +196,34 @@
     </div>
   </div>
 
+  @if (selectedOrders().length > 0) {
+    <div
+      class="sales-list__bulk-bar"
+      role="toolbar"
+      aria-label="Operazioni sugli ordini selezionati"
+    >
+      <span class="sales-list__bulk-count tabular-nums">
+        {{ selectedOrders().length }}
+        {{ selectedOrders().length === 1 ? 'ordine selezionato' : 'ordini selezionati' }}
+      </span>
+      @if (deletableSelectedOrders().length > 0) {
+        <app-button variant="danger" [disabled]="deleteBusy()" (click)="requestDeleteSelection()">
+          <i class="pi pi-trash" aria-hidden="true"></i>
+          @if (deletableSelectedOrders().length === selectedOrders().length) {
+            Elimina
+          } @else {
+            Elimina {{ deletableSelectedOrders().length }} manuali
+          }
+        </app-button>
+      }
+      <app-button variant="ghost" (click)="clearSelection()">Deseleziona</app-button>
+    </div>
+  }
+
+  @if (actionError(); as err) {
+    <app-error-state [description]="err.message" />
+  }
+
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
   } @else if (error(); as appError) {
@@ -210,7 +238,13 @@
     <app-sales-order-table
       [orders]="orders()"
       [profile]="listProfile()"
+      [selectable]="canManage()"
+      [selectedIds]="selectedIds()"
+      [canManage]="canManage()"
       (rowClick)="openOrder($event)"
+      (action)="onTableAction($event)"
+      (selectionChange)="onToggleSelection($event)"
+      (selectAllChange)="onToggleSelectAll($event)"
     />
     <app-pagination
       label="Paginazione vendite"
@@ -220,4 +254,25 @@
       (pageSizeChange)="onPageSizeChange($event)"
     />
   }
+
+  <!-- Eliminazione a due conferme (avviso + conferma finale), come Arrivi merce. -->
+  <app-confirm-dialog
+    [(open)]="deleteWarnOpen"
+    [title]="deleteWarnTitle()"
+    [message]="deleteWarnMessage()"
+    confirmLabel="Continua"
+    [danger]="true"
+    (confirmed)="onDeleteWarnConfirm()"
+    (dismissed)="onDeleteCancel()"
+  />
+  <app-confirm-dialog
+    [(open)]="deleteConfirmOpen"
+    [title]="deleteWarnTitle()"
+    message="Conferma definitiva: l'operazione non è reversibile."
+    confirmLabel="Elimina"
+    [danger]="true"
+    [busy]="deleteBusy()"
+    (confirmed)="onDeleteConfirm()"
+    (dismissed)="onDeleteCancel()"
+  />
 </section>

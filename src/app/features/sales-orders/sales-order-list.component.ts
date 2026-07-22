@@ -11,12 +11,16 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
+  from,
   map,
   of,
   startWith,
   switchMap,
+  take,
+  toArray,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
@@ -32,11 +36,12 @@ import { BackgroundBlobExportService } from '@core/services/background-blob-expo
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
-import type { SalesOrder } from '@core/models/sales-order.model';
+import { SalesOrderSource, type SalesOrder } from '@core/models/sales-order.model';
 import { customerDisplayName } from '@core/models/customer.model';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { CustomerService } from '@features/customers/services/customer.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -65,7 +70,9 @@ import {
 } from '@features/reports/models/report-list-query.model';
 import {
   SalesOrderTableComponent,
+  type SalesOrderTableActionEvent,
   type SalesOrderTableProfile,
+  type SalesOrderTableSelectionEvent,
 } from './components/sales-order-table/sales-order-table.component';
 import {
   DEFAULT_SALES_PAGE_SIZE,
@@ -100,6 +107,7 @@ type SalesListState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ButtonComponent,
+    ConfirmDialogComponent,
     DateInputComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -348,6 +356,34 @@ export class SalesOrderListComponent {
     );
   });
 
+  // ── Selezione multipla + eliminazione a due conferme (come Arrivi merce) ──
+  protected readonly canManage = computed(() => canManageDocuments(this.authService.currentUser()));
+  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
+  protected readonly selectedOrders = computed(() =>
+    this.orders().filter((order) => this.selectedIds().has(order.id)),
+  );
+  /** Solo gli ordini manuali sono eliminabili in massa (i non manuali no). */
+  protected readonly deletableSelectedOrders = computed(() =>
+    this.selectedOrders().filter((order) => order.source === SalesOrderSource.Manual),
+  );
+  protected readonly pendingDeleteOrders = signal<readonly SalesOrder[]>([]);
+  protected readonly deleteWarnOpen = signal(false);
+  protected readonly deleteConfirmOpen = signal(false);
+  protected readonly deleteBusy = signal(false);
+  protected readonly actionError = signal<AppError | null>(null);
+
+  protected readonly deleteWarnTitle = computed(() => {
+    const count = this.pendingDeleteOrders().length;
+    return count === 1 ? 'Elimina ordine cliente' : `Elimina ${count} ordini cliente`;
+  });
+
+  protected readonly deleteWarnMessage = computed(() => {
+    const count = this.pendingDeleteOrders().length;
+    return count === 1
+      ? "L'ordine verrà eliminato e gli impegni di magazzino rilasciati (la disponibilità torna libera)."
+      : `I ${count} ordini selezionati verranno eliminati e i relativi impegni di magazzino rilasciati.`;
+  });
+
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private readonly searchSubscription: Subscription;
 
@@ -369,6 +405,17 @@ export class SalesOrderListComponent {
       .watchRemoteDataChanged()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.reload());
+
+    // Al cambio pagina/filtri la selezione si restringe alle righe visibili.
+    toObservable(this.orders)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((orders) => {
+        const visible = new Set(orders.map((order) => order.id));
+        this.selectedIds.update((current) => {
+          const next = new Set([...current].filter((id) => visible.has(id)));
+          return next.size === current.size ? current : next;
+        });
+      });
   }
 
   protected onSearchInput(event: Event): void {
@@ -520,6 +567,121 @@ export class SalesOrderListComponent {
 
   protected createManualOrder(): void {
     void this.router.navigate(['/app/sales/new']);
+  }
+
+  // ── Azioni di riga + selezione multipla ──────────────────────────────────
+
+  protected onTableAction(event: SalesOrderTableActionEvent): void {
+    this.actionError.set(null);
+    if (event.action === 'open') {
+      this.openOrder(event.order);
+      return;
+    }
+    if (event.action === 'delete') {
+      this.requestDeleteOrder(event.order);
+    }
+  }
+
+  protected onToggleSelection(event: SalesOrderTableSelectionEvent): void {
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (event.selected) {
+        next.add(event.order.id);
+      } else {
+        next.delete(event.order.id);
+      }
+      return next;
+    });
+  }
+
+  protected onToggleSelectAll(checked: boolean): void {
+    this.selectedIds.set(checked ? new Set(this.orders().map((order) => order.id)) : new Set());
+  }
+
+  protected clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+
+  protected requestDeleteOrder(order: SalesOrder): void {
+    this.actionError.set(null);
+    this.pendingDeleteOrders.set([order]);
+    this.deleteWarnOpen.set(true);
+  }
+
+  protected requestDeleteSelection(): void {
+    const orders = this.deletableSelectedOrders();
+    if (orders.length === 0) {
+      return;
+    }
+    this.actionError.set(null);
+    this.pendingDeleteOrders.set([...orders]);
+    this.deleteWarnOpen.set(true);
+  }
+
+  /** 1° modale (avviso) confermato → apre il 2° modale (conferma finale). */
+  protected onDeleteWarnConfirm(): void {
+    this.deleteWarnOpen.set(false);
+    this.deleteConfirmOpen.set(true);
+  }
+
+  /** Annulla/ESC su uno dei due modali: azzera la coda di eliminazione. */
+  protected onDeleteCancel(): void {
+    if (this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteOrders.set([]);
+  }
+
+  /**
+   * Conferma finale: elimina gli ordini in coda uno alla volta (nessun
+   * endpoint massivo), raccoglie gli esiti e ricarica. Un errore su un ordine
+   * (es. con Vendita online collegata) non interrompe gli altri.
+   */
+  protected onDeleteConfirm(): void {
+    const orders = this.pendingDeleteOrders();
+    if (orders.length === 0 || this.deleteBusy()) {
+      this.deleteConfirmOpen.set(false);
+      return;
+    }
+    this.deleteBusy.set(true);
+    from(orders)
+      .pipe(
+        concatMap((order) =>
+          this.service.deleteManualOrder(order.id).pipe(
+            map(() => ({ ok: true as const, order })),
+            catchError((err: unknown) =>
+              of({ ok: false as const, order, error: this.toAppError(err) }),
+            ),
+          ),
+        ),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((results) => {
+        this.deleteBusy.set(false);
+        this.deleteConfirmOpen.set(false);
+        this.pendingDeleteOrders.set([]);
+        const deletedIds = new Set(results.filter((r) => r.ok).map((r) => r.order.id));
+        if (deletedIds.size > 0) {
+          this.selectedIds.update((cur) => new Set([...cur].filter((id) => !deletedIds.has(id))));
+        }
+        const failure = results.find((r) => !r.ok);
+        const failedCount = results.length - deletedIds.size;
+        if (failure && !failure.ok) {
+          this.actionError.set(
+            failedCount === 1
+              ? failure.error
+              : {
+                  kind: failure.error.kind,
+                  message: `${failedCount} ordini non sono stati eliminati. ${failure.error.message}`,
+                },
+          );
+        } else {
+          this.actionError.set(null);
+        }
+        this.reload();
+      });
   }
 
   private updateParams(params: Record<string, string | number | null>, replace = false): void {

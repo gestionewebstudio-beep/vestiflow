@@ -2,6 +2,18 @@
   <table class="sales-table">
     <thead class="sales-table__head">
       <tr>
+        @if (selectable()) {
+          <th scope="col" class="sales-table__cell--select">
+            <input
+              type="checkbox"
+              class="sales-table__select-check"
+              aria-label="Seleziona tutti gli ordini della pagina"
+              [checked]="allSelected()"
+              [indeterminate]="someSelected()"
+              (change)="selectAllChange.emit($any($event.target).checked)"
+            />
+          </th>
+        }
         <th scope="col">Ordine</th>
         @if (!isShopifyProfile()) {
           <th scope="col">Origine</th>
@@ -21,6 +33,7 @@
           <th scope="col">Aggiornato</th>
           <th scope="col">Sync</th>
         }
+        <th scope="col" class="sales-table__cell--actions">Azioni</th>
       </tr>
     </thead>
 
@@ -30,10 +43,26 @@
           class="sales-table__row"
           tabindex="0"
           [attr.aria-label]="rowLabel(order)"
+          [class.sales-table__row--selected]="selectable() && selectedIds().has(order.id)"
           (click)="rowClick.emit(order)"
           (keydown.enter)="rowClick.emit(order)"
           (keydown.space)="$event.preventDefault(); rowClick.emit(order)"
         >
+          @if (selectable()) {
+            <td
+              class="sales-table__cell--select"
+              data-label="Seleziona"
+              (click)="$event.stopPropagation()"
+            >
+              <input
+                type="checkbox"
+                class="sales-table__select-check"
+                [attr.aria-label]="'Seleziona ordine ' + order.orderNumber"
+                [checked]="selectedIds().has(order.id)"
+                (change)="onToggleSelect(order, $any($event.target).checked)"
+              />
+            </td>
+          }
           <td class="sales-table__number tabular-nums" data-label="Ordine">
             {{ order.orderNumber }}
           </td>
@@ -117,6 +146,17 @@
               </span>
             </td>
           }
+          <td
+            class="sales-table__cell--actions"
+            data-label="Azioni"
+            (click)="$event.stopPropagation()"
+          >
+            <app-action-menu
+              [items]="rowActions(order)"
+              [ariaLabel]="'Azioni su ordine ' + order.orderNumber"
+              (actionSelected)="onAction($event, order)"
+            />
+          </td>
         </tr>
       }
     </tbody>

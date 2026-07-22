@@ -35,6 +35,31 @@
   background-color: var(--color-surface-hover);
 }
 
+// Selezione multipla (come Arrivi merce): colonna checkbox stretta e riga
+// evidenziata quando selezionata; colonna Azioni compatta a fine riga.
+.sales-table__cell--select {
+  inline-size: var(--space-10);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sales-table__select-check {
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.sales-table__cell--actions {
+  inline-size: var(--space-10);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.sales-table__row--selected {
+  background-color: var(--color-row-active, var(--color-surface-hover));
+}
+
 .sales-table__row:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);

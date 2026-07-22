@@ -623,6 +623,58 @@ export class ManualSalesOrdersService {
     this.logger.log(`Ordine cliente ${order.orderNumber} forzato a Concluso (${tenantId})`);
   }
 
+  /**
+   * Elimina un Ordine cliente MANUALE (come Arrivi merce, azione dall'elenco):
+   * rilascia gli impegni attivi (la Impegnata torna disponibile) e rimuove
+   * ordine + righe (cascade DB). Non manuali e ordini con Vendita online
+   * collegata NON sono eliminabili.
+   */
+  async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id, tenantId },
+      select: {
+        id: true,
+        source: true,
+        locationId: true,
+        orderNumber: true,
+        onlineSale: { select: { id: true } },
+      },
+    });
+    if (!order) {
+      throw new NotFoundException('Ordine cliente non trovato');
+    }
+    if (order.source !== SalesOrderSource.manual) {
+      throw new ConflictException(
+        'Solo gli ordini di origine Manuale sono eliminabili da questa maschera.',
+      );
+    }
+    if (user && order.locationId) {
+      assertLocationInUserScope(user, order.locationId, 'write');
+    }
+    if (order.onlineSale) {
+      throw new ConflictException('Ordine con Vendita online collegata: non è eliminabile.');
+    }
+
+    const syncTargets = new Set<string>();
+    await this.prisma.$transaction(async (tx) => {
+      const active = await tx.stockReservation.findMany({
+        where: { tenantId, salesOrderId: order.id, status: ReservationStatus.active },
+        select: { variantId: true, locationId: true },
+      });
+      await this.reservations.releaseOrderReservationsTx(tx, {
+        tenantId,
+        salesOrderId: order.id,
+        note: `Ordine eliminato (${order.orderNumber})`,
+      });
+      for (const reservation of active) {
+        syncTargets.add(`${reservation.variantId}:${reservation.locationId}`);
+      }
+      await tx.salesOrder.delete({ where: { id: order.id } });
+    });
+    await this.pushInventoryTargets(tenantId, syncTargets);
+    this.logger.log(`Ordine cliente ${order.orderNumber} eliminato (${tenantId})`);
+  }
+
   private async pushInventoryTargets(
     tenantId: string,
     targets: ReadonlySet<string>,

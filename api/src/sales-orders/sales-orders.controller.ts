@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -125,6 +127,18 @@ export class SalesOrdersController {
   ): Promise<{ ok: true }> {
     await this.manualOrders.forceConclude(tenantId, id, user);
     return { ok: true };
+  }
+
+  /** Elimina un ordine cliente manuale dall'elenco (rilascia gli impegni). */
+  @Delete('manual/:id')
+  @HttpCode(204)
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  deleteManual(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.manualOrders.delete(tenantId, id, user);
   }
 
   @Get(':id')
