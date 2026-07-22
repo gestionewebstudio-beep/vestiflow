@@ -1,0 +1,83 @@
+:host {
+  display: block;
+}
+
+.attachments-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.attachments-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.attachments-panel__title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+// L'input file copre il bottone (label wrapper): click sull'app-button apre il picker.
+.attachments-panel__upload {
+  position: relative;
+  display: inline-flex;
+}
+
+.attachments-panel__file-input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.attachments-panel__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.attachments-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.attachments-panel__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface-subtle, var(--color-surface));
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.attachments-panel__meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.attachments-panel__name {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.attachments-panel__details {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}

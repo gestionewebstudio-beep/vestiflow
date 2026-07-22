@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AttachmentsModule } from '../attachments/attachments.module';
 import { ChannelsModule } from '../channels/channels.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { OrderReservationsModule } from '../order-reservations/order-reservations.module';
@@ -10,7 +11,7 @@ import { SalesOrdersExportService } from './sales-orders-export.service';
 import { SalesOrdersService } from './sales-orders.service';
 
 @Module({
-  imports: [ChannelsModule, DocumentsModule, OrderReservationsModule],
+  imports: [AttachmentsModule, ChannelsModule, DocumentsModule, OrderReservationsModule],
   controllers: [SalesOrdersController],
   providers: [
     SalesOrdersService,

@@ -104,6 +104,7 @@ import { TenantFeatureSettingsService } from '@features/settings/services/tenant
 import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -187,6 +188,7 @@ interface AvailabilityIssue {
   imports: [
     ReactiveFormsModule,
     BadgeComponent,
+    AttachmentsPanelComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,

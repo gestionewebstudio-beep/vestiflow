@@ -1,0 +1,64 @@
+<section class="attachments-panel" aria-labelledby="attachments-panel-title">
+  <div class="attachments-panel__head">
+    <h2 id="attachments-panel-title" class="attachments-panel__title">Allegati</h2>
+    @if (canManage()) {
+      <label class="attachments-panel__upload">
+        <input
+          type="file"
+          class="attachments-panel__file-input"
+          accept=".pdf,.xml,application/pdf,application/xml,text/xml"
+          [disabled]="uploading()"
+          (change)="onFileSelected($event)"
+        />
+        <app-button variant="secondary" [loading]="uploading()" [disabled]="uploading()">
+          <i class="pi pi-upload" aria-hidden="true"></i>
+          Carica allegato
+        </app-button>
+      </label>
+    }
+  </div>
+
+  @if (uploadError(); as err) {
+    <p class="attachments-panel__error" role="alert">{{ err }}</p>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="3" [rows]="2" />
+  } @else if (error()) {
+    <app-error-state
+      description="Impossibile caricare gli allegati."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (attachments().length === 0) {
+    <app-empty-state
+      title="Nessun allegato"
+      description="Carica PDF o XML collegati (es. conferma email cliente, ricevuta di consegna)."
+      icon="pi-paperclip"
+    />
+  } @else {
+    <ul class="attachments-panel__list">
+      @for (item of attachments(); track item.id) {
+        <li class="attachments-panel__item">
+          <div class="attachments-panel__meta">
+            <span class="attachments-panel__name">{{ item.fileName }}</span>
+            <span class="attachments-panel__details tabular-nums">
+              {{ formatSize(item.sizeBytes) }} · {{ formatDate(item.createdAt) }} ·
+              {{ item.createdByName }}
+            </span>
+          </div>
+          @if (canManage()) {
+            <app-button
+              variant="ghost"
+              [disabled]="deletingId() === item.id"
+              [loading]="deletingId() === item.id"
+              (click)="deleteAttachment(item.id)"
+            >
+              Elimina
+            </app-button>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>

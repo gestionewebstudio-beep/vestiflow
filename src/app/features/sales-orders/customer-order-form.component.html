@@ -1411,6 +1411,16 @@
         </fieldset>
       </fieldset>
 
+      @if (isOrder && loadedOrder(); as order) {
+        <section class="gr-form__attachments" aria-label="Allegati ordine">
+          <app-attachments-panel
+            entityType="sales_order"
+            [entityId]="order.id"
+            [canManage]="canManageOrders()"
+          />
+        </section>
+      }
+
       @if (submitError(); as appError) {
         <p class="gr-form__submit-error" role="alert">{{ appError.message }}</p>
       }

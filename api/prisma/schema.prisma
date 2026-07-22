@@ -364,6 +364,7 @@ model Tenant {
   documentRevisions       DocumentRevision[]
   documentAttachments     DocumentAttachment[]
   supplierAttachments     SupplierAttachment[]
+  attachments             Attachment[]
   inventoryLots           InventoryLot[]
   inventorySerials        InventorySerial[]
   userTableViewPreferences UserTableViewPreference[]
@@ -2168,6 +2169,31 @@ model DocumentAttachment {
   @@index([documentId])
   @@index([tenantId])
   @@map("document_attachments")
+}
+
+/// Allegato generico polimorfico (sottosistema riusabile): collega un file
+/// (metadati; i byte stanno su Supabase Storage) a una qualunque entità via
+/// entityType (es. 'document', 'sales_order') + entityId. Sostituisce lo
+/// specifico DocumentAttachment per Arrivi merce e serve anche gli Ordini
+/// cliente. L'integrità referenziale su entityId è gestita a livello
+/// applicativo (l'entità è verificata prima di ogni operazione).
+model Attachment {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  /// Tipo di entità collegata: 'document' | 'sales_order' (estendibile).
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id") @db.Uuid
+  fileName      String   @map("file_name")
+  mimeType      String   @map("mime_type")
+  storagePath   String   @map("storage_path")
+  sizeBytes     Int      @map("size_bytes")
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, entityType, entityId])
+  @@map("attachments")
 }
 
 /// Allegato anagrafica fornitore (C5).

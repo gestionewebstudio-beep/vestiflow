@@ -10,8 +10,11 @@ import {
   Post,
   Query,
   StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
@@ -21,6 +24,8 @@ import { RequirePermissions } from '../common/auth/tenant-permissions.decorator'
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
+import { documentAttachmentUploadMulterOptions } from '../common/upload/multer-upload.options';
+import { AttachmentsService } from '../attachments/attachments.service';
 import { ConcludeManualSalesOrderDto } from './dto/conclude-manual-sales-order.dto';
 import { DuplicateManualSalesOrderDto } from './dto/duplicate-manual-sales-order.dto';
 import { ExportSalesOrdersQueryDto } from './dto/export-sales-orders.query.dto';
@@ -49,6 +54,7 @@ export class SalesOrdersController {
     private readonly salesOrdersExport: SalesOrdersExportService,
     private readonly manualOrders: ManualSalesOrdersService,
     private readonly salesOrderPdf: SalesOrderPdfService,
+    private readonly attachments: AttachmentsService,
   ) {}
 
   @Get()
@@ -154,6 +160,37 @@ export class SalesOrdersController {
     @Body() dto: DuplicateManualSalesOrderDto,
   ): Promise<ManualSalesOrderSaveResult> {
     return this.manualOrders.duplicate(tenantId, id, dto.customerId, user);
+  }
+
+  // ── Allegati (sottosistema generico, entità 'sales_order') ────────────────
+
+  @Get(':id/attachments')
+  @RequirePermissions(TenantPermission.ReportsView)
+  listAttachments(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.attachments.list(tenantId, 'sales_order', id);
+  }
+
+  @Post(':id/attachments')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  @UseInterceptors(FileInterceptor('file', documentAttachmentUploadMulterOptions))
+  uploadAttachment(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.attachments.upload(tenantId, 'sales_order', id, file, user.displayName ?? 'API');
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @HttpCode(204)
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  deleteAttachment(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+  ): Promise<void> {
+    return this.attachments.delete(tenantId, 'sales_order', id, attachmentId);
   }
 
   /** Stampa PDF dell'ordine cliente (qualunque origine). */
