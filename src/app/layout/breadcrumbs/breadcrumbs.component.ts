@@ -137,6 +137,23 @@ export class BreadcrumbsComponent {
     const params = new URLSearchParams(query);
     const segments = path!.split('/').filter((s) => s && s !== 'app');
 
+    // Arrivo merce in modifica: la rotta `documents/:id/edit` è esclusiva del
+    // form arrivo merce (gli altri tipi usano sotto-percorsi dedicati). Il
+    // percorso corretto è «Documenti > Arrivi merce > numero», con il tipo
+    // prima del numero e senza la tappa «Modifica».
+    if (
+      segments.length === 3 &&
+      segments[0] === 'documents' &&
+      isIdSegment(segments[1]!) &&
+      segments[2] === 'edit'
+    ) {
+      return [
+        { label: SEGMENT_LABELS['documents']!, link: '/app/documents' },
+        { label: SEGMENT_LABELS['arrivi-merce']!, link: '/app/documents/arrivi-merce' },
+        { label: this.entityLabels().get(segments[1]!) ?? 'Dettaglio' },
+      ];
+    }
+
     const crumbs: Crumb[] = [];
     let accumulated = '/app';
     for (const segment of segments) {

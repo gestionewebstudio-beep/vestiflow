@@ -321,10 +321,16 @@ export class DocumentService {
     return this.http.delete<void>(this.url(`/documents/${id}`)).pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
-  /** Duplica documento: nuova bozza indipendente, nessun movimento generato. */
-  duplicateDocument(id: EntityId): Observable<DocumentRecord> {
+  /**
+   * Duplica documento: nuova bozza indipendente, nessun movimento generato.
+   * `supplierId` (Arrivi merce) riallinea la testata al fornitore scelto.
+   */
+  duplicateDocument(id: EntityId, supplierId?: EntityId): Observable<DocumentRecord> {
     return this.http
-      .post<DocumentApiRow>(this.url(`/documents/${id}/duplicate`), {})
+      .post<DocumentApiRow>(
+        this.url(`/documents/${id}/duplicate`),
+        supplierId ? { supplierId } : {},
+      )
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 

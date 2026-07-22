@@ -1086,6 +1086,7 @@ export class DocumentsService {
     tenantId: string,
     id: string,
     user?: UserProfileDto,
+    overrideSupplierId?: string,
   ): Promise<DocumentWithLines> {
     const original = await this.prisma.document.findFirst({
       where: { id, tenantId },
@@ -1115,6 +1116,25 @@ export class DocumentsService {
     // dto.documentDate altrove, nessuno slittamento di fuso orario.
     const documentDate = new Date(new Date().toISOString().slice(0, 10));
 
+    // Duplica con scelta fornitore (Arrivi merce): se il fornitore cambia, la
+    // testata si riallinea — nome snapshot e modalità di pagamento predefinita
+    // del nuovo fornitore. Senza override resta il fornitore originale.
+    let supplierId = original.supplierId;
+    let supplierName = original.supplierName;
+    let paymentMethod = original.paymentMethod;
+    if (overrideSupplierId && overrideSupplierId !== original.supplierId) {
+      const supplier = await this.prisma.supplier.findFirst({
+        where: { id: overrideSupplierId, tenantId },
+        select: { party: true, paymentMethod: true },
+      });
+      if (!supplier) {
+        throw new NotFoundException('Fornitore non trovato');
+      }
+      supplierId = overrideSupplierId;
+      supplierName = partyDisplayName(supplier.party) || null;
+      paymentMethod = supplier.paymentMethod ?? null;
+    }
+
     const created = await this.prisma.document.create({
       data: {
         tenantId,
@@ -1126,8 +1146,9 @@ export class DocumentsService {
         printTitle: setting.printTitle,
         notes: original.notes,
         internalComment: original.internalComment,
-        supplierId: original.supplierId,
-        supplierName: original.supplierName,
+        supplierId,
+        supplierName,
+        paymentMethod,
         customerId: original.customerId,
         customerName: original.customerName,
         locationId: original.locationId,

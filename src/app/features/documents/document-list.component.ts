@@ -512,6 +512,12 @@ export class DocumentListComponent {
   protected readonly deleteConfirmOpen = signal(false);
   protected readonly deleteBusy = signal(false);
 
+  // ── Duplica con scelta fornitore (Arrivi merce) ────────────────────────────
+  protected readonly duplicateSource = signal<DocumentRecord | null>(null);
+  protected readonly duplicateSupplierId = signal<string | null>(null);
+  protected readonly duplicateModalOpen = signal(false);
+  protected readonly duplicateBusy = signal(false);
+
   // ── Selezione multipla per operazioni massive (lista Arrivi merce) ─────────
   protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
   protected readonly bulkPdfBusy = signal(false);
@@ -950,16 +956,66 @@ export class DocumentListComponent {
     }
   }
 
-  /** Duplica documento (§2a): naviga alla copia appena creata, subito modificabile. */
+  /**
+   * Duplica documento (§2a). Arrivi merce: prima si sceglie il fornitore del
+   * nuovo documento (modale, analogo alla scelta cliente sugli ordini); gli
+   * altri tipi duplicano direttamente come prima.
+   */
   protected duplicateDocument(doc: DocumentRecord): void {
+    if (isGoodsReceiptDocumentType(doc.type)) {
+      this.openDuplicateModal(doc);
+      return;
+    }
+    this.runDuplicate(doc.id);
+  }
+
+  private openDuplicateModal(doc: DocumentRecord): void {
+    this.duplicateSource.set(doc);
+    this.duplicateSupplierId.set(doc.supplierId ?? null);
+    this.duplicateModalOpen.set(true);
+  }
+
+  /** Chiude il modale solo se il click è sul backdrop, non sul contenuto. */
+  protected onDuplicateBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.cancelDuplicate();
+    }
+  }
+
+  protected cancelDuplicate(): void {
+    if (this.duplicateBusy()) {
+      return;
+    }
+    this.duplicateModalOpen.set(false);
+    this.duplicateSource.set(null);
+  }
+
+  /** Conferma: crea il nuovo arrivo merce con il fornitore scelto e lo apre. */
+  protected confirmDuplicate(): void {
+    const source = this.duplicateSource();
+    const supplierId = this.duplicateSupplierId();
+    if (!source || !supplierId || this.duplicateBusy()) {
+      return;
+    }
+    this.duplicateBusy.set(true);
+    this.runDuplicate(source.id, supplierId, () => {
+      this.duplicateBusy.set(false);
+      this.duplicateModalOpen.set(false);
+      this.duplicateSource.set(null);
+    });
+  }
+
+  private runDuplicate(id: string, supplierId?: string, onSettled?: () => void): void {
     this.service
-      .duplicateDocument(doc.id)
+      .duplicateDocument(id, supplierId)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (created) => {
+          onSettled?.();
           void this.router.navigateByUrl(documentEditPath(created));
         },
         error: (err: unknown) => {
+          onSettled?.();
           this.actionError.set(this.toAppError(err));
         },
       });

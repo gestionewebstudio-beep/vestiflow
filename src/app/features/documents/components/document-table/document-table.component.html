@@ -217,15 +217,6 @@
                   {{ formatMoney(doc.subtotal) }}
                 </td>
               }
-              @case ('tax') {
-                <td
-                  class="doc-table__cell--total tabular-nums"
-                  [class.doc-table__cell--pinned]="col.pinned"
-                  [attr.data-label]="col.label"
-                >
-                  {{ formatMoney(doc.tax) }}
-                </td>
-              }
               @case ('total') {
                 <td
                   class="doc-table__cell--total tabular-nums"

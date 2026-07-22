@@ -10,6 +10,51 @@
   gap: var(--space-5);
 }
 
+// Modale «Duplica arrivo merce»: scelta fornitore (stile allineato al modale
+// di scelta cliente della lista Ordini).
+.doc-list__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 1000);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background-color: color-mix(in srgb, var(--color-backdrop, #000000) 45%, transparent);
+}
+
+.doc-list__modal {
+  inline-size: min(100%, 32rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.doc-list__modal-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.doc-list__modal-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.doc-list__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
 .doc-list__banner {
   margin: 0;
   padding: var(--space-3) var(--space-4);

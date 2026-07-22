@@ -246,7 +246,6 @@ export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'notes', label: 'Commento', defaultVisible: false },
   { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
   { id: 'subtotal', label: 'Tot. netto', numeric: true, defaultVisible: false },
-  { id: 'tax', label: 'IVA', numeric: true, defaultVisible: false },
   { id: 'total', label: 'Tot. documento', numeric: true, defaultVisible: true },
   { id: 'location', label: 'Magazzino', defaultVisible: true },
   // Niente colonna "Stato documento": l'Arrivo merce non ha più il ciclo
@@ -279,7 +278,6 @@ export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'counterparty',
     'linkStatus',
     'subtotal',
-    'tax',
     'total',
     'paymentMethod',
   ],
@@ -292,14 +290,7 @@ export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'paymentMethod',
     'total',
   ],
-  [TableViewPresetId.Analysis]: [
-    'documentDate',
-    'reference',
-    'lineCount',
-    'subtotal',
-    'tax',
-    'total',
-  ],
+  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'lineCount', 'subtotal', 'total'],
   [TableViewPresetId.Operational]: [
     'documentDate',
     'reference',

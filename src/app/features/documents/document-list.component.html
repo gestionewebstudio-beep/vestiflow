@@ -512,3 +512,45 @@
   (confirmed)="onDeleteConfirm()"
   (dismissed)="onDeleteCancel()"
 />
+
+<!-- Duplica arrivo merce: scelta del fornitore per il nuovo documento. -->
+@if (duplicateModalOpen()) {
+  <div
+    class="doc-list__modal-backdrop"
+    tabindex="0"
+    (click)="onDuplicateBackdropClick($event)"
+    (keydown.escape)="cancelDuplicate()"
+  >
+    <div class="doc-list__modal" role="dialog" aria-modal="true" aria-label="Duplica arrivo merce">
+      <h2 class="doc-list__modal-title">Duplica arrivo merce</h2>
+      <p class="doc-list__modal-text">
+        Scegli il fornitore del nuovo arrivo merce. Le righe vengono copiate; il documento di
+        partenza non viene toccato.
+      </p>
+      <app-select-menu
+        chipLabel="Fornitore"
+        [options]="supplierOptions()"
+        [value]="duplicateSupplierId() ?? ''"
+        ariaLabel="Fornitore del nuovo arrivo merce"
+        placeholder="Seleziona fornitore"
+        [fullWidth]="true"
+        [searchable]="true"
+        searchPlaceholder="Cerca fornitore…"
+        searchAriaLabel="Cerca fornitore"
+        (valueChange)="duplicateSupplierId.set($event)"
+      />
+      <div class="doc-list__modal-actions">
+        <app-button variant="ghost" [disabled]="duplicateBusy()" (click)="cancelDuplicate()">
+          Annulla
+        </app-button>
+        <app-button
+          [disabled]="!duplicateSupplierId() || duplicateBusy()"
+          [loading]="duplicateBusy()"
+          (click)="confirmDuplicate()"
+        >
+          Duplica
+        </app-button>
+      </div>
+    </div>
+  </div>
+}
