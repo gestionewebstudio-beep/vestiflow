@@ -148,6 +148,8 @@ export type GoodsReceiptLinkStatus = 'suspended' | 'linked' | 'cancelled';
 export type DocumentListRow = Document & {
   lineCount: number;
   locationName: string | null;
+  /** Codice interno del fornitore (anagrafica), per la colonna «Cod. soggetto». */
+  supplierCode: string | null;
   linkStatus: GoodsReceiptLinkStatus | null;
   linkedPurchaseInvoice: LinkedPurchaseInvoiceInfo | null;
 };
@@ -353,6 +355,7 @@ export class DocumentsService {
         include: {
           _count: { select: { lines: true } },
           location: { select: { name: true } },
+          supplier: { select: { code: true } },
           purchaseInvoiceLinks: {
             where: { purchaseInvoice: { status: { not: DocumentStatus.cancelled } } },
             include: {
@@ -377,10 +380,11 @@ export class DocumentsService {
     ]);
 
     const items: DocumentListRow[] = rows.map(
-      ({ _count, location, purchaseInvoiceLinks, ...doc }) => ({
+      ({ _count, location, supplier, purchaseInvoiceLinks, ...doc }) => ({
         ...doc,
         lineCount: _count.lines,
         locationName: location?.name ?? null,
+        supplierCode: supplier?.code ?? null,
         ...this.resolveLinkInfo(doc, purchaseInvoiceLinks),
       }),
     );

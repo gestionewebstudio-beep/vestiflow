@@ -64,6 +64,7 @@ export class DocumentService {
     if (query.externalDocumentTypeId) {
       params = params.set('externalDocumentTypeId', query.externalDocumentTypeId);
     }
+    if (query.causal) params = params.set('causal', query.causal);
     if (query.settlement) params = params.set('settlement', query.settlement);
     if (query.paymentMethod) params = params.set('paymentMethod', query.paymentMethod);
     if (query.createdById) params = params.set('createdById', query.createdById);

@@ -96,6 +96,10 @@ export class DocumentTableComponent {
     return doc.supplierName ?? doc.customerName ?? '—';
   }
 
+  protected supplierCodeLabel(doc: DocumentRecord): string {
+    return doc.supplierCode?.trim() || '—';
+  }
+
   protected dateLabel(doc: DocumentRecord): string {
     return formatDate(doc.documentDate);
   }

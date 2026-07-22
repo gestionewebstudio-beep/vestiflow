@@ -380,6 +380,24 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly PaymentOption[] },
   );
 
+  /**
+   * Opzioni «Pagamento» della testata: modalità attive del tenant. Il valore
+   * corrente (snapshot del documento o default fornitore) resta selezionabile
+   * anche se disattivato in seguito.
+   */
+  protected readonly paymentMethodOptions = computed<readonly SelectMenuOption[]>(() => {
+    this.formValue();
+    const current = this.form.controls.paymentMethod.value.trim();
+    const names = this.paymentOptions()
+      .filter((option) => option.kind === 'method' && option.isActive)
+      .map((option) => option.name);
+    const options = names.map((name): SelectMenuOption => ({ value: name, label: name }));
+    if (current && !names.includes(current)) {
+      options.unshift({ value: current, label: current });
+    }
+    return options;
+  });
+
   private readonly vatCodeById = computed(
     () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
   );
@@ -717,6 +735,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     notes: this.fb.control(''),
     internalComment: this.fb.control(''),
     billingCause: this.fb.control(''),
+    paymentMethod: this.fb.control(''),
     invoicePending: this.fb.control(false),
     documentDiscountPercent: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
@@ -2494,6 +2513,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
     const supplier = this.suppliers().find((item) => item.id === value);
     if (supplier) {
+      this.applySupplierPaymentDefault(supplier);
       for (const line of this.lines.controls) {
         if (!line.controls.discountPercent.value.trim() && supplier.supplierDiscount?.trim()) {
           line.controls.discountPercent.setValue(supplier.supplierDiscount.trim(), {
@@ -2523,6 +2543,28 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.form.controls.locationId.setValue(value ?? '');
     this.form.controls.locationId.markAsTouched();
     this.focusLinesWhenGateUnlocks(wasGated);
+  }
+
+  protected onPaymentMethodChange(value: string | null): void {
+    this.form.controls.paymentMethod.setValue(value ?? '');
+    this.form.controls.paymentMethod.markAsDirty();
+    this.markFormDirty();
+  }
+
+  /**
+   * Precompila il «Pagamento» dalla modalità predefinita del fornitore, senza
+   * mai sovrascrivere un valore già digitato dall'operatore (control dirty) o
+   * quello di un documento esistente.
+   */
+  private applySupplierPaymentDefault(supplier: Supplier): void {
+    const control = this.form.controls.paymentMethod;
+    if (control.dirty || control.value.trim()) {
+      return;
+    }
+    const method = supplier.paymentMethod?.trim();
+    if (method) {
+      control.setValue(method);
+    }
   }
 
   /**
@@ -4261,6 +4303,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       externalDocumentTypeId: raw.externalDocumentTypeId || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
+      paymentMethod: raw.paymentMethod.trim() || undefined,
       billingCause: raw.invoicePending ? 'In attesa fattura' : raw.billingCause.trim() || undefined,
       externalDocNumber: raw.externalDocNumber.trim() || undefined,
       externalDocDate: raw.externalDocDate || undefined,
@@ -4516,6 +4559,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       causalText: doc.causalText ?? '',
       notes: doc.notes ?? '',
       internalComment: doc.internalComment ?? '',
+      paymentMethod: doc.paymentMethod ?? '',
       billingCause: doc.billingCause === 'In attesa fattura' ? '' : (doc.billingCause ?? ''),
       invoicePending: doc.billingCause === 'In attesa fattura',
       documentDiscountPercent:

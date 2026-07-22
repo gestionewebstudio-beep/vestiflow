@@ -158,6 +158,30 @@
   }
 }
 
+.doc-list__field--causal {
+  @include bp.media-up('md') {
+    inline-size: calc(var(--space-10) * 5);
+  }
+}
+
+// Filtro «Causale carico»: input testo compatto in linea con gli altri filtri.
+.doc-list__causal-input {
+  inline-size: 100%;
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.doc-list__causal-input:focus-visible {
+  border-color: var(--color-interactive);
+  outline: none;
+  box-shadow: var(--field-focus-ring);
+}
+
 .doc-list__check {
   display: inline-flex;
   align-items: center;

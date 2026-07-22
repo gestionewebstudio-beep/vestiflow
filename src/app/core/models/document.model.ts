@@ -216,6 +216,8 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly internalComment?: string;
   readonly supplierId?: EntityId;
   readonly supplierName?: string;
+  /** Codice interno del fornitore (anagrafica), colonna «Cod. soggetto» in lista. */
+  readonly supplierCode?: string;
   readonly customerId?: EntityId;
   readonly customerName?: string;
   readonly locationId?: EntityId;

@@ -32,9 +32,15 @@ import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import type { Money } from '@core/models/money.model';
 import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
+import type { PaymentOption } from '@core/models/payment-option.model';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { CustomerService } from '@features/customers/services/customer.service';
+import {
+  MovementPeriodPreset,
+  resolveMovementPeriodRange,
+} from '@features/inventory/models/movement-period.util';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -154,6 +160,7 @@ export class DocumentListComponent {
   private readonly supplierService = inject(SupplierService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly externalDocumentTypeService = inject(ExternalDocumentTypeService);
+  private readonly paymentOptionsService = inject(PaymentOptionsService);
 
   private readonly routeData = toSignal(this.route.data, {
     initialValue: this.route.snapshot.data,
@@ -333,6 +340,44 @@ export class DocumentListComponent {
     { value: 'cancelled', label: 'Annullati' },
   ];
 
+  /** Modalità di pagamento del tenant per il filtro «Pagamento». */
+  protected readonly paymentMethodFilterOptions = toSignal(
+    this.paymentOptionsService.list('method').pipe(
+      map((options): readonly SelectMenuOption[] =>
+        options
+          .filter((option: PaymentOption) => option.isActive)
+          .map((option) => ({ value: option.name, label: option.name })),
+      ),
+      catchError(() => of([] as readonly SelectMenuOption[])),
+    ),
+    { initialValue: [] as readonly SelectMenuOption[] },
+  );
+
+  /** Preset rapidi del periodo Dal/Al (allineati al registro movimenti). */
+  protected readonly periodOptions: readonly SelectMenuOption[] = [
+    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
+    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
+    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
+    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
+    { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
+  ];
+
+  /**
+   * Preset periodo selezionato (stato UI locale): le date effettive restano
+   * nell'URL (dateFrom/dateTo). Con date presenti si parte da «Personalizzato»,
+   * così i campi Dal/Al restano visibili.
+   */
+  protected readonly periodPreset = signal<MovementPeriodPreset>(
+    this.route.snapshot.queryParamMap.get('dateFrom') ||
+      this.route.snapshot.queryParamMap.get('dateTo')
+      ? MovementPeriodPreset.Custom
+      : MovementPeriodPreset.All,
+  );
+
+  protected readonly isCustomPeriod = computed(
+    () => this.periodPreset() === MovementPeriodPreset.Custom,
+  );
+
   /** Stato saldo delle Registrazioni fattura (spec: Tutti, Da saldare, Saldati). */
   protected readonly settlementOptions: readonly SelectMenuOption[] = [
     { value: 'pending', label: 'Da saldare' },
@@ -434,6 +479,7 @@ export class DocumentListComponent {
         createdById: sales.showOperatorFilter ? q.createdById : undefined,
         linkStatus: undefined,
         externalDocumentTypeId: undefined,
+        causal: undefined,
         locationId: undefined,
         accountant: undefined,
         pendingInvoice: sales.showPendingInvoiceFilter ? q.pendingInvoice : undefined,
@@ -484,6 +530,8 @@ export class DocumentListComponent {
   });
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
+  /** Bozza filtro «Causale carico» (debounced come la ricerca libera). */
+  protected readonly causalDraft = signal(this.route.snapshot.queryParamMap.get('causal') ?? '');
 
   private readonly request = computed(() => ({ query: this.apiQuery(), tick: this.refreshTick() }));
 
@@ -559,7 +607,9 @@ export class DocumentListComponent {
         q.locationId ??
         q.supplierId ??
         q.linkStatus ??
-        q.externalDocumentTypeId,
+        q.externalDocumentTypeId ??
+        q.causal ??
+        q.paymentMethod,
       );
     }
     // accountant/pendingInvoice sono boolean (mai nullish): vanno in OR esplicito.
@@ -575,6 +625,7 @@ export class DocumentListComponent {
 
   // takeUntilDestroyed() gestisce l'unsubscribe; i campi evitano subscription "ignorate".
   private readonly searchSubscription: Subscription;
+  private readonly causalSubscription: Subscription;
   private readonly selectionPruneSubscription: Subscription;
   private bulkPdfSubscription: Subscription | null = null;
 
@@ -650,6 +701,14 @@ export class DocumentListComponent {
       )
       .subscribe((value) => this.applySearch(value));
 
+    this.causalSubscription = toObservable(this.causalDraft)
+      .pipe(
+        debounceTime(SEARCH_DEBOUNCE_MS),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((value) => this.applyCausal(value));
+
     // Al cambio pagina/filtri la selezione si restringe alle righe visibili:
     // le azioni massive operano solo su documenti che l'utente vede.
     this.selectionPruneSubscription = toObservable(this.documents)
@@ -668,10 +727,37 @@ export class DocumentListComponent {
         this.searchDraft.set(fromUrl);
       }
     });
+
+    effect(() => {
+      const fromUrl = this.query().causal ?? '';
+      if (fromUrl !== this.causalDraft()) {
+        this.causalDraft.set(fromUrl);
+      }
+    });
   }
 
   protected onSearchInput(event: Event): void {
     this.searchDraft.set((event.target as HTMLInputElement).value);
+  }
+
+  protected onCausalInput(event: Event): void {
+    this.causalDraft.set((event.target as HTMLInputElement).value);
+  }
+
+  /** Cambio preset periodo: calcola Dal/Al o mantiene i campi custom. */
+  protected onPeriodPresetChange(value: string | null): void {
+    const preset = (value ?? MovementPeriodPreset.All) as MovementPeriodPreset;
+    this.periodPreset.set(preset);
+    if (preset === MovementPeriodPreset.Custom) {
+      // «Personalizzato»: mostra Dal/Al e conserva le date correnti.
+      return;
+    }
+    const range = resolveMovementPeriodRange(preset, '', '');
+    this.updateParams({ dateFrom: range.from ?? null, dateTo: range.to ?? null, page: null }, true);
+  }
+
+  protected onPaymentFilterChange(value: string | null): void {
+    this.updateParams({ paymentMethod: value, page: null }, true);
   }
 
   protected onTypeFilterChange(value: string | null): void {
@@ -766,6 +852,8 @@ export class DocumentListComponent {
 
   protected resetFilters(): void {
     this.searchDraft.set('');
+    this.causalDraft.set('');
+    this.periodPreset.set(MovementPeriodPreset.All);
     this.updateParams(
       {
         search: null,
@@ -778,6 +866,7 @@ export class DocumentListComponent {
         supplierId: null,
         linkStatus: null,
         externalDocumentTypeId: null,
+        causal: null,
         settlement: null,
         paymentMethod: null,
         createdById: null,
@@ -1218,6 +1307,15 @@ export class DocumentListComponent {
       return;
     }
     this.updateParams({ search: trimmed || null, page: null }, true);
+  }
+
+  private applyCausal(value: string): void {
+    const trimmed = value.trim();
+    const current = this.query().causal ?? '';
+    if (trimmed === current) {
+      return;
+    }
+    this.updateParams({ causal: trimmed || null, page: null }, true);
   }
 
   private toAppError(err: unknown): AppError {

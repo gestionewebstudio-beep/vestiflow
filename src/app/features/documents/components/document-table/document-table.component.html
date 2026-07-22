@@ -1,222 +1,255 @@
-<table class="doc-table">
-  <thead class="doc-table__head">
-    <tr>
-      @if (selectable()) {
-        <th scope="col" class="doc-table__cell--select">
-          <input
-            type="checkbox"
-            class="doc-table__select-check"
-            aria-label="Seleziona tutti i documenti della pagina"
-            [checked]="allSelected()"
-            [indeterminate]="someSelected()"
-            (change)="selectAllChange.emit($any($event.target).checked)"
-          />
-        </th>
-      }
-      @for (col of columns(); track col.id) {
-        <th
-          scope="col"
-          [class.doc-table__cell--pinned]="col.pinned"
-          [class.doc-table__cell--numeric]="col.numeric"
-          [class.doc-table__cell--lines]="col.id === 'lineCount'"
-          [class.doc-table__cell--total]="col.id === 'total'"
-        >
-          {{ col.label }}
-        </th>
-      }
-      <th scope="col" class="doc-table__cell--actions">Azioni</th>
-    </tr>
-  </thead>
-
-  <tbody>
-    @for (doc of documents(); track doc.id) {
-      <tr
-        class="doc-table__row"
-        tabindex="0"
-        [attr.aria-label]="rowLabel(doc)"
-        [class.doc-table__row--selected]="selectable() && selectedIds().has(doc.id)"
-        (click)="rowClick.emit(doc)"
-        (keydown.enter)="rowClick.emit(doc)"
-        (keydown.space)="$event.preventDefault(); rowClick.emit(doc)"
-      >
+<div class="doc-table-scroll">
+  <table class="doc-table">
+    <thead class="doc-table__head">
+      <tr>
         @if (selectable()) {
-          <td
-            class="doc-table__cell--select"
-            data-label="Seleziona"
-            (click)="$event.stopPropagation()"
-          >
+          <th scope="col" class="doc-table__cell--select">
             <input
               type="checkbox"
               class="doc-table__select-check"
-              [attr.aria-label]="'Seleziona documento ' + referenceLabel(doc)"
-              [checked]="selectedIds().has(doc.id)"
-              (change)="onToggleSelect(doc, $any($event.target).checked)"
+              aria-label="Seleziona tutti i documenti della pagina"
+              [checked]="allSelected()"
+              [indeterminate]="someSelected()"
+              (change)="selectAllChange.emit($any($event.target).checked)"
             />
-          </td>
+          </th>
         }
         @for (col of columns(); track col.id) {
-          @switch (col.id) {
-            @case ('documentDate') {
-              <td
-                class="doc-table__date tabular-nums"
-                [class.doc-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ dateLabel(doc) }}
-              </td>
-            }
-            @case ('type') {
-              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                {{ typeLabel(doc.type) }}
-              </td>
-            }
-            @case ('reference') {
-              <td
-                class="doc-table__reference tabular-nums"
-                [class.doc-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ referenceLabel(doc) }}
-              </td>
-            }
-            @case ('counterparty') {
-              <td
-                class="doc-table__counterparty"
-                [class.doc-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-                [title]="counterparty(doc)"
-              >
-                {{ counterparty(doc) }}
-              </td>
-            }
-            @case ('status') {
-              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                @if (statusLabel(doc); as label) {
-                  <span class="doc-table__cell-value">
-                    <app-badge [tone]="statusTone(doc)!">{{ label }}</app-badge>
-                  </span>
-                } @else {
-                  —
-                }
-              </td>
-            }
-            @case ('billingCause') {
-              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                {{ billingCauseLabel(doc) }}
-              </td>
-            }
-            @case ('causal') {
-              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                {{ causalLabel(doc) }}
-              </td>
-            }
-            @case ('linkStatus') {
-              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                @if (linkedInvoice(doc); as invoice) {
-                  <span class="doc-table__cell-value">
-                    <a
-                      class="doc-table__invoice-link"
-                      [routerLink]="['/app/documents/registrazione-fattura', invoice.id, 'edit']"
-                      (click)="$event.stopPropagation()"
-                    >
-                      {{ linkStatusLabel(doc) }}
-                    </a>
-                    @if (invoice.totalsCheckPending) {
-                      <app-badge tone="warning">Totali da verificare</app-badge>
-                    }
-                  </span>
-                } @else if (linkStatusLabel(doc); as label) {
-                  <span class="doc-table__cell-value">
-                    <app-badge [tone]="linkStatusTone(doc)!">{{ label }}</app-badge>
-                  </span>
-                }
-              </td>
-            }
-            @case ('notes') {
-              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                {{ notesLabel(doc) }}
-              </td>
-            }
-            @case ('location') {
-              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                {{ locationLabel(doc) }}
-              </td>
-            }
-            @case ('externalDocNumber') {
-              <td
-                class="tabular-nums"
-                [class.doc-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ externalDocLabel(doc) }}
-              </td>
-            }
-            @case ('registrationDate') {
-              <td
-                class="doc-table__date tabular-nums"
-                [class.doc-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ registrationDateLabel(doc) }}
-              </td>
-            }
-            @case ('invoiceNumber') {
-              <td
-                class="tabular-nums"
-                [class.doc-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ invoiceNumberLabel(doc) }}
-              </td>
-            }
-            @case ('outstanding') {
-              <td
-                class="doc-table__cell--total tabular-nums"
-                [class.doc-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                @if (outstandingLabel(doc); as label) {
-                  {{ label }}
-                } @else {
-                  <span class="doc-table__cell-value">
-                    <app-badge tone="success">Saldata</app-badge>
-                  </span>
-                }
-              </td>
-            }
-            @case ('paymentMethod') {
-              <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                {{ paymentMethodLabel(doc) }}
-              </td>
-            }
-            @case ('lineCount') {
-              <td
-                class="doc-table__cell--lines tabular-nums"
-                [class.doc-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ lineCount(doc) }}
-              </td>
-            }
-            @case ('total') {
-              <td
-                class="doc-table__cell--total tabular-nums"
-                [class.doc-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ formatMoney(doc.total) }}
-              </td>
+          <th
+            scope="col"
+            [class.doc-table__cell--pinned]="col.pinned"
+            [class.doc-table__cell--numeric]="col.numeric"
+            [class.doc-table__cell--lines]="col.id === 'lineCount'"
+            [class.doc-table__cell--total]="col.id === 'total'"
+          >
+            {{ col.label }}
+          </th>
+        }
+        <th scope="col" class="doc-table__cell--actions">Azioni</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      @for (doc of documents(); track doc.id) {
+        <tr
+          class="doc-table__row"
+          tabindex="0"
+          [attr.aria-label]="rowLabel(doc)"
+          [class.doc-table__row--selected]="selectable() && selectedIds().has(doc.id)"
+          (click)="rowClick.emit(doc)"
+          (keydown.enter)="rowClick.emit(doc)"
+          (keydown.space)="$event.preventDefault(); rowClick.emit(doc)"
+        >
+          @if (selectable()) {
+            <td
+              class="doc-table__cell--select"
+              data-label="Seleziona"
+              (click)="$event.stopPropagation()"
+            >
+              <input
+                type="checkbox"
+                class="doc-table__select-check"
+                [attr.aria-label]="'Seleziona documento ' + referenceLabel(doc)"
+                [checked]="selectedIds().has(doc.id)"
+                (change)="onToggleSelect(doc, $any($event.target).checked)"
+              />
+            </td>
+          }
+          @for (col of columns(); track col.id) {
+            @switch (col.id) {
+              @case ('documentDate') {
+                <td
+                  class="doc-table__date tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ dateLabel(doc) }}
+                </td>
+              }
+              @case ('type') {
+                <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ typeLabel(doc.type) }}
+                </td>
+              }
+              @case ('reference') {
+                <td
+                  class="doc-table__reference tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ referenceLabel(doc) }}
+                </td>
+              }
+              @case ('counterparty') {
+                <td
+                  class="doc-table__counterparty"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                  [title]="counterparty(doc)"
+                >
+                  {{ counterparty(doc) }}
+                </td>
+              }
+              @case ('supplierCode') {
+                <td
+                  class="tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ supplierCodeLabel(doc) }}
+                </td>
+              }
+              @case ('status') {
+                <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  @if (statusLabel(doc); as label) {
+                    <span class="doc-table__cell-value">
+                      <app-badge [tone]="statusTone(doc)!">{{ label }}</app-badge>
+                    </span>
+                  } @else {
+                    —
+                  }
+                </td>
+              }
+              @case ('billingCause') {
+                <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ billingCauseLabel(doc) }}
+                </td>
+              }
+              @case ('causal') {
+                <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ causalLabel(doc) }}
+                </td>
+              }
+              @case ('linkStatus') {
+                <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  @if (linkedInvoice(doc); as invoice) {
+                    <span class="doc-table__cell-value">
+                      <a
+                        class="doc-table__invoice-link"
+                        [routerLink]="['/app/documents/registrazione-fattura', invoice.id, 'edit']"
+                        (click)="$event.stopPropagation()"
+                      >
+                        {{ linkStatusLabel(doc) }}
+                      </a>
+                      @if (invoice.totalsCheckPending) {
+                        <app-badge tone="warning">Totali da verificare</app-badge>
+                      }
+                    </span>
+                  } @else if (linkStatusLabel(doc); as label) {
+                    <span class="doc-table__cell-value">
+                      <app-badge [tone]="linkStatusTone(doc)!">{{ label }}</app-badge>
+                    </span>
+                  }
+                </td>
+              }
+              @case ('notes') {
+                <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ notesLabel(doc) }}
+                </td>
+              }
+              @case ('location') {
+                <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ locationLabel(doc) }}
+                </td>
+              }
+              @case ('externalDocNumber') {
+                <td
+                  class="tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ externalDocLabel(doc) }}
+                </td>
+              }
+              @case ('registrationDate') {
+                <td
+                  class="doc-table__date tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ registrationDateLabel(doc) }}
+                </td>
+              }
+              @case ('invoiceNumber') {
+                <td
+                  class="tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ invoiceNumberLabel(doc) }}
+                </td>
+              }
+              @case ('outstanding') {
+                <td
+                  class="doc-table__cell--total tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  @if (outstandingLabel(doc); as label) {
+                    {{ label }}
+                  } @else {
+                    <span class="doc-table__cell-value">
+                      <app-badge tone="success">Saldata</app-badge>
+                    </span>
+                  }
+                </td>
+              }
+              @case ('paymentMethod') {
+                <td [class.doc-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                  {{ paymentMethodLabel(doc) }}
+                </td>
+              }
+              @case ('lineCount') {
+                <td
+                  class="doc-table__cell--lines tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ lineCount(doc) }}
+                </td>
+              }
+              @case ('subtotal') {
+                <td
+                  class="doc-table__cell--total tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ formatMoney(doc.subtotal) }}
+                </td>
+              }
+              @case ('tax') {
+                <td
+                  class="doc-table__cell--total tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ formatMoney(doc.tax) }}
+                </td>
+              }
+              @case ('total') {
+                <td
+                  class="doc-table__cell--total tabular-nums"
+                  [class.doc-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
+                >
+                  {{ formatMoney(doc.total) }}
+                </td>
+              }
             }
           }
-        }
-        <td class="doc-table__cell--actions" data-label="Azioni" (click)="$event.stopPropagation()">
-          <app-action-menu
-            [items]="rowActions(doc)"
-            [ariaLabel]="'Azioni su ' + referenceLabel(doc)"
-            (actionSelected)="onAction($event, doc)"
-          />
-        </td>
-      </tr>
-    }
-  </tbody>
-</table>
+          <td
+            class="doc-table__cell--actions"
+            data-label="Azioni"
+            (click)="$event.stopPropagation()"
+          >
+            <app-action-menu
+              [items]="rowActions(doc)"
+              [ariaLabel]="'Azioni su ' + referenceLabel(doc)"
+              (actionSelected)="onAction($event, doc)"
+            />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

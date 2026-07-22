@@ -37,6 +37,8 @@ export interface DocumentListQuery {
   readonly linkStatus?: GoodsReceiptLinkStatus;
   /** Filtro tipo documento fornitore strutturato (DDT/Fattura/Reso/…, solo Arrivi merce). */
   readonly externalDocumentTypeId?: string;
+  /** Filtro causale di carico (match parziale su causalText, solo Arrivi merce). */
+  readonly causal?: string;
   /** Stato saldo delle Registrazioni fattura (Da saldare / Saldati). */
   readonly settlement?: 'pending' | 'settled';
   /** Metodo di pagamento, confronto esatto sullo snapshot salvato. */
@@ -66,6 +68,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
   const supplierId = params.get('supplierId') ?? '';
   const linkStatus = params.get('linkStatus') ?? '';
   const externalDocumentTypeId = params.get('externalDocumentTypeId') ?? '';
+  const causal = params.get('causal')?.trim() ?? '';
   const settlement = params.get('settlement') ?? '';
   const paymentMethod = params.get('paymentMethod')?.trim() ?? '';
   const createdById = params.get('createdById') ?? '';
@@ -88,6 +91,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
       ? (linkStatus as GoodsReceiptLinkStatus)
       : undefined,
     externalDocumentTypeId: isUuid(externalDocumentTypeId) ? externalDocumentTypeId : undefined,
+    causal: causal || undefined,
     settlement: settlement === 'pending' || settlement === 'settled' ? settlement : undefined,
     paymentMethod: paymentMethod || undefined,
     createdById: isUuid(createdById) ? createdById : undefined,

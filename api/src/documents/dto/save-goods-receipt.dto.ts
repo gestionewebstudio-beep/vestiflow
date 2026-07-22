@@ -237,6 +237,12 @@ export class SaveGoodsReceiptDto {
   @MaxLength(500)
   billingCause?: string;
 
+  /** Modalità di pagamento (precompilata dal fornitore, modificabile). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  paymentMethod?: string;
+
   @IsOptional()
   @IsUUID()
   supplierOrderId?: string;

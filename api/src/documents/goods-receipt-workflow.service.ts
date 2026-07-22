@@ -373,6 +373,7 @@ export class GoodsReceiptWorkflowService {
         notes: dto.notes ?? existing?.notes ?? setting.defaultNotes,
         internalComment: dto.internalComment?.trim() || null,
         billingCause: dto.billingCause?.trim() || null,
+        paymentMethod: dto.paymentMethod?.trim() || null,
         supplierOrderId: dto.supplierOrderId ?? existing?.supplierOrderId ?? null,
         currency: dto.currency ?? existing?.currency ?? 'EUR',
         pricesIncludeVat: setting.pricesIncludeVat,

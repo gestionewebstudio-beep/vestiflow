@@ -99,6 +99,7 @@ export interface DocumentApiRow {
   readonly internalComment?: string | null;
   readonly supplierId?: EntityId | null;
   readonly supplierName?: string | null;
+  readonly supplierCode?: string | null;
   readonly customerId?: EntityId | null;
   readonly customerName?: string | null;
   readonly locationId?: EntityId | null;
@@ -304,6 +305,7 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     internalComment: row.internalComment ?? undefined,
     supplierId: row.supplierId ?? undefined,
     supplierName: row.supplierName ?? undefined,
+    supplierCode: row.supplierCode ?? undefined,
     customerId: row.customerId ?? undefined,
     customerName: row.customerName ?? undefined,
     locationId: row.locationId ?? undefined,
@@ -535,6 +537,8 @@ export interface SaveGoodsReceiptBody {
   readonly notes?: string;
   readonly internalComment?: string;
   readonly billingCause?: string;
+  /** Modalità di pagamento (precompilata dal fornitore, modificabile). */
+  readonly paymentMethod?: string;
   readonly supplierOrderId?: EntityId;
   readonly currency?: CurrencyCode;
   readonly documentDiscountPercent?: number;

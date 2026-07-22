@@ -6,6 +6,17 @@
 @include rt.data-table-mobile-cards('doc-table');
 @include rt.data-table-mobile-title('doc-table__reference');
 
+// Molte colonne opzionali (Cod. soggetto, Tot. netto, IVA, Pagamento…):
+// scroll orizzontale controllato su desktop, card impilate su mobile.
+.doc-table-scroll {
+  inline-size: 100%;
+  max-inline-size: 100%;
+
+  @include bp.media-up('lg') {
+    overflow-x: auto;
+  }
+}
+
 .doc-table__head th {
   position: sticky;
   inset-block-start: 0;

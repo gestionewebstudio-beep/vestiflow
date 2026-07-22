@@ -240,7 +240,7 @@
                 />
               </div>
 
-              <div class="gr-form__field">
+              <div class="gr-form__field gr-form__field--end-md">
                 <label class="gr-form__label" for="gr-ext-date">Data doc. fornitore</label>
                 <app-date-input
                   inputId="gr-ext-date"
@@ -249,6 +249,22 @@
                   placeholder="Opzionale"
                   [compact]="true"
                   [fullWidth]="true"
+                />
+              </div>
+
+              <div class="gr-form__field">
+                <span class="gr-form__label">Pagamento</span>
+                <app-select-menu
+                  [options]="paymentMethodOptions()"
+                  [value]="form.controls.paymentMethod.value"
+                  ariaLabel="Modalità di pagamento"
+                  placeholder="Modalità…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca pagamento…"
+                  searchAriaLabel="Cerca modalità di pagamento"
+                  (valueChange)="onPaymentMethodChange($event)"
                 />
               </div>
 
