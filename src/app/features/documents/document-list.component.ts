@@ -20,6 +20,7 @@ import {
   startWith,
   switchMap,
   take,
+  toArray,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
@@ -112,6 +113,11 @@ type DocumentListState =
       readonly meta: PageMeta;
     }
   | { readonly status: 'error'; readonly error: AppError };
+
+/** Esito di una singola eliminazione nella sequenza (singola o massiva). */
+type DeleteResult =
+  | { readonly ok: true; readonly doc: DocumentRecord }
+  | { readonly ok: false; readonly doc: DocumentRecord; readonly error: AppError };
 
 /**
  * Registro documenti (smart). URL come fonte di verità (page, search, type,
@@ -448,11 +454,17 @@ export class DocumentListComponent {
 
   private readonly refreshTick = signal(0);
 
-  /** Azioni dal menu "···" della riga (§1): errore generico, dialog elimina, download PDF in corso. */
+  /** Azioni dal menu "···" della riga (§1): errore generico, download PDF in corso. */
   protected readonly actionError = signal<AppError | null>(null);
-  protected readonly deleteDialogOpen = signal(false);
   protected readonly downloadingPdfId = signal<string | null>(null);
-  private pendingDeleteDoc: DocumentRecord | null = null;
+
+  // ── Eliminazione a due conferme (avviso + conferma finale) ─────────────────
+  // Coda condivisa da eliminazione singola (menu riga) e massiva (barra
+  // selezione): entrambe passano per i due modali consecutivi.
+  protected readonly pendingDeleteDocs = signal<readonly DocumentRecord[]>([]);
+  protected readonly deleteWarnOpen = signal(false);
+  protected readonly deleteConfirmOpen = signal(false);
+  protected readonly deleteBusy = signal(false);
 
   // ── Selezione multipla per operazioni massive (lista Arrivi merce) ─────────
   protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
@@ -864,45 +876,123 @@ export class DocumentListComponent {
       });
   }
 
-  protected requestDeleteDocument(doc: DocumentRecord): void {
-    this.pendingDeleteDoc = doc;
-    this.deleteDialogOpen.set(true);
-  }
+  /** Tutti i documenti in coda di eliminazione sono arrivi merce. */
+  private readonly pendingAllGoodsReceipt = computed(() => {
+    const docs = this.pendingDeleteDocs();
+    return docs.length > 0 && docs.every((doc) => isGoodsReceiptDocumentType(doc.type));
+  });
 
-  /** Scarico manuale: l'eliminazione NON ripristina le giacenze già scalate. */
-  protected deleteDialogMessage(): string {
-    if (this.pendingDeleteDoc?.type === DocumentType.ManualUnload) {
-      return (
-        'Lo scarico manuale verrà eliminato definitivamente. Le giacenze già ' +
-        'scalate NON verranno ripristinate. Procedere?'
-      );
+  /** Titolo del 1° modale (avviso): singolare/plurale e tipo documento. */
+  protected readonly deleteWarnTitle = computed(() => {
+    const docs = this.pendingDeleteDocs();
+    const count = docs.length;
+    if (this.pendingAllGoodsReceipt()) {
+      return count === 1 ? 'Elimina arrivo merce' : `Elimina ${count} arrivi merce`;
     }
-    return 'Il documento verrà eliminato definitivamente. Procedere?';
+    if (count === 1 && docs[0]?.type === DocumentType.ManualUnload) {
+      return 'Elimina scarico manuale';
+    }
+    return count === 1 ? 'Elimina documento' : `Elimina ${count} documenti`;
+  });
+
+  /** Corpo del 1° modale (avviso): impatto su righe articolo e giacenze. */
+  protected readonly deleteWarnMessage = computed(() => {
+    const docs = this.pendingDeleteDocs();
+    const count = docs.length;
+    if (this.pendingAllGoodsReceipt()) {
+      return count === 1
+        ? "L'arrivo merce contiene righe articolo. Eliminandolo, le giacenze caricate verranno ripristinate al valore precedente."
+        : `I ${count} arrivi merce contengono righe articolo. Eliminandoli, le giacenze caricate verranno ripristinate al valore precedente.`;
+    }
+    if (count === 1 && docs[0]?.type === DocumentType.ManualUnload) {
+      return 'Lo scarico manuale verrà eliminato. Le giacenze già scalate NON verranno ripristinate.';
+    }
+    return count === 1
+      ? 'Il documento verrà eliminato.'
+      : `I ${count} documenti selezionati verranno eliminati.`;
+  });
+
+  protected requestDeleteDocument(doc: DocumentRecord): void {
+    this.actionError.set(null);
+    this.pendingDeleteDocs.set([doc]);
+    this.deleteWarnOpen.set(true);
   }
 
-  protected confirmDeleteDocument(): void {
-    const doc = this.pendingDeleteDoc;
-    this.deleteDialogOpen.set(false);
-    if (!doc) {
+  /** Elimina i documenti selezionati (barra operazioni massive). */
+  protected requestDeleteSelection(): void {
+    const docs = this.selectedDocs();
+    if (docs.length === 0) {
       return;
     }
-    this.service
-      .deleteDocument(doc.id)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.pendingDeleteDoc = null;
-          this.reload();
-        },
-        error: (err: unknown) => {
-          this.pendingDeleteDoc = null;
-          this.actionError.set(this.toAppError(err));
-        },
-      });
+    this.actionError.set(null);
+    this.pendingDeleteDocs.set([...docs]);
+    this.deleteWarnOpen.set(true);
   }
 
-  protected cancelDeleteDocument(): void {
-    this.pendingDeleteDoc = null;
+  /** 1° modale (avviso) confermato → apre il 2° modale (conferma finale). */
+  protected onDeleteWarnConfirm(): void {
+    this.deleteWarnOpen.set(false);
+    this.deleteConfirmOpen.set(true);
+  }
+
+  /** Annulla/ESC su uno dei due modali: azzera la coda di eliminazione. */
+  protected onDeleteCancel(): void {
+    if (this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteDocs.set([]);
+  }
+
+  /**
+   * Conferma finale: elimina i documenti in coda uno alla volta (nessun
+   * endpoint massivo), raccoglie gli esiti e ricarica. Un errore su un
+   * documento (es. collegato a fattura) non interrompe gli altri.
+   */
+  protected onDeleteConfirm(): void {
+    const docs = this.pendingDeleteDocs();
+    if (docs.length === 0 || this.deleteBusy()) {
+      this.deleteConfirmOpen.set(false);
+      return;
+    }
+    this.deleteBusy.set(true);
+    from(docs)
+      .pipe(
+        concatMap((doc) =>
+          this.service.deleteDocument(doc.id).pipe(
+            map((): DeleteResult => ({ ok: true, doc })),
+            catchError((err: unknown) =>
+              of<DeleteResult>({ ok: false, doc, error: this.toAppError(err) }),
+            ),
+          ),
+        ),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((results) => {
+        this.deleteBusy.set(false);
+        this.deleteConfirmOpen.set(false);
+        this.pendingDeleteDocs.set([]);
+        const deletedIds = new Set(results.filter((r) => r.ok).map((r) => r.doc.id));
+        if (deletedIds.size > 0) {
+          this.selectedIds.update((cur) => new Set([...cur].filter((id) => !deletedIds.has(id))));
+        }
+        const failure = results.find((r) => !r.ok);
+        const failedCount = results.length - deletedIds.size;
+        if (failure && !failure.ok) {
+          this.actionError.set(
+            failedCount === 1
+              ? failure.error
+              : {
+                  kind: failure.error.kind,
+                  message: `${failedCount} documenti non sono stati eliminati. ${failure.error.message}`,
+                },
+          );
+        } else {
+          this.actionError.set(null);
+        }
+        this.reload();
+      });
   }
 
   // ── Operazioni massive sui documenti selezionati ────────────────────────────

@@ -214,7 +214,11 @@ export class DocumentTableComponent {
         // Scarico manuale (prompt Scarico manuale): resta in elenco finché
         // l'operatore non lo elimina — l'eliminazione NON ripristina le
         // giacenze già scalate, quindi è disponibile in qualunque stato.
-        isManualUnloadDocumentType(doc.type))
+        isManualUnloadDocumentType(doc.type) ||
+        // Arrivi merce: eliminabili anche da confermati — l'API rimuove i
+        // movimenti e ripristina le giacenze. Escluso solo se collegato a una
+        // fattura registrata (va prima scollegato).
+        (isGoodsReceiptDocumentType(doc.type) && doc.linkStatus !== 'linked'))
     ) {
       items.push({ id: 'delete', label: 'Elimina', icon: 'pi-trash', danger: true });
     }

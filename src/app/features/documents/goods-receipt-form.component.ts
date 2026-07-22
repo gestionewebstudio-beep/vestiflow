@@ -333,7 +333,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly codeLookupLineIndex = signal<number | null>(null);
   protected readonly codeLookupField = signal<GoodsReceiptCodeLookupField | null>(null);
   protected readonly codeLookupSuggestions = signal<readonly VariantSummary[]>([]);
-  protected readonly deleteDocumentDialogOpen = signal(false);
   protected readonly attachWithoutAddDialogOpen = signal(false);
   protected readonly pendingAttachVariantId = signal<string | null>(null);
   protected readonly exitDialogOpen = signal(false);
@@ -3436,31 +3435,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected toggleSupplierForm(): void {
     this.showSupplierForm.update((open) => !open);
-  }
-
-  protected requestDeleteDocument(): void {
-    this.deleteDocumentDialogOpen.set(true);
-  }
-
-  protected confirmDeleteDocument(): void {
-    const id = this.persistedDocumentId();
-    this.deleteDocumentDialogOpen.set(false);
-    if (!id || this.saving()) {
-      return;
-    }
-    this._submitState.set({ status: 'saving' });
-    this.documentService
-      .deleteDocument(id)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this._submitState.set({ status: 'idle' });
-          void this.router.navigateByUrl(this.listPath);
-        },
-        error: (err: unknown) => {
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
   }
 
   /**

@@ -411,6 +411,12 @@
           <i class="pi pi-file-pdf" aria-hidden="true"></i>
           PDF documenti
         </app-button>
+        @if (canManageDocuments()) {
+          <app-button variant="danger" (click)="requestDeleteSelection()">
+            <i class="pi pi-trash" aria-hidden="true"></i>
+            Elimina
+          </app-button>
+        }
         <app-button variant="ghost" (click)="clearSelection()">Deseleziona</app-button>
       </div>
     }
@@ -435,12 +441,26 @@
   }
 </section>
 
+<!-- Eliminazione a due conferme: 1) avviso su righe/giacenze, 2) conferma finale. -->
 <app-confirm-dialog
-  [(open)]="deleteDialogOpen"
-  title="Elimina documento"
-  [message]="deleteDialogMessage()"
-  confirmLabel="Elimina"
+  [(open)]="deleteWarnOpen"
+  [title]="deleteWarnTitle()"
+  [message]="deleteWarnMessage()"
+  confirmLabel="Continua"
+  cancelLabel="Annulla"
   [danger]="true"
-  (confirmed)="confirmDeleteDocument()"
-  (dismissed)="cancelDeleteDocument()"
+  (confirmed)="onDeleteWarnConfirm()"
+  (dismissed)="onDeleteCancel()"
+/>
+
+<app-confirm-dialog
+  [(open)]="deleteConfirmOpen"
+  title="Confermi l'eliminazione?"
+  message="L'operazione non è reversibile."
+  confirmLabel="Elimina definitivamente"
+  cancelLabel="Annulla"
+  [danger]="true"
+  [busy]="deleteBusy()"
+  (confirmed)="onDeleteConfirm()"
+  (dismissed)="onDeleteCancel()"
 />

@@ -1542,16 +1542,8 @@
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
           Chiudi
         </app-button>
-        @if (editDocumentId()) {
-          <app-button
-            type="button"
-            variant="danger"
-            [disabled]="saving()"
-            (click)="requestDeleteDocument()"
-          >
-            Elimina documento
-          </app-button>
-        }
+        <!-- L'eliminazione è un'azione sull'oggetto intero: si esegue solo
+             dall'elenco Arrivi merce (menu riga o selezione multipla). -->
         <app-button type="button" variant="secondary" [disabled]="saving()" (click)="printLabels()">
           Stampa etichette
         </app-button>
@@ -1622,15 +1614,6 @@
   message="Modificando il documento, VestiFlow aggiornerà automaticamente i movimenti collegati e salverà lo storico della modifica."
   confirmLabel="Sblocca e modifica"
   (confirmed)="confirmUnlockEdit()"
-/>
-
-<app-confirm-dialog
-  [(open)]="deleteDocumentDialogOpen"
-  title="Elimina documento"
-  message="Eliminare definitivamente questo arrivo merce? L'operazione non è reversibile."
-  confirmLabel="Elimina documento"
-  [busy]="saving()"
-  (confirmed)="confirmDeleteDocument()"
 />
 
 <app-confirm-dialog
