@@ -675,6 +675,57 @@ export class ManualSalesOrdersService {
     this.logger.log(`Ordine cliente ${order.orderNumber} eliminato (${tenantId})`);
   }
 
+  /**
+   * Duplica un ordine (di qualunque origine) in un NUOVO Ordine cliente
+   * MANUALE: copia le righe e assegna il cliente scelto. L'ordine di partenza
+   * NON viene toccato. Riusa `save`, quindi ricalcola totali e impegni.
+   */
+  async duplicate(
+    tenantId: string,
+    sourceId: string,
+    customerId: string,
+    user?: UserProfileDto,
+  ): Promise<ManualSalesOrderSaveResult> {
+    const source = await this.prisma.salesOrder.findFirst({
+      where: { id: sourceId, tenantId },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
+    });
+    if (!source) {
+      throw new NotFoundException('Ordine cliente non trovato');
+    }
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, tenantId },
+      select: { id: true },
+    });
+    if (!customer) {
+      throw new NotFoundException('Cliente non trovato');
+    }
+
+    const dto: SaveManualSalesOrderDto = {
+      customerId,
+      locationId: source.locationId ?? undefined,
+      documentDate: new Date().toISOString(),
+      externalRef: source.externalRef ?? undefined,
+      notes: source.notes ?? undefined,
+      paymentTerms: source.paymentTerms ?? undefined,
+      documentDiscountPercent: source.documentDiscountPercent,
+      lines: source.lines.map((line) => ({
+        variantId: line.variantId ?? undefined,
+        sku: line.sku || undefined,
+        barcode: line.barcode ?? undefined,
+        title: line.title,
+        quantity: line.quantity,
+        unitPriceMinor: line.unitPriceMinor,
+        discount: line.discount ?? undefined,
+        vatCodeId: line.vatCodeId ?? undefined,
+        commitsStock: line.commitsStock,
+        unitOfMeasure: line.unitOfMeasure ?? undefined,
+      })),
+    };
+    this.logger.log(`Duplica ordine ${source.orderNumber} → nuovo ordine manuale (${tenantId})`);
+    return this.save(tenantId, dto, user);
+  }
+
   private async pushInventoryTargets(
     tenantId: string,
     targets: ReadonlySet<string>,

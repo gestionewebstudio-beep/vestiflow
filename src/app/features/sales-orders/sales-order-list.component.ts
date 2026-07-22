@@ -74,6 +74,7 @@ import {
   type SalesOrderTableProfile,
   type SalesOrderTableSelectionEvent,
 } from './components/sales-order-table/sales-order-table.component';
+import { sourceLabel } from './models/sales-order-labels.util';
 import {
   DEFAULT_SALES_PAGE_SIZE,
   SALES_PAGE_SIZE_OPTIONS,
@@ -384,6 +385,24 @@ export class SalesOrderListComponent {
       : `I ${count} ordini selezionati verranno eliminati e i relativi impegni di magazzino rilasciati.`;
   });
 
+  // ── Duplica (con scelta cliente) + avviso «canale esterno» per i non manuali ──
+  protected readonly duplicateSource = signal<SalesOrder | null>(null);
+  protected readonly duplicateCustomerId = signal<string | null>(null);
+  protected readonly duplicateModalOpen = signal(false);
+  protected readonly duplicateBusy = signal(false);
+  /** Ordine non manuale su cui si sta per agire: attiva l'avviso canale esterno. */
+  protected readonly externalActionOrder = signal<SalesOrder | null>(null);
+  protected readonly externalWarnOpen = signal(false);
+
+  protected readonly externalWarnMessage = computed(() => {
+    const order = this.externalActionOrder();
+    const channel = order ? sourceLabel(order.source) : 'un canale esterno';
+    return (
+      `Stai per procedere su un ordine proveniente da ${channel}. ` +
+      "Le modifiche fatte qui non verranno sincronizzate con il canale d'origine. Vuoi continuare?"
+    );
+  });
+
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private readonly searchSubscription: Subscription;
 
@@ -577,9 +596,84 @@ export class SalesOrderListComponent {
       this.openOrder(event.order);
       return;
     }
+    if (event.action === 'duplicate') {
+      this.startDuplicate(event.order);
+      return;
+    }
     if (event.action === 'delete') {
       this.requestDeleteOrder(event.order);
     }
+  }
+
+  // ── Duplica con scelta cliente ────────────────────────────────────────────
+
+  /** Avvia la duplica: sui non manuali passa prima dall'avviso «canale esterno». */
+  protected startDuplicate(order: SalesOrder): void {
+    if (order.source !== SalesOrderSource.Manual) {
+      this.externalActionOrder.set(order);
+      this.externalWarnOpen.set(true);
+      return;
+    }
+    this.openDuplicateModal(order);
+  }
+
+  protected onExternalWarnConfirm(): void {
+    this.externalWarnOpen.set(false);
+    const order = this.externalActionOrder();
+    this.externalActionOrder.set(null);
+    if (order) {
+      this.openDuplicateModal(order);
+    }
+  }
+
+  protected onExternalWarnCancel(): void {
+    this.externalActionOrder.set(null);
+  }
+
+  private openDuplicateModal(order: SalesOrder): void {
+    this.duplicateSource.set(order);
+    this.duplicateCustomerId.set(order.customerId ?? null);
+    this.duplicateModalOpen.set(true);
+  }
+
+  /** Chiude il modale solo se il click è sul backdrop, non sul contenuto. */
+  protected onBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.cancelDuplicate();
+    }
+  }
+
+  protected cancelDuplicate(): void {
+    if (this.duplicateBusy()) {
+      return;
+    }
+    this.duplicateModalOpen.set(false);
+    this.duplicateSource.set(null);
+  }
+
+  protected confirmDuplicate(): void {
+    const source = this.duplicateSource();
+    const customerId = this.duplicateCustomerId();
+    if (!source || !customerId || this.duplicateBusy()) {
+      return;
+    }
+    this.duplicateBusy.set(true);
+    this.service
+      .duplicateManualOrder(source.id, customerId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (order) => {
+          this.duplicateBusy.set(false);
+          this.duplicateModalOpen.set(false);
+          this.duplicateSource.set(null);
+          void this.router.navigate(['/app/sales', order.id, 'edit']);
+        },
+        error: (err: unknown) => {
+          this.duplicateBusy.set(false);
+          this.duplicateModalOpen.set(false);
+          this.actionError.set(this.toAppError(err));
+        },
+      });
   }
 
   protected onToggleSelection(event: SalesOrderTableSelectionEvent): void {

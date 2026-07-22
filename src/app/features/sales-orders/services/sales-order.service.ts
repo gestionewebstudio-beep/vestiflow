@@ -171,6 +171,18 @@ export class SalesOrderService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /** Duplica un ordine in un nuovo ordine cliente manuale col cliente scelto. */
+  duplicateManualOrder(id: EntityId, customerId: EntityId): Observable<SalesOrder> {
+    return this.http
+      .post<{ order: SalesOrderApiRow }>(this.url(`/sales-orders/manual/${id}/duplicate`), {
+        customerId,
+      })
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((result) => mapSalesOrderApiRow(result.order)),
+      );
+  }
+
   getManualOrderReservations(id: EntityId): Observable<readonly ManualOrderReservation[]> {
     return this.http
       .get<readonly ManualOrderReservation[]>(this.url(`/sales-orders/manual/${id}/reservations`))

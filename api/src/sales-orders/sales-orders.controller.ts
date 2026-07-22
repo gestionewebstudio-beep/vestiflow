@@ -22,6 +22,7 @@ import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard'
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { ConcludeManualSalesOrderDto } from './dto/conclude-manual-sales-order.dto';
+import { DuplicateManualSalesOrderDto } from './dto/duplicate-manual-sales-order.dto';
 import { ExportSalesOrdersQueryDto } from './dto/export-sales-orders.query.dto';
 import { ListSalesOrdersQueryDto } from './dto/list-sales-orders.query.dto';
 import { SaveManualSalesOrderDto } from './dto/save-manual-sales-order.dto';
@@ -139,6 +140,18 @@ export class SalesOrdersController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.manualOrders.delete(tenantId, id, user);
+  }
+
+  /** Duplica un ordine in un nuovo ordine cliente manuale col cliente scelto. */
+  @Post('manual/:id/duplicate')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  duplicateManual(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: DuplicateManualSalesOrderDto,
+  ): Promise<ManualSalesOrderSaveResult> {
+    return this.manualOrders.duplicate(tenantId, id, dto.customerId, user);
   }
 
   @Get(':id')

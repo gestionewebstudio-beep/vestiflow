@@ -275,4 +275,57 @@
     (confirmed)="onDeleteConfirm()"
     (dismissed)="onDeleteCancel()"
   />
+
+  <!-- Avviso "canale esterno" prima di agire (Duplica/Modifica/Elimina) su un
+       ordine NON manuale. -->
+  <app-confirm-dialog
+    [(open)]="externalWarnOpen"
+    title="Ordine da canale esterno"
+    [message]="externalWarnMessage()"
+    confirmLabel="Continua"
+    (confirmed)="onExternalWarnConfirm()"
+    (dismissed)="onExternalWarnCancel()"
+  />
+
+  <!-- Duplica: scelta del cliente per il nuovo ordine manuale. -->
+  @if (duplicateModalOpen()) {
+    <div
+      class="sales-list__modal-backdrop"
+      tabindex="0"
+      (click)="onBackdropClick($event)"
+      (keydown.escape)="cancelDuplicate()"
+    >
+      <div class="sales-list__modal" role="dialog" aria-modal="true" aria-label="Duplica ordine">
+        <h2 class="sales-list__modal-title">Duplica ordine</h2>
+        <p class="sales-list__modal-text">
+          Scegli il cliente per il nuovo ordine. Le righe vengono copiate; l'ordine di partenza non
+          viene toccato.
+        </p>
+        <app-select-menu
+          chipLabel="Cliente"
+          [options]="customerOptions()"
+          [value]="duplicateCustomerId() ?? ''"
+          ariaLabel="Cliente del nuovo ordine"
+          placeholder="Seleziona cliente"
+          [fullWidth]="true"
+          [searchable]="true"
+          searchPlaceholder="Cerca cliente…"
+          searchAriaLabel="Cerca cliente"
+          (valueChange)="duplicateCustomerId.set($event)"
+        />
+        <div class="sales-list__modal-actions">
+          <app-button variant="ghost" [disabled]="duplicateBusy()" (click)="cancelDuplicate()">
+            Annulla
+          </app-button>
+          <app-button
+            [disabled]="!duplicateCustomerId() || duplicateBusy()"
+            [loading]="duplicateBusy()"
+            (click)="confirmDuplicate()"
+          >
+            Duplica
+          </app-button>
+        </div>
+      </div>
+    </div>
+  }
 </section>
