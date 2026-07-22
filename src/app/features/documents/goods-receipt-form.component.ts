@@ -48,6 +48,7 @@ import {
   type VatCode,
 } from '@core/models/vat-code.model';
 import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
+import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -236,6 +237,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly productService = inject(ProductService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
+  private readonly breadcrumbLabels = inject(BreadcrumbLabelService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
@@ -487,6 +489,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     return this.previewReference();
   });
+
+  /**
+   * Etichetta della tappa id nel breadcrumb: il numero dell'arrivo merce
+   * aperto (es. «AM-2026-0001»), mostrato al posto del generico «Dettaglio».
+   * Solo in modifica (l'id è nell'URL) e con documento caricato.
+   */
+  private readonly breadcrumbEntity = computed(() => {
+    const id = this.editDocumentId();
+    if (!id) {
+      return null;
+    }
+    const label = this.loadedDocument()?.reference;
+    return label ? { id, label } : null;
+  });
+  /** Id attualmente registrato nel breadcrumb (per pulizia mirata). */
+  private breadcrumbLabelId: string | null = null;
 
   protected readonly linkedSupplierOrder = computed(
     () => this.loadedDocument()?.linkedSupplierOrder ?? null,
@@ -761,6 +779,27 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       // Punto B: le righe collegate a prodotti non-magazzino vanno bloccate
       // appena le summary sono disponibili (anche in load asincrono).
       this.syncLineFieldAccess();
+    });
+
+    // Etichetta della tappa id nel breadcrumb: registro il numero del documento
+    // caricato (e ripulisco la precedente se cambia entità nella stessa istanza).
+    effect(() => {
+      const entity = this.breadcrumbEntity();
+      if (this.breadcrumbLabelId && this.breadcrumbLabelId !== entity?.id) {
+        this.breadcrumbLabels.clear(this.breadcrumbLabelId);
+        this.breadcrumbLabelId = null;
+      }
+      if (entity) {
+        this.breadcrumbLabels.set(entity.id, entity.label);
+        this.breadcrumbLabelId = entity.id;
+      }
+    });
+    // Rilascio dell'etichetta a prescindere da preserveEditSession (l'id resta
+    // corretto per l'istanza ricreata, che la ri-registra al caricamento).
+    this.destroyRef.onDestroy(() => {
+      if (this.breadcrumbLabelId) {
+        this.breadcrumbLabels.clear(this.breadcrumbLabelId);
+      }
     });
   }
 

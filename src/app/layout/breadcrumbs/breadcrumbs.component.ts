@@ -3,6 +3,7 @@ import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs';
 
+import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { DOCUMENT_HUB_GROUPS } from '@features/documents/models/documents-hub.model';
 
 /** Voce del percorso: link se la tappa intermedia e' una pagina reale. */
@@ -119,6 +120,7 @@ function isIdSegment(segment: string): boolean {
 })
 export class BreadcrumbsComponent {
   private readonly router = inject(Router);
+  private readonly entityLabels = inject(BreadcrumbLabelService).labels;
 
   private readonly url = toSignal(
     this.router.events.pipe(
@@ -140,7 +142,7 @@ export class BreadcrumbsComponent {
     for (const segment of segments) {
       accumulated += `/${segment}`;
       const label = isIdSegment(segment)
-        ? 'Dettaglio'
+        ? (this.entityLabels().get(segment) ?? 'Dettaglio')
         : (SEGMENT_LABELS[segment] ?? decodeURIComponent(segment));
       crumbs.push({
         label,

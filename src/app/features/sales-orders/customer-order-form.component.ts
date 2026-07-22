@@ -4,6 +4,7 @@ import {
   DestroyRef,
   ElementRef,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
@@ -45,6 +46,7 @@ import {
   type VatCode,
 } from '@core/models/vat-code.model';
 import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
+import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
@@ -228,6 +230,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
+  private readonly breadcrumbLabels = inject(BreadcrumbLabelService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -664,6 +667,24 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       : this.loadedOrder()?.orderNumber;
     return saved ?? this.previewReference();
   });
+
+  /**
+   * Etichetta della tappa id nel breadcrumb: il numero del documento aperto
+   * (es. «OC-2026-0001»), così il percorso mostra quello invece del generico
+   * «Dettaglio». Solo in modifica (l'id è nell'URL) e con documento caricato.
+   */
+  private readonly breadcrumbEntity = computed(() => {
+    const id = this.editOrderId();
+    if (!id) {
+      return null;
+    }
+    const label = this.isRegistryDocument
+      ? this.loadedQuoteDoc()?.reference
+      : this.loadedOrder()?.orderNumber;
+    return label ? { id, label } : null;
+  });
+  /** Id attualmente registrato nel breadcrumb (per pulizia mirata). */
+  private breadcrumbLabelId: string | null = null;
   protected readonly unloadTypeOptions = computed<readonly SelectMenuOption[]>(() =>
     (this.meta()?.unloadDocumentTypes ?? []).map((type) => ({
       value: type,
@@ -893,6 +914,23 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.destroyRef.onDestroy(() => {
       for (const id of this.unlockedByThisInstance) {
         SESSION_UNLOCKED_ORDER_IDS.delete(id);
+      }
+      if (this.breadcrumbLabelId) {
+        this.breadcrumbLabels.clear(this.breadcrumbLabelId);
+      }
+    });
+
+    // Etichetta della tappa id nel breadcrumb: registro il numero del documento
+    // caricato (e ripulisco la precedente se cambia entità nella stessa istanza).
+    effect(() => {
+      const entity = this.breadcrumbEntity();
+      if (this.breadcrumbLabelId && this.breadcrumbLabelId !== entity?.id) {
+        this.breadcrumbLabels.clear(this.breadcrumbLabelId);
+        this.breadcrumbLabelId = null;
+      }
+      if (entity) {
+        this.breadcrumbLabels.set(entity.id, entity.label);
+        this.breadcrumbLabelId = entity.id;
       }
     });
 
