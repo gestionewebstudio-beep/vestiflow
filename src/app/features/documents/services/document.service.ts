@@ -322,14 +322,22 @@ export class DocumentService {
 
   /**
    * Duplica documento: nuova bozza indipendente, nessun movimento generato.
-   * `supplierId` (Arrivi merce) riallinea la testata al fornitore scelto.
+   * `supplierId` (Arrivi merce) o `customerId` (documenti di vendita, es.
+   * Preventivi) riallineano la testata alla controparte scelta nel modale.
    */
-  duplicateDocument(id: EntityId, supplierId?: EntityId): Observable<DocumentRecord> {
+  duplicateDocument(
+    id: EntityId,
+    subject?: { readonly supplierId?: EntityId; readonly customerId?: EntityId },
+  ): Observable<DocumentRecord> {
+    const body: Record<string, EntityId> = {};
+    if (subject?.supplierId) {
+      body['supplierId'] = subject.supplierId;
+    }
+    if (subject?.customerId) {
+      body['customerId'] = subject.customerId;
+    }
     return this.http
-      .post<DocumentApiRow>(
-        this.url(`/documents/${id}/duplicate`),
-        supplierId ? { supplierId } : {},
-      )
+      .post<DocumentApiRow>(this.url(`/documents/${id}/duplicate`), body)
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 

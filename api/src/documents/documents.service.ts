@@ -150,6 +150,8 @@ export type DocumentListRow = Document & {
   locationName: string | null;
   /** Codice interno del fornitore (anagrafica), per la colonna «Cod. soggetto». */
   supplierCode: string | null;
+  /** Codice interno del cliente (anagrafica): «Cod. soggetto» sui documenti di vendita. */
+  customerCode: string | null;
   linkStatus: GoodsReceiptLinkStatus | null;
   linkedPurchaseInvoice: LinkedPurchaseInvoiceInfo | null;
 };
@@ -356,6 +358,7 @@ export class DocumentsService {
           _count: { select: { lines: true } },
           location: { select: { name: true } },
           supplier: { select: { code: true } },
+          customer: { select: { code: true } },
           purchaseInvoiceLinks: {
             where: { purchaseInvoice: { status: { not: DocumentStatus.cancelled } } },
             include: {
@@ -380,11 +383,12 @@ export class DocumentsService {
     ]);
 
     const items: DocumentListRow[] = rows.map(
-      ({ _count, location, supplier, purchaseInvoiceLinks, ...doc }) => ({
+      ({ _count, location, supplier, customer, purchaseInvoiceLinks, ...doc }) => ({
         ...doc,
         lineCount: _count.lines,
         locationName: location?.name ?? null,
         supplierCode: supplier?.code ?? null,
+        customerCode: customer?.code ?? null,
         ...this.resolveLinkInfo(doc, purchaseInvoiceLinks),
       }),
     );
@@ -1086,8 +1090,10 @@ export class DocumentsService {
     tenantId: string,
     id: string,
     user?: UserProfileDto,
-    overrideSupplierId?: string,
+    override?: { supplierId?: string; customerId?: string },
   ): Promise<DocumentWithLines> {
+    const overrideSupplierId = override?.supplierId;
+    const overrideCustomerId = override?.customerId;
     const original = await this.prisma.document.findFirst({
       where: { id, tenantId },
       include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -1135,6 +1141,23 @@ export class DocumentsService {
       paymentMethod = supplier.paymentMethod ?? null;
     }
 
+    // Duplica con scelta cliente (documenti di vendita, es. Preventivi): se il
+    // cliente cambia, la testata si riallinea al nuovo nome snapshot. Senza
+    // override resta il cliente originale.
+    let customerId = original.customerId;
+    let customerName = original.customerName;
+    if (overrideCustomerId && overrideCustomerId !== original.customerId) {
+      const customer = await this.prisma.customer.findFirst({
+        where: { id: overrideCustomerId, tenantId },
+        select: { party: true },
+      });
+      if (!customer) {
+        throw new NotFoundException('Cliente non trovato');
+      }
+      customerId = overrideCustomerId;
+      customerName = partyDisplayName(customer.party) || null;
+    }
+
     const created = await this.prisma.document.create({
       data: {
         tenantId,
@@ -1149,8 +1172,8 @@ export class DocumentsService {
         supplierId,
         supplierName,
         paymentMethod,
-        customerId: original.customerId,
-        customerName: original.customerName,
+        customerId,
+        customerName,
         locationId: original.locationId,
         targetLocationId: original.targetLocationId,
         adjustmentDirection: original.adjustmentDirection,
@@ -2632,7 +2655,12 @@ export class DocumentsService {
     // SOLO sul documento — le giacenze già scalate NON vengono ripristinate.
     const isDeletableManualUnload = doc.type === DocumentType.manual_unload;
 
-    if (isFinalized && !isDeletableReceipt && !isDeletableManualUnload) {
+    // Preventivo: eliminabile anche da confermato (viene salvato già confermato,
+    // il numero PRE è assegnato al salvataggio). Non muove mai il magazzino,
+    // quindi l'eliminazione è sicura e non ripristina nulla.
+    const isDeletableQuote = doc.type === DocumentType.quote;
+
+    if (isFinalized && !isDeletableReceipt && !isDeletableManualUnload && !isDeletableQuote) {
       throw new ConflictException(
         'Solo i documenti in bozza o annullati possono essere eliminati.',
       );

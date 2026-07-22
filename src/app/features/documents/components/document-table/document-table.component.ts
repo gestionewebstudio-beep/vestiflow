@@ -22,8 +22,9 @@ import {
 } from '../../models/document-labels.util';
 import { isStoreFlowDocumentType } from '../../models/document-operational.util';
 import { isPrintableDocumentType } from '../../models/document-print.util';
+import { isQuoteDocumentType } from '../../models/document-sales.util';
 import { isManualUnloadDocumentType } from '../../models/document-stock-operation.util';
-import { goodsReceiptExternalDocLabel } from '../../utils/goods-receipt-list-export.util';
+import { goodsReceiptExternalDocLabel } from '../../utils/document-list-export.util';
 
 /** Azioni disponibili dal menu "···" della riga (audit cliente §1: azioni dalla lista). */
 export type DocumentTableActionId =
@@ -96,8 +97,9 @@ export class DocumentTableComponent {
     return doc.supplierName ?? doc.customerName ?? '—';
   }
 
+  /** «Cod. soggetto»: codice fornitore (acquisti) o codice cliente (vendite). */
   protected supplierCodeLabel(doc: DocumentRecord): string {
-    return doc.supplierCode?.trim() || '—';
+    return doc.supplierCode?.trim() || doc.customerCode?.trim() || '—';
   }
 
   protected dateLabel(doc: DocumentRecord): string {
@@ -219,6 +221,9 @@ export class DocumentTableComponent {
         // l'operatore non lo elimina — l'eliminazione NON ripristina le
         // giacenze già scalate, quindi è disponibile in qualunque stato.
         isManualUnloadDocumentType(doc.type) ||
+        // Preventivo: salvato già confermato (numero PRE assegnato al
+        // salvataggio), ma senza effetti magazzino — eliminabile in ogni stato.
+        isQuoteDocumentType(doc.type) ||
         // Arrivi merce: eliminabili anche da confermati — l'API rimuove i
         // movimenti e ripristina le giacenze. Escluso solo se collegato a una
         // fattura registrata (va prima scollegato).

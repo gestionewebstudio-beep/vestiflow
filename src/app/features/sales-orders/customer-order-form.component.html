@@ -69,7 +69,7 @@
             (keydown.enter)="requestUnlockEdit()"
             (keydown.space)="requestUnlockEdit(); $event.preventDefault()"
           >
-            <p>Ordine protetto da modifica. Sblocca per continuare a lavorare.</p>
+            <p>{{ lockedBannerText() }}</p>
             <app-button type="button" variant="secondary" (click)="requestUnlockEdit()">
               Sblocca modifica
             </app-button>
@@ -1768,8 +1768,8 @@
 
 <app-confirm-dialog
   [(open)]="unlockDialogOpen"
-  title="Sblocca modifica ordine"
-  message="Modificando l'ordine, VestiFlow aggiornerà gli impegni di magazzino collegati al salvataggio."
+  [title]="unlockDialogTitle()"
+  [message]="unlockDialogMessage()"
   confirmLabel="Sblocca e modifica"
   (confirmed)="confirmUnlockEdit()"
 />

@@ -5,6 +5,10 @@ import { TableViewId } from '@shared/table-columns/table-column.model';
 
 import type { DocumentListProfile } from './document-list-query.model';
 import { SALES_INVOICE_DOCUMENT_TYPES } from './document-sales.util';
+import {
+  QUOTE_LIST_EXPORT,
+  type DocumentListExportConfig,
+} from '../utils/document-list-export.util';
 
 /**
  * Profili lista dedicati con pagina propria (voci sidebar Vendite più lo
@@ -90,6 +94,25 @@ export interface SalesDocumentRegisterConfig {
   /** Titolo del pannello dati nell'anteprima dettaglio (es. «Dati preventivo»). */
   readonly detailPanelTitle: string;
   readonly detailNotFoundTitle: string;
+  /**
+   * Elenco "in stile Arrivi merce": selezione con checkbox + barra operazioni
+   * massive (stampa/CSV/PDF/elimina). I profili senza questo flag restano a
+   * sola consultazione con le azioni di riga.
+   */
+  readonly supportsBulkSelection?: boolean;
+  /** Configurazione export massivo (nome file e colonne del CSV/stampa). */
+  readonly listExport?: DocumentListExportConfig;
+  /**
+   * Controparte scelta nel modale «Duplica»: 'customer' apre la scelta cliente
+   * (documenti di vendita), 'supplier' la scelta fornitore. Assente = duplica
+   * diretta senza modale.
+   */
+  readonly duplicateSubject?: 'customer' | 'supplier';
+  /**
+   * La riga apre il documento nel FORM in sola lettura (banner «Sblocca
+   * modifica»), come gli Arrivi merce, invece dell'anteprima dettaglio.
+   */
+  readonly rowOpensForm?: boolean;
 }
 
 /** Stati generici del ciclo documento, etichette registro. */
@@ -144,6 +167,12 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     viewId: TableViewId.QuoteDocumentsList,
     detailPanelTitle: 'Dati preventivo',
     detailNotFoundTitle: 'Preventivo non trovato',
+    // Elenco allineato agli Arrivi merce: selezione multipla, barra bulk,
+    // duplica con scelta cliente e apertura nel form bloccato.
+    supportsBulkSelection: true,
+    listExport: QUOTE_LIST_EXPORT,
+    duplicateSubject: 'customer',
+    rowOpensForm: true,
   },
   proforma: {
     profile: 'proforma',

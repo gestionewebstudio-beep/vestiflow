@@ -98,9 +98,12 @@ import { DocumentService } from './services/document.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
 import { isPrintableDocumentType } from './models/document-print.util';
 import {
-  buildGoodsReceiptListCsv,
-  buildGoodsReceiptListPrintHtml,
-} from './utils/goods-receipt-list-export.util';
+  GOODS_RECEIPT_LIST_EXPORT,
+  buildDocumentListCsv,
+  buildDocumentListPrintHtml,
+  documentListExportFileName,
+  type DocumentListExportConfig,
+} from './utils/document-list-export.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -511,16 +514,28 @@ export class DocumentListComponent {
   protected readonly deleteConfirmOpen = signal(false);
   protected readonly deleteBusy = signal(false);
 
-  // ── Duplica con scelta fornitore (Arrivi merce) ────────────────────────────
+  // ── Duplica con scelta controparte (fornitore per Arrivi merce, cliente per
+  //     i documenti di vendita come i Preventivi) ─────────────────────────────
   protected readonly duplicateSource = signal<DocumentRecord | null>(null);
-  protected readonly duplicateSupplierId = signal<string | null>(null);
+  protected readonly duplicateSubjectKind = signal<'supplier' | 'customer'>('supplier');
+  protected readonly duplicateSubjectId = signal<string | null>(null);
   protected readonly duplicateModalOpen = signal(false);
   protected readonly duplicateBusy = signal(false);
 
-  // ── Selezione multipla per operazioni massive (lista Arrivi merce) ─────────
+  // ── Selezione multipla per operazioni massive (Arrivi merce, Preventivi) ───
   protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
   protected readonly bulkPdfBusy = signal(false);
   protected readonly formatMoney = formatMoney;
+
+  /** Elenco con selezione + barra bulk: Arrivi merce o profilo che lo abilita. */
+  protected readonly supportsSelection = computed(
+    () => this.isGoodsReceiptList() || this.salesRegister()?.supportsBulkSelection === true,
+  );
+
+  /** Configurazione export massivo attiva (nome file e colonne per tipo). */
+  protected readonly activeListExport = computed<DocumentListExportConfig>(
+    () => this.salesRegister()?.listExport ?? GOODS_RECEIPT_LIST_EXPORT,
+  );
 
   protected readonly selectedDocs = computed(() =>
     this.documents().filter((doc) => this.selectedIds().has(doc.id)),
@@ -885,9 +900,14 @@ export class DocumentListComponent {
       }
       return;
     }
-    // Pagina dedicata: la riga apre l'anteprima dettaglio della sezione
-    // (layout Ordine cliente), non il dettaglio del registro generico.
+    // Pagina dedicata. Profili «in stile Arrivi merce» (Preventivi): la riga
+    // apre il documento nel form in sola lettura (banner «Sblocca modifica»),
+    // tranne gli annullati che non sono modificabili → anteprima dettaglio.
     if (sales) {
+      if (sales.rowOpensForm && doc.status !== DocumentStatus.Cancelled) {
+        void this.router.navigate([sales.listPath, doc.id, 'edit']);
+        return;
+      }
       void this.router.navigate([sales.listPath, doc.id]);
       return;
     }
@@ -932,22 +952,44 @@ export class DocumentListComponent {
 
   /**
    * Duplica documento (§2a). Arrivi merce: prima si sceglie il fornitore del
-   * nuovo documento (modale, analogo alla scelta cliente sugli ordini); gli
-   * altri tipi duplicano direttamente come prima.
+   * nuovo documento; i documenti di vendita che lo prevedono (Preventivi) la
+   * controparte è il cliente; gli altri tipi duplicano direttamente.
    */
   protected duplicateDocument(doc: DocumentRecord): void {
     if (isGoodsReceiptDocumentType(doc.type)) {
-      this.openDuplicateModal(doc);
+      this.openDuplicateModal(doc, 'supplier', doc.supplierId ?? null);
+      return;
+    }
+    if (this.salesRegister()?.duplicateSubject === 'customer') {
+      this.openDuplicateModal(doc, 'customer', doc.customerId ?? null);
       return;
     }
     this.runDuplicate(doc.id);
   }
 
-  private openDuplicateModal(doc: DocumentRecord): void {
+  private openDuplicateModal(
+    doc: DocumentRecord,
+    kind: 'supplier' | 'customer',
+    subjectId: string | null,
+  ): void {
     this.duplicateSource.set(doc);
-    this.duplicateSupplierId.set(doc.supplierId ?? null);
+    this.duplicateSubjectKind.set(kind);
+    this.duplicateSubjectId.set(subjectId);
     this.duplicateModalOpen.set(true);
   }
+
+  /** Etichette del modale «Duplica» in base alla controparte scelta. */
+  protected readonly duplicateModalTitle = computed(() =>
+    this.duplicateSubjectKind() === 'customer' ? 'Duplica preventivo' : 'Duplica arrivo merce',
+  );
+  protected readonly duplicateModalText = computed(() =>
+    this.duplicateSubjectKind() === 'customer'
+      ? 'Scegli il cliente del nuovo preventivo. Le righe vengono copiate; il documento di partenza non viene toccato.'
+      : 'Scegli il fornitore del nuovo arrivo merce. Le righe vengono copiate; il documento di partenza non viene toccato.',
+  );
+  protected readonly duplicateSubjectOptions = computed(() =>
+    this.duplicateSubjectKind() === 'customer' ? this.customerOptions() : this.supplierOptions(),
+  );
 
   /** Chiude il modale solo se il click è sul backdrop, non sul contenuto. */
   protected onDuplicateBackdropClick(event: MouseEvent): void {
@@ -964,24 +1006,32 @@ export class DocumentListComponent {
     this.duplicateSource.set(null);
   }
 
-  /** Conferma: crea il nuovo arrivo merce con il fornitore scelto e lo apre. */
+  /** Conferma: crea il nuovo documento con la controparte scelta e lo apre. */
   protected confirmDuplicate(): void {
     const source = this.duplicateSource();
-    const supplierId = this.duplicateSupplierId();
-    if (!source || !supplierId || this.duplicateBusy()) {
+    const subjectId = this.duplicateSubjectId();
+    if (!source || !subjectId || this.duplicateBusy()) {
       return;
     }
     this.duplicateBusy.set(true);
-    this.runDuplicate(source.id, supplierId, () => {
+    const subject =
+      this.duplicateSubjectKind() === 'supplier'
+        ? { supplierId: subjectId }
+        : { customerId: subjectId };
+    this.runDuplicate(source.id, subject, () => {
       this.duplicateBusy.set(false);
       this.duplicateModalOpen.set(false);
       this.duplicateSource.set(null);
     });
   }
 
-  private runDuplicate(id: string, supplierId?: string, onSettled?: () => void): void {
+  private runDuplicate(
+    id: string,
+    subject?: { readonly supplierId?: string; readonly customerId?: string },
+    onSettled?: () => void,
+  ): void {
     this.service
-      .duplicateDocument(id, supplierId)
+      .duplicateDocument(id, subject)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (created) => {
@@ -1001,12 +1051,21 @@ export class DocumentListComponent {
     return docs.length > 0 && docs.every((doc) => isGoodsReceiptDocumentType(doc.type));
   });
 
+  /** Tutti i documenti in coda di eliminazione sono preventivi. */
+  private readonly pendingAllQuote = computed(() => {
+    const docs = this.pendingDeleteDocs();
+    return docs.length > 0 && docs.every((doc) => doc.type === DocumentType.Quote);
+  });
+
   /** Titolo del 1° modale (avviso): singolare/plurale e tipo documento. */
   protected readonly deleteWarnTitle = computed(() => {
     const docs = this.pendingDeleteDocs();
     const count = docs.length;
     if (this.pendingAllGoodsReceipt()) {
       return count === 1 ? 'Elimina arrivo merce' : `Elimina ${count} arrivi merce`;
+    }
+    if (this.pendingAllQuote()) {
+      return count === 1 ? 'Elimina preventivo' : `Elimina ${count} preventivi`;
     }
     if (count === 1 && docs[0]?.type === DocumentType.ManualUnload) {
       return 'Elimina scarico manuale';
@@ -1022,6 +1081,12 @@ export class DocumentListComponent {
       return count === 1
         ? "L'arrivo merce contiene righe articolo. Eliminandolo, le giacenze caricate verranno ripristinate al valore precedente."
         : `I ${count} arrivi merce contengono righe articolo. Eliminandoli, le giacenze caricate verranno ripristinate al valore precedente.`;
+    }
+    // Preventivo: nessun effetto su magazzino, nessuna menzione di giacenze.
+    if (this.pendingAllQuote()) {
+      return count === 1
+        ? 'Il preventivo verrà eliminato definitivamente.'
+        : `I ${count} preventivi selezionati verranno eliminati definitivamente.`;
     }
     if (count === 1 && docs[0]?.type === DocumentType.ManualUnload) {
       return 'Lo scarico manuale verrà eliminato. Le giacenze già scalate NON verranno ripristinate.';
@@ -1142,10 +1207,10 @@ export class DocumentListComponent {
     if (docs.length === 0) {
       return;
     }
-    const stamp = new Date().toISOString().slice(0, 10);
+    const config = this.activeListExport();
     this.downloadBlob(
-      new Blob([buildGoodsReceiptListCsv(docs)], { type: 'text/csv;charset=utf-8' }),
-      `arrivi-merce-${stamp}.csv`,
+      new Blob([buildDocumentListCsv(docs, config)], { type: 'text/csv;charset=utf-8' }),
+      documentListExportFileName(config, 'csv'),
     );
   }
 
@@ -1164,7 +1229,7 @@ export class DocumentListComponent {
       return;
     }
     printWindow.document.open();
-    printWindow.document.write(buildGoodsReceiptListPrintHtml(docs));
+    printWindow.document.write(buildDocumentListPrintHtml(docs, this.activeListExport()));
     printWindow.document.close();
     const runPrint = (): void => {
       printWindow.focus();

@@ -336,7 +336,10 @@ export class DocumentsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: DuplicateDocumentDto,
   ): Promise<DocumentWithLines> {
-    return this.documents.duplicateDocument(tenantId, id, user, body.supplierId);
+    return this.documents.duplicateDocument(tenantId, id, user, {
+      supplierId: body.supplierId,
+      customerId: body.customerId,
+    });
   }
 
   @Post(':id/confirm')

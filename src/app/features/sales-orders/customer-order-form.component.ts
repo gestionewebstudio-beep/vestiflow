@@ -749,15 +749,41 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   );
 
   /**
-   * Sbloccabile solo se: è un Ordine manuale, l'utente gestisce i documenti.
-   * I non manuali restano in sola lettura in Fase 1 (modifica locale = Fase 1B).
+   * Sbloccabile se l'utente gestisce i documenti e il documento è modificabile
+   * a mano: gli Ordini manuali (i non manuali restano in sola lettura, Fase 1)
+   * e i Preventivi (aperti bloccati dall'elenco, come gli Arrivi merce).
    */
   protected readonly canUnlockOrder = computed(
-    () => this.isOrder && !this.isExternalOrder() && this.canManageOrders(),
+    () => this.canManageOrders() && ((this.isOrder && !this.isExternalOrder()) || this.isQuote),
   );
 
+  /**
+   * Sola lettura all'apertura: un Ordine manuale già caricato oppure un
+   * Preventivo già caricato restano bloccati finché non si preme «Sblocca
+   * modifica» (stesso pattern degli Arrivi merce). I nuovi documenti (nessun
+   * id) e gli altri tipi (DDT/Scarico) non si bloccano.
+   */
   protected readonly formReadOnly = computed(
-    () => this.isOrder && this.loadedOrder() != null && !this.editUnlocked(),
+    () =>
+      (this.isOrder && this.loadedOrder() != null && !this.editUnlocked()) ||
+      (this.isQuote && this.loadedQuoteDoc() != null && !this.editUnlocked()),
+  );
+
+  /** Testo del banner di sola lettura, per tipo documento. */
+  protected readonly lockedBannerText = computed(() =>
+    this.isQuote
+      ? 'Preventivo protetto da modifica. Sblocca per continuare a lavorare.'
+      : 'Ordine protetto da modifica. Sblocca per continuare a lavorare.',
+  );
+
+  /** Titolo/messaggio del dialogo di sblocco, per tipo documento. */
+  protected readonly unlockDialogTitle = computed(() =>
+    this.isQuote ? 'Sblocca modifica preventivo' : 'Sblocca modifica ordine',
+  );
+  protected readonly unlockDialogMessage = computed(() =>
+    this.isQuote
+      ? 'Sblocca il preventivo per modificarne righe e testata e salvarlo di nuovo.'
+      : "Modificando l'ordine, VestiFlow aggiornerà gli impegni di magazzino collegati al salvataggio.",
   );
 
   protected requestUnlockEdit(): void {
@@ -769,7 +795,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   protected confirmUnlockEdit(): void {
     this.unlockDialogOpen.set(false);
-    this.markSessionUnlocked(this.loadedOrder()?.id);
+    this.markSessionUnlocked(this.loadedOrder()?.id ?? this.loadedQuoteDoc()?.id);
     this.editUnlocked.set(true);
   }
 
@@ -793,6 +819,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
                 this.loadedQuoteDoc.set(null);
                 return 'not-editable' as const;
               }
+              // Preventivo: un CONFERMATO si apre BLOCCATO (come Arrivi merce),
+              // una bozza (es. duplicato) resta subito modificabile; sblocco di
+              // sessione sempre rispettato. Gli altri tipi registro (DDT/Scarico)
+              // non si bloccano: editUnlocked = true.
+              this.editUnlocked.set(
+                this.isQuote
+                  ? SESSION_UNLOCKED_ORDER_IDS.has(doc.id) || doc.status === DocumentStatus.Draft
+                  : true,
+              );
               this.loadedQuoteDoc.set(doc);
               this.patchFormFromRegistryDocument(doc);
               return 'ready' as const;
@@ -2754,6 +2789,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.loadedQuoteDoc.set(doc);
         this.dirtySinceLastSave.set(false);
         if (!this.editOrderId()) {
+          // Preventivo appena creato: resta sbloccato dopo il passaggio a
+          // :id/edit (altrimenti si ribloccherebbe subito, come un ordine).
+          if (this.isQuote) {
+            this.markSessionUnlocked(doc.id);
+            this.editUnlocked.set(true);
+          }
           const editPath = this.isSalesDdt
             ? 'sales-ddt'
             : this.isManualUnload

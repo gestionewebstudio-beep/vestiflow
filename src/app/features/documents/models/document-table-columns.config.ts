@@ -108,9 +108,17 @@ export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Operational]: ['documentDate', 'reference', 'type', 'status', 'counterparty'],
 };
 
-/** Preventivi: nessun ciclo di stato documento — la colonna "Stato" non esiste. */
-export const QUOTE_LIST_COLUMN_DEFS: readonly TableColumnDef[] =
-  SALES_DOCUMENT_LIST_COLUMN_DEFS.filter((column) => column.id !== 'status');
+/**
+ * Preventivi: nessun ciclo di stato documento — la colonna "Stato" non esiste.
+ * In coda le due colonne opzionali (nascoste di default, attivabili da
+ * «Colonne»): «Cod. soggetto» (codice cliente dall'anagrafica) e «Commento»
+ * (commento interno del documento).
+ */
+export const QUOTE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+  ...SALES_DOCUMENT_LIST_COLUMN_DEFS.filter((column) => column.id !== 'status'),
+  { id: 'supplierCode', label: 'Cod. soggetto', defaultVisible: false },
+  { id: 'notes', label: 'Commento', defaultVisible: false },
+];
 
 export const QUOTE_LIST_COLUMN_PRESETS: TableViewPresetMap = presetsWithoutColumn(
   SALES_DOCUMENT_LIST_COLUMN_PRESETS,

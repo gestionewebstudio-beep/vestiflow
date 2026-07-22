@@ -102,6 +102,7 @@ export interface DocumentApiRow {
   readonly supplierCode?: string | null;
   readonly customerId?: EntityId | null;
   readonly customerName?: string | null;
+  readonly customerCode?: string | null;
   readonly locationId?: EntityId | null;
   readonly locationName?: string | null;
   readonly targetLocationId?: EntityId | null;
@@ -308,6 +309,7 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     supplierCode: row.supplierCode ?? undefined,
     customerId: row.customerId ?? undefined,
     customerName: row.customerName ?? undefined,
+    customerCode: row.customerCode ?? undefined,
     locationId: row.locationId ?? undefined,
     locationName: row.locationName ?? undefined,
     targetLocationId: row.targetLocationId ?? undefined,
