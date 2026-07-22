@@ -25,7 +25,10 @@ import {
 import { AuthService } from '@core/auth';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
-import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
+import {
+  canManageDocuments,
+  canViewPurchaseCosts,
+} from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError, type AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
@@ -129,6 +132,7 @@ import {
   SALES_DDT_LINE_PRESETS,
   SALES_DDT_LINES_VIEW,
 } from './models/customer-order-line-columns.config';
+import { sourceLabel } from './models/sales-order-labels.util';
 import {
   SalesOrderService,
   type SaveManualOrderInput,
@@ -137,6 +141,14 @@ import {
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
+
+/**
+ * Id degli ordini sbloccati nella sessione di lavoro corrente (come Arrivi
+ * merce): sopravvive al passaggio nuovo→/:id/edit dopo il primo salvataggio e
+ * ad altre navigazioni tra istanze del form; ogni istanza rilascia alla
+ * distruzione i soli id che ha sbloccato (riblocco alla riapertura).
+ */
+const SESSION_UNLOCKED_ORDER_IDS = new Set<string>();
 
 /** Campi riga nel giro Tab/Invio deterministico (stesso pattern Arrivo merce). */
 type CustomerOrderLineFocusField =
@@ -268,6 +280,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatVatRate = formatVatRate;
+  protected readonly sourceLabel = sourceLabel;
   protected readonly TransportPort = TransportPort;
   protected readonly lineColumnsView = this.isQuote
     ? QUOTE_LINES_VIEW
@@ -693,12 +706,56 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return !this.form.controls.customerId.value || !this.form.controls.locationId.value;
   });
 
+  // ── Apertura in sola lettura (come Arrivi merce) ─────────────────────────
+  // Un Ordine cliente già salvato si apre BLOCCATO: va sbloccato con «Sblocca
+  // modifica» per essere modificato. Vale SOLO per gli Ordini (isOrder) con un
+  // ordine caricato; i nuovi ordini e gli altri tipi documento
+  // (preventivo/DDT/scarico) non si bloccano.
+  protected readonly editUnlocked = signal(false);
+  protected readonly unlockDialogOpen = signal(false);
+  private readonly unlockedByThisInstance = new Set<string>();
+
+  private markSessionUnlocked(orderId: string | null | undefined): void {
+    if (orderId) {
+      SESSION_UNLOCKED_ORDER_IDS.add(orderId);
+      this.unlockedByThisInstance.add(orderId);
+    }
+  }
+
+  /** Ordine caricato da un canale esterno (Shopify/POS): resta in sola lettura. */
+  protected readonly isExternalOrder = computed(() => {
+    const order = this.loadedOrder();
+    return order != null && order.source !== SalesOrderSource.Manual;
+  });
+
+  protected readonly canManageOrders = computed(() =>
+    canManageDocuments(this.authService.currentUser()),
+  );
+
   /**
-   * Nessuno stato blocca più la maschera: anche un ordine Concluso (agganciato
-   * a un DDT) resta modificabile — alla chiusura con modifiche compare
-   * l'avviso «collegato a un DDT» (prompt DDT §LOGICA MAGAZZINO).
+   * Sbloccabile solo se: è un Ordine manuale, l'utente gestisce i documenti.
+   * I non manuali restano in sola lettura in Fase 1 (modifica locale = Fase 1B).
    */
-  protected readonly formReadOnly = computed(() => false);
+  protected readonly canUnlockOrder = computed(
+    () => this.isOrder && !this.isExternalOrder() && this.canManageOrders(),
+  );
+
+  protected readonly formReadOnly = computed(
+    () => this.isOrder && this.loadedOrder() != null && !this.editUnlocked(),
+  );
+
+  protected requestUnlockEdit(): void {
+    if (!this.canUnlockOrder()) {
+      return;
+    }
+    this.unlockDialogOpen.set(true);
+  }
+
+  protected confirmUnlockEdit(): void {
+    this.unlockDialogOpen.set(false);
+    this.markSessionUnlocked(this.loadedOrder()?.id);
+    this.editUnlocked.set(true);
+  }
 
   // ── Caricamento ordine in modifica ──────────────────────────────────────
   private readonly loadTick = signal(0);
@@ -730,13 +787,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         }
         return this.salesOrderService.getSalesOrderById(id).pipe(
           map((order) => {
-            if (order.source !== SalesOrderSource.Manual) {
-              this.loadedOrder.set(null);
-              return 'not-editable' as const;
-            }
+            // Anche gli ordini NON manuali (Shopify/canali esterni) si aprono
+            // nel form, ma in SOLA LETTURA: aprirli qui sostituisce la vecchia
+            // schermata Dettaglio. La modifica locale resta ai soli manuali
+            // (gli impegni si ricaricano solo per questi).
+            this.editUnlocked.set(
+              order.source === SalesOrderSource.Manual && SESSION_UNLOCKED_ORDER_IDS.has(order.id),
+            );
             this.loadedOrder.set(order);
             this.patchFormFromOrder(order);
-            this.reloadOwnReservations(order.id);
+            if (order.source === SalesOrderSource.Manual) {
+              this.reloadOwnReservations(order.id);
+            }
             return 'ready' as const;
           }),
           startWith<'ready' | 'loading' | 'not-editable' | 'error'>('loading'),
@@ -823,6 +885,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             ? MANUAL_UNLOAD_LINE_PRESETS
             : CUSTOMER_ORDER_LINE_PRESETS,
     );
+
+    // Sblocco per-sessione: alla distruzione dell'istanza rilascio i soli id
+    // che ho sbloccato io, così riaprendo l'ordine torna bloccato (come AM).
+    this.destroyRef.onDestroy(() => {
+      for (const id of this.unlockedByThisInstance) {
+        SESSION_UNLOCKED_ORDER_IDS.delete(id);
+      }
+    });
 
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       if (!this.suppressDirtyMarking && !this.formReadOnly()) {
@@ -2485,6 +2555,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           this.ownReservedByVariant.set(byVariant);
           this.dirtySinceLastSave.set(false);
           if (!this.editOrderId()) {
+            // Primo salvataggio: l'ordine appena creato resta sbloccato dopo il
+            // passaggio a /:id/edit (altrimenti si ribloccherebbe subito).
+            this.markSessionUnlocked(result.order.id);
+            this.editUnlocked.set(true);
             void this.router.navigate([this.listPath, result.order.id, 'edit'], {
               replaceUrl: true,
             });
@@ -2974,13 +3048,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   protected reload(): void {
     this.loadTick.update((tick) => tick + 1);
-  }
-
-  protected openOrderDetail(): void {
-    const id = this.editOrderId();
-    if (id) {
-      void this.router.navigate([this.listPath, id]);
-    }
   }
 
   private markFormDirty(): void {

@@ -88,19 +88,23 @@ export const salesOrdersRoutes: Routes = [
   },
   {
     path: ':id/edit',
-    title: 'VestiFlow · Modifica ordine cliente',
+    title: 'VestiFlow · Ordine cliente',
     loadComponent: () =>
       import('./customer-order-form.component').then((m) => m.CustomerOrderFormComponent),
     canActivate: [salesHistoryGuard, tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    // Vista consentita a chi consulta i report; la modifica è gated nel form
+    // (sblocco solo per chi gestisce i documenti). Sostituisce la vecchia
+    // schermata Dettaglio: ogni ordine si apre nel form (bloccato).
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
   },
   {
     path: ':id',
-    title: 'VestiFlow · Dettaglio vendita',
+    title: 'VestiFlow · Ordine cliente',
     loadComponent: () =>
-      import('./sales-order-detail.component').then((m) => m.SalesOrderDetailComponent),
+      import('./customer-order-form.component').then((m) => m.CustomerOrderFormComponent),
     canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
   },
 ];

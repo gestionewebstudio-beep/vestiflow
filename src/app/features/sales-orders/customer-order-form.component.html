@@ -62,6 +62,35 @@
     />
   } @else {
     <form class="gr-form__form" [class.gr-form__form--readonly]="formReadOnly()" [formGroup]="form">
+      @if (formReadOnly()) {
+        @if (canUnlockOrder()) {
+          <div
+            class="gr-form__unlock-banner"
+            role="status"
+            tabindex="0"
+            (click)="requestUnlockEdit()"
+            (keydown.enter)="requestUnlockEdit()"
+            (keydown.space)="requestUnlockEdit(); $event.preventDefault()"
+          >
+            <p>Ordine protetto da modifica. Sblocca per continuare a lavorare.</p>
+            <app-button type="button" variant="secondary" (click)="requestUnlockEdit()">
+              Sblocca modifica
+            </app-button>
+          </div>
+        } @else if (isExternalOrder()) {
+          <div class="gr-form__unlock-banner" role="status">
+            <p>
+              Ordine proveniente da un canale esterno ({{ sourceLabel(loadedOrder()!.source) }}):
+              consultabile in sola lettura. Le modifiche vanno gestite dal canale d'origine.
+            </p>
+          </div>
+        } @else {
+          <div class="gr-form__unlock-banner" role="status">
+            <p>Ordine in sola lettura.</p>
+          </div>
+        }
+      }
+
       @if (isOrder && isSettledOrder()) {
         <div class="gr-form__unlock-banner" role="status">
           <p>
@@ -72,11 +101,6 @@
             }}
             Le modifiche fatte qui NON aggiornano il documento già emesso.
           </p>
-          @if (loadedOrder()?.linkedDocument; as doc) {
-            <app-button type="button" variant="secondary" (click)="openOrderDetail()">
-              Apri dettaglio ordine
-            </app-button>
-          }
         </div>
       }
 
@@ -1733,4 +1757,12 @@
   cancelLabel="Continua senza aggiungere"
   (confirmed)="attachPendingVariantToLine()"
   (dismissed)="dismissAttachPendingVariant()"
+/>
+
+<app-confirm-dialog
+  [(open)]="unlockDialogOpen"
+  title="Sblocca modifica ordine"
+  message="Modificando l'ordine, VestiFlow aggiornerà gli impegni di magazzino collegati al salvataggio."
+  confirmLabel="Sblocca e modifica"
+  (confirmed)="confirmUnlockEdit()"
 />
