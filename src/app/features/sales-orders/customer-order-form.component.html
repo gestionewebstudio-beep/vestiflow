@@ -325,22 +325,25 @@
 
             <!-- Seconda fascia della testata (mockup v3): consegna e pagamento su
                fondo attenuato. Il DDT gestisce il pagamento in prima fascia, lo
-               scarico manuale non ha né consegna né pagamento. -->
+               scarico manuale non ha né consegna né pagamento. «Consegna
+               prevista» resta al solo Preventivo: sull'Ordine cliente non serve. -->
             @if (!isSalesDdt && !isManualUnload) {
               <div
                 class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact co-form__header-row co-form__header-row--secondary"
               >
-                <div class="gr-form__field">
-                  <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
-                  <app-date-input
-                    inputId="co-delivery"
-                    formControlName="expectedDeliveryDate"
-                    ariaLabel="Data prevista consegna"
-                    placeholder="Opzionale"
-                    [compact]="true"
-                    [fullWidth]="true"
-                  />
-                </div>
+                @if (isQuote) {
+                  <div class="gr-form__field">
+                    <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
+                    <app-date-input
+                      inputId="co-delivery"
+                      formControlName="expectedDeliveryDate"
+                      ariaLabel="Data prevista consegna"
+                      placeholder="Opzionale"
+                      [compact]="true"
+                      [fullWidth]="true"
+                    />
+                  </div>
+                }
 
                 <div class="gr-form__field">
                   <label class="gr-form__label" for="co-payment">Pagamento</label>
@@ -399,10 +402,9 @@
           <section class="gr-form__lines" aria-labelledby="co-lines-title">
             <div class="gr-form__lines-head">
               <div class="gr-form__lines-heading">
+                <!-- Nessun contatore qui: righe, pezzi e imponibile stanno nel
+                     riepilogo in fondo alla tabella, vicino ai totali. -->
                 <h2 id="co-lines-title" class="gr-form__subtitle">Righe documento</h2>
-                <span class="gr-form__lines-count tabular-nums">
-                  {{ validLinesCount() }} valide · {{ totalPiecesCount() }} pezzi
-                </span>
               </div>
               <div class="gr-form__lines-tools">
                 <app-table-column-picker [viewId]="lineColumnsView" />

@@ -700,11 +700,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   });
   /** Id attualmente registrato nel breadcrumb (per pulizia mirata). */
   private breadcrumbLabelId: string | null = null;
+  /**
+   * Documenti con cui si può concludere l'ordine. Lo Scarico manuale è escluso:
+   * serve ai casi extra (campionario, omaggi, merce deteriorata), non all'
+   * evasione naturale di un ordine cliente.
+   */
   protected readonly unloadTypeOptions = computed<readonly SelectMenuOption[]>(() =>
-    (this.meta()?.unloadDocumentTypes ?? []).map((type) => ({
-      value: type,
-      label: documentTypeLabel(type as DocumentType) ?? type,
-    })),
+    (this.meta()?.unloadDocumentTypes ?? [])
+      .filter((type) => (type as DocumentType) !== DocumentType.ManualUnload)
+      .map((type) => ({
+        value: type,
+        label: documentTypeLabel(type as DocumentType) ?? type,
+      })),
   );
 
   /** Impegni attivi di QUESTO ordine per variante (Q.tà disponibile onesta in modifica). */

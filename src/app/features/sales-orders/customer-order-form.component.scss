@@ -349,7 +349,7 @@
     flex-grow: 0.75;
   }
 
-  // Consegna | Pagamento | spazio libero.
+  // Consegna | Pagamento | spazio libero (Preventivo: fascia a tre celle).
   .co-form .co-form__header-row--secondary > *:nth-child(1) {
     flex-grow: 0.82;
   }
@@ -358,6 +358,16 @@
   }
   .co-form .co-form__header-row--secondary > *:nth-child(3) {
     flex-grow: 2.13;
+  }
+
+  // Ordine cliente: niente «Consegna prevista», la fascia ha due sole celle.
+  // Il Pagamento tiene la propria quota e lo spazio libero assorbe il resto,
+  // così le proporzioni restano quelle del mockup anche senza la prima cella.
+  .co-form .co-form__header-row--secondary > *:nth-child(1):nth-last-child(2) {
+    flex-grow: 1.05;
+  }
+  .co-form .co-form__header-row--secondary > *:nth-child(2):nth-last-child(1) {
+    flex-grow: 2.95;
   }
 }
 
