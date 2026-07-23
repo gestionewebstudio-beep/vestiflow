@@ -410,6 +410,8 @@ export interface DocumentLineInputBody {
 export interface CreateDocumentBody {
   readonly type: DocumentType;
   readonly series?: string;
+  /** Numero imposto in testata: assente = primo libero della serie. */
+  readonly number?: number;
   readonly documentDate: IsoDateString;
   readonly supplierId?: EntityId;
   readonly customerId?: EntityId;

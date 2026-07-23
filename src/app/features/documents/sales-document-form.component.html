@@ -71,6 +71,17 @@
           />
         </div>
 
+        <!-- Identificativo del documento: Data + Numero + Serie. Il numero è
+             proposto dal progressivo di serie ma resta modificabile. -->
+        <app-document-number-field
+          numberInputId="sd-number"
+          [number]="form.controls.documentNumber.value"
+          [series]="form.controls.series.value"
+          [seriesOptions]="seriesOptions()"
+          (numberChange)="onDocumentNumberChange($event)"
+          (seriesChange)="onSeriesChange($event)"
+        />
+
         @if (isSalesInvoice()) {
           <div class="gr-form__field">
             <label class="gr-form__label" for="sd-cause">Causale</label>
@@ -573,4 +584,17 @@
   cancelLabel="No"
   (confirmed)="confirmIncompleteData()"
   (dismissed)="dismissIncompleteData()"
+/>
+
+<!-- Numero già assegnato: il vincolo del database non ammette duplicati,
+     quindi si può solo prendere il primo libero oppure annullare. -->
+<app-confirm-dialog
+  [(open)]="conflictDialogOpen"
+  title="Numero già usato"
+  [message]="conflictMessage()"
+  [confirmLabel]="conflictConfirmLabel()"
+  cancelLabel="Annulla"
+  [busy]="saving()"
+  (confirmed)="confirmConflictNumber()"
+  (dismissed)="dismissConflictDialog()"
 />

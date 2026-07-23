@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -18,6 +19,7 @@ import {
   of,
   startWith,
   switchMap,
+  take,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
@@ -54,7 +56,13 @@ import type { TenantCompany } from '@features/settings/models/tenant-company.mod
 import { TenantCompanyService } from '@features/settings/services/tenant-company.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import {
+  documentNumberConflictMessage,
+  documentNumberConflictOf,
+  type DocumentNumberConflict,
+} from '@core/models/document-number-conflict.util';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -101,6 +109,7 @@ type SubmitState =
     BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DocumentNumberFieldComponent,
     DateInputComponent,
     DocumentIncludePanelComponent,
     SelectMenuComponent,
@@ -223,6 +232,9 @@ export class SalesDocumentFormComponent {
     documentDate: this.fb.control(new Date().toISOString().slice(0, 10), {
       validators: [Validators.required],
     }),
+    /** Numero documento: proposto dal progressivo di serie, editabile. */
+    documentNumber: this.fb.control<number | null>(null),
+    series: this.fb.control(''),
     billingCause: this.fb.control(''),
     relatedDdtRef: this.fb.control(''),
     notes: this.fb.control(this.routeType === DocumentType.Proforma ? PROFORMA_DISCLAIMER : ''),
@@ -269,6 +281,24 @@ export class SalesDocumentFormComponent {
   private readonly selectedCustomer = signal<Customer | null>(null);
 
   protected readonly confirmDialogOpen = signal(false);
+  /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
+  protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
+  protected readonly conflictDialogOpen = signal(false);
+  protected readonly conflictMessage = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? documentNumberConflictMessage(conflict) : '';
+  });
+  protected readonly conflictConfirmLabel = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
+  });
+
+  /** Serie configurate per il tipo: con una sola resta una label statica. */
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] => {
+    const current = (this.form.controls.series.value ?? '').trim();
+    return current ? [{ value: current, label: current }] : [];
+  });
+
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
   protected readonly saving = computed(() => this._submitState().status === 'saving');
   protected readonly submitError = computed(() => {
@@ -562,6 +592,14 @@ export class SalesDocumentFormComponent {
   });
 
   constructor() {
+    // Nuovo documento: il numero proposto è il primo libero della serie
+    // predefinita (in modifica resta quello già assegnato).
+    afterNextRender(() => {
+      if (!this.editDocumentId()) {
+        this.refreshNumberProposal();
+      }
+    });
+
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
       id: this.editDocumentId() || null,
@@ -1015,6 +1053,9 @@ export class SalesDocumentFormComponent {
       documentDate: new Date(raw.documentDate).toISOString(),
       customerId: raw.customerId,
       currency: this.currency,
+      // Numero imposto in testata: non sposta il progressivo della serie.
+      number: raw.documentNumber ?? undefined,
+      series: (raw.series ?? '').trim() || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
       billingCause: raw.billingCause.trim() || undefined,
@@ -1094,9 +1135,76 @@ export class SalesDocumentFormComponent {
         void this.router.navigate([this.listPath, doc.id]);
       },
       error: (err: unknown) => {
+        // Numero già preso: il vincolo del database non ammette duplicati,
+        // si può solo prendere il primo libero o correggere a mano.
+        const conflict = documentNumberConflictOf(err);
+        if (conflict) {
+          this._submitState.set({ status: 'idle' });
+          this.numberConflict.set(conflict);
+          this.conflictDialogOpen.set(true);
+          return;
+        }
         this._submitState.set({ status: 'error', error: this.toAppError(err) });
       },
     });
+  }
+
+  /** Numero digitato in testata: vuoto = «assegnalo tu». */
+  protected onDocumentNumberChange(value: number | null): void {
+    this.form.controls.documentNumber.setValue(value);
+    this.form.controls.documentNumber.markAsDirty();
+  }
+
+  /** Cambio serie: il numero si riallinea al progressivo di quella serie. */
+  protected onSeriesChange(value: string): void {
+    this.form.controls.series.setValue(value);
+    this.form.controls.series.markAsDirty();
+    this.form.controls.documentNumber.markAsPristine();
+    this.refreshNumberProposal();
+  }
+
+  /**
+   * Propone il primo numero libero della serie. Non tocca un valore digitato
+   * a mano: un numero imposto non sposta il progressivo.
+   */
+  private refreshNumberProposal(): void {
+    if (this.editDocumentId() || this.form.controls.documentNumber.dirty) {
+      return;
+    }
+    const series = (this.form.controls.series.value ?? '').trim();
+    this.documentService
+      .previewDocumentNumber(this.documentType(), series ? { series } : {})
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (preview) => {
+          if (!this.form.controls.documentNumber.dirty && preview.previewNumber != null) {
+            this.form.controls.documentNumber.setValue(preview.previewNumber);
+          }
+          if (preview.series && !(this.form.controls.series.value ?? '').trim()) {
+            this.form.controls.series.setValue(preview.series);
+          }
+        },
+        // Anteprima non disponibile: il server assegnerà comunque il numero.
+        error: () => undefined,
+      });
+  }
+
+  /** «Usa N»: prende il primo numero libero e risalva. */
+  protected confirmConflictNumber(): void {
+    const conflict = this.numberConflict();
+    this.conflictDialogOpen.set(false);
+    if (!conflict) {
+      return;
+    }
+    this.form.controls.documentNumber.setValue(conflict.nextAvailable);
+    this.form.controls.documentNumber.markAsDirty();
+    this.numberConflict.set(null);
+    void this.persist(false);
+  }
+
+  protected dismissConflictDialog(): void {
+    this.conflictDialogOpen.set(false);
+    this.numberConflict.set(null);
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
@@ -1104,6 +1212,8 @@ export class SalesDocumentFormComponent {
       customerId: doc.customerId ?? '',
       locationId: doc.locationId ?? '',
       documentDate: doc.documentDate.slice(0, 10),
+      documentNumber: doc.number ?? null,
+      series: doc.series ?? '',
       billingCause: doc.billingCause ?? '',
       relatedDdtRef: doc.externalRef ?? '',
       notes: doc.notes ?? '',
