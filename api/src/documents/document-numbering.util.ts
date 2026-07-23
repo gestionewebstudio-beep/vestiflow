@@ -105,6 +105,25 @@ export interface DocumentNumberConflict {
   readonly year: number;
 }
 
+/**
+ * Conflitto da restituire al client: il primo numero libero della serie e
+ * quello che l'ha appena bruciato. Unico punto in cui si compone il payload,
+ * così i flussi (registro, arrivo merce, trasferimento/rettifica) rispondono
+ * tutti allo stesso modo.
+ */
+export async function buildDocumentNumberConflict(
+  input: NextNumberInput,
+): Promise<DocumentNumberConflict> {
+  const nextAvailable = await nextDocumentNumber(input);
+  return {
+    code: 'document_number_taken',
+    number: nextAvailable - 1,
+    nextAvailable,
+    series: input.series,
+    year: input.year,
+  };
+}
+
 /** True se l'errore Prisma è la violazione del vincolo unico sul numero. */
 export function isDocumentNumberConflict(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) {

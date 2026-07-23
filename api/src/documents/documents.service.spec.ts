@@ -146,6 +146,34 @@ function createService(prisma: ReturnType<typeof createPrismaMock>, setting = re
   return { service, settings, channelSync, stockReservations };
 }
 
+/** Bozza minima per i test sul numero imposto in modifica. */
+function draftDocumentForNumberUpdate(number: number) {
+  return {
+    id: 'doc-q',
+    tenantId: 'tenant-1',
+    type: DocumentType.quote,
+    status: DocumentStatus.draft,
+    series: 'A',
+    year: 2026,
+    number,
+    reference: `PRE-2026-000${number}`,
+    documentDate: new Date('2026-05-04'),
+    currency: 'EUR',
+    supplierId: null,
+    customerId: 'cust-1',
+    locationId: 'loc-1',
+    targetLocationId: null,
+    adjustmentDirection: null,
+    notes: null,
+    internalComment: null,
+    externalDocNumber: null,
+    documentDiscountPercent: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lines: [],
+  };
+}
+
 describe('DocumentsService', () => {
   let prisma: ReturnType<typeof createPrismaMock>;
 
@@ -1223,6 +1251,44 @@ describe('DocumentsService', () => {
   });
 
   describe('update', () => {
+    // Numero imposto in testata anche in modifica: riscrive numero e
+    // riferimento, ma solo quando cambia davvero rispetto al salvato.
+    it('riscrive numero e riferimento quando la testata impone un numero nuovo', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.quote, numberPrefix: 'PRE' }),
+      );
+      const doc = draftDocumentForNumberUpdate(7);
+      prisma.document.findFirst
+        .mockResolvedValueOnce(doc)
+        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+      prisma.document.update.mockResolvedValue({ ...doc, lines: [] });
+
+      await service.update(tenantId, 'doc-q', { number: 12 });
+
+      const data = prisma.document.update.mock.calls[0]![0]!.data;
+      expect(data.number).toBe(12);
+      expect(data.reference).toBe('PRE-2026-0012');
+    });
+
+    it('non tocca il numero quando la testata rimanda quello già salvato', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.quote, numberPrefix: 'PRE' }),
+      );
+      const doc = draftDocumentForNumberUpdate(7);
+      prisma.document.findFirst
+        .mockResolvedValueOnce(doc)
+        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+      prisma.document.update.mockResolvedValue({ ...doc, lines: [] });
+
+      await service.update(tenantId, 'doc-q', { number: 7 });
+
+      const data = prisma.document.update.mock.calls[0]![0]!.data;
+      expect(data.number).toBeUndefined();
+      expect(data.reference).toBeUndefined();
+    });
+
     it('rifiuta la modifica di documenti non editabili', async () => {
       const { service } = createService(prisma);
       prisma.document.findFirst.mockResolvedValue({

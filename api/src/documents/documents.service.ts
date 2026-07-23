@@ -70,9 +70,9 @@ import {
   isSalesDdtConvertTarget,
 } from './document-type.util';
 import {
+  buildDocumentNumberConflict,
   isDocumentNumberConflict,
   nextDocumentNumber,
-  type DocumentNumberConflict,
 } from './document-numbering.util';
 import {
   reconcileDocumentStockAdjustment,
@@ -946,25 +946,17 @@ export class DocumentsService {
       return;
     }
     const setting = await this.settings.getResolved(tenantId, type);
-    const resolvedSeries = (series ?? setting.defaultSeries).trim() || 'A';
-    const year = new Date(documentDate).getFullYear();
-    const nextAvailable = await nextDocumentNumber({
-      tx: this.prisma,
-      tenantId,
-      type,
-      series: resolvedSeries,
-      year,
-      source: 'document',
-      prefix: setting.numberPrefix,
-    });
-    const payload: DocumentNumberConflict = {
-      code: 'document_number_taken',
-      number: nextAvailable - 1,
-      nextAvailable,
-      series: resolvedSeries,
-      year,
-    };
-    throw new ConflictException(payload);
+    throw new ConflictException(
+      await buildDocumentNumberConflict({
+        tx: this.prisma,
+        tenantId,
+        type,
+        series: (series ?? setting.defaultSeries).trim() || 'A',
+        year: new Date(documentDate).getFullYear(),
+        source: 'document',
+        prefix: setting.numberPrefix,
+      }),
+    );
   }
 
   /**
@@ -1502,6 +1494,22 @@ export class DocumentsService {
       data.documentDiscountPercent = dto.documentDiscountPercent;
     }
 
+    // Numero imposto in testata: si riscrive solo quando cambia davvero, così
+    // un salvataggio che non tocca il numero non rischia il vincolo unico.
+    if (dto.number !== undefined && dto.number !== doc.number) {
+      const numberingType = documentNumberingType(doc.type);
+      const numberingSetting =
+        numberingType === doc.type
+          ? setting
+          : await this.settings.getResolved(tenantId, numberingType);
+      data.number = dto.number;
+      data.reference = this.formatReference(
+        numberingSetting.numberPrefix,
+        documentDate.getFullYear(),
+        dto.number,
+      );
+    }
+
     if (dto.externalDocNumber !== undefined) {
       data.externalDocNumber = dto.externalDocNumber;
     }
@@ -1586,7 +1594,7 @@ export class DocumentsService {
     };
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const updateTx = this.prisma.$transaction(async (tx) => {
       let stockDeltas: readonly { sku: string; delta: number }[] = [];
       const oldLineIds = doc.lines.map((line) => line.id);
 
@@ -2029,6 +2037,18 @@ export class DocumentsService {
       }
 
       return saved;
+    });
+
+    const updated = await updateTx.catch(async (error: unknown) => {
+      // Numero imposto già preso: 409 con il primo libero da proporre.
+      await this.throwNumberConflict(
+        error,
+        tenantId,
+        doc.type,
+        dto.series ?? doc.series,
+        documentDate.toISOString(),
+      );
+      throw error;
     });
 
     for (const entry of syncTargets) {

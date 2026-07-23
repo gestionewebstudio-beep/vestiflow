@@ -1,4 +1,8 @@
-import { ConflictException, ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { AdjustmentDirection, DocumentStatus, DocumentType } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -50,9 +54,11 @@ function createPrismaMock() {
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     location: {
-      findFirst: vi.fn().mockImplementation(({ where }: { where: { id: string } }) =>
-        Promise.resolve({ id: where.id }),
-      ),
+      findFirst: vi
+        .fn()
+        .mockImplementation(({ where }: { where: { id: string } }) =>
+          Promise.resolve({ id: where.id }),
+        ),
     },
     productVariant: {
       findFirst: vi.fn().mockResolvedValue(null),
@@ -228,7 +234,18 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
 
     await service.saveTransfer(
       tenantId,
-      transferDto({ lines: [{ id: lineId, variantId, sku: 'SKU-1', description: 'Maglia', quantity: 8, loadsStock: true }] }),
+      transferDto({
+        lines: [
+          {
+            id: lineId,
+            variantId,
+            sku: 'SKU-1',
+            description: 'Maglia',
+            quantity: 8,
+            loadsStock: true,
+          },
+        ],
+      }),
     );
 
     expect(prisma.documentLine.update).toHaveBeenCalledTimes(1);
@@ -245,6 +262,48 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
     expect(created.locationId).toBe('loc-a');
     expect(created.targetLocationId).toBe('loc-b');
     expect(created.quantity).toBe(8);
+  });
+
+  // Numero imposto in testata (categoria A): si riscrive con il riferimento
+  // coerente, ma solo se cambia davvero rispetto a quello già assegnato.
+  it('riscrive numero e riferimento quando la testata impone un numero nuovo', async () => {
+    const { service } = createService(prisma, {
+      numberPrefix: 'TR',
+      defaultSeries: 'A',
+    });
+    const existing = existingTransferDocument({ series: 'A' });
+    prisma.document.findFirst.mockResolvedValue(existing);
+    prisma.document.findFirstOrThrow.mockResolvedValue(existing);
+    prisma.documentLine.findMany.mockResolvedValue([
+      { id: lineId, lineNumber: 1, variantId, sku: 'SKU-1', quantity: 8, loadsStock: true },
+    ]);
+
+    await service.saveTransfer(tenantId, transferDto({ number: 9 }));
+
+    const data = prisma.document.update.mock.calls[0]?.[0].data;
+    expect(data.number).toBe(9);
+    expect(data.reference).toBe('TR-2026-0009');
+  });
+
+  it('non tocca il numero quando la testata rimanda quello già assegnato', async () => {
+    // Prefisso diverso da quello del riferimento salvato: se il numero venisse
+    // riassegnato il riferimento cambierebbe in «ZZ-…», e il test lo vedrebbe.
+    const { service } = createService(prisma, {
+      numberPrefix: 'ZZ',
+      defaultSeries: 'A',
+    });
+    const existing = existingTransferDocument({ series: 'A' });
+    prisma.document.findFirst.mockResolvedValue(existing);
+    prisma.document.findFirstOrThrow.mockResolvedValue(existing);
+    prisma.documentLine.findMany.mockResolvedValue([
+      { id: lineId, lineNumber: 1, variantId, sku: 'SKU-1', quantity: 8, loadsStock: true },
+    ]);
+
+    await service.saveTransfer(tenantId, transferDto({ number: 2 }));
+
+    const data = prisma.document.update.mock.calls[0]?.[0].data;
+    expect(data.number).toBe(2);
+    expect(data.reference).toBe('TR-2026-0002');
   });
 
   it('riga esistente collegata a un movimento: lo aggiorna invece di duplicarlo', async () => {
@@ -276,7 +335,14 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       tenantId,
       transferDto({
         lines: [
-          { id: lineId, variantId, sku: 'SKU-1', description: 'Maglia', quantity: 8, loadsStock: true },
+          {
+            id: lineId,
+            variantId,
+            sku: 'SKU-1',
+            description: 'Maglia',
+            quantity: 8,
+            loadsStock: true,
+          },
         ],
       }),
     );
@@ -316,9 +382,9 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       setupExisting(prisma);
       const clerk = testClerkUser({ assignedLocationIds: ['loc-a'] });
 
-      await expect(
-        service.saveTransfer(tenantId, transferDto(), clerk),
-      ).resolves.toMatchObject({ id: 'doc-tr' });
+      await expect(service.saveTransfer(tenantId, transferDto(), clerk)).resolves.toMatchObject({
+        id: 'doc-tr',
+      });
     });
 
     it('riceve 403 se la sede origine non è tra quelle assegnate', async () => {
@@ -348,7 +414,11 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       const clerk = testClerkUser({ assignedLocationIds: ['loc-c'] });
 
       await expect(
-        service.saveTransfer(tenantId, transferDto({ locationId: 'loc-c', targetLocationId: 'loc-d' }), clerk),
+        service.saveTransfer(
+          tenantId,
+          transferDto({ locationId: 'loc-c', targetLocationId: 'loc-d' }),
+          clerk,
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -397,7 +467,14 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
       tenantId,
       adjustmentDto({
         lines: [
-          { id: lineId, variantId, sku: 'SKU-1', description: 'Maglia', quantity: 8, loadsStock: true },
+          {
+            id: lineId,
+            variantId,
+            sku: 'SKU-1',
+            description: 'Maglia',
+            quantity: 8,
+            loadsStock: true,
+          },
         ],
       }),
     );
@@ -464,9 +541,9 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
       setupExisting(prisma);
       const clerk = testClerkUser({ assignedLocationIds: ['loc-1'] });
 
-      await expect(
-        service.saveAdjustment(tenantId, adjustmentDto(), clerk),
-      ).resolves.toMatchObject({ id: 'doc-ret' });
+      await expect(service.saveAdjustment(tenantId, adjustmentDto(), clerk)).resolves.toMatchObject(
+        { id: 'doc-ret' },
+      );
     });
 
     it('riceve 403 su una sede diversa da quella assegnata', async () => {
@@ -483,9 +560,9 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
       const { service } = createService(prisma);
       const clerk = testClerkUser({ hasAllLocationsAccess: false, assignedLocationIds: [] });
 
-      await expect(
-        service.saveAdjustment(tenantId, adjustmentDto(), clerk),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.saveAdjustment(tenantId, adjustmentDto(), clerk)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 });

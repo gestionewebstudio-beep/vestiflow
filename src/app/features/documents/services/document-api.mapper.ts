@@ -579,6 +579,9 @@ export interface SaveTransferOrAdjustmentLineBody {
  */
 export interface SaveTransferBody {
   readonly id: EntityId;
+  /** Numero imposto in testata (flusso generico): ignorato dai salvataggi dedicati. */
+  readonly number?: number;
+  readonly series?: string;
   readonly documentDate: IsoDateString;
   readonly locationId: EntityId;
   readonly targetLocationId: EntityId;
@@ -593,6 +596,9 @@ export interface SaveTransferBody {
  */
 export interface SaveAdjustmentBody {
   readonly id: EntityId;
+  /** Numero imposto in testata (flusso generico): ignorato dai salvataggi dedicati. */
+  readonly number?: number;
+  readonly series?: string;
   readonly documentDate: IsoDateString;
   readonly locationId: EntityId;
   readonly adjustmentDirection: AdjustmentDirection;

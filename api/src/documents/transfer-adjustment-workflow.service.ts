@@ -36,6 +36,11 @@ import {
   syncTransferLineMovements,
 } from './document-stock-transfer-sync.util';
 import { DocumentSettingsService } from './document-settings.service';
+import {
+  buildDocumentNumberConflict,
+  isDocumentNumberConflict,
+  resolveDocumentNumber,
+} from './document-numbering.util';
 import type { SaveAdjustmentDto, SaveAdjustmentLineDto } from './dto/save-adjustment.dto';
 import type { SaveTransferDto, SaveTransferLineDto } from './dto/save-transfer.dto';
 
@@ -106,6 +111,71 @@ export class TransferAdjustmentWorkflowService {
     private readonly channelSync: ChannelSyncFacade,
   ) {}
 
+  /**
+   * Numero e serie di un documento già confermato quando la testata li impone.
+   * Si (ri)assegna solo se cambia davvero qualcosa; un numero imposto non
+   * sposta il progressivo della serie (stesso principio dell'Arrivo merce).
+   */
+  private async resolveImposedNumber(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    type: DocumentType,
+    setting: { readonly numberPrefix: string; readonly defaultSeries?: string },
+    documentDate: Date,
+    dto: { readonly number?: number; readonly series?: string },
+    existing: {
+      readonly number: number | null;
+      readonly reference: string | null;
+      readonly series?: string | null;
+    },
+  ): Promise<{ series: string; year: number; number: number | null; reference: string | null }> {
+    // 'A' è la serie di ripiego del progetto: né il documento né le
+    // impostazioni possono lasciare la serie vuota.
+    const current = (existing.series ?? '').trim() || (setting.defaultSeries ?? '').trim() || 'A';
+    const series = (dto.series ?? current).trim() || current;
+    const year = documentDate.getFullYear();
+    const numberChanged = dto.number != null && dto.number !== existing.number;
+    if (!numberChanged && series === current) {
+      return { series, year, number: existing.number, reference: existing.reference };
+    }
+    const assigned = await resolveDocumentNumber({
+      tx,
+      tenantId,
+      type,
+      series,
+      year,
+      source: 'document',
+      prefix: setting.numberPrefix,
+      requestedNumber: dto.number ?? existing.number,
+    });
+    return { series, year, number: assigned.number, reference: assigned.reference };
+  }
+
+  /** Conflitto sul numero → 409 con il primo libero della serie. */
+  private async throwNumberConflict(
+    error: unknown,
+    tenantId: string,
+    type: DocumentType,
+    series: string,
+    documentDate: Date,
+  ): Promise<void> {
+    if (!isDocumentNumberConflict(error)) {
+      return;
+    }
+    const setting = await this.settings.getResolved(tenantId, type);
+    throw new ConflictException(
+      await buildDocumentNumberConflict({
+        tx: this.prisma,
+        tenantId,
+        type,
+        series: series.trim() || setting.defaultSeries,
+        year: documentDate.getFullYear(),
+        source: 'document',
+        prefix: setting.numberPrefix,
+      }),
+    );
+  }
+
   // ── Trasferimento ──────────────────────────────────────────────────────────
 
   async saveTransfer(
@@ -152,7 +222,7 @@ export class TransferAdjustmentWorkflowService {
 
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
 
-    const saved = await this.prisma.$transaction(async (tx) => {
+    const saveTx = this.prisma.$transaction(async (tx) => {
       const existing = await tx.document.findFirst({
         where: { id: dto.id, tenantId, type: DocumentType.transfer },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -265,10 +335,21 @@ export class TransferAdjustmentWorkflowService {
         savedLines,
       );
 
+      const numbering = await this.resolveImposedNumber(
+        tx,
+        tenantId,
+        DocumentType.transfer,
+        setting,
+        documentDate,
+        dto,
+        existing,
+      );
+
       await tx.document.update({
         where: { id: existing.id },
         data: {
           documentDate,
+          ...numbering,
           locationId: dto.locationId,
           targetLocationId: dto.targetLocationId,
           notes: dto.notes !== undefined ? dto.notes : existing.notes,
@@ -287,6 +368,18 @@ export class TransferAdjustmentWorkflowService {
         where: { id: existing.id, tenantId },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
+    });
+
+    const saved = await saveTx.catch(async (error: unknown) => {
+      // Numero imposto già preso: 409 con il primo libero da proporre.
+      await this.throwNumberConflict(
+        error,
+        tenantId,
+        DocumentType.transfer,
+        dto.series ?? '',
+        documentDate,
+      );
+      throw error;
     });
 
     await this.pushInventory(tenantId, syncTargets);
@@ -334,7 +427,7 @@ export class TransferAdjustmentWorkflowService {
 
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
 
-    const saved = await this.prisma.$transaction(async (tx) => {
+    const saveTx = this.prisma.$transaction(async (tx) => {
       const existing = await tx.document.findFirst({
         where: { id: dto.id, tenantId, type: DocumentType.adjustment },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -439,10 +532,21 @@ export class TransferAdjustmentWorkflowService {
         await applyInventorySerialsFromDocumentLines(tx, tenantId, dto.locationId, savedLines);
       }
 
+      const numbering = await this.resolveImposedNumber(
+        tx,
+        tenantId,
+        DocumentType.adjustment,
+        setting,
+        documentDate,
+        dto,
+        existing,
+      );
+
       await tx.document.update({
         where: { id: existing.id },
         data: {
           documentDate,
+          ...numbering,
           locationId: dto.locationId,
           adjustmentDirection: dto.adjustmentDirection,
           notes: dto.notes !== undefined ? dto.notes : existing.notes,
@@ -458,6 +562,18 @@ export class TransferAdjustmentWorkflowService {
         where: { id: existing.id, tenantId },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
+    });
+
+    const saved = await saveTx.catch(async (error: unknown) => {
+      // Numero imposto già preso: 409 con il primo libero da proporre.
+      await this.throwNumberConflict(
+        error,
+        tenantId,
+        DocumentType.adjustment,
+        dto.series ?? '',
+        documentDate,
+      );
+      throw error;
     });
 
     await this.pushInventory(tenantId, syncTargets);
@@ -506,9 +622,7 @@ export class TransferAdjustmentWorkflowService {
     const unique = new Map(targets.map((t) => [`${t.variantId}::${t.locationId}`, t]));
     for (const target of unique.values()) {
       try {
-        await this.channelSync.pushInventoryLevels(tenantId, target.variantId, [
-          target.locationId,
-        ]);
+        await this.channelSync.pushInventoryLevels(tenantId, target.variantId, [target.locationId]);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Push inventario canale fallito';
         this.logger.warn(`Push inventario non riuscito (${tenantId}): ${message}`);

@@ -25,6 +25,7 @@ import {
   of,
   startWith,
   switchMap,
+  take,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
@@ -32,6 +33,11 @@ import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import {
+  documentNumberConflictMessage,
+  documentNumberConflictOf,
+  type DocumentNumberConflict,
+} from '@core/models/document-number-conflict.util';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
@@ -47,6 +53,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -84,6 +91,7 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentNumberFieldComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -146,6 +154,9 @@ export class TransferFormComponent {
       documentDate: this.fb.control(new Date().toISOString().slice(0, 10), {
         validators: [Validators.required],
       }),
+      /** Numero documento: proposto dal progressivo di serie, editabile. */
+      documentNumber: this.fb.control<number | null>(null),
+      series: this.fb.control(''),
       notes: this.fb.control(''),
       internalComment: this.fb.control(''),
       lines: this.fb.array([this.createLine()]),
@@ -162,6 +173,83 @@ export class TransferFormComponent {
   });
 
   protected readonly confirmDialogOpen = signal(false);
+
+  /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
+  protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
+  protected readonly conflictDialogOpen = signal(false);
+  protected readonly conflictMessage = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? documentNumberConflictMessage(conflict) : '';
+  });
+  protected readonly conflictConfirmLabel = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
+  });
+
+  /** Serie configurate per il tipo: con una sola resta una label statica. */
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] => {
+    const current = (this.form.controls.series.value ?? '').trim();
+    return current ? [{ value: current, label: current }] : [];
+  });
+
+  /** Numero digitato in testata: vuoto = «assegnalo tu». */
+  protected onDocumentNumberChange(value: number | null): void {
+    this.form.controls.documentNumber.setValue(value);
+    this.form.controls.documentNumber.markAsDirty();
+  }
+
+  /** Cambio serie: il numero si riallinea al progressivo di quella serie. */
+  protected onSeriesChange(value: string): void {
+    this.form.controls.series.setValue(value);
+    this.form.controls.series.markAsDirty();
+    this.form.controls.documentNumber.markAsPristine();
+    this.refreshNumberProposal();
+  }
+
+  /**
+   * Propone il primo numero libero della serie. Non tocca un valore digitato
+   * a mano: un numero imposto non sposta il progressivo.
+   */
+  private refreshNumberProposal(): void {
+    if (this.editDocumentId() || this.form.controls.documentNumber.dirty) {
+      return;
+    }
+    const series = (this.form.controls.series.value ?? '').trim();
+    this.documentService
+      .previewDocumentNumber(DocumentType.Transfer, series ? { series } : {})
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (preview) => {
+          if (!this.form.controls.documentNumber.dirty && preview.previewNumber != null) {
+            this.form.controls.documentNumber.setValue(preview.previewNumber);
+          }
+          if (preview.series && !(this.form.controls.series.value ?? '').trim()) {
+            this.form.controls.series.setValue(preview.series);
+          }
+        },
+        // Anteprima non disponibile: il server assegnerà comunque il numero.
+        error: () => undefined,
+      });
+  }
+
+  /** «Usa N»: prende il primo numero libero e risalva. */
+  protected confirmConflictNumber(): void {
+    const conflict = this.numberConflict();
+    this.conflictDialogOpen.set(false);
+    if (!conflict) {
+      return;
+    }
+    this.form.controls.documentNumber.setValue(conflict.nextAvailable);
+    this.form.controls.documentNumber.markAsDirty();
+    this.numberConflict.set(null);
+    this.saveDraft();
+  }
+
+  protected dismissConflictDialog(): void {
+    this.conflictDialogOpen.set(false);
+    this.numberConflict.set(null);
+  }
+
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
   protected readonly saving = computed(() => this._submitState().status === 'saving');
   protected readonly submitError = computed(() => {
@@ -412,6 +500,9 @@ export class TransferFormComponent {
       ? this.documentService.saveTransfer({
           id: editId!,
           documentDate: new Date(raw.documentDate).toISOString(),
+          // Numero imposto in testata: non sposta il progressivo della serie.
+          number: raw.documentNumber ?? undefined,
+          series: (raw.series ?? '').trim() || undefined,
           locationId: raw.locationId,
           targetLocationId: raw.targetLocationId,
           notes: raw.notes.trim() || undefined,
@@ -437,6 +528,14 @@ export class TransferFormComponent {
         void this.router.navigate([this.listPath, doc.id]);
       },
       error: (err: unknown) => {
+        // Numero già preso: il vincolo del database non ammette duplicati.
+        const conflict = documentNumberConflictOf(err);
+        if (conflict) {
+          this._submitState.set({ status: 'idle' });
+          this.numberConflict.set(conflict);
+          this.conflictDialogOpen.set(true);
+          return;
+        }
         this._submitState.set({ status: 'error', error: this.toAppError(err) });
       },
     });
@@ -487,6 +586,8 @@ export class TransferFormComponent {
       locationId: doc.locationId ?? '',
       targetLocationId: doc.targetLocationId ?? '',
       documentDate: doc.documentDate.slice(0, 10),
+      documentNumber: doc.number ?? null,
+      series: doc.series ?? '',
       notes: doc.notes ?? '',
       internalComment: doc.internalComment ?? '',
     });

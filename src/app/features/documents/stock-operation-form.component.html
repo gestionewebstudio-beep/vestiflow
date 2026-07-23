@@ -83,6 +83,16 @@
             [fullWidth]="true"
           />
         </div>
+
+        <!-- Identificativo del documento: Data + Numero + Serie. -->
+        <app-document-number-field
+          numberInputId="so-number"
+          [number]="form.controls.documentNumber.value"
+          [series]="form.controls.series.value"
+          [seriesOptions]="seriesOptions()"
+          (numberChange)="onDocumentNumberChange($event)"
+          (seriesChange)="onSeriesChange($event)"
+        />
       </div>
 
       <section class="gr-form__lines" aria-labelledby="so-lines-title">
@@ -228,3 +238,14 @@
     (confirmed)="confirmAndSave()"
   />
 </section>
+
+<!-- Numero già assegnato: si può solo prendere il primo libero o annullare. -->
+<app-confirm-dialog
+  [(open)]="conflictDialogOpen"
+  title="Numero già usato"
+  [message]="conflictMessage()"
+  [confirmLabel]="conflictConfirmLabel()"
+  cancelLabel="Annulla"
+  (confirmed)="confirmConflictNumber()"
+  (dismissed)="dismissConflictDialog()"
+/>

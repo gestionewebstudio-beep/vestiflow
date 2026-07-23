@@ -39,10 +39,9 @@ import {
 } from './document-supplier-order.util';
 import { applySupplierPriceUpdates } from './document-supplier-price.util';
 import {
+  buildDocumentNumberConflict,
   isDocumentNumberConflict,
-  nextDocumentNumber,
   resolveDocumentNumber,
-  type DocumentNumberConflict,
 } from './document-numbering.util';
 import {
   computeGoodsReceiptLines,
@@ -166,25 +165,17 @@ export class GoodsReceiptWorkflowService {
       return;
     }
     const setting = await this.settings.getResolved(tenantId, type);
-    const resolvedSeries = (series ?? setting.defaultSeries).trim() || 'A';
-    const year = new Date(documentDate).getFullYear();
-    const nextAvailable = await nextDocumentNumber({
-      tx: this.prisma,
-      tenantId,
-      type,
-      series: resolvedSeries,
-      year,
-      source: 'document',
-      prefix: setting.numberPrefix,
-    });
-    const payload: DocumentNumberConflict = {
-      code: 'document_number_taken',
-      number: nextAvailable - 1,
-      nextAvailable,
-      series: resolvedSeries,
-      year,
-    };
-    throw new ConflictException(payload);
+    throw new ConflictException(
+      await buildDocumentNumberConflict({
+        tx: this.prisma,
+        tenantId,
+        type,
+        series: (series ?? setting.defaultSeries).trim() || 'A',
+        year: new Date(documentDate).getFullYear(),
+        source: 'document',
+        prefix: setting.numberPrefix,
+      }),
+    );
   }
 
   private async saveGoodsReceiptInner(

@@ -69,6 +69,18 @@ export class SaveAdjustmentDto {
   @IsUUID()
   id!: string;
 
+  /** Serie del documento: il progressivo è per serie. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /** Numero imposto dalla testata; assente = si conserva quello già assegnato. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsISO8601()
   documentDate!: string;
 

@@ -253,6 +253,20 @@
                 />
               </div>
 
+              <!-- Identificativo VestiFlow: Numero + Serie accanto alla data.
+                   L'Ordine cliente non ha ancora una numerazione propria. -->
+              @if (!isOrder) {
+                <app-document-number-field
+                  numberInputId="co-number"
+                  [number]="form.controls.documentNumber.value"
+                  [series]="form.controls.series.value"
+                  [seriesOptions]="seriesOptions()"
+                  [disabled]="formReadOnly()"
+                  (numberChange)="onDocumentNumberChange($event)"
+                  (seriesChange)="onSeriesChange($event)"
+                />
+              }
+
               <!-- Preventivo e DDT vendita: nessuno stato documento in testata. -->
               @if (isOrder) {
                 <div class="gr-form__field">
@@ -2287,4 +2301,15 @@
   [message]="unlockDialogMessage()"
   confirmLabel="Sblocca e modifica"
   (confirmed)="confirmUnlockEdit()"
+/>
+
+<!-- Numero già assegnato: si può solo prendere il primo libero o annullare. -->
+<app-confirm-dialog
+  [(open)]="conflictDialogOpen"
+  title="Numero già usato"
+  [message]="conflictMessage()"
+  [confirmLabel]="conflictConfirmLabel()"
+  cancelLabel="Annulla"
+  (confirmed)="confirmConflictNumber()"
+  (dismissed)="dismissConflictDialog()"
 />

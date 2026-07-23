@@ -17,19 +17,6 @@
   gap: var(--space-2);
 }
 
-.gr-form__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.gr-form__back:hover {
-  color: var(--color-text);
-}
-
 // Titolo + stato/riferimento sulla stessa riga; il back e' il chip standard
 // con testo, identico a tutte le altre pagine (v5.1).
 .gr-form__head-row {

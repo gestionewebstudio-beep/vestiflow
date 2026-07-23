@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -31,6 +32,11 @@ import {
   canViewPurchaseCosts,
 } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError, type AppError } from '@core/models/app-error.model';
+import {
+  documentNumberConflictMessage,
+  documentNumberConflictOf,
+  type DocumentNumberConflict,
+} from '@core/models/document-number-conflict.util';
 import type { Money } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import {
@@ -113,6 +119,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -204,6 +211,7 @@ interface AvailabilityIssue {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentNumberFieldComponent,
     DocumentIncludePanelComponent,
     ProductFormComponent,
     EmptyStateComponent,
@@ -420,6 +428,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     documentDate: this.fb.control(toIsoDateLocal(new Date()), {
       validators: [Validators.required],
     }),
+    // Numero e serie del registro (Preventivo/DDT vendita/Scarico manuale):
+    // proposti dal numeratore, sovrascrivibili in testata.
+    documentNumber: this.fb.control<number | null>(null),
+    series: this.fb.control(''),
     externalRef: this.fb.control(''),
     expectedDeliveryDate: this.fb.control(''),
     status: this.fb.control<'confirmed' | 'cancelled'>('confirmed'),
@@ -670,6 +682,24 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       ? this.registryPreviewReference()
       : (this.meta()?.nextReferencePreview ?? null),
   );
+  // ── Numero documento (registro: Preventivo / DDT vendita / Scarico manuale) ──
+  /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
+  protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
+  protected readonly conflictDialogOpen = signal(false);
+  protected readonly conflictMessage = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? documentNumberConflictMessage(conflict) : '';
+  });
+  protected readonly conflictConfirmLabel = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
+  });
+  /** Serie configurate per il tipo: con una sola resta una label statica. */
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] => {
+    const current = (this.formValue().series ?? '').trim();
+    return current ? [{ value: current, label: current }] : [];
+  });
+
   protected readonly internalReferenceLabel = computed(() => {
     const saved = this.isRegistryDocument
       ? this.loadedQuoteDoc()?.reference
@@ -1016,6 +1046,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           this.recipientAutoFilled = false;
         }
       });
+
+    // Documento nuovo: la testata parte col primo numero libero della serie.
+    afterNextRender(() => {
+      if (!this.editOrderId()) {
+        this.refreshNumberProposal();
+      }
+    });
   }
 
   /** Alza il flag durante le patch programmatiche dell'intestatario. */
@@ -2956,6 +2993,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     const save$ = editId
       ? this.documentService.updateDocument(editId, {
           documentDate: value.documentDate,
+          // Numero imposto in testata: non sposta il progressivo della serie.
+          number: value.documentNumber ?? undefined,
+          series: (value.series ?? '').trim() || undefined,
           customerId: this.isManualUnload ? value.customerId || null : value.customerId,
           ...(this.isManualUnload ? { customerName: freeTextCustomer || null } : {}),
           locationId: value.locationId || undefined,
@@ -2972,6 +3012,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       : this.documentService.createDocument({
           type: this.registryDocumentType,
           documentDate: value.documentDate,
+          // Numero imposto in testata: non sposta il progressivo della serie.
+          number: value.documentNumber ?? undefined,
+          series: (value.series ?? '').trim() || undefined,
           customerId: this.isManualUnload ? value.customerId || undefined : value.customerId,
           ...(freeTextCustomer ? { customerName: freeTextCustomer } : {}),
           locationId: value.locationId || undefined,
@@ -3019,9 +3062,82 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         onSaved?.();
       },
       error: (err: unknown) => {
+        const conflict = documentNumberConflictOf(err);
+        if (conflict) {
+          // Numero già preso: si propone il primo libero invece dell'errore.
+          this.numberConflict.set(conflict);
+          this.conflictDialogOpen.set(true);
+          this._submitState.set({ status: 'idle' });
+          return;
+        }
         this._submitState.set({ status: 'error', error: this.toAppError(err) });
       },
     });
+  }
+
+  /** Numero digitato in testata: da qui in poi non si riallinea al progressivo. */
+  protected onDocumentNumberChange(value: number | null): void {
+    this.form.controls.documentNumber.setValue(value);
+    this.form.controls.documentNumber.markAsDirty();
+  }
+
+  /** Cambio serie: il progressivo è per serie, quindi si richiede la proposta. */
+  protected onSeriesChange(value: string): void {
+    this.form.controls.series.setValue(value);
+    this.form.controls.series.markAsDirty();
+    this.form.controls.documentNumber.markAsPristine();
+    this.refreshNumberProposal();
+  }
+
+  /**
+   * Propone il primo numero libero della serie. Solo in creazione e finché
+   * l'utente non ha digitato un numero suo.
+   */
+  private refreshNumberProposal(): void {
+    if (!this.isRegistryDocument || this.editOrderId() || this.form.controls.documentNumber.dirty) {
+      return;
+    }
+    const series = (this.form.controls.series.value ?? '').trim();
+    this.documentService
+      .previewDocumentNumber(this.registryDocumentType, series ? { series } : {})
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (preview) => {
+          // Proposta automatica: non è una modifica dell'utente, quindi non
+          // deve accendere l'avviso «Modifiche non salvate».
+          this.suppressDirtyMarking = true;
+          try {
+            if (!this.form.controls.documentNumber.dirty && preview.previewNumber != null) {
+              this.form.controls.documentNumber.setValue(preview.previewNumber);
+            }
+            if (preview.series && !(this.form.controls.series.value ?? '').trim()) {
+              this.form.controls.series.setValue(preview.series);
+            }
+          } finally {
+            this.suppressDirtyMarking = false;
+          }
+        },
+        // Anteprima non disponibile: il server assegnerà comunque il numero.
+        error: () => undefined,
+      });
+  }
+
+  /** «Usa N»: prende il primo numero libero e risalva. */
+  protected confirmConflictNumber(): void {
+    const conflict = this.numberConflict();
+    if (!conflict) {
+      return;
+    }
+    this.form.controls.documentNumber.setValue(conflict.nextAvailable);
+    this.form.controls.documentNumber.markAsDirty();
+    this.numberConflict.set(null);
+    this.conflictDialogOpen.set(false);
+    this.saveRegistryDocument();
+  }
+
+  protected dismissConflictDialog(): void {
+    this.numberConflict.set(null);
+    this.conflictDialogOpen.set(false);
   }
 
   /** POST creazione: i campi vuoti si omettono invece di inviare null. */
@@ -3044,6 +3160,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         customerFreeText: doc.customerId ? '' : (doc.customerName ?? ''),
         locationId: doc.locationId ?? '',
         documentDate: doc.documentDate.slice(0, 10),
+        documentNumber: doc.number ?? null,
+        series: doc.series ?? '',
         externalRef: doc.externalRef ?? '',
         expectedDeliveryDate: doc.expectedDeliveryDate?.slice(0, 10) ?? '',
         status: 'confirmed',

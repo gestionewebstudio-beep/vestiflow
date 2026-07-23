@@ -27,6 +27,15 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   @MaxLength(20)
   series?: string;
 
+  /**
+   * Numero imposto dalla testata. Riscrive numero e riferimento del documento;
+   * come in creazione, un numero imposto non sposta il progressivo della serie.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsOptional()
   @IsISO8601()
   documentDate?: string;
