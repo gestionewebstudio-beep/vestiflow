@@ -530,6 +530,8 @@ export interface SaveGoodsReceiptBody {
   readonly id?: EntityId;
   readonly type: DocumentType;
   readonly series?: string;
+  /** Protocollo interno imposto: assente = primo libero della serie. */
+  readonly number?: number;
   readonly documentDate: IsoDateString;
   readonly supplierId?: EntityId;
   readonly locationId?: EntityId;
@@ -621,6 +623,9 @@ export interface SavePurchaseInvoiceBody {
   readonly documentDate: IsoDateString;
   /** Data registrazione interna (default oggi, modificabile). */
   readonly registrationDate?: IsoDateString;
+  /** Protocollo interno imposto: assente = primo libero della serie. */
+  readonly number?: number;
+  readonly series?: string;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
   readonly notes?: string;

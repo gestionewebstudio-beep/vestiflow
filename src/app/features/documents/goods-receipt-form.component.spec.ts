@@ -17,6 +17,7 @@ import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-
 
 import { GoodsReceiptFormComponent } from './goods-receipt-form.component';
 import { DocumentService } from './services/document.service';
+import { DocumentSettingsService } from './services/document-settings.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
 
 const MILANO = { id: 'loc-1', name: 'Milano' };
@@ -80,10 +81,13 @@ describe('GoodsReceiptFormComponent', () => {
           provide: DocumentService,
           useValue: {
             getDocumentById: vi.fn(),
-            previewDocumentNumber: () => of({ reference: 'AM-2026-0001' }),
+            previewDocumentNumber: () =>
+              of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
             saveGoodsReceipt: vi.fn(),
           },
         },
+        // Serie del protocollo: una sola configurata → label statica.
+        { provide: DocumentSettingsService, useValue: { getSettings: () => of([]) } },
         { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
         {
           provide: SupplierService,

@@ -9,6 +9,7 @@ import { SupplierService } from '@features/suppliers/services/supplier.service';
 
 import { PurchaseInvoiceFormComponent } from './purchase-invoice-form.component';
 import { DocumentService } from './services/document.service';
+import { DocumentSettingsService } from './services/document-settings.service';
 import type { LinkableGoodsReceipt } from './models/goods-receipt-causal.model';
 
 const SUPPLIERS = [{ id: 'sup-1', name: 'ACME Forniture' }];
@@ -73,6 +74,11 @@ describe('PurchaseInvoiceFormComponent', () => {
           useValue: { list: () => of([]) },
         },
         { provide: DocumentService, useValue: documentService },
+        // Serie del protocollo: una sola configurata → label statica.
+        {
+          provide: DocumentSettingsService,
+          useValue: { getSettings: () => of([]) },
+        },
       ],
     });
 

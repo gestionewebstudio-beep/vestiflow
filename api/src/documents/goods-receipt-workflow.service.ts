@@ -38,7 +38,6 @@ import {
   reconcileSupplierOrderReceipt,
 } from './document-supplier-order.util';
 import { applySupplierPriceUpdates } from './document-supplier-price.util';
-import { formatDocumentReference } from './document-totals.util';
 import {
   isDocumentNumberConflict,
   nextDocumentNumber,
@@ -866,12 +865,18 @@ export class GoodsReceiptWorkflowService {
       }
 
       const supplierName = await this.snapshotSupplierName(tx, tenantId, dto.supplierId);
-      const series = (existing?.series ?? setting.defaultSeries).trim() || 'A';
+      // Serie scelta in testata; in mancanza resta quella del documento o la
+      // predefinita del tipo.
+      const series = (dto.series ?? existing?.series ?? setting.defaultSeries).trim() || 'A';
       const year = documentDate.getFullYear();
 
       let number = existing?.number ?? null;
       let reference = existing?.reference ?? null;
-      if (number == null) {
+      // Protocollo assente (nuovo documento), imposto a mano o serie cambiata:
+      // si (ri)assegna. Un numero imposto non sposta il progressivo di serie.
+      const protocolChanged = dto.number != null && dto.number !== number;
+      const seriesChanged = existing != null && series !== existing.series;
+      if (number == null || protocolChanged || seriesChanged) {
         const assigned = await resolveDocumentNumber({
           tx,
           tenantId,

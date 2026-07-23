@@ -21,6 +21,7 @@
             [class.doc-table__cell--numeric]="col.numeric"
             [class.doc-table__cell--lines]="col.id === 'lineCount'"
             [class.doc-table__cell--total]="col.id === 'total'"
+            [attr.title]="col.headerTooltip || null"
           >
             {{ col.label }}
           </th>

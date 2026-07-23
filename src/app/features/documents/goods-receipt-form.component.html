@@ -14,13 +14,9 @@
           <app-badge [tone]="statusDisplayTone()!">{{ label }}</app-badge>
         }
         @if (internalReferenceLabel(); as ref) {
-          <span class="gr-form__internal-ref tabular-nums">N. interno: {{ ref }}</span>
+          <span class="gr-form__internal-ref tabular-nums">Protocollo: {{ ref }}</span>
         }
       </div>
-    } @else if (internalReferenceLabel(); as ref) {
-      <p class="gr-form__preview-ref tabular-nums">
-        Prossimo numero interno (anteprima): <strong>{{ ref }}</strong>
-      </p>
     }
   </div>
 
@@ -196,21 +192,14 @@
               }
             </div>
 
-            <div class="gr-form__field gr-form__field--end-md">
-              <label class="gr-form__label" for="gr-date">Data registrazione</label>
-              <app-date-input
-                inputId="gr-date"
-                formControlName="documentDate"
-                ariaLabel="Data registrazione"
-                [compact]="true"
-                [fullWidth]="true"
-              />
-            </div>
-
             <!-- Gate compilazione: i dati del documento fornitore si sbloccano
                  solo dopo fornitore + magazzino (display: contents per non
                  rompere la griglia della testata). -->
             <fieldset class="gr-form__gate-fields" [disabled]="headerGateActive()">
+              <!-- Blocco «Documento fornitore»: i dati letti dal documento
+                   cartaceo/PDF del fornitore, non la nostra numerazione. -->
+              <p class="gr-form__block-title">Documento fornitore</p>
+
               <div class="gr-form__field">
                 <span class="gr-form__label">Tipo di documento</span>
                 <app-select-menu
@@ -246,6 +235,33 @@
                   [fullWidth]="true"
                 />
               </div>
+
+              <!-- Blocco «Registrazione VestiFlow»: i dati interni nostri. Il
+                   protocollo è il numero di catalogazione, non quello del
+                   fornitore (che sta nel blocco sopra). -->
+              <p class="gr-form__block-title">Registrazione VestiFlow</p>
+
+              <div class="gr-form__field gr-form__field--end-md">
+                <label class="gr-form__label" for="gr-date">Data registrazione</label>
+                <app-date-input
+                  inputId="gr-date"
+                  formControlName="documentDate"
+                  ariaLabel="Data registrazione"
+                  [compact]="true"
+                  [fullWidth]="true"
+                />
+              </div>
+
+              <app-document-number-field
+                numberLabel="Protocollo"
+                numberInputId="gr-protocol"
+                hint="Numero interno di catalogazione."
+                [number]="form.controls.protocolNumber.value"
+                [series]="form.controls.series.value"
+                [seriesOptions]="seriesOptions()"
+                (numberChange)="onProtocolNumberChange($event)"
+                (seriesChange)="onSeriesChange($event)"
+              />
 
               <div class="gr-form__field">
                 <span class="gr-form__label">Pagamento</span>
@@ -2079,3 +2095,16 @@
     />
   }
 </app-slide-panel>
+
+<!-- Protocollo già assegnato: il vincolo del database non ammette duplicati,
+     quindi si può solo prendere il primo libero oppure annullare. -->
+<app-confirm-dialog
+  [(open)]="conflictDialogOpen"
+  title="Protocollo già usato"
+  [message]="conflictMessage()"
+  [confirmLabel]="conflictConfirmLabel()"
+  cancelLabel="Annulla"
+  [busy]="saving()"
+  (confirmed)="confirmConflictNumber()"
+  (dismissed)="dismissConflictDialog()"
+/>

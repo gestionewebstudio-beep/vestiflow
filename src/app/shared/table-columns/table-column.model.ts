@@ -49,6 +49,8 @@ export const TABLE_VIEW_PRESET_LABELS: Record<TableViewPresetId, string> = {
 export interface TableColumnDef {
   readonly id: string;
   readonly label: string;
+  /** Spiegazione mostrata al passaggio del mouse su un'intestazione abbreviata. */
+  readonly headerTooltip?: string;
   readonly numeric?: boolean;
   /** Colonna visibile di default se nessuna preferenza salvata. */
   readonly defaultVisible?: boolean;

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  afterNextRender,
   computed,
   inject,
   signal,
@@ -20,9 +21,15 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import type { AppError } from '@core/models/app-error.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import {
+  documentNumberConflictMessage,
+  documentNumberConflictOf,
+  type DocumentNumberConflict,
+} from '@core/models/document-number-conflict.util';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import type { Money } from '@core/models/common.model';
 import { DocumentType } from '@core/models/document.model';
+import type { DocumentTypeSetting } from '@core/models/document.model';
 import type { DocumentRecord, GoodsReceiptVatBreakdownEntry } from '@core/models/document.model';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import type { Supplier } from '@core/models/supplier.model';
@@ -42,6 +49,8 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -49,6 +58,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import type { LinkableGoodsReceipt } from './models/goods-receipt-causal.model';
 import { DocumentService } from './services/document.service';
+import { DocumentSettingsService } from './services/document-settings.service';
 import type {
   PurchaseInvoiceInstallmentBody,
   PurchaseInvoiceManualLineBody,
@@ -135,7 +145,9 @@ function parseRatePercent(value: string): number | null {
     BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
+    ConfirmDialogComponent,
     DateInputComponent,
+    DocumentNumberFieldComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     SelectMenuComponent,
@@ -148,6 +160,7 @@ function parseRatePercent(value: string): number | null {
 export class PurchaseInvoiceFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
+  private readonly documentSettingsService = inject(DocumentSettingsService);
   private readonly supplierService = inject(SupplierService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
@@ -155,6 +168,14 @@ export class PurchaseInvoiceFormComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
+    // Nuova registrazione: il protocollo proposto è il primo libero della
+    // serie predefinita (in modifica resta quello già assegnato).
+    afterNextRender(() => {
+      if (!this.isEditMode()) {
+        this.refreshProtocolProposal();
+      }
+    });
+
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
       id: this.editDocumentId() || null,
@@ -182,6 +203,9 @@ export class PurchaseInvoiceFormComponent {
     externalDocNumber: this.fb.control(''),
     /** Data registrazione interna: default oggi, modificabile. */
     registrationDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
+    /** Protocollo interno: proposto dal progressivo di serie, editabile. */
+    protocolNumber: this.fb.control<number | null>(null),
+    series: this.fb.control(''),
     internalComment: this.fb.control(''),
     paymentMethod: this.fb.control(''),
     notes: this.fb.control(''),
@@ -212,6 +236,41 @@ export class PurchaseInvoiceFormComponent {
 
   private readonly loadedDocument = signal<DocumentRecord | null>(null);
   protected readonly loadedReference = computed(() => this.loadedDocument()?.reference ?? null);
+
+  // ── Protocollo interno (numerazione VestiFlow) ─────────────────────────────
+
+  /**
+   * Serie configurate per la Registrazione fattura. Oggi il tipo documento
+   * espone una sola serie predefinita: il campo resta una label statica finché
+   * non se ne configurano altre.
+   */
+  private readonly documentSettings = toSignal(
+    this.documentSettingsService.getSettings().pipe(catchError(() => of([]))),
+    { initialValue: [] as readonly DocumentTypeSetting[] },
+  );
+
+  private readonly purchaseInvoiceSetting = computed(() =>
+    this.documentSettings().find((setting) => setting.type === DocumentType.SupplierInvoice),
+  );
+
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] => {
+    const configured = this.purchaseInvoiceSetting()?.defaultSeries?.trim();
+    const current = this.form.controls.series.value.trim();
+    const values = [...new Set([configured, current].filter((value): value is string => !!value))];
+    return values.map((value) => ({ value, label: value }));
+  });
+
+  /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
+  protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
+  protected readonly conflictDialogOpen = signal(false);
+  protected readonly conflictMessage = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? documentNumberConflictMessage(conflict) : '';
+  });
+  protected readonly conflictConfirmLabel = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
+  });
 
   /** Arrivi merce inclusi (righe riepilogative, prompt §5.2). */
   protected readonly includedReceipts = signal<readonly IncludedReceiptRow[]>([]);
@@ -402,6 +461,65 @@ export class PurchaseInvoiceFormComponent {
   protected readonly loading = computed(() => this.loadState() === 'loading');
   protected readonly loadError = computed(() => this.loadState() === 'error');
   protected readonly notFound = computed(() => this.loadState() === 'not-found');
+
+  /** Protocollo digitato in testata: mai sotto 1, vuoto = «assegna tu». */
+  protected onProtocolNumberChange(value: number | null): void {
+    this.form.controls.protocolNumber.setValue(value);
+    this.form.controls.protocolNumber.markAsDirty();
+  }
+
+  /** Cambio serie: il protocollo si riallinea al progressivo di quella serie. */
+  protected onSeriesChange(value: string): void {
+    this.form.controls.series.setValue(value);
+    this.form.controls.series.markAsDirty();
+    this.form.controls.protocolNumber.markAsPristine();
+    this.refreshProtocolProposal();
+  }
+
+  /**
+   * Propone il primo protocollo libero della serie. Non tocca un valore
+   * digitato a mano (control «dirty»): quello è una scelta dell'operatore.
+   */
+  private refreshProtocolProposal(): void {
+    if (this.isEditMode() || this.form.controls.protocolNumber.dirty) {
+      return;
+    }
+    const series = this.form.controls.series.value.trim();
+    this.documentService
+      .previewDocumentNumber(DocumentType.SupplierInvoice, series ? { series } : {})
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (preview) => {
+          // L'anteprima è una proposta: valori mancanti non devono azzerare
+          // il campo (resterebbe un protocollo vuoto senza spiegazione).
+          if (!this.form.controls.protocolNumber.dirty && preview.previewNumber != null) {
+            this.form.controls.protocolNumber.setValue(preview.previewNumber);
+          }
+          if (preview.series && !(this.form.controls.series.value ?? '').trim()) {
+            this.form.controls.series.setValue(preview.series);
+          }
+        },
+        // Anteprima non disponibile: il server assegnerà comunque il numero.
+        error: () => undefined,
+      });
+  }
+
+  /** «Usa N»: prende il primo protocollo libero e risalva. */
+  protected confirmConflictNumber(): void {
+    const conflict = this.numberConflict();
+    this.conflictDialogOpen.set(false);
+    if (!conflict) {
+      return;
+    }
+    this.form.controls.protocolNumber.setValue(conflict.nextAvailable);
+    this.numberConflict.set(null);
+    this.save();
+  }
+
+  protected dismissConflictDialog(): void {
+    this.conflictDialogOpen.set(false);
+    this.numberConflict.set(null);
+  }
 
   protected reload(): void {
     this.loadTick.update((tick) => tick + 1);
@@ -772,6 +890,9 @@ export class PurchaseInvoiceFormComponent {
           vatNumber: raw.recipient.vatNumber.trim() || undefined,
         },
         currency: this.currency,
+        // Protocollo imposto a mano: non sposta il progressivo della serie.
+        number: raw.protocolNumber ?? undefined,
+        series: (raw.series ?? '').trim() || undefined,
         goodsReceiptIds: this.includedReceipts().map((row) => row.id),
         manualLines,
         installments,
@@ -783,6 +904,15 @@ export class PurchaseInvoiceFormComponent {
           void this.router.navigateByUrl(this.listPath);
         },
         error: (err: unknown) => {
+          // Protocollo già preso: il vincolo del database non ammette
+          // duplicati, si può solo prendere il primo libero o correggere.
+          const conflict = documentNumberConflictOf(err);
+          if (conflict) {
+            this._submitState.set({ status: 'idle' });
+            this.numberConflict.set(conflict);
+            this.conflictDialogOpen.set(true);
+            return;
+          }
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
         },
       });
@@ -799,6 +929,8 @@ export class PurchaseInvoiceFormComponent {
       documentDate: doc.documentDate.slice(0, 10),
       externalDocNumber: doc.externalDocNumber ?? '',
       registrationDate: doc.registrationDate ? doc.registrationDate.slice(0, 10) : todayIsoDate(),
+      protocolNumber: doc.number ?? null,
+      series: doc.series ?? '',
       internalComment: doc.internalComment ?? '',
       paymentMethod: doc.paymentMethod ?? '',
       notes: doc.notes ?? '',

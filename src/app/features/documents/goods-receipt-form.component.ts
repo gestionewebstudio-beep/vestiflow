@@ -37,7 +37,7 @@ import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
 import type { LinkedSupplierOrderLineContext } from '@core/models/document.model';
 import { CausalGenerationMode, DocumentStatus, DocumentType } from '@core/models/document.model';
-import type { DocumentRecord } from '@core/models/document.model';
+import type { DocumentRecord, DocumentTypeSetting } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import { COMMON_UNIT_OF_MEASURE } from '@core/models/product-catalog.model';
 import {
@@ -61,6 +61,11 @@ import {
   parseMoneyInput,
 } from '@core/utils/money.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import {
+  documentNumberConflictMessage,
+  documentNumberConflictOf,
+  type DocumentNumberConflict,
+} from '@core/models/document-number-conflict.util';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
 import type { Supplier } from '@core/models/supplier.model';
@@ -82,6 +87,7 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -122,6 +128,7 @@ import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util
 import { renderCausalTemplate } from './models/causal-template.util';
 import type { ExternalDocumentType } from './models/external-document-type.model';
 import { DocumentService } from './services/document.service';
+import { DocumentSettingsService } from './services/document-settings.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
 import type {
   GoodsReceiptCreatedProductApiRow,
@@ -209,6 +216,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentNumberFieldComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -234,6 +242,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
 export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
+  private readonly documentSettingsService = inject(DocumentSettingsService);
   private readonly externalTypeService = inject(ExternalDocumentTypeService);
   private readonly supplierService = inject(SupplierService);
   private readonly supplierOrderService = inject(SupplierOrderService);
@@ -307,6 +316,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   );
 
   protected readonly previewReference = signal<string | null>(null);
+
+  /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
+  protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
+  protected readonly conflictDialogOpen = signal(false);
+  protected readonly conflictMessage = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? documentNumberConflictMessage(conflict) : '';
+  });
+  protected readonly conflictConfirmLabel = computed(() => {
+    const conflict = this.numberConflict();
+    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
+  });
   protected readonly editUnlocked = signal(false);
   /** Evita il lock immediato dopo auto-save che crea il documento e cambia route. */
   private readonly preserveEditSession = signal(false);
@@ -509,6 +530,30 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return doc.reference;
     }
     return this.previewReference();
+  });
+
+  /**
+   * Serie configurate per il tipo in testata. Oggi il tipo documento espone
+   * una sola serie predefinita: il campo resta una label statica finché non
+   * se ne configurano altre.
+   */
+  /** Impostazioni per tipo documento: da qui arriva la serie predefinita. */
+  private readonly documentSettingsList = toSignal(
+    this.documentSettingsService.getSettings().pipe(catchError(() => of([]))),
+    { initialValue: [] as readonly DocumentTypeSetting[] },
+  );
+
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] => {
+    // Il valore reattivo del form è parziale finché il gruppo non è pronto:
+    // si legge da lì con fallback, mai dai control direttamente.
+    const value = this.formValue();
+    const type = value?.type ?? this.form.controls.type.value;
+    const configured = this.documentSettingsList()
+      .find((setting) => setting.type === type)
+      ?.defaultSeries?.trim();
+    const current = (value?.series ?? '').trim();
+    const values = [...new Set([configured, current].filter((entry): entry is string => !!entry))];
+    return values.map((entry) => ({ value: entry, label: entry }));
   });
 
   /**
@@ -736,6 +781,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     externalDocumentTypeId: this.fb.control(''),
     externalDocNumber: this.fb.control(''),
     externalDocDate: this.fb.control(''),
+    /** Protocollo interno: proposto dal progressivo di serie, editabile. */
+    protocolNumber: this.fb.control<number | null>(null),
+    series: this.fb.control(''),
     causalText: this.fb.control(''),
     notes: this.fb.control(''),
     internalComment: this.fb.control(''),
@@ -4202,9 +4250,36 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.trimDuplicateTrailingEmptyRows();
         },
         error: (err: unknown) => {
+          // Protocollo già preso: il vincolo del database non ammette
+          // duplicati, si può solo prendere il primo libero o correggere.
+          const conflict = documentNumberConflictOf(err);
+          if (conflict) {
+            this._submitState.set({ status: 'idle' });
+            this.numberConflict.set(conflict);
+            this.conflictDialogOpen.set(true);
+            return;
+          }
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
         },
       });
+  }
+
+  /** «Usa N»: prende il primo protocollo libero e risalva. */
+  protected confirmConflictNumber(): void {
+    const conflict = this.numberConflict();
+    this.conflictDialogOpen.set(false);
+    if (!conflict) {
+      return;
+    }
+    this.form.controls.protocolNumber.setValue(conflict.nextAvailable);
+    this.form.controls.protocolNumber.markAsDirty();
+    this.numberConflict.set(null);
+    this.requestSaveDocument();
+  }
+
+  protected dismissConflictDialog(): void {
+    this.conflictDialogOpen.set(false);
+    this.numberConflict.set(null);
   }
 
   private reloadSupplierVariantLinks(supplierId: string): void {
@@ -4312,6 +4387,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       billingCause: raw.invoicePending ? 'In attesa fattura' : raw.billingCause.trim() || undefined,
       externalDocNumber: raw.externalDocNumber.trim() || undefined,
       externalDocDate: raw.externalDocDate || undefined,
+      // Protocollo imposto a mano: non sposta il progressivo della serie.
+      number: raw.protocolNumber ?? undefined,
+      series: (raw.series ?? '').trim() || undefined,
       ...(supplierOrderId ? { supplierOrderId } : {}),
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       purchaseCostEntryMode: this.costEntryMode(),
@@ -4561,6 +4639,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
       externalDocNumber: doc.externalDocNumber ?? '',
       externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
+      protocolNumber: doc.number ?? null,
+      series: doc.series ?? '',
       causalText: doc.causalText ?? '',
       notes: doc.notes ?? '',
       internalComment: doc.internalComment ?? '',
@@ -4690,9 +4770,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     control.updateValueAndValidity({ emitEvent: false });
   }
 
+  /**
+   * Propone il primo protocollo libero della serie. Non tocca un valore
+   * digitato a mano (control «dirty»): quello è una scelta dell'operatore, e
+   * un protocollo imposto non sposta il progressivo della serie.
+   */
   private refreshNumberPreview(): void {
-    if (this.loadedDocument()?.reference) {
-      this.previewReference.set(null);
+    if (this.loadedDocument()?.reference || this.form.controls.protocolNumber.dirty) {
       return;
     }
     const type = this.form.controls.type.value;
@@ -4700,13 +4784,38 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // slittamenti di fuso orario con new Date().
     const yearRaw = Number(this.form.controls.documentDate.value.slice(0, 4));
     const year = Number.isFinite(yearRaw) && yearRaw > 0 ? yearRaw : new Date().getFullYear();
+    const series = this.form.controls.series.value.trim();
     this.documentService
-      .previewDocumentNumber(type, { year })
+      .previewDocumentNumber(type, series ? { year, series } : { year })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (preview) => this.previewReference.set(preview.reference),
-        error: () => this.previewReference.set(null),
+        next: (preview) => {
+          // L'anteprima è una proposta: valori mancanti non devono azzerare
+          // il campo (resterebbe un protocollo vuoto senza spiegazione).
+          if (!this.form.controls.protocolNumber.dirty && preview.previewNumber != null) {
+            this.form.controls.protocolNumber.setValue(preview.previewNumber);
+          }
+          if (preview.series && !(this.form.controls.series.value ?? '').trim()) {
+            this.form.controls.series.setValue(preview.series);
+          }
+        },
+        // Anteprima non disponibile: il server assegnerà comunque il numero.
+        error: () => undefined,
       });
+  }
+
+  /** Protocollo digitato in testata: vuoto = «assegnalo tu». */
+  protected onProtocolNumberChange(value: number | null): void {
+    this.form.controls.protocolNumber.setValue(value);
+    this.form.controls.protocolNumber.markAsDirty();
+  }
+
+  /** Cambio serie: il protocollo si riallinea al progressivo di quella serie. */
+  protected onSeriesChange(value: string): void {
+    this.form.controls.series.setValue(value);
+    this.form.controls.series.markAsDirty();
+    this.form.controls.protocolNumber.markAsPristine();
+    this.refreshNumberPreview();
   }
 
   private toAppError(err: unknown): AppError {

@@ -419,8 +419,7 @@
   gap: var(--space-3);
 }
 
-.gr-form__internal-ref,
-.gr-form__preview-ref {
+.gr-form__internal-ref {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
@@ -1496,4 +1495,16 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
+}
+
+// Testata categoria B: intestazione dei due blocchi (documento del fornitore
+// vs registrazione nostra). Occupa l'intera riga della griglia.
+.gr-form__block-title {
+  grid-column: 1 / -1;
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
 }

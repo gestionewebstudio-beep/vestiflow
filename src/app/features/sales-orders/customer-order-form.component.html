@@ -15,10 +15,6 @@
           <span class="gr-form__internal-ref tabular-nums">N. documento: {{ ref }}</span>
         }
       </div>
-    } @else if (internalReferenceLabel(); as ref) {
-      <p class="gr-form__preview-ref tabular-nums">
-        Prossimo numero documento (anteprima): <strong>{{ ref }}</strong>
-      </p>
     }
 
     <!-- Stato di salvataggio in coda alla riga del titolo (mockup v3). -->
@@ -293,6 +289,11 @@
                     [placeholder]="isManualUnload ? 'Es. campionario fiera' : 'Es. PO-2026-15'"
                     autocomplete="off"
                   />
+                  @if (!isQuote && !isManualUnload) {
+                    <!-- Il numero con cui il CLIENTE identifica l'ordine: resta
+                         distinto dal nostro numero documento. -->
+                    <p class="gr-form__hint">Numero dell'ordine dalla parte del cliente.</p>
+                  }
                 </div>
               } @else {
                 <div class="gr-form__field">

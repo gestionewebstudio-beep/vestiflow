@@ -372,3 +372,24 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
 }
+
+// Testata a due blocchi (categoria B): il numero contabile è quello del
+// fornitore, il protocollo è nostro — separarli evita di confonderli.
+.pi-form__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.pi-form__block-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide, 0.04em);
+}

@@ -32,74 +32,93 @@
         </p>
       }
 
-      <!-- ── Testata ─────────────────────────────────────────────────────── -->
-      <div class="pi-form__grid">
-        <div class="pi-form__field">
-          <span class="pi-form__label" id="pi-supplier-label">Fornitore</span>
-          <app-select-menu
-            [options]="supplierOptions()"
-            [value]="form.controls.supplierId.value"
-            ariaLabel="Fornitore"
-            placeholder="Seleziona fornitore…"
-            [compact]="true"
-            [fullWidth]="true"
-            [searchable]="true"
-            searchPlaceholder="Cerca fornitore…"
-            searchAriaLabel="Cerca fornitore"
-            [invalid]="fieldInvalid('supplierId')"
-            describedBy="pi-supplier-error"
-            (valueChange)="onSupplierSelect($event)"
-          />
-          @if (fieldInvalid('supplierId')) {
-            <p id="pi-supplier-error" class="pi-form__error">Seleziona un fornitore.</p>
-          }
-        </div>
+      <!-- ── Documento fornitore: i dati letti dalla fattura ricevuta ────── -->
+      <section class="pi-form__block" aria-labelledby="pi-supplier-doc-title">
+        <h2 id="pi-supplier-doc-title" class="pi-form__block-title">Documento fornitore</h2>
+        <div class="pi-form__grid">
+          <div class="pi-form__field">
+            <span class="pi-form__label" id="pi-supplier-label">Fornitore</span>
+            <app-select-menu
+              [options]="supplierOptions()"
+              [value]="form.controls.supplierId.value"
+              ariaLabel="Fornitore"
+              placeholder="Seleziona fornitore…"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca fornitore…"
+              searchAriaLabel="Cerca fornitore"
+              [invalid]="fieldInvalid('supplierId')"
+              describedBy="pi-supplier-error"
+              (valueChange)="onSupplierSelect($event)"
+            />
+            @if (fieldInvalid('supplierId')) {
+              <p id="pi-supplier-error" class="pi-form__error">Seleziona un fornitore.</p>
+            }
+          </div>
 
-        <div class="pi-form__field">
-          <label class="pi-form__label" for="pi-doc-date">Data documento</label>
-          <app-date-input
-            inputId="pi-doc-date"
-            formControlName="documentDate"
-            ariaLabel="Data documento (data della fattura del fornitore)"
-            [compact]="true"
-            [fullWidth]="true"
-          />
-          <p class="pi-form__hint">Data della fattura ricevuta dal fornitore.</p>
-        </div>
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-doc-date">Data fattura</label>
+            <app-date-input
+              inputId="pi-doc-date"
+              formControlName="documentDate"
+              ariaLabel="Data della fattura del fornitore"
+              [compact]="true"
+              [fullWidth]="true"
+            />
+          </div>
 
-        <div class="pi-form__field">
-          <label class="pi-form__label" for="pi-ext-num">Numero fattura</label>
-          <input
-            id="pi-ext-num"
-            class="pi-form__input"
-            type="text"
-            formControlName="externalDocNumber"
-            placeholder="Es. 58/2026"
-          />
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-ext-num">N. fattura</label>
+            <input
+              id="pi-ext-num"
+              class="pi-form__input"
+              type="text"
+              formControlName="externalDocNumber"
+              placeholder="Es. 58/2026"
+            />
+          </div>
         </div>
+      </section>
 
-        <div class="pi-form__field">
-          <label class="pi-form__label" for="pi-reg-date">Data registrazione</label>
-          <app-date-input
-            inputId="pi-reg-date"
-            formControlName="registrationDate"
-            ariaLabel="Data registrazione"
-            [compact]="true"
-            [fullWidth]="true"
-          />
-        </div>
+      <!-- ── Registrazione VestiFlow: i nostri dati interni ──────────────── -->
+      <section class="pi-form__block" aria-labelledby="pi-registration-title">
+        <h2 id="pi-registration-title" class="pi-form__block-title">Registrazione VestiFlow</h2>
+        <div class="pi-form__grid">
+          <div class="pi-form__field">
+            <label class="pi-form__label" for="pi-reg-date">Data registrazione</label>
+            <app-date-input
+              inputId="pi-reg-date"
+              formControlName="registrationDate"
+              ariaLabel="Data registrazione"
+              [compact]="true"
+              [fullWidth]="true"
+            />
+          </div>
 
-        <div class="pi-form__field pi-form__field--wide">
-          <label class="pi-form__label" for="pi-comment">Commento interno</label>
-          <input
-            id="pi-comment"
-            class="pi-form__input"
-            type="text"
-            formControlName="internalComment"
-            placeholder="Nota interna, mai in stampa"
+          <app-document-number-field
+            numberLabel="Protocollo"
+            numberInputId="pi-protocol"
+            hint="Numero interno di catalogazione, non quello del fornitore."
+            [number]="form.controls.protocolNumber.value"
+            [series]="form.controls.series.value"
+            [seriesOptions]="seriesOptions()"
+            (numberChange)="onProtocolNumberChange($event)"
+            (seriesChange)="onSeriesChange($event)"
           />
+
+          <div class="pi-form__field pi-form__field--wide">
+            <label class="pi-form__label" for="pi-comment">Commento interno</label>
+            <input
+              id="pi-comment"
+              class="pi-form__input"
+              type="text"
+              formControlName="internalComment"
+              placeholder="Nota interna, mai in stampa"
+            />
+          </div>
         </div>
-      </div>
+      </section>
 
       <!-- ── Arrivi merce inclusi ─────────────────────────────────────────── -->
       <section class="pi-form__receipts" aria-labelledby="pi-receipts-title">
@@ -570,3 +589,16 @@
     </div>
   }
 </app-slide-panel>
+
+<!-- Protocollo già assegnato: il vincolo del database non ammette duplicati,
+     quindi si può solo prendere il primo libero oppure annullare. -->
+<app-confirm-dialog
+  [(open)]="conflictDialogOpen"
+  title="Protocollo già usato"
+  [message]="conflictMessage()"
+  [confirmLabel]="conflictConfirmLabel()"
+  cancelLabel="Annulla"
+  [busy]="saving()"
+  (confirmed)="confirmConflictNumber()"
+  (dismissed)="dismissConflictDialog()"
+/>

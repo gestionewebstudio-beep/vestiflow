@@ -76,6 +76,12 @@ export class SavePurchaseInvoiceDto {
   @Min(1)
   number?: number;
 
+  /** Serie del protocollo; assente = serie predefinita del tipo. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  series?: string;
+
   /** Data documento: la data della fattura ricevuta dal fornitore. */
   @IsISO8601()
   documentDate!: string;

@@ -141,6 +141,14 @@ function presetsWithoutColumn(presets: TableViewPresetMap, columnId: string): Ta
 export const PURCHASE_INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'documentDate', label: 'Data documento', pinnable: true, defaultVisible: true },
   { id: 'registrationDate', label: 'Data registrazione', defaultVisible: true },
+  // «N.» è il protocollo interno, da non confondere con il numero della
+  // fattura del fornitore (colonna accanto).
+  {
+    id: 'reference',
+    label: 'N.',
+    headerTooltip: 'Protocollo: numero interno di catalogazione VestiFlow',
+    defaultVisible: true,
+  },
   { id: 'counterparty', label: 'Fornitore', defaultVisible: true },
   { id: 'invoiceNumber', label: 'N. fattura', defaultVisible: true },
   { id: 'notes', label: 'Commento', defaultVisible: true },
@@ -153,6 +161,7 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
     'documentDate',
     'registrationDate',
+    'reference',
     'counterparty',
     'invoiceNumber',
     'notes',
@@ -160,7 +169,13 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'outstanding',
     'paymentMethod',
   ],
-  [TableViewPresetId.Warehouse]: ['documentDate', 'counterparty', 'invoiceNumber', 'notes'],
+  [TableViewPresetId.Warehouse]: [
+    'documentDate',
+    'reference',
+    'counterparty',
+    'invoiceNumber',
+    'notes',
+  ],
   [TableViewPresetId.Accountant]: [
     'documentDate',
     'registrationDate',
@@ -243,7 +258,13 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   // Colonne visibili di default (ordine di lettura della riga).
   { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
-  { id: 'reference', label: 'N.', defaultVisible: true },
+  // «N.» è il protocollo interno, non il numero del documento fornitore.
+  {
+    id: 'reference',
+    label: 'N.',
+    headerTooltip: 'Protocollo: numero interno di catalogazione VestiFlow',
+    defaultVisible: true,
+  },
   { id: 'counterparty', label: 'Soggetto', defaultVisible: true },
   { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
   { id: 'total', label: 'Tot. documento', numeric: true, defaultVisible: true },
