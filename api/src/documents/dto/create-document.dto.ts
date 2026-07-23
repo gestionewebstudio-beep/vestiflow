@@ -105,6 +105,15 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @MaxLength(20)
   series?: string;
 
+  /**
+   * Numero imposto dalla testata: assente = primo libero della serie assegnato
+   * alla conferma. Un numero imposto non sposta il progressivo.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsISO8601()
   documentDate!: string;
 

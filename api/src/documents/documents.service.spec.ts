@@ -254,6 +254,38 @@ describe('DocumentsService', () => {
       expect(prisma.document.create).not.toHaveBeenCalled();
     });
 
+    // Numero imposto dalla testata (categoria A): si assegna già in bozza,
+    // con il riferimento coerente. Senza numero resta null e lo assegna la
+    // conferma prendendo il primo libero della serie.
+    it('salva il numero imposto in testata e ne compone il riferimento', async () => {
+      const { service } = createService(prisma, resolvedSetting({ numberPrefix: 'DDT' }));
+      prisma.document.create.mockResolvedValue({ id: 'doc-1', lines: [] });
+
+      await service.create(tenantId, {
+        type: DocumentType.sales_ddt,
+        documentDate: '2026-03-01',
+        number: 100,
+      });
+
+      const data = prisma.document.create.mock.calls[0]![0]!.data;
+      expect(data.number).toBe(100);
+      expect(data.reference).toBe('DDT-2026-0100');
+    });
+
+    it('senza numero imposto lascia numero e riferimento alla conferma', async () => {
+      const { service } = createService(prisma);
+      prisma.document.create.mockResolvedValue({ id: 'doc-1', lines: [] });
+
+      await service.create(tenantId, {
+        type: DocumentType.sales_ddt,
+        documentDate: '2026-03-01',
+      });
+
+      const data = prisma.document.create.mock.calls[0]![0]!.data;
+      expect(data.number).toBeNull();
+      expect(data.reference).toBeNull();
+    });
+
     it('calcola totali riga e IVA con prezzi IVA esclusa', async () => {
       const { service } = createService(prisma);
       prisma.document.create.mockResolvedValue({ id: 'doc-1', lines: [] });

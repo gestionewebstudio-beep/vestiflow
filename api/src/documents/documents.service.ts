@@ -69,7 +69,11 @@ import {
   isProformaConvertTarget,
   isSalesDdtConvertTarget,
 } from './document-type.util';
-import { nextDocumentNumber } from './document-numbering.util';
+import {
+  isDocumentNumberConflict,
+  nextDocumentNumber,
+  type DocumentNumberConflict,
+} from './document-numbering.util';
 import {
   reconcileDocumentStockAdjustment,
   reverseDocumentStockAdjustment,
@@ -832,73 +836,135 @@ export class DocumentsService {
       (await this.snapshotCustomerName(tenantId, dto.customerId)) ??
       (dto.customerName?.trim() || null);
 
-    return this.prisma.$transaction(async (tx) => {
-      const created = await tx.document.create({
-        data: {
-          tenantId,
-          type: dto.type,
-          status: DocumentStatus.draft,
-          series: (dto.series ?? setting.defaultSeries).trim() || 'A',
-          year: documentDate.getFullYear(),
-          documentDate,
-          printTitle: setting.printTitle,
-          notes: dto.notes ?? setting.defaultNotes,
-          internalComment: dto.internalComment ?? null,
-          supplierId: dto.supplierId ?? null,
-          supplierName,
-          customerId: dto.customerId ?? null,
-          customerName,
-          locationId: dto.locationId ?? null,
-          targetLocationId: dto.targetLocationId ?? null,
-          adjustmentDirection: dto.adjustmentDirection ?? null,
-          externalDocNumber: dto.externalDocNumber ?? null,
-          externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
-          sourceDocumentId: dto.sourceDocumentId ?? null,
-          supplierOrderId: dto.supplierOrderId ?? null,
-          billingCause: dto.billingCause?.trim() || null,
-          externalRef: dto.externalRef?.trim() || null,
-          paymentTerms: dto.paymentTerms?.trim() || null,
-          paymentMethod: dto.paymentMethod?.trim() || null,
-          expectedDeliveryDate: dto.expectedDeliveryDate
-            ? new Date(dto.expectedDeliveryDate)
-            : null,
-          // Fattura: dati pagamento in testata.
-          paymentDueDate: dto.paymentDueDate ? new Date(dto.paymentDueDate) : null,
-          iban: dto.iban?.trim() || null,
-          // DDT vendita: testata operativa (prompt DDT).
-          followedBySalesDoc: dto.followedBySalesDoc ?? false,
-          transportCausal: dto.transportCausal?.trim() || null,
-          transportStartAt: dto.transportStartAt ? new Date(dto.transportStartAt) : null,
-          transportPort: dto.transportPort ?? null,
-          transportCarrier: dto.transportCarrier?.trim() || null,
-          transportPackagesCount: dto.transportPackagesCount ?? null,
-          transportWeight: dto.transportWeight?.trim() || null,
-          transportGoodsAspect: dto.transportGoodsAspect?.trim() || null,
-          transportShippingCode: dto.transportShippingCode?.trim() || null,
-          transportTrackingCode: dto.transportTrackingCode?.trim() || null,
-          recipientAddress: this.addressToJson(dto.recipientAddress),
-          destinationAddress: this.addressToJson(dto.destinationAddress),
-          currency: dto.currency ?? 'EUR',
-          pricesIncludeVat: setting.pricesIncludeVat,
-          documentDiscountPercent: dto.documentDiscountPercent ?? 0,
-          ...totals,
-          createdById: user?.id ?? null,
-          createdByName: user?.displayName ?? 'API',
-          lines: { create: lines.map((line) => this.toLineCreateData(line, tenantId)) },
-        },
-        include: { lines: { orderBy: { lineNumber: 'asc' } } },
+    return this.prisma
+      .$transaction(async (tx) => {
+        // Numero imposto dalla testata: si assegna già in bozza (il vincolo
+        // unico lo verifica subito). Senza numero resta null e lo assegna la
+        // conferma, prendendo il primo libero della serie.
+        const series = (dto.series ?? setting.defaultSeries).trim() || 'A';
+        const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
+        const numberingSetting =
+          documentNumberingType(dto.type) === dto.type
+            ? setting
+            : await this.settings.getResolved(tenantId, documentNumberingType(dto.type));
+
+        const created = await tx.document.create({
+          data: {
+            tenantId,
+            type: dto.type,
+            status: DocumentStatus.draft,
+            series,
+            number: requestedNumber,
+            reference: requestedNumber
+              ? this.formatReference(
+                  numberingSetting.numberPrefix,
+                  documentDate.getFullYear(),
+                  requestedNumber,
+                )
+              : null,
+            year: documentDate.getFullYear(),
+            documentDate,
+            printTitle: setting.printTitle,
+            notes: dto.notes ?? setting.defaultNotes,
+            internalComment: dto.internalComment ?? null,
+            supplierId: dto.supplierId ?? null,
+            supplierName,
+            customerId: dto.customerId ?? null,
+            customerName,
+            locationId: dto.locationId ?? null,
+            targetLocationId: dto.targetLocationId ?? null,
+            adjustmentDirection: dto.adjustmentDirection ?? null,
+            externalDocNumber: dto.externalDocNumber ?? null,
+            externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
+            sourceDocumentId: dto.sourceDocumentId ?? null,
+            supplierOrderId: dto.supplierOrderId ?? null,
+            billingCause: dto.billingCause?.trim() || null,
+            externalRef: dto.externalRef?.trim() || null,
+            paymentTerms: dto.paymentTerms?.trim() || null,
+            paymentMethod: dto.paymentMethod?.trim() || null,
+            expectedDeliveryDate: dto.expectedDeliveryDate
+              ? new Date(dto.expectedDeliveryDate)
+              : null,
+            // Fattura: dati pagamento in testata.
+            paymentDueDate: dto.paymentDueDate ? new Date(dto.paymentDueDate) : null,
+            iban: dto.iban?.trim() || null,
+            // DDT vendita: testata operativa (prompt DDT).
+            followedBySalesDoc: dto.followedBySalesDoc ?? false,
+            transportCausal: dto.transportCausal?.trim() || null,
+            transportStartAt: dto.transportStartAt ? new Date(dto.transportStartAt) : null,
+            transportPort: dto.transportPort ?? null,
+            transportCarrier: dto.transportCarrier?.trim() || null,
+            transportPackagesCount: dto.transportPackagesCount ?? null,
+            transportWeight: dto.transportWeight?.trim() || null,
+            transportGoodsAspect: dto.transportGoodsAspect?.trim() || null,
+            transportShippingCode: dto.transportShippingCode?.trim() || null,
+            transportTrackingCode: dto.transportTrackingCode?.trim() || null,
+            recipientAddress: this.addressToJson(dto.recipientAddress),
+            destinationAddress: this.addressToJson(dto.destinationAddress),
+            currency: dto.currency ?? 'EUR',
+            pricesIncludeVat: setting.pricesIncludeVat,
+            documentDiscountPercent: dto.documentDiscountPercent ?? 0,
+            ...totals,
+            createdById: user?.id ?? null,
+            createdByName: user?.displayName ?? 'API',
+            lines: { create: lines.map((line) => this.toLineCreateData(line, tenantId)) },
+          },
+          include: { lines: { orderBy: { lineNumber: 'asc' } } },
+        });
+
+        if (dto.linkedSalesDdtIds !== undefined) {
+          await this.syncLinkedSalesDdtsTx(tx, tenantId, created.id, dto.linkedSalesDdtIds);
+        }
+
+        if (dto.includedSalesOrderIds !== undefined) {
+          await this.syncIncludedSalesOrdersTx(tx, tenantId, created, dto.includedSalesOrderIds);
+        }
+
+        return created;
+      })
+      .catch(async (error: unknown) => {
+        // Numero imposto già preso: 409 con il primo libero da proporre.
+        await this.throwNumberConflict(error, tenantId, dto.type, dto.series, dto.documentDate);
+        throw error;
       });
+  }
 
-      if (dto.linkedSalesDdtIds !== undefined) {
-        await this.syncLinkedSalesDdtsTx(tx, tenantId, created.id, dto.linkedSalesDdtIds);
-      }
-
-      if (dto.includedSalesOrderIds !== undefined) {
-        await this.syncIncludedSalesOrdersTx(tx, tenantId, created, dto.includedSalesOrderIds);
-      }
-
-      return created;
+  /**
+   * Conflitto sul numero documento → 409 col primo numero libero della serie.
+   * Il vincolo unico del database resta l'unica verità: due operatori che
+   * salvano lo stesso numero non possono duplicarlo, uno dei due sceglie se
+   * prendere il numero proposto.
+   */
+  private async throwNumberConflict(
+    error: unknown,
+    tenantId: string,
+    type: DocumentType,
+    series: string | undefined,
+    documentDate: string,
+  ): Promise<void> {
+    if (!isDocumentNumberConflict(error)) {
+      return;
+    }
+    const setting = await this.settings.getResolved(tenantId, type);
+    const resolvedSeries = (series ?? setting.defaultSeries).trim() || 'A';
+    const year = new Date(documentDate).getFullYear();
+    const nextAvailable = await nextDocumentNumber({
+      tx: this.prisma,
+      tenantId,
+      type,
+      series: resolvedSeries,
+      year,
+      source: 'document',
+      prefix: setting.numberPrefix,
     });
+    const payload: DocumentNumberConflict = {
+      code: 'document_number_taken',
+      number: nextAvailable - 1,
+      nextAvailable,
+      series: resolvedSeries,
+      year,
+    };
+    throw new ConflictException(payload);
   }
 
   /**
