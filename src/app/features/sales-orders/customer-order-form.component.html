@@ -19,6 +19,21 @@
         Prossimo numero documento (anteprima): <strong>{{ ref }}</strong>
       </p>
     }
+
+    <!-- Stato di salvataggio in coda alla riga del titolo (mockup v3). -->
+    @if (!loading() && !loadError() && !notEditable() && !formReadOnly()) {
+      @if (dirtySinceLastSave()) {
+        <p class="co-form__save-state co-form__save-state--dirty" role="status">
+          <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+          Modifiche non salvate
+        </p>
+      } @else if (editOrderId()) {
+        <p class="co-form__save-state" role="status">
+          <i class="pi pi-check" aria-hidden="true"></i>
+          Documento salvato
+        </p>
+      }
+    }
   </div>
 
   @if (saveWarnings().length > 0) {
@@ -101,16 +116,6 @@
         </div>
       }
 
-      @if (dirtySinceLastSave() && !formReadOnly()) {
-        <p class="gr-form__autosave-hint gr-form__autosave-hint--dirty" role="status">
-          Modifiche non salvate — usa «Salva documento»
-        </p>
-      } @else if (editOrderId() && !formReadOnly()) {
-        <p class="gr-form__autosave-hint gr-form__autosave-hint--saved" role="status">
-          Documento salvato.
-        </p>
-      }
-
       @if (customerAlert(); as alert) {
         <p class="gr-form__supplier-note-banner" role="status">
           <i class="pi pi-info-circle" aria-hidden="true"></i>
@@ -121,7 +126,9 @@
       <fieldset class="gr-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata compatta (stessa impostazione dell'Arrivo merce). -->
         <div class="gr-form__header">
-          <div class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact">
+          <div
+            class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact co-form__header-row"
+          >
             <div class="gr-form__field gr-form__field--span2">
               <span class="gr-form__label" id="co-customer-label">
                 {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
@@ -157,21 +164,28 @@
                   autocomplete="off"
                 />
               }
-              <button type="button" class="gr-form__inline-toggle" (click)="toggleCustomerForm()">
-                <i
-                  class="pi"
-                  [class.pi-plus]="!showCustomerForm()"
-                  [class.pi-minus]="showCustomerForm()"
-                  aria-hidden="true"
-                ></i>
-                {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
-              </button>
-              @if (form.controls.customerId.value) {
-                <button type="button" class="gr-form__inline-toggle" (click)="openCustomerDetail()">
-                  <i class="pi pi-external-link" aria-hidden="true"></i>
-                  Scheda cliente
+              <!-- Scorciatoie sulla stessa riga, come nel mockup. -->
+              <div class="co-form__inline-links">
+                <button type="button" class="gr-form__inline-toggle" (click)="toggleCustomerForm()">
+                  <i
+                    class="pi"
+                    [class.pi-plus]="!showCustomerForm()"
+                    [class.pi-minus]="showCustomerForm()"
+                    aria-hidden="true"
+                  ></i>
+                  {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
                 </button>
-              }
+                @if (form.controls.customerId.value) {
+                  <button
+                    type="button"
+                    class="gr-form__inline-toggle"
+                    (click)="openCustomerDetail()"
+                  >
+                    <i class="pi pi-external-link" aria-hidden="true"></i>
+                    Scheda cliente
+                  </button>
+                }
+              </div>
             </div>
 
             <div class="gr-form__field">
@@ -236,53 +250,17 @@
 
             <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
                  Scarico manuale: solo Rif. (niente consegna/pagamento). -->
-            @if (isManualUnload) {
-              <div class="gr-form__field">
-                <label class="gr-form__label" for="co-external-ref">Rif.</label>
-                <input
-                  id="co-external-ref"
-                  class="gr-form__input"
-                  type="text"
-                  formControlName="externalRef"
-                  placeholder="Es. campionario fiera"
-                  autocomplete="off"
-                />
-              </div>
-            } @else if (!isSalesDdt) {
+            @if (!isSalesDdt) {
               <div class="gr-form__field">
                 <label class="gr-form__label" for="co-external-ref">
-                  {{ isQuote ? 'Rif.' : 'Rif. ordine cliente' }}
+                  {{ isQuote || isManualUnload ? 'Rif.' : 'Rif. ordine cliente' }}
                 </label>
                 <input
                   id="co-external-ref"
                   class="gr-form__input"
                   type="text"
                   formControlName="externalRef"
-                  placeholder="Es. PO-2026-15"
-                  autocomplete="off"
-                />
-              </div>
-
-              <div class="gr-form__field gr-form__field--end-md">
-                <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
-                <app-date-input
-                  inputId="co-delivery"
-                  formControlName="expectedDeliveryDate"
-                  ariaLabel="Data prevista consegna"
-                  placeholder="Opzionale"
-                  [compact]="true"
-                  [fullWidth]="true"
-                />
-              </div>
-
-              <div class="gr-form__field">
-                <label class="gr-form__label" for="co-payment">Pagamento</label>
-                <input
-                  id="co-payment"
-                  class="gr-form__input"
-                  type="text"
-                  formControlName="paymentTerms"
-                  placeholder="Es. 30 gg d.f."
+                  [placeholder]="isManualUnload ? 'Es. campionario fiera' : 'Es. PO-2026-15'"
                   autocomplete="off"
                 />
               </div>
@@ -314,6 +292,41 @@
               </div>
             }
           </div>
+
+          <!-- Seconda fascia della testata (mockup v3): consegna e pagamento su
+               fondo attenuato. Il DDT gestisce il pagamento in prima fascia, lo
+               scarico manuale non ha né consegna né pagamento. -->
+          @if (!isSalesDdt && !isManualUnload) {
+            <div
+              class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact co-form__header-row co-form__header-row--secondary"
+            >
+              <div class="gr-form__field">
+                <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
+                <app-date-input
+                  inputId="co-delivery"
+                  formControlName="expectedDeliveryDate"
+                  ariaLabel="Data prevista consegna"
+                  placeholder="Opzionale"
+                  [compact]="true"
+                  [fullWidth]="true"
+                />
+              </div>
+
+              <div class="gr-form__field">
+                <label class="gr-form__label" for="co-payment">Pagamento</label>
+                <input
+                  id="co-payment"
+                  class="gr-form__input"
+                  type="text"
+                  formControlName="paymentTerms"
+                  placeholder="Es. 30 gg d.f."
+                  autocomplete="off"
+                />
+              </div>
+
+              <div class="gr-form__field co-form__header-filler" aria-hidden="true"></div>
+            </div>
+          }
         </div>
 
         @if (showCustomerForm()) {
@@ -495,7 +508,7 @@
                     @if (isLineColumnVisible('product')) {
                       <th
                         scope="col"
-                        class="gr-form__th--product"
+                        class="gr-form__th--product co-form__col--sep"
                         [style.width]="lineColumnWidth('product')"
                       >
                         Nome prodotto
@@ -509,7 +522,7 @@
                     @if (isLineColumnVisible('quantity')) {
                       <th
                         scope="col"
-                        class="gr-form__num"
+                        class="gr-form__num co-form__col--stock"
                         [style.width]="lineColumnWidth('quantity')"
                       >
                         Q.tà
@@ -523,7 +536,7 @@
                     @if (isLineColumnVisible('stockAvailable')) {
                       <th
                         scope="col"
-                        class="gr-form__num"
+                        class="gr-form__num co-form__col--stock"
                         [style.width]="lineColumnWidth('stockAvailable')"
                       >
                         Q.tà disp.
@@ -535,7 +548,11 @@
                       </th>
                     }
                     @if (isLineColumnVisible('unitOfMeasure')) {
-                      <th scope="col" [style.width]="lineColumnWidth('unitOfMeasure')">
+                      <th
+                        scope="col"
+                        class="co-form__col--stock co-form__col--sep"
+                        [style.width]="lineColumnWidth('unitOfMeasure')"
+                      >
                         U.m.
                         <span
                           appTableColumnResize
@@ -547,7 +564,7 @@
                     @if (isLineColumnVisible('purchaseCost')) {
                       <th
                         scope="col"
-                        class="gr-form__num"
+                        class="gr-form__num co-form__col--calc"
                         [style.width]="lineColumnWidth('purchaseCost')"
                       >
                         Costo
@@ -561,7 +578,7 @@
                     @if (isLineColumnVisible('unitPrice')) {
                       <th
                         scope="col"
-                        class="gr-form__num"
+                        class="gr-form__num co-form__col--sale"
                         [style.width]="lineColumnWidth('unitPrice')"
                       >
                         Prezzo
@@ -575,7 +592,7 @@
                     @if (isLineColumnVisible('discount')) {
                       <th
                         scope="col"
-                        class="gr-form__num"
+                        class="gr-form__num co-form__col--sale"
                         [style.width]="lineColumnWidth('discount')"
                       >
                         <span class="gr-form__th-label">
@@ -600,7 +617,7 @@
                     @if (isLineColumnVisible('discountedPrice')) {
                       <th
                         scope="col"
-                        class="gr-form__num"
+                        class="gr-form__num co-form__col--calc"
                         [style.width]="lineColumnWidth('discountedPrice')"
                       >
                         Prezzo scontato
@@ -612,7 +629,11 @@
                       </th>
                     }
                     @if (isLineColumnVisible('vat')) {
-                      <th scope="col" class="gr-form__num" [style.width]="lineColumnWidth('vat')">
+                      <th
+                        scope="col"
+                        class="gr-form__num co-form__col--tax co-form__col--sep"
+                        [style.width]="lineColumnWidth('vat')"
+                      >
                         IVA
                         <span
                           appTableColumnResize
@@ -643,7 +664,11 @@
                       </th>
                     }
                     @if (isLineColumnVisible('commitsStock')) {
-                      <th scope="col" [style.width]="lineColumnWidth('commitsStock')">
+                      <th
+                        scope="col"
+                        class="co-form__col--stock"
+                        [style.width]="lineColumnWidth('commitsStock')"
+                      >
                         <span class="gr-form__th-label">
                           {{ commitsColumnLabel }}
                           <app-hover-tooltip [text]="commitsStockTooltip" position="bottom">
@@ -662,7 +687,7 @@
                     @if (isLineColumnVisible('lineTotal')) {
                       <th
                         scope="col"
-                        class="gr-form__num"
+                        class="gr-form__num co-form__col--total"
                         [style.width]="lineColumnWidth('lineTotal')"
                       >
                         Totale
@@ -748,7 +773,7 @@
                         </td>
                       }
                       @if (isLineColumnVisible('product')) {
-                        <td class="gr-form__cell gr-form__cell--product">
+                        <td class="gr-form__cell gr-form__cell--product co-form__col--sep">
                           <app-goods-receipt-line-product-cell
                             [lineIndex]="i"
                             [inputId]="'co-product-' + i"
@@ -780,7 +805,7 @@
                       }
                       @if (isLineColumnVisible('quantity')) {
                         <td
-                          class="gr-form__cell gr-form__cell--editable gr-form__num"
+                          class="gr-form__cell gr-form__cell--editable gr-form__num co-form__col--stock"
                           [class.co-form__cell--exceeds]="lineExceedsAvailability(i)"
                         >
                           <input
@@ -807,25 +832,29 @@
                       }
                       @if (isLineColumnVisible('stockAvailable')) {
                         <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--stock co-form__col--avail"
                         >
                           {{ lineStockAvailable(i) }}
                         </td>
                       }
                       @if (isLineColumnVisible('unitOfMeasure')) {
-                        <td class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed">
+                        <td
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed co-form__col--stock co-form__col--sep"
+                        >
                           {{ lineUnitOfMeasure(i) }}
                         </td>
                       }
                       @if (isLineColumnVisible('purchaseCost')) {
                         <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--calc"
                         >
                           {{ linePurchaseCost(i) }}
                         </td>
                       }
                       @if (isLineColumnVisible('unitPrice')) {
-                        <td class="gr-form__cell gr-form__cell--editable gr-form__num">
+                        <td
+                          class="gr-form__cell gr-form__cell--editable gr-form__num co-form__col--sale"
+                        >
                           <input
                             [id]="'co-price-' + i"
                             class="gr-form__input gr-form__input--table gr-form__input--num"
@@ -838,7 +867,9 @@
                         </td>
                       }
                       @if (isLineColumnVisible('discount')) {
-                        <td class="gr-form__cell gr-form__cell--editable gr-form__num">
+                        <td
+                          class="gr-form__cell gr-form__cell--editable gr-form__num co-form__col--sale"
+                        >
                           <input
                             [id]="'co-discount-' + i"
                             class="gr-form__input gr-form__input--table gr-form__input--num"
@@ -852,14 +883,14 @@
                       }
                       @if (isLineColumnVisible('discountedPrice')) {
                         <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--calc"
                         >
                           {{ formatMoney(lineDiscountedUnitMoney(i)) }}
                         </td>
                       }
                       @if (isLineColumnVisible('vat')) {
                         <td
-                          class="gr-form__cell gr-form__cell--editable gr-form__cell--vat"
+                          class="gr-form__cell gr-form__cell--editable gr-form__cell--vat co-form__col--tax co-form__col--sep"
                           [title]="lineVatTooltip(i)"
                         >
                           <app-select-menu
@@ -892,7 +923,7 @@
                         </td>
                       }
                       @if (isLineColumnVisible('commitsStock')) {
-                        <td class="gr-form__cell gr-form__cell--check">
+                        <td class="gr-form__cell gr-form__cell--check co-form__col--stock">
                           <label class="gr-form__check">
                             <input type="checkbox" formControlName="commitsStock" />
                             <span class="sr-only">{{
@@ -905,7 +936,7 @@
                       }
                       @if (isLineColumnVisible('lineTotal')) {
                         <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums"
+                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--total"
                         >
                           @if (lineHasDiscount(i)) {
                             <span class="gr-form__line-total-gross">{{
@@ -975,6 +1006,19 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <!-- Piede della tabella (mockup v3): conteggio righe a sinistra,
+                 imponibile delle sole righe a destra. -->
+            <div class="co-form__table-summary">
+              <span>
+                <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
+                · <span class="tabular-nums">{{ totalPiecesCount() }}</span> pezzi
+              </span>
+              <span>
+                Imponibile righe
+                <strong class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</strong>
+              </span>
             </div>
           </section>
 

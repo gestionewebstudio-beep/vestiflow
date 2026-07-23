@@ -1,10 +1,350 @@
 @use 'breakpoints' as bp;
 
-// Aggiunte specifiche dell'Ordine cliente manuale. Il grosso dello stile è
-// RIUSATO dall'Arrivo merce (stesse classi gr-form__*, stesso foglio SCSS
-// referenziato in styleUrls): qui vivono solo riga di inserimento rapido,
-// avviso disponibilità ambra e menu "Concludi ordine".
+// Aggiunte specifiche dell'Ordine cliente. La STRUTTURA è riusata dall'Arrivo
+// merce (stesse classi gr-form__*, stesso foglio in styleUrls): qui vivono la
+// pelle «mockup v3» della pagina e le parti che esistono solo in questa
+// maschera — riga di inserimento rapido, avviso disponibilità, menu «Concludi
+// ordine», sezioni DDT.
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PALETTE E METRICHE LOCALI — mockup «Ordine Cliente v3 (desktop)»
+// Divergenza VOLUTA dai token Antracite app-wide (docs/RESTYLE-SPEC.md): il
+// proprietario vuole QUESTA pagina identica al proprio mockup.
+//
+// La palette vive in variabili --co-* dichiarate sul :host, il remap dei token
+// dell'app su `.co-form`. I due livelli sono separati apposta: se stessero
+// sullo stesso elemento, in tema scuro `--co-surface: var(--color-surface)` e
+// `--color-surface: var(--co-surface)` formerebbero un ciclo e le due
+// variabili si annullerebbero a vicenda. Così i componenti annidati dentro
+// `.co-form` (bottoni, select, date, badge) adottano la palette per cascata,
+// mentre pannelli e finestre — che stanno nel template ma FUORI da `.co-form`
+// — e gli altri form documentali che condividono
+// goods-receipt-form.component.scss restano sui token dell'app.
+// ─────────────────────────────────────────────────────────────────────────────
+:host {
+  // Superfici, linee, testo
+  --co-bg: #eef0f2;
+  --co-surface: #ffffff;
+  --co-surface-soft: #f6f7f8;
+  --co-header-alt: #f7f9f8;
+  --co-line: #d7dddd;
+  --co-line-strong: #b6c0c1;
+  --co-cell-line: #e4ebe8;
+  --co-head-line: #aebfb7;
+  --co-sep: #b9c7c0;
+  --co-text: #20282b;
+  --co-muted: #657075;
+  --co-subtle: #8a9498;
+  --co-label: #59665f;
+  --co-link: #3d6875;
+
+  // Accenti
+  --co-brand: #25343b;
+  --co-brand-hover: #18262d;
+  --co-brand-strip: rgb(156 188 199 / 0.4);
+  --co-brand-label: #cbd9de;
+  --co-ok: #2d7557;
+  --co-ok-bg: #edf6f1;
+  --co-ok-border: #c9e0d4;
+  --co-focus: #4f7e8d;
+  --co-focus-soft: rgb(79 126 141 / 0.12);
+  --co-warn: #c98a2e;
+  --co-warn-bg: #fdf3e0;
+  --co-warn-fg: #7a4f0f;
+  --co-code: #385d69;
+
+  // Bande di gruppo dell'intestazione tabella
+  --co-head-bg: #e9edee;
+  --co-head-fg: #3f4c51;
+  --co-head-stock-bg: #e8edef;
+  --co-head-stock-fg: #405a63;
+  --co-head-stock-rule: #839aa2;
+  --co-head-sale-bg: #eceff1;
+  --co-head-sale-fg: #4c5f67;
+  --co-head-sale-rule: #9baab0;
+  --co-head-calc-bg: #e9ecec;
+  --co-head-calc-fg: #505c60;
+  --co-head-calc-rule: #a5afb1;
+
+  // Tinte delle celle per gruppo
+  --co-cell-stock: #f2f5f6;
+  --co-cell-calc: #f4f6f6;
+  --co-cell-total: #eef1f2;
+  --co-row-hover: #f8faf9;
+  --co-row-hover-stock: #eaf0f2;
+  --co-row-hover-calc: #e9edee;
+  --co-summary-bg: #edf3f0;
+  --co-summary-fg: #46564e;
+
+  // Metriche (il mockup ragiona in px assoluti: qui in rem su base 16)
+  --co-radius: 0.5625rem; // 9px — card
+  --co-radius-sm: 0.375rem; // 6px — controlli
+  --co-radius-xs: 0.25rem; // 4px — input di cella
+  --co-field-h: 1.8125rem; // 29px — controlli di testata
+  --co-btn-h: 1.9375rem; // 31px — bottoni barra strumenti/azioni
+  --co-cell-h: 1.5rem; // 24px — input dentro le righe
+  --co-row-h: 1.875rem; // 30px — altezza riga
+  --co-head-h: 2rem; // 32px — intestazione tabella
+  --co-cell-pad-block: 0.125rem; // 2px
+  --co-cell-pad-inline: 0.3125rem; // 5px
+  --co-text-micro: 0.59375rem; // 9.5px — etichette uppercase
+  --co-text-total: 0.9375rem; // 15px — valori dei totali
+  --co-text-grand: 1.0625rem; // 17px — totale documento
+  --co-weight-head: 780;
+  --co-weight-strong: 760;
+  --co-shadow: 0 1px 2px rgb(18 42 33 / 0.04), 0 4px 14px rgb(18 42 33 / 0.035);
+  --co-primary-subtle: rgb(37 52 59 / 0.07);
+}
+
+// ── Remap dei token: i componenti annidati seguono la palette del mockup ──
+.co-form {
+  --color-surface: var(--co-surface);
+  --color-surface-raised: var(--co-surface);
+  --color-surface-sunken: var(--co-surface-soft);
+  --color-surface-hover: var(--co-surface-soft);
+  --color-surface-muted: var(--co-surface-soft);
+  --color-border: var(--co-line);
+  --color-border-strong: var(--co-line-strong);
+  --color-table-header-bg: var(--co-head-bg);
+  --color-table-row-divider: var(--co-cell-line);
+  --color-text: var(--co-text);
+  --color-text-muted: var(--co-muted);
+  --color-text-subtle: var(--co-subtle);
+  --color-primary: var(--co-brand);
+  --color-primary-hover: var(--co-brand-hover);
+  --color-primary-active: var(--co-brand-hover);
+  --color-primary-subtle: var(--co-primary-subtle);
+  --color-interactive: var(--co-link);
+  --color-interactive-hover: var(--co-brand);
+  --color-input-bg: var(--co-surface);
+  --color-input-border: var(--co-line);
+  --color-focus-ring: var(--co-focus);
+  --color-focus-ring-alpha: var(--co-focus-soft);
+  --field-focus-ring: 0 0 0 3px var(--co-focus-soft);
+  --status-success-fg: var(--co-ok);
+  --status-success-bg: var(--co-ok-bg);
+  --status-success-border: var(--co-ok-border);
+  --gr-line-row-height: var(--co-cell-h);
+}
+
+// In tema scuro la pelle del mockup (light-only) non sarebbe leggibile: le
+// --co-* tornano a puntare ai token dell'app (qui valgono ancora quelli di
+// :root, non i remap di `.co-form`), la geometria del mockup resta.
+:host-context([data-theme='dark']) {
+  --co-bg: var(--color-bg);
+  --co-surface: var(--color-surface);
+  --co-surface-soft: var(--color-surface-sunken);
+  --co-header-alt: var(--color-surface-sunken);
+  --co-line: var(--color-border);
+  --co-line-strong: var(--color-border-strong);
+  --co-cell-line: var(--color-table-row-divider);
+  --co-head-line: var(--color-border-strong);
+  --co-sep: var(--color-border-strong);
+  --co-text: var(--color-text);
+  --co-muted: var(--color-text-muted);
+  --co-subtle: var(--color-text-subtle);
+  --co-label: var(--color-text-subtle);
+  --co-link: var(--color-interactive);
+  --co-brand: var(--color-primary);
+  --co-brand-hover: var(--color-primary-hover);
+  --co-brand-strip: var(--color-border-strong);
+  --co-brand-label: var(--color-primary-fg);
+  --co-ok: var(--status-success-fg);
+  --co-ok-bg: var(--status-success-bg);
+  --co-ok-border: var(--status-success-border);
+  --co-focus: var(--color-focus-ring);
+  --co-focus-soft: var(--color-focus-ring-alpha);
+  --co-warn: var(--status-warning-border);
+  --co-warn-bg: var(--status-warning-bg);
+  --co-warn-fg: var(--status-warning-fg);
+  --co-code: var(--color-text-muted);
+  --co-head-bg: var(--color-table-header-bg);
+  --co-head-fg: var(--color-text-muted);
+  --co-head-stock-bg: var(--color-table-header-bg);
+  --co-head-stock-fg: var(--color-text-muted);
+  --co-head-stock-rule: var(--color-border-strong);
+  --co-head-sale-bg: var(--color-table-header-bg);
+  --co-head-sale-fg: var(--color-text-muted);
+  --co-head-sale-rule: var(--color-border-strong);
+  --co-head-calc-bg: var(--color-table-header-bg);
+  --co-head-calc-fg: var(--color-text-muted);
+  --co-head-calc-rule: var(--color-border-strong);
+  --co-cell-stock: var(--color-surface-sunken);
+  --co-cell-calc: var(--color-surface-sunken);
+  --co-cell-total: var(--color-surface-muted);
+  --co-row-hover: var(--color-surface-hover);
+  --co-row-hover-stock: var(--color-surface-hover);
+  --co-row-hover-calc: var(--color-surface-hover);
+  --co-summary-bg: var(--color-surface-sunken);
+  --co-summary-fg: var(--color-text-muted);
+  --co-primary-subtle: var(--color-primary-subtle);
+}
+
+// ── Impaginato: card separate sul fondo pagina, niente card contenitore ─────
+.co-form .gr-form__form {
+  padding: 0;
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.co-form .gr-form__title {
+  font-size: var(--text-xl);
+  font-weight: var(--co-weight-strong);
+}
+
+// Stato di salvataggio in coda alla riga del titolo (mockup: check + testo).
+.co-form__save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  margin-inline-start: auto;
+  font-size: var(--text-xs);
+  color: var(--co-ok);
+}
+
+.co-form__save-state--dirty {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-medium);
+}
+
+// ── Testata: una card, due fasce di celle unite ─────────────────────────────
+.co-form .gr-form__header {
+  gap: 0;
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line);
+  border-radius: var(--co-radius);
+  box-shadow: var(--co-shadow);
+}
+
+.co-form .gr-form__header .gr-form__grid--header {
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.co-form .gr-form__header .co-form__header-row--secondary {
+  background-color: var(--co-header-alt);
+  border-block-start: var(--border-width) solid var(--co-line);
+  border-end-start-radius: var(--co-radius);
+  border-end-end-radius: var(--co-radius);
+}
+
+// I bordi di cella li gestisce il foglio condiviso (e il blocco lg qui sotto):
+// qui cambia solo il respiro interno.
+.co-form .gr-form__header .gr-form__field {
+  padding: var(--space-1) var(--space-2);
+}
+
+.co-form .gr-form__header .gr-form__label {
+  font-size: var(--co-text-micro);
+  font-weight: var(--co-weight-strong);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--co-label);
+}
+
+.co-form .gr-form__header .gr-form__inline-toggle {
+  font-size: var(--text-2xs);
+  color: var(--co-link);
+}
+
+// «Nuovo cliente» e «Scheda cliente» affiancate sotto il campo (mockup).
+.co-form__inline-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.co-form .gr-form__header .gr-form__field:focus-within {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+// A partire da lg la testata segue le proporzioni del mockup: fasce a
+// larghezza proporzionale che riempiono sempre la card, qualunque sia il
+// numero di campi della variante (ordine, preventivo, DDT, scarico).
+@include bp.media-up('lg') {
+  .co-form .co-form__header-row {
+    display: flex;
+    gap: 0;
+  }
+
+  .co-form .co-form__header-row > .gr-form__field {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    border-block-end: 0;
+    border-inline-end: var(--border-width) solid var(--co-line);
+  }
+
+  .co-form .co-form__header-row > .gr-form__field:last-child {
+    border-inline-end: 0;
+  }
+
+  // Cliente | Location | Data | Stato | Rif. — proporzioni del mockup.
+  .co-form .co-form__header-row > *:nth-child(1) {
+    flex-grow: 1.55;
+  }
+  .co-form .co-form__header-row > *:nth-child(2) {
+    flex-grow: 0.9;
+  }
+  .co-form .co-form__header-row > *:nth-child(3) {
+    flex-grow: 0.78;
+  }
+  .co-form .co-form__header-row > *:nth-child(4) {
+    flex-grow: 0.75;
+  }
+
+  // Consegna | Pagamento | spazio libero.
+  .co-form .co-form__header-row--secondary > *:nth-child(1) {
+    flex-grow: 0.82;
+  }
+  .co-form .co-form__header-row--secondary > *:nth-child(2) {
+    flex-grow: 1.05;
+  }
+  .co-form .co-form__header-row--secondary > *:nth-child(3) {
+    flex-grow: 2.13;
+  }
+}
+
+// Riempie la seconda fascia solo dove la testata è a larghezza piena: sotto lg
+// la griglia impila i campi e una cella vuota lascerebbe un bordo orfano.
+.co-form__header-filler {
+  display: none;
+  padding: 0;
+
+  @include bp.media-up('lg') {
+    display: block;
+  }
+}
+
+// Controlli di testata: riquadro proprio, non più input «nudi» nella cella.
+.co-form .gr-form__header .gr-form__input,
+.co-form .gr-form__header .gr-form__field app-select-menu,
+.co-form .gr-form__header .gr-form__field app-date-input {
+  --field-height: var(--co-field-h);
+  --color-input-bg: var(--co-surface);
+  --color-input-border: var(--co-line);
+}
+
+.co-form .gr-form__header .gr-form__input {
+  block-size: var(--co-field-h);
+  min-block-size: var(--co-field-h);
+  padding-inline: var(--space-2);
+  font-size: var(--text-xs);
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line);
+  border-radius: 0.3125rem;
+}
+
+.co-form .gr-form__header .gr-form__input:focus-visible {
+  border-color: var(--co-focus);
+  box-shadow: var(--field-focus-ring);
+}
+
+// ── Riga strumenti sopra la tabella ────────────────────────────────────────
 // P4 — La testata righe dell'Arrivo merce a xl diventa griglia a 3 colonne
 // (titolo | scanner inline | strumenti): qui lo scanner inline non esiste
 // (la scansione vive nella riga rapida in fondo), quindi gli strumenti
@@ -17,10 +357,86 @@
   justify-content: space-between;
 }
 
+.co-form .gr-form__subtitle {
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.co-form .gr-form__lines-count {
+  font-size: var(--text-2xs);
+  color: var(--co-muted);
+}
+
+.co-form .gr-form__lines-tools {
+  gap: var(--space-2);
+}
+
+// Bottoni più bassi e compatti del default app (31px contro 36px).
+.co-form .gr-form__lines-tools,
+.co-form .gr-form__actions {
+  --field-height: var(--co-btn-h);
+}
+
+.co-form .gr-form__lines-tools ::ng-deep .app-button,
+.co-form .gr-form__actions ::ng-deep .app-button {
+  font-size: var(--text-xs);
+  border-radius: var(--co-radius-sm);
+}
+
+// ── Tabella righe ──────────────────────────────────────────────────────────
+.co-form .gr-form__table-wrap {
+  margin-inline: 0;
+  border: var(--border-width) solid var(--co-line);
+  border-block-end: 0;
+  border-start-start-radius: var(--co-radius);
+  border-start-end-radius: var(--co-radius);
+  background-color: var(--co-surface);
+  box-shadow: var(--co-shadow);
+  // Il mockup mostra la tabella alta quanto le sue righe. Un minimo resta
+  // però necessario: i suggerimenti prodotto sono in posizione assoluta
+  // DENTRO quest'area che scorre, e senza spazio sotto l'ultima riga
+  // finirebbero tagliati. Sei righe bastano a un documento tipico.
+  min-block-size: min(calc((var(--co-row-h) + var(--border-width)) * 6 + var(--co-head-h)), 30vh);
+  max-block-size: min(75vh, 31.5rem);
+}
+
+// La maschera non ha la vista a card mobile dell'Arrivo merce: sotto md la
+// tabella resta (scorre in orizzontale) invece di sparire del tutto.
+@include bp.media-down('md') {
+  .co-form .gr-form__table-wrap {
+    display: block;
+  }
+}
+
+.co-form .gr-form__table th,
+.co-form .gr-form__table td {
+  border-inline-end-color: var(--co-cell-line);
+}
+
+.co-form .gr-form__table tbody tr {
+  block-size: var(--co-row-h);
+  border-block-end-color: var(--co-cell-line);
+}
+
+.co-form .gr-form__table tbody td {
+  padding: var(--co-cell-pad-block) var(--co-cell-pad-inline);
+  font-size: var(--text-xs);
+}
+
 // Con le colonne a quota percentuale una colonna può farsi stretta: le
 // etichette header vanno a capo invece di troncarsi o traboccare (il
 // foglio condiviso impone nowrap).
 .co-form .gr-form__table thead th {
+  block-size: var(--co-head-h);
+  padding: var(--space-1) var(--co-cell-pad-inline);
+  font-size: var(--co-text-micro);
+  font-weight: var(--co-weight-head);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--co-head-fg);
+  background-color: var(--co-head-bg);
+  border-block-end: var(--border-width) solid var(--co-head-line);
   white-space: normal;
   overflow-wrap: break-word;
 }
@@ -32,16 +448,119 @@
   flex-wrap: wrap;
 }
 
-// Riga di inserimento rapido sempre in fondo alla tabella (§RIGHE).
+// Bande di gruppo: magazzino, vendita/IVA, calcolati.
+.co-form .gr-form__table thead th.co-form__col--stock {
+  color: var(--co-head-stock-fg);
+  background-color: var(--co-head-stock-bg);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--co-head-stock-rule);
+}
+
+.co-form .gr-form__table thead th.co-form__col--sale,
+.co-form .gr-form__table thead th.co-form__col--tax {
+  color: var(--co-head-sale-fg);
+  background-color: var(--co-head-sale-bg);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--co-head-sale-rule);
+}
+
+.co-form .gr-form__table thead th.co-form__col--calc,
+.co-form .gr-form__table thead th.co-form__col--total {
+  color: var(--co-head-calc-fg);
+  background-color: var(--co-head-calc-bg);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--co-head-calc-rule);
+}
+
+.co-form .gr-form__table tbody td.co-form__col--stock {
+  background-color: var(--co-cell-stock);
+}
+
+.co-form .gr-form__table tbody td.co-form__col--calc,
+.co-form .gr-form__table tbody td.co-form__col--tax {
+  background-color: var(--co-cell-calc);
+}
+
+.co-form .gr-form__table tbody td.co-form__col--total {
+  font-weight: var(--font-weight-semibold);
+  color: var(--co-text);
+  background-color: var(--co-cell-total);
+}
+
+// Disponibilità in evidenza e nome prodotto in grassetto, come nel mockup.
+.co-form .gr-form__table tbody td.co-form__col--avail {
+  font-weight: var(--co-weight-strong);
+  color: var(--co-ok);
+}
+
+.co-form .gr-form__cell--product ::ng-deep .gr-product-cell__linked-label,
+.co-form .gr-form__cell--product ::ng-deep .gr-product-cell__input {
+  font-weight: var(--font-weight-semibold);
+}
+
+.co-form .gr-form__table tbody .gr-form__cell--index {
+  font-size: var(--text-2xs);
+  color: var(--co-subtle);
+  background-color: var(--co-surface);
+}
+
+// Separatori di blocco: chiudono nome prodotto, U.m. e IVA.
+.co-form .gr-form__table th.co-form__col--sep,
+.co-form .gr-form__table td.co-form__col--sep {
+  border-inline-end: var(--border-width-strong) solid var(--co-sep);
+}
+
+.co-form .gr-form__table tbody tr:hover td {
+  background-color: var(--co-row-hover);
+}
+
+.co-form .gr-form__table tbody tr:hover td.co-form__col--stock {
+  background-color: var(--co-row-hover-stock);
+}
+
+.co-form .gr-form__table tbody tr:hover td.co-form__col--calc,
+.co-form .gr-form__table tbody tr:hover td.co-form__col--tax,
+.co-form .gr-form__table tbody tr:hover td.co-form__col--total {
+  background-color: var(--co-row-hover-calc);
+}
+
+// Input di cella: 24px, bordo solo su hover/focus.
+.co-form .gr-form__input--table {
+  block-size: var(--co-cell-h);
+  padding: 0 var(--co-cell-pad-inline);
+  font-size: var(--text-xs);
+  border-radius: var(--co-radius-xs);
+}
+
+.co-form .gr-form__input--table:focus-visible {
+  border-color: var(--co-focus);
+  box-shadow: 0 0 0 var(--border-width-strong) var(--co-focus-soft);
+}
+
+.co-form .gr-form__cell--code ::ng-deep input {
+  font-family: var(--font-mono);
+  color: var(--co-code);
+}
+
+// Il select IVA di riga nasce con l'altezza touch (44px): dentro la tabella
+// segue la riga, come tutti gli altri controlli di cella.
+.co-form .gr-form__table tbody {
+  --btn-min-height: var(--co-cell-h);
+  --field-height: var(--co-cell-h);
+}
+
+.co-form .gr-form__line-remove,
+.co-form .gr-form__line-move {
+  border-radius: var(--co-radius-xs);
+}
+
+// ── Riga di inserimento rapido, sempre in fondo alla tabella (§RIGHE) ───────
 .co-form__quick-row td {
-  padding: var(--space-2);
-  background: var(--color-surface-subtle, var(--color-surface));
-  border-block-start: 1px dashed var(--color-border);
+  padding: var(--space-2) var(--co-cell-pad-inline);
+  background: var(--co-surface-soft);
+  border-block-start: 1px dashed var(--co-line);
 }
 
 .co-form__quick-row .gr-form__cell--index {
   text-align: center;
-  color: var(--color-text-muted);
+  color: var(--co-muted);
 }
 
 .co-form__quick-cell {
@@ -52,31 +571,203 @@
 }
 
 .co-form__quick-input {
-  flex: 1 1 260px;
-  max-inline-size: 420px;
+  flex: 1 1 16rem;
+  max-inline-size: 26.875rem;
+  block-size: var(--co-field-h);
+  min-block-size: var(--co-field-h);
+  border-color: var(--co-line-strong);
+  border-radius: var(--co-radius-sm);
 }
 
-// §CONTROLLI: quantità oltre la disponibile — bordo/sfondo ambra sulla cella,
-// testo discreto "disponibili solo N". Mai un blocco.
+// ── Piede della tabella: chiude la card delle righe ────────────────────────
+.co-form__table-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-block-size: 3.25rem;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--co-summary-fg);
+  background-color: var(--co-summary-bg);
+  border: var(--border-width) solid var(--co-line);
+  border-block-start: var(--border-width) solid var(--co-head-line);
+  border-end-start-radius: var(--co-radius);
+  border-end-end-radius: var(--co-radius);
+}
+
+.co-form__table-summary strong {
+  font-weight: var(--co-weight-strong);
+  color: var(--co-text);
+}
+
+// ── Note e totali: due card affiancate nella banda in fondo ────────────────
+@include bp.media-up('lg') {
+  .co-form .gr-form__footer-grid {
+    gap: var(--space-2);
+    padding: 0;
+    background-color: color-mix(in srgb, var(--co-bg) 88%, transparent);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .co-form .gr-form__footer-notes {
+    flex: 0.55 1 15rem;
+  }
+
+  .co-form .gr-form__totals-bar {
+    flex: 2.2 1 42rem;
+  }
+
+  .co-form .gr-form__totals {
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    background-color: var(--co-surface);
+    border-color: var(--co-line-strong);
+    border-radius: var(--co-radius);
+    overflow: hidden;
+    box-shadow: 0 1px 5px rgb(30 43 47 / 0.045);
+  }
+
+  .co-form .gr-form__totals-row {
+    flex: 1 1 0;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    min-inline-size: 0;
+    padding: var(--space-1) var(--space-3);
+    border-inline-end: var(--border-width) solid var(--co-line);
+  }
+
+  .co-form .gr-form__totals-row:last-child {
+    border-inline-end: 0;
+  }
+
+  // Totale documento: box scuro in coda, con filetto chiaro in cima.
+  .co-form .gr-form__totals-row--total {
+    position: relative;
+    order: 99;
+    padding-inline-start: var(--space-3);
+    color: var(--color-primary-fg);
+    background-color: var(--co-brand);
+    border-inline-start: 0;
+    border-inline-end: 0;
+  }
+
+  .co-form .gr-form__totals-row--total::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    block-size: 0.1875rem;
+    background-color: var(--co-brand-strip);
+  }
+
+  .co-form .gr-form__totals-row--total dt {
+    color: var(--co-brand-label);
+  }
+
+  .co-form .gr-form__totals-row--total dd {
+    font-size: var(--co-text-grand);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-tight);
+  }
+}
+
+.co-form .gr-form__totals dt {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--co-muted);
+  white-space: nowrap;
+}
+
+.co-form .gr-form__totals dd {
+  font-size: var(--co-text-total);
+  font-weight: var(--font-weight-semibold);
+  color: inherit;
+  white-space: nowrap;
+}
+
+.co-form .gr-form__totals-row--field dd {
+  inline-size: var(--space-16);
+}
+
+.co-form .gr-form__totals-input {
+  block-size: var(--space-6);
+  min-block-size: var(--space-6);
+  border-color: var(--co-line-strong);
+  border-radius: var(--co-radius-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Le note sono una card come le altre (il contenitore del form non lo è più).
+.co-form .gr-form__footer-notes {
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line);
+  border-radius: var(--co-radius);
+  box-shadow: var(--co-shadow);
+}
+
+.co-form .gr-form__footer-notes .gr-form__label {
+  font-size: var(--text-2xs);
+  font-weight: var(--co-weight-strong);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--co-label);
+}
+
+.co-form .gr-form__textarea {
+  min-block-size: var(--space-10);
+  max-block-size: var(--space-20);
+  padding: var(--space-2);
+  font-size: var(--text-xs);
+  border-radius: var(--co-radius-sm);
+}
+
+// ── Barra azioni ───────────────────────────────────────────────────────────
+.co-form .gr-form__actions {
+  background-color: color-mix(in srgb, var(--co-surface) 94%, transparent);
+  border-color: var(--co-line);
+  border-radius: var(--co-radius);
+  box-shadow: 0 -5px 18px rgb(15 36 28 / 0.055);
+}
+
+.co-form .gr-form__actions-note {
+  font-size: var(--text-2xs);
+}
+
+// ── §CONTROLLI: quantità oltre la disponibile ──────────────────────────────
+// Bordo/sfondo ambra sulla cella, testo discreto «disponibili solo N».
+// Mai un blocco.
 .co-form__cell--exceeds {
   position: relative;
-  background: color-mix(in srgb, var(--color-warning, #b45309) 12%, transparent);
+  background: var(--co-warn-bg);
 
   .gr-form__input--table {
-    border-color: var(--color-warning, #b45309);
-    box-shadow: 0 0 0 1px var(--color-warning, #b45309) inset;
+    color: var(--co-warn-fg);
+    font-weight: var(--font-weight-semibold);
+    border-color: var(--co-warn);
+    background-color: var(--co-warn-bg);
   }
+}
+
+.co-form .gr-form__table tbody tr:hover td.co-form__cell--exceeds {
+  background-color: var(--co-warn-bg);
 }
 
 .co-form__exceeds-hint {
   display: block;
-  font-size: var(--text-xs);
-  line-height: 1.2;
-  color: var(--color-warning, #b45309);
+  font-size: var(--co-text-micro);
+  line-height: var(--leading-tight);
+  color: var(--co-warn-fg);
   white-space: nowrap;
 }
 
-// Tendina "Concludi ordine": elenca i documenti di scarico disponibili.
+// ── Tendina «Concludi ordine»: elenca i documenti di scarico disponibili ────
 .co-form__conclude {
   position: relative;
   display: inline-flex;
