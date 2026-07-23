@@ -29,9 +29,7 @@ import {
   assertLocationReadableInUserScope,
 } from '../inventory/user-location-scope.util';
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
-import {
-  resolveReadableListLocationScope,
-} from '../inventory/licensed-location-scope.util';
+import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
 import {
   applyInventorySerialsFromDocumentLines,
   assertSerialNumbersForDocumentLines,
@@ -47,13 +45,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
-import {
-  receiptVatBreakdown,
-  type VatBreakdownEntry,
-} from './purchase-invoice-vat-summary.util';
-import {
-  syncGoodsReceiptLineMovements,
-} from './document-goods-receipt-sync.util';
+import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
+import { syncGoodsReceiptLineMovements } from './document-goods-receipt-sync.util';
 import {
   buildAdjustmentMovementReason,
   syncAdjustmentLineMovements,
@@ -76,6 +69,7 @@ import {
   isProformaConvertTarget,
   isSalesDdtConvertTarget,
 } from './document-type.util';
+import { nextDocumentNumber } from './document-numbering.util';
 import {
   reconcileDocumentStockAdjustment,
   reverseDocumentStockAdjustment,
@@ -94,12 +88,8 @@ import {
   reverseDocumentStockLoad,
   reverseDocumentStockUnload,
 } from './document-stock-reconcile.util';
-import {
-  reverseSupplierOrderReceipt,
-} from './document-supplier-order.util';
-import {
-  findSupplierPriceDiffs,
-} from './document-supplier-price.util';
+import { reverseSupplierOrderReceipt } from './document-supplier-order.util';
+import { findSupplierPriceDiffs } from './document-supplier-price.util';
 import { DocumentSettingsService } from './document-settings.service';
 import {
   isDedicatedWorkflowDocumentType,
@@ -239,6 +229,8 @@ interface ComputedLine {
   vatCodeId: string | null;
   vatSnapshot: Prisma.InputJsonObject | null;
   loadsStock: boolean;
+  /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
+  isReference: boolean;
   supplierOrderLineId: string | null;
   lotCode: string | null;
   lotExpiryDate: Date | null;
@@ -318,9 +310,7 @@ export class DocumentsService {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.locationId ? { locationId: query.locationId } : {}),
-      ...(query.causal
-        ? { causalText: { contains: query.causal, mode: 'insensitive' } }
-        : {}),
+      ...(query.causal ? { causalText: { contains: query.causal, mode: 'insensitive' } } : {}),
       ...(query.paymentMethod ? { paymentMethod: query.paymentMethod } : {}),
       ...(query.createdById ? { createdById: query.createdById } : {}),
       ...(query.externalDocumentTypeId
@@ -428,7 +418,9 @@ export class DocumentsService {
     });
 
     return rows
-      .filter((row): row is { createdById: string; createdByName: string } => row.createdById != null)
+      .filter(
+        (row): row is { createdById: string; createdByName: string } => row.createdById != null,
+      )
       .map((row) => ({ id: row.createdById, name: row.createdByName }));
   }
 
@@ -577,11 +569,7 @@ export class DocumentsService {
     return { linkStatus: 'suspended', linkedPurchaseInvoice: null };
   }
 
-  async getById(
-    tenantId: string,
-    id: string,
-    user?: UserProfileDto,
-  ): Promise<DocumentDetail> {
+  async getById(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentDetail> {
     const doc = await this.prisma.document.findFirst({
       where: { id, tenantId },
       include: {
@@ -747,17 +735,16 @@ export class DocumentsService {
     const numberingType = documentNumberingType(type);
     const numberingSetting =
       numberingType === type ? setting : await this.settings.getResolved(tenantId, numberingType);
-    const sequence = await this.prisma.documentSequence.findUnique({
-      where: {
-        tenantId_type_series_year: {
-          tenantId,
-          type: numberingType,
-          series: resolvedSeries,
-          year: resolvedYear,
-        },
-      },
+    // Stesso criterio dell'assegnazione (massimo esistente + 1): l'anteprima
+    // mostra davvero il numero che il documento riceverà.
+    const previewNumber = await nextDocumentNumber({
+      tx: this.prisma,
+      tenantId,
+      type: numberingType,
+      series: resolvedSeries,
+      year: resolvedYear,
+      source: 'document',
     });
-    const previewNumber = (sequence?.lastNumber ?? 0) + 1;
     const prefix = (numberingSetting.numberPrefix ?? 'DOC').trim() || 'DOC';
     return {
       reference: this.formatReference(prefix, resolvedYear, previewNumber),
@@ -937,7 +924,9 @@ export class DocumentsService {
     const entries = Object.entries(fields)
       .filter((entry): entry is [string, string] => Boolean(entry[1]?.trim()))
       .map(([key, value]) => [key, value.trim()]);
-    return entries.length > 0 ? (Object.fromEntries(entries) as Prisma.InputJsonObject) : Prisma.DbNull;
+    return entries.length > 0
+      ? (Object.fromEntries(entries) as Prisma.InputJsonObject)
+      : Prisma.DbNull;
   }
 
   /**
@@ -1225,6 +1214,7 @@ export class DocumentsService {
             reverseChargeVatMinor: line.reverseChargeVatMinor,
             nonDeductibleVatMinor: line.nonDeductibleVatMinor,
             loadsStock: line.loadsStock,
+            isReference: line.isReference === true,
             lotCode: line.lotCode,
             lotExpiryDate: line.lotExpiryDate,
             serialNumbers: (line.serialNumbers ?? []) as Prisma.InputJsonValue,
@@ -1330,6 +1320,7 @@ export class DocumentsService {
           id: `new-${index}`,
           documentId: doc.id,
           tenantId,
+          isReference: line.isReference === true,
           linkedGoodsReceiptId: null,
           ...EMPTY_LINE_VAT_FIELDS,
           createdAt: doc.createdAt,
@@ -1476,11 +1467,10 @@ export class DocumentsService {
       if (!order) {
         throw new NotFoundException('Ordine fornitore non trovato');
       }
-      const effectiveSupplierId =
-        dto.supplierId !== undefined ? dto.supplierId : doc.supplierId;
+      const effectiveSupplierId = dto.supplierId !== undefined ? dto.supplierId : doc.supplierId;
       if (effectiveSupplierId && order.supplierId !== effectiveSupplierId) {
         throw new UnprocessableEntityException(
-          'L\'ordine fornitore selezionato appartiene a un altro fornitore.',
+          "L'ordine fornitore selezionato appartiene a un altro fornitore.",
         );
       }
       data.supplierOrderId = dto.supplierOrderId;
@@ -1508,6 +1498,7 @@ export class DocumentsService {
             discountPercent: line.discountPercent,
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot) ?? undefined,
             loadsStock: line.loadsStock,
+            isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? undefined,
             lotCode: line.lotCode ?? undefined,
             lotExpiryDate: line.lotExpiryDate?.toISOString(),
@@ -1596,6 +1587,8 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            // Riga tecnica per il ricalcolo movimenti: mai un riferimento.
+            isReference: false,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
@@ -1622,6 +1615,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
@@ -1663,6 +1657,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
@@ -1687,6 +1682,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
@@ -1730,6 +1726,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
@@ -1762,6 +1759,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
@@ -1810,6 +1808,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
@@ -1839,6 +1838,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
             lotExpiryDate: line.lotExpiryDate ?? null,
@@ -1979,11 +1979,7 @@ export class DocumentsService {
   }
 
   /** Conferma: bozza → confermato, assegna numero e applica gli effetti stock del tipo. */
-  async confirm(
-    tenantId: string,
-    id: string,
-    user?: UserProfileDto,
-  ): Promise<DocumentWithLines> {
+  async confirm(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentWithLines> {
     const actorName = user?.displayName ?? 'API';
     const actorId = user?.id ?? null;
 
@@ -2000,7 +1996,9 @@ export class DocumentsService {
       this.assertDocumentLocationWritable(user, doc);
       if (isFlowOnlyDocumentType(doc.type)) {
         // Cassa negozio: creati già confermati con movimenti in transazione.
-        throw new ConflictException('Le vendite e i resi negozio sono già registrati alla conclusione.');
+        throw new ConflictException(
+          'Le vendite e i resi negozio sono già registrati alla conclusione.',
+        );
       }
       // Percorso unico Arrivo merce: la conferma dal registro generico
       // eseguirebbe un motore di carico parallelo (aggregato) invece del sync
@@ -2095,12 +2093,7 @@ export class DocumentsService {
           });
           syncTargets.push({ variantId: variant.id, locationId: doc.locationId! });
         }
-        await consumeInventorySerialsFromDocumentLines(
-          tx,
-          tenantId,
-          doc.locationId!,
-          doc.lines,
-        );
+        await consumeInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
       }
 
       if (doc.type === DocumentType.manual_unload) {
@@ -2144,19 +2137,9 @@ export class DocumentsService {
         });
         syncTargets.push(...adjustmentSync.syncTargets);
         if (doc.adjustmentDirection === AdjustmentDirection.decrease) {
-          await consumeInventorySerialsFromDocumentLines(
-            tx,
-            tenantId,
-            doc.locationId!,
-            doc.lines,
-          );
+          await consumeInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
         } else {
-          await applyInventorySerialsFromDocumentLines(
-            tx,
-            tenantId,
-            doc.locationId!,
-            doc.lines,
-          );
+          await applyInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
         }
       }
 
@@ -2359,11 +2342,7 @@ export class DocumentsService {
     });
   }
 
-  async cancel(
-    tenantId: string,
-    id: string,
-    user?: UserProfileDto,
-  ): Promise<DocumentDetail> {
+  async cancel(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
@@ -2878,13 +2857,7 @@ export class DocumentsService {
     series: string,
     year: number,
   ): Promise<number> {
-    const numberingType = documentNumberingType(type);
-    const sequence = await tx.documentSequence.upsert({
-      where: { tenantId_type_series_year: { tenantId, type: numberingType, series, year } },
-      create: { tenantId, type: numberingType, series, year, lastNumber: 1 },
-      update: { lastNumber: { increment: 1 } },
-    });
-    return sequence.lastNumber;
+    return nextDocumentNumber({ tx, tenantId, type, series, year, source: 'document' });
   }
 
   private formatReference(prefix: string, year: number, number: number): string {
@@ -3167,6 +3140,7 @@ export class DocumentsService {
         vatCodeId,
         vatSnapshot,
         loadsStock: line.loadsStock ?? defaultLoadsStock,
+        isReference: line.isReference === true,
         supplierOrderLineId: line.supplierOrderLineId ?? null,
         lotCode: line.lotCode?.trim() || null,
         lotExpiryDate: line.lotExpiryDate ? new Date(line.lotExpiryDate) : null,

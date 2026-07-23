@@ -74,33 +74,49 @@
     </div>
 
     <div class="sales-list__filters">
-      <div class="sales-list__field sales-list__field--date">
-        <label class="sales-list__label" for="sales-date-from">Dal</label>
-        <app-date-input
-          inputId="sales-date-from"
-          [value]="query().placedFrom ?? ''"
-          ariaLabel="Data inizio periodo"
-          placeholder="gg/mm/aaaa"
+      <div class="sales-list__field">
+        <app-select-menu
+          chipLabel="Periodo"
+          [options]="periodOptions"
+          [value]="periodPreset()"
+          ariaLabel="Filtra per periodo"
+          placeholder="Tutto"
           [compact]="true"
           [fullWidth]="true"
-          [max]="query().placedTo || undefined"
-          (valueChange)="onDateFromChange($event)"
+          [filterChip]="true"
+          (valueChange)="onPeriodPresetChange($event)"
         />
       </div>
 
-      <div class="sales-list__field sales-list__field--date">
-        <label class="sales-list__label" for="sales-date-to">Al</label>
-        <app-date-input
-          inputId="sales-date-to"
-          [value]="query().placedTo ?? ''"
-          ariaLabel="Data fine periodo"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [min]="query().placedFrom || undefined"
-          (valueChange)="onDateToChange($event)"
-        />
-      </div>
+      @if (isCustomPeriod()) {
+        <div class="sales-list__field sales-list__field--date">
+          <label class="sales-list__label" for="sales-date-from">Dal</label>
+          <app-date-input
+            inputId="sales-date-from"
+            [value]="query().placedFrom ?? ''"
+            ariaLabel="Data inizio periodo"
+            placeholder="gg/mm/aaaa"
+            [compact]="true"
+            [fullWidth]="true"
+            [max]="query().placedTo || undefined"
+            (valueChange)="onDateFromChange($event)"
+          />
+        </div>
+
+        <div class="sales-list__field sales-list__field--date">
+          <label class="sales-list__label" for="sales-date-to">Al</label>
+          <app-date-input
+            inputId="sales-date-to"
+            [value]="query().placedTo ?? ''"
+            ariaLabel="Data fine periodo"
+            placeholder="gg/mm/aaaa"
+            [compact]="true"
+            [fullWidth]="true"
+            [min]="query().placedFrom || undefined"
+            (valueChange)="onDateToChange($event)"
+          />
+        </div>
+      }
 
       <div class="sales-list__field">
         <app-select-menu
@@ -189,6 +205,8 @@
         />
       </div>
 
+      <app-table-column-picker [viewId]="columnsView()" />
+
       <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
         <i class="pi pi-filter-slash" aria-hidden="true"></i>
         Azzera filtri
@@ -254,6 +272,7 @@
   } @else {
     <app-sales-order-table
       [orders]="orders()"
+      [columns]="visibleColumns()"
       [profile]="listProfile()"
       [selectable]="canManage()"
       [selectedIds]="selectedIds()"

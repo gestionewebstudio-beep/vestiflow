@@ -21,6 +21,8 @@ export const TableViewId = {
   ManualUnloadLines: 'manual_unload_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
+  SalesOrdersList: 'sales_orders_list',
+  ShopifyOrdersList: 'shopify_orders_list',
 } as const;
 export type TableViewId = (typeof TableViewId)[keyof typeof TableViewId];
 

@@ -51,6 +51,8 @@ export interface ManualOrderLineInput {
   readonly vatCodeId?: string | null;
   readonly commitsStock?: boolean;
   readonly unitOfMeasure?: string | null;
+  /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
+  readonly isReference?: boolean;
 }
 
 export interface ComputedManualOrderLine {
@@ -73,6 +75,7 @@ export interface ComputedManualOrderLine {
   readonly vatRatePercent: number;
   readonly commitsStock: boolean;
   readonly unitOfMeasure: string | null;
+  readonly isReference: boolean;
 }
 
 export interface ManualOrderTotals {
@@ -122,6 +125,7 @@ export function computeManualOrderLines(
       vatRatePercent: rate,
       commitsStock: line.commitsStock ?? true,
       unitOfMeasure: line.unitOfMeasure?.trim() || null,
+      isReference: line.isReference === true,
     };
   });
 }

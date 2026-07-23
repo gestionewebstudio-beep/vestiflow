@@ -114,6 +114,7 @@ import {
 } from './models/goods-receipt-line-columns.config';
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import {
+  documentReferenceLabel,
   documentStatusDisplayLabel,
   documentStatusDisplayTone,
 } from './models/document-labels.util';
@@ -520,8 +521,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!id) {
       return null;
     }
-    const label = this.loadedDocument()?.reference;
-    return label ? { id, label } : null;
+    const doc = this.loadedDocument();
+    // Anche i documenti non ancora numerati hanno un'etichetta leggibile
+    // («Bozza · serie A»): senza, il percorso ricadeva sul generico «Dettaglio».
+    return doc ? { id, label: documentReferenceLabel(doc.type, doc.reference, doc.series) } : null;
   });
   /** Id attualmente registrato nel breadcrumb (per pulizia mirata). */
   private breadcrumbLabelId: string | null = null;

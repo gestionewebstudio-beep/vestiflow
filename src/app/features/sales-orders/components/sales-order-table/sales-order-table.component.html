@@ -14,24 +14,14 @@
             />
           </th>
         }
-        <th scope="col">Ordine</th>
-        @if (!isShopifyProfile()) {
-          <th scope="col">Origine</th>
-        }
-        <th scope="col">Data</th>
-        <th scope="col">Cliente</th>
-        <th scope="col" class="sales-table__cell--total">Totale</th>
-        <th scope="col">Stato</th>
-        <th scope="col">Pagamento</th>
-        <th scope="col">Evasione</th>
-        <th scope="col">Location</th>
-        <th scope="col" class="sales-table__cell--qty">Impegnata</th>
-        <th scope="col">Vendita online</th>
-        @if (isShopifyProfile()) {
-          <th scope="col">Corrispettivo</th>
-          <th scope="col">DDT</th>
-          <th scope="col">Aggiornato</th>
-          <th scope="col">Sync</th>
+        @for (col of columns(); track col.id) {
+          <th
+            scope="col"
+            [class.sales-table__cell--pinned]="col.pinned"
+            [class.sales-table__cell--total]="col.id === 'total' || col.id === 'netTotal'"
+          >
+            {{ col.label }}
+          </th>
         }
         <th scope="col" class="sales-table__cell--actions">Azioni</th>
       </tr>
@@ -63,88 +53,136 @@
               />
             </td>
           }
-          <td class="sales-table__number tabular-nums" data-label="Ordine">
-            {{ order.orderNumber }}
-          </td>
-          @if (!isShopifyProfile()) {
-            <td data-label="Origine">{{ sourceLabel(order.source) }}</td>
-          }
-          <td class="tabular-nums" data-label="Data">{{ formatDate(order.placedAt) }}</td>
-          <td data-label="Cliente">{{ order.customerName }}</td>
-          <td class="sales-table__cell--total tabular-nums" data-label="Totale">
-            {{ formatMoney(order.total) }}
-          </td>
-          <td data-label="Stato">
-            <span class="sales-table__cell-value">
-              <app-badge [tone]="orderStateTone(order)">{{ orderStateLabel(order) }}</app-badge>
-            </span>
-          </td>
-          <td data-label="Pagamento">
-            <span class="sales-table__cell-value">
-              <app-badge [tone]="financialTone(order.financialStatus)">
-                {{ financialLabel(order.financialStatus) }}
-              </app-badge>
-            </span>
-          </td>
-          <td data-label="Evasione">
-            <span class="sales-table__cell-value">
-              <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
-                {{ fulfillmentLabel(order.fulfillmentStatus) }}
-              </app-badge>
-            </span>
-          </td>
-          <td data-label="Location">{{ order.locationName ?? '—' }}</td>
-          <td class="sales-table__cell--qty tabular-nums" data-label="Impegnata">
-            {{ order.committedQuantity ?? 0 }}
-          </td>
-          <td data-label="Vendita online">
-            @if (order.onlineSale; as sale) {
-              <a
-                class="sales-table__link"
-                [routerLink]="['/app/sales/online', sale.id]"
-                (click)="$event.stopPropagation()"
-                (keydown.enter)="$event.stopPropagation()"
-              >
-                {{ sale.reference }}
-              </a>
-            } @else {
-              <span aria-hidden="true">—</span>
-            }
-          </td>
-          @if (isShopifyProfile()) {
-            <td data-label="Corrispettivo">
-              @if (order.onlineSale?.corrispettivo; as entry) {
-                <span class="sales-table__cell-value">
-                  <app-badge [tone]="corrispettivoTone(entry.status)">
-                    {{ entry.reference }}
-                  </app-badge>
-                </span>
-              } @else {
-                <span aria-hidden="true">—</span>
-              }
-            </td>
-            <td data-label="DDT">
-              @if (order.linkedDocument; as doc) {
-                <a
-                  class="sales-table__link"
-                  [routerLink]="['/app/documents', doc.id]"
-                  (click)="$event.stopPropagation()"
-                  (keydown.enter)="$event.stopPropagation()"
+          @for (col of columns(); track col.id) {
+            @switch (col.id) {
+              @case ('orderNumber') {
+                <td
+                  class="sales-table__number tabular-nums"
+                  [class.sales-table__cell--pinned]="col.pinned"
+                  [attr.data-label]="col.label"
                 >
-                  {{ doc.reference ?? 'DDT' }}
-                </a>
-              } @else {
-                <span aria-hidden="true">—</span>
+                  {{ order.orderNumber }}
+                </td>
               }
-            </td>
-            <td class="tabular-nums" data-label="Aggiornato">
-              {{ formatDate(order.updatedAt) }}
-            </td>
-            <td data-label="Sync">
-              <span class="sales-table__cell-value" [attr.title]="order.reviewReason ?? null">
-                <app-badge [tone]="syncStateTone(order)">{{ syncStateLabel(order) }}</app-badge>
-              </span>
-            </td>
+              @case ('source') {
+                <td [attr.data-label]="col.label">{{ sourceLabel(order.source) }}</td>
+              }
+              @case ('placedAt') {
+                <td class="tabular-nums" [attr.data-label]="col.label">
+                  {{ formatDate(order.placedAt) }}
+                </td>
+              }
+              @case ('customerCode') {
+                <td class="tabular-nums" [attr.data-label]="col.label">
+                  {{ order.customerCode || '—' }}
+                </td>
+              }
+              @case ('customerName') {
+                <td [attr.data-label]="col.label">{{ order.customerName }}</td>
+              }
+              @case ('total') {
+                <td class="sales-table__cell--total tabular-nums" [attr.data-label]="col.label">
+                  {{ formatMoney(order.total) }}
+                </td>
+              }
+              @case ('netTotal') {
+                <td class="sales-table__cell--total tabular-nums" [attr.data-label]="col.label">
+                  {{ formatMoney(order.subtotal) }}
+                </td>
+              }
+              @case ('state') {
+                <td [attr.data-label]="col.label">
+                  <span class="sales-table__cell-value">
+                    <app-badge [tone]="orderStateTone(order)">
+                      {{ orderStateLabel(order) }}
+                    </app-badge>
+                  </span>
+                </td>
+              }
+              @case ('financialStatus') {
+                <td [attr.data-label]="col.label">
+                  <span class="sales-table__cell-value">
+                    <app-badge [tone]="financialTone(order.financialStatus)">
+                      {{ financialLabel(order.financialStatus) }}
+                    </app-badge>
+                  </span>
+                </td>
+              }
+              @case ('fulfillmentStatus') {
+                <td [attr.data-label]="col.label">
+                  <span class="sales-table__cell-value">
+                    <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
+                      {{ fulfillmentLabel(order.fulfillmentStatus) }}
+                    </app-badge>
+                  </span>
+                </td>
+              }
+              @case ('location') {
+                <td [attr.data-label]="col.label">{{ order.locationName ?? '—' }}</td>
+              }
+              @case ('notes') {
+                <td class="sales-table__cell--notes" [attr.data-label]="col.label">
+                  {{ order.notes || '—' }}
+                </td>
+              }
+              @case ('onlineSale') {
+                <td [attr.data-label]="col.label">
+                  @if (order.onlineSale; as sale) {
+                    <a
+                      class="sales-table__link"
+                      [routerLink]="['/app/sales/online', sale.id]"
+                      (click)="$event.stopPropagation()"
+                      (keydown.enter)="$event.stopPropagation()"
+                    >
+                      {{ sale.reference }}
+                    </a>
+                  } @else {
+                    <span aria-hidden="true">—</span>
+                  }
+                </td>
+              }
+              @case ('corrispettivo') {
+                <td [attr.data-label]="col.label">
+                  @if (order.onlineSale?.corrispettivo; as entry) {
+                    <span class="sales-table__cell-value">
+                      <app-badge [tone]="corrispettivoTone(entry.status)">
+                        {{ entry.reference }}
+                      </app-badge>
+                    </span>
+                  } @else {
+                    <span aria-hidden="true">—</span>
+                  }
+                </td>
+              }
+              @case ('ddt') {
+                <td [attr.data-label]="col.label">
+                  @if (order.linkedDocument; as doc) {
+                    <a
+                      class="sales-table__link"
+                      [routerLink]="['/app/documents', doc.id]"
+                      (click)="$event.stopPropagation()"
+                      (keydown.enter)="$event.stopPropagation()"
+                    >
+                      {{ doc.reference ?? 'DDT' }}
+                    </a>
+                  } @else {
+                    <span aria-hidden="true">—</span>
+                  }
+                </td>
+              }
+              @case ('updatedAt') {
+                <td class="tabular-nums" [attr.data-label]="col.label">
+                  {{ formatDate(order.updatedAt) }}
+                </td>
+              }
+              @case ('syncState') {
+                <td [attr.data-label]="col.label">
+                  <span class="sales-table__cell-value" [attr.title]="order.reviewReason ?? null">
+                    <app-badge [tone]="syncStateTone(order)">{{ syncStateLabel(order) }}</app-badge>
+                  </span>
+                </td>
+              }
+            }
           }
           <td
             class="sales-table__cell--actions"

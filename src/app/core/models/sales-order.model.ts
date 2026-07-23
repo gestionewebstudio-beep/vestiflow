@@ -71,6 +71,8 @@ export interface SalesOrderLine {
   readonly lineVatTotal?: Money;
   /** Spunta "Impegna magazzino" della riga. */
   readonly commitsStock?: boolean;
+  /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
+  readonly isReference?: boolean;
 }
 
 /** Vendita read-only (Shopify-authoritative). */
@@ -86,6 +88,8 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly customerId?: EntityId;
   /** Nome cliente snapshot (display; fallback per ordini guest). */
   readonly customerName: string;
+  /** Codice anagrafica cliente (colonna opzionale dell'elenco). */
+  readonly customerCode?: string;
   readonly customerEmail?: string;
   /** Negozio/canale commerciale di vendita (opzionale). */
   readonly storeId?: EntityId;

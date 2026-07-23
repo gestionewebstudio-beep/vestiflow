@@ -10,10 +10,8 @@ import {
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { DocumentSettingsService } from '../documents/document-settings.service';
-import {
-  formatDocumentReference,
-  nextDocumentNumber,
-} from '../documents/document-totals.util';
+import { formatDocumentReference } from '../documents/document-totals.util';
+import { nextDocumentNumber } from '../documents/document-numbering.util';
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import {
   INVENTORY_VIEW_SCOPE_MODE,
@@ -98,13 +96,14 @@ export class StoreSalesService {
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
       const series = setting.defaultSeries;
-      const number = await nextDocumentNumber(
+      const number = await nextDocumentNumber({
         tx,
         tenantId,
-        DocumentType.store_sale,
+        type: DocumentType.store_sale,
         series,
         year,
-      );
+        source: 'document',
+      });
       const reference = formatDocumentReference(setting.numberPrefix, year, number);
 
       // Prezzi in cassa IVA inclusa: scorporo per i totali interni.
@@ -254,13 +253,14 @@ export class StoreSalesService {
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
       const series = setting.defaultSeries;
-      const number = await nextDocumentNumber(
+      const number = await nextDocumentNumber({
         tx,
         tenantId,
-        DocumentType.store_return,
+        type: DocumentType.store_return,
         series,
         year,
-      );
+        source: 'document',
+      });
       const reference = formatDocumentReference(setting.numberPrefix, year, number);
 
       const computedLines = dto.lines.map((line, index) => {
@@ -568,8 +568,7 @@ export class StoreSalesService {
       void Promise.resolve(
         this.channelSync.pushInventoryLevels(tenantId, variantId, [locationId]),
       ).catch((error: unknown) => {
-        const message =
-          error instanceof Error ? error.message : 'Push inventario canali fallito';
+        const message = error instanceof Error ? error.message : 'Push inventario canali fallito';
         this.logger.warn(`Push inventario post-vendita negozio (${tenantId}): ${message}`);
       });
     }
@@ -599,9 +598,7 @@ export class StoreSalesService {
       where: { tenantId, locationId, variantId: { in: variantIds } },
       select: { variantId: true, available: true },
     });
-    const availableByVariant = new Map(
-      levels.map((level) => [level.variantId, level.available]),
-    );
+    const availableByVariant = new Map(levels.map((level) => [level.variantId, level.available]));
 
     return {
       id: doc.id,
@@ -613,17 +610,12 @@ export class StoreSalesService {
         sku: line.sku ?? '',
         description: line.description,
         quantity: line.quantity,
-        remainingAvailable: line.variantId
-          ? (availableByVariant.get(line.variantId) ?? 0)
-          : 0,
+        remainingAvailable: line.variantId ? (availableByVariant.get(line.variantId) ?? 0) : 0,
       })),
     };
   }
 
-  private async snapshotCustomerName(
-    tenantId: string,
-    customerId: string,
-  ): Promise<string | null> {
+  private async snapshotCustomerName(tenantId: string, customerId: string): Promise<string | null> {
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, tenantId },
       select: { party: true },

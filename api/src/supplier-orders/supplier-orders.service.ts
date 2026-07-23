@@ -16,15 +16,14 @@ import {
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import {
-  resolveReadableListLocationScope,
-} from '../inventory/licensed-location-scope.util';
+import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
 import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { DocumentSettingsService } from '../documents/document-settings.service';
-import { formatDocumentReference, nextDocumentNumber } from '../documents/document-totals.util';
+import { formatDocumentReference } from '../documents/document-totals.util';
+import { nextDocumentNumber } from '../documents/document-numbering.util';
 import { computeGoodsReceiptTotals } from '../documents/goods-receipt-vat.util';
 import { computeVatLineAmounts } from '../vat/vat-line-calculation.util';
 import { VatCodesService, type VatCodeWithNature } from '../vat/vat-codes.service';
@@ -100,22 +99,19 @@ export class SupplierOrdersService {
 
   /** Anteprima numerazione (numeratore dedicato supplier_order, come Ordine cliente). */
   async getMeta(tenantId: string): Promise<SupplierOrderMeta> {
-    const setting = await this.documentSettings.getResolved(
-      tenantId,
-      DocumentType.supplier_order,
-    );
+    const setting = await this.documentSettings.getResolved(tenantId, DocumentType.supplier_order);
     const year = new Date().getFullYear();
-    const sequence = await this.prisma.documentSequence.findUnique({
-      where: {
-        tenantId_type_series_year: {
-          tenantId,
-          type: DocumentType.supplier_order,
-          series: setting.defaultSeries,
-          year,
-        },
-      },
+    // Stesso criterio dell'assegnazione (massimo esistente + 1): l'anteprima
+    // coincide col numero che l'ordine riceverà davvero.
+    const previewNumber = await nextDocumentNumber({
+      tx: this.prisma,
+      tenantId,
+      type: DocumentType.supplier_order,
+      series: setting.defaultSeries,
+      year,
+      source: 'supplier_order',
+      prefix: setting.numberPrefix,
     });
-    const previewNumber = (sequence?.lastNumber ?? 0) + 1;
     return {
       nextReferencePreview: formatDocumentReference(setting.numberPrefix, year, previewNumber),
     };
@@ -139,10 +135,7 @@ export class SupplierOrdersService {
       throw new NotFoundException('Fornitore non trovato');
     }
 
-    const setting = await this.documentSettings.getResolved(
-      tenantId,
-      DocumentType.supplier_order,
-    );
+    const setting = await this.documentSettings.getResolved(tenantId, DocumentType.supplier_order);
     if (!setting.enabled) {
       throw new UnprocessableEntityException(
         `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
@@ -156,13 +149,15 @@ export class SupplierOrdersService {
 
     return this.prisma.$transaction(async (tx) => {
       const year = orderDate.getFullYear();
-      const number = await nextDocumentNumber(
+      const number = await nextDocumentNumber({
         tx,
         tenantId,
-        DocumentType.supplier_order,
-        setting.defaultSeries,
+        type: DocumentType.supplier_order,
+        series: setting.defaultSeries,
         year,
-      );
+        source: 'supplier_order',
+        prefix: setting.numberPrefix,
+      });
       const reference = formatDocumentReference(setting.numberPrefix, year, number);
 
       const order = await tx.supplierOrder.create({

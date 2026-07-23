@@ -21,7 +21,8 @@ import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { partyDisplayName } from '../common/party/party.util';
 import { DOCUMENT_STOCK_UNLOAD_TYPES } from '../documents/document-stock.constants';
 import { DocumentSettingsService } from '../documents/document-settings.service';
-import { formatDocumentReference, nextDocumentNumber } from '../documents/document-totals.util';
+import { formatDocumentReference } from '../documents/document-totals.util';
+import { nextDocumentNumber } from '../documents/document-numbering.util';
 import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -82,21 +83,17 @@ export class ManualSalesOrdersService {
 
   async getMeta(tenantId: string): Promise<ManualSalesOrderMeta> {
     const year = new Date().getFullYear();
-    const setting = await this.documentSettings.getResolved(
+    const setting = await this.documentSettings.getResolved(tenantId, DocumentType.customer_order);
+    // Stesso criterio dell'assegnazione (massimo esistente + 1).
+    const previewNumber = await nextDocumentNumber({
+      tx: this.prisma,
       tenantId,
-      DocumentType.customer_order,
-    );
-    const sequence = await this.prisma.documentSequence.findUnique({
-      where: {
-        tenantId_type_series_year: {
-          tenantId,
-          type: DocumentType.customer_order,
-          series: setting.defaultSeries,
-          year,
-        },
-      },
+      type: DocumentType.customer_order,
+      series: setting.defaultSeries,
+      year,
+      source: 'sales_order',
+      prefix: setting.numberPrefix,
     });
-    const previewNumber = (sequence?.lastNumber ?? 0) + 1;
     return {
       nextReferencePreview: formatDocumentReference(setting.numberPrefix, year, previewNumber),
       unloadDocumentTypes: DOCUMENT_STOCK_UNLOAD_TYPES,
@@ -136,12 +133,12 @@ export class ManualSalesOrdersService {
       include: { party: true },
     });
     if (!customer) {
-      throw new UnprocessableEntityException('Seleziona un cliente valido per salvare l\'ordine.');
+      throw new UnprocessableEntityException("Seleziona un cliente valido per salvare l'ordine.");
     }
 
     if (!dto.locationId) {
       throw new UnprocessableEntityException(
-        'Seleziona la location di origine per salvare l\'ordine.',
+        "Seleziona la location di origine per salvare l'ordine.",
       );
     }
     const location = await this.prisma.location.findFirst({
@@ -221,10 +218,7 @@ export class ManualSalesOrdersService {
 
     const customerName = partyDisplayName(customer.party) || 'Cliente';
     const documentDate = new Date(dto.documentDate);
-    const setting = await this.documentSettings.getResolved(
-      tenantId,
-      DocumentType.customer_order,
-    );
+    const setting = await this.documentSettings.getResolved(tenantId, DocumentType.customer_order);
 
     const syncTargets = new Set<string>();
 
@@ -261,18 +255,19 @@ export class ManualSalesOrdersService {
       let orderNumber = existing?.orderNumber ?? null;
       if (!orderNumber) {
         const year = documentDate.getFullYear();
-        const number = await nextDocumentNumber(
+        const number = await nextDocumentNumber({
           tx,
           tenantId,
-          DocumentType.customer_order,
-          setting.defaultSeries,
+          type: DocumentType.customer_order,
+          series: setting.defaultSeries,
           year,
-        );
+          source: 'sales_order',
+          prefix: setting.numberPrefix,
+        });
         orderNumber = formatDocumentReference(setting.numberPrefix, year, number);
       }
 
-      const cancelledAt =
-        status === 'cancelled' ? (existing?.cancelledAt ?? new Date()) : null;
+      const cancelledAt = status === 'cancelled' ? (existing?.cancelledAt ?? new Date()) : null;
 
       const headerData = {
         orderNumber,
@@ -281,9 +276,7 @@ export class ManualSalesOrdersService {
         customerName,
         locationId: dto.locationId ?? null,
         externalRef: dto.externalRef?.trim() || null,
-        expectedDeliveryDate: dto.expectedDeliveryDate
-          ? new Date(dto.expectedDeliveryDate)
-          : null,
+        expectedDeliveryDate: dto.expectedDeliveryDate ? new Date(dto.expectedDeliveryDate) : null,
         notes: dto.notes?.trim() || null,
         paymentTerms: dto.paymentTerms?.trim() || null,
         documentDiscountPercent,
@@ -321,6 +314,7 @@ export class ManualSalesOrdersService {
           lineVatTotalMinor: line.lineVatTotalMinor,
           commitsStock: line.commitsStock,
           unitOfMeasure: line.unitOfMeasure,
+          isReference: line.isReference,
         };
         if (line.id && existingLineIds.has(line.id)) {
           await tx.salesOrderLine.update({ where: { id: line.id }, data: lineData });
@@ -479,7 +473,7 @@ export class ManualSalesOrdersService {
     }
     if (!order.locationId) {
       throw new UnprocessableEntityException(
-        'Assegna la location di origine all\'ordine prima di concluderlo.',
+        "Assegna la location di origine all'ordine prima di concluderlo.",
       );
     }
     if (user) {
@@ -523,8 +517,7 @@ export class ManualSalesOrdersService {
               quantity: line.quantity,
               // Prezzo unitario SCONTATO (cascata esatta già applicata alla
               // riga ordine): il documento di scarico eredita i prezzi reali.
-              unitPriceMinor:
-                line.quantity > 0 ? Math.round(line.totalMinor / line.quantity) : 0,
+              unitPriceMinor: line.quantity > 0 ? Math.round(line.totalMinor / line.quantity) : 0,
               discountPercent: 0,
               lineTotalMinor: line.totalMinor,
               vatCodeId: line.vatCodeId,
@@ -559,11 +552,7 @@ export class ManualSalesOrdersService {
    * viene chiuso d'ufficio. Gli eventuali impegni residui vengono rilasciati
    * (merce mai spedita: torna disponibile, nessun movimento di magazzino).
    */
-  async forceConclude(
-    tenantId: string,
-    orderId: string,
-    user?: UserProfileDto,
-  ): Promise<void> {
+  async forceConclude(tenantId: string, orderId: string, user?: UserProfileDto): Promise<void> {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id: orderId, tenantId },
       select: {

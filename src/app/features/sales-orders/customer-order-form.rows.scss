@@ -1,0 +1,206 @@
+@use 'breakpoints' as bp;
+
+// Riga «documento collegato» e riordino delle righe per trascinamento —
+// terzo foglio del componente (customer-order-form.component.ts, styleUrls).
+// Sta a parte per restare dentro il budget CSS per-componente di angular.json.
+// I valori qui sotto vengono dalle specifiche di design della riga riferimento
+// e restano espliciti (non passano dalle --co-*): sono un contratto col
+// disegno, non la palette della pagina.
+
+// ── Riga «documento collegato» ─────────────────────────────────────────────
+// La fascia colorata copre SOLO indice e colonne di identità: le colonne da
+// Q.tà a Totale restano celle normali con la tinta del proprio gruppo, così i
+// divisori verticali e le bande di colonna proseguono senza interruzioni.
+.co-form .gr-form__table tbody td.co-form__source-cell {
+  block-size: 2.125rem; // 34px
+  color: #42545d;
+  background-color: #f2f5f7;
+  overflow: visible;
+}
+
+.co-form .gr-form__table tbody tr:hover td.co-form__source-cell {
+  background-color: #f2f5f7;
+}
+
+// Accento verticale sulla prima cella della fascia (l'indice).
+.co-form .gr-form__table tbody td.co-form__source-cell:first-child {
+  box-shadow: inset 3px 0 0 #718995;
+}
+
+.co-form__source-index {
+  font-size: 0.6875rem; // 11px
+  color: #7c898e;
+}
+
+.co-form__source-info-cell {
+  padding-inline: 0;
+}
+
+.co-form__source-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.co-form__source-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 1rem; // 16px
+  block-size: 1rem;
+  color: #647d89;
+}
+
+.co-form__source-icon i {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.co-form__source-kind {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  font-size: 0.59375rem; // 9.5px
+  font-weight: 780;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  color: #4b6470;
+  background-color: #e6ecef;
+  border: 1px solid #ccd8dd;
+  border-radius: 4px;
+}
+
+// Titolo del riferimento: resta un campo modificabile (il testo è libero),
+// ma pesa e si comporta come il titolo statico delle specifiche.
+.co-form__source-title {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  inline-size: 100%;
+  block-size: var(--co-cell-h);
+  padding: 0 2px;
+  font-size: 0.75rem; // 12px
+  font-weight: var(--font-weight-semibold);
+  color: #334850;
+  text-overflow: ellipsis;
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--co-radius-xs);
+}
+
+.co-form__source-title:hover {
+  border-color: #ccd8dd;
+  background-color: var(--co-surface);
+}
+
+.co-form__source-title:focus-visible {
+  outline: none;
+  border-color: var(--co-focus);
+  background-color: var(--co-surface);
+  box-shadow: 0 0 0 var(--border-width-strong) var(--co-focus-soft);
+}
+
+// ── Riordino righe: la maniglia è il numero ────────────────────────────────
+.co-form .gr-form__table tbody .co-form__drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.co-form .gr-form__table tbody .co-form__drag-handle:active {
+  cursor: grabbing;
+}
+
+.co-form .gr-form__table tbody tr.cdk-drag-dragging {
+  opacity: 0.5;
+}
+
+// Segnaposto: la riga si riduce a una linea che indica il punto di rilascio.
+.co-form ::ng-deep .cdk-drag-placeholder {
+  block-size: var(--border-width-strong);
+  background-color: var(--co-focus);
+  opacity: 1;
+}
+
+.co-form ::ng-deep .cdk-drag-placeholder td {
+  padding: 0;
+  border: 0;
+  block-size: var(--border-width-strong);
+  overflow: hidden;
+}
+
+// Anteprima trascinata: fuori dalla tabella perde il layout di riga, la si
+// riporta a una striscia leggibile.
+.co-form ::ng-deep .cdk-drag-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line-strong);
+  border-radius: var(--co-radius-sm);
+  box-shadow: var(--shadow-md);
+  opacity: 0.95;
+}
+
+.co-form ::ng-deep .cdk-drag-preview td {
+  padding-inline: var(--space-1);
+  border: 0;
+}
+
+// ── Mobile/tablet (≤lg): card compatta, non una colonna ───────────────────
+.co-form__mobile-source-row {
+  display: none;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  background-color: #f2f5f7;
+  border: 1px solid #cbd5d9;
+  border-inline-start: 3px solid #718995;
+  border-radius: var(--co-radius);
+}
+
+@include bp.media-down('lg') {
+  .co-form__mobile-source-row {
+    display: flex;
+  }
+}
+
+.co-form__mobile-source-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  inline-size: 2rem;
+  block-size: 2rem;
+  color: #5f7883;
+  background-color: #e4eaed;
+  border-radius: var(--co-radius-sm);
+}
+
+.co-form__mobile-source-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.co-form__mobile-source-copy small {
+  font-size: 0.53125rem; // 8.5px
+  font-weight: 780;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #65777f;
+}
+
+.co-form__mobile-source-row .co-form__source-title {
+  block-size: var(--space-6);
+  font-size: 0.78125rem; // 12.5px
+}
+
+.co-form__mobile-source-row .gr-form__line-remove {
+  flex: 0 0 auto;
+  inline-size: 2rem;
+  block-size: 2rem;
+}

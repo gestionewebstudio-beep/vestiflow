@@ -90,10 +90,16 @@
   }
 
   .sales-table tbody td.sales-table__cell--total,
-  .sales-table__head th.sales-table__cell--total,
-  .sales-table tbody td.sales-table__cell--qty,
-  .sales-table__head th.sales-table__cell--qty {
+  .sales-table__head th.sales-table__cell--total {
     text-align: end;
+    white-space: nowrap;
+  }
+
+  // Commento: testo libero, non deve allargare la riga.
+  .sales-table tbody td.sales-table__cell--notes {
+    max-inline-size: var(--table-cell-max);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 

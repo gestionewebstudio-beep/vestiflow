@@ -71,6 +71,11 @@ export class SaveManualSalesOrderLineDto {
   @IsBoolean()
   commitsStock?: boolean;
 
+  /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
+  @IsOptional()
+  @IsBoolean()
+  isReference?: boolean;
+
   @IsOptional()
   @IsString()
   @MaxLength(20)

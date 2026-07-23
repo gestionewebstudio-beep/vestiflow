@@ -70,6 +70,12 @@ export class SavePurchaseInvoiceDto {
   @IsUUID()
   supplierId!: string;
 
+  /** Numero interno imposto dalla testata; assente = primo libero della serie. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   /** Data documento: la data della fattura ricevuta dal fornitore. */
   @IsISO8601()
   documentDate!: string;

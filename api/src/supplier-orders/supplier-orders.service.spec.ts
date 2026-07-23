@@ -87,7 +87,9 @@ describe('SupplierOrdersService', () => {
         findUnique: vi.fn().mockResolvedValue(null),
       },
       supplierOrder: {
-        findMany: vi.fn(),
+        // Numerazione «massimo esistente + 1»: la fonte è il riferimento degli
+        // ordini dell'anno, non più il contatore.
+        findMany: vi.fn().mockResolvedValue([]),
         count: vi.fn(),
         findFirst: vi.fn(),
         findUnique: vi.fn(),
@@ -139,7 +141,9 @@ describe('SupplierOrdersService', () => {
 
   it('getMeta espone anteprima del numeratore supplier_order', async () => {
     const prisma = createPrismaMock();
-    prisma.documentSequence.findUnique.mockResolvedValue({ lastNumber: 41 });
+    prisma.supplierOrder.findMany.mockResolvedValue([
+      { reference: `OF-${new Date().getFullYear()}-0041` },
+    ]);
     const service = createService(prisma);
 
     const year = new Date().getFullYear();
@@ -175,7 +179,9 @@ describe('SupplierOrdersService', () => {
     prisma.productVariant.findMany.mockResolvedValue([
       { id: 'var-1', sku: 'SKU-1', product: { name: 'T-shirt Basic' } },
     ]);
-    prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 7 });
+    prisma.supplierOrder.findMany.mockResolvedValue([
+      { reference: `OF-${new Date().getFullYear()}-0006` },
+    ]);
     prisma.supplierOrder.create.mockImplementation(
       (args: { data: { reference: string; status: string } }) =>
         Promise.resolve({
@@ -483,10 +489,7 @@ describe('SupplierOrdersService', () => {
           where: expect.objectContaining({
             AND: [
               {
-                OR: [
-                  { destinationLocationId: null },
-                  { destinationLocationId: { in: ['loc-1'] } },
-                ],
+                OR: [{ destinationLocationId: null }, { destinationLocationId: { in: ['loc-1'] } }],
               },
             ],
           }),
@@ -522,9 +525,9 @@ describe('SupplierOrdersService', () => {
       });
       const service = createService(prisma);
 
-      await expect(
-        service.getById(tenantId, 'po-1', testOwnerUser()),
-      ).resolves.toMatchObject({ id: 'po-1' });
+      await expect(service.getById(tenantId, 'po-1', testOwnerUser())).resolves.toMatchObject({
+        id: 'po-1',
+      });
       await expect(
         service.getById(tenantId, 'po-1', testClerkUser({ assignedLocationIds: ['loc-1'] })),
       ).resolves.toMatchObject({ id: 'po-1' });

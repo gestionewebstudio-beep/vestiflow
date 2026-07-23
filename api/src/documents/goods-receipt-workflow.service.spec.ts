@@ -21,6 +21,8 @@ const tenantId = 'tenant-1';
 function createPrismaMock() {
   const prisma = {
     document: {
+      // Numerazione «massimo esistente + 1»: la serie parte vuota.
+      aggregate: vi.fn().mockResolvedValue({ _max: { number: null } }),
       findFirst: vi.fn().mockResolvedValue(null),
       findFirstOrThrow: vi.fn(),
       create: vi.fn(),
@@ -76,11 +78,26 @@ function createPrismaMock() {
       findFirst: vi.fn().mockResolvedValue(null),
       updateMany: vi.fn(),
     },
-    supplier: { findFirst: vi.fn().mockResolvedValue({ id: 'sup-1', party: { companyName: 'Fornitore A', firstName: null, lastName: null, contactName: null, email: null } }) },
+    supplier: {
+      findFirst: vi
+        .fn()
+        .mockResolvedValue({
+          id: 'sup-1',
+          party: {
+            companyName: 'Fornitore A',
+            firstName: null,
+            lastName: null,
+            contactName: null,
+            email: null,
+          },
+        }),
+    },
     location: {
-      findFirst: vi.fn().mockImplementation(({ where }: { where: { id: string } }) =>
-        Promise.resolve({ id: where.id }),
-      ),
+      findFirst: vi
+        .fn()
+        .mockImplementation(({ where }: { where: { id: string } }) =>
+          Promise.resolve({ id: where.id }),
+        ),
     },
     vatCode: { findMany: vi.fn().mockResolvedValue([]) },
     tenantFeatureSettings: { findUnique: vi.fn().mockResolvedValue(null) },
@@ -169,6 +186,8 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
 
   it('salva la sola testata (AM-001): documento creato senza righe né movimenti', async () => {
     const { service } = createService(prisma);
+    // Serie con documenti fino al numero 6: il nuovo arrivo prende il 7.
+    prisma.document.aggregate.mockResolvedValue({ _max: { number: 6 } });
     prisma.document.create.mockResolvedValue(savedDocument());
     prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument());
 
@@ -454,7 +473,10 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
         },
       ]);
 
-      const result = await service.saveGoodsReceipt(tenantId, baseDto({ lines: [newProductLine()] }));
+      const result = await service.saveGoodsReceipt(
+        tenantId,
+        baseDto({ lines: [newProductLine()] }),
+      );
 
       expect(prisma.product.create).toHaveBeenCalledTimes(1);
       const productData = prisma.product.create.mock.calls[0]?.[0].data;
@@ -499,7 +521,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
       expect(prisma.product.create).not.toHaveBeenCalled();
     });
 
-    it('fallimento dopo la creazione articolo → l\'errore esce dalla transazione (rollback, nessun orfano)', async () => {
+    it("fallimento dopo la creazione articolo → l'errore esce dalla transazione (rollback, nessun orfano)", async () => {
       const { service } = createService(prisma);
       const doc = savedDocument();
       prisma.document.create.mockResolvedValue(doc);
@@ -514,7 +536,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
       expect(prisma.product.create).toHaveBeenCalledTimes(1);
     });
 
-    it('solo nome senza quantità: crea l\'anagrafica ma nessuna riga documento', async () => {
+    it("solo nome senza quantità: crea l'anagrafica ma nessuna riga documento", async () => {
       const { service } = createService(prisma);
       const doc = savedDocument();
       prisma.document.create.mockResolvedValue(doc);
@@ -628,7 +650,11 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
       prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument());
 
       await expect(
-        service.saveGoodsReceipt(tenantId, baseDto({ locationId: 'loc-qualunque' }), testOwnerUser()),
+        service.saveGoodsReceipt(
+          tenantId,
+          baseDto({ locationId: 'loc-qualunque' }),
+          testOwnerUser(),
+        ),
       ).resolves.toMatchObject({ document: { id: 'doc-1' } });
     });
 

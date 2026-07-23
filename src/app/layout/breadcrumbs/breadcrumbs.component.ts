@@ -154,21 +154,24 @@ export class BreadcrumbsComponent {
       ];
     }
 
-    // Ordine cliente aperto (`sales/:id` o `sales/:id/edit`): come per l'Arrivo
-    // merce il percorso nomina il tipo di documento prima del numero e non
-    // chiude con «Modifica» — «Vendite > Ordini cliente > numero». Senza questo
-    // la tappa del registro mancava del tutto e si passava da «Vendite» al
-    // numero: l'unica maschera documento senza il proprio registro nel percorso.
-    if (
-      segments[0] === 'sales' &&
-      isIdSegment(segments[1] ?? '') &&
-      (segments.length === 2 || (segments.length === 3 && segments[2] === 'edit'))
-    ) {
-      return [
-        { label: SEGMENT_LABELS['sales']! },
-        { label: 'Ordini cliente', link: '/app/sales' },
-        { label: this.entityLabels().get(segments[1]!) ?? 'Dettaglio' },
-      ];
+    // Ordine cliente: la maschera vive sotto `sales/…` ma è un documento come
+    // gli altri, e deve leggersi allo stesso modo — «Documenti > Ordini cliente
+    // > numero» in apertura, «… > Nuovo» in creazione. Senza questo il percorso
+    // passava da «Vendite» direttamente al numero (o a «Nuovo»), saltando il
+    // registro che tutti gli altri tipi documento mostrano.
+    if (segments[0] === 'sales' && (isIdSegment(segments[1] ?? '') || segments[1] === 'new')) {
+      const isNew = segments[1] === 'new';
+      if (isNew || segments.length === 2 || (segments.length === 3 && segments[2] === 'edit')) {
+        return [
+          { label: SEGMENT_LABELS['documents']!, link: '/app/documents' },
+          { label: 'Ordini cliente', link: '/app/sales' },
+          {
+            label: isNew
+              ? SEGMENT_LABELS['new']!
+              : (this.entityLabels().get(segments[1]!) ?? 'Dettaglio'),
+          },
+        ];
+      }
     }
 
     const crumbs: Crumb[] = [];

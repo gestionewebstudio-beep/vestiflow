@@ -68,7 +68,7 @@ import {
   includeSourceKindsForDocumentType,
   type IncludedDocumentPayload,
 } from './models/document-include.util';
-import { documentTypeLabel } from './models/document-labels.util';
+import { documentReferenceLabel, documentTypeLabel } from './models/document-labels.util';
 import {
   isInvoiceAccompanyingDocumentType,
   isInvoiceDraftDocumentType,
@@ -552,11 +552,20 @@ export class SalesDocumentFormComponent {
   /** Aliquote miste: solo allora il dettaglio per aliquota aggiunge informazione. */
   protected readonly hasMixedVatRates = computed(() => this.vatBreakdown().length > 1);
 
+  /**
+   * Etichetta del documento per il breadcrumb: il numero quando c'è, altrimenti
+   * la dicitura di bozza/serie — mai il generico «Dettaglio».
+   */
+  private readonly breadcrumbLabel = computed(() => {
+    const doc = this.loadedDocument();
+    return doc ? documentReferenceLabel(doc.type, doc.reference, doc.series) : null;
+  });
+
   constructor() {
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
       id: this.editDocumentId() || null,
-      label: this.loadedDocument()?.reference ?? null,
+      label: this.breadcrumbLabel(),
     }));
     // Applica il Codice IVA predefinito alle righe ancora senza scelta non
     // appena i Codici IVA sono disponibili (caricamento asincrono): copre la

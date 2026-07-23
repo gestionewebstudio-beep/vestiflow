@@ -374,7 +374,9 @@ export class DocumentListComponent {
     this.route.snapshot.queryParamMap.get('dateFrom') ||
       this.route.snapshot.queryParamMap.get('dateTo')
       ? MovementPeriodPreset.Custom
-      : MovementPeriodPreset.All,
+      : this.isGoodsReceiptList()
+        ? MovementPeriodPreset.ThisMonth
+        : MovementPeriodPreset.All,
   );
 
   protected readonly isCustomPeriod = computed(
@@ -646,6 +648,17 @@ export class DocumentListComponent {
   private bulkPdfSubscription: Subscription | null = null;
 
   constructor() {
+    // Default «Mese corrente» dove il preset periodo esiste (Arrivi merce):
+    // i filtri vivono nell'URL, quindi il periodo va scritto lì — una volta
+    // sola alla creazione, o scegliere «Tutto» verrebbe riscritto subito.
+    if (this.periodPreset() === MovementPeriodPreset.ThisMonth) {
+      const initialRange = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
+      this.updateParams(
+        { dateFrom: initialRange.from ?? null, dateTo: initialRange.to ?? null },
+        true,
+      );
+    }
+
     this.columnPreferences.registerView(
       TableViewId.DocumentsList,
       DOCUMENT_LIST_COLUMN_DEFS,
@@ -849,14 +862,20 @@ export class DocumentListComponent {
 
   protected resetFilters(): void {
     this.searchDraft.set('');
-    this.periodPreset.set(MovementPeriodPreset.All);
+    // Dove il preset esiste il periodo torna al default dell'elenco («Mese
+    // corrente»), altrove resta senza vincolo di date.
+    const preset = this.isGoodsReceiptList()
+      ? MovementPeriodPreset.ThisMonth
+      : MovementPeriodPreset.All;
+    this.periodPreset.set(preset);
+    const range = resolveMovementPeriodRange(preset, '', '');
     this.updateParams(
       {
         search: null,
         type: null,
         status: null,
-        dateFrom: null,
-        dateTo: null,
+        dateFrom: range.from ?? null,
+        dateTo: range.to ?? null,
         customerId: null,
         locationId: null,
         supplierId: null,

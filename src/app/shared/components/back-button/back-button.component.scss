@@ -1,27 +1,40 @@
+@use 'breakpoints' as bp;
+
 :host {
   display: inline-flex;
 }
 
-// Stile tenue, coerente con i vecchi link «indietro» delle pagine: chevron
-// discreto + parola, colore muted che si accende all'hover.
+// Pulsante vero, non un link: chevron + parola affiancati, cornice leggera e
+// area di tocco adeguata (più alta sotto md, dove si usa col dito).
 .back-button {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: 0;
+  gap: var(--space-2);
+  min-block-size: var(--field-height);
+  padding-inline: var(--space-3);
   font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  background: none;
-  border: 0;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
   cursor: pointer;
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    border-color var(--transition-fast) var(--ease-standard);
+
+  @include bp.media-down('md') {
+    min-block-size: var(--btn-min-height);
+    padding-inline: var(--space-4);
+  }
 }
 
 .back-button:hover {
-  color: var(--color-text);
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-text-subtle);
 }
 
 .back-button:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
-  border-radius: var(--radius-sm);
 }

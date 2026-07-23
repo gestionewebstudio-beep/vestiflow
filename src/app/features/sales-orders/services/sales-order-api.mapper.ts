@@ -29,6 +29,7 @@ export interface SalesOrderLineApiRow {
   readonly vatCodeId?: string | null;
   readonly lineVatTotalMinor?: number;
   readonly commitsStock?: boolean;
+  readonly isReference?: boolean;
   readonly lineNumber?: number;
 }
 
@@ -52,7 +53,7 @@ export interface SalesOrderApiRow {
   readonly shopifyOrderId?: string | null;
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
-  readonly customer?: { readonly email?: string | null } | null;
+  readonly customer?: { readonly email?: string | null; readonly code?: string | null } | null;
   // Testata Ordine cliente manuale.
   readonly locationId?: EntityId | null;
   readonly externalRef?: string | null;
@@ -184,6 +185,7 @@ function mapLine(row: SalesOrderLineApiRow, currency: CurrencyCode): SalesOrderL
         ? { amountMinor: row.lineVatTotalMinor, currencyCode: currency }
         : undefined,
     commitsStock: row.commitsStock ?? true,
+    isReference: row.isReference === true,
   };
 }
 
@@ -199,6 +201,7 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     currency,
     customerId: row.customerId ?? undefined,
     customerName: row.customerName,
+    customerCode: row.customer?.code ?? undefined,
     customerEmail: row.customer?.email ?? undefined,
     lines: (row.lines ?? []).map((line) => mapLine(line, currency)),
     subtotal: { amountMinor: row.subtotalMinor, currencyCode: currency },

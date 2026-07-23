@@ -45,6 +45,9 @@ function createPrismaMock() {
       findUnique: vi.fn().mockResolvedValue({ lastNumber: 11 }),
     },
     salesOrder: {
+      // Numerazione «massimo esistente + 1»: si legge dai numeri già assegnati
+      // (qui l'ultimo è OC-2026-0011, quindi il nuovo ordine prende 0012).
+      findMany: vi.fn().mockResolvedValue([{ orderNumber: 'OC-2026-0011' }]),
       findFirst: vi.fn().mockResolvedValue(null),
       findUniqueOrThrow: vi.fn(),
       create: vi.fn(),
@@ -162,16 +165,17 @@ describe('ManualSalesOrdersService.save', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
-  it('crea l\'ordine con numeratore dedicato, cascata esatta e impegni sincronizzati', async () => {
+  it("crea l'ordine con numeratore dedicato, cascata esatta e impegni sincronizzati", async () => {
     const { service, reservations } = createService(prisma);
 
     const result = await service.save(tenantId, baseDto, testOwnerUser());
 
-    // Numeratore customer_order: OC-<anno>-<progressivo>.
-    expect(prisma.documentSequence.upsert).toHaveBeenCalledWith(
+    // Numeratore customer_order: OC-<anno>-<progressivo>, letto dagli ordini
+    // già numerati dell'anno (massimo + 1).
+    expect(prisma.salesOrder.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          tenantId_type_series_year: expect.objectContaining({ type: 'customer_order' }),
+          orderNumber: expect.objectContaining({ startsWith: expect.any(String) }),
         }),
       }),
     );
@@ -239,7 +243,11 @@ describe('ManualSalesOrdersService.save', () => {
     const { service } = createService(prisma);
 
     await expect(
-      service.save(tenantId, { ...baseDto, id: '3f0b8f5e-8f5e-4f5e-8f5e-3f0b8f5e8f5e' }, testOwnerUser()),
+      service.save(
+        tenantId,
+        { ...baseDto, id: '3f0b8f5e-8f5e-4f5e-8f5e-3f0b8f5e8f5e' },
+        testOwnerUser(),
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -314,7 +322,7 @@ describe('ManualSalesOrdersService.conclude', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
-  it('genera la bozza di scarico precompilata e collega l\'ordine', async () => {
+  it("genera la bozza di scarico precompilata e collega l'ordine", async () => {
     const { service } = createService(prisma);
 
     const result = await service.conclude(tenantId, 'order-1', 'sales_ddt', testOwnerUser());

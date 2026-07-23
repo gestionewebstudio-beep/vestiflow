@@ -50,6 +50,13 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import {
+  MovementPeriodPreset,
+  resolveMovementPeriodRange,
+} from '@features/inventory/models/movement-period.util';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { TableViewId } from '@shared/table-columns/table-column.model';
 import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
 import {
   canSyncShopifyCustomersOrOrders,
@@ -74,6 +81,12 @@ import {
   type SalesOrderTableProfile,
   type SalesOrderTableSelectionEvent,
 } from './components/sales-order-table/sales-order-table.component';
+import {
+  SALES_ORDER_LIST_COLUMN_DEFS,
+  SALES_ORDER_LIST_COLUMN_PRESETS,
+  SHOPIFY_ORDER_LIST_COLUMN_DEFS,
+  SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
+} from './models/sales-order-list-columns.config';
 import { sourceLabel } from './models/sales-order-labels.util';
 import {
   buildSalesOrderListCsv,
@@ -121,6 +134,7 @@ type SalesListState =
     TableSkeletonComponent,
     ReportCorrispettiviExportComponent,
     SalesOrderTableComponent,
+    TableColumnPickerComponent,
     ShopifySyncFeedbackComponent,
   ],
   templateUrl: './sales-order-list.component.html',
@@ -132,6 +146,7 @@ export class SalesOrderListComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly blobExport = inject(BackgroundBlobExportService);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
   private readonly authService = inject(AuthService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
@@ -155,6 +170,15 @@ export class SalesOrderListComponent {
   );
 
   protected readonly isShopifyView = computed(() => this.listProfile() === 'shopify-orders');
+
+  /** Vista colonne dell'elenco corrente (registro ordini o canale Shopify). */
+  protected readonly columnsView = computed(() =>
+    this.isShopifyView() ? TableViewId.ShopifyOrdersList : TableViewId.SalesOrdersList,
+  );
+
+  protected readonly visibleColumns = computed(() =>
+    this.columnPreferences.visibleColumns(this.columnsView())(),
+  );
 
   protected readonly financialStatusOptions: readonly SelectMenuOption[] = [
     { value: 'pending', label: 'In attesa' },
@@ -413,6 +437,28 @@ export class SalesOrderListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    this.columnPreferences.registerView(
+      TableViewId.SalesOrdersList,
+      SALES_ORDER_LIST_COLUMN_DEFS,
+      SALES_ORDER_LIST_COLUMN_PRESETS,
+    );
+    this.columnPreferences.registerView(
+      TableViewId.ShopifyOrdersList,
+      SHOPIFY_ORDER_LIST_COLUMN_DEFS,
+      SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
+    );
+
+    // Default «Mese corrente» all'apertura: l'URL è la fonte di verità dei
+    // filtri, quindi il periodo va scritto lì — una volta sola alla creazione,
+    // altrimenti scegliere «Tutto» verrebbe riscritto subito dopo.
+    if (this.periodPreset() === MovementPeriodPreset.ThisMonth) {
+      const initialRange = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
+      this.updateParams(
+        { placedFrom: initialRange.from ?? null, placedTo: initialRange.to ?? null },
+        true,
+      );
+    }
+
     effect(() => {
       this.corrispettiviPeriodQuery();
       this.uiCorrispettiviPeriod.set(null);
@@ -503,8 +549,50 @@ export class SalesOrderListComponent {
     });
   }
 
+  /** Preset rapidi del periodo Dal/Al (stessi dell'Arrivo merce). */
+  protected readonly periodOptions: readonly SelectMenuOption[] = [
+    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
+    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
+    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
+    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
+    { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
+  ];
+
+  /**
+   * Preset periodo selezionato (stato UI locale; le date effettive stanno
+   * nell'URL). Con date già nell'URL si parte da «Personalizzato», così i campi
+   * Dal/Al restano visibili; altrimenti dal default «Mese corrente».
+   */
+  protected readonly periodPreset = signal<MovementPeriodPreset>(
+    this.route.snapshot.queryParamMap.get('placedFrom') ||
+      this.route.snapshot.queryParamMap.get('placedTo')
+      ? MovementPeriodPreset.Custom
+      : MovementPeriodPreset.ThisMonth,
+  );
+
+  protected readonly isCustomPeriod = computed(
+    () => this.periodPreset() === MovementPeriodPreset.Custom,
+  );
+
+  /** Cambio preset: calcola Dal/Al, oppure lascia i campi liberi se custom. */
+  protected onPeriodPresetChange(value: string | null): void {
+    const preset = (value ?? MovementPeriodPreset.All) as MovementPeriodPreset;
+    this.periodPreset.set(preset);
+    if (preset === MovementPeriodPreset.Custom) {
+      return;
+    }
+    const range = resolveMovementPeriodRange(preset, '', '');
+    this.updateParams(
+      { placedFrom: range.from ?? null, placedTo: range.to ?? null, page: null },
+      true,
+    );
+  }
+
   protected resetFilters(): void {
     this.searchDraft.set('');
+    // Il periodo torna al default dell'elenco («Mese corrente»), non a «Tutto».
+    this.periodPreset.set(MovementPeriodPreset.ThisMonth);
+    const range = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
     this.updateParams(
       {
         search: null,
@@ -514,8 +602,8 @@ export class SalesOrderListComponent {
         state: null,
         customerId: null,
         locationId: null,
-        placedFrom: null,
-        placedTo: null,
+        placedFrom: range.from ?? null,
+        placedTo: range.to ?? null,
         page: null,
       },
       true,

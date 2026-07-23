@@ -12,6 +12,7 @@ import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.
 import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 import {
   corrispettivoStatusTone,
@@ -53,6 +54,8 @@ export interface SalesOrderTableSelectionEvent {
 })
 export class SalesOrderTableComponent {
   readonly orders = input.required<readonly SalesOrder[]>();
+  /** Colonne visibili, nell'ordine scelto dal selettore «Colonne». */
+  readonly columns = input.required<readonly ResolvedTableColumn[]>();
   readonly profile = input<SalesOrderTableProfile>('customer-orders');
   /** Selezione multipla per operazioni massive (come Arrivi merce). */
   readonly selectable = input<boolean>(false);
@@ -64,8 +67,6 @@ export class SalesOrderTableComponent {
   readonly action = output<SalesOrderTableActionEvent>();
   readonly selectionChange = output<SalesOrderTableSelectionEvent>();
   readonly selectAllChange = output<boolean>();
-
-  protected readonly isShopifyProfile = computed(() => this.profile() === 'shopify-orders');
 
   protected readonly allSelected = computed(() => {
     const orders = this.orders();

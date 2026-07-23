@@ -115,6 +115,7 @@ describe('DocumentPdfService', () => {
         nonDeductibleVatMinor: 0,
         lineTotalMinor: 10000,
         loadsStock: true,
+      isReference: false,
         supplierOrderLineId: null,
         lotCode: null,
         lotExpiryDate: null,

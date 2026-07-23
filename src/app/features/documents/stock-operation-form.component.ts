@@ -46,6 +46,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import { documentReferenceLabel } from './models/document-labels.util';
 import { isAdjustmentDocumentType } from './models/document-stock-operation.util';
 import { DocumentService } from './services/document.service';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
@@ -85,11 +86,20 @@ export class StockOperationFormComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
+  /**
+   * Etichetta del documento per il breadcrumb: il numero quando c'è, altrimenti
+   * la dicitura di bozza/serie — mai il generico «Dettaglio».
+   */
+  private readonly breadcrumbLabel = computed(() => {
+    const doc = this.loadedDocument();
+    return doc ? documentReferenceLabel(doc.type, doc.reference, doc.series) : null;
+  });
+
   constructor() {
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
       id: this.editDocumentId() || null,
-      label: this.loadedDocument()?.reference ?? null,
+      label: this.breadcrumbLabel(),
     }));
   }
 

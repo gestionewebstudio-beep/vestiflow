@@ -764,17 +764,46 @@
                     }
                   </tr>
                 </thead>
-                <tbody formArrayName="lines">
+                <tbody formArrayName="lines" cdkDropList (cdkDropListDropped)="onLineDrop($event)">
                   @for (line of lines.controls; track line; let i = $index) {
                     <tr
                       class="gr-form__table-row"
+                      cdkDrag
+                      [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
                       [class.gr-form__table-row--incomplete]="!lineRowComplete(i)"
+                      [class.co-form__row--reference]="lineIsReference(i)"
                       [formGroupName]="i"
                     >
-                      <td class="gr-form__cell--index">
-                        <span class="tabular-nums">{{ i + 1 }}</span>
+                      <!-- Il numero è la maniglia di trascinamento: il resto
+                           della riga resta cliccabile per modificare le celle. -->
+                      <td
+                        class="gr-form__cell--index co-form__drag-handle"
+                        [class.co-form__source-cell]="lineIsReference(i)"
+                        cdkDragHandle
+                      >
+                        <span class="tabular-nums co-form__source-index">{{ i + 1 }}</span>
                       </td>
-                      @if (isLineColumnVisible('articleCode')) {
+                      @if (lineIsReference(i)) {
+                        <td
+                          class="co-form__source-cell co-form__source-info-cell"
+                          [attr.colspan]="identityColumnCount()"
+                        >
+                          <div class="co-form__source-info">
+                            <span class="co-form__source-icon" aria-hidden="true">
+                              <i class="pi pi-file"></i>
+                            </span>
+                            <span class="co-form__source-kind">Documento collegato</span>
+                            <!-- Titolo e data stanno nello stesso testo, che resta
+                                 modificabile: il campo è reso come il titolo. -->
+                            <input
+                              class="co-form__source-title"
+                              type="text"
+                              formControlName="productName"
+                              aria-label="Riferimento al documento collegato"
+                            />
+                          </div>
+                        </td>
+                      } @else if (isLineColumnVisible('articleCode')) {
                         <td class="gr-form__cell gr-form__cell--code">
                           <app-goods-receipt-line-code-cell
                             [lineIndex]="i"
@@ -793,7 +822,7 @@
                           />
                         </td>
                       }
-                      @if (isLineColumnVisible('sku')) {
+                      @if (!lineIsReference(i) && isLineColumnVisible('sku')) {
                         <td class="gr-form__cell gr-form__cell--code">
                           <app-goods-receipt-line-code-cell
                             [lineIndex]="i"
@@ -812,7 +841,7 @@
                           />
                         </td>
                       }
-                      @if (isLineColumnVisible('barcode')) {
+                      @if (!lineIsReference(i) && isLineColumnVisible('barcode')) {
                         <td class="gr-form__cell gr-form__cell--code">
                           <app-goods-receipt-line-code-cell
                             [lineIndex]="i"
@@ -831,7 +860,7 @@
                           />
                         </td>
                       }
-                      @if (isLineColumnVisible('product')) {
+                      @if (!lineIsReference(i) && isLineColumnVisible('product')) {
                         <td class="gr-form__cell gr-form__cell--product co-form__col--sep">
                           <app-goods-receipt-line-product-cell
                             [lineIndex]="i"
@@ -867,25 +896,27 @@
                           class="gr-form__cell gr-form__cell--editable gr-form__num co-form__col--stock"
                           [class.co-form__cell--exceeds]="lineExceedsAvailability(i)"
                         >
-                          <input
-                            [id]="'co-qty-' + i"
-                            class="gr-form__input gr-form__input--table gr-form__input--num"
-                            [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
-                            type="number"
-                            min="0"
-                            step="1"
-                            formControlName="quantity"
-                            (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
-                            [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
-                            [title]="
-                              lineAvailabilityHint(i) ??
-                              (lineFieldInvalid(i, 'quantity')
-                                ? 'Inserisci una quantità maggiore di zero.'
-                                : null)
-                            "
-                          />
-                          @if (lineAvailabilityHint(i); as hint) {
-                            <span class="co-form__exceeds-hint">{{ hint }}</span>
+                          @if (!lineIsReference(i)) {
+                            <input
+                              [id]="'co-qty-' + i"
+                              class="gr-form__input gr-form__input--table gr-form__input--num"
+                              [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
+                              type="number"
+                              min="0"
+                              step="1"
+                              formControlName="quantity"
+                              (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
+                              [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
+                              [title]="
+                                lineAvailabilityHint(i) ??
+                                (lineFieldInvalid(i, 'quantity')
+                                  ? 'Inserisci una quantità maggiore di zero.'
+                                  : null)
+                              "
+                            />
+                            @if (lineAvailabilityHint(i); as hint) {
+                              <span class="co-form__exceeds-hint">{{ hint }}</span>
+                            }
                           }
                         </td>
                       }
@@ -893,58 +924,70 @@
                         <td
                           class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--stock co-form__col--avail"
                         >
-                          {{ lineStockAvailable(i) }}
+                          @if (!lineIsReference(i)) {
+                            {{ lineStockAvailable(i) }}
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('unitOfMeasure')) {
                         <td
                           class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed co-form__col--stock co-form__col--sep"
                         >
-                          {{ lineUnitOfMeasure(i) }}
+                          @if (!lineIsReference(i)) {
+                            {{ lineUnitOfMeasure(i) }}
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('purchaseCost')) {
                         <td
                           class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--calc"
                         >
-                          {{ linePurchaseCost(i) }}
+                          @if (!lineIsReference(i)) {
+                            {{ linePurchaseCost(i) }}
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('unitPrice')) {
                         <td
                           class="gr-form__cell gr-form__cell--editable gr-form__num co-form__col--sale"
                         >
-                          <input
-                            [id]="'co-price-' + i"
-                            class="gr-form__input gr-form__input--table gr-form__input--num"
-                            type="text"
-                            inputmode="decimal"
-                            formControlName="unitPrice"
-                            placeholder="0,00"
-                            (keydown)="onLineFieldKeydown(i, 'unitPrice', $event)"
-                          />
+                          @if (!lineIsReference(i)) {
+                            <input
+                              [id]="'co-price-' + i"
+                              class="gr-form__input gr-form__input--table gr-form__input--num"
+                              type="text"
+                              inputmode="decimal"
+                              formControlName="unitPrice"
+                              placeholder="0,00"
+                              (keydown)="onLineFieldKeydown(i, 'unitPrice', $event)"
+                            />
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('discount')) {
                         <td
                           class="gr-form__cell gr-form__cell--editable gr-form__num co-form__col--sale"
                         >
-                          <input
-                            [id]="'co-discount-' + i"
-                            class="gr-form__input gr-form__input--table gr-form__input--num"
-                            type="text"
-                            formControlName="discount"
-                            placeholder="0%"
-                            title="Percentuale singola o cascata: «10%», «4+10%»"
-                            (keydown)="onLineFieldKeydown(i, 'discount', $event)"
-                          />
+                          @if (!lineIsReference(i)) {
+                            <input
+                              [id]="'co-discount-' + i"
+                              class="gr-form__input gr-form__input--table gr-form__input--num"
+                              type="text"
+                              formControlName="discount"
+                              placeholder="0%"
+                              title="Percentuale singola o cascata: «10%», «4+10%»"
+                              (keydown)="onLineFieldKeydown(i, 'discount', $event)"
+                            />
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('discountedPrice')) {
                         <td
                           class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--calc"
                         >
-                          {{ formatMoney(lineDiscountedUnitMoney(i)) }}
+                          @if (!lineIsReference(i)) {
+                            {{ formatMoney(lineDiscountedUnitMoney(i)) }}
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('vat')) {
@@ -952,78 +995,90 @@
                           class="gr-form__cell gr-form__cell--editable gr-form__cell--vat co-form__col--tax co-form__col--sep"
                           [title]="lineVatTooltip(i)"
                         >
-                          <app-select-menu
-                            [options]="lineVatOptions(i)"
-                            [value]="lineVatValue(i)"
-                            ariaLabel="Codice IVA riga"
-                            placeholder="—"
-                            [compact]="true"
-                            [matchInputHeight]="true"
-                            [includeEmptyOption]="false"
-                            [searchable]="true"
-                            [inlineDetail]="true"
-                            searchPlaceholder="Codice, aliquota, descrizione…"
-                            searchAriaLabel="Cerca Codice IVA"
-                            (valueChange)="onLineVatSelect(i, $event)"
-                          />
+                          @if (!lineIsReference(i)) {
+                            <app-select-menu
+                              [options]="lineVatOptions(i)"
+                              [value]="lineVatValue(i)"
+                              ariaLabel="Codice IVA riga"
+                              placeholder="—"
+                              [compact]="true"
+                              [matchInputHeight]="true"
+                              [includeEmptyOption]="false"
+                              [searchable]="true"
+                              [inlineDetail]="true"
+                              searchPlaceholder="Codice, aliquota, descrizione…"
+                              searchAriaLabel="Cerca Codice IVA"
+                              (valueChange)="onLineVatSelect(i, $event)"
+                            />
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('serials')) {
                         <td class="gr-form__cell gr-form__cell--editable">
-                          <input
-                            [id]="'co-serials-' + i"
-                            class="gr-form__input gr-form__input--table"
-                            type="text"
-                            formControlName="serialNumbersText"
-                            placeholder="SN001, SN002"
-                            autocomplete="off"
-                            (keydown)="onLineFieldKeydown(i, 'serials', $event)"
-                          />
+                          @if (!lineIsReference(i)) {
+                            <input
+                              [id]="'co-serials-' + i"
+                              class="gr-form__input gr-form__input--table"
+                              type="text"
+                              formControlName="serialNumbersText"
+                              placeholder="SN001, SN002"
+                              autocomplete="off"
+                              (keydown)="onLineFieldKeydown(i, 'serials', $event)"
+                            />
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('commitsStock')) {
                         <td class="gr-form__cell gr-form__cell--check co-form__col--stock">
-                          <label class="gr-form__check">
-                            <input type="checkbox" formControlName="commitsStock" />
-                            <span class="sr-only">{{
-                              isSalesDdt || isManualUnload
-                                ? 'Scarica magazzino'
-                                : 'Impegna magazzino'
-                            }}</span>
-                          </label>
+                          @if (!lineIsReference(i)) {
+                            <label class="gr-form__check">
+                              <input type="checkbox" formControlName="commitsStock" />
+                              <span class="sr-only">{{
+                                isSalesDdt || isManualUnload
+                                  ? 'Scarica magazzino'
+                                  : 'Impegna magazzino'
+                              }}</span>
+                            </label>
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('lineTotal')) {
                         <td
                           class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--total"
                         >
-                          @if (lineHasDiscount(i)) {
-                            <span class="gr-form__line-total-gross">{{
-                              formatMoney(lineGrossMoney(i))
-                            }}</span>
+                          @if (!lineIsReference(i)) {
+                            @if (lineHasDiscount(i)) {
+                              <span class="gr-form__line-total-gross">{{
+                                formatMoney(lineGrossMoney(i))
+                              }}</span>
+                            }
+                            <span>{{ formatMoney(lineTotalMoney(i)) }}</span>
                           }
-                          <span>{{ formatMoney(lineTotalMoney(i)) }}</span>
                         </td>
                       }
                       @if (isLineColumnVisible('actions')) {
                         <td class="gr-form__cell gr-form__cell--actions">
                           <div class="gr-form__line-actions">
-                            <button
-                              type="button"
-                              class="gr-form__line-move"
-                              tabindex="-1"
-                              [disabled]="formReadOnly()"
-                              aria-label="Duplica riga"
-                              (click)="duplicateLine(i)"
-                            >
-                              <i class="pi pi-clone" aria-hidden="true"></i>
-                            </button>
+                            @if (!lineIsReference(i)) {
+                              <button
+                                type="button"
+                                class="gr-form__line-move"
+                                tabindex="-1"
+                                [disabled]="formReadOnly()"
+                                aria-label="Duplica riga"
+                                (click)="duplicateLine(i)"
+                              >
+                                <i class="pi pi-clone" aria-hidden="true"></i>
+                              </button>
+                            }
                             <button
                               type="button"
                               class="gr-form__line-remove"
                               tabindex="-1"
                               [disabled]="formReadOnly()"
-                              aria-label="Rimuovi riga"
+                              [attr.aria-label]="
+                                lineIsReference(i) ? 'Rimuovi collegamento' : 'Rimuovi riga'
+                              "
                               (click)="removeLine(i)"
                             >
                               <i class="pi pi-trash" aria-hidden="true"></i>
@@ -1085,244 +1140,276 @@
                  regole e stessi controlli del form: cambia solo la vista. -->
             <div class="co-form__cards" formArrayName="lines">
               @for (line of lines.controls; track line; let i = $index) {
-                <article
-                  class="co-form__card"
-                  [class.co-form__card--open]="isLineCardOpen(i)"
-                  [class.co-form__card--incomplete]="!lineRowComplete(i)"
-                  [formGroupName]="i"
-                >
-                  <button
-                    type="button"
-                    class="co-form__card-head"
-                    [attr.aria-expanded]="isLineCardOpen(i)"
-                    (click)="toggleLineCard(i)"
+                @if (lineIsReference(i)) {
+                  <!-- Documento collegato: banda bassa che separa il gruppo,
+                       non una card prodotto. -->
+                  <article class="co-form__mobile-source-row" [formGroupName]="i">
+                    <span class="co-form__mobile-source-icon" aria-hidden="true">
+                      <i class="pi pi-file"></i>
+                    </span>
+                    <span class="co-form__mobile-source-copy">
+                      <small>Documento collegato</small>
+                      <input
+                        class="co-form__source-title"
+                        type="text"
+                        formControlName="productName"
+                        aria-label="Riferimento al documento collegato"
+                      />
+                    </span>
+                    <button
+                      type="button"
+                      class="gr-form__line-remove"
+                      [disabled]="formReadOnly()"
+                      aria-label="Rimuovi collegamento"
+                      (click)="removeLine(i)"
+                    >
+                      <i class="pi pi-trash" aria-hidden="true"></i>
+                    </button>
+                  </article>
+                } @else {
+                  <article
+                    class="co-form__card"
+                    [class.co-form__card--open]="isLineCardOpen(i)"
+                    [class.co-form__card--incomplete]="!lineRowComplete(i)"
+                    [formGroupName]="i"
                   >
-                    <span class="co-form__card-main">
-                      <span class="co-form__card-name">
-                        {{ line.controls.productName.value || 'Riga senza prodotto' }}
+                    <button
+                      type="button"
+                      class="co-form__card-head"
+                      [attr.aria-expanded]="isLineCardOpen(i)"
+                      (click)="toggleLineCard(i)"
+                    >
+                      <span class="co-form__card-main">
+                        <span class="co-form__card-name">
+                          {{ line.controls.productName.value || 'Riga senza prodotto' }}
+                        </span>
+                        <span class="co-form__card-sub">
+                          Cod. {{ lineArticleCode(i) || '—' }}
+                          @if (isLineColumnVisible('stockAvailable')) {
+                            · Disponibili {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
+                          }
+                        </span>
                       </span>
-                      <span class="co-form__card-sub">
-                        Cod. {{ lineArticleCode(i) || '—' }}
-                        @if (isLineColumnVisible('stockAvailable')) {
-                          · Disponibili {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
-                        }
+                      <span class="co-form__card-metrics">
+                        <span class="co-form__metric">
+                          <small>Q.tà</small>
+                          <strong class="tabular-nums">{{ line.controls.quantity.value }}</strong>
+                        </span>
+                        <span class="co-form__metric co-form__metric--total">
+                          <small>Totale</small>
+                          <strong class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</strong>
+                        </span>
                       </span>
-                    </span>
-                    <span class="co-form__card-metrics">
-                      <span class="co-form__metric">
-                        <small>Q.tà</small>
-                        <strong class="tabular-nums">{{ line.controls.quantity.value }}</strong>
-                      </span>
-                      <span class="co-form__metric co-form__metric--total">
-                        <small>Totale</small>
-                        <strong class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</strong>
-                      </span>
-                    </span>
-                    <i class="pi pi-chevron-down co-form__card-chevron" aria-hidden="true"></i>
-                  </button>
+                      <i class="pi pi-chevron-down co-form__card-chevron" aria-hidden="true"></i>
+                    </button>
 
-                  @if (isLineCardOpen(i)) {
-                    <div class="co-form__card-body">
-                      <div class="co-form__card-grid">
-                        <p class="co-form__card-group co-form__card-group--first">Articolo</p>
-                        <div class="co-form__card-field">
-                          <label [attr.for]="'co-m-code-' + i">Cod. articolo</label>
-                          <input
-                            [id]="'co-m-code-' + i"
-                            class="gr-form__input"
-                            type="text"
-                            formControlName="articleCode"
-                            placeholder="—"
-                            autocomplete="off"
-                            (keydown.enter)="
-                              commitCodeLookup(i, 'articleCode'); $event.preventDefault()
-                            "
-                          />
-                        </div>
-                        <div class="co-form__card-field">
-                          <label [attr.for]="'co-m-sku-' + i">SKU</label>
-                          <input
-                            [id]="'co-m-sku-' + i"
-                            class="gr-form__input"
-                            type="text"
-                            formControlName="sku"
-                            placeholder="—"
-                            autocomplete="off"
-                            (keydown.enter)="commitCodeLookup(i, 'sku'); $event.preventDefault()"
-                          />
-                        </div>
-                        <div class="co-form__card-field co-form__card-field--full">
-                          <label [attr.for]="'co-m-barcode-' + i">EAN</label>
-                          <input
-                            [id]="'co-m-barcode-' + i"
-                            class="gr-form__input"
-                            type="text"
-                            formControlName="barcode"
-                            placeholder="—"
-                            autocomplete="off"
-                            (keydown.enter)="
-                              commitCodeLookup(i, 'barcode'); $event.preventDefault()
-                            "
-                          />
-                        </div>
-                        <div class="co-form__card-field co-form__card-field--full">
-                          <label [attr.for]="'co-m-product-' + i">Nome prodotto</label>
-                          <div class="co-form__card-search">
+                    @if (isLineCardOpen(i)) {
+                      <div class="co-form__card-body">
+                        <div class="co-form__card-grid">
+                          <p class="co-form__card-group co-form__card-group--first">Articolo</p>
+                          <div class="co-form__card-field">
+                            <label [attr.for]="'co-m-code-' + i">Cod. articolo</label>
                             <input
-                              [id]="'co-m-product-' + i"
+                              [id]="'co-m-code-' + i"
                               class="gr-form__input"
                               type="text"
-                              formControlName="productName"
+                              formControlName="articleCode"
+                              placeholder="—"
                               autocomplete="off"
+                              (keydown.enter)="
+                                commitCodeLookup(i, 'articleCode'); $event.preventDefault()
+                              "
                             />
-                            <button
-                              type="button"
-                              class="co-form__card-search-btn"
-                              aria-label="Cerca prodotto"
-                              [disabled]="formReadOnly()"
-                              (click)="openLineProductSearch(i)"
-                            >
-                              <i class="pi pi-search" aria-hidden="true"></i>
-                            </button>
                           </div>
-                        </div>
+                          <div class="co-form__card-field">
+                            <label [attr.for]="'co-m-sku-' + i">SKU</label>
+                            <input
+                              [id]="'co-m-sku-' + i"
+                              class="gr-form__input"
+                              type="text"
+                              formControlName="sku"
+                              placeholder="—"
+                              autocomplete="off"
+                              (keydown.enter)="commitCodeLookup(i, 'sku'); $event.preventDefault()"
+                            />
+                          </div>
+                          <div class="co-form__card-field co-form__card-field--full">
+                            <label [attr.for]="'co-m-barcode-' + i">EAN</label>
+                            <input
+                              [id]="'co-m-barcode-' + i"
+                              class="gr-form__input"
+                              type="text"
+                              formControlName="barcode"
+                              placeholder="—"
+                              autocomplete="off"
+                              (keydown.enter)="
+                                commitCodeLookup(i, 'barcode'); $event.preventDefault()
+                              "
+                            />
+                          </div>
+                          <div class="co-form__card-field co-form__card-field--full">
+                            <label [attr.for]="'co-m-product-' + i">Nome prodotto</label>
+                            <div class="co-form__card-search">
+                              <input
+                                [id]="'co-m-product-' + i"
+                                class="gr-form__input"
+                                type="text"
+                                formControlName="productName"
+                                autocomplete="off"
+                              />
+                              <button
+                                type="button"
+                                class="co-form__card-search-btn"
+                                aria-label="Cerca prodotto"
+                                [disabled]="formReadOnly()"
+                                (click)="openLineProductSearch(i)"
+                              >
+                                <i class="pi pi-search" aria-hidden="true"></i>
+                              </button>
+                            </div>
+                          </div>
 
-                        <p class="co-form__card-group">Quantità e magazzino</p>
-                        <div class="co-form__card-field">
-                          <label [attr.for]="'co-m-qty-' + i">Quantità</label>
-                          <input
-                            [id]="'co-m-qty-' + i"
-                            class="gr-form__input"
-                            [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
-                            type="number"
-                            min="0"
-                            step="1"
-                            inputmode="numeric"
-                            formControlName="quantity"
-                          />
-                          @if (lineAvailabilityHint(i); as hint) {
-                            <span class="co-form__exceeds-hint">{{ hint }}</span>
+                          <p class="co-form__card-group">Quantità e magazzino</p>
+                          <div class="co-form__card-field">
+                            <label [attr.for]="'co-m-qty-' + i">Quantità</label>
+                            <input
+                              [id]="'co-m-qty-' + i"
+                              class="gr-form__input"
+                              [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
+                              type="number"
+                              min="0"
+                              step="1"
+                              inputmode="numeric"
+                              formControlName="quantity"
+                            />
+                            @if (lineAvailabilityHint(i); as hint) {
+                              <span class="co-form__exceeds-hint">{{ hint }}</span>
+                            }
+                          </div>
+                          @if (isLineColumnVisible('stockAvailable')) {
+                            <div class="co-form__card-field co-form__card-field--readonly">
+                              <span class="co-form__card-label">Disponibile</span>
+                              <p class="tabular-nums">
+                                {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
+                              </p>
+                            </div>
                           }
-                        </div>
-                        @if (isLineColumnVisible('stockAvailable')) {
                           <div class="co-form__card-field co-form__card-field--readonly">
-                            <span class="co-form__card-label">Disponibile</span>
+                            <span class="co-form__card-label">U.m.</span>
+                            <p>{{ lineUnitOfMeasure(i) }}</p>
+                          </div>
+                          @if (isLineColumnVisible('commitsStock')) {
+                            <div class="co-form__card-field">
+                              <label [attr.for]="'co-m-commits-' + i">{{
+                                commitsColumnLabel
+                              }}</label>
+                              <select
+                                [id]="'co-m-commits-' + i"
+                                class="gr-form__input co-form__card-select"
+                                [value]="line.controls.commitsStock.value ? 'yes' : 'no'"
+                                (change)="onLineCommitsSelect(i, $any($event.target).value)"
+                              >
+                                <option value="yes">Sì</option>
+                                <option value="no">No</option>
+                              </select>
+                            </div>
+                          }
+                          @if (isLineColumnVisible('serials')) {
+                            <div class="co-form__card-field co-form__card-field--full">
+                              <label [attr.for]="'co-m-serials-' + i">Seriali</label>
+                              <input
+                                [id]="'co-m-serials-' + i"
+                                class="gr-form__input"
+                                type="text"
+                                formControlName="serialNumbersText"
+                                placeholder="SN001, SN002"
+                                autocomplete="off"
+                              />
+                            </div>
+                          }
+
+                          <p class="co-form__card-group">Valori di vendita</p>
+                          @if (isLineColumnVisible('purchaseCost')) {
+                            <div class="co-form__card-field co-form__card-field--readonly">
+                              <span class="co-form__card-label">Costo</span>
+                              <p class="tabular-nums">{{ linePurchaseCost(i) }}</p>
+                            </div>
+                          }
+                          <div class="co-form__card-field">
+                            <label [attr.for]="'co-m-price-' + i">Prezzo</label>
+                            <input
+                              [id]="'co-m-price-' + i"
+                              class="gr-form__input"
+                              type="text"
+                              inputmode="decimal"
+                              formControlName="unitPrice"
+                              placeholder="0,00"
+                            />
+                          </div>
+                          <div class="co-form__card-field">
+                            <label [attr.for]="'co-m-discount-' + i">Sconto</label>
+                            <input
+                              [id]="'co-m-discount-' + i"
+                              class="gr-form__input"
+                              type="text"
+                              formControlName="discount"
+                              placeholder="0%"
+                              title="Percentuale singola o cascata: «10%», «4+10%»"
+                            />
+                          </div>
+                          <div class="co-form__card-field co-form__card-field--readonly">
+                            <span class="co-form__card-label">Prezzo scontato</span>
                             <p class="tabular-nums">
-                              {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
+                              {{ formatMoney(lineDiscountedUnitMoney(i)) }}
                             </p>
                           </div>
-                        }
-                        <div class="co-form__card-field co-form__card-field--readonly">
-                          <span class="co-form__card-label">U.m.</span>
-                          <p>{{ lineUnitOfMeasure(i) }}</p>
-                        </div>
-                        @if (isLineColumnVisible('commitsStock')) {
                           <div class="co-form__card-field">
-                            <label [attr.for]="'co-m-commits-' + i">{{ commitsColumnLabel }}</label>
-                            <select
-                              [id]="'co-m-commits-' + i"
-                              class="gr-form__input co-form__card-select"
-                              [value]="line.controls.commitsStock.value ? 'yes' : 'no'"
-                              (change)="onLineCommitsSelect(i, $any($event.target).value)"
-                            >
-                              <option value="yes">Sì</option>
-                              <option value="no">No</option>
-                            </select>
-                          </div>
-                        }
-                        @if (isLineColumnVisible('serials')) {
-                          <div class="co-form__card-field co-form__card-field--full">
-                            <label [attr.for]="'co-m-serials-' + i">Seriali</label>
-                            <input
-                              [id]="'co-m-serials-' + i"
-                              class="gr-form__input"
-                              type="text"
-                              formControlName="serialNumbersText"
-                              placeholder="SN001, SN002"
-                              autocomplete="off"
+                            <span class="co-form__card-label">IVA</span>
+                            <app-select-menu
+                              [options]="lineVatOptions(i)"
+                              [value]="lineVatValue(i)"
+                              ariaLabel="Codice IVA riga"
+                              placeholder="—"
+                              [compact]="true"
+                              [fullWidth]="true"
+                              [includeEmptyOption]="false"
+                              [searchable]="true"
+                              [inlineDetail]="true"
+                              searchPlaceholder="Codice, aliquota, descrizione…"
+                              searchAriaLabel="Cerca Codice IVA"
+                              (valueChange)="onLineVatSelect(i, $event)"
                             />
                           </div>
-                        }
-
-                        <p class="co-form__card-group">Valori di vendita</p>
-                        @if (isLineColumnVisible('purchaseCost')) {
                           <div class="co-form__card-field co-form__card-field--readonly">
-                            <span class="co-form__card-label">Costo</span>
-                            <p class="tabular-nums">{{ linePurchaseCost(i) }}</p>
+                            <span class="co-form__card-label">Totale</span>
+                            <p class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</p>
                           </div>
-                        }
-                        <div class="co-form__card-field">
-                          <label [attr.for]="'co-m-price-' + i">Prezzo</label>
-                          <input
-                            [id]="'co-m-price-' + i"
-                            class="gr-form__input"
-                            type="text"
-                            inputmode="decimal"
-                            formControlName="unitPrice"
-                            placeholder="0,00"
-                          />
                         </div>
-                        <div class="co-form__card-field">
-                          <label [attr.for]="'co-m-discount-' + i">Sconto</label>
-                          <input
-                            [id]="'co-m-discount-' + i"
-                            class="gr-form__input"
-                            type="text"
-                            formControlName="discount"
-                            placeholder="0%"
-                            title="Percentuale singola o cascata: «10%», «4+10%»"
-                          />
-                        </div>
-                        <div class="co-form__card-field co-form__card-field--readonly">
-                          <span class="co-form__card-label">Prezzo scontato</span>
-                          <p class="tabular-nums">{{ formatMoney(lineDiscountedUnitMoney(i)) }}</p>
-                        </div>
-                        <div class="co-form__card-field">
-                          <span class="co-form__card-label">IVA</span>
-                          <app-select-menu
-                            [options]="lineVatOptions(i)"
-                            [value]="lineVatValue(i)"
-                            ariaLabel="Codice IVA riga"
-                            placeholder="—"
-                            [compact]="true"
-                            [fullWidth]="true"
-                            [includeEmptyOption]="false"
-                            [searchable]="true"
-                            [inlineDetail]="true"
-                            searchPlaceholder="Codice, aliquota, descrizione…"
-                            searchAriaLabel="Cerca Codice IVA"
-                            (valueChange)="onLineVatSelect(i, $event)"
-                          />
-                        </div>
-                        <div class="co-form__card-field co-form__card-field--readonly">
-                          <span class="co-form__card-label">Totale</span>
-                          <p class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</p>
-                        </div>
-                      </div>
 
-                      <div class="co-form__card-actions">
-                        <app-button
-                          type="button"
-                          variant="secondary"
-                          [disabled]="formReadOnly()"
-                          (click)="duplicateLine(i)"
-                        >
-                          <i class="pi pi-clone" aria-hidden="true"></i>
-                          Duplica
-                        </app-button>
-                        <app-button
-                          type="button"
-                          variant="danger"
-                          [disabled]="formReadOnly()"
-                          (click)="removeLine(i)"
-                        >
-                          <i class="pi pi-trash" aria-hidden="true"></i>
-                          Elimina
-                        </app-button>
+                        <div class="co-form__card-actions">
+                          <app-button
+                            type="button"
+                            variant="secondary"
+                            [disabled]="formReadOnly()"
+                            (click)="duplicateLine(i)"
+                          >
+                            <i class="pi pi-clone" aria-hidden="true"></i>
+                            Duplica
+                          </app-button>
+                          <app-button
+                            type="button"
+                            variant="danger"
+                            [disabled]="formReadOnly()"
+                            (click)="removeLine(i)"
+                          >
+                            <i class="pi pi-trash" aria-hidden="true"></i>
+                            Elimina
+                          </app-button>
+                        </div>
                       </div>
-                    </div>
-                  }
-                </article>
+                    }
+                  </article>
+                }
               }
             </div>
 

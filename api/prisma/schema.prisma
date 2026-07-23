@@ -1214,6 +1214,10 @@ model SalesOrderLine {
   /// Spunta "Impegna magazzino": default dal Tipo prodotto (Articolo ON,
   /// Servizio OFF), sempre modificabile. L'impegno effettivo segue la spunta.
   commitsStock   Boolean @default(true) @map("commits_stock")
+  /// Riga «documento collegato»: separatore informativo del gruppo di righe
+  /// arrivate da un altro documento. Nessuna quantità, nessun valore, fuori
+  /// dai totali. Le righe salvate prima di questo campo restano righe normali.
+  isReference    Boolean @default(false) @map("is_reference")
 
   order       SalesOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   reservation StockReservation?
@@ -1914,6 +1918,10 @@ model DocumentLine {
   nonDeductibleVatMinor      Int @default(0) @map("non_deductible_vat_minor")
   /// Flag "carica magazzino" (§3.2): righe spese/servizi non movimentano stock.
   loadsStock      Boolean  @default(true) @map("loads_stock")
+  /// Riga «documento collegato»: separatore informativo del gruppo di righe
+  /// arrivate da un altro documento. Nessuna quantità, nessun valore, fuori
+  /// dai totali. Le righe salvate prima di questo campo restano righe normali.
+  isReference     Boolean  @default(false) @map("is_reference")
   /// Riga ordine fornitore collegata (§10.1).
   supplierOrderLineId String? @map("supplier_order_line_id") @db.Uuid
   /// Lotto (tracciamento lot, opzionale).

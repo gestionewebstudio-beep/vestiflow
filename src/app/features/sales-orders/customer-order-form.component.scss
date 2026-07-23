@@ -95,6 +95,16 @@
   --co-shadow: 0 1px 2px rgb(18 42 33 / 0.04), 0 4px 14px rgb(18 42 33 / 0.035);
   --co-primary-subtle: rgb(37 52 59 / 0.07);
 
+  // Riga «documento collegato»
+  --co-ref-bg: #f2f5f7;
+  --co-ref-accent: #718995;
+  --co-ref-line: #cbd5d9;
+  --co-ref-badge-bg: #e6ecef;
+  --co-ref-badge-border: #ccd8dd;
+  --co-ref-badge-fg: #4b6470;
+  --co-ref-title: #334850;
+  --co-ref-meta: #68777d;
+
   // ── Vista mobile/tablet (mockup responsive v3) ────────────────────────────
   --co-radius-card: 0.75rem; // 12px — card riga
   --co-field-h-m: 2.625rem; // 42px — campi testata (touch)
@@ -201,6 +211,14 @@
   --co-summary-bg: var(--color-surface-sunken);
   --co-summary-fg: var(--color-text-muted);
   --co-primary-subtle: var(--color-primary-subtle);
+  --co-ref-bg: var(--color-surface-sunken);
+  --co-ref-accent: var(--color-border-strong);
+  --co-ref-line: var(--color-border);
+  --co-ref-badge-bg: var(--color-surface-muted);
+  --co-ref-badge-border: var(--color-border);
+  --co-ref-badge-fg: var(--color-text-muted);
+  --co-ref-title: var(--color-text);
+  --co-ref-meta: var(--color-text-muted);
   --co-card-open-border: var(--color-border-strong);
   --co-card-open-bg: var(--color-surface-hover);
   --co-card-body-bg: var(--color-surface-sunken);
@@ -225,29 +243,6 @@
 .co-form .gr-form__title {
   font-size: var(--text-xl);
   font-weight: var(--co-weight-strong);
-}
-
-// Pulsante «Indietro» come nel mockup: quadratino col solo chevron accanto al
-// titolo. La parola resta nel DOM (azzerata come corpo) per i lettori di
-// schermo, che altrimenti troverebbero un bottone senza nome.
-.co-form ::ng-deep .back-button {
-  inline-size: var(--co-field-h);
-  block-size: var(--co-field-h);
-  justify-content: center;
-  font-size: 0;
-  color: var(--co-muted);
-  background-color: var(--co-surface);
-  border: var(--border-width) solid var(--co-line);
-  border-radius: var(--co-radius-sm);
-}
-
-.co-form ::ng-deep .back-button:hover {
-  color: var(--co-text);
-  background-color: var(--co-surface-soft);
-}
-
-.co-form ::ng-deep .back-button .pi {
-  font-size: var(--text-md);
 }
 
 // Stato di salvataggio in coda alla riga del titolo (mockup: check + testo).

@@ -66,6 +66,11 @@ export class DocumentLineInputDto {
   @IsBoolean()
   loadsStock?: boolean;
 
+  /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
+  @IsOptional()
+  @IsBoolean()
+  isReference?: boolean;
+
   /** Riga ordine fornitore collegata (§10.1). */
   @IsOptional()
   @IsUUID()

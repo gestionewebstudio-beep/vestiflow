@@ -37,6 +37,8 @@ export interface SaveManualOrderLineInput {
   readonly discount?: string;
   readonly vatCodeId?: string;
   readonly commitsStock?: boolean;
+  /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
+  readonly isReference?: boolean;
   readonly unitOfMeasure?: string;
 }
 

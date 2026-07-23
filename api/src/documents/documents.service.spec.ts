@@ -49,8 +49,7 @@ function createPrismaMock() {
   const rawMockResolvedValue = documentFindFirst.mockResolvedValue.bind(documentFindFirst);
   documentFindFirst.mockResolvedValue = ((value: unknown) =>
     rawMockResolvedValue(withLinkDefaults(value))) as typeof documentFindFirst.mockResolvedValue;
-  const rawMockResolvedValueOnce =
-    documentFindFirst.mockResolvedValueOnce.bind(documentFindFirst);
+  const rawMockResolvedValueOnce = documentFindFirst.mockResolvedValueOnce.bind(documentFindFirst);
   documentFindFirst.mockResolvedValueOnce = ((value: unknown) =>
     rawMockResolvedValueOnce(
       withLinkDefaults(value),
@@ -59,6 +58,9 @@ function createPrismaMock() {
   const prisma = {
     document: {
       findFirst: documentFindFirst,
+      // Numerazione «massimo esistente + 1»: la fonte è il massimo dei numeri
+      // già assegnati nella serie/anno, non più il contatore.
+      aggregate: vi.fn().mockResolvedValue({ _max: { number: null } }),
       findMany: vi.fn(),
       count: vi.fn(),
       create: vi.fn(),
@@ -209,10 +211,7 @@ describe('DocumentsService', () => {
       await service.list(tenantId, { page: 1, pageSize: 20 }, testOwnerUser());
 
       expect(prisma.location.findMany).not.toHaveBeenCalled();
-      const where = prisma.document.findMany.mock.calls[0]?.[0]?.where as Record<
-        string,
-        unknown
-      >;
+      const where = prisma.document.findMany.mock.calls[0]?.[0]?.where as Record<string, unknown>;
       expect(where['AND']).toBeUndefined();
     });
 
@@ -308,20 +307,20 @@ describe('DocumentsService', () => {
       DocumentType.supplier_invoice_accompanying,
       DocumentType.manual_load,
       DocumentType.initial_load,
-    ])(
-      'rifiuta la creazione generica di %s: usa il flusso dedicato arrivo merce',
-      async (type) => {
-        const { service } = createService(prisma, resolvedSetting({ type }));
+    ])('rifiuta la creazione generica di %s: usa il flusso dedicato arrivo merce', async (type) => {
+      const { service } = createService(prisma, resolvedSetting({ type }));
 
-        await expect(
-          service.create(tenantId, { type, documentDate: '2026-01-10' }),
-        ).rejects.toBeInstanceOf(UnprocessableEntityException);
-        expect(prisma.document.create).not.toHaveBeenCalled();
-      },
-    );
+      await expect(
+        service.create(tenantId, { type, documentDate: '2026-01-10' }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(prisma.document.create).not.toHaveBeenCalled();
+    });
 
     it('il messaggio di rifiuto indica il flusso dedicato, senza dettagli tecnici', async () => {
-      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.goods_receipt }));
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.goods_receipt }),
+      );
 
       try {
         await service.create(tenantId, {
@@ -372,7 +371,7 @@ describe('DocumentsService', () => {
         reference: null,
         lines: [{ id: 'l1' }],
       });
-      prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 7 });
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 6 } });
       prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
 
       await service.confirm(tenantId, 'doc-1');
@@ -401,7 +400,7 @@ describe('DocumentsService', () => {
 
       await service.confirm(tenantId, 'doc-1');
 
-      expect(prisma.documentSequence.upsert).not.toHaveBeenCalled();
+      expect(prisma.document.update).toHaveBeenCalled();
       const data = prisma.document.update.mock.calls[0]![0]!.data;
       expect(data.number).toBe(3);
     });
@@ -450,7 +449,14 @@ describe('DocumentsService', () => {
         supplierId: 'sup-1',
         locationId: 'loc-1',
         lines: [
-          { id: 'l1', lineNumber: 1, variantId: 'var-1', sku: 'SKU-1', quantity: 5, loadsStock: true },
+          {
+            id: 'l1',
+            lineNumber: 1,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            quantity: 5,
+            loadsStock: true,
+          },
         ],
       });
 
@@ -482,7 +488,7 @@ describe('DocumentsService', () => {
           },
         ],
       });
-      prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 12 });
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 11 } });
       prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -556,7 +562,7 @@ describe('DocumentsService', () => {
           },
         ],
       });
-      prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 2 });
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 1 } });
       prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -609,7 +615,7 @@ describe('DocumentsService', () => {
           },
         ],
       });
-      prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 1 });
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 0 } });
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
       prisma.inventoryLevel.findUnique.mockResolvedValue({ onHand: 10, available: 10 });
@@ -656,7 +662,7 @@ describe('DocumentsService', () => {
           },
         ],
       });
-      prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 1 });
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 0 } });
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
       prisma.inventoryLevel.findUnique.mockResolvedValue({ onHand: 10, available: 10 });
@@ -712,7 +718,7 @@ describe('DocumentsService', () => {
           },
         ],
       });
-      prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 2 });
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 1 } });
       prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -763,7 +769,7 @@ describe('DocumentsService', () => {
           },
         ],
       });
-      prisma.documentSequence.upsert.mockResolvedValue({ lastNumber: 1 });
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 0 } });
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
       prisma.stockMovement.create.mockResolvedValue({});
@@ -1775,9 +1781,7 @@ describe('DocumentsService', () => {
         lines: [{ id: 'l1', lineNumber: 1, quantity: 1, loadsStock: true, variantId: 'var-1' }],
       });
 
-      await expect(service.confirm(tenantId, 'doc-gr-1')).rejects.toThrowError(
-        /Salva documento/,
-      );
+      await expect(service.confirm(tenantId, 'doc-gr-1')).rejects.toThrowError(/Salva documento/);
       expect(prisma.stockMovement.create).not.toHaveBeenCalled();
     });
   });
@@ -1885,10 +1889,7 @@ describe('DocumentsService', () => {
     const clerkViewAll = () =>
       testClerkUser({
         assignedLocationIds: ['loc-A'],
-        permissions: [
-          TenantPermission.InventoryManage,
-          TenantPermission.InventoryViewAllLocations,
-        ],
+        permissions: [TenantPermission.InventoryManage, TenantPermission.InventoryViewAllLocations],
       });
 
     const docInLocB = (overrides: Record<string, unknown> = {}) => ({
@@ -1930,9 +1931,7 @@ describe('DocumentsService', () => {
 
     it('cancel rifiuta con 403 un documento di una sede non assegnata', async () => {
       const { service } = createService(prisma);
-      prisma.document.findFirst.mockResolvedValue(
-        docInLocB({ status: DocumentStatus.confirmed }),
-      );
+      prisma.document.findFirst.mockResolvedValue(docInLocB({ status: DocumentStatus.confirmed }));
 
       await expect(service.cancel(tenantId, 'doc-b', clerkViewAll())).rejects.toBeInstanceOf(
         ForbiddenException,
@@ -1960,21 +1959,14 @@ describe('DocumentsService', () => {
       );
 
       await expect(
-        service.convert(
-          tenantId,
-          'doc-b',
-          { targetType: DocumentType.sales_ddt },
-          clerkViewAll(),
-        ),
+        service.convert(tenantId, 'doc-b', { targetType: DocumentType.sales_ddt }, clerkViewAll()),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.document.create).not.toHaveBeenCalled();
     });
 
     it('registerExternal (transizione di stato) rifiuta con 403 una sede non assegnata', async () => {
       const { service } = createService(prisma);
-      prisma.document.findFirst.mockResolvedValue(
-        docInLocB({ status: DocumentStatus.confirmed }),
-      );
+      prisma.document.findFirst.mockResolvedValue(docInLocB({ status: DocumentStatus.confirmed }));
 
       await expect(
         service.registerExternal(tenantId, 'doc-b', {}, clerkViewAll()),
@@ -2023,7 +2015,10 @@ describe('DocumentsService', () => {
     });
 
     it('non blocca le mutazioni dei documenti senza sede (es. bozza fattura)', async () => {
-      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.invoice_draft }));
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.invoice_draft }),
+      );
       prisma.document.findFirst.mockResolvedValue(
         docInLocB({ type: DocumentType.invoice_draft, locationId: null }),
       );
@@ -2036,7 +2031,7 @@ describe('DocumentsService', () => {
   });
 
   describe('previewNextReference', () => {
-    it('calcola anteprima senza incrementare il numeratore', async () => {
+    it('calcola anteprima come massimo esistente + 1, senza scrivere nulla', async () => {
       const { service } = createService(
         prisma,
         resolvedSetting({
@@ -2045,7 +2040,7 @@ describe('DocumentsService', () => {
           defaultSeries: 'A',
         }),
       );
-      prisma.documentSequence.findUnique.mockResolvedValue({ lastNumber: 44 });
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 44 } });
 
       const preview = await service.previewNextReference(
         tenantId,
@@ -2060,15 +2055,17 @@ describe('DocumentsService', () => {
         series: 'A',
         year: 2026,
       });
-      expect(prisma.documentSequence.upsert).not.toHaveBeenCalled();
+      // L'anteprima non consuma il numero: nessuna scrittura.
+      expect(prisma.document.update).not.toHaveBeenCalled();
+      expect(prisma.document.create).not.toHaveBeenCalled();
     });
 
-    it('usa 1 come primo numero se la sequenza non esiste', async () => {
+    it('usa 1 come primo numero se la serie è ancora vuota', async () => {
       const { service } = createService(
         prisma,
         resolvedSetting({ type: DocumentType.goods_receipt, numberPrefix: 'CAR' }),
       );
-      prisma.documentSequence.findUnique.mockResolvedValue(null);
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: null } });
 
       const preview = await service.previewNextReference(tenantId, DocumentType.goods_receipt);
 

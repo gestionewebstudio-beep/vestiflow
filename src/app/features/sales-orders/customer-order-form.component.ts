@@ -80,7 +80,10 @@ import {
   includeSourceKindsForDocumentType,
   type IncludedDocumentPayload,
 } from '@features/documents/models/document-include.util';
-import { documentTypeLabel } from '@features/documents/models/document-labels.util';
+import {
+  documentReferenceLabel,
+  documentTypeLabel,
+} from '@features/documents/models/document-labels.util';
 import { documentEditPath } from '@features/documents/models/document-routing.util';
 import { transportDataIncomplete } from '@features/documents/models/document-transport.util';
 import { parseSerialNumbersText } from '@features/documents/utils/serial-numbers-input.util';
@@ -120,6 +123,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { formatItalianInputDate, toIsoDateLocal } from '@shared/utils/calendar.util';
 
 import {
@@ -191,6 +195,9 @@ interface AvailabilityIssue {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
     BackButtonComponent,
     BadgeComponent,
     AttachmentsPanelComponent,
@@ -222,6 +229,7 @@ interface AvailabilityIssue {
     '../documents/goods-receipt-form.component.scss',
     '../documents/document-form-footer.shared.scss',
     './customer-order-form.component.scss',
+    './customer-order-form.rows.scss',
     './customer-order-form.mobile.scss',
   ],
 })
@@ -679,9 +687,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (!id) {
       return null;
     }
-    const label = this.isRegistryDocument
-      ? this.loadedQuoteDoc()?.reference
-      : this.loadedOrder()?.orderNumber;
+    if (this.isRegistryDocument) {
+      const doc = this.loadedQuoteDoc();
+      // Documento non ancora numerato: resta comunque un'etichetta leggibile
+      // («Bozza · serie A») invece del generico «Dettaglio».
+      return doc
+        ? { id, label: documentReferenceLabel(doc.type, doc.reference, doc.series) }
+        : null;
+    }
+    const label = this.loadedOrder()?.orderNumber;
     return label ? { id, label } : null;
   });
   /** Id attualmente registrato nel breadcrumb (per pulizia mirata). */
@@ -1159,7 +1173,33 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       unitOfMeasure: this.fb.control(''),
       // Seriali consumati dallo scarico (solo DDT, testo "SN001, SN002").
       serialNumbersText: this.fb.control(''),
+      /**
+       * Riga «documento collegato»: separatore visivo del gruppo di righe
+       * arrivate da un altro documento. Non ha quantità, prezzi né impegno —
+       * porta solo il testo del riferimento, che l'operatore può riscrivere.
+       */
+      isReference: this.fb.control(false),
     });
+  }
+
+  /**
+   * Riordino per trascinamento: la maniglia è il numero di riga. Ogni riga si
+   * muove da sola — spostare un riferimento non trascina il gruppo sotto: è
+   * l'operatore a comporre l'ordine riga per riga.
+   */
+  protected onLineDrop(event: CdkDragDrop<unknown>): void {
+    const { previousIndex, currentIndex } = event;
+    if (previousIndex === currentIndex) {
+      return;
+    }
+    const line = this.lines.at(previousIndex);
+    this.lines.removeAt(previousIndex, { emitEvent: false });
+    this.lines.insert(currentIndex, line, { emitEvent: false });
+    // Una card aperta resterebbe agganciata all'indice sbagliato.
+    this.openLineCard.set(null);
+    this.markFormDirty();
+    // removeAt/insert silenziosi: un giro esplicito riallinea vista e totali.
+    this.lines.updateValueAndValidity();
   }
 
   protected addLine(): void {
@@ -1189,6 +1229,28 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return (
       !value.variantId && !value.productName.trim() && !value.sku.trim() && !value.barcode.trim()
     );
+  }
+
+  /**
+   * Quante colonne di identità sono visibili (Cod. articolo, SKU, EAN, Nome):
+   * è l'ampiezza del colspan della riga riferimento. Le colonne di valore
+   * restano celle proprie, così tinte di gruppo e divisori non si interrompono.
+   */
+  protected identityColumnCount(): number {
+    this.lineTableColumnState();
+    return ['articleCode', 'sku', 'barcode', 'product'].filter((id) => this.isLineColumnVisible(id))
+      .length;
+  }
+
+  /** Riga «documento collegato»: separatore, non merce da contare o valorizzare. */
+  protected lineIsReference(index: number): boolean {
+    this.formValue();
+    return this.lines.at(index)?.controls.isReference.value === true;
+  }
+
+  /** Come sopra, sul controllo: serve dentro i cicli su `lines.controls`. */
+  private isReferenceLine(line: ReturnType<CustomerOrderFormComponent['createLine']>): boolean {
+    return line.controls.isReference.value === true;
   }
 
   protected lineHasLinkedProduct(index: number): boolean {
@@ -1475,7 +1537,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     let lineSum = 0;
     const taxParts: { readonly netMinor: number; readonly vatRate: number }[] = [];
     this.lines.controls.forEach((line, index) => {
-      if (this.lineIsEmpty(line)) {
+      if (this.lineIsEmpty(line) || this.isReferenceLine(line)) {
         return;
       }
       const netMinor = this.lineTotalMoney(index).amountMinor;
@@ -1598,7 +1660,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected validLinesCount(): number {
     this.formValue();
     return this.lines.controls.reduce((count, line, index) => {
-      if (this.lineIsEmpty(line)) {
+      if (this.lineIsEmpty(line) || this.isReferenceLine(line)) {
         return count;
       }
       return count + (this.lineRowComplete(index) ? 1 : 0);
@@ -1608,7 +1670,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected totalPiecesCount(): number {
     this.formValue();
     return this.lines.controls.reduce((sum, line) => {
-      if (this.lineIsEmpty(line)) {
+      if (this.lineIsEmpty(line) || this.isReferenceLine(line)) {
         return sum;
       }
       const qty = Number(line.controls.quantity.value);
@@ -2219,7 +2281,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
     const referenceLine = this.createLine();
     referenceLine.patchValue(
-      { productName: payload.referenceText, quantity: 1, commitsStock: false },
+      { productName: payload.referenceText, quantity: 1, commitsStock: false, isReference: true },
       { emitEvent: false },
     );
     groups.push(referenceLine);
@@ -2421,6 +2483,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             commitsStock: line.commitsStock ?? true,
             unitOfMeasure: line.unitOfMeasure ?? '',
             serialNumbersText: '',
+            isReference: line.isReference === true,
           },
           { emitEvent: false },
         );
@@ -2710,6 +2773,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         vatCodeId: raw.vatCodeId || undefined,
         commitsStock: raw.commitsStock,
         unitOfMeasure: this.lineUnitOfMeasureRaw(raw.unitOfMeasure),
+        isReference: raw.isReference,
       });
     }
     return {
@@ -2808,6 +2872,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         // Seriali consumati dallo scarico (solo DDT, prodotti tracciati):
         // lo scarico manuale diretto non gestisce i numeri di serie.
         serialNumbers: this.isSalesDdt ? parseSerialNumbersText(raw.serialNumbersText) : undefined,
+        isReference: raw.isReference,
       });
     }
     return lines;
@@ -3007,6 +3072,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             commitsStock: this.isSalesDdt || this.isManualUnload ? line.loadsStock : false,
             unitOfMeasure: '',
             serialNumbersText: (line.serialNumbers ?? []).join(', '),
+            isReference: line.isReference === true,
           },
           { emitEvent: false },
         );

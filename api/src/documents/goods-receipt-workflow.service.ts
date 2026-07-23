@@ -38,7 +38,13 @@ import {
   reconcileSupplierOrderReceipt,
 } from './document-supplier-order.util';
 import { applySupplierPriceUpdates } from './document-supplier-price.util';
-import { formatDocumentReference, nextDocumentNumber } from './document-totals.util';
+import { formatDocumentReference } from './document-totals.util';
+import {
+  isDocumentNumberConflict,
+  nextDocumentNumber,
+  resolveDocumentNumber,
+  type DocumentNumberConflict,
+} from './document-numbering.util';
 import {
   computeGoodsReceiptLines,
   computeGoodsReceiptTotals,
@@ -130,7 +136,59 @@ export class GoodsReceiptWorkflowService {
 
   // ── Arrivo merce: salvataggio unico ────────────────────────────────────────
 
+  /**
+   * Salvataggio con rete di protezione sul numero: se nel frattempo un altro
+   * operatore ha preso quel progressivo, il vincolo unico del database blocca
+   * la scrittura e qui l'errore diventa un conflitto leggibile, col primo
+   * numero libero da proporre in maschera.
+   */
   async saveGoodsReceipt(
+    tenantId: string,
+    dto: SaveGoodsReceiptDto,
+    user?: UserProfileDto,
+  ): Promise<GoodsReceiptSaveResult> {
+    try {
+      return await this.saveGoodsReceiptInner(tenantId, dto, user);
+    } catch (error) {
+      await this.throwNumberConflict(error, tenantId, dto.type, dto.series, dto.documentDate);
+      throw error;
+    }
+  }
+
+  /** Conflitto sul numero → 409 con il primo libero della serie. */
+  private async throwNumberConflict(
+    error: unknown,
+    tenantId: string,
+    type: DocumentType,
+    series: string | undefined,
+    documentDate: string,
+  ): Promise<never | void> {
+    if (!isDocumentNumberConflict(error)) {
+      return;
+    }
+    const setting = await this.settings.getResolved(tenantId, type);
+    const resolvedSeries = (series ?? setting.defaultSeries).trim() || 'A';
+    const year = new Date(documentDate).getFullYear();
+    const nextAvailable = await nextDocumentNumber({
+      tx: this.prisma,
+      tenantId,
+      type,
+      series: resolvedSeries,
+      year,
+      source: 'document',
+      prefix: setting.numberPrefix,
+    });
+    const payload: DocumentNumberConflict = {
+      code: 'document_number_taken',
+      number: nextAvailable - 1,
+      nextAvailable,
+      series: resolvedSeries,
+      year,
+    };
+    throw new ConflictException(payload);
+  }
+
+  private async saveGoodsReceiptInner(
     tenantId: string,
     dto: SaveGoodsReceiptDto,
     user?: UserProfileDto,
@@ -344,11 +402,25 @@ export class GoodsReceiptWorkflowService {
       const year = documentDate.getFullYear();
 
       // Numero interno progressivo assegnato al primo salvataggio (§9.1-9.2).
+      // Il numero si assegna SEMPRE al primo salvataggio: qui il documento
+      // nasce già confermato, e senza numero finiva in elenco come «Serie A
+      // (non numerato)». Se l'operatore ne ha imposto uno dalla testata si usa
+      // quello, altrimenti il primo libero della serie.
       let number = existing?.number ?? null;
       let reference = existing?.reference ?? null;
-      if (number == null && setting.autoNumbering) {
-        number = await nextDocumentNumber(tx, tenantId, dto.type, series, year);
-        reference = formatDocumentReference(setting.numberPrefix, year, number);
+      if (number == null) {
+        const assigned = await resolveDocumentNumber({
+          tx,
+          tenantId,
+          type: dto.type,
+          series,
+          year,
+          source: 'document',
+          prefix: setting.numberPrefix,
+          requestedNumber: dto.number ?? null,
+        });
+        number = assigned.number;
+        reference = assigned.reference;
       }
 
       const headerData = {
@@ -799,15 +871,19 @@ export class GoodsReceiptWorkflowService {
 
       let number = existing?.number ?? null;
       let reference = existing?.reference ?? null;
-      if (number == null && setting.autoNumbering) {
-        number = await nextDocumentNumber(
+      if (number == null) {
+        const assigned = await resolveDocumentNumber({
           tx,
           tenantId,
-          DocumentType.supplier_invoice,
+          type: DocumentType.supplier_invoice,
           series,
           year,
-        );
-        reference = formatDocumentReference(setting.numberPrefix, year, number);
+          source: 'document',
+          prefix: setting.numberPrefix,
+          requestedNumber: dto.number ?? null,
+        });
+        number = assigned.number;
+        reference = assigned.reference;
       }
 
       const headerData = {

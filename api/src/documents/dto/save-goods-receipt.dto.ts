@@ -180,6 +180,12 @@ export class SaveGoodsReceiptDto {
   @MaxLength(20)
   series?: string;
 
+  /** Numero imposto dalla testata; assente = primo libero della serie. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsISO8601()
   documentDate!: string;
 

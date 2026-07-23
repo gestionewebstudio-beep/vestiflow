@@ -168,11 +168,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
       findFirst: () => Promise.resolve(null),
     },
     inventoryLevel: {
-      findMany: ({
-        where,
-      }: {
-        where: { variantId: { in: string[] }; locationId: string };
-      }) =>
+      findMany: ({ where }: { where: { variantId: { in: string[] }; locationId: string } }) =>
         Promise.resolve(
           db.levels
             .filter(
@@ -268,6 +264,8 @@ function createFakePrisma(db: FakeDb): PrismaService {
       },
     },
     document: {
+      // Numerazione «massimo esistente + 1» (nessun documento nel fake db).
+      aggregate: () => Promise.resolve({ _max: { number: null } }),
       create: ({
         data,
       }: {
@@ -294,11 +292,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
         db.documents.push(doc);
         return Promise.resolve({ ...doc, lines: lines.map((line) => ({ ...line })) });
       },
-      findFirst: ({
-        where,
-      }: {
-        where: { id: string; tenantId: string; type: DocumentType };
-      }) => {
+      findFirst: ({ where }: { where: { id: string; tenantId: string; type: DocumentType } }) => {
         const found = db.documents.find(
           (doc) =>
             doc.id === where.id && doc.tenantId === where.tenantId && doc.type === where.type,

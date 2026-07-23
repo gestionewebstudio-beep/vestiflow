@@ -173,6 +173,8 @@ export interface DocumentLine {
   readonly lineTotal: Money;
   /** Flag "carica magazzino": righe spese/servizi non movimentano stock. */
   readonly loadsStock: boolean;
+  /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
+  readonly isReference?: boolean;
   /** Riga ordine fornitore collegata (§10.1). */
   readonly supplierOrderLineId?: EntityId;
   /** Codice lotto (tracciamento lot/expiry — C1). */

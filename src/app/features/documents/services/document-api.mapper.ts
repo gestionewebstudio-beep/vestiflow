@@ -34,6 +34,7 @@ export interface DocumentLineApiRow {
   readonly enteredUnitCost?: string | number | null;
   readonly lineTotalMinor: number;
   readonly loadsStock: boolean;
+  readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId | null;
   readonly lotCode?: string | null;
   readonly lotExpiryDate?: IsoDateString | null;
@@ -212,6 +213,7 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
       row.enteredUnitCost != null ? Math.round(Number(row.enteredUnitCost) * 100) : undefined,
     lineTotal: { amountMinor: row.lineTotalMinor, currencyCode: currency },
     loadsStock: row.loadsStock,
+    isReference: row.isReference === true,
     supplierOrderLineId: row.supplierOrderLineId ?? undefined,
     lotCode: row.lotCode ?? undefined,
     lotExpiryDate: row.lotExpiryDate ?? undefined,
@@ -397,6 +399,7 @@ export interface DocumentLineInputBody {
   /** Costo unitario digitato (unità minori) nella modalità costo del documento. */
   readonly enteredUnitCostMinor?: number;
   readonly loadsStock?: boolean;
+  readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId;
   readonly lotCode?: string;
   readonly lotExpiryDate?: IsoDateString;
