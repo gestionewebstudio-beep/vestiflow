@@ -7,6 +7,7 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   StreamableFile,
@@ -24,8 +25,10 @@ import { RequirePermissions } from '../common/auth/tenant-permissions.decorator'
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
+import { attachmentDownloadFilename } from '../common/attachments/attachment-rules.util';
 import { documentAttachmentUploadMulterOptions } from '../common/upload/multer-upload.options';
 import { AttachmentsService } from '../attachments/attachments.service';
+import { RenameAttachmentDto } from '../common/attachments/dto/rename-attachment.dto';
 import { ConcludeManualSalesOrderDto } from './dto/conclude-manual-sales-order.dto';
 import { DuplicateManualSalesOrderDto } from './dto/duplicate-manual-sales-order.dto';
 import { ExportSalesOrdersQueryDto } from './dto/export-sales-orders.query.dto';
@@ -180,6 +183,40 @@ export class SalesOrdersController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.attachments.upload(tenantId, 'sales_order', id, file, user.displayName ?? 'API');
+  }
+
+  /** Spazio allegati dell'ordine (indicatore nella modale allegati). */
+  @Get(':id/attachments/quota')
+  @RequirePermissions(TenantPermission.ReportsView)
+  attachmentsQuota(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.attachments.quota(tenantId, 'sales_order', id);
+  }
+
+  /** Download allegato: il bucket è privato, i byte passano dall'API. */
+  @Get(':id/attachments/:attachmentId/download')
+  @RequirePermissions(TenantPermission.ReportsView)
+  async downloadAttachment(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+  ): Promise<StreamableFile> {
+    const file = await this.attachments.download(tenantId, 'sales_order', id, attachmentId);
+    return new StreamableFile(file.buffer, {
+      type: file.mimeType,
+      disposition: `attachment; filename="${attachmentDownloadFilename(file.fileName)}"`,
+    });
+  }
+
+  /** Rinomina allegato: cambia solo il nome mostrato, i byte restano dove sono. */
+  @Patch(':id/attachments/:attachmentId')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  renameAttachment(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+    @Body() dto: RenameAttachmentDto,
+  ) {
+    return this.attachments.rename(tenantId, 'sales_order', id, attachmentId, dto.fileName);
   }
 
   @Delete(':id/attachments/:attachmentId')

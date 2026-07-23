@@ -12,3 +12,10 @@ export interface Attachment {
   readonly createdByName: string;
   readonly createdAt: IsoDateString;
 }
+
+/** Spazio allegati di un'entità: usato, totale e residuo (byte). */
+export interface AttachmentQuota {
+  readonly usedBytes: number;
+  readonly totalBytes: number;
+  readonly remainingBytes: number;
+}

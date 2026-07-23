@@ -26,23 +26,10 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.doc-attachments__upload {
-  position: relative;
-  cursor: pointer;
-}
-
-.doc-attachments__file-input {
-  position: absolute;
-  width: 0;
-  height: 0;
-  opacity: 0;
-  overflow: hidden;
-}
-
 .doc-attachments__error {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--color-error-text, var(--color-text));
+  color: var(--status-error-fg);
 }
 
 .doc-attachments__list {
@@ -57,11 +44,15 @@
 .doc-attachments__item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
+}
+
+.doc-attachments__icon {
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
 }
 
 .doc-attachments__meta {

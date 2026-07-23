@@ -30,6 +30,8 @@ import {
   RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
+import { attachmentDownloadFilename } from '../common/attachments/attachment-rules.util';
+import { RenameAttachmentDto } from '../common/attachments/dto/rename-attachment.dto';
 import { documentAttachmentUploadMulterOptions } from '../common/upload/multer-upload.options';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
@@ -226,6 +228,35 @@ export class DocumentsController {
     return this.attachments.listAttachments(tenantId, id);
   }
 
+  /** Spazio allegati del documento (indicatore nella modale allegati). */
+  @Get(':id/attachments/quota')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  async attachmentsQuota(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.documents.getById(tenantId, id, user);
+    return this.attachments.quota(tenantId, id);
+  }
+
+  /** Download allegato: il bucket è privato, i byte passano dall'API. */
+  @Get(':id/attachments/:attachmentId/download')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  async downloadAttachment(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+  ): Promise<StreamableFile> {
+    await this.documents.getById(tenantId, id, user);
+    const file = await this.attachments.downloadAttachment(tenantId, id, attachmentId);
+    return new StreamableFile(file.buffer, {
+      type: file.mimeType,
+      disposition: `attachment; filename="${attachmentDownloadFilename(file.fileName)}"`,
+    });
+  }
+
   @Post(':id/attachments')
   @RequirePermissions(TenantPermission.DocumentsManage)
   @UseInterceptors(FileInterceptor('file', documentAttachmentUploadMulterOptions))
@@ -238,6 +269,20 @@ export class DocumentsController {
     // Gate di scrittura: la sede del documento deve essere nello scope utente.
     await this.documents.assertWritableById(tenantId, id, user);
     return this.attachments.uploadAttachment(tenantId, id, file, user.displayName);
+  }
+
+  /** Rinomina allegato: cambia solo il nome mostrato, i byte restano dove sono. */
+  @Patch(':id/attachments/:attachmentId')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  async renameAttachment(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+    @Body() dto: RenameAttachmentDto,
+  ) {
+    await this.documents.assertWritableById(tenantId, id, user);
+    return this.attachments.renameAttachment(tenantId, id, attachmentId, dto.fileName);
   }
 
   @Delete(':id/attachments/:attachmentId')

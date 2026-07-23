@@ -10,10 +10,16 @@ import { randomUUID } from 'node:crypto';
 import type { Attachment } from '@prisma/client';
 
 import { SupabaseService } from '../auth/supabase.service';
+import {
+  MAX_ATTACHMENT_FILE_BYTES,
+  MAX_ATTACHMENT_TOTAL_BYTES,
+  assertAttachmentQuota,
+  assertValidAttachmentFile,
+  attachmentExtensionForMime,
+  sanitizeAttachmentFileName,
+} from '../common/attachments/attachment-rules.util';
+import { ensureAttachmentBucket } from '../common/attachments/attachment-storage.util';
 import { PrismaService } from '../prisma/prisma.service';
-
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-const ALLOWED_MIME = new Set(['application/pdf', 'application/xml', 'text/xml']);
 
 /** Tipi di entità a cui si possono agganciare allegati (estendibile). */
 export const ATTACHMENT_ENTITY_TYPES = ['document', 'sales_order'] as const;
@@ -21,6 +27,20 @@ export type AttachmentEntityType = (typeof ATTACHMENT_ENTITY_TYPES)[number];
 
 export function isAttachmentEntityType(value: string): value is AttachmentEntityType {
   return (ATTACHMENT_ENTITY_TYPES as readonly string[]).includes(value);
+}
+
+/** Spazio allegati di un'entità: usato, totale e residuo (byte). */
+export interface AttachmentQuotaInfo {
+  readonly usedBytes: number;
+  readonly totalBytes: number;
+  readonly remainingBytes: number;
+}
+
+/** File scaricato: byte + metadati per gli header HTTP. */
+export interface AttachmentDownload {
+  readonly buffer: Buffer;
+  readonly fileName: string;
+  readonly mimeType: string;
 }
 
 /**
@@ -54,6 +74,21 @@ export class AttachmentsService {
     });
   }
 
+  /** Spazio occupato dagli allegati dell'entità (indicatore nella modale). */
+  async quota(
+    tenantId: string,
+    entityType: AttachmentEntityType,
+    entityId: string,
+  ): Promise<AttachmentQuotaInfo> {
+    await this.assertEntity(tenantId, entityType, entityId);
+    const usedBytes = await this.usedBytes(tenantId, entityType, entityId);
+    return {
+      usedBytes,
+      totalBytes: MAX_ATTACHMENT_TOTAL_BYTES,
+      remainingBytes: Math.max(0, MAX_ATTACHMENT_TOTAL_BYTES - usedBytes),
+    };
+  }
+
   async upload(
     tenantId: string,
     entityType: AttachmentEntityType,
@@ -62,21 +97,18 @@ export class AttachmentsService {
     createdByName: string,
   ): Promise<Attachment> {
     await this.assertEntity(tenantId, entityType, entityId);
-    this.assertValidFile(file);
+    const mimeType = assertValidAttachmentFile(file);
+    assertAttachmentQuota(await this.usedBytes(tenantId, entityType, entityId), file.size);
 
-    const client = this.supabase.getStorageClient();
-    if (!client) {
-      throw new ServiceUnavailableException(
-        'Storage allegati non configurato (Supabase). Crea il bucket document-attachments nel progetto Supabase.',
-      );
-    }
+    const client = this.requireStorageClient();
+    await ensureAttachmentBucket(client, this.bucket, MAX_ATTACHMENT_FILE_BYTES);
 
-    const ext = this.extensionForMime(file.mimetype);
+    const ext = attachmentExtensionForMime(mimeType);
     const storagePath = `${tenantId}/${entityType}/${entityId}/${randomUUID()}.${ext}`;
 
     const { error: uploadError } = await client.storage
       .from(this.bucket)
-      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+      .upload(storagePath, file.buffer, { contentType: mimeType, upsert: false });
 
     if (uploadError) {
       throw new InternalServerErrorException(
@@ -89,13 +121,55 @@ export class AttachmentsService {
         tenantId,
         entityType,
         entityId,
-        fileName: file.originalname?.slice(0, 255) || `allegato.${ext}`,
-        mimeType: file.mimetype,
+        fileName: sanitizeAttachmentFileName(file.originalname ?? '', ext),
+        mimeType,
         storagePath,
         sizeBytes: file.size,
         createdByName,
       },
     });
+  }
+
+  /** Rinomina l'allegato: cambia solo il metadato, i byte restano dove sono. */
+  async rename(
+    tenantId: string,
+    entityType: AttachmentEntityType,
+    entityId: string,
+    attachmentId: string,
+    fileName: string,
+  ): Promise<Attachment> {
+    const attachment = await this.findAttachment(tenantId, entityType, entityId, attachmentId);
+    const ext = attachmentExtensionForMime(attachment.mimeType);
+    const nextName = sanitizeAttachmentFileName(fileName, ext);
+    if (!nextName.trim()) {
+      throw new BadRequestException('Il nome del file non può essere vuoto.');
+    }
+    return this.prisma.attachment.update({
+      where: { id: attachmentId },
+      data: { fileName: nextName },
+    });
+  }
+
+  /** Byte dell'allegato: il download passa sempre dall'API (bucket privato). */
+  async download(
+    tenantId: string,
+    entityType: AttachmentEntityType,
+    entityId: string,
+    attachmentId: string,
+  ): Promise<AttachmentDownload> {
+    const attachment = await this.findAttachment(tenantId, entityType, entityId, attachmentId);
+    const client = this.requireStorageClient();
+
+    const { data, error } = await client.storage.from(this.bucket).download(attachment.storagePath);
+    if (error || !data) {
+      throw new NotFoundException('File allegato non disponibile nello storage.');
+    }
+
+    return {
+      buffer: Buffer.from(await data.arrayBuffer()),
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+    };
   }
 
   async delete(
@@ -104,14 +178,7 @@ export class AttachmentsService {
     entityId: string,
     attachmentId: string,
   ): Promise<void> {
-    await this.assertEntity(tenantId, entityType, entityId);
-
-    const attachment = await this.prisma.attachment.findFirst({
-      where: { id: attachmentId, entityType, entityId, tenantId },
-    });
-    if (!attachment) {
-      throw new NotFoundException('Allegato non trovato');
-    }
+    const attachment = await this.findAttachment(tenantId, entityType, entityId, attachmentId);
 
     const client = this.supabase.getStorageClient();
     if (client && attachment.storagePath) {
@@ -119,6 +186,44 @@ export class AttachmentsService {
     }
 
     await this.prisma.attachment.delete({ where: { id: attachmentId } });
+  }
+
+  private async usedBytes(
+    tenantId: string,
+    entityType: AttachmentEntityType,
+    entityId: string,
+  ): Promise<number> {
+    const aggregate = await this.prisma.attachment.aggregate({
+      where: { tenantId, entityType, entityId },
+      _sum: { sizeBytes: true },
+    });
+    return aggregate._sum.sizeBytes ?? 0;
+  }
+
+  private async findAttachment(
+    tenantId: string,
+    entityType: AttachmentEntityType,
+    entityId: string,
+    attachmentId: string,
+  ): Promise<Attachment> {
+    await this.assertEntity(tenantId, entityType, entityId);
+    const attachment = await this.prisma.attachment.findFirst({
+      where: { id: attachmentId, entityType, entityId, tenantId },
+    });
+    if (!attachment) {
+      throw new NotFoundException('Allegato non trovato');
+    }
+    return attachment;
+  }
+
+  private requireStorageClient() {
+    const client = this.supabase.getStorageClient();
+    if (!client) {
+      throw new ServiceUnavailableException(
+        'Storage allegati non configurato: imposta SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.',
+      );
+    }
+    return client;
   }
 
   /** Verifica che l'entità collegata esista nel tenant (integrità applicativa). */
@@ -148,43 +253,5 @@ export class AttachmentsService {
       return;
     }
     throw new BadRequestException('Tipo di entità non supportato per gli allegati');
-  }
-
-  private assertValidFile(file: Express.Multer.File): void {
-    if (!file?.buffer?.length) {
-      throw new BadRequestException('File allegato mancante');
-    }
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      throw new BadRequestException('Allegato troppo grande (max 10 MB)');
-    }
-    if (!ALLOWED_MIME.has(file.mimetype)) {
-      throw new BadRequestException('Formato non supportato. Usa PDF o XML.');
-    }
-    if (!this.matchesMagicBytes(file.buffer, file.mimetype)) {
-      throw new BadRequestException('Il file non è un documento valido');
-    }
-  }
-
-  private matchesMagicBytes(buffer: Buffer, mime: string): boolean {
-    if (mime === 'application/pdf') {
-      return buffer.slice(0, 5).toString('ascii') === '%PDF-';
-    }
-    if (mime === 'application/xml' || mime === 'text/xml') {
-      const head = buffer.slice(0, 256).toString('utf8').trimStart();
-      return head.startsWith('<?xml') || head.startsWith('<');
-    }
-    return false;
-  }
-
-  private extensionForMime(mime: string): string {
-    switch (mime) {
-      case 'application/pdf':
-        return 'pdf';
-      case 'application/xml':
-      case 'text/xml':
-        return 'xml';
-      default:
-        return 'bin';
-    }
   }
 }

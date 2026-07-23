@@ -1,24 +1,13 @@
 <section class="doc-attachments" aria-labelledby="doc-attachments-title">
   <div class="doc-attachments__head">
     <h2 id="doc-attachments-title" class="doc-attachments__title">Allegati</h2>
-    @if (canManage()) {
-      <label class="doc-attachments__upload">
-        <input
-          type="file"
-          class="doc-attachments__file-input"
-          accept=".pdf,.xml,application/pdf,application/xml,text/xml"
-          [disabled]="uploading()"
-          (change)="onFileSelected($event)"
-        />
-        <app-button variant="secondary" [loading]="uploading()" [disabled]="uploading()">
-          <i class="pi pi-upload" aria-hidden="true"></i>
-          Carica allegato
-        </app-button>
-      </label>
-    }
+    <app-button variant="secondary" (click)="openDialog()">
+      <i class="pi pi-paperclip" aria-hidden="true"></i>
+      {{ canManage() ? 'Carica allegato' : 'Apri allegati' }}
+    </app-button>
   </div>
 
-  @if (uploadError(); as err) {
+  @if (actionError(); as err) {
     <p class="doc-attachments__error" role="alert">{{ err }}</p>
   }
 
@@ -33,13 +22,18 @@
   } @else if (attachments().length === 0) {
     <app-empty-state
       title="Nessun allegato"
-      description="Carica PDF o XML (fattura, DDT) collegati al documento."
+      description="Carica PDF, immagini o documenti Office collegati a questo documento."
       icon="pi-paperclip"
     />
   } @else {
     <ul class="doc-attachments__list">
       @for (item of attachments(); track item.id) {
         <li class="doc-attachments__item">
+          <i
+            class="doc-attachments__icon"
+            [class]="'pi ' + iconClass(item.mimeType, item.fileName)"
+            aria-hidden="true"
+          ></i>
           <div class="doc-attachments__meta">
             <span class="doc-attachments__name">{{ item.fileName }}</span>
             <span class="doc-attachments__details tabular-nums">
@@ -47,18 +41,21 @@
               {{ item.createdByName }}
             </span>
           </div>
-          @if (canManage()) {
-            <app-button
-              variant="ghost"
-              [disabled]="deletingId() === item.id"
-              [loading]="deletingId() === item.id"
-              (click)="deleteAttachment(item.id)"
-            >
-              Elimina
-            </app-button>
-          }
         </li>
       }
     </ul>
   }
 </section>
+
+<app-attachments-dialog
+  [(open)]="dialogOpen"
+  [attachments]="attachments()"
+  [canManage]="canManage()"
+  [uploading]="uploading()"
+  [busyId]="busyId()"
+  [serverError]="actionError()"
+  (filesSelected)="onFilesSelected($event)"
+  (renameRequested)="onRename($event)"
+  (downloadRequested)="onDownload($event)"
+  (deleteRequested)="onDelete($event)"
+/>

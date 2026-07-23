@@ -300,6 +300,28 @@ export class DocumentService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /** Rinomina: cambia solo il nome mostrato, i byte restano dove sono. */
+  renameAttachment(
+    id: EntityId,
+    attachmentId: EntityId,
+    fileName: string,
+  ): Observable<DocumentAttachment> {
+    return this.http
+      .patch<DocumentAttachment>(this.url(`/documents/${id}/attachments/${attachmentId}`), {
+        fileName,
+      })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /** Byte dell'allegato: il bucket è privato, il download passa dall'API. */
+  downloadAttachment(id: EntityId, attachmentId: EntityId): Observable<Blob> {
+    return this.http
+      .get(this.url(`/documents/${id}/attachments/${attachmentId}/download`), {
+        responseType: 'blob',
+      })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
+  }
+
   deleteAttachment(id: EntityId, attachmentId: EntityId): Observable<void> {
     return this.http
       .delete<void>(this.url(`/documents/${id}/attachments/${attachmentId}`))

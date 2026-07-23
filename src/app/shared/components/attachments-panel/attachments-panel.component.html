@@ -1,24 +1,13 @@
 <section class="attachments-panel" aria-labelledby="attachments-panel-title">
   <div class="attachments-panel__head">
     <h2 id="attachments-panel-title" class="attachments-panel__title">Allegati</h2>
-    @if (canManage()) {
-      <label class="attachments-panel__upload">
-        <input
-          type="file"
-          class="attachments-panel__file-input"
-          accept=".pdf,.xml,application/pdf,application/xml,text/xml"
-          [disabled]="uploading()"
-          (change)="onFileSelected($event)"
-        />
-        <app-button variant="secondary" [loading]="uploading()" [disabled]="uploading()">
-          <i class="pi pi-upload" aria-hidden="true"></i>
-          Carica allegato
-        </app-button>
-      </label>
-    }
+    <app-button variant="secondary" (click)="openDialog()">
+      <i class="pi pi-paperclip" aria-hidden="true"></i>
+      {{ canManage() ? 'Carica allegato' : 'Apri allegati' }}
+    </app-button>
   </div>
 
-  @if (uploadError(); as err) {
+  @if (actionError(); as err) {
     <p class="attachments-panel__error" role="alert">{{ err }}</p>
   }
 
@@ -33,13 +22,18 @@
   } @else if (attachments().length === 0) {
     <app-empty-state
       title="Nessun allegato"
-      description="Carica PDF o XML collegati (es. conferma email cliente, ricevuta di consegna)."
+      description="Carica PDF, immagini o documenti Office collegati (es. conferma email cliente, ricevuta di consegna)."
       icon="pi-paperclip"
     />
   } @else {
     <ul class="attachments-panel__list">
       @for (item of attachments(); track item.id) {
         <li class="attachments-panel__item">
+          <i
+            class="attachments-panel__icon"
+            [class]="'pi ' + iconClass(item.mimeType, item.fileName)"
+            aria-hidden="true"
+          ></i>
           <div class="attachments-panel__meta">
             <span class="attachments-panel__name">{{ item.fileName }}</span>
             <span class="attachments-panel__details tabular-nums">
@@ -47,18 +41,21 @@
               {{ item.createdByName }}
             </span>
           </div>
-          @if (canManage()) {
-            <app-button
-              variant="ghost"
-              [disabled]="deletingId() === item.id"
-              [loading]="deletingId() === item.id"
-              (click)="deleteAttachment(item.id)"
-            >
-              Elimina
-            </app-button>
-          }
         </li>
       }
     </ul>
   }
 </section>
+
+<app-attachments-dialog
+  [(open)]="dialogOpen"
+  [attachments]="attachments()"
+  [canManage]="canManage()"
+  [uploading]="uploading()"
+  [busyId]="busyId()"
+  [serverError]="actionError()"
+  (filesSelected)="onFilesSelected($event)"
+  (renameRequested)="onRename($event)"
+  (downloadRequested)="onDownload($event)"
+  (deleteRequested)="onDelete($event)"
+/>

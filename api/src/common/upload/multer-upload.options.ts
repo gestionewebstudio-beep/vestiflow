@@ -1,5 +1,7 @@
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 
+import { MAX_ATTACHMENT_FILE_BYTES } from '../attachments/attachment-rules.util';
+
 /** Limiti multer allineati alle advisory CVE-2026-5079 / CVE-2026-5038 (fieldNestingDepth + fields). */
 const BASE_LIMITS = {
   fields: 10,
@@ -27,10 +29,11 @@ export const avatarUploadMulterOptions: MulterOptions = {
   },
 };
 
+/** Allegati documento/ordine: 5 MB per file (limite applicativo condiviso). */
 export const documentAttachmentUploadMulterOptions: MulterOptions = {
   limits: {
     ...BASE_LIMITS,
-    fileSize: 10 * 1024 * 1024,
+    fileSize: MAX_ATTACHMENT_FILE_BYTES,
   },
 };
 
