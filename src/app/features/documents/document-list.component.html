@@ -1,12 +1,9 @@
 <section class="doc-list">
   <header class="doc-list__header">
     <div class="doc-list__heading">
-      @if (!isSalesRegisterList()) {
-        <a class="doc-list__back" routerLink="/app/documents">
-          <i class="pi pi-arrow-left" aria-hidden="true"></i>
-          Documenti
-        </a>
-      }
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade sul
+           livello superiore dedotto dall'URL (l'hub Documenti). -->
+      <app-back-button />
       <h1 class="doc-list__title">{{ pageTitle() }}</h1>
       <p class="doc-list__subtitle">
         {{ pageSubtitle() }}

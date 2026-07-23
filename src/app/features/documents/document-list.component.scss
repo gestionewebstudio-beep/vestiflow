@@ -75,31 +75,17 @@
   gap: var(--space-3);
 }
 
-.doc-list__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.doc-list__back:hover {
-  color: var(--color-text);
-}
-
-.doc-list__back:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
 @include bp.media-up('md') {
   .doc-list__header {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
   }
+}
+
+// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+.doc-list__heading app-back-button {
+  margin-block-end: var(--space-2);
 }
 
 .doc-list__title {

@@ -93,10 +93,22 @@
   gap: var(--space-2);
 }
 
+// «Numeratori»: sotto sm resta la sola icona, come negli elenchi documento.
+.sales-list__settings-label {
+  @include bp.media-down('sm') {
+    display: none;
+  }
+}
+
 .sales-list__shopify-error {
   margin: 0;
   color: var(--status-error-fg);
   font-size: var(--text-sm);
+}
+
+// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+.sales-list__heading app-back-button {
+  margin-block-end: var(--space-2);
 }
 
 .sales-list__title {

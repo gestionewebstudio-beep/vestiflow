@@ -1,6 +1,7 @@
 <section class="sales-list">
   <header class="sales-list__header">
     <div class="sales-list__heading">
+      <app-back-button />
       <h1 class="sales-list__title">{{ pageTitle() }}</h1>
       <p class="sales-list__subtitle">{{ pageSubtitle() }}</p>
     </div>
@@ -9,6 +10,15 @@
         <app-button (click)="createManualOrder()">
           <i class="pi pi-plus" aria-hidden="true"></i>
           Nuovo ordine
+        </app-button>
+      </div>
+    }
+    @if (canManage()) {
+      <div class="sales-list__actions">
+        <app-button variant="ghost" (click)="openDocumentSettings()">
+          <i class="pi pi-cog" aria-hidden="true"></i>
+          <span class="sr-only">Documenti e numeratori</span>
+          <span class="sales-list__settings-label" aria-hidden="true">Numeratori</span>
         </app-button>
       </div>
     }

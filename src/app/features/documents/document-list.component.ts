@@ -42,6 +42,7 @@ import {
   resolveMovementPeriodRange,
 } from '@features/inventory/models/movement-period.util';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -51,8 +52,6 @@ import { PaginationComponent } from '@shared/components/pagination/pagination.co
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-
-import { RouterLink } from '@angular/router';
 
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -137,7 +136,7 @@ type DeleteResult =
   selector: 'app-document-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
+    BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,

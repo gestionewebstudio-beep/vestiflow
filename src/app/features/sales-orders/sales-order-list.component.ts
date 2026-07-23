@@ -40,6 +40,7 @@ import { SalesOrderSource, type SalesOrder } from '@core/models/sales-order.mode
 import { customerDisplayName } from '@core/models/customer.model';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { CustomerService } from '@features/customers/services/customer.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -124,6 +125,7 @@ type SalesListState =
   selector: 'app-sales-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
@@ -680,6 +682,11 @@ export class SalesOrderListComponent {
 
   protected createManualOrder(): void {
     void this.router.navigate(['/app/sales/new']);
+  }
+
+  /** Documenti e numeratori: stessa destinazione degli elenchi documento. */
+  protected openDocumentSettings(): void {
+    void this.router.navigate(['/app/documents/settings']);
   }
 
   // ── Azioni di riga + selezione multipla ──────────────────────────────────
