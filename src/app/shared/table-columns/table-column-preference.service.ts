@@ -118,6 +118,20 @@ export class TableColumnPreferenceService {
     });
   }
 
+  /**
+   * Larghezze di più colonne in una sola scrittura. Serve alle tabelle che
+   * ridistribuiscono lo spazio: allargando una colonna cambiano anche le
+   * altre, e salvarle una per una farebbe una persistenza remota a testa.
+   */
+  setColumnWidths(viewId: TableViewId, widths: Readonly<Record<string, number>>): void {
+    const current = this.readState(viewId);
+    this.commit(viewId, {
+      ...current,
+      presetId: 'custom',
+      columnWidths: { ...current.columnWidths, ...widths },
+    });
+  }
+
   columnWidth(viewId: TableViewId, columnId: string, fallbackPx: number): number {
     return this.readState(viewId).columnWidths[columnId] ?? fallbackPx;
   }

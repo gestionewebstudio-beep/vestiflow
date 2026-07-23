@@ -1,5 +1,7 @@
 <section class="gr-form">
-  <app-back-button />
+  <!-- Senza cronologia (refresh, link diretto) l'URL `documents/:id/edit`
+       porterebbe all'hub Documenti: il ritorno giusto è il registro arrivi. -->
+  <app-back-button fallbackLink="/app/documents/arrivi-merce" />
 
   <div class="gr-form__head-row">
     <h1 class="gr-form__title">

@@ -94,6 +94,29 @@
   --co-weight-strong: 760;
   --co-shadow: 0 1px 2px rgb(18 42 33 / 0.04), 0 4px 14px rgb(18 42 33 / 0.035);
   --co-primary-subtle: rgb(37 52 59 / 0.07);
+
+  // ── Vista mobile/tablet (mockup responsive v3) ────────────────────────────
+  --co-radius-card: 0.75rem; // 12px — card riga
+  --co-field-h-m: 2.625rem; // 42px — campi testata (touch)
+  --co-btn-h-m: 2.625rem; // 42px — bottoni strumenti
+  --co-btn-h-dock: 2.875rem; // 46px — bottoni del dock
+  --co-card-h: 2.75rem; // 44px — campi dentro la card
+  --co-text-touch: 1rem; // 16px — niente zoom automatico su iOS
+  --co-text-title-m: 1.125rem; // 18px — titolo pagina
+  --co-text-card-name: 0.90625rem; // 14.5px — nome prodotto sulla card
+  --co-text-nano: 0.5625rem; // 9px — etichette dentro le card
+  --co-text-dock-total: 1.25rem; // 20px — totale nel dock
+  --co-card-open-border: #9ebfb1;
+  --co-card-open-bg: #fbfcfb;
+  --co-card-body-bg: #f3f6f4;
+  --co-metric-bg: #f4f7f5;
+  --co-metric-total-bg: #e5efe9;
+  --co-metric-total-fg: #153b30;
+  --co-readonly-bg: #edf2ef;
+  --co-readonly-border: #e3e9e6;
+  --co-readonly-fg: #425149;
+  --co-group-line: #cbd6d0;
+  --co-group-fg: #56665e;
 }
 
 // ── Remap dei token: i componenti annidati seguono la palette del mockup ──
@@ -178,6 +201,17 @@
   --co-summary-bg: var(--color-surface-sunken);
   --co-summary-fg: var(--color-text-muted);
   --co-primary-subtle: var(--color-primary-subtle);
+  --co-card-open-border: var(--color-border-strong);
+  --co-card-open-bg: var(--color-surface-hover);
+  --co-card-body-bg: var(--color-surface-sunken);
+  --co-metric-bg: var(--color-surface-sunken);
+  --co-metric-total-bg: var(--color-primary-subtle);
+  --co-metric-total-fg: var(--color-text);
+  --co-readonly-bg: var(--color-surface-sunken);
+  --co-readonly-border: var(--color-border);
+  --co-readonly-fg: var(--color-text-muted);
+  --co-group-line: var(--color-border);
+  --co-group-fg: var(--color-text-subtle);
 }
 
 // ── Impaginato: card separate sul fondo pagina, niente card contenitore ─────
@@ -191,6 +225,29 @@
 .co-form .gr-form__title {
   font-size: var(--text-xl);
   font-weight: var(--co-weight-strong);
+}
+
+// Pulsante «Indietro» come nel mockup: quadratino col solo chevron accanto al
+// titolo. La parola resta nel DOM (azzerata come corpo) per i lettori di
+// schermo, che altrimenti troverebbero un bottone senza nome.
+.co-form ::ng-deep .back-button {
+  inline-size: var(--co-field-h);
+  block-size: var(--co-field-h);
+  justify-content: center;
+  font-size: 0;
+  color: var(--co-muted);
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line);
+  border-radius: var(--co-radius-sm);
+}
+
+.co-form ::ng-deep .back-button:hover {
+  color: var(--co-text);
+  background-color: var(--co-surface-soft);
+}
+
+.co-form ::ng-deep .back-button .pi {
+  font-size: var(--text-md);
 }
 
 // Stato di salvataggio in coda alla riga del titolo (mockup: check + testo).
@@ -383,6 +440,108 @@
   border-radius: var(--co-radius-sm);
 }
 
+// ── Finestra «Colonne» come nel mockup ─────────────────────────────────────
+// Finestra compatta con testata, elenco a due colonne e piede separato. Il
+// pannello è di un componente condiviso: le regole restano scoped su .co-form
+// così il selettore colonne delle altre tabelle non cambia.
+.co-form ::ng-deep .table-column-picker__panel {
+  // Il pannello nasce a z-dropdown, sotto la banda totali e la barra azioni
+  // (entrambe sticky a z-sticky): da qui in giù finirebbe coperto.
+  z-index: calc(var(--z-sticky) + 1);
+  gap: var(--space-2);
+  inline-size: min(20.625rem, 92vw);
+  padding: var(--space-2);
+  border-color: var(--co-line-strong);
+  border-radius: 0.625rem;
+  box-shadow: 0 12px 35px rgb(18 40 32 / 0.16);
+}
+
+// Testata: il titolo del mockup. Niente «Chiudi» perché il pannello si chiude
+// già cliccando fuori — sarebbe un bottone in più che non fa nulla di nuovo.
+.co-form ::ng-deep .table-column-picker__panel::before {
+  content: 'Colonne visibili';
+  padding: 0 var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--co-text);
+  border-block-end: var(--border-width) solid var(--co-line);
+}
+
+.co-form ::ng-deep .table-column-picker__preset {
+  gap: var(--space-1);
+  padding-inline: var(--space-1);
+}
+
+// La select nasce larga --select-menu-width (224px): qui riempie la finestra.
+.co-form ::ng-deep .table-column-picker__preset app-select-menu {
+  --select-menu-width: 100%;
+}
+
+.co-form ::ng-deep .table-column-picker__label {
+  font-size: var(--co-text-micro);
+  font-weight: var(--co-weight-strong);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--co-label);
+}
+
+.co-form ::ng-deep .table-column-picker__list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-1) var(--space-2);
+  max-block-size: 18.125rem;
+}
+
+.co-form ::ng-deep .table-column-picker__item {
+  gap: var(--space-1);
+  min-inline-size: 0;
+  padding: var(--space-1);
+  border-radius: var(--co-radius-sm);
+}
+
+.co-form ::ng-deep .table-column-picker__item:hover {
+  background-color: var(--co-surface-soft);
+}
+
+.co-form ::ng-deep .table-column-picker__check {
+  min-inline-size: 0;
+  font-size: var(--text-xs);
+}
+
+.co-form ::ng-deep .table-column-picker__check span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Spunte del documento e della finestra colonne: quadratino più generoso e
+// tinta brand, come nel mockup (di serie sarebbero ~13px e blu di sistema).
+.co-form .gr-form__check input[type='checkbox'],
+.co-form ::ng-deep .table-column-picker__check input {
+  inline-size: 1rem;
+  block-size: 1rem;
+  accent-color: var(--co-brand);
+  cursor: pointer;
+}
+
+// Niente frecce di riordino in questa finestra (mockup): l'ordine delle
+// colonne del documento è quello del tracciato, si sceglie solo cosa vedere.
+// Le altre tabelle dell'app continuano ad averle: la regola è scoped qui.
+.co-form ::ng-deep .table-column-picker__actions {
+  display: none;
+}
+
+.co-form ::ng-deep .table-column-picker__footer {
+  margin-block-start: var(--space-1);
+  padding-block-start: var(--space-2);
+  border-block-start-color: var(--co-line);
+  --field-height: var(--co-btn-h);
+}
+
+.co-form ::ng-deep .table-column-picker__footer .app-button {
+  font-size: var(--text-xs);
+}
+
 // ── Tabella righe ──────────────────────────────────────────────────────────
 .co-form .gr-form__table-wrap {
   margin-inline: 0;
@@ -392,20 +551,11 @@
   border-start-end-radius: var(--co-radius);
   background-color: var(--co-surface);
   box-shadow: var(--co-shadow);
-  // Il mockup mostra la tabella alta quanto le sue righe. Un minimo resta
-  // però necessario: i suggerimenti prodotto sono in posizione assoluta
-  // DENTRO quest'area che scorre, e senza spazio sotto l'ultima riga
-  // finirebbero tagliati. Sei righe bastano a un documento tipico.
-  min-block-size: min(calc((var(--co-row-h) + var(--border-width)) * 6 + var(--co-head-h)), 30vh);
+  // Area di lavoro alta almeno 420px anche a documento vuoto: dà spazio a
+  // inserimento e scansione, e i suggerimenti prodotto — assoluti DENTRO
+  // quest'area che scorre — restano visibili invece di finire tagliati.
+  min-block-size: 26.25rem;
   max-block-size: min(75vh, 31.5rem);
-}
-
-// La maschera non ha la vista a card mobile dell'Arrivo merce: sotto md la
-// tabella resta (scorre in orizzontale) invece di sparire del tutto.
-@include bp.media-down('md') {
-  .co-form .gr-form__table-wrap {
-    display: block;
-  }
 }
 
 .co-form .gr-form__table th,
@@ -446,6 +596,22 @@
 .co-form .gr-form__th-label {
   max-inline-size: 100%;
   flex-wrap: wrap;
+}
+
+// I tooltip delle intestazioni (Sconto, Impegna) si aprono verso SINISTRA:
+// il componente decide da solo in base al bordo dello schermo, ma qui il
+// limite è la tabella — aperti verso destra la farebbero scorrere.
+.co-form .gr-form__table thead ::ng-deep .hover-tooltip__bubble {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
+// Stessa ragione per la tendina IVA: la colonna sta a destra e il pannello è
+// molto più largo della cella. Ancorato al bordo destro si apre verso sinistra
+// e resta dentro la tabella.
+.co-form .gr-form__cell--vat ::ng-deep .select-menu__panel {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
 }
 
 // Bande di gruppo: magazzino, vendita/IVA, calcolati.
@@ -499,6 +665,22 @@
   font-size: var(--text-2xs);
   color: var(--co-subtle);
   background-color: var(--co-surface);
+}
+
+// Numero riga e spunta al centro esatto della cella: senza padding laterale
+// (che sbilancia le celle strette) e con la spunta centrata dal contenitore
+// flex invece che dall'allineamento del testo.
+.co-form .gr-form__table th.gr-form__cell--index,
+.co-form .gr-form__table td.gr-form__cell--index,
+.co-form .gr-form__table td.gr-form__cell--check {
+  padding-inline: 0;
+  text-align: center;
+}
+
+.co-form .gr-form__table td.gr-form__cell--check .gr-form__check {
+  display: flex;
+  justify-content: center;
+  gap: 0;
 }
 
 // Separatori di blocco: chiudono nome prodotto, U.m. e IVA.
@@ -728,6 +910,47 @@
   border-radius: var(--co-radius-sm);
 }
 
+// ── Allegati: una riga, non mezza pagina ───────────────────────────────────
+// A documento senza allegati bastava sapere che non ce ne sono: l'empty state
+// a tutta altezza (medaglione + descrizione) diventa una riga compatta sotto
+// il titolo. Con gli allegati resta l'elenco, solo più stretto.
+.co-form .gr-form__attachments ::ng-deep .attachments-panel {
+  gap: var(--space-2);
+}
+
+.co-form .gr-form__attachments ::ng-deep .attachments-panel__title {
+  font-size: var(--text-md);
+}
+
+.co-form .gr-form__attachments ::ng-deep .empty-state {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  text-align: start;
+}
+
+.co-form .gr-form__attachments ::ng-deep .empty-state__icon {
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  margin-block-end: 0;
+  font-size: var(--text-sm);
+}
+
+.co-form .gr-form__attachments ::ng-deep .empty-state__title {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--co-muted);
+}
+
+.co-form .gr-form__attachments ::ng-deep .empty-state__description {
+  display: none;
+}
+
+.co-form .gr-form__attachments ::ng-deep .attachments-panel__item {
+  padding: var(--space-1) var(--space-2);
+}
+
 // ── Barra azioni ───────────────────────────────────────────────────────────
 .co-form .gr-form__actions {
   background-color: color-mix(in srgb, var(--co-surface) 94%, transparent);
@@ -759,12 +982,15 @@
   background-color: var(--co-warn-bg);
 }
 
+// L'avviso va a capo dentro la cella: su colonne strette restava su una riga
+// sola e sbordava sulle colonne vicine.
 .co-form__exceeds-hint {
   display: block;
   font-size: var(--co-text-micro);
   line-height: var(--leading-tight);
   color: var(--co-warn-fg);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 // ── Tendina «Concludi ordine»: elenca i documenti di scarico disponibili ────

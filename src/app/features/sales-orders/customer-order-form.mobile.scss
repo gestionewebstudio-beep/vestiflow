@@ -1,0 +1,624 @@
+@use 'breakpoints' as bp;
+
+// Vista mobile/tablet dell'Ordine cliente — secondo foglio del componente
+// (customer-order-form.component.ts, styleUrls). Sta a parte dal foglio
+// principale per restare dentro il budget CSS per-componente di angular.json:
+// la palette e le metriche --co-* arrivano da lì, dichiarate sul :host.
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VISTA MOBILE / TABLET — mockup «Ordine Cliente v3 responsive», sotto lg
+// La tabella non regge il pollice: sotto 1024px la testata si riassume in una
+// riga apribile, ogni riga documento diventa una card espandibile, scansione
+// e azioni si spostano in una card dedicata e nel dock fisso.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Le tre viste mobili esistono nel DOM ma restano spente su desktop.
+.co-form__header-summary,
+.co-form__cards,
+.co-form__mobile-quick {
+  display: none;
+}
+
+// ── Card riga (visibili solo sotto lg, vedi media query in fondo) ───────────
+.co-form__card {
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line);
+  border-radius: var(--co-radius-card);
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgb(20 42 34 / 0.045);
+  transition:
+    border-color var(--transition-base) var(--ease-standard),
+    box-shadow var(--transition-base) var(--ease-standard);
+}
+
+.co-form__card--open {
+  border-color: var(--co-card-open-border);
+  box-shadow: 0 6px 18px rgb(20 42 34 / 0.08);
+}
+
+.co-form__card--incomplete {
+  box-shadow: inset var(--space-1) 0 0 0 var(--status-warning-border);
+}
+
+.co-form__card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: 3.5rem;
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  background-color: var(--co-surface);
+  border: 0;
+  cursor: pointer;
+}
+
+.co-form__card--open .co-form__card-head {
+  background-color: var(--co-card-open-bg);
+}
+
+.co-form__card-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.co-form__card-name {
+  font-size: var(--co-text-card-name);
+  font-weight: var(--font-weight-bold);
+  color: var(--co-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-form__card-sub {
+  margin-block-start: var(--space-1);
+  font-size: var(--text-2xs);
+  color: var(--co-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-form__card-metrics {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.co-form__metric {
+  display: block;
+  min-inline-size: 3.375rem;
+  padding: var(--space-1) var(--space-2);
+  text-align: end;
+  background-color: var(--co-metric-bg);
+  border-radius: var(--co-radius-sm);
+}
+
+.co-form__metric small {
+  display: block;
+  font-size: var(--co-text-nano);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--co-muted);
+}
+
+.co-form__metric strong {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.co-form__metric--total {
+  color: var(--co-metric-total-fg);
+  background-color: var(--co-metric-total-bg);
+}
+
+.co-form__metric--total small {
+  color: inherit;
+}
+
+.co-form__metric--total strong {
+  font-weight: var(--co-weight-strong);
+}
+
+.co-form__card-chevron {
+  flex-shrink: 0;
+  color: var(--co-muted);
+  transition: transform var(--transition-base) var(--ease-standard);
+}
+
+.co-form__card--open .co-form__card-chevron {
+  transform: rotate(180deg);
+}
+
+.co-form__card-body {
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--co-card-body-bg);
+  border-block-start: var(--border-width) solid var(--co-line);
+}
+
+.co-form__card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.co-form__card-group {
+  grid-column: 1 / -1;
+  margin: var(--space-1) 0 0;
+  padding-block: var(--space-1) 0;
+  font-size: var(--co-text-nano);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--co-group-fg);
+  border-block-start: var(--border-width) solid var(--co-group-line);
+}
+
+.co-form__card-group--first {
+  margin-block-start: 0;
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.co-form__card-field {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.co-form__card-field--full {
+  grid-column: 1 / -1;
+}
+
+.co-form__card-field label,
+.co-form__card-label {
+  margin-block-end: var(--space-1);
+  font-size: var(--co-text-nano);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--co-muted);
+}
+
+.co-form__card-field .gr-form__input,
+.co-form__card-select {
+  block-size: var(--co-card-h);
+  min-block-size: var(--co-card-h);
+  padding-inline: var(--space-2);
+  font-size: var(--co-text-touch);
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line);
+  border-radius: var(--co-radius-sm);
+}
+
+.co-form__card-field app-select-menu {
+  --field-height: var(--co-card-h);
+  --color-input-bg: var(--co-surface);
+  --color-input-border: var(--co-line);
+}
+
+// Valori calcolati: stessa altezza dei campi, ma chiaramente non editabili.
+.co-form__card-field--readonly p {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  block-size: var(--co-card-h);
+  padding-inline: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+  color: var(--co-readonly-fg);
+  background-color: var(--co-readonly-bg);
+  border: var(--border-width) solid var(--co-readonly-border);
+  border-radius: var(--co-radius-sm);
+}
+
+// Nome prodotto: input + scorciatoia alla ricerca prodotto a schermo intero.
+.co-form__card-search {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.co-form__card-search .gr-form__input {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.co-form__card-search-btn {
+  flex-shrink: 0;
+  inline-size: var(--co-card-h);
+  block-size: var(--co-card-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--co-muted);
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line);
+  border-radius: var(--co-radius-sm);
+  cursor: pointer;
+}
+
+.co-form__card-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+  --field-height: var(--co-card-h);
+}
+
+.co-form__card-actions ::ng-deep .app-button {
+  flex: 1 1 0;
+  inline-size: 100%;
+}
+
+// ── Riepilogo di testata apribile ──────────────────────────────────────────
+.co-form__header-summary {
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: 3.25rem;
+  padding: var(--space-2);
+  text-align: start;
+  background-color: var(--co-surface);
+  border: 0;
+  cursor: pointer;
+}
+
+.co-form__header-summary-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  inline-size: var(--space-8);
+  block-size: var(--space-8);
+  color: var(--co-link);
+  background-color: var(--co-brand-soft, var(--co-surface-soft));
+  border-radius: var(--co-radius-sm);
+}
+
+.co-form__header-summary-copy {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.co-form__header-summary-copy strong {
+  font-size: var(--text-sm);
+  color: var(--co-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-form__header-summary-copy small {
+  margin-block-start: var(--space-1);
+  font-size: var(--text-2xs);
+  color: var(--co-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-form__header-summary-edit {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--co-link);
+  white-space: nowrap;
+}
+
+.co-form__header-summary-chevron {
+  flex-shrink: 0;
+  color: var(--co-muted);
+  transition: transform var(--transition-base) var(--ease-standard);
+}
+
+.co-form__header--open .co-form__header-summary-chevron {
+  transform: rotate(180deg);
+}
+
+// ── Scansione rapida: card sotto le righe ──────────────────────────────────
+.co-form__mobile-quick {
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line);
+  border-radius: var(--co-radius);
+  box-shadow: var(--co-shadow);
+  --field-height: var(--co-btn-h-dock);
+}
+
+.co-form__mobile-quick .gr-form__input {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: var(--co-btn-h-dock);
+  font-size: var(--co-text-touch);
+  border-color: var(--co-line-strong);
+  border-radius: var(--co-radius-sm);
+}
+
+// ── Dock: totale sempre in vista + azioni principali ───────────────────────
+.co-form__dock-actions {
+  display: flex;
+  gap: var(--space-2);
+  --field-height: var(--co-btn-h-dock);
+}
+
+.co-form__dock-actions ::ng-deep .app-button {
+  flex: 1 1 0;
+  inline-size: 100%;
+  font-size: var(--text-sm);
+}
+
+.co-form__dock-actions > .co-form__conclude {
+  flex: 1.15 1 0;
+  min-inline-size: 0;
+}
+
+.co-form__dock-actions > app-button:first-child ::ng-deep .app-button {
+  flex-grow: 0.72;
+}
+
+.co-form .co-form__dock-actions > app-button.co-form__dock-save ::ng-deep .app-button {
+  flex-grow: 1.25;
+}
+
+@include bp.media-down('lg') {
+  // Riga titolo: stato e numero documento su righe proprie.
+  .co-form .gr-form__title {
+    font-size: var(--co-text-title-m);
+  }
+
+  .co-form .gr-form__meta {
+    display: contents;
+  }
+
+  .co-form .gr-form__internal-ref {
+    order: 2;
+    flex: 1 0 100%;
+    font-size: var(--text-xs);
+  }
+
+  .co-form__save-state {
+    order: 1;
+    flex: 1 0 100%;
+    margin-inline-start: 0;
+  }
+
+  // Testata: il riepilogo apre e chiude i campi.
+  .co-form__header-summary {
+    display: flex;
+  }
+
+  .co-form .co-form__header-details {
+    display: none;
+    border-block-start: var(--border-width) solid var(--co-line);
+  }
+
+  .co-form .co-form__header--open .co-form__header-details {
+    display: block;
+  }
+
+  .co-form .co-form__header-row,
+  .co-form .co-form__header-row--secondary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .co-form .gr-form__header .gr-form__field {
+    padding: var(--space-2);
+    --field-height: var(--co-field-h-m);
+  }
+
+  .co-form .gr-form__header .gr-form__input {
+    block-size: var(--co-field-h-m);
+    min-block-size: var(--co-field-h-m);
+    font-size: var(--co-text-touch);
+    border-radius: var(--co-radius-sm);
+  }
+
+  // Strumenti righe: titolo sopra, bottoni a griglia sotto.
+  .co-form .gr-form__lines-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .co-form .gr-form__lines-tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    --field-height: var(--co-btn-h-m);
+  }
+
+  .co-form .gr-form__lines-tools ::ng-deep .app-button {
+    inline-size: 100%;
+    font-size: var(--text-sm);
+  }
+
+  .co-form .gr-form__lines-tools > app-button:last-child ::ng-deep .app-button {
+    grid-column: 1 / -1;
+  }
+
+  // Finestra «Colonne»: a tutta larghezza sopra il dock, una colonna sola e
+  // bottoni di riordino grandi abbastanza per il dito (mockup responsive).
+  .co-form ::ng-deep .table-column-picker__panel {
+    position: fixed;
+    inset-inline: var(--space-3);
+    inset-block: auto calc(var(--space-24) + env(safe-area-inset-bottom));
+    z-index: calc(var(--z-sticky) + 1);
+    inline-size: auto;
+    max-block-size: 66vh;
+    overflow-y: auto;
+  }
+
+  .co-form ::ng-deep .table-column-picker__list {
+    max-block-size: none;
+    overflow: visible;
+  }
+
+  // Tabella fuori, card dentro.
+  .co-form .gr-form__table-wrap,
+  .co-form__table-summary {
+    display: none;
+  }
+
+  .co-form__cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .co-form__mobile-quick {
+    display: flex;
+  }
+
+  // Totali a due colonne; il totale documento vive nel dock.
+  .co-form .gr-form__footer-grid {
+    gap: var(--space-2);
+  }
+
+  // Su desktop il riquadro si appoggia a destra a larghezza contenuto: qui
+  // deve occupare la riga intera, come le altre card.
+  .co-form .gr-form__totals-bar {
+    display: block;
+    padding-block-start: 0;
+  }
+
+  .co-form .gr-form__totals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    inline-size: 100%;
+    min-inline-size: 0;
+    padding: 0;
+    background-color: var(--co-surface);
+    border-color: var(--co-line);
+    border-radius: var(--co-radius);
+    overflow: hidden;
+  }
+
+  // Etichetta in alto a sinistra, valore allineato a destra: gli importi
+  // restano incolonnati anche a due colonne.
+  .co-form .gr-form__totals-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0;
+    inline-size: auto;
+    max-inline-size: none;
+    margin-inline-start: 0;
+    padding: var(--space-2);
+    border-inline-end: var(--border-width) solid var(--co-line);
+    border-block-end: var(--border-width) solid var(--co-line);
+  }
+
+  .co-form .gr-form__totals dd {
+    text-align: end;
+  }
+
+  .co-form .gr-form__totals-row--field dd {
+    margin-inline-start: auto;
+  }
+
+  .co-form .gr-form__totals-row:nth-child(2n) {
+    border-inline-end: 0;
+  }
+
+  // Con lo sconto documento le voci diventano dispari: l'ultima prende la riga.
+  .co-form .gr-form__totals-row:nth-last-child(2):nth-child(odd) {
+    grid-column: 1 / -1;
+    border-inline-end: 0;
+  }
+
+  .co-form .gr-form__totals-row--total {
+    display: none;
+  }
+
+  .co-form .gr-form__totals dt {
+    font-size: var(--co-text-nano);
+  }
+
+  .co-form .gr-form__totals dd {
+    font-size: var(--text-xs);
+  }
+
+  .co-form .gr-form__footer-notes {
+    padding: var(--space-2);
+  }
+
+  .co-form .gr-form__textarea {
+    min-block-size: var(--space-8);
+    max-block-size: var(--space-16);
+  }
+
+  // Barra azioni desktop fuori, dock dentro.
+  .co-form .gr-form__actions {
+    display: none;
+  }
+
+  .co-form.gr-form {
+    padding-block-end: calc(var(--space-24) + env(safe-area-inset-bottom));
+  }
+
+  .co-form .gr-form__dock {
+    display: block;
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: var(--z-sticky);
+    padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom));
+    background-color: color-mix(in srgb, var(--co-surface) 97%, transparent);
+    backdrop-filter: blur(12px);
+    border-block-start: var(--border-width) solid var(--co-line);
+    box-shadow: 0 -6px 20px rgb(17 39 31 / 0.08);
+  }
+
+  .co-form .gr-form__dock-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-block-end: var(--space-2);
+  }
+
+  .co-form .gr-form__dock-total span {
+    font-size: var(--text-2xs);
+    color: var(--co-muted);
+  }
+
+  .co-form .gr-form__dock-total strong {
+    font-size: var(--co-text-dock-total);
+    font-weight: var(--font-weight-bold);
+    color: var(--co-brand);
+  }
+}
+
+// Schermi stretti: una colonna sola e Salva su tutta la riga.
+@include bp.media-down('sm') {
+  .co-form .co-form__header-row,
+  .co-form .co-form__header-row--secondary {
+    grid-template-columns: 1fr;
+  }
+
+  .co-form .gr-form__header .gr-form__field {
+    border-inline-end: 0;
+  }
+
+  .co-form__header-summary-edit {
+    display: none;
+  }
+
+  .co-form__metric {
+    min-inline-size: 3.125rem;
+  }
+
+  .co-form__dock-actions {
+    flex-wrap: wrap;
+  }
+
+  .co-form .co-form__dock-actions > app-button.co-form__dock-save ::ng-deep .app-button {
+    flex: 1 0 100%;
+  }
+}

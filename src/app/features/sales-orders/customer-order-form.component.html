@@ -1,7 +1,8 @@
 <section class="gr-form co-form">
-  <app-back-button />
-
   <div class="gr-form__head-row">
+    <!-- Ritorno alla schermata precedente: nel mockup è il quadratino col
+         chevron a sinistra del titolo, non un link sopra. -->
+    <app-back-button />
     <h1 class="gr-form__title">{{ pageTitle() }}</h1>
 
     @if (isEditMode()) {
@@ -125,208 +126,238 @@
 
       <fieldset class="gr-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata compatta (stessa impostazione dell'Arrivo merce). -->
-        <div class="gr-form__header">
-          <div
-            class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact co-form__header-row"
+        <div class="gr-form__header" [class.co-form__header--open]="mobileHeaderOpen()">
+          <!-- Sotto lg la testata si riassume in una riga apribile (mockup
+               responsive v3): i campi non occupano spazio finché non servono. -->
+          <button
+            type="button"
+            class="co-form__header-summary"
+            aria-controls="co-header-details"
+            [attr.aria-expanded]="mobileHeaderOpen()"
+            (click)="toggleMobileHeader()"
           >
-            <div class="gr-form__field gr-form__field--span2">
-              <span class="gr-form__label" id="co-customer-label">
-                {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
-              </span>
-              <app-select-menu
-                [options]="customerOptions()"
-                [value]="form.controls.customerId.value"
-                ariaLabel="Cliente"
-                [placeholder]="
-                  isManualUnload ? 'Seleziona cliente (facoltativo)…' : 'Seleziona cliente…'
-                "
-                [compact]="true"
-                [fullWidth]="true"
-                [searchable]="true"
-                searchPlaceholder="Cerca cliente…"
-                searchAriaLabel="Cerca cliente"
-                [invalid]="!isManualUnload && fieldInvalid('customerId')"
-                describedBy="co-customer-error"
-                (valueChange)="onCustomerSelect($event)"
-              />
-              @if (!isManualUnload && fieldInvalid('customerId')) {
-                <p id="co-customer-error" class="gr-form__error">Seleziona un cliente.</p>
-              }
-              @if (isManualUnload && !form.controls.customerId.value) {
-                <!-- Cliente digitato liberamente (prompt Scarico manuale):
-                     compare solo in stampa, NON viene salvato in anagrafica. -->
-                <input
-                  class="gr-form__input"
-                  type="text"
-                  formControlName="customerFreeText"
-                  placeholder="…oppure digita il nome solo per la stampa"
-                  aria-label="Cliente a testo libero (solo stampa)"
-                  autocomplete="off"
+            <span class="co-form__header-summary-icon" aria-hidden="true">
+              <i class="pi pi-file"></i>
+            </span>
+            <span class="co-form__header-summary-copy">
+              <strong>{{ mobileHeaderTitle() }}</strong>
+              <small>{{ mobileHeaderMeta() }}</small>
+            </span>
+            <span class="co-form__header-summary-edit">
+              {{ isOrder ? 'Dati ordine' : 'Dati documento' }}
+            </span>
+            <i class="pi pi-chevron-down co-form__header-summary-chevron" aria-hidden="true"></i>
+          </button>
+
+          <div id="co-header-details" class="co-form__header-details">
+            <div
+              class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact co-form__header-row"
+            >
+              <div class="gr-form__field gr-form__field--span2">
+                <span class="gr-form__label" id="co-customer-label">
+                  {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
+                </span>
+                <app-select-menu
+                  [options]="customerOptions()"
+                  [value]="form.controls.customerId.value"
+                  ariaLabel="Cliente"
+                  [placeholder]="
+                    isManualUnload ? 'Seleziona cliente (facoltativo)…' : 'Seleziona cliente…'
+                  "
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca cliente…"
+                  searchAriaLabel="Cerca cliente"
+                  [invalid]="!isManualUnload && fieldInvalid('customerId')"
+                  describedBy="co-customer-error"
+                  (valueChange)="onCustomerSelect($event)"
                 />
-              }
-              <!-- Scorciatoie sulla stessa riga, come nel mockup. -->
-              <div class="co-form__inline-links">
-                <button type="button" class="gr-form__inline-toggle" (click)="toggleCustomerForm()">
-                  <i
-                    class="pi"
-                    [class.pi-plus]="!showCustomerForm()"
-                    [class.pi-minus]="showCustomerForm()"
-                    aria-hidden="true"
-                  ></i>
-                  {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
-                </button>
-                @if (form.controls.customerId.value) {
+                @if (!isManualUnload && fieldInvalid('customerId')) {
+                  <p id="co-customer-error" class="gr-form__error">Seleziona un cliente.</p>
+                }
+                @if (isManualUnload && !form.controls.customerId.value) {
+                  <!-- Cliente digitato liberamente (prompt Scarico manuale):
+                     compare solo in stampa, NON viene salvato in anagrafica. -->
+                  <input
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="customerFreeText"
+                    placeholder="…oppure digita il nome solo per la stampa"
+                    aria-label="Cliente a testo libero (solo stampa)"
+                    autocomplete="off"
+                  />
+                }
+                <!-- Scorciatoie sulla stessa riga, come nel mockup. -->
+                <div class="co-form__inline-links">
                   <button
                     type="button"
                     class="gr-form__inline-toggle"
-                    (click)="openCustomerDetail()"
+                    (click)="toggleCustomerForm()"
                   >
-                    <i class="pi pi-external-link" aria-hidden="true"></i>
-                    Scheda cliente
+                    <i
+                      class="pi"
+                      [class.pi-plus]="!showCustomerForm()"
+                      [class.pi-minus]="showCustomerForm()"
+                      aria-hidden="true"
+                    ></i>
+                    {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
                   </button>
-                }
+                  @if (form.controls.customerId.value) {
+                    <button
+                      type="button"
+                      class="gr-form__inline-toggle"
+                      (click)="openCustomerDetail()"
+                    >
+                      <i class="pi pi-external-link" aria-hidden="true"></i>
+                      Scheda cliente
+                    </button>
+                  }
+                </div>
               </div>
-            </div>
 
-            <div class="gr-form__field">
-              <span class="gr-form__label">{{ isQuote ? 'Location' : 'Location di origine' }}</span>
-              @if (locationOptions().length > 0) {
-                <app-select-menu
-                  [options]="locationOptions()"
-                  [value]="form.controls.locationId.value"
-                  ariaLabel="Location di origine"
-                  placeholder="Seleziona location…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca location…"
-                  searchAriaLabel="Cerca location"
-                  [invalid]="fieldInvalid('locationId')"
-                  describedBy="co-location-error"
-                  (valueChange)="onLocationSelect($event)"
-                />
-              } @else {
-                <p class="gr-form__error" role="alert">
-                  Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
-                  dell'account.
-                </p>
-              }
-              @if (fieldInvalid('locationId')) {
-                <p id="co-location-error" class="gr-form__error">Seleziona la location.</p>
-              }
-            </div>
-
-            <div class="gr-form__field gr-form__field--end-md">
-              <label class="gr-form__label" for="co-date">Data documento</label>
-              <app-date-input
-                inputId="co-date"
-                formControlName="documentDate"
-                ariaLabel="Data documento"
-                [compact]="true"
-                [fullWidth]="true"
-              />
-            </div>
-
-            <!-- Preventivo e DDT vendita: nessuno stato documento in testata. -->
-            @if (isOrder) {
               <div class="gr-form__field">
-                <span class="gr-form__label">Stato</span>
-                @if (isSettledOrder()) {
-                  <p class="gr-form__readonly">{{ stateBadgeLabel() }}</p>
-                } @else {
+                <span class="gr-form__label">{{
+                  isQuote ? 'Location' : 'Location di origine'
+                }}</span>
+                @if (locationOptions().length > 0) {
                   <app-select-menu
-                    [options]="stateOptions"
-                    [value]="form.controls.status.value"
-                    ariaLabel="Stato documento"
-                    placeholder="Confermato"
+                    [options]="locationOptions()"
+                    [value]="form.controls.locationId.value"
+                    ariaLabel="Location di origine"
+                    placeholder="Seleziona location…"
                     [compact]="true"
                     [fullWidth]="true"
-                    [includeEmptyOption]="false"
-                    (valueChange)="onStateSelect($event)"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca location…"
+                    searchAriaLabel="Cerca location"
+                    [invalid]="fieldInvalid('locationId')"
+                    describedBy="co-location-error"
+                    (valueChange)="onLocationSelect($event)"
                   />
+                } @else {
+                  <p class="gr-form__error" role="alert">
+                    Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
+                    dell'account.
+                  </p>
+                }
+                @if (fieldInvalid('locationId')) {
+                  <p id="co-location-error" class="gr-form__error">Seleziona la location.</p>
                 }
               </div>
-            }
 
-            <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
-                 Scarico manuale: solo Rif. (niente consegna/pagamento). -->
-            @if (!isSalesDdt) {
-              <div class="gr-form__field">
-                <label class="gr-form__label" for="co-external-ref">
-                  {{ isQuote || isManualUnload ? 'Rif.' : 'Rif. ordine cliente' }}
-                </label>
-                <input
-                  id="co-external-ref"
-                  class="gr-form__input"
-                  type="text"
-                  formControlName="externalRef"
-                  [placeholder]="isManualUnload ? 'Es. campionario fiera' : 'Es. PO-2026-15'"
-                  autocomplete="off"
-                />
-              </div>
-            } @else {
-              <div class="gr-form__field">
-                <span class="gr-form__label" id="co-payment-method-label">Pagamento</span>
-                <!-- Auto-compilato dal tipo di pagamento dell'anagrafica cliente;
-                     voci normative fatturazione elettronica (MP01–MP23),
-                     gestibili in Impostazioni → Pagamenti. -->
-                <app-select-menu
-                  [options]="paymentMethodOptions()"
-                  [value]="form.controls.paymentMethod.value"
-                  ariaLabel="Modalità di pagamento"
-                  placeholder="Seleziona pagamento…"
+              <div class="gr-form__field gr-form__field--end-md">
+                <label class="gr-form__label" for="co-date">Data documento</label>
+                <app-date-input
+                  inputId="co-date"
+                  formControlName="documentDate"
+                  ariaLabel="Data documento"
                   [compact]="true"
                   [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca modalità…"
-                  searchAriaLabel="Cerca modalità di pagamento"
-                  (valueChange)="onPaymentMethodSelect($event)"
                 />
               </div>
 
-              <div class="gr-form__field gr-form__field--check">
-                <label class="gr-form__check gr-form__check--header">
-                  <input type="checkbox" formControlName="followedBySalesDoc" />
-                  <span>Seguirà doc. di vendita</span>
-                </label>
+              <!-- Preventivo e DDT vendita: nessuno stato documento in testata. -->
+              @if (isOrder) {
+                <div class="gr-form__field">
+                  <span class="gr-form__label">Stato</span>
+                  @if (isSettledOrder()) {
+                    <p class="gr-form__readonly">{{ stateBadgeLabel() }}</p>
+                  } @else {
+                    <app-select-menu
+                      [options]="stateOptions"
+                      [value]="form.controls.status.value"
+                      ariaLabel="Stato documento"
+                      placeholder="Confermato"
+                      [compact]="true"
+                      [fullWidth]="true"
+                      [includeEmptyOption]="false"
+                      (valueChange)="onStateSelect($event)"
+                    />
+                  }
+                </div>
+              }
+
+              <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
+                 Scarico manuale: solo Rif. (niente consegna/pagamento). -->
+              @if (!isSalesDdt) {
+                <div class="gr-form__field">
+                  <label class="gr-form__label" for="co-external-ref">
+                    {{ isQuote || isManualUnload ? 'Rif.' : 'Rif. ordine cliente' }}
+                  </label>
+                  <input
+                    id="co-external-ref"
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="externalRef"
+                    [placeholder]="isManualUnload ? 'Es. campionario fiera' : 'Es. PO-2026-15'"
+                    autocomplete="off"
+                  />
+                </div>
+              } @else {
+                <div class="gr-form__field">
+                  <span class="gr-form__label" id="co-payment-method-label">Pagamento</span>
+                  <!-- Auto-compilato dal tipo di pagamento dell'anagrafica cliente;
+                     voci normative fatturazione elettronica (MP01–MP23),
+                     gestibili in Impostazioni → Pagamenti. -->
+                  <app-select-menu
+                    [options]="paymentMethodOptions()"
+                    [value]="form.controls.paymentMethod.value"
+                    ariaLabel="Modalità di pagamento"
+                    placeholder="Seleziona pagamento…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca modalità…"
+                    searchAriaLabel="Cerca modalità di pagamento"
+                    (valueChange)="onPaymentMethodSelect($event)"
+                  />
+                </div>
+
+                <div class="gr-form__field gr-form__field--check">
+                  <label class="gr-form__check gr-form__check--header">
+                    <input type="checkbox" formControlName="followedBySalesDoc" />
+                    <span>Seguirà doc. di vendita</span>
+                  </label>
+                </div>
+              }
+            </div>
+
+            <!-- Seconda fascia della testata (mockup v3): consegna e pagamento su
+               fondo attenuato. Il DDT gestisce il pagamento in prima fascia, lo
+               scarico manuale non ha né consegna né pagamento. -->
+            @if (!isSalesDdt && !isManualUnload) {
+              <div
+                class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact co-form__header-row co-form__header-row--secondary"
+              >
+                <div class="gr-form__field">
+                  <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
+                  <app-date-input
+                    inputId="co-delivery"
+                    formControlName="expectedDeliveryDate"
+                    ariaLabel="Data prevista consegna"
+                    placeholder="Opzionale"
+                    [compact]="true"
+                    [fullWidth]="true"
+                  />
+                </div>
+
+                <div class="gr-form__field">
+                  <label class="gr-form__label" for="co-payment">Pagamento</label>
+                  <input
+                    id="co-payment"
+                    class="gr-form__input"
+                    type="text"
+                    formControlName="paymentTerms"
+                    placeholder="Es. 30 gg d.f."
+                    autocomplete="off"
+                  />
+                </div>
+
+                <div class="gr-form__field co-form__header-filler" aria-hidden="true"></div>
               </div>
             }
           </div>
-
-          <!-- Seconda fascia della testata (mockup v3): consegna e pagamento su
-               fondo attenuato. Il DDT gestisce il pagamento in prima fascia, lo
-               scarico manuale non ha né consegna né pagamento. -->
-          @if (!isSalesDdt && !isManualUnload) {
-            <div
-              class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact co-form__header-row co-form__header-row--secondary"
-            >
-              <div class="gr-form__field">
-                <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
-                <app-date-input
-                  inputId="co-delivery"
-                  formControlName="expectedDeliveryDate"
-                  ariaLabel="Data prevista consegna"
-                  placeholder="Opzionale"
-                  [compact]="true"
-                  [fullWidth]="true"
-                />
-              </div>
-
-              <div class="gr-form__field">
-                <label class="gr-form__label" for="co-payment">Pagamento</label>
-                <input
-                  id="co-payment"
-                  class="gr-form__input"
-                  type="text"
-                  formControlName="paymentTerms"
-                  placeholder="Es. 30 gg d.f."
-                  autocomplete="off"
-                />
-              </div>
-
-              <div class="gr-form__field co-form__header-filler" aria-hidden="true"></div>
-            </div>
-          }
         </div>
 
         @if (showCustomerForm()) {
@@ -481,6 +512,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('articleCode')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('articleCode', $event)"
                           (resized)="onLineColumnResize('articleCode', $event)"
                         ></span>
                       </th>
@@ -491,6 +524,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('sku')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('sku', $event)"
                           (resized)="onLineColumnResize('sku', $event)"
                         ></span>
                       </th>
@@ -501,6 +536,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('barcode')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('barcode', $event)"
                           (resized)="onLineColumnResize('barcode', $event)"
                         ></span>
                       </th>
@@ -515,6 +552,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('product')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('product', $event)"
                           (resized)="onLineColumnResize('product', $event)"
                         ></span>
                       </th>
@@ -529,6 +568,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('quantity')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('quantity', $event)"
                           (resized)="onLineColumnResize('quantity', $event)"
                         ></span>
                       </th>
@@ -543,6 +584,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('stockAvailable')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('stockAvailable', $event)"
                           (resized)="onLineColumnResize('stockAvailable', $event)"
                         ></span>
                       </th>
@@ -557,6 +600,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('unitOfMeasure')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('unitOfMeasure', $event)"
                           (resized)="onLineColumnResize('unitOfMeasure', $event)"
                         ></span>
                       </th>
@@ -571,6 +616,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('purchaseCost')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('purchaseCost', $event)"
                           (resized)="onLineColumnResize('purchaseCost', $event)"
                         ></span>
                       </th>
@@ -585,6 +632,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('unitPrice')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('unitPrice', $event)"
                           (resized)="onLineColumnResize('unitPrice', $event)"
                         ></span>
                       </th>
@@ -610,6 +659,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('discount')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('discount', $event)"
                           (resized)="onLineColumnResize('discount', $event)"
                         ></span>
                       </th>
@@ -624,6 +675,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('discountedPrice')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('discountedPrice', $event)"
                           (resized)="onLineColumnResize('discountedPrice', $event)"
                         ></span>
                       </th>
@@ -638,6 +691,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('vat')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('vat', $event)"
                           (resized)="onLineColumnResize('vat', $event)"
                         ></span>
                       </th>
@@ -659,6 +714,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('serials')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('serials', $event)"
                           (resized)="onLineColumnResize('serials', $event)"
                         ></span>
                       </th>
@@ -694,6 +751,8 @@
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('lineTotal')"
+                          [live]="true"
+                          (resizing)="onLineColumnResizing('lineTotal', $event)"
                           (resized)="onLineColumnResize('lineTotal', $event)"
                         ></span>
                       </th>
@@ -1019,6 +1078,276 @@
                 Imponibile righe
                 <strong class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</strong>
               </span>
+            </div>
+
+            <!-- Vista mobile (mockup responsive v3): sotto lg la tabella lascia
+                 il posto a una card per riga, che si apre sui campi. Stesse
+                 regole e stessi controlli del form: cambia solo la vista. -->
+            <div class="co-form__cards" formArrayName="lines">
+              @for (line of lines.controls; track line; let i = $index) {
+                <article
+                  class="co-form__card"
+                  [class.co-form__card--open]="isLineCardOpen(i)"
+                  [class.co-form__card--incomplete]="!lineRowComplete(i)"
+                  [formGroupName]="i"
+                >
+                  <button
+                    type="button"
+                    class="co-form__card-head"
+                    [attr.aria-expanded]="isLineCardOpen(i)"
+                    (click)="toggleLineCard(i)"
+                  >
+                    <span class="co-form__card-main">
+                      <span class="co-form__card-name">
+                        {{ line.controls.productName.value || 'Riga senza prodotto' }}
+                      </span>
+                      <span class="co-form__card-sub">
+                        Cod. {{ lineArticleCode(i) || '—' }}
+                        @if (isLineColumnVisible('stockAvailable')) {
+                          · Disponibili {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
+                        }
+                      </span>
+                    </span>
+                    <span class="co-form__card-metrics">
+                      <span class="co-form__metric">
+                        <small>Q.tà</small>
+                        <strong class="tabular-nums">{{ line.controls.quantity.value }}</strong>
+                      </span>
+                      <span class="co-form__metric co-form__metric--total">
+                        <small>Totale</small>
+                        <strong class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</strong>
+                      </span>
+                    </span>
+                    <i class="pi pi-chevron-down co-form__card-chevron" aria-hidden="true"></i>
+                  </button>
+
+                  @if (isLineCardOpen(i)) {
+                    <div class="co-form__card-body">
+                      <div class="co-form__card-grid">
+                        <p class="co-form__card-group co-form__card-group--first">Articolo</p>
+                        <div class="co-form__card-field">
+                          <label [attr.for]="'co-m-code-' + i">Cod. articolo</label>
+                          <input
+                            [id]="'co-m-code-' + i"
+                            class="gr-form__input"
+                            type="text"
+                            formControlName="articleCode"
+                            placeholder="—"
+                            autocomplete="off"
+                            (keydown.enter)="
+                              commitCodeLookup(i, 'articleCode'); $event.preventDefault()
+                            "
+                          />
+                        </div>
+                        <div class="co-form__card-field">
+                          <label [attr.for]="'co-m-sku-' + i">SKU</label>
+                          <input
+                            [id]="'co-m-sku-' + i"
+                            class="gr-form__input"
+                            type="text"
+                            formControlName="sku"
+                            placeholder="—"
+                            autocomplete="off"
+                            (keydown.enter)="commitCodeLookup(i, 'sku'); $event.preventDefault()"
+                          />
+                        </div>
+                        <div class="co-form__card-field co-form__card-field--full">
+                          <label [attr.for]="'co-m-barcode-' + i">EAN</label>
+                          <input
+                            [id]="'co-m-barcode-' + i"
+                            class="gr-form__input"
+                            type="text"
+                            formControlName="barcode"
+                            placeholder="—"
+                            autocomplete="off"
+                            (keydown.enter)="
+                              commitCodeLookup(i, 'barcode'); $event.preventDefault()
+                            "
+                          />
+                        </div>
+                        <div class="co-form__card-field co-form__card-field--full">
+                          <label [attr.for]="'co-m-product-' + i">Nome prodotto</label>
+                          <div class="co-form__card-search">
+                            <input
+                              [id]="'co-m-product-' + i"
+                              class="gr-form__input"
+                              type="text"
+                              formControlName="productName"
+                              autocomplete="off"
+                            />
+                            <button
+                              type="button"
+                              class="co-form__card-search-btn"
+                              aria-label="Cerca prodotto"
+                              [disabled]="formReadOnly()"
+                              (click)="openLineProductSearch(i)"
+                            >
+                              <i class="pi pi-search" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </div>
+
+                        <p class="co-form__card-group">Quantità e magazzino</p>
+                        <div class="co-form__card-field">
+                          <label [attr.for]="'co-m-qty-' + i">Quantità</label>
+                          <input
+                            [id]="'co-m-qty-' + i"
+                            class="gr-form__input"
+                            [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
+                            type="number"
+                            min="0"
+                            step="1"
+                            inputmode="numeric"
+                            formControlName="quantity"
+                          />
+                          @if (lineAvailabilityHint(i); as hint) {
+                            <span class="co-form__exceeds-hint">{{ hint }}</span>
+                          }
+                        </div>
+                        @if (isLineColumnVisible('stockAvailable')) {
+                          <div class="co-form__card-field co-form__card-field--readonly">
+                            <span class="co-form__card-label">Disponibile</span>
+                            <p class="tabular-nums">
+                              {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
+                            </p>
+                          </div>
+                        }
+                        <div class="co-form__card-field co-form__card-field--readonly">
+                          <span class="co-form__card-label">U.m.</span>
+                          <p>{{ lineUnitOfMeasure(i) }}</p>
+                        </div>
+                        @if (isLineColumnVisible('commitsStock')) {
+                          <div class="co-form__card-field">
+                            <label [attr.for]="'co-m-commits-' + i">{{ commitsColumnLabel }}</label>
+                            <select
+                              [id]="'co-m-commits-' + i"
+                              class="gr-form__input co-form__card-select"
+                              [value]="line.controls.commitsStock.value ? 'yes' : 'no'"
+                              (change)="onLineCommitsSelect(i, $any($event.target).value)"
+                            >
+                              <option value="yes">Sì</option>
+                              <option value="no">No</option>
+                            </select>
+                          </div>
+                        }
+                        @if (isLineColumnVisible('serials')) {
+                          <div class="co-form__card-field co-form__card-field--full">
+                            <label [attr.for]="'co-m-serials-' + i">Seriali</label>
+                            <input
+                              [id]="'co-m-serials-' + i"
+                              class="gr-form__input"
+                              type="text"
+                              formControlName="serialNumbersText"
+                              placeholder="SN001, SN002"
+                              autocomplete="off"
+                            />
+                          </div>
+                        }
+
+                        <p class="co-form__card-group">Valori di vendita</p>
+                        @if (isLineColumnVisible('purchaseCost')) {
+                          <div class="co-form__card-field co-form__card-field--readonly">
+                            <span class="co-form__card-label">Costo</span>
+                            <p class="tabular-nums">{{ linePurchaseCost(i) }}</p>
+                          </div>
+                        }
+                        <div class="co-form__card-field">
+                          <label [attr.for]="'co-m-price-' + i">Prezzo</label>
+                          <input
+                            [id]="'co-m-price-' + i"
+                            class="gr-form__input"
+                            type="text"
+                            inputmode="decimal"
+                            formControlName="unitPrice"
+                            placeholder="0,00"
+                          />
+                        </div>
+                        <div class="co-form__card-field">
+                          <label [attr.for]="'co-m-discount-' + i">Sconto</label>
+                          <input
+                            [id]="'co-m-discount-' + i"
+                            class="gr-form__input"
+                            type="text"
+                            formControlName="discount"
+                            placeholder="0%"
+                            title="Percentuale singola o cascata: «10%», «4+10%»"
+                          />
+                        </div>
+                        <div class="co-form__card-field co-form__card-field--readonly">
+                          <span class="co-form__card-label">Prezzo scontato</span>
+                          <p class="tabular-nums">{{ formatMoney(lineDiscountedUnitMoney(i)) }}</p>
+                        </div>
+                        <div class="co-form__card-field">
+                          <span class="co-form__card-label">IVA</span>
+                          <app-select-menu
+                            [options]="lineVatOptions(i)"
+                            [value]="lineVatValue(i)"
+                            ariaLabel="Codice IVA riga"
+                            placeholder="—"
+                            [compact]="true"
+                            [fullWidth]="true"
+                            [includeEmptyOption]="false"
+                            [searchable]="true"
+                            [inlineDetail]="true"
+                            searchPlaceholder="Codice, aliquota, descrizione…"
+                            searchAriaLabel="Cerca Codice IVA"
+                            (valueChange)="onLineVatSelect(i, $event)"
+                          />
+                        </div>
+                        <div class="co-form__card-field co-form__card-field--readonly">
+                          <span class="co-form__card-label">Totale</span>
+                          <p class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</p>
+                        </div>
+                      </div>
+
+                      <div class="co-form__card-actions">
+                        <app-button
+                          type="button"
+                          variant="secondary"
+                          [disabled]="formReadOnly()"
+                          (click)="duplicateLine(i)"
+                        >
+                          <i class="pi pi-clone" aria-hidden="true"></i>
+                          Duplica
+                        </app-button>
+                        <app-button
+                          type="button"
+                          variant="danger"
+                          [disabled]="formReadOnly()"
+                          (click)="removeLine(i)"
+                        >
+                          <i class="pi pi-trash" aria-hidden="true"></i>
+                          Elimina
+                        </app-button>
+                      </div>
+                    </div>
+                  }
+                </article>
+              }
+            </div>
+
+            <!-- Scansione rapida su mobile: la riga in fondo alla tabella non
+                 esiste senza tabella, quindi diventa una card dedicata. -->
+            <div class="co-form__mobile-quick">
+              <input
+                id="co-mobile-scan"
+                class="gr-form__input"
+                type="text"
+                [value]="quickScanDraft()"
+                [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
+                autocomplete="off"
+                placeholder="Scansiona o cerca prodotto…"
+                aria-label="Scansiona o cerca prodotto"
+                (input)="onQuickScanInput($any($event.target).value)"
+                (keydown.enter)="commitQuickScan(); $event.preventDefault()"
+              />
+              <app-button
+                type="button"
+                [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
+                (click)="commitQuickScan()"
+              >
+                Aggiungi
+              </app-button>
             </div>
           </section>
 
@@ -1576,33 +1905,84 @@
         }
       </div>
 
-      <!-- Dock mobile: totale + scan + salva sempre a portata di pollice. -->
+      <!-- Dock mobile (mockup responsive v3): totale del documento sempre in
+           vista e le azioni principali a portata di pollice. La scansione vive
+           nella card sotto le righe, non qui. -->
       <div class="gr-form__dock" role="region" aria-label="Azioni rapide documento">
         <div class="gr-form__dock-total">
           <span>Totale documento</span>
           <strong class="tabular-nums">{{ formatMoney(documentTotals().total) }}</strong>
         </div>
-        <div class="gr-form__dock-row">
-          <input
-            class="gr-form__dock-scan"
-            type="text"
-            [value]="quickScanDraft()"
-            [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
-            autocomplete="off"
-            placeholder="Scansiona o digita codice…"
-            aria-label="Scansione codice a barre"
-            (input)="onQuickScanInput($any($event.target).value)"
-            (keydown.enter)="commitQuickScan(); $event.preventDefault()"
-          />
+        <div class="co-form__dock-actions">
+          <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
+            Chiudi
+          </app-button>
+          @if (canConclude()) {
+            <div class="co-form__conclude">
+              <app-button
+                type="button"
+                variant="secondary"
+                [disabled]="concluding()"
+                [loading]="concluding()"
+                (click)="toggleConcludeMenu()"
+              >
+                Concludi
+                <i class="pi pi-chevron-down" aria-hidden="true"></i>
+              </app-button>
+              @if (concludeMenuOpen()) {
+                <div class="co-form__conclude-menu" role="menu" aria-label="Documento di scarico">
+                  @for (option of unloadTypeOptions(); track option.value) {
+                    <button
+                      type="button"
+                      class="co-form__conclude-item"
+                      role="menuitem"
+                      (click)="concludeWith(option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          }
+          @if (canGenerateDocuments()) {
+            <div class="co-form__conclude">
+              <app-button
+                type="button"
+                variant="secondary"
+                [disabled]="generating()"
+                [loading]="generating()"
+                (click)="toggleGenerateMenu()"
+              >
+                Genera
+                <i class="pi pi-chevron-down" aria-hidden="true"></i>
+              </app-button>
+              @if (generateMenuOpen()) {
+                <div class="co-form__conclude-menu" role="menu" aria-label="Genera documento">
+                  @for (option of generateTargetOptions; track option.value) {
+                    <button
+                      type="button"
+                      class="co-form__conclude-item"
+                      role="menuitem"
+                      (click)="generateFromDdt($any(option.value))"
+                    >
+                      {{ option.label }}
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          }
           @if (!formReadOnly()) {
-            <button
+            <app-button
               type="button"
-              class="gr-form__dock-save"
+              class="co-form__dock-save"
+              [loading]="saving()"
               [disabled]="saving()"
               (click)="requestSaveDocument()"
             >
               Salva
-            </button>
+            </app-button>
           }
         </div>
       </div>

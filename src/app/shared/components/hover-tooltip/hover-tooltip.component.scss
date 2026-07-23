@@ -33,6 +33,13 @@
 }
 
 .hover-tooltip__bubble {
+  // `display: none` e non solo `visibility: hidden`: da nascosto il bubble
+  // resterebbe comunque impaginato e, largo fino a 352px accanto a una
+  // colonna di destra, allargherebbe l'area scorrevole del contenitore —
+  // barra orizzontale su tabelle che ci stanno perfettamente. La posizione
+  // viene misurata sul trigger (updatePlacement), non sul bubble: nasconderlo
+  // del tutto non toglie nulla al calcolo.
+  display: none;
   position: absolute;
   z-index: var(--z-tooltip);
   inset-block-end: calc(100% + var(--space-2));
@@ -83,12 +90,14 @@
 
 .hover-tooltip:hover .hover-tooltip__bubble,
 .hover-tooltip:focus-within .hover-tooltip__bubble {
+  display: block;
   opacity: 1;
   visibility: visible;
 }
 
 @media (hover: none) {
   .hover-tooltip:focus-within .hover-tooltip__bubble {
+    display: block;
     opacity: 1;
     visibility: visible;
   }

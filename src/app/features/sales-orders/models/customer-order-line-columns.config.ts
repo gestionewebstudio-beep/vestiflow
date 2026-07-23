@@ -16,13 +16,15 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
   { id: 'product', label: 'Nome prodotto', defaultWidthPx: 300, minWidthPx: 160 },
-  { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 56, minWidthPx: 44 },
+  // Q.tà è il campo che si digita e ospita l'avviso «disponibili solo N»:
+  // qualche pixel in più a lei, tolto alla disponibilità che mostra un numero.
+  { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 72, minWidthPx: 52 },
   {
     id: 'stockAvailable',
     label: 'Q.tà disp.',
     numeric: true,
-    defaultWidthPx: 76,
-    minWidthPx: 52,
+    defaultWidthPx: 62,
+    minWidthPx: 48,
   },
   { id: 'unitOfMeasure', label: 'U.m.', defaultWidthPx: 44, minWidthPx: 36 },
   // Costo d'acquisto (§8): colonna sensibile, nascosta di default e visibile
@@ -46,7 +48,9 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
     defaultWidthPx: 92,
     minWidthPx: 56,
   },
-  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 56, minWidthPx: 40 },
+  // IVA: la cella ospita una tendina (codice + freccia), non solo un numero —
+  // stretta, il codice veniva troncato («2…» al posto di «22»).
+  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 96, minWidthPx: 76 },
   { id: 'commitsStock', label: 'Imp.', defaultWidthPx: 48, minWidthPx: 40 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
   { id: 'actions', label: 'Azioni', defaultWidthPx: 72, minWidthPx: 56 },

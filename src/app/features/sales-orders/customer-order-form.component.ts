@@ -120,7 +120,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
-import { toIsoDateLocal } from '@shared/utils/calendar.util';
+import { formatItalianInputDate, toIsoDateLocal } from '@shared/utils/calendar.util';
 
 import {
   CUSTOMER_ORDER_LINE_COLUMNS,
@@ -136,6 +136,7 @@ import {
   SALES_DDT_LINE_PRESETS,
   SALES_DDT_LINES_VIEW,
 } from './models/customer-order-line-columns.config';
+import { redistributeColumnWidths } from './models/column-width-distribution.util';
 import { sourceLabel } from './models/sales-order-labels.util';
 import {
   SalesOrderService,
@@ -213,11 +214,15 @@ interface AvailabilityIssue {
   ],
   templateUrl: './customer-order-form.component.html',
   // Stile riusato dall'Arrivo merce (stesse classi gr-form__*), più la banda
-  // footer condivisa e le aggiunte specifiche (riga rapida, cella ambra).
+  // footer condivisa e le aggiunte specifiche di questa maschera. La vista
+  // mobile sta in un foglio a parte: insieme sforerebbero il budget CSS
+  // per-componente. L'ordine conta — questi due vengono dopo i condivisi e
+  // ne sovrascrivono le regole a parità di specificità.
   styleUrls: [
     '../documents/goods-receipt-form.component.scss',
     '../documents/document-form-footer.shared.scss',
     './customer-order-form.component.scss',
+    './customer-order-form.mobile.scss',
   ],
 })
 export class CustomerOrderFormComponent implements CanComponentDeactivate {
@@ -232,6 +237,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
+  // Serve solo a leggere la larghezza resa della tabella durante il resize
+  // colonne: la ridistribuzione ragiona in pixel veri, non in quote.
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly breadcrumbLabels = inject(BreadcrumbLabelService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
@@ -1015,11 +1023,29 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // — una colonna px residua farebbe traboccare la tabella di quei px.
   private static readonly LINE_INDEX_COLUMN_PX = 48;
 
+  /**
+   * Larghezze in corso di trascinamento: vivono qui e non nelle preferenze
+   * finché il mouse non si alza, altrimenti ogni pixel di movimento
+   * scriverebbe su localStorage e sul server.
+   */
+  private readonly lineColumnDraft = signal<ReadonlyMap<string, number> | null>(null);
+
   /** Px salvati (o default) di una colonna: restano l'unità persistita. */
   private lineColumnPx(columnId: string): number {
+    const draft = this.lineColumnDraft();
+    const drafted = draft?.get(columnId);
+    if (drafted !== undefined) {
+      return drafted;
+    }
     const def = this.lineColumnDefs.find((col) => col.id === columnId);
     const fallback = def?.defaultWidthPx ?? 96;
-    return this.columnPreferences.columnWidth(this.lineColumnsView, columnId, fallback);
+    // Il minimo vale anche sulle larghezze già salvate: senza, una colonna
+    // stretta da un vecchio ridimensionamento resterebbe tale anche dopo aver
+    // alzato il minimo (e il contenuto continuerebbe a stare stretto).
+    return Math.max(
+      this.columnPreferences.columnWidth(this.lineColumnsView, columnId, fallback),
+      this.lineColumnMinWidth(columnId),
+    );
   }
 
   /** Somma dei px delle colonne visibili + colonna indice. */
@@ -1054,8 +1080,63 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return def?.minWidthPx ?? 48;
   }
 
-  protected onLineColumnResize(columnId: string, widthPx: number): void {
-    this.columnPreferences.setColumnWidth(this.lineColumnsView, columnId, widthPx);
+  /**
+   * Trascinamento in corso: la colonna presa segue il cursore e le ALTRE
+   * cedono (o riprendono) spazio in proporzione, da entrambi i lati. La somma
+   * resta quella di partenza, così la tabella continua a stare esattamente
+   * nel contenitore e non compare la barra di scorrimento orizzontale.
+   */
+  protected onLineColumnResizing(columnId: string, renderedWidthPx: number): void {
+    const next = this.redistributeLineColumns(columnId, renderedWidthPx);
+    if (next) {
+      this.lineColumnDraft.set(next);
+    }
+  }
+
+  protected onLineColumnResize(columnId: string, renderedWidthPx: number): void {
+    const draft = this.lineColumnDraft();
+    if (!draft) {
+      // Solo un clic sull'impugnatura: niente da salvare.
+      return;
+    }
+    const next = this.redistributeLineColumns(columnId, renderedWidthPx) ?? draft;
+    this.lineColumnDraft.set(null);
+    const widths: Record<string, number> = {};
+    for (const [id, px] of next) {
+      widths[id] = Math.round(px);
+    }
+    this.columnPreferences.setColumnWidths(this.lineColumnsView, widths);
+  }
+
+  /**
+   * Nuove larghezze di TUTTE le colonne visibili con `columnId` portata a
+   * `renderedWidthPx`. Il conto si fa in PIXEL RESI, non nei pesi salvati: è
+   * l'unica scala in cui i minimi per colonna significano qualcosa. Erano
+   * proprio i minimi ignorati a far comparire la barra orizzontale — allargando
+   * molto una colonna, le altre finivano sotto la larghezza del loro contenuto,
+   * che traboccava dalla cella. Le larghezze così ottenute sommano alla
+   * larghezza della tabella e diventano i nuovi pesi (contano solo i rapporti).
+   */
+  private redistributeLineColumns(
+    columnId: string,
+    renderedWidthPx: number,
+  ): ReadonlyMap<string, number> | null {
+    const tableWidth =
+      this.host.nativeElement.querySelector('.gr-form__table-wrap')?.clientWidth ?? 0;
+    const visible = this.lineColumnDefs.filter((def) => this.isLineColumnVisible(def.id));
+    if (tableWidth <= 0 || visible.length < 2) {
+      return null;
+    }
+
+    // A trascinamento avviato le larghezze in bozza sono già pixel resi: la
+    // conversione va fatta una volta sola, all'inizio, o si accumula deriva.
+    const scale = this.lineColumnDraft() ? 1 : tableWidth / this.lineColumnsTotalPx();
+    const base = visible.map((def) => ({
+      id: def.id,
+      px: this.lineColumnPx(def.id) * scale,
+      minPx: this.lineColumnMinWidth(def.id),
+    }));
+    return redistributeColumnWidths(base, columnId, renderedWidthPx);
   }
 
   // ── Righe: creazione, selezione variante, difaults ──────────────────────
@@ -1457,6 +1538,61 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       this.lines.at(index)?.controls.unitOfMeasure.value.trim() ||
       'pz'
     );
+  }
+
+  // ── Vista mobile (mockup responsive v3) ───────────────────────────────────
+  // Sotto lg la tabella lascia il posto a una lista di card: la testata si
+  // riassume in una riga apribile e ogni riga documento diventa una card che
+  // si espande sui campi. Lo stato di apertura vive qui perché è vista, non
+  // dato: nessun controllo del form ne dipende.
+
+  /** Testata compressa nel riepilogo cliente · location · data · stato. */
+  protected readonly mobileHeaderOpen = signal(false);
+
+  protected toggleMobileHeader(): void {
+    this.mobileHeaderOpen.update((open) => !open);
+  }
+
+  /** Card riga aperta: una sola alla volta, come nel mockup. */
+  protected readonly openLineCard = signal<number | null>(null);
+
+  protected isLineCardOpen(index: number): boolean {
+    return this.openLineCard() === index;
+  }
+
+  protected toggleLineCard(index: number): void {
+    this.openLineCard.update((current) => (current === index ? null : index));
+  }
+
+  protected readonly mobileHeaderTitle = computed(() => {
+    this.formValue();
+    const customerId = this.form.controls.customerId.value;
+    const selected = this.customerOptions().find((option) => option.value === customerId);
+    return (
+      selected?.label ||
+      this.form.controls.customerFreeText.value.trim() ||
+      (this.isManualUnload ? 'Nessun cliente' : 'Seleziona cliente')
+    );
+  });
+
+  protected readonly mobileHeaderMeta = computed(() => {
+    this.formValue();
+    const locationId = this.form.controls.locationId.value;
+    const location = this.locationOptions().find((option) => option.value === locationId)?.label;
+    const documentDate = this.form.controls.documentDate.value;
+    return [
+      location,
+      documentDate ? formatItalianInputDate(documentDate) : null,
+      this.isOrder ? this.stateBadgeLabel() : null,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(' · ');
+  });
+
+  /** «Impegna magazzino» come Sì/No: sulla card è una scelta, non una spunta. */
+  protected onLineCommitsSelect(index: number, value: string): void {
+    this.lines.at(index).controls.commitsStock.setValue(value === 'yes');
+    this.markFormDirty();
   }
 
   protected validLinesCount(): number {

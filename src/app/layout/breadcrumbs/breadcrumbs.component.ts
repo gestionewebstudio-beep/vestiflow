@@ -154,6 +154,23 @@ export class BreadcrumbsComponent {
       ];
     }
 
+    // Ordine cliente aperto (`sales/:id` o `sales/:id/edit`): come per l'Arrivo
+    // merce il percorso nomina il tipo di documento prima del numero e non
+    // chiude con «Modifica» — «Vendite > Ordini cliente > numero». Senza questo
+    // la tappa del registro mancava del tutto e si passava da «Vendite» al
+    // numero: l'unica maschera documento senza il proprio registro nel percorso.
+    if (
+      segments[0] === 'sales' &&
+      isIdSegment(segments[1] ?? '') &&
+      (segments.length === 2 || (segments.length === 3 && segments[2] === 'edit'))
+    ) {
+      return [
+        { label: SEGMENT_LABELS['sales']! },
+        { label: 'Ordini cliente', link: '/app/sales' },
+        { label: this.entityLabels().get(segments[1]!) ?? 'Dettaglio' },
+      ];
+    }
+
     const crumbs: Crumb[] = [];
     let accumulated = '/app';
     for (const segment of segments) {

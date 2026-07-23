@@ -14,6 +14,15 @@ export class TableColumnResizeDirective {
   readonly minWidthPx = input(48);
   readonly resized = output<number>();
 
+  /**
+   * Ridimensionamento pilotato dal consumatore: la direttiva non tocca più le
+   * larghezze: si limita a riportare quella richiesta a ogni movimento
+   * (`resizing`). Serve alle tabelle a quote percentuali, dove allargare una
+   * colonna deve restringere le altre invece di allargare la tabella.
+   */
+  readonly live = input(false);
+  readonly resizing = output<number>();
+
   private startX = 0;
   private startWidth = 0;
   private lastWidth = 0;
@@ -45,6 +54,11 @@ export class TableColumnResizeDirective {
     const onMove = (moveEvent: MouseEvent): void => {
       const delta = moveEvent.clientX - this.startX;
       const next = Math.max(this.minWidthPx(), Math.round(this.startWidth + delta));
+      if (this.live()) {
+        this.lastWidth = next;
+        this.resizing.emit(next);
+        return;
+      }
       applyWidth(next);
     };
 

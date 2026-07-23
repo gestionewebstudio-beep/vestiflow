@@ -1,5 +1,5 @@
-@if (navHistory.canGoBack()) {
-  <button type="button" class="back-button" (click)="navHistory.back()">
+@if (visible()) {
+  <button type="button" class="back-button" (click)="goBack()">
     <i class="pi pi-chevron-left" aria-hidden="true"></i>
     Indietro
   </button>
