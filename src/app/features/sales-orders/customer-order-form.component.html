@@ -276,26 +276,27 @@
 
               <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
                  Scarico manuale: solo Rif. (niente consegna/pagamento). -->
-              @if (!isSalesDdt) {
+              <!--
+                Niente riferimento della controparte sui documenti di vendita:
+                gli ordini cliente nascono qui dentro o arrivano dai canali
+                online, il cliente non emette un proprio numero. Il campo resta
+                solo sullo Scarico manuale, dove è una causale libera
+                (es. «campionario fiera»), non il numero di un documento.
+              -->
+              @if (isManualUnload) {
                 <div class="gr-form__field">
-                  <label class="gr-form__label" for="co-external-ref">
-                    {{ isQuote || isManualUnload ? 'Rif.' : 'Rif. ordine cliente' }}
-                  </label>
+                  <label class="gr-form__label" for="co-external-ref">Rif.</label>
                   <input
                     id="co-external-ref"
                     class="gr-form__input"
                     type="text"
                     formControlName="externalRef"
-                    [placeholder]="isManualUnload ? 'Es. campionario fiera' : 'Es. PO-2026-15'"
+                    placeholder="Es. campionario fiera"
                     autocomplete="off"
                   />
-                  @if (!isQuote && !isManualUnload) {
-                    <!-- Il numero con cui il CLIENTE identifica l'ordine: resta
-                         distinto dal nostro numero documento. -->
-                    <p class="gr-form__hint">Numero dell'ordine dalla parte del cliente.</p>
-                  }
                 </div>
-              } @else {
+              }
+              @if (isSalesDdt) {
                 <div class="gr-form__field">
                   <span class="gr-form__label" id="co-payment-method-label">Pagamento</span>
                   <!-- Auto-compilato dal tipo di pagamento dell'anagrafica cliente;

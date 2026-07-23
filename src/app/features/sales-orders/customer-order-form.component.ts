@@ -2959,7 +2959,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           customerId: this.isManualUnload ? value.customerId || null : value.customerId,
           ...(this.isManualUnload ? { customerName: freeTextCustomer || null } : {}),
           locationId: value.locationId || undefined,
-          externalRef: value.externalRef.trim() || null,
+          // Campo esposto solo dallo Scarico manuale: sugli altri tipi non si
+          // invia affatto, così il valore storico non viene azzerato.
+          ...(this.isManualUnload ? { externalRef: value.externalRef.trim() || null } : {}),
           paymentTerms: value.paymentTerms.trim() || null,
           expectedDeliveryDate: value.expectedDeliveryDate || null,
           notes: value.notes.trim(),
@@ -2973,7 +2975,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           customerId: this.isManualUnload ? value.customerId || undefined : value.customerId,
           ...(freeTextCustomer ? { customerName: freeTextCustomer } : {}),
           locationId: value.locationId || undefined,
-          externalRef: value.externalRef.trim() || undefined,
+          ...(this.isManualUnload ? { externalRef: value.externalRef.trim() || undefined } : {}),
           paymentTerms: value.paymentTerms.trim() || undefined,
           expectedDeliveryDate: value.expectedDeliveryDate || undefined,
           notes: value.notes.trim() || undefined,
