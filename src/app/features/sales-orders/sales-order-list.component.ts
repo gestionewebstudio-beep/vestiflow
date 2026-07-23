@@ -48,6 +48,9 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import { formatMoney } from '@core/utils/money.util';
+import type { Money } from '@core/models/money.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
@@ -133,6 +136,7 @@ type SalesListState =
     ErrorStateComponent,
     PaginationComponent,
     SelectMenuComponent,
+    SlidePanelComponent,
     TableSkeletonComponent,
     ReportCorrispettiviExportComponent,
     SalesOrderTableComponent,
@@ -385,6 +389,40 @@ export class SalesOrderListComponent {
       q.placedFrom ??
       q.placedTo,
     );
+  });
+
+  protected readonly formatMoney = formatMoney;
+
+  /** Pannello filtri mobile (mockup restyling): un solo pulsante «Filtri (n)». */
+  protected readonly mobileFiltersOpen = signal(false);
+
+  /**
+   * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
+   * non conta: ha il suo campo sempre visibile. Dal/Al fanno parte del periodo,
+   * quindi si contano insieme una sola volta.
+   */
+  protected readonly activeFilterCount = computed(() => {
+    const q = this.query();
+    let count = 0;
+    if (q.state) count++;
+    if (q.source) count++;
+    if (q.financialStatus) count++;
+    if (q.fulfillmentStatus) count++;
+    if (q.customerId) count++;
+    if (q.locationId) count++;
+    if (q.placedFrom ?? q.placedTo) count++;
+    return count;
+  });
+
+  /**
+   * Somma dei totali degli ordini selezionati, mostrata nella barra massiva.
+   * Solo aritmetica sui dati già caricati (nessun ricalcolo di sconti/IVA).
+   */
+  protected readonly selectionTotal = computed<Money>(() => {
+    const orders = this.selectedOrders();
+    const amountMinor = orders.reduce((sum, order) => sum + order.total.amountMinor, 0);
+    const currencyCode = orders[0]?.total.currencyCode ?? 'EUR';
+    return { amountMinor, currencyCode };
   });
 
   // ── Selezione multipla + eliminazione a due conferme (come Arrivi merce) ──

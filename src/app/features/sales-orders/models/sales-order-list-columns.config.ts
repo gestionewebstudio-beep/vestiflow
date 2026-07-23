@@ -23,7 +23,9 @@ export const SALES_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'fulfillmentStatus', label: 'Evasione', defaultVisible: true },
   { id: 'location', label: 'Location', defaultVisible: true },
   { id: 'notes', label: 'Commento', defaultVisible: false },
-  { id: 'onlineSale', label: 'Vendita online', defaultVisible: true },
+  // Nascosta di serie (mockup restyling): l'info è marginale, attivabile dal
+  // selettore Colonne quando serve.
+  { id: 'onlineSale', label: 'Vendita online', defaultVisible: false },
 ] as const;
 
 const DEFAULT_IDS = SALES_ORDER_LIST_COLUMN_DEFS.filter(

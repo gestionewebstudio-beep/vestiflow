@@ -154,6 +154,15 @@ export class BreadcrumbsComponent {
       ];
     }
 
+    // Elenco Ordini cliente (`/app/sales`): letto come registro documento,
+    // «Documenti > Ordini cliente», non come sezione «Vendite».
+    if (segments.length === 1 && segments[0] === 'sales') {
+      return [
+        { label: SEGMENT_LABELS['documents']!, link: '/app/documents' },
+        { label: 'Ordini cliente' },
+      ];
+    }
+
     // Ordine cliente: la maschera vive sotto `sales/…` ma è un documento come
     // gli altri, e deve leggersi allo stesso modo — «Documenti > Ordini cliente
     // > numero» in apertura, «… > Nuovo» in creazione. Senza questo il percorso

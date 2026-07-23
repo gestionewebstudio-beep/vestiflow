@@ -90,6 +90,36 @@ export class SalesOrderTableComponent {
   protected readonly formatDate = formatDate;
   protected readonly formatMoney = formatMoney;
 
+  /** Data compatta gg/mm/aa (mockup restyling): scansione veloce in colonna. */
+  protected compactDate(iso: string): string {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) {
+      return '—';
+    }
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yy = String(date.getFullYear()).slice(-2);
+    return `${dd}/${mm}/${yy}`;
+  }
+
+  /**
+   * Classe del pallino origine: grigio Manuale (default), verde Shopify
+   * (Online/POS). TikTok non esiste come canale nel modello dati: se un giorno
+   * arriverà basterà aggiungere il caso qui.
+   */
+  protected originDotClass(source: SalesOrderSource): string {
+    return source === SalesOrderSource.Manual ? '' : 'sales-table__origin-dot--shopify';
+  }
+
+  /**
+   * Riga secondaria del cliente: il codice anagrafica quando c'è, altrimenti
+   * l'email. Il modello ordine non porta P.IVA né storico ordini, quindi qui
+   * non compaiono (a differenza del mockup, popolato con dati d'esempio).
+   */
+  protected customerSecondary(order: SalesOrder): string {
+    return order.customerCode?.trim() || order.customerEmail?.trim() || '';
+  }
+
   protected orderStateLabel(order: SalesOrder): string {
     // Ordine manuale: stati del documento (§STATI Ordine cliente + prompt DDT).
     if (order.source === SalesOrderSource.Manual) {

@@ -10,22 +10,81 @@
   gap: var(--space-5);
 }
 
-// Barra operazioni massive (come Arrivi merce): compare con una selezione.
+// Barra operazioni massive (mockup restyling): banda scura con testo chiaro,
+// conteggio + totale sommato a sinistra, azioni a destra.
 .sales-list__bulk-bar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-3);
   padding: var(--space-2) var(--space-3);
-  background-color: var(--color-surface-subtle, var(--color-surface));
-  border: var(--border-width) solid var(--color-border);
+  background-color: var(--color-primary);
+  border: var(--border-width) solid var(--color-primary);
   border-radius: var(--radius-md);
 }
 
 .sales-list__bulk-count {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary-fg);
   margin-inline-end: auto;
+}
+
+// Sotto lg la barra massiva si àncora in basso, sempre a portata di pollice.
+@include bp.media-down('lg') {
+  .sales-list__bulk-bar {
+    position: fixed;
+    inset-inline: var(--space-3);
+    inset-block-end: calc(var(--space-3) + env(safe-area-inset-bottom));
+    z-index: var(--z-sticky);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sales-list__bulk-bar ::ng-deep .app-button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+.sales-list__bulk-count strong {
+  font-weight: var(--font-weight-bold);
+}
+
+.sales-list__bulk-sep {
+  margin-inline: var(--space-1);
+  opacity: 0.5;
+}
+
+// Bottoni della barra: traslucidi su fondo scuro, testo chiaro (il danger
+// vira sul rosso). Sovrascrivono la veste chiara dell'app-button solo qui.
+.sales-list__bulk-bar ::ng-deep .app-button {
+  color: var(--color-primary-fg);
+  background-color: rgb(255 255 255 / 0.12);
+  border-color: rgb(255 255 255 / 0.24);
+}
+
+.sales-list__bulk-bar ::ng-deep .app-button:hover:not(:disabled) {
+  background-color: rgb(255 255 255 / 0.2);
+  border-color: rgb(255 255 255 / 0.36);
+}
+
+.sales-list__bulk-bar ::ng-deep .app-button--danger {
+  color: #ffc9c9;
+  background-color: rgb(255 120 120 / 0.16);
+  border-color: rgb(255 120 120 / 0.32);
+}
+
+.sales-list__bulk-bar ::ng-deep .app-button--danger:hover:not(:disabled) {
+  color: #ffe0e0;
+  background-color: rgb(255 120 120 / 0.26);
+}
+
+.sales-list__bulk-bar ::ng-deep .app-button--ghost {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+.sales-list__bulk-bar ::ng-deep .app-button--ghost:hover:not(:disabled) {
+  background-color: rgb(255 255 255 / 0.12);
 }
 
 // Modale scelta cliente (Duplica): overlay centrato sopra la lista.
@@ -93,22 +152,18 @@
   gap: var(--space-2);
 }
 
-// «Numeratori»: sotto sm resta la sola icona, come negli elenchi documento.
-.sales-list__settings-label {
-  @include bp.media-down('sm') {
-    display: none;
-  }
-}
-
 .sales-list__shopify-error {
   margin: 0;
   color: var(--status-error-fg);
   font-size: var(--text-sm);
 }
 
-// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
-.sales-list__heading app-back-button {
-  margin-block-end: var(--space-2);
+// Freccia «Indietro» a sinistra, in linea col titolo + conteggio.
+.sales-list__title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
 }
 
 .sales-list__title {
@@ -118,30 +173,41 @@
   color: var(--color-text);
 }
 
+.sales-list__count {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 .sales-list__subtitle {
   margin: var(--space-1) 0 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
+// Toolbar unificata: card bianca a due righe — ricerca + azioni sopra, chip
+// filtro a piena larghezza sotto.
 .sales-list__toolbar {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  padding: var(--space-3);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
 }
 
-@include bp.media-up('lg') {
-  .sales-list__toolbar {
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
-  }
+// Riga 1: ricerca (cresce) + azioni a destra.
+.sales-list__toolbar-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
 }
 
 .sales-list__search {
   position: relative;
-  flex: 1 1 auto;
-  max-inline-size: var(--content-narrow);
+  flex: 1 1 20rem;
+  min-inline-size: 12rem;
 }
 
 .sales-list__search-icon {
@@ -171,16 +237,128 @@
   box-shadow: var(--field-focus-ring);
 }
 
-.sales-list__filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-3);
+// Riga 2: filtri in GRIGLIA a 5 colonne uguali (5 sopra, 5 sotto col periodo
+// personalizzato: Periodo, Dal, Al, Stato, Origine · Pagamento, Evasione,
+// Cliente, Location, Azzera). Tutti di pari misura, allineati in basso. Sotto
+// lg spariscono, il loro posto lo prende il pulsante «Filtri».
+.sales-list__filters--inline {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-2) var(--space-3);
 
-  @include bp.media-down('md') {
-    flex-direction: column;
-    align-items: stretch;
+  @include bp.media-down('lg') {
+    display: none;
   }
+}
+
+.sales-list__filters--inline > .sales-list__field {
+  min-inline-size: 0;
+  align-items: stretch;
+}
+
+// Il chip (select-menu in modalità filtro) riempie la colonna, invece di
+// dimensionarsi al contenuto.
+.sales-list__filters--inline .sales-list__field app-select-menu.select-menu-host--chip {
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
+.sales-list__filters--inline .sales-list__field ::ng-deep .select-menu,
+.sales-list__filters--inline .sales-list__field ::ng-deep .select-menu__trigger {
+  inline-size: 100%;
+}
+
+// Anche i campi data Dal/Al riempiono la loro cella, così sono larghi come le
+// chip sotto (di serie la date-input fullWidth resta a larghezza fissa).
+.sales-list__filters--inline .sales-list__field app-date-input {
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
+// «Azzera»: piccolo link, allineato a sinistra nella sua cella.
+.sales-list__filters--inline > .sales-list__clear {
+  justify-self: start;
+  align-self: center;
+}
+
+// Azioni a destra della toolbar (riga 1): Filtri (mobile), Colonne, Numeratori.
+.sales-list__toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+// Link «Azzera» testuale, non un bottone bordato (mockup restyling).
+.sales-list__clear {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-interactive);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.sales-list__clear:hover {
+  text-decoration: underline;
+}
+
+// Pulsante «Filtri (n)»: solo mobile, apre il pannello.
+.sales-list__mobile-filters {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+
+  @include bp.media-down('lg') {
+    display: inline-flex;
+  }
+}
+
+.sales-list__filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--space-4);
+  block-size: var(--space-4);
+  padding-inline: var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-fg);
+  background-color: var(--color-primary);
+  border-radius: var(--radius-full);
+}
+
+// «Numeratori»: sotto lg resta la sola icona per far spazio.
+.sales-list__settings-label {
+  @include bp.media-down('lg') {
+    display: none;
+  }
+}
+
+// ── Pannello filtri mobile ─────────────────────────────────────────────────
+.sales-list__panel-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sales-list__panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-width) solid var(--color-border);
 }
 
 .sales-list__field {
@@ -193,13 +371,6 @@
   @include bp.media-down('md') {
     align-items: stretch;
     inline-size: 100%;
-  }
-}
-
-// Campi periodo (Dal/Al): larghezza contenuta, come nella lista documenti.
-.sales-list__field--date {
-  @include bp.media-up('md') {
-    inline-size: calc(var(--space-10) * 4);
   }
 }
 

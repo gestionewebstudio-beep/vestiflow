@@ -65,11 +65,19 @@
                 </td>
               }
               @case ('source') {
-                <td [attr.data-label]="col.label">{{ sourceLabel(order.source) }}</td>
+                <td [attr.data-label]="col.label">
+                  <span class="sales-table__cell-value sales-table__origin">
+                    <span
+                      class="sales-table__origin-dot {{ originDotClass(order.source) }}"
+                      aria-hidden="true"
+                    ></span>
+                    {{ sourceLabel(order.source) }}
+                  </span>
+                </td>
               }
               @case ('placedAt') {
-                <td class="tabular-nums" [attr.data-label]="col.label">
-                  {{ formatDate(order.placedAt) }}
+                <td class="sales-table__date tabular-nums" [attr.data-label]="col.label">
+                  {{ compactDate(order.placedAt) }}
                 </td>
               }
               @case ('customerCode') {
@@ -78,7 +86,14 @@
                 </td>
               }
               @case ('customerName') {
-                <td [attr.data-label]="col.label">{{ order.customerName }}</td>
+                <td [attr.data-label]="col.label">
+                  <span class="sales-table__customer">
+                    <span class="sales-table__customer-name">{{ order.customerName }}</span>
+                    @if (customerSecondary(order); as meta) {
+                      <span class="sales-table__customer-meta">{{ meta }}</span>
+                    }
+                  </span>
+                </td>
               }
               @case ('total') {
                 <td class="sales-table__cell--total tabular-nums" [attr.data-label]="col.label">
@@ -200,3 +215,58 @@
     </tbody>
   </table>
 </div>
+
+<!-- Vista mobile (mockup restyling): card verticali a layout fisso, non la
+     tabella per etichetta:valore. Le colonne configurabili valgono solo su
+     desktop; qui il contenuto è sempre lo stesso, ottimizzato per il pollice. -->
+<ul class="sales-cards" aria-label="Ordini cliente">
+  @for (order of orders(); track order.id) {
+    <li>
+      <article
+        class="sales-cards__card"
+        [class.sales-cards__card--selected]="selectable() && selectedIds().has(order.id)"
+        tabindex="0"
+        [attr.aria-label]="rowLabel(order)"
+        (click)="rowClick.emit(order)"
+        (keydown.enter)="rowClick.emit(order)"
+        (keydown.space)="$event.preventDefault(); rowClick.emit(order)"
+      >
+        <div class="sales-cards__row1">
+          <span class="sales-cards__num tabular-nums">{{ order.orderNumber }}</span>
+          <span class="sales-cards__total tabular-nums">{{ formatMoney(order.total) }}</span>
+        </div>
+        <div class="sales-cards__row2">
+          <span class="sales-table__origin">
+            <span
+              class="sales-table__origin-dot {{ originDotClass(order.source) }}"
+              aria-hidden="true"
+            ></span>
+            {{ sourceLabel(order.source) }}
+          </span>
+          <span class="sales-cards__sep" aria-hidden="true">·</span>
+          <span class="tabular-nums">{{ compactDate(order.placedAt) }}</span>
+        </div>
+        <div class="sales-cards__customer">{{ order.customerName }}</div>
+        <div class="sales-cards__badges">
+          <app-badge [tone]="orderStateTone(order)">{{ orderStateLabel(order) }}</app-badge>
+          <app-badge [tone]="financialTone(order.financialStatus)">
+            {{ financialLabel(order.financialStatus) }}
+          </app-badge>
+          <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
+            {{ fulfillmentLabel(order.fulfillmentStatus) }}
+          </app-badge>
+        </div>
+        <div class="sales-cards__footer">
+          <span class="sales-cards__location">{{ order.locationName ?? '—' }}</span>
+          <span class="sales-cards__actions">
+            <app-action-menu
+              [items]="rowActions(order)"
+              [ariaLabel]="'Azioni su ordine ' + order.orderNumber"
+              (actionSelected)="onAction($event, order)"
+            />
+          </span>
+        </div>
+      </article>
+    </li>
+  }
+</ul>

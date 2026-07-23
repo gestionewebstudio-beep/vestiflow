@@ -1,8 +1,17 @@
 <section class="sales-list">
   <header class="sales-list__header">
     <div class="sales-list__heading">
-      <app-back-button />
-      <h1 class="sales-list__title">{{ pageTitle() }}</h1>
+      <div class="sales-list__title-row">
+        <!-- Pagina di primo livello senza padre nell'URL: il ritorno esplicito
+             è «Documenti», coerente col breadcrumb. -->
+        <app-back-button fallbackLink="/app/documents" />
+        <h1 class="sales-list__title">{{ pageTitle() }}</h1>
+        @if (!loading()) {
+          <span class="sales-list__count tabular-nums">
+            {{ meta().total }} {{ meta().total === 1 ? 'documento' : 'documenti' }}
+          </span>
+        }
+      </div>
       <p class="sales-list__subtitle">{{ pageSubtitle() }}</p>
     </div>
     @if (canCreateManualOrder()) {
@@ -10,15 +19,6 @@
         <app-button (click)="createManualOrder()">
           <i class="pi pi-plus" aria-hidden="true"></i>
           Nuovo ordine
-        </app-button>
-      </div>
-    }
-    @if (canManage()) {
-      <div class="sales-list__actions">
-        <app-button variant="ghost" (click)="openDocumentSettings()">
-          <i class="pi pi-cog" aria-hidden="true"></i>
-          <span class="sr-only">Documenti e numeratori</span>
-          <span class="sales-list__settings-label" aria-hidden="true">Numeratori</span>
         </app-button>
       </div>
     }
@@ -70,20 +70,48 @@
   }
 
   <div class="sales-list__toolbar">
-    <div class="sales-list__search">
-      <i class="pi pi-search sales-list__search-icon" aria-hidden="true"></i>
-      <input
-        id="sales-search"
-        class="sales-list__input"
-        type="search"
-        [value]="searchDraft()"
-        placeholder="Cerca per ordine, cliente, prodotto o SKU…"
-        aria-label="Cerca vendite"
-        (input)="onSearchInput($event)"
-      />
+    <!-- Riga 1: ricerca (cresce) + azioni a destra. -->
+    <div class="sales-list__toolbar-main">
+      <div class="sales-list__search">
+        <i class="pi pi-search sales-list__search-icon" aria-hidden="true"></i>
+        <input
+          id="sales-search"
+          class="sales-list__input"
+          type="search"
+          [value]="searchDraft()"
+          placeholder="Cerca per ordine, cliente, prodotto o SKU…"
+          aria-label="Cerca vendite"
+          (input)="onSearchInput($event)"
+        />
+      </div>
+
+      <div class="sales-list__toolbar-actions">
+        <button
+          type="button"
+          class="sales-list__mobile-filters"
+          (click)="mobileFiltersOpen.set(true)"
+        >
+          <i class="pi pi-sliders-h" aria-hidden="true"></i>
+          Filtri
+          @if (activeFilterCount() > 0) {
+            <span class="sales-list__filter-badge tabular-nums">{{ activeFilterCount() }}</span>
+          }
+        </button>
+
+        <app-table-column-picker [viewId]="columnsView()" />
+
+        @if (canManage()) {
+          <app-button variant="secondary" (click)="openDocumentSettings()">
+            <i class="pi pi-hashtag" aria-hidden="true"></i>
+            <span class="sales-list__settings-label">Numeratori</span>
+          </app-button>
+        }
+      </div>
     </div>
 
-    <div class="sales-list__filters">
+    <!-- Riga 2: chip filtro a piena larghezza (ognuna cresce), su mobile
+         spariscono a favore del pulsante «Filtri». -->
+    <div class="sales-list__filters sales-list__filters--inline">
       <div class="sales-list__field">
         <app-select-menu
           chipLabel="Periodo"
@@ -215,12 +243,9 @@
         />
       </div>
 
-      <app-table-column-picker [viewId]="columnsView()" />
-
-      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
-        <i class="pi pi-filter-slash" aria-hidden="true"></i>
-        Azzera filtri
-      </app-button>
+      @if (hasActiveFilters()) {
+        <button type="button" class="sales-list__clear" (click)="resetFilters()">Azzera</button>
+      }
     </div>
   </div>
 
@@ -233,6 +258,8 @@
       <span class="sales-list__bulk-count tabular-nums">
         {{ selectedOrders().length }}
         {{ selectedOrders().length === 1 ? 'ordine selezionato' : 'ordini selezionati' }}
+        <span class="sales-list__bulk-sep" aria-hidden="true">·</span>
+        Totale <strong>{{ formatMoney(selectionTotal()) }}</strong>
       </span>
       <app-button variant="secondary" (click)="printSelectionList()">
         <i class="pi pi-print" aria-hidden="true"></i>
@@ -332,6 +359,149 @@
     (confirmed)="onExternalWarnConfirm()"
     (dismissed)="onExternalWarnCancel()"
   />
+
+  <!-- Pannello filtri mobile: gli stessi filtri della toolbar, a tutta
+       larghezza. Scrivono su query() come le chip, quindi restano allineati. -->
+  <app-slide-panel
+    [open]="mobileFiltersOpen()"
+    title="Filtri"
+    size="narrow"
+    (closed)="mobileFiltersOpen.set(false)"
+  >
+    @if (mobileFiltersOpen()) {
+      <div class="sales-list__panel-filters">
+        <div class="sales-list__field">
+          <span class="sales-list__label">Periodo</span>
+          <app-select-menu
+            [options]="periodOptions"
+            [value]="periodPreset()"
+            ariaLabel="Filtra per periodo"
+            placeholder="Tutto"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onPeriodPresetChange($event)"
+          />
+        </div>
+
+        @if (isCustomPeriod()) {
+          <div class="sales-list__field">
+            <span class="sales-list__label">Dal</span>
+            <app-date-input
+              inputId="sales-panel-date-from"
+              [value]="query().placedFrom ?? ''"
+              ariaLabel="Data inizio periodo"
+              placeholder="gg/mm/aaaa"
+              [compact]="true"
+              [fullWidth]="true"
+              [max]="query().placedTo || undefined"
+              (valueChange)="onDateFromChange($event)"
+            />
+          </div>
+          <div class="sales-list__field">
+            <span class="sales-list__label">Al</span>
+            <app-date-input
+              inputId="sales-panel-date-to"
+              [value]="query().placedTo ?? ''"
+              ariaLabel="Data fine periodo"
+              placeholder="gg/mm/aaaa"
+              [compact]="true"
+              [fullWidth]="true"
+              [min]="query().placedFrom || undefined"
+              (valueChange)="onDateToChange($event)"
+            />
+          </div>
+        }
+
+        <div class="sales-list__field">
+          <span class="sales-list__label">Stato</span>
+          <app-select-menu
+            [options]="stateOptions"
+            [value]="query().state ?? ''"
+            ariaLabel="Filtra per stato ordine"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onStateFilterChange($event)"
+          />
+        </div>
+
+        <div class="sales-list__field">
+          <span class="sales-list__label">Origine</span>
+          <app-select-menu
+            [options]="sourceOptions()"
+            [value]="query().source ?? ''"
+            ariaLabel="Filtra per origine ordine"
+            placeholder="Tutte"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onSourceFilterChange($event)"
+          />
+        </div>
+
+        <div class="sales-list__field">
+          <span class="sales-list__label">Pagamento</span>
+          <app-select-menu
+            [options]="financialStatusOptions"
+            [value]="query().financialStatus ?? ''"
+            ariaLabel="Filtra per stato pagamento"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onFinancialFilterChange($event)"
+          />
+        </div>
+
+        <div class="sales-list__field">
+          <span class="sales-list__label">Evasione</span>
+          <app-select-menu
+            [options]="fulfillmentStatusOptions"
+            [value]="query().fulfillmentStatus ?? ''"
+            ariaLabel="Filtra per stato evasione"
+            placeholder="Tutte"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onFulfillmentFilterChange($event)"
+          />
+        </div>
+
+        <div class="sales-list__field">
+          <span class="sales-list__label">Cliente</span>
+          <app-select-menu
+            [options]="customerOptions()"
+            [value]="query().customerId ?? ''"
+            ariaLabel="Filtra per cliente"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca cliente…"
+            searchAriaLabel="Cerca cliente"
+            (valueChange)="onCustomerFilterChange($event)"
+          />
+        </div>
+
+        <div class="sales-list__field">
+          <span class="sales-list__label">Location</span>
+          <app-select-menu
+            [options]="locationOptions()"
+            [value]="query().locationId ?? ''"
+            ariaLabel="Filtra per location"
+            placeholder="Tutte"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onLocationFilterChange($event)"
+          />
+        </div>
+
+        <div class="sales-list__panel-actions">
+          @if (hasActiveFilters()) {
+            <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
+          }
+          <app-button (click)="mobileFiltersOpen.set(false)">Vedi risultati</app-button>
+        </div>
+      </div>
+    }
+  </app-slide-panel>
 
   <!-- Duplica: scelta del cliente per il nuovo ordine manuale. -->
   @if (duplicateModalOpen()) {

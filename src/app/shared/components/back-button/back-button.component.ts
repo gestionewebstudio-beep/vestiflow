@@ -6,12 +6,16 @@ import { filter, map, startWith } from 'rxjs';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { parentRoute } from '@core/utils/parent-route.util';
 
+/** Ultima spiaggia: da qualunque pagina la freccia porta almeno alla home. */
+const ROOT_FALLBACK = '/app/dashboard';
+
 /**
  * Pulsante «← Indietro» generico sopra il titolo di pagina: torna alla pagina
  * precedente nella cronologia dell'app. Se quella cronologia non c'è — link
- * diretto, nuova scheda o refresh, che azzera le navigazioni del Router — il
- * pulsante resta e porta alla pagina padre ricavata dall'URL, invece di
- * sparire lasciando la schermata senza via d'uscita.
+ * diretto, nuova scheda o refresh, che azzera le navigazioni del Router — NON
+ * sparisce: porta alla pagina padre ricavata dall'URL, oppure, per le pagine
+ * di primo livello che un padre non ce l'hanno, alla dashboard. Così non resta
+ * mai una schermata senza via d'uscita in-app.
  */
 @Component({
   selector: 'app-back-button',
@@ -35,19 +39,20 @@ export class BackButtonComponent {
     { initialValue: this.router.url },
   );
 
-  private readonly fallback = computed(() => this.fallbackLink() ?? parentRoute(this.url()));
-
-  /** Nascosto solo se non c'è né cronologia interna né un livello superiore. */
-  protected readonly visible = computed(() => this.navHistory.canGoBack() || !!this.fallback());
+  /**
+   * Destinazione quando manca la cronologia: prima il link esplicito, poi il
+   * padre dedotto dall'URL, infine la dashboard. Non è mai nullo, quindi la
+   * freccia resta sempre visibile e cliccabile anche dopo un refresh.
+   */
+  private readonly fallback = computed(
+    () => this.fallbackLink() ?? parentRoute(this.url()) ?? ROOT_FALLBACK,
+  );
 
   protected goBack(): void {
     if (this.navHistory.canGoBack()) {
       this.navHistory.back();
       return;
     }
-    const target = this.fallback();
-    if (target) {
-      void this.router.navigateByUrl(target);
-    }
+    void this.router.navigateByUrl(this.fallback());
   }
 }
