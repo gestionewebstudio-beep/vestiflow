@@ -928,3 +928,28 @@
     grid-column: auto;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F3 — sezione righe disabilitata finché mancano cliente/location.
+// ═══════════════════════════════════════════════════════════════════════════
+@include bp.media-down('lg') {
+  // Aspetto chiaramente «in attesa»: opacità ridotta, bordi tenui tratteggiati,
+  // testi pallidi. Torna normale quando il gate si sblocca (fieldset non più
+  // disabled). Il cosa-fare è nel banner warning sopra la sezione.
+  .co-form .gr-form__gate-fields:disabled {
+    opacity: 0.6;
+  }
+
+  .co-form .gr-form__gate-fields:disabled .co-form__mobile-quick,
+  .co-form .gr-form__gate-fields:disabled .co-form__card {
+    border-style: dashed;
+    border-color: var(--co-line);
+    box-shadow: none;
+  }
+
+  .co-form .gr-form__gate-fields:disabled .co-form__card-name,
+  .co-form .gr-form__gate-fields:disabled .co-form__card-sub,
+  .co-form .gr-form__gate-fields:disabled .gr-form__subtitle {
+    color: var(--co-muted);
+  }
+}
