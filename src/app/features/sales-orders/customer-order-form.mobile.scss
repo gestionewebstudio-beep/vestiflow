@@ -28,7 +28,13 @@
   box-shadow: 0 2px 10px rgb(20 42 34 / 0.045);
   transition:
     border-color var(--transition-base) var(--ease-standard),
-    box-shadow var(--transition-base) var(--ease-standard);
+    box-shadow var(--transition-base) var(--ease-standard),
+    transform 120ms var(--ease-standard);
+}
+
+// Contatto visivo al tocco (<150ms): leggero affondo della card riga.
+.co-form__card:active {
+  transform: scale(0.995);
 }
 
 .co-form__card--open {
@@ -441,6 +447,16 @@
 }
 
 @include bp.media-down('lg') {
+  // Testata del form ancorata in cima durante lo scroll (il breadcrumb di shell
+  // resta com'è): «Indietro» e titolo sempre raggiungibili col pollice.
+  .co-form .gr-form__head-row {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--z-sticky);
+    padding-block: var(--space-2);
+    background-color: var(--co-bg);
+  }
+
   // Riga titolo: stato e numero documento su righe proprie.
   .co-form .gr-form__title {
     font-size: var(--co-text-title-m);
@@ -467,13 +483,30 @@
     display: flex;
   }
 
+  // Apertura/chiusura animata (≤200ms) invece dello stacco netto; visibility
+  // toglie i campi dal tab order quando la testata è chiusa.
   .co-form .co-form__header-details {
-    display: none;
-    border-block-start: var(--border-width) solid var(--co-line);
+    display: block;
+    overflow: hidden;
+    max-block-size: 0;
+    opacity: 0;
+    visibility: hidden;
+    border-block-start: 0;
+    transition:
+      max-block-size 200ms var(--ease-standard),
+      opacity 160ms var(--ease-standard),
+      visibility 0s linear 200ms;
   }
 
   .co-form .co-form__header--open .co-form__header-details {
-    display: block;
+    max-block-size: 34rem;
+    opacity: 1;
+    visibility: visible;
+    border-block-start: var(--border-width) solid var(--co-line);
+    transition:
+      max-block-size 200ms var(--ease-standard),
+      opacity 160ms var(--ease-standard),
+      visibility 0s;
   }
 
   .co-form .co-form__header-row,
@@ -543,6 +576,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    // Isola l'eventuale scroll interno dell'elenco dalla pagina (il bounce a
+    // livello di pagina resta gestito dalla shell).
+    overscroll-behavior: contain;
   }
 
   .co-form__mobile-quick {
@@ -696,5 +732,46 @@
 
   .co-form .co-form__dock-actions > app-button.co-form__dock-save ::ng-deep .app-button {
     flex: 1 0 100%;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Rifiniture UX mobile (feel nativo): feedback al tocco e tap target ≥44px.
+// Le classi .co-form__card* / __header-summary vivono solo nella vista mobile,
+// quindi non serve racchiuderle in una media query.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Feedback pressed veloce (<150ms) sugli elementi tappabili custom.
+.co-form__card-head,
+.co-form__header-summary,
+.co-form__card-search-btn {
+  transition: background-color 120ms var(--ease-standard);
+}
+
+.co-form__card-head:active,
+.co-form__header-summary:active,
+.co-form__card-search-btn:active {
+  background-color: var(--co-surface-soft, var(--co-header-alt));
+}
+
+// Tap target ≥44×44 sui pochi controlli icona ancora sotto soglia (il cestino
+// della riga «documento collegato» usa l'altezza densa da desktop).
+.co-form__mobile-source-row .gr-form__line-remove {
+  min-block-size: 2.75rem;
+  min-inline-size: 2.75rem;
+}
+
+// Rispetto di «riduci animazioni».
+@media (prefers-reduced-motion: reduce) {
+  .co-form__card,
+  .co-form__card-head,
+  .co-form__header-summary,
+  .co-form__card-search-btn,
+  .co-form .co-form__header-details {
+    transition-duration: 0.01ms;
+  }
+
+  .co-form__card:active {
+    transform: none;
   }
 }
