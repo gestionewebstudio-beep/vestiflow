@@ -1257,11 +1257,15 @@
                   />
                 </div>
                 @if (barcodeScannerEnabled && !formReadOnly()) {
-                  <app-barcode-scanner
+                  <app-button
+                    type="button"
                     class="co-form__scan-cta"
-                    label="Scansiona"
-                    (scanned)="onMobileScanned($event)"
-                  />
+                    [disabled]="headerGateActive()"
+                    (click)="openScanOverlay()"
+                  >
+                    <i class="pi pi-camera" aria-hidden="true"></i>
+                    Scansiona
+                  </app-button>
                 }
               </div>
               @if (topSearchActive()) {
@@ -2234,6 +2238,17 @@
     </form>
   }
 </section>
+
+<!-- F6: overlay fotocamera fullscreen metà/metà. -->
+@if (scanOverlayOpen()) {
+  <app-order-scan-overlay
+    [locationId]="form.controls.locationId.value || null"
+    (lineAdded)="onScanLineAdded($event)"
+    (quickAddRequested)="onScanQuickAdd($event)"
+    (createFullRequested)="onScanCreateFull($event)"
+    (closed)="closeScanOverlay()"
+  />
+}
 
 @if (concludeMenuOpen()) {
   <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="toggleConcludeMenu()"></div>

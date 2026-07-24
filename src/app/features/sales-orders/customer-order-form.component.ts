@@ -40,6 +40,7 @@ import {
 } from '@core/models/document-number-conflict.util';
 import type { Money } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
+import { ProductStatus } from '@core/models/product.model';
 import {
   ManualOrderState,
   manualOrderState,
@@ -113,13 +114,14 @@ import { ProductFormComponent } from '@features/products/product-form.component'
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { ProductSearchResultsComponent } from '@features/products/components/product-search-results/product-search-results.component';
+import type { CreateProductDto } from '@features/products/models/product.dto';
+import { OrderScanOverlayComponent } from './components/order-scan-overlay/order-scan-overlay.component';
 import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
 import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
-import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
@@ -211,7 +213,7 @@ interface AvailabilityIssue {
     BackButtonComponent,
     BadgeComponent,
     AttachmentsPanelComponent,
-    BarcodeScannerComponent,
+    OrderScanOverlayComponent,
     ProductSearchResultsComponent,
     ButtonComponent,
     ConfirmDialogComponent,
@@ -1019,6 +1021,79 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.applyScannedVariant(variantId, 1);
     this.topSearchDraft.set('');
     this.mobileScanEditing.set(false);
+  }
+
+  // ── F6: overlay scanner metà/metà ────────────────────────────────────────
+  protected readonly scanOverlayOpen = signal(false);
+  /** EAN del flusso «Crea prodotto» dallo scanner: prefill pannello + add riga. */
+  private readonly scanCreateBarcode = signal('');
+
+  protected openScanOverlay(): void {
+    if (this.formReadOnly() || this.headerGateActive()) {
+      return;
+    }
+    this.scanOverlayOpen.set(true);
+  }
+
+  protected closeScanOverlay(): void {
+    this.scanOverlayOpen.set(false);
+  }
+
+  protected onScanLineAdded(event: {
+    readonly variantId: string;
+    readonly quantity: number;
+  }): void {
+    this.applyScannedVariant(event.variantId, event.quantity);
+  }
+
+  /** Quick-add non catalogato: crea il prodotto bozza (NON sincronizzato con
+   *  Shopify, F0) e aggiunge la riga. Payload minimo, riuso della create. */
+  protected onScanQuickAdd(event: {
+    readonly name: string;
+    readonly priceText: string;
+    readonly ean: string;
+    readonly quantity: number;
+  }): void {
+    const price = parseMoneyInput(event.priceText, this.currency);
+    const payload: CreateProductDto = {
+      name: event.name,
+      status: ProductStatus.Draft,
+      shopifySyncEnabled: false,
+      options: [],
+      variants: [
+        {
+          optionValues: [],
+          sellingPrice: price ?? { amountMinor: 0, currencyCode: this.currency },
+          barcode: event.ean || undefined,
+        },
+      ],
+    };
+    const locationId = this.form.controls.locationId.value || undefined;
+    this.productService
+      .createProduct(payload)
+      .pipe(
+        switchMap(() => this.barcodeLookup.resolveVariantIdByCode(event.ean, { locationId })),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (variantId) => {
+          if (variantId) {
+            this.applyScannedVariant(variantId, event.quantity);
+          }
+        },
+        error: (err: unknown) => this.quickScanError.set(this.toAppError(err).message),
+      });
+  }
+
+  protected onScanCreateFull(ean: string): void {
+    this.scanOverlayOpen.set(false);
+    this.scanCreateBarcode.set(ean);
+    this.attachTargetLineIndex.set(null);
+    this.productPanelLineIndex.set(null);
+    this.productPanelEditProductId.set(null);
+    this.productPanelMode.set('create');
+    this.productPanelOpen.set(true);
   }
 
   // ── Pannello anagrafica prodotto (creazione/modifica al volo, come GR) ──
@@ -2251,8 +2326,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       return null;
     }
     const index = this.productPanelLineIndex();
+    // «Crea prodotto» dallo scanner: nessuna riga di partenza, solo l'EAN.
     if (index == null) {
-      return null;
+      const scanEan = this.scanCreateBarcode();
+      return scanEan ? { barcode: scanEan } : null;
     }
     const line = this.lines.at(index);
     if (!line) {
@@ -2347,6 +2424,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (lineIndex != null) {
       this.onVariantSelect(lineIndex, event.variantId);
       this.pinVariantSummary(lineIndex, event.variantId);
+    } else if (this.scanCreateBarcode()) {
+      // «Crea prodotto» dallo scanner (F6): aggiungi la variante creata come riga.
+      this.applyScannedVariant(event.variantId, 1);
+      this.scanCreateBarcode.set('');
     }
     this.closeProductPanel();
   }
@@ -2462,16 +2543,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   private focusQuickScan(): void {
     setTimeout(() => this.quickScanInputRef()?.nativeElement.focus(), 0);
-  }
-
-  // ── Scanner-first mobile ────────────────────────────────────────────────
-  /** Codice dalla fotocamera: stesso flusso dello scan manuale (qta*codice). */
-  protected onMobileScanned(code: string): void {
-    if (this.formReadOnly() || this.headerGateActive()) {
-      return;
-    }
-    this.quickScanDraft.set(code);
-    this.commitQuickScan();
   }
 
   /**
