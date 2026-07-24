@@ -10,28 +10,16 @@ import {
   viewChild,
 } from '@angular/core';
 
+import {
+  BarcodeDetectionService,
+  type BarcodeDetectorLike,
+} from '@core/services/barcode-detection.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 
-interface BarcodeDetectorLike {
-  detect(source: ImageBitmapSource): Promise<readonly { rawValue: string }[]>;
-}
-
-type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDetectorLike;
-
-declare global {
-  interface Window {
-    BarcodeDetector?: BarcodeDetectorCtor;
-  }
-}
-
-/** Percorso same-origin del .wasm (copiato da angular.json); i CDN sono
- *  vietati dalla CSP connect-src 'self'. */
-const ZXING_WASM_PATH = '/assets/zxing_reader.wasm';
-
 /**
- * Scanner barcode. Su Chrome/Android usa l'API nativa BarcodeDetector; dove
- * manca (iOS Safari) carica in lazy un ponyfill ZXing-WASM equivalente, così
- * la scansione funziona su tutti i dispositivi. Ultimo fallback: input manuale.
+ * Scanner barcode inline (cassa/magazzino). La risoluzione del detector (native
+ * o ponyfill ZXing-WASM per iOS) è delegata a BarcodeDetectionService; qui resta
+ * il solo loop di cattura sul video. Ultimo fallback: input manuale.
  */
 @Component({
   selector: 'app-barcode-scanner',
@@ -42,6 +30,7 @@ const ZXING_WASM_PATH = '/assets/zxing_reader.wasm';
 })
 export class BarcodeScannerComponent {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly detection = inject(BarcodeDetectionService);
   private readonly videoRef = viewChild<ElementRef<HTMLVideoElement>>('video');
 
   readonly label = input<string>('Scansiona barcode');
@@ -52,42 +41,12 @@ export class BarcodeScannerComponent {
   protected readonly scanning = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
   // Abilitato ovunque ci sia una fotocamera: dove manca l'API nativa subentra
-  // il ponyfill WASM (vedi resolveDetectorCtor), quindi non è più un gate sui
-  // soli Chrome/Android.
-  protected readonly detectorSupported = signal(
-    typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
-  );
+  // il ponyfill WASM del servizio, quindi non è più un gate sui soli Chrome/Android.
+  protected readonly detectorSupported = signal(this.detection.cameraSupported);
 
   private stream: MediaStream | null = null;
   private rafId: number | null = null;
   private detector: BarcodeDetectorLike | null = null;
-  private detectorCtor: BarcodeDetectorCtor | null = null;
-
-  /**
-   * Costruttore del detector: API nativa se presente, altrimenti ponyfill
-   * ZXing-WASM caricato in lazy (chunk separato, solo qui) e configurato per
-   * prendere il .wasm da same-origin. Cache dopo la prima risoluzione.
-   */
-  private async resolveDetectorCtor(): Promise<BarcodeDetectorCtor | null> {
-    if (this.detectorCtor) {
-      return this.detectorCtor;
-    }
-    if (typeof window !== 'undefined' && window.BarcodeDetector) {
-      this.detectorCtor = window.BarcodeDetector;
-      return this.detectorCtor;
-    }
-    try {
-      const mod = await import('barcode-detector/pure');
-      mod.setZXingModuleOverrides({
-        locateFile: (path: string, prefix: string) =>
-          path.endsWith('.wasm') ? ZXING_WASM_PATH : prefix + path,
-      });
-      this.detectorCtor = mod.BarcodeDetector as unknown as BarcodeDetectorCtor;
-      return this.detectorCtor;
-    } catch {
-      return null;
-    }
-  }
 
   protected async startScan(): Promise<void> {
     if (this.scanning()) {
@@ -97,8 +56,8 @@ export class BarcodeScannerComponent {
     this.errorMessage.set(null);
     this.scanning.set(true);
 
-    const BarcodeDetectorCtor = await this.resolveDetectorCtor();
-    if (!BarcodeDetectorCtor) {
+    const detector = await this.detection.createDetector();
+    if (!detector) {
       this.errorMessage.set(
         'Scanner non disponibile su questo dispositivo. Usa l’inserimento manuale.',
       );
@@ -107,9 +66,7 @@ export class BarcodeScannerComponent {
     }
 
     try {
-      this.detector = new BarcodeDetectorCtor({
-        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'],
-      });
+      this.detector = detector;
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
         audio: false,
