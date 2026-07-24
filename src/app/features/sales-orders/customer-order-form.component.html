@@ -1481,28 +1481,44 @@
               }
             </div>
 
-            <!-- Scansione rapida su mobile: la riga in fondo alla tabella non
-                 esiste senza tabella, quindi diventa una card dedicata. -->
+            <!-- Scansione rapida su mobile: scanner-first (fotocamera come CTA
+                 primaria); il campo testo è secondario e resta bloccato finché
+                 non lo si tocca, così la tastiera non si apre da sola. -->
             <div class="co-form__mobile-quick">
-              <input
-                id="co-mobile-scan"
-                class="gr-form__input"
-                type="text"
-                [value]="quickScanDraft()"
-                [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
-                autocomplete="off"
-                placeholder="Scansiona o cerca prodotto…"
-                aria-label="Scansiona o cerca prodotto"
-                (input)="onQuickScanInput($any($event.target).value)"
-                (keydown.enter)="commitQuickScan(); $event.preventDefault()"
-              />
-              <app-button
-                type="button"
-                [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
-                (click)="commitQuickScan()"
-              >
-                Aggiungi
-              </app-button>
+              @if (barcodeScannerEnabled && !formReadOnly()) {
+                <app-barcode-scanner
+                  class="co-form__mobile-scanner"
+                  label="Scansiona"
+                  (scanned)="onMobileScanned($event)"
+                />
+              }
+              <div class="co-form__mobile-quick-manual">
+                <input
+                  #coMobileScan
+                  id="co-mobile-scan"
+                  class="gr-form__input"
+                  type="text"
+                  [value]="quickScanDraft()"
+                  [readonly]="!mobileScanEditing()"
+                  [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
+                  autocomplete="off"
+                  inputmode="text"
+                  placeholder="Oppure cerca o digita il codice…"
+                  aria-label="Cerca o digita il codice prodotto"
+                  (pointerdown)="enableMobileScanKeyboard(coMobileScan)"
+                  (input)="onQuickScanInput($any($event.target).value)"
+                  (keydown.enter)="commitQuickScan(); $event.preventDefault()"
+                  (blur)="mobileScanEditing.set(false)"
+                />
+                <app-button
+                  type="button"
+                  variant="secondary"
+                  [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
+                  (click)="commitQuickScan()"
+                >
+                  Aggiungi
+                </app-button>
+              </div>
             </div>
           </section>
 

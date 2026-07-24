@@ -35,6 +35,11 @@
                 "glob": "**/*",
                 "input": "src/assets/guide-admin",
                 "output": "/assets/guide-admin"
+              },
+              {
+                "glob": "zxing_reader.wasm",
+                "input": "node_modules/zxing-wasm/dist/reader",
+                "output": "/assets"
               }
             ],
             "styles": [

@@ -383,6 +383,28 @@
   --field-height: var(--co-btn-h-dock);
 }
 
+// Fotocamera: CTA primaria a piena larghezza, in cima alla card.
+.co-form__mobile-scanner {
+  display: block;
+}
+
+.co-form__mobile-scanner ::ng-deep .barcode-scanner__control,
+.co-form__mobile-scanner ::ng-deep .barcode-scanner__control .app-button,
+.co-form__mobile-scanner ::ng-deep .barcode-scanner__viewport {
+  inline-size: 100%;
+}
+
+.co-form__mobile-scanner ::ng-deep .barcode-scanner__control .app-button {
+  min-block-size: var(--co-btn-h-dock);
+  font-size: var(--co-text-touch);
+}
+
+// Riga secondaria: ricerca/digitazione manuale + Aggiungi.
+.co-form__mobile-quick-manual {
+  display: flex;
+  gap: var(--space-2);
+}
+
 .co-form__mobile-quick .gr-form__input {
   flex: 1;
   min-inline-size: 0;
@@ -525,6 +547,7 @@
 
   .co-form__mobile-quick {
     display: flex;
+    flex-direction: column;
   }
 
   // Totali a due colonne; il totale documento vive nel dock.

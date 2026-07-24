@@ -16,14 +16,22 @@ interface BarcodeDetectorLike {
   detect(source: ImageBitmapSource): Promise<readonly { rawValue: string }[]>;
 }
 
+type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDetectorLike;
+
 declare global {
   interface Window {
-    BarcodeDetector?: new (options?: { formats?: string[] }) => BarcodeDetectorLike;
+    BarcodeDetector?: BarcodeDetectorCtor;
   }
 }
 
+/** Percorso same-origin del .wasm (copiato da angular.json); i CDN sono
+ *  vietati dalla CSP connect-src 'self'. */
+const ZXING_WASM_PATH = '/assets/zxing_reader.wasm';
+
 /**
- * Scanner barcode via BarcodeDetector (Chrome/Android). Fallback: input manuale.
+ * Scanner barcode. Su Chrome/Android usa l'API nativa BarcodeDetector; dove
+ * manca (iOS Safari) carica in lazy un ponyfill ZXing-WASM equivalente, così
+ * la scansione funziona su tutti i dispositivi. Ultimo fallback: input manuale.
  */
 @Component({
   selector: 'app-barcode-scanner',
@@ -43,26 +51,60 @@ export class BarcodeScannerComponent {
 
   protected readonly scanning = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+  // Abilitato ovunque ci sia una fotocamera: dove manca l'API nativa subentra
+  // il ponyfill WASM (vedi resolveDetectorCtor), quindi non è più un gate sui
+  // soli Chrome/Android.
   protected readonly detectorSupported = signal(
-    typeof window !== 'undefined' && typeof window.BarcodeDetector !== 'undefined',
+    typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
   );
 
   private stream: MediaStream | null = null;
   private rafId: number | null = null;
   private detector: BarcodeDetectorLike | null = null;
+  private detectorCtor: BarcodeDetectorCtor | null = null;
+
+  /**
+   * Costruttore del detector: API nativa se presente, altrimenti ponyfill
+   * ZXing-WASM caricato in lazy (chunk separato, solo qui) e configurato per
+   * prendere il .wasm da same-origin. Cache dopo la prima risoluzione.
+   */
+  private async resolveDetectorCtor(): Promise<BarcodeDetectorCtor | null> {
+    if (this.detectorCtor) {
+      return this.detectorCtor;
+    }
+    if (typeof window !== 'undefined' && window.BarcodeDetector) {
+      this.detectorCtor = window.BarcodeDetector;
+      return this.detectorCtor;
+    }
+    try {
+      const mod = await import('barcode-detector/pure');
+      mod.setZXingModuleOverrides({
+        locateFile: (path: string, prefix: string) =>
+          path.endsWith('.wasm') ? ZXING_WASM_PATH : prefix + path,
+      });
+      this.detectorCtor = mod.BarcodeDetector as unknown as BarcodeDetectorCtor;
+      return this.detectorCtor;
+    } catch {
+      return null;
+    }
+  }
 
   protected async startScan(): Promise<void> {
-    if (!this.detectorSupported()) {
-      return;
-    }
-
-    const BarcodeDetectorCtor = window.BarcodeDetector;
-    if (!BarcodeDetectorCtor) {
+    if (this.scanning()) {
       return;
     }
 
     this.errorMessage.set(null);
     this.scanning.set(true);
+
+    const BarcodeDetectorCtor = await this.resolveDetectorCtor();
+    if (!BarcodeDetectorCtor) {
+      this.errorMessage.set(
+        'Scanner non disponibile su questo dispositivo. Usa l’inserimento manuale.',
+      );
+      this.scanning.set(false);
+      return;
+    }
 
     try {
       this.detector = new BarcodeDetectorCtor({

@@ -73,6 +73,7 @@
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@supabase/supabase-js": "^2.108.1",
+    "barcode-detector": "^3.2.1",
     "chart.js": "^4.5.1",
     "jsbarcode": "^3.12.3",
     "ng2-charts": "^10.0.0",

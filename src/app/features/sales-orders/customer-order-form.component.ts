@@ -25,6 +25,7 @@ import {
 } from 'rxjs';
 
 import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import {
@@ -117,6 +118,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
+import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
@@ -208,6 +210,7 @@ interface AvailabilityIssue {
     BackButtonComponent,
     BadgeComponent,
     AttachmentsPanelComponent,
+    BarcodeScannerComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
@@ -257,8 +260,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // colonne: la ridistribuzione ragiona in pixel veri, non in quote.
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly breadcrumbLabels = inject(BreadcrumbLabelService);
+  private readonly appConfig = inject(APP_CONFIG);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+
+  /** Scanner fotocamera disponibile (feature flag tenant). */
+  protected readonly barcodeScannerEnabled = this.appConfig.features.barcodeScanner;
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -941,6 +948,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly quickScanBusy = signal(false);
   protected readonly quickScanError = signal<string | null>(null);
   private readonly quickScanInputRef = viewChild<ElementRef<HTMLInputElement>>('quickScanInput');
+  /**
+   * Card mobile scanner-first: il campo testo resta bloccato (readonly, niente
+   * tastiera automatica) finché non lo si tocca esplicitamente. La CTA primaria
+   * è «Scansiona»; questo flag apre la tastiera solo su richiesta dell'utente.
+   */
+  protected readonly mobileScanEditing = signal(false);
 
   // ── Pannello anagrafica prodotto (creazione/modifica al volo, come GR) ──
   protected readonly productPanelOpen = signal(false);
@@ -2315,6 +2328,30 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   private focusQuickScan(): void {
     setTimeout(() => this.quickScanInputRef()?.nativeElement.focus(), 0);
+  }
+
+  // ── Scanner-first mobile ────────────────────────────────────────────────
+  /** Codice dalla fotocamera: stesso flusso dello scan manuale (qta*codice). */
+  protected onMobileScanned(code: string): void {
+    if (this.formReadOnly() || this.headerGateActive()) {
+      return;
+    }
+    this.quickScanDraft.set(code);
+    this.commitQuickScan();
+  }
+
+  /**
+   * Tap esplicito sul campo testo: sblocca la sola tastiera (readonly→editable)
+   * nello stesso gesto utente, così su iOS si apre al primo tocco deliberato ma
+   * mai automaticamente (la CTA primaria resta «Scansiona»).
+   */
+  protected enableMobileScanKeyboard(input: HTMLInputElement): void {
+    if (this.formReadOnly() || this.quickScanBusy() || this.headerGateActive()) {
+      return;
+    }
+    this.mobileScanEditing.set(true);
+    input.readOnly = false;
+    input.focus();
   }
 
   // ── Includi documento: inserimento righe dal documento di origine ───────

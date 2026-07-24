@@ -14,10 +14,14 @@
       Railway + Supabase). img-src https: per le immagini prodotto (CDN Shopify/
       storage). frame-ancestors/X-Frame-Options vanno aggiunti come header lato
       host (non impostabili da meta).
+      'wasm-unsafe-eval': abilita la SOLA compilazione WebAssembly (non riattiva
+      eval() JS) per il fallback di scansione barcode su iOS Safari (ponyfill
+      ZXing-WASM). Il .wasm è servito da same-origin (/assets), coerente con
+      connect-src 'self'; nessun CDN.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://vestiflow-production.up.railway.app https://upuypsqavodytixhlwvz.supabase.co wss://upuypsqavodytixhlwvz.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://vestiflow-production.up.railway.app https://upuypsqavodytixhlwvz.supabase.co wss://upuypsqavodytixhlwvz.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
     />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>VestiFlow</title>
