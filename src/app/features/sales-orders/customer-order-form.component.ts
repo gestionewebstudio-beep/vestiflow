@@ -925,6 +925,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // ── Autocomplete prodotto per riga ──────────────────────────────────────
   protected readonly autocompleteLineIndex = signal<number | null>(null);
   protected readonly activeSuggestionIndex = signal(0);
+  /**
+   * Card mobile: apre l'anteprima sopra il campo invece che sotto, quando sotto
+   * non c'è spazio a sufficienza (campo vicino al dock fisso in fondo). Uno solo
+   * per volta è aperto, quindi basta un flag condiviso.
+   */
+  protected readonly mobileSuggestAbove = signal(false);
   protected readonly productSearchPanelOpen = signal(false);
   protected readonly productSearchLineIndex = signal<number | null>(null);
   protected readonly productSearchLaunchTerm = signal('');
@@ -1837,6 +1843,56 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.autocompleteLineIndex.set(null);
     this.activeSuggestionIndex.set(0);
     this.variantSearchDraft.set('');
+  }
+
+  // ── Anteprima ricerca nella card mobile ─────────────────────────────────
+  // Riusa gli stessi handler del desktop; il campo resta un formControl, gli
+  // handler sono no-op in sola lettura (niente anteprima su ordini bloccati).
+  protected onMobileProductFocus(index: number, input: HTMLElement): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.updateMobileSuggestPlacement(input);
+    this.onLineProductFocus(index);
+  }
+
+  protected onMobileProductNameInput(index: number, input: HTMLInputElement): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.updateMobileSuggestPlacement(input);
+    this.onLineProductNameChange(index, input.value);
+  }
+
+  /** Dettaglio compatto della voce suggerita (SKU · EAN · prezzo). */
+  protected mobileSuggestionDetail(variant: VariantSummary): string {
+    const parts: string[] = [];
+    if (variant.sku) {
+      parts.push(variant.sku);
+    }
+    if (variant.barcode) {
+      parts.push(`EAN ${variant.barcode}`);
+    }
+    if (variant.sellingPrice.amountMinor > 0) {
+      parts.push(formatMoney(variant.sellingPrice));
+    }
+    return parts.join(' · ');
+  }
+
+  /**
+   * Sceglie il verso del dropdown: sotto il campo se lo spazio fino al fondo
+   * del viewport basta, sopra altrimenti (col dock fisso e la tastiera aperta
+   * lo spazio inferiore è spesso insufficiente).
+   */
+  private updateMobileSuggestPlacement(input: HTMLElement): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const rect = input.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const viewportBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+    // Sotto servono il dropdown (max ~13rem) più un margine dal dock fisso.
+    this.mobileSuggestAbove.set(viewportBottom - rect.bottom < 240);
   }
 
   protected onLineUnlink(index: number): void {

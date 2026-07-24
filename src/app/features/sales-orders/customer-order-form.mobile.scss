@@ -220,6 +220,59 @@
 .co-form__card-search {
   display: flex;
   gap: var(--space-2);
+  // Ancora per il dropdown anteprima (posizionato in assoluto).
+  position: relative;
+}
+
+// Anteprima risultati: sotto il campo per default, sopra se manca spazio
+// (classe --above impostata da updateMobileSuggestPlacement).
+.co-form__card-suggestions {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: calc(100% + var(--space-1));
+  z-index: var(--z-dropdown);
+  max-block-size: 13rem;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  list-style: none;
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line);
+  border-radius: var(--co-radius-sm);
+  box-shadow: var(--shadow-lg);
+  overscroll-behavior: contain;
+}
+
+.co-form__card-search--above .co-form__card-suggestions {
+  inset-block-start: auto;
+  inset-block-end: calc(100% + var(--space-1));
+}
+
+.co-form__card-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-block-size: 2.75rem;
+  padding: var(--space-2);
+  border-radius: var(--co-radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.co-form__card-suggestion:hover,
+.co-form__card-suggestion:active,
+.co-form__card-suggestion--active {
+  background-color: var(--co-surface-soft, var(--co-header-alt));
+}
+
+.co-form__card-suggestion-title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--co-text, var(--color-text));
+}
+
+.co-form__card-suggestion-detail {
+  font-size: var(--co-text-nano);
+  color: var(--co-muted);
 }
 
 .co-form__card-search .gr-form__input {

@@ -1267,23 +1267,73 @@
                           </div>
                           <div class="co-form__card-field co-form__card-field--full">
                             <label [attr.for]="'co-m-product-' + i">Nome prodotto</label>
-                            <div class="co-form__card-search">
+                            <div
+                              class="co-form__card-search"
+                              [class.co-form__card-search--above]="mobileSuggestAbove()"
+                            >
                               <input
+                                #coMobileProduct
                                 [id]="'co-m-product-' + i"
                                 class="gr-form__input"
                                 type="text"
                                 formControlName="productName"
                                 autocomplete="off"
+                                [attr.aria-expanded]="lineSuggestionsOpen(i)"
+                                [attr.aria-controls]="'co-m-suggest-' + i"
+                                (input)="onMobileProductNameInput(i, coMobileProduct)"
+                                (focus)="onMobileProductFocus(i, coMobileProduct)"
+                                (blur)="onLineProductBlur(i)"
                               />
                               <button
                                 type="button"
                                 class="co-form__card-search-btn"
                                 aria-label="Cerca prodotto"
                                 [disabled]="formReadOnly()"
+                                (mousedown)="$event.preventDefault()"
                                 (click)="openLineProductSearch(i)"
                               >
                                 <i class="pi pi-search" aria-hidden="true"></i>
                               </button>
+                              <!-- Anteprima live: chiude al pick (onVariantSelect azzera
+                                   l'autocomplete) e al tap fuori (blur → clear ritardato).
+                                   mousedown.preventDefault tiene il focus finché parte il tap. -->
+                              @if (lineSuggestionsOpen(i)) {
+                                <ul
+                                  [id]="'co-m-suggest-' + i"
+                                  class="co-form__card-suggestions"
+                                  role="listbox"
+                                  aria-label="Suggerimenti prodotto"
+                                >
+                                  @for (
+                                    item of lineSuggestions(i);
+                                    track item.variantId;
+                                    let idx = $index
+                                  ) {
+                                    <li
+                                      role="option"
+                                      class="co-form__card-suggestion"
+                                      [class.co-form__card-suggestion--active]="
+                                        idx === activeSuggestionIndex()
+                                      "
+                                      [attr.aria-selected]="idx === activeSuggestionIndex()"
+                                      tabindex="0"
+                                      (mousedown)="$event.preventDefault()"
+                                      (click)="onProductSuggestionPick(i, item.variantId)"
+                                      (keydown.enter)="
+                                        onProductSuggestionPick(i, item.variantId);
+                                        $event.preventDefault()
+                                      "
+                                    >
+                                      <span class="co-form__card-suggestion-title">{{
+                                        item.title
+                                      }}</span>
+                                      <span class="co-form__card-suggestion-detail">{{
+                                        mobileSuggestionDetail(item)
+                                      }}</span>
+                                    </li>
+                                  }
+                                </ul>
+                              }
                             </div>
                           </div>
 
