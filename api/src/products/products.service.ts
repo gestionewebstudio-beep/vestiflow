@@ -86,6 +86,7 @@ const PRODUCT_LIST_SELECT = {
   shopifyCollections: true,
   shopifyMetafields: true,
   status: true,
+  shopifySyncEnabled: true,
   catalogOrigin: true,
   shopifyCatalogLinkKind: true,
   options: true,
@@ -416,6 +417,7 @@ export class ProductsService {
           season: dto.season,
           tags: this.normalizeTags(dto.tags),
           status: dto.status,
+          shopifySyncEnabled: dto.shopifySyncEnabled ?? true,
           unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
           defaultVatCodeId: dto.defaultVatCodeId ?? null,
           inventoryTracking: dto.inventoryTracking ?? undefined,
@@ -616,6 +618,9 @@ export class ProductsService {
           season: dto.season,
           tags: dto.tags !== undefined ? this.normalizeTags(dto.tags) : undefined,
           status: dto.status,
+          ...(dto.shopifySyncEnabled !== undefined
+            ? { shopifySyncEnabled: dto.shopifySyncEnabled }
+            : {}),
           ...(dto.unitOfMeasure !== undefined
             ? { unitOfMeasure: dto.unitOfMeasure.trim() || 'pz' }
             : {}),

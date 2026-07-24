@@ -10,6 +10,7 @@ const baseProduct = {
   articleCode: '00001',
   name: 'Giacca',
   status: 'active' as const,
+  shopifySyncEnabled: true,
   catalogOrigin: CatalogOrigin.VestiFlow,
   options: [],
   createdAt: '2026-01-01T00:00:00.000Z',

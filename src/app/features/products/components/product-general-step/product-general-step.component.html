@@ -189,6 +189,15 @@
           />
         </div>
 
+        <!-- Indipendente dallo stato: se off, le modifiche NON vanno su Shopify
+             (posizione temporanea vicino allo Stato; in futuro nel blocco Shopify). -->
+        <div class="general-step__field general-step__field--checkbox">
+          <label class="general-step__checkbox">
+            <input type="checkbox" formControlName="shopifySyncEnabled" />
+            Sincronizza con Shopify
+          </label>
+        </div>
+
         <div class="general-step__field">
           <span class="general-step__label" id="product-uom-label">U.M.</span>
           <app-select-menu

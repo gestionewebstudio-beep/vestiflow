@@ -30,6 +30,7 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   season: '',
   tags: '',
   status: ProductStatus.Draft,
+  shopifySyncEnabled: true,
   unitOfMeasure: 'pz',
   defaultVatCodeId: '',
   inventoryTracking: InventoryTrackingMode.Standard,

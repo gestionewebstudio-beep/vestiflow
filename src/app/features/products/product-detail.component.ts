@@ -355,7 +355,9 @@ export class ProductDetailComponent {
           this.syncingShopify.set(false);
           if (!result.pushed) {
             this.shopifySyncMessage.set(
-              'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
+              result.reason === 'sync_disabled'
+                ? 'Sincronizzazione disattivata per questo prodotto: attiva «Sincronizza con Shopify» per allinearlo.'
+                : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
             );
           } else if (product?.shopify?.status === ShopifySyncStatus.Synced) {
             this.shopifySyncMessage.set('Sincronizzazione Shopify completata.');

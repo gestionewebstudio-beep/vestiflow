@@ -77,6 +77,8 @@ export interface Product extends TenantScoped, Timestamped {
   readonly shopifyMetafields?: readonly ShopifyMetafieldRef[];
   readonly shopifyCategoryMetafields?: readonly ShopifyCategoryMetafieldValue[];
   readonly status: ProductStatus;
+  /** Se false, le modifiche a questo prodotto NON si propagano a Shopify. */
+  readonly shopifySyncEnabled: boolean;
   /** Provenienza catalogo: determina quali campi sono editabili in gestionale. */
   readonly catalogOrigin: CatalogOrigin;
   readonly unitOfMeasure?: string;

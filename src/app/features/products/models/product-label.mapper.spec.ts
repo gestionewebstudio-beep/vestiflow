@@ -12,6 +12,7 @@ const product = {
   name: 'Maglietta Basic',
   brand: 'Brand X',
   status: ProductStatus.Active,
+  shopifySyncEnabled: true,
   catalogOrigin: CatalogOrigin.VestiFlow,
   options: [],
   createdAt: '2026-01-01T00:00:00.000Z',

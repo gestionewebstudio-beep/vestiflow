@@ -61,6 +61,8 @@ export interface CreateProductDto {
   readonly season?: string;
   readonly tags?: readonly string[];
   readonly status: ProductStatus;
+  /** Sincronizzazione Shopify: default true lato backend se omesso. */
+  readonly shopifySyncEnabled?: boolean;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;
@@ -92,6 +94,8 @@ export interface UpdateProductDto {
   readonly season?: string;
   readonly tags?: readonly string[];
   readonly status?: ProductStatus;
+  /** false→true: push iniziale; true→false: stop propagazione, nessun cleanup. */
+  readonly shopifySyncEnabled?: boolean;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;

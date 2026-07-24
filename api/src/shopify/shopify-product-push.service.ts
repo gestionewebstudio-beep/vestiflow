@@ -44,7 +44,8 @@ type VariantOptionRow = { readonly name: string; readonly value: string };
 export type ShopifyProductPushSkipReason =
   | 'not_connected'
   | 'missing_write_products_scope'
-  | 'archived';
+  | 'archived'
+  | 'sync_disabled';
 
 export interface ShopifyProductPushResult {
   readonly pushed: boolean;
@@ -155,7 +156,7 @@ export class ShopifyProductPushService {
 
     const product = await this.prisma.product.findFirst({
       where: { id: productId, tenantId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, shopifySyncEnabled: true },
     });
     if (!product) {
       return { ok: false, reason: 'shopify_error' };
@@ -163,6 +164,13 @@ export class ShopifyProductPushService {
 
     if (product.status === ProductStatus.archived) {
       return { ok: false, reason: 'archived' };
+    }
+
+    // Gate per-prodotto: in AND col gating per origine (assertShopifyCatalog*).
+    // Un false→true su update accoda comunque il push, che qui trova il flag
+    // aggiornato e procede con l'allineamento iniziale.
+    if (!product.shopifySyncEnabled) {
+      return { ok: false, reason: 'sync_disabled' };
     }
 
     return { ok: true };

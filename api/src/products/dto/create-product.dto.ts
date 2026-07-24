@@ -165,6 +165,16 @@ export class CreateProductDto {
   @IsEnum(ProductStatus)
   status: ProductStatus = ProductStatus.draft;
 
+  /**
+   * Sincronizzazione con Shopify per questo prodotto. Default true (form
+   * completo standard). Il quick-add da scanner (Ordine cliente) lo passa
+   * esplicitamente a false, così un articolo creato di fretta non finisce
+   * online finché non viene completato.
+   */
+  @IsOptional()
+  @IsBoolean()
+  shopifySyncEnabled?: boolean;
+
   @IsOptional()
   @IsString()
   @MinLength(1)

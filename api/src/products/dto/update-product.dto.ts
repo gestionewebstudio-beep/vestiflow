@@ -101,6 +101,15 @@ export class UpdateProductDto {
   @IsEnum(ProductStatus)
   status?: ProductStatus;
 
+  /**
+   * Sincronizzazione con Shopify per questo prodotto. false→true: al salvataggio
+   * scatta un push iniziale di allineamento. true→false: nessun cleanup, il
+   * prodotto già presente su Shopify resta ma non riceve più aggiornamenti.
+   */
+  @IsOptional()
+  @IsBoolean()
+  shopifySyncEnabled?: boolean;
+
   @IsOptional()
   @IsString()
   @MinLength(1)

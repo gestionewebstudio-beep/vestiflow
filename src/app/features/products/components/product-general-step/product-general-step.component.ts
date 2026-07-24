@@ -256,6 +256,7 @@ export class ProductGeneralStepComponent implements OnInit {
     season: this.fb.control(''),
     tags: this.fb.control(''),
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
+    shopifySyncEnabled: this.fb.control(true),
     unitOfMeasure: this.fb.control('pz'),
     defaultVatCodeId: this.fb.control(''),
     inventoryTracking: this.fb.control<InventoryTrackingMode>(InventoryTrackingMode.Standard),

@@ -24,6 +24,7 @@ const GENERAL: ProductGeneralDraft = {
   season: 'FW26',
   tags: 'premium',
   status: ProductStatus.Draft,
+  shopifySyncEnabled: true,
   unitOfMeasure: 'pz',
   defaultVatCodeId: '',
   inventoryTracking: InventoryTrackingMode.Standard,

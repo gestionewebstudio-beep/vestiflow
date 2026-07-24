@@ -198,6 +198,7 @@ describe('product-form.mapper', () => {
         description: 'Descrizione',
         category: 'Abbigliamento',
         status: ProductStatus.Active,
+        shopifySyncEnabled: true,
         catalogOrigin: CatalogOrigin.VestiFlow,
         options: [{ name: 'Taglia', values: ['M'] }],
         createdAt: '2026-01-01T00:00:00.000Z',

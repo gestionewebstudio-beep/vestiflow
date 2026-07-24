@@ -37,6 +37,8 @@ export interface ProductGeneralDraft {
   readonly season: string;
   readonly tags: string;
   readonly status: ProductStatus;
+  /** Sincronizzazione con Shopify per questo prodotto (indipendente dallo stato). */
+  readonly shopifySyncEnabled: boolean;
   readonly unitOfMeasure: string;
   /** Codice IVA del prodotto ('' = usa il predefinito aziendale). */
   readonly defaultVatCodeId: string;
