@@ -525,6 +525,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return id ? (this.customers().find((customer) => customer.id === id) ?? null) : null;
   });
 
+  /** Cliente presente (anagrafica o testo libero): stato pieno del banner mobile. */
+  protected readonly hasCustomer = computed(() => {
+    this.formValue();
+    return (
+      !!this.form.controls.customerId.value || !!this.form.controls.customerFreeText.value.trim()
+    );
+  });
+
   // ── Nuovo cliente inline (stesso pattern del Nuovo fornitore in GR) ─────
   protected readonly showCustomerForm = signal(false);
   readonly customerForm = createCustomerFormGroup(this.fb);
@@ -786,6 +794,22 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       return !this.form.controls.locationId.value;
     }
     return !this.form.controls.customerId.value || !this.form.controls.locationId.value;
+  });
+
+  /** Testo del banner warning: dice cosa manca per sbloccare le righe. */
+  protected readonly gateBannerMessage = computed(() => {
+    this.formValue();
+    const noCustomer = !this.isManualUnload && !this.form.controls.customerId.value;
+    const noLocation = !this.form.controls.locationId.value;
+    if (noCustomer && noLocation) {
+      return 'Seleziona cliente e location per iniziare ad aggiungere righe.';
+    }
+    if (noCustomer) {
+      return 'Seleziona il cliente per iniziare ad aggiungere righe.';
+    }
+    return this.isManualUnload
+      ? 'Seleziona la location di scarico per iniziare ad aggiungere righe.'
+      : 'Seleziona la location per iniziare ad aggiungere righe.';
   });
 
   // ── Apertura in sola lettura (come Arrivi merce) ─────────────────────────
@@ -1050,6 +1074,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.form.controls.locationId.valueChanges
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.refreshAllLineSummaries());
+
+    // Default Location = location corrente dell'operatore (nuovi documenti): il
+    // gate testata non si blocca più per location mancante. In modifica la
+    // location arriva dal documento, quindi non tocchiamo nulla. Impostazione
+    // non "sporca" il form (è un default, non una modifica dell'utente).
+    effect(() => {
+      const defaultLocationId = this.operationalLocations.defaultLocation()?.id;
+      if (!defaultLocationId || this.isEditMode() || this.form.controls.locationId.value) {
+        return;
+      }
+      this.suppressDirtyMarking = true;
+      this.form.controls.locationId.setValue(defaultLocationId);
+      this.suppressDirtyMarking = false;
+    });
 
     // Cliente scelto: propone sconto anagrafica sulle righe già compilate
     // senza sconto e condizioni di pagamento in testata (proposte, non vincoli).

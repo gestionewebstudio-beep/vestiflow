@@ -3,7 +3,19 @@
     <!-- Ritorno alla schermata precedente: nel mockup è il quadratino col
          chevron a sinistra del titolo, non un link sopra. -->
     <app-back-button />
-    <h1 class="gr-form__title">{{ pageTitle() }}</h1>
+    <h1 class="gr-form__title">
+      {{ pageTitle() }}
+      <!-- Modifiche non salvate: su mobile un puntino accanto al titolo (la riga
+           testuale co-form__save-state resta su desktop, nascosta sotto lg). -->
+      @if (isOrder && !formReadOnly() && dirtySinceLastSave()) {
+        <span
+          class="co-form__dirty-dot"
+          role="status"
+          aria-label="Modifiche non salvate"
+          title="Modifiche non salvate"
+        ></span>
+      }
+    </h1>
 
     @if (isEditMode()) {
       <div class="gr-form__meta">
@@ -125,23 +137,33 @@
         <div class="gr-form__header" [class.co-form__header--open]="mobileHeaderOpen()">
           <!-- Sotto lg la testata si riassume in una riga apribile (mockup
                responsive v3): i campi non occupano spazio finché non servono. -->
+          <!-- Banner cliente sempre visibile: stato vuoto (tratteggiato, cliente
+               obbligatorio) o pieno (nome + location · data · stato). Il tap apre
+               i dettagli dove si sceglie/cambia il cliente. -->
           <button
             type="button"
             class="co-form__header-summary"
+            [class.co-form__header-summary--empty]="!isManualUnload && !hasCustomer()"
             aria-controls="co-header-details"
             [attr.aria-expanded]="mobileHeaderOpen()"
             (click)="toggleMobileHeader()"
           >
             <span class="co-form__header-summary-icon" aria-hidden="true">
-              <i class="pi pi-file"></i>
+              <i class="pi pi-user"></i>
             </span>
-            <span class="co-form__header-summary-copy">
-              <strong>{{ mobileHeaderTitle() }}</strong>
-              <small>{{ mobileHeaderMeta() }}</small>
-            </span>
-            <span class="co-form__header-summary-edit">
-              {{ isOrder ? 'Dati ordine' : 'Dati documento' }}
-            </span>
+            @if (!isManualUnload && !hasCustomer()) {
+              <span class="co-form__header-summary-copy">
+                <strong>Tocca per selezionare cliente</strong>
+                <small class="co-form__header-summary-required">Cliente obbligatorio</small>
+              </span>
+              <span class="co-form__header-summary-edit">Seleziona</span>
+            } @else {
+              <span class="co-form__header-summary-copy">
+                <strong>{{ mobileHeaderTitle() }}</strong>
+                <small>{{ mobileHeaderMeta() }}</small>
+              </span>
+              <span class="co-form__header-summary-edit">Modifica</span>
+            }
             <i class="pi pi-chevron-down co-form__header-summary-chevron" aria-hidden="true"></i>
           </button>
 
@@ -404,13 +426,9 @@
         }
 
         @if (headerGateActive()) {
-          <p class="gr-form__gate-banner" role="status">
-            <i class="pi pi-lock" aria-hidden="true"></i>
-            {{
-              isManualUnload
-                ? 'Seleziona la location di scarico per iniziare ad aggiungere righe.'
-                : 'Seleziona cliente e location per iniziare ad aggiungere righe.'
-            }}
+          <p class="gr-form__gate-banner co-form__gate-banner--warn" role="status">
+            <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+            {{ gateBannerMessage() }}
           </p>
         }
 

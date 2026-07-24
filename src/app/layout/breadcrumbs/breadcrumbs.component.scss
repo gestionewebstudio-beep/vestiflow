@@ -1,6 +1,15 @@
+@use 'breakpoints' as bp;
+
 // Percorso di navigazione: fascia sottile e discreta sopra il contenuto.
 .breadcrumbs {
   margin-block-end: var(--space-3);
+}
+
+// Form Ordine cliente su mobile: via il breadcrumb, resta il pulsante «Indietro».
+.breadcrumbs--hide-mobile {
+  @include bp.media-down('lg') {
+    display: none;
+  }
 }
 
 .breadcrumbs__list {

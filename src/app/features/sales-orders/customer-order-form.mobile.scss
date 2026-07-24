@@ -775,3 +775,51 @@
     transform: none;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F1 — header compatto, banner cliente, banner warning (solo vista mobile).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Banner cliente vuoto: card «da riempire» tratteggiata, ben distinguibile.
+.co-form__header-summary--empty {
+  border: var(--border-width) dashed var(--co-line-strong);
+}
+
+.co-form__header-summary--empty .co-form__header-summary-icon {
+  color: var(--co-muted);
+  background-color: var(--co-surface-soft, var(--co-header-alt));
+}
+
+.co-form__header-summary-required {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Modifiche non salvate: puntino accanto al titolo, solo su mobile.
+.co-form__dirty-dot {
+  display: none;
+}
+
+@include bp.media-down('lg') {
+  .co-form .co-form__dirty-dot {
+    display: inline-block;
+    inline-size: 0.625rem;
+    block-size: 0.625rem;
+    margin-inline-start: var(--space-2);
+    vertical-align: middle;
+    background-color: var(--status-warning-fg);
+    border-radius: 50%;
+  }
+
+  // La riga testuale del salvataggio resta su desktop, via su mobile.
+  .co-form .co-form__save-state {
+    display: none;
+  }
+
+  // «Manca cliente/location»: fondo warning, non grigio tenue.
+  .co-form .co-form__gate-banner--warn {
+    color: var(--status-warning-fg);
+    background-color: var(--status-warning-bg);
+    border: var(--border-width) solid var(--status-warning-border);
+  }
+}

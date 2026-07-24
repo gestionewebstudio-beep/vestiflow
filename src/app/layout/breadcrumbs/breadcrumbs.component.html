@@ -1,5 +1,9 @@
 @if (crumbs().length > 0) {
-  <nav class="breadcrumbs" aria-label="Percorso di navigazione">
+  <nav
+    class="breadcrumbs"
+    [class.breadcrumbs--hide-mobile]="hideOnOrderForm()"
+    aria-label="Percorso di navigazione"
+  >
     <ol class="breadcrumbs__list">
       @for (crumb of crumbs(); track $index) {
         <li class="breadcrumbs__item">

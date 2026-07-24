@@ -131,6 +131,21 @@ export class BreadcrumbsComponent {
     { initialValue: this.router.url },
   );
 
+  /**
+   * Il form Ordine cliente su mobile nasconde il breadcrumb: la gerarchia è già
+   * data dal pulsante «Indietro». Scoped a questa rotta (new / :id / :id/edit),
+   * NON globale sulla shell.
+   */
+  protected readonly hideOnOrderForm = computed(() => {
+    const segments = this.url().split('?')[0]!.split('/').filter(Boolean);
+    return (
+      segments[0] === 'app' &&
+      segments[1] === 'sales' &&
+      segments.length >= 3 &&
+      (segments[2] === 'new' || isIdSegment(segments[2]!))
+    );
+  });
+
   protected readonly crumbs = computed<readonly Crumb[]>(() => {
     const raw = this.url();
     const [path, query = ''] = raw.split('?');
