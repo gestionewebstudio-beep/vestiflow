@@ -1235,6 +1235,48 @@
               </span>
             </div>
 
+            <!-- F5: barra Cerca/Scansiona sticky in cima alle righe. «Cerca»
+                 apre i risultati ricchi inline (riuso del componente condiviso);
+                 «Scansiona» apre lo scanner. Resta visibile scrollando le righe. -->
+            <div class="co-form__scan-bar">
+              <div class="co-form__scan-bar-row">
+                <div class="co-form__scan-field">
+                  <i class="pi pi-search co-form__scan-field-icon" aria-hidden="true"></i>
+                  <input
+                    #coTopSearch
+                    class="gr-form__input"
+                    type="search"
+                    [value]="topSearchDraft()"
+                    [readonly]="!mobileScanEditing()"
+                    [disabled]="formReadOnly() || headerGateActive()"
+                    autocomplete="off"
+                    placeholder="Cerca articolo (nome, SKU, EAN)…"
+                    aria-label="Cerca articolo"
+                    (pointerdown)="enableMobileScanKeyboard(coTopSearch)"
+                    (input)="onTopSearchInput($any($event.target).value)"
+                  />
+                </div>
+                @if (barcodeScannerEnabled && !formReadOnly()) {
+                  <app-barcode-scanner
+                    class="co-form__scan-cta"
+                    label="Scansiona"
+                    (scanned)="onMobileScanned($event)"
+                  />
+                }
+              </div>
+              @if (topSearchActive()) {
+                @if (topSearchList().length > 0) {
+                  <app-product-search-results
+                    class="co-form__scan-results"
+                    [results]="topSearchList()"
+                    (variantSelected)="onTopSearchPick($event)"
+                  />
+                } @else {
+                  <p class="co-form__scan-empty">Nessun articolo trovato.</p>
+                }
+              }
+            </div>
+
             <!-- Vista mobile (mockup responsive v3): sotto lg la tabella lascia
                  il posto a una card per riga, che si apre sui campi. Stesse
                  regole e stessi controlli del form: cambia solo la vista. -->
@@ -1594,46 +1636,6 @@
                   </article>
                 }
               }
-            </div>
-
-            <!-- Scansione rapida su mobile: scanner-first (fotocamera come CTA
-                 primaria); il campo testo è secondario e resta bloccato finché
-                 non lo si tocca, così la tastiera non si apre da sola. -->
-            <div class="co-form__mobile-quick">
-              @if (barcodeScannerEnabled && !formReadOnly()) {
-                <app-barcode-scanner
-                  class="co-form__mobile-scanner"
-                  label="Scansiona"
-                  (scanned)="onMobileScanned($event)"
-                />
-              }
-              <div class="co-form__mobile-quick-manual">
-                <input
-                  #coMobileScan
-                  id="co-mobile-scan"
-                  class="gr-form__input"
-                  type="text"
-                  [value]="quickScanDraft()"
-                  [readonly]="!mobileScanEditing()"
-                  [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
-                  autocomplete="off"
-                  inputmode="text"
-                  placeholder="Oppure cerca o digita il codice…"
-                  aria-label="Cerca o digita il codice prodotto"
-                  (pointerdown)="enableMobileScanKeyboard(coMobileScan)"
-                  (input)="onQuickScanInput($any($event.target).value)"
-                  (keydown.enter)="commitQuickScan(); $event.preventDefault()"
-                  (blur)="mobileScanEditing.set(false)"
-                />
-                <app-button
-                  type="button"
-                  variant="secondary"
-                  [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
-                  (click)="commitQuickScan()"
-                >
-                  Aggiungi
-                </app-button>
-              </div>
             </div>
           </section>
 

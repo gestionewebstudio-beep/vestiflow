@@ -1075,3 +1075,69 @@
   background-color: var(--status-warning-bg);
   border-block-end: var(--border-width) solid var(--status-warning-border);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F5 — barra Cerca/Scansiona sticky in cima alle righe (solo mobile).
+// ═══════════════════════════════════════════════════════════════════════════
+.co-form__scan-bar {
+  display: none;
+}
+
+@include bp.media-down('lg') {
+  .co-form .co-form__scan-bar {
+    display: block;
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--z-sticky);
+    padding-block: var(--space-2);
+    margin-block-end: var(--space-2);
+    background-color: var(--co-bg);
+  }
+
+  .co-form__scan-bar-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .co-form__scan-field {
+    position: relative;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+
+  .co-form__scan-field-icon {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: var(--space-2);
+    transform: translateY(-50%);
+    color: var(--co-muted);
+    pointer-events: none;
+  }
+
+  .co-form__scan-field .gr-form__input {
+    inline-size: 100%;
+    block-size: var(--co-btn-h-dock);
+    padding-inline-start: var(--space-8);
+    font-size: var(--co-text-touch);
+    border-color: var(--co-line-strong);
+    border-radius: var(--co-radius-sm);
+  }
+
+  .co-form__scan-cta {
+    flex-shrink: 0;
+    --field-height: var(--co-btn-h-dock);
+  }
+
+  .co-form__scan-results {
+    display: block;
+    margin-block-start: var(--space-2);
+  }
+
+  .co-form__scan-empty {
+    margin: var(--space-2) 0 0;
+    padding: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--co-muted);
+    text-align: center;
+  }
+}

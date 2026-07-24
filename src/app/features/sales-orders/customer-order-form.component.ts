@@ -112,6 +112,7 @@ import type { VariantSummary } from '@features/products/models/variant-summary.m
 import { ProductFormComponent } from '@features/products/product-form.component';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
+import { ProductSearchResultsComponent } from '@features/products/components/product-search-results/product-search-results.component';
 import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
 import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
@@ -211,6 +212,7 @@ interface AvailabilityIssue {
     BadgeComponent,
     AttachmentsPanelComponent,
     BarcodeScannerComponent,
+    ProductSearchResultsComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
@@ -978,6 +980,46 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * è «Scansiona»; questo flag apre la tastiera solo su richiesta dell'utente.
    */
   protected readonly mobileScanEditing = signal(false);
+
+  // ── F5: barra Cerca sticky con risultati ricchi inline ──────────────────
+  // Riusa le stesse regole di ricerca (debounce, soglia minima) e il servizio
+  // esistente; il pick riusa applyScannedVariant per aggiungere/incrementare la
+  // riga, come lo scan.
+  protected readonly topSearchDraft = signal('');
+  private readonly topSearchResults = toSignal(
+    toObservable(this.topSearchDraft).pipe(
+      debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
+      distinctUntilChanged(),
+      switchMap((search) => {
+        const term = search.trim();
+        if (term.length < VARIANT_SEARCH_MIN_CHARS) {
+          return of([] as readonly VariantSummary[]);
+        }
+        const locationId = this.form.controls.locationId.value || undefined;
+        return this.productService
+          .searchVariantSummaries({ search: term, pageSize: 20, locationId })
+          .pipe(catchError(() => of([] as readonly VariantSummary[])));
+      }),
+    ),
+    { initialValue: [] as readonly VariantSummary[] },
+  );
+  protected readonly topSearchActive = computed(
+    () => this.topSearchDraft().trim().length >= VARIANT_SEARCH_MIN_CHARS,
+  );
+
+  protected topSearchList(): readonly VariantSummary[] {
+    return this.topSearchResults();
+  }
+
+  protected onTopSearchInput(value: string): void {
+    this.topSearchDraft.set(value);
+  }
+
+  protected onTopSearchPick(variantId: string): void {
+    this.applyScannedVariant(variantId, 1);
+    this.topSearchDraft.set('');
+    this.mobileScanEditing.set(false);
+  }
 
   // ── Pannello anagrafica prodotto (creazione/modifica al volo, come GR) ──
   protected readonly productPanelOpen = signal(false);
