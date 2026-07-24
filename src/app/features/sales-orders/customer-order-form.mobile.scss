@@ -46,17 +46,17 @@
   box-shadow: inset var(--space-1) 0 0 0 var(--status-warning-border);
 }
 
+// Testa-card compatta (F4): contenitore flex, non più un unico button.
 .co-form__card-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
   inline-size: 100%;
-  min-block-size: 3.5rem;
+  min-block-size: 4rem;
   padding: var(--space-2) var(--space-3);
-  text-align: start;
   background-color: var(--co-surface);
   border: 0;
-  cursor: pointer;
 }
 
 .co-form__card--open .co-form__card-head {
@@ -952,4 +952,126 @@
   .co-form .gr-form__gate-fields:disabled .gr-form__subtitle {
     color: var(--co-muted);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F4 — riga articolo compatta: stepper quantità, totale, rimozione, alert.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Area tap-per-espandere (chevron + nome/SKU): prende lo spazio residuo.
+.co-form__card-expand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 10rem;
+  min-inline-size: 0;
+  min-block-size: 2.75rem;
+  padding: 0;
+  text-align: start;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.co-form__card-copy {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+// Stepper −/+ con input centrale: pulsanti 44×44 touch-friendly.
+.co-form__qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  border: var(--border-width) solid var(--co-line-strong);
+  border-radius: var(--co-radius-sm);
+  overflow: hidden;
+}
+
+.co-form__qty-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  color: var(--co-text, var(--color-text));
+  background-color: var(--co-surface);
+  border: 0;
+  cursor: pointer;
+  transition: background-color 120ms var(--ease-standard);
+}
+
+.co-form__qty-btn:active:not(:disabled) {
+  background-color: var(--co-surface-soft, var(--co-header-alt));
+}
+
+.co-form__qty-btn:disabled {
+  color: var(--co-muted);
+  cursor: not-allowed;
+}
+
+.co-form__qty-input {
+  inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  padding: 0;
+  text-align: center;
+  font-size: var(--co-text-touch);
+  color: var(--co-text, var(--color-text));
+  background-color: var(--co-surface);
+  border: 0;
+  border-inline: var(--border-width) solid var(--co-line);
+  appearance: textfield;
+}
+
+.co-form__qty-input::-webkit-outer-spin-button,
+.co-form__qty-input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.co-form__card-total {
+  flex-shrink: 0;
+  min-inline-size: 4.5rem;
+  text-align: end;
+  font-weight: var(--font-weight-bold);
+  color: var(--co-text, var(--color-text));
+}
+
+.co-form__card-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  color: var(--co-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--co-radius-sm);
+  cursor: pointer;
+}
+
+.co-form__card-remove:active:not(:disabled) {
+  color: var(--status-error-fg);
+  background-color: var(--co-surface-soft, var(--co-header-alt));
+}
+
+.co-form__card-remove:disabled {
+  color: var(--co-line-strong);
+  cursor: not-allowed;
+}
+
+// Alert disponibilità sopra la riga: informativo, non bloccante.
+.co-form__card-alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-2xs);
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-block-end: var(--border-width) solid var(--status-warning-border);
 }

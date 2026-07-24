@@ -1273,35 +1273,83 @@
                     [class.co-form__card--incomplete]="!lineRowComplete(i)"
                     [formGroupName]="i"
                   >
-                    <button
-                      type="button"
-                      class="co-form__card-head"
-                      [attr.aria-expanded]="isLineCardOpen(i)"
-                      (click)="toggleLineCard(i)"
-                    >
-                      <span class="co-form__card-main">
-                        <span class="co-form__card-name">
-                          {{ line.controls.productName.value || 'Riga senza prodotto' }}
+                    <!-- Alert disponibilità (non bloccante) sopra la riga. -->
+                    @if (lineAvailabilityHint(i); as hint) {
+                      <p class="co-form__card-alert" role="status">
+                        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                        {{ hint }}
+                      </p>
+                    }
+
+                    <!-- Riga compatta: nome/SKU (tap = espandi), stepper −/+,
+                         totale, X. I dettagli editabili stanno nel corpo aperto. -->
+                    <div class="co-form__card-head">
+                      <button
+                        type="button"
+                        class="co-form__card-expand"
+                        [attr.aria-expanded]="isLineCardOpen(i)"
+                        (click)="toggleLineCard(i)"
+                      >
+                        <i class="pi pi-chevron-down co-form__card-chevron" aria-hidden="true"></i>
+                        <span class="co-form__card-copy">
+                          <span class="co-form__card-name">
+                            {{ line.controls.productName.value || 'Riga senza prodotto' }}
+                          </span>
+                          <span class="co-form__card-sub">
+                            {{
+                              lineArticleCode(i) ? 'Cod. ' + lineArticleCode(i) : 'Nessun codice'
+                            }}
+                            @if (line.controls.sku.value) {
+                              · SKU {{ line.controls.sku.value }}
+                            }
+                          </span>
                         </span>
-                        <span class="co-form__card-sub">
-                          Cod. {{ lineArticleCode(i) || '—' }}
-                          @if (isLineColumnVisible('stockAvailable')) {
-                            · Disponibili {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
-                          }
-                        </span>
+                      </button>
+
+                      <div class="co-form__qty-stepper">
+                        <button
+                          type="button"
+                          class="co-form__qty-btn"
+                          [disabled]="formReadOnly()"
+                          aria-label="Diminuisci quantità"
+                          (click)="decrementLineQty(i)"
+                        >
+                          <i class="pi pi-minus" aria-hidden="true"></i>
+                        </button>
+                        <input
+                          class="co-form__qty-input tabular-nums"
+                          type="number"
+                          min="1"
+                          step="1"
+                          inputmode="numeric"
+                          formControlName="quantity"
+                          aria-label="Quantità"
+                        />
+                        <button
+                          type="button"
+                          class="co-form__qty-btn"
+                          [disabled]="formReadOnly()"
+                          aria-label="Aumenta quantità"
+                          (click)="incrementLineQty(i)"
+                        >
+                          <i class="pi pi-plus" aria-hidden="true"></i>
+                        </button>
+                      </div>
+
+                      <span class="co-form__card-total tabular-nums">
+                        {{ formatMoney(lineTotalMoney(i)) }}
                       </span>
-                      <span class="co-form__card-metrics">
-                        <span class="co-form__metric">
-                          <small>Q.tà</small>
-                          <strong class="tabular-nums">{{ line.controls.quantity.value }}</strong>
-                        </span>
-                        <span class="co-form__metric co-form__metric--total">
-                          <small>Totale</small>
-                          <strong class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</strong>
-                        </span>
-                      </span>
-                      <i class="pi pi-chevron-down co-form__card-chevron" aria-hidden="true"></i>
-                    </button>
+
+                      <button
+                        type="button"
+                        class="co-form__card-remove"
+                        [disabled]="formReadOnly()"
+                        aria-label="Rimuovi riga"
+                        (click)="removeLine(i)"
+                      >
+                        <i class="pi pi-times" aria-hidden="true"></i>
+                      </button>
+                    </div>
 
                     @if (isLineCardOpen(i)) {
                       <div class="co-form__card-body">
@@ -1419,23 +1467,8 @@
                             </div>
                           </div>
 
-                          <p class="co-form__card-group">Quantità e magazzino</p>
-                          <div class="co-form__card-field">
-                            <label [attr.for]="'co-m-qty-' + i">Quantità</label>
-                            <input
-                              [id]="'co-m-qty-' + i"
-                              class="gr-form__input"
-                              [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
-                              type="number"
-                              min="0"
-                              step="1"
-                              inputmode="numeric"
-                              formControlName="quantity"
-                            />
-                            @if (lineAvailabilityHint(i); as hint) {
-                              <span class="co-form__exceeds-hint">{{ hint }}</span>
-                            }
-                          </div>
+                          <!-- Quantità: solo nello stepper della riga compatta (F4). -->
+                          <p class="co-form__card-group">Magazzino</p>
                           @if (isLineColumnVisible('stockAvailable')) {
                             <div class="co-form__card-field co-form__card-field--readonly">
                               <span class="co-form__card-label">Disponibile</span>

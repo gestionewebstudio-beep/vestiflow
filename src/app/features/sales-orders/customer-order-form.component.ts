@@ -1351,6 +1351,25 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
+  /** Stepper quantità della riga compatta mobile (min 1). */
+  protected incrementLineQty(index: number): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const control = this.lines.at(index).controls.quantity;
+    control.setValue((Number(control.value) || 0) + 1);
+    this.markFormDirty();
+  }
+
+  protected decrementLineQty(index: number): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const control = this.lines.at(index).controls.quantity;
+    control.setValue(Math.max(1, (Number(control.value) || 0) - 1));
+    this.markFormDirty();
+  }
+
   protected duplicateLine(index: number): void {
     const source = this.lines.at(index);
     const copy = this.createLine();
