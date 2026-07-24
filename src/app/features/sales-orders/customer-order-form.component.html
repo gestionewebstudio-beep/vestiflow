@@ -43,7 +43,71 @@
         </p>
       }
     }
+
+    <!-- Azioni contestuali (Concludi/Genera/Allegati) spostate dal footer a un
+         menu ⋯, così in fondo resta solo «Salva ordine». Opzioni appiattite:
+         niente sotto-menu annidati su mobile. Riusa handler e guard esistenti. -->
+    @if (hasContextualActions()) {
+      <div class="co-form__header-menu">
+        <button
+          type="button"
+          class="co-form__header-menu-btn"
+          aria-label="Altre azioni"
+          [attr.aria-expanded]="headerMenuOpen()"
+          (click)="toggleHeaderMenu()"
+        >
+          <i class="pi pi-ellipsis-v" aria-hidden="true"></i>
+        </button>
+        @if (headerMenuOpen()) {
+          <div class="co-form__header-menu-list" role="menu" aria-label="Azioni documento">
+            @if (canConclude()) {
+              <p class="co-form__header-menu-group">Concludi ordine con</p>
+              @for (option of unloadTypeOptions(); track option.value) {
+                <button
+                  type="button"
+                  class="co-form__header-menu-item"
+                  role="menuitem"
+                  (click)="concludeWith(option.value); closeHeaderMenu()"
+                >
+                  <i class="pi pi-check-square" aria-hidden="true"></i>
+                  {{ option.label }}
+                </button>
+              }
+            }
+            @if (canGenerateDocuments()) {
+              <p class="co-form__header-menu-group">Genera documento</p>
+              @for (option of generateTargetOptions; track option.value) {
+                <button
+                  type="button"
+                  class="co-form__header-menu-item"
+                  role="menuitem"
+                  (click)="generateFromDdt($any(option.value)); closeHeaderMenu()"
+                >
+                  <i class="pi pi-file-export" aria-hidden="true"></i>
+                  {{ option.label }}
+                </button>
+              }
+            }
+            @if (isOrder && loadedOrder()) {
+              <button
+                type="button"
+                class="co-form__header-menu-item"
+                role="menuitem"
+                (click)="scrollToAttachments(); closeHeaderMenu()"
+              >
+                <i class="pi pi-paperclip" aria-hidden="true"></i>
+                Allegati
+              </button>
+            }
+          </div>
+        }
+      </div>
+    }
   </div>
+
+  @if (headerMenuOpen()) {
+    <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="closeHeaderMenu()"></div>
+  }
 
   @if (saveWarnings().length > 0) {
     <div class="gr-form__warning-banner" role="status">
@@ -1550,17 +1614,30 @@
                 </div>
                 <div class="gr-form__totals-row gr-form__totals-row--field">
                   <dt>
-                    <label for="co-doc-discount">Sconto extra documento</label>
+                    <label for="co-doc-discount">Sconto extra</label>
                   </dt>
                   <dd>
-                    <input
-                      id="co-doc-discount"
-                      class="gr-form__input gr-form__input--num gr-form__totals-input"
-                      type="text"
-                      formControlName="documentDiscountPercent"
-                      placeholder="0%"
-                      aria-label="Sconto extra documento"
-                    />
+                    <!-- A scomparsa dietro «+ Aggiungi sconto» finché è vuoto:
+                         il control resta nel form, cambia solo la vista. -->
+                    @if (docDiscountActive()) {
+                      <input
+                        id="co-doc-discount"
+                        class="gr-form__input gr-form__input--num gr-form__totals-input"
+                        type="text"
+                        formControlName="documentDiscountPercent"
+                        placeholder="0%"
+                        aria-label="Sconto extra documento"
+                      />
+                    } @else {
+                      <button
+                        type="button"
+                        class="co-form__add-discount"
+                        [disabled]="formReadOnly()"
+                        (click)="revealDocDiscount()"
+                      >
+                        + Aggiungi sconto
+                      </button>
+                    }
                   </dd>
                 </div>
                 @if (documentTotals().documentDiscount.amountMinor > 0) {
@@ -2102,66 +2179,10 @@
           <span>Totale documento</span>
           <strong class="tabular-nums">{{ formatMoney(documentTotals().total) }}</strong>
         </div>
+        <!-- Footer ridotto (F2): solo «Salva ordine» a piena larghezza. Chiudi
+             è gestito dal pulsante «Indietro» (con conferma se ci sono modifiche);
+             Concludi/Genera vivono nel menu ⋯ dell'header. -->
         <div class="co-form__dock-actions">
-          <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
-            Chiudi
-          </app-button>
-          @if (canConclude()) {
-            <div class="co-form__conclude">
-              <app-button
-                type="button"
-                variant="secondary"
-                [disabled]="concluding()"
-                [loading]="concluding()"
-                (click)="toggleConcludeMenu()"
-              >
-                Concludi
-                <i class="pi pi-chevron-down" aria-hidden="true"></i>
-              </app-button>
-              @if (concludeMenuOpen()) {
-                <div class="co-form__conclude-menu" role="menu" aria-label="Documento di scarico">
-                  @for (option of unloadTypeOptions(); track option.value) {
-                    <button
-                      type="button"
-                      class="co-form__conclude-item"
-                      role="menuitem"
-                      (click)="concludeWith(option.value)"
-                    >
-                      {{ option.label }}
-                    </button>
-                  }
-                </div>
-              }
-            </div>
-          }
-          @if (canGenerateDocuments()) {
-            <div class="co-form__conclude">
-              <app-button
-                type="button"
-                variant="secondary"
-                [disabled]="generating()"
-                [loading]="generating()"
-                (click)="toggleGenerateMenu()"
-              >
-                Genera
-                <i class="pi pi-chevron-down" aria-hidden="true"></i>
-              </app-button>
-              @if (generateMenuOpen()) {
-                <div class="co-form__conclude-menu" role="menu" aria-label="Genera documento">
-                  @for (option of generateTargetOptions; track option.value) {
-                    <button
-                      type="button"
-                      class="co-form__conclude-item"
-                      role="menuitem"
-                      (click)="generateFromDdt($any(option.value))"
-                    >
-                      {{ option.label }}
-                    </button>
-                  }
-                </div>
-              }
-            </div>
-          }
           @if (!formReadOnly()) {
             <app-button
               type="button"
@@ -2170,7 +2191,7 @@
               [disabled]="saving()"
               (click)="requestSaveDocument()"
             >
-              Salva
+              {{ isOrder ? 'Salva ordine' : 'Salva documento' }}
             </app-button>
           }
         </div>

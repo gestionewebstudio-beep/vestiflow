@@ -1020,6 +1020,41 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly generateMenuOpen = signal(false);
   protected readonly generating = signal(false);
 
+  // ── F2: menu azioni ⋯ (mobile) + sconto documento a scomparsa ────────────
+  protected readonly headerMenuOpen = signal(false);
+  /** Il menu ⋯ compare solo se c'è almeno un'azione contestuale da offrire. */
+  protected readonly hasContextualActions = computed(
+    () =>
+      this.canConclude() ||
+      this.canGenerateDocuments() ||
+      (this.isOrder && this.loadedOrder() != null),
+  );
+  /** Sconto extra: input dietro «+ Aggiungi sconto» finché è vuoto. */
+  protected readonly showDocDiscountField = signal(false);
+  protected readonly docDiscountActive = computed(() => {
+    this.formValue();
+    return this.showDocDiscountField() || !!this.form.controls.documentDiscountPercent.value.trim();
+  });
+
+  protected toggleHeaderMenu(): void {
+    this.headerMenuOpen.update((open) => !open);
+  }
+
+  protected closeHeaderMenu(): void {
+    this.headerMenuOpen.set(false);
+  }
+
+  protected revealDocDiscount(): void {
+    this.showDocDiscountField.set(true);
+  }
+
+  /** Porta in vista la sezione Allegati (in fondo alla pagina su mobile). */
+  protected scrollToAttachments(): void {
+    this.host.nativeElement
+      .querySelector('.gr-form__attachments')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   constructor() {
     // Colonna "Costo" (dato sensibile §permessi): senza il permesso
     // "Visualizza costi d'acquisto" la definizione non viene registrata,
