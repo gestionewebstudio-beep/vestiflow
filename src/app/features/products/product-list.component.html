@@ -64,6 +64,22 @@
     (barcodeScanned)="onBarcodeScanned($event)"
   />
 
+  <!-- F6d: accesso rapido agli articoli in bozza (es. creati al volo da scanner
+       ordine), da completare con anagrafica prima della sync Shopify. -->
+  @if (draftCount() > 0 || draftFilterActive()) {
+    <button
+      type="button"
+      class="product-list__drafts-chip"
+      [class.product-list__drafts-chip--active]="draftFilterActive()"
+      [attr.aria-pressed]="draftFilterActive()"
+      (click)="toggleDraftFilter()"
+    >
+      <i class="pi pi-inbox" aria-hidden="true"></i>
+      Articoli da completare
+      <span class="product-list__drafts-count tabular-nums">{{ draftCount() }}</span>
+    </button>
+  }
+
   <div class="product-list__columns">
     <app-table-column-picker [viewId]="productListView" />
     <label class="product-list__label-copies">

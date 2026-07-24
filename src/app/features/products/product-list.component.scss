@@ -111,3 +111,35 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+// F6d — chip «Articoli da completare»: prodotti in bozza da rifinire.
+.product-list__drafts-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border: var(--border-width) solid var(--status-warning-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+.product-list__drafts-chip--active {
+  box-shadow: 0 0 0 var(--border-width-strong) var(--status-warning-border);
+}
+
+.product-list__drafts-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 1.25rem;
+  padding-inline: var(--space-1);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-surface);
+  background-color: var(--status-warning-fg);
+  border-radius: var(--radius-full);
+}

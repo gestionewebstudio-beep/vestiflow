@@ -197,6 +197,31 @@ export class ProductListComponent {
     canImportExportCatalog(this.authService.currentUser()),
   );
 
+  // ── F6d: accesso rapido «Articoli da completare» (prodotti in bozza) ─────
+  // Conteggio ricaricato quando la lista si ricarica (es. dopo un quick-add da
+  // scanner), così il badge resta allineato.
+  protected readonly draftCount = toSignal(
+    toObservable(computed(() => this.refreshTick() + this.softRefreshTick())).pipe(
+      switchMap(() =>
+        this.service.getProducts({ page: 1, pageSize: 1, status: ProductStatus.Draft }).pipe(
+          map((response) => response.meta.total),
+          catchError(() => of(0)),
+        ),
+      ),
+    ),
+    { initialValue: 0 },
+  );
+  protected readonly draftFilterActive = computed(
+    () => this.query().status === ProductStatus.Draft,
+  );
+
+  protected toggleDraftFilter(): void {
+    this.updateParams(
+      { status: this.draftFilterActive() ? null : ProductStatus.Draft, page: null },
+      true,
+    );
+  }
+
   protected readonly canManageCatalog = computed(() =>
     canManageCatalog(this.authService.currentUser()),
   );
