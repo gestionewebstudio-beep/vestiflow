@@ -1,15 +1,15 @@
----
-description: Regole specifiche per gestionale fashion retail multi-tenant con Angular. Copre UX da dashboard, domini retail, inventario, varianti prodotto, mobile operativo, integrazione Shopify-ready.
-globs: "**/*.ts, **/*.html, **/*.scss, **/*.json"
-alwaysApply: true
----
+# regole-gestionale — Gestionale fashion retail multi-tenant
+
+_UX da dashboard, dominio retail, inventario per location, varianti prodotto,
+mobile operativo, integrazione Shopify-ready._
 
 # SCOPE
 
 Queste regole si applicano a un **gestionale web per negozi di abbigliamento** sviluppato in Angular.
 Il progetto è una **web app SaaS / dashboard** multi-tenant, non un sito vetrina.
-Le regole qui sotto **estendono** `regole-architettura.mdc`, `regole-sicurezza-3.mdc` e `regole-qualita-2.mdc`.
+Le regole qui sotto **estendono** `regole-architettura.md`, `regole-sicurezza.md` e `regole-qualita.md` (stessa cartella).
 In caso di conflitto:
+
 1. Sicurezza
 2. Architettura
 3. Questo file
@@ -20,6 +20,7 @@ In caso di conflitto:
 # OBIETTIVO PRODOTTO
 
 L'app gestisce:
+
 - prodotti e varianti (taglia, colore, SKU, barcode),
 - giacenze per location (multi-negozio/magazzino),
 - carico/scarico/trasferimenti,
@@ -30,6 +31,7 @@ L'app gestisce:
 - integrazione Shopify-ready.
 
 L'interfaccia deve privilegiare:
+
 - velocità operativa,
 - leggibilità,
 - densità informativa controllata,
@@ -41,52 +43,57 @@ L'interfaccia deve privilegiare:
 # MODELLO DOMINIO — REGOLE OBBLIGATORIE
 
 ## Varianti prodotto
+
 - L'unità minima di inventario è la **variante**, non il prodotto.
 - Le varianti sono generate da **opzioni generiche** (`options: { name, values[] }[]`, semantica Shopify), non da campi fissi taglia/colore. Taglia e colore sono il caso comune, non lo schema.
 - Ogni variante DEVE avere:
- - `id`
- - `productId`
- - `sku`
- - `optionValues` (mappa opzione → valore, es. `{ Taglia: 'M', Colore: 'Rosso' }`)
- - `sellingPrice`
+- `id`
+- `productId`
+- `sku`
+- `optionValues` (mappa opzione → valore, es. `{ Taglia: 'M', Colore: 'Rosso' }`)
+- `sellingPrice`
 - Campi opzionali ma fortemente raccomandati:
- - `barcode`
- - `purchasePrice`
- - `compareAtPrice`
- - `shopifyVariantId`
- - `shopifyInventoryItemId`
+- `barcode`
+- `purchasePrice`
+- `compareAtPrice`
+- `shopifyVariantId`
+- `shopifyInventoryItemId`
 
 ## SKU e Shopify — clausola di realtà
+
 - Lo SKU univoco è una **regola interna** (validata in form, bloccata in UI).
 - Shopify NON garantisce SKU univoci né presenti: in import/sync da Shopify, SKU duplicati o vuoti NON devono rompere il sync. Vanno importati e **segnalati come anomalie** da risolvere, non rifiutati.
 
 ## Stock per location (non per negozio)
+
 - Lo stock NON vive direttamente sul prodotto o sulla variante.
 - Lo stock vive per **location** (semantica Shopify: il luogo fisico/logico che porta l'inventario), NON per "store". `Location` ≠ `Store`: lo store è l'entità commerciale/POS; una location (es. magazzino) può non avere store associato.
 - Entità dedicata `InventoryLevel`:
- - `variantId`
- - `locationId`
- - quantità a stati: `onHand`, `available`, `committed`, `incoming`, `reserved` (allineate ai quantity states Shopify)
- - `minThreshold`
+- `variantId`
+- `locationId`
+- quantità a stati: `onHand`, `available`, `committed`, `incoming`, `reserved` (allineate ai quantity states Shopify)
+- `minThreshold`
 - È VIETATO rappresentare stock multi-location con proprietà hardcoded tipo:
- - `stockNapoli`
- - `stockMilano`
- - `warehouse1Quantity`
+- `stockNapoli`
+- `stockMilano`
+- `warehouse1Quantity`
 
 ## Movimenti
+
 - Ogni modifica inventariale significativa DEVE produrre un movimento tracciabile.
 - Entità minima: `StockMovement`
- - `type`: `load | unload | transfer | adjustment | sale | return`
- - `quantity`
- - `locationId` (e `targetLocationId` per i trasferimenti)
- - `variantId` + snapshot `sku`
- - `createdAt`
- - `createdBy` + snapshot `createdByName`
+- `type`: `load | unload | transfer | adjustment | sale | return`
+- `quantity`
+- `locationId` (e `targetLocationId` per i trasferimenti)
+- `variantId` + snapshot `sku`
+- `createdAt`
+- `createdBy` + snapshot `createdByName`
 - È VIETATO aggiornare quantità stock senza lasciare traccia del movimento, salvo migrazioni documentate.
 - **Eccezione sync**: i delta di giacenza che arrivano da Shopify (vendite online, rettifiche fatte nell'admin Shopify) generano movimenti con origine `shopify` (`type: sale` o `adjustment`). Non sono "modifiche silenziose" ma nemmeno azioni utente: l'origine deve essere distinguibile nello storico.
 - **DEROGA Scarico manuale (prompt Scarico manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
 
 ## Multi-tenant
+
 - Tutte le entità di business DEVONO essere tenant-aware.
 - Entità principali con `tenantId` obbligatorio:
   - `Product`
@@ -99,6 +106,7 @@ L'interfaccia deve privilegiare:
 - Ogni query, filtro o mock data DEVE essere pensato per tenant corrente.
 
 ## Denaro
+
 - I prezzi e i totali viaggiano come **interi in unità minori** (`Money { amountMinor, currencyCode }`): niente float per il denaro.
 - Shopify espone i prezzi come **stringhe decimali** (es. `"29.90"`): la conversione stringa ↔ unità minori avviene in un'unica funzione di mapping testata, mai sparsa nel codice.
 - La formattazione display usa `Intl.NumberFormat` centralizzato, mai concatenazione manuale.
@@ -109,21 +117,23 @@ L'interfaccia deve privilegiare:
 
 Con Shopify connesso, **ogni entità ha un owner di sync** dichiarato. È la decisione che condiziona tutto: quali form esistono, cosa è editabile, come si risolvono i conflitti.
 
-| Entità | Owner | Conseguenza UI |
-|---|---|---|
-| Prodotti / varianti ecommerce | Shopify (di norma) | editing locale = write-through verso Shopify o read-only; mai fork silenzioso |
-| Clienti ecommerce | Shopify | anagrafica read-only nel gestionale |
-| Ordini di vendita online | Shopify | sempre read-only nel gestionale |
-| Giacenze | condiviso (per quantity state) | il gestionale scrive carichi/rettifiche/trasferimenti; Shopify scrive vendite/reso online |
-| Ordini fornitori, trasferimenti, rettifiche | gestionale | pieno CRUD locale |
-| Location | Shopify (mappate) | gestionale mappa le proprie location su quelle Shopify |
+| Entità                                      | Owner                          | Conseguenza UI                                                                            |
+| ------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------- |
+| Prodotti / varianti ecommerce               | Shopify (di norma)             | editing locale = write-through verso Shopify o read-only; mai fork silenzioso             |
+| Clienti ecommerce                           | Shopify                        | anagrafica read-only nel gestionale                                                       |
+| Ordini di vendita online                    | Shopify                        | sempre read-only nel gestionale                                                           |
+| Giacenze                                    | condiviso (per quantity state) | il gestionale scrive carichi/rettifiche/trasferimenti; Shopify scrive vendite/reso online |
+| Ordini fornitori, trasferimenti, rettifiche | gestionale                     | pieno CRUD locale                                                                         |
+| Location                                    | Shopify (mappate)              | gestionale mappa le proprie location su quelle Shopify                                    |
 
 Regole:
+
 - È VIETATO progettare una feature di editing senza prima dichiarare l'owner dell'entità.
 - Le entità owned da Shopify mostrano chiaramente in UI che la fonte è Shopify.
 - I conflitti di sync (modifica concorrente) non si risolvono silenziosamente: si segnalano.
 
 ## Sync, webhook ed eventual consistency
+
 - Il sync reale è **webhook-driven** (ordini, inventory level update): i dati possono arrivare in ritardo, doppi o fuori ordine. Il backend DEVE essere idempotente; il frontend DEVE convivere con dati potenzialmente stale.
 - La UI espone sempre "ultimo sync" dove rilevante e uno stato sync per risorsa.
 - L'Admin API Shopify è **rate-limited**: le operazioni bulk passano da una coda lato backend, mai da N chiamate parallele richieste dal frontend.
@@ -134,6 +144,7 @@ Regole:
 # UX DA GESTIONALE — NON DA LANDING PAGE
 
 ## Gerarchia visuale
+
 - Questo progetto NON usa hero section, large marketing headers o layout da sito vetrina.
 - `h1` sobrio, utile, orientato al compito.
 - Titoli pagina brevi e funzionali:
@@ -143,12 +154,14 @@ Regole:
   - "Ordini fornitori"
 
 ## Densità informativa
+
 - L'interfaccia deve essere **compatta ma leggibile**.
 - Tabelle, filtri e pannelli devono mostrare più dati possibili senza diventare claustrofobici.
 - Spaziature: usare token piccoli/medi, evitando layout troppo ariosi.
 - È VIETATO usare proporzioni da marketing page su dashboard interna.
 
 ## Azione primaria
+
 - Ogni schermata deve rendere evidente l'azione principale:
   - aggiungi prodotto,
   - registra carico,
@@ -161,14 +174,18 @@ Regole:
 # LAYOUT APPLICATIVO — STANDARD OBBLIGATORIO
 
 ## App shell
+
 L'app DEVE avere una shell coerente:
+
 - sidebar persistente su desktop,
 - topbar persistente,
 - area contenuto principale,
 - una sola regione principale di scroll.
 
 ## Sidebar
+
 La sidebar DEVE contenere almeno:
+
 - Dashboard
 - Prodotti
 - Magazzino
@@ -178,14 +195,18 @@ La sidebar DEVE contenere almeno:
 - Impostazioni
 
 ## Topbar
+
 La topbar DEVE contenere:
+
 - titolo/breadcrumb,
 - selettore negozio attivo se applicabile,
 - utente corrente,
 - accesso rapido a notifiche o stato sync.
 
 ## Mobile
+
 Su mobile:
+
 - sidebar collassata in drawer,
 - topbar sempre accessibile,
 - azioni primarie raggiungibili facilmente,
@@ -196,11 +217,14 @@ Su mobile:
 # TABELLE — REGOLA CENTRALE DEL PROGETTO
 
 ## Tabelle come citizen di prima classe
+
 Il gestionale usa tabelle come elemento principale.
 Le tabelle NON sono secondarie: sono una componente core dell'esperienza.
 
 ## Requisiti obbligatori
+
 Ogni tabella dati importante DEVE supportare:
+
 - loading state,
 - empty state,
 - sortable columns dove utile,
@@ -210,13 +234,17 @@ Ogni tabella dati importante DEVE supportare:
 - numeri con `tabular-nums`.
 
 ## Colonne numeriche
+
 Prezzi, quantità, valori stock, totali:
+
 - allineati a destra,
 - con `font-variant-numeric: tabular-nums`,
 - formattati sempre in modo coerente.
 
 ## Responsive tables
+
 Su mobile:
+
 - una tabella molto larga NON deve rompere il layout.
 - Strategie ammesse:
   - scroll orizzontale controllato,
@@ -229,11 +257,13 @@ Su mobile:
 # STATI OPERATIVI — SEMPRE VISIBILI
 
 ## Loading
+
 - Ogni pagina e ogni blocco asincrono DEVE mostrare loading esplicito.
 - Preferire skeleton per liste, tabelle e card.
 - Spinner solo per attese brevi o overlay di azioni specifiche.
 
 ## Empty state
+
 - Mai mostrare "Nessun dato" in testo nudo.
 - Ogni empty state deve avere:
   - titolo,
@@ -242,11 +272,13 @@ Su mobile:
   - CTA se ha senso.
 
 ## Error state
+
 - Gli errori di fetch devono avere stato UI dedicato.
 - Gli errori di validazione stanno vicino al campo.
 - I toast NON sostituiscono gli errori inline di form.
 
 ## Offline / rete instabile
+
 - Se il fetch fallisce o la sync non riesce, mostrare stato non bloccante:
   - banner,
   - toast,
@@ -258,22 +290,57 @@ Su mobile:
 # PRODOTTI E VARIANTI — PATTERN OBBLIGATORIO
 
 ## Creazione prodotto
+
 La creazione prodotto deve essere assistita:
+
 1. dati generali,
 2. opzioni varianti,
 3. generazione combinazioni,
 4. completamento dati per singola variante.
 
 ## Generazione varianti
+
 - Se l'utente inserisce opzioni come taglia e colore, l'app DEVE poter generare automaticamente le combinazioni.
 - È VIETATO costringere l'utente a creare manualmente 30 varianti una per una se le combinazioni sono derivabili.
 
 ## SKU
+
 - Ogni variante deve avere SKU univoco.
 - Lo SKU va validato lato form.
 - Duplicati SKU devono essere bloccati immediatamente nella UI, anche con mock data.
 
+## Controlli e validazioni — Principio
+
+I controlli di business in VestiFlow sono **warning non bloccanti**. L'utente vede l'avviso, capisce l'implicazione, ma può proseguire assumendosi la responsabilità della scelta.
+
+Esempi di controlli come warning:
+
+- quantità superiore alla disponibilità
+- sconto anomalo (fuori dal range tipico)
+- impegno magazzino oltre la scorta disponibile
+- data documento nel passato o nel futuro remoto
+- vendita a cliente con esposizione oltre soglia
+
+## Eccezione — Vincoli di integrità dei dati
+
+Restano **blocchi hard** nella UI solo le violazioni che romperebbero il database, la sync con canali esterni, o l'identificazione univoca di un'entità:
+
+- **SKU duplicato** all'interno del tenant
+- **Codice articolo interno duplicato** all'interno del tenant
+- **Barcode / EAN duplicato** all'interno del tenant
+- Violazioni di multi-tenancy o vincoli di schema
+
+Regole per un blocco ben fatto:
+
+- validazione **live** mentre l'utente digita, non solo al submit
+- messaggio chiaro sul motivo del blocco
+- riferimento al record in conflitto quando disponibile (es. _"SKU 00036 già in uso — prodotto: Maglietta test cotone"_)
+- suggerimento di risoluzione quando possibile (link al prodotto esistente, proposta di suffisso automatico)
+
+Il blocco su codice documento duplicato (es. due Ordini Cliente con numero OC-2026-0005) è gestito diversamente: modal di risoluzione con opzioni "Usa nuovo numero / Mantieni attuale / Annulla", non blocco puro. Vedi pattern esistente nel modulo Documenti.
+
 ## Barcode
+
 - Se presente, validarlo come stringa distinta dal SKU.
 - Barcode e SKU NON sono la stessa cosa.
 
@@ -282,7 +349,9 @@ La creazione prodotto deve essere assistita:
 # MAGAZZINO — PRINCIPI DI SICUREZZA OPERATIVA
 
 ## Azioni sensibili
+
 Le azioni seguenti sono sensibili:
+
 - scarico stock,
 - rettifica inventario,
 - trasferimento tra negozi,
@@ -290,15 +359,18 @@ Le azioni seguenti sono sensibili:
 - ricezione ordine.
 
 Queste azioni DEVONO avere almeno uno tra:
+
 - confirm dialog,
 - doppia conferma contestuale,
 - riepilogo finale prima del submit.
 
 ## Rettifiche
+
 - Una rettifica stock deve richiedere un motivo.
 - È VIETATO permettere adjustment silenziosi.
 
 ## Trasferimenti
+
 - Un trasferimento deve mostrare chiaramente:
   - location origine,
   - negozio destinazione,
@@ -310,6 +382,7 @@ Queste azioni DEVONO avere almeno uno tra:
 # SHOPIFY-READY — MAI HARDCODARE INTEGRAZIONI
 
 ## Frontend
+
 - Il frontend NON contiene token Shopify, secret o logica sensibile.
 - Nel frontend si gestiscono solo:
   - stato connessione,
@@ -319,14 +392,18 @@ Queste azioni DEVONO avere almeno uno tra:
   - identificativi pubblici/non sensibili.
 
 ## Stato sync
+
 Prodotti e negozi collegati a Shopify devono esporre chiaramente:
+
 - sincronizzato,
 - non sincronizzato,
 - errore sync,
 - sync in corso.
 
 ## UI Shopify
+
 Una schermata o tab Shopify deve mostrare almeno:
+
 - dominio store collegato,
 - stato connessione,
 - ultimo sync,
@@ -338,24 +415,29 @@ Una schermata o tab Shopify deve mostrare almeno:
 # FILTRI E RICERCA
 
 ## Liste grandi
+
 Per prodotti, varianti, movimenti, clienti, ordini:
+
 - includere ricerca libera,
 - includere filtri contestuali,
 - rendere i filtri resettabili.
 
 ## Filtri minimi
+
 - Prodotti: categoria, brand, stagione
 - Varianti/magazzino: negozio, stato stock
 - Movimenti: tipo movimento, data, negozio
 - Ordini: stato, fornitore, periodo
 
 ## Persistenza stato UI
+
 Se tecnicamente semplice, mantieni in query params:
+
 - pagina,
 - ordinamento,
 - ricerca,
 - filtri.
-Questo migliora UX e condivisibilità della pagina.
+  Questo migliora UX e condivisibilità della pagina.
 
 ---
 
@@ -364,7 +446,9 @@ Questo migliora UX e condivisibilità della pagina.
 Il gestionale deve essere consultabile e usabile da smartphone, specialmente in magazzino.
 
 ## Obiettivi mobile
+
 Da smartphone un utente deve poter fare facilmente almeno:
+
 - cercare un prodotto,
 - vedere stock di una variante,
 - verificare giacenza per location,
@@ -373,6 +457,7 @@ Da smartphone un utente deve poter fare facilmente almeno:
 - leggere un barcode/SKU.
 
 ## Regole mobile
+
 - touch target minimo 44px,
 - form compatti ma leggibili,
 - search bar sempre accessibile,
@@ -380,7 +465,9 @@ Da smartphone un utente deve poter fare facilmente almeno:
 - CTA principali visibili senza precisione da mouse.
 
 ## Scanner
+
 Se si integra scansione barcode:
+
 - progettare componenti e UX mobile-first,
 - prevedere fallback manuale se la camera non è disponibile o il permesso è negato.
 
@@ -389,6 +476,7 @@ Se si integra scansione barcode:
 # PERFORMANCE — GESTIONALE, NON DEMO
 
 ## Obbligatorio
+
 - lazy loading per tutte le feature,
 - route-level code splitting,
 - `OnPush` ovunque,
@@ -397,7 +485,9 @@ Se si integra scansione barcode:
 - evitare rendering di grandi tabelle senza paginazione o virtualizzazione.
 
 ## Liste grandi
+
 Per dataset grandi:
+
 - paginazione server-side o simulata,
 - virtual scroll se davvero necessario,
 - debounce sulla ricerca.
@@ -407,12 +497,15 @@ Per dataset grandi:
 # MOCK DATA E PREPARAZIONE BACKEND
 
 ## Pattern mock
+
 Finché il backend non esiste:
+
 - usare mock services fortemente tipizzati,
 - simulare delay realistici,
 - simulare anche errori e empty states.
 
 ## Contratti
+
 - Definire DTO e modelli pensando già al backend NestJS/PostgreSQL.
 - Il frontend non deve modellare dati in modo incompatibile con backend relazionale futuro.
 
@@ -421,13 +514,16 @@ Finché il backend non esiste:
 # ACCESSO E PERMESSI — UI
 
 ## Ruoli minimi previsti
+
 Progettare la UI tenendo conto almeno di:
+
 - owner
 - admin
 - manager
 - clerk / sales
 
 ## Permessi
+
 - La UI può nascondere azioni non consentite,
 - ma i controlli reali vivranno lato server.
 - Preparare comunque direttive/helper/guard per il rendering condizionale delle azioni.
@@ -437,12 +533,14 @@ Progettare la UI tenendo conto almeno di:
 # AUDITABILITÀ UI
 
 Per ogni azione sensibile, la UI dovrebbe poter mostrare:
+
 - chi ha eseguito l'azione,
 - quando,
 - su quale entità,
 - con quale quantità o stato prima/dopo se disponibile.
 
 Questo vale soprattutto per:
+
 - stock movements,
 - rettifiche,
 - ordini ricevuti,

@@ -1,8 +1,7 @@
----
-description: Sicurezza per progetti Angular SSR/CSR e backend Node/Express. Provider-agnostico (Firebase, Vercel, AWS, Cloudflare, GCP). Universale.
-globs: "**/*.ts, **/*.html, **/*.json, **/server.ts, **/*.yaml, **/*.yml, **/*.env*"
-alwaysApply: true
----
+# regole-sicurezza — Sicurezza
+
+_Sicurezza per frontend Angular e backend Node/NestJS. Provider-agnostico
+(Supabase, Railway, Vercel, AWS, Cloudflare, GCP)._
 
 # SCOPE
 
@@ -25,6 +24,7 @@ Queste regole valgono per **qualsiasi progetto Angular** con un backend o access
 - Rotazione segreti: programma una rotazione periodica (annuale minimo) per chiavi long-lived. Rotazione immediata su ogni sospetto leak.
 
 ## In caso di leak accidentale
+
 1. **Revoca immediata** del segreto sul provider (non basta cancellarlo dal repo: la history Git lo conserva).
 2. Genera un nuovo valore.
 3. Riscrivi la history se possibile (`git filter-repo`) e force-push, ma considera il segreto compromesso permanentemente.
@@ -137,6 +137,7 @@ app.use((_req, res, next) => {
 - Rate limit sul login: max 5 tentativi falliti consecutivi, poi lockout temporaneo + alert.
 
 ## Protezione CSRF
+
 - Per API stateful con cookie: usa pattern double-submit cookie o sync token.
 - Per API stateless con `Authorization: Bearer`: CSRF non si applica (token non auto-inviato dal browser).
 - `SameSite=Lax` mitiga la maggior parte degli attacchi CSRF cross-site.
@@ -155,10 +156,12 @@ app.use((_req, res, next) => {
 # `[scope: firebase]` FIREBASE SECURITY
 
 ## Firebase Authentication
+
 - Verifica il token JWT Firebase **lato server** (Cloud Functions / Cloud Run) su ogni chiamata autenticata. Non fidarti della validazione client.
 - USA **Custom Claims** per ruoli e permessi. Non salvare ruoli in Firestore se devi usarli nelle Security Rules (sono già nel token).
 
 ## Firestore / Realtime Database Security Rules
+
 - Le Security Rules sono codice di sicurezza, non documentazione. Ogni collection DEVE avere rules esplicite.
 - **VIETATO** deploy con `allow read, write: if true` in produzione.
 - Regola di default: `allow read, write: if false` — apri solo ciò che serve.
@@ -166,10 +169,12 @@ app.use((_req, res, next) => {
 - Testa le rules con l'**emulatore Firebase** prima del deploy. Le rules vanno nel CI con test automatici.
 
 ## Firebase Storage Rules
+
 - Stesso principio: default deny, regole esplicite per ogni path.
 - Limita dimensione upload nelle rules: `request.resource.size < 5 * 1024 * 1024`.
 
 ## Firebase App Hosting / Cloud Run
+
 - USA **Identity-Aware Proxy** (IAP) per proteggere ambienti di staging/preview non pubblici.
 - Le Cloud Functions che ricevono dati DEVONO validare input, verificare autenticazione e limitare le dimensioni del payload.
 
@@ -244,6 +249,7 @@ La anon/publishable key Supabase è **pubblica** (finisce nel bundle JS). Senza 
 # PRIVACY E DATI PERSONALI (GDPR)
 
 Se il progetto raccoglie o tratta dati personali di utenti UE:
+
 - Cookie banner conforme: nessun cookie/script di tracciamento prima del consenso esplicito (eccetto cookie tecnici strettamente necessari).
 - Privacy policy aggiornata che elenca: titolare, finalità, basi giuridiche, destinatari, tempi di conservazione, diritti dell'utente.
 - Pagina dedicata per esercizio dei diritti GDPR (accesso, rettifica, cancellazione, portabilità).
@@ -255,6 +261,7 @@ Se il progetto raccoglie o tratta dati personali di utenti UE:
 # CHECKLIST SICUREZZA PRE-DEPLOY
 
 Prima di ogni deploy in produzione, verifica:
+
 - [ ] Nessun segreto in `.env` committato (`git log --all --full-history -- .env`)
 - [ ] `npm audit` senza vulnerabilità critiche/alte
 - [ ] CSP configurata e testata (no `'unsafe-inline'` su `script-src`)

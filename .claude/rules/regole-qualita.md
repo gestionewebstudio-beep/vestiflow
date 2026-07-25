@@ -1,8 +1,7 @@
----
-description: Qualità del codice — testing, linting, formatting, commit, CI/CD, performance budget, accessibility check, dependency hygiene. Universale per ogni progetto Angular.
-globs: "**/*"
-alwaysApply: true
----
+# regole-qualita — Qualità del codice
+
+_Testing, linting, formatting, commit, CI/CD, performance budget, accessibility
+check, dependency hygiene._
 
 # SCOPE
 
@@ -140,6 +139,7 @@ module.exports = { extends: ['@commitlint/config-conventional'] };
 # TESTING — Strategia Multi-livello
 
 ## Unit Test
+
 - USA **Vitest** (Angular 20+) o Jest per unit test di service, pipe, validator, funzioni pure.
 - Coverage minimo:
   - Service: 80% di lines/branch.
@@ -160,21 +160,25 @@ describe('formatPrice', () => {
 ```
 
 ## Component Test
+
 - USA **Angular Testing Library** (`@testing-library/angular`) per testare componenti dal punto di vista utente.
 - VIETATO testare implementation detail (selettori CSS specifici, lifecycle interni). Testa il comportamento osservabile.
 - Componenti smart: mock dei service via `provide`.
 
 ## Integration Test
+
 - Testa flussi che attraversano più service/component (es. login → fetch dati → redirect).
 - USA `HttpTestingController` per mockare HTTP a livello di interceptor.
 
 ## E2E Test
+
 - USA **Playwright** (raccomandato) o Cypress.
 - Copertura minima: gli **happy path** delle 3-5 user journey più critiche (es. signup, checkout, contact form, login).
 - E2E gira in CI su PR critiche e su deploy in staging.
 - Mai test E2E che dipendono da dati esterni reali: usa fixture o ambiente dedicato.
 
 ## Coverage Reporting
+
 - Genera report `lcov` e mostralo nel CI (Codecov, Coveralls, GitHub Actions summary).
 - Soglia minima totale: 70% (siti vetrina) / 80% (SaaS / app critiche).
 - Nuovo codice DEVE avere coverage ≥ 80% (regola "diff coverage").
@@ -205,18 +209,15 @@ describe('formatPrice', () => {
 {
   "ci": {
     "collect": {
-      "url": [
-        "http://localhost:4200/",
-        "http://localhost:4200/contatti"
-      ],
+      "url": ["http://localhost:4200/", "http://localhost:4200/contatti"],
       "numberOfRuns": 3,
       "settings": { "preset": "desktop" }
     },
     "assert": {
       "assertions": {
-        "categories:performance":    ["error", { "minScore": 0.85 }],
-        "categories:seo":            ["error", { "minScore": 0.95 }],
-        "categories:accessibility":  ["error", { "minScore": 0.95 }],
+        "categories:performance": ["error", { "minScore": 0.85 }],
+        "categories:seo": ["error", { "minScore": 0.95 }],
+        "categories:accessibility": ["error", { "minScore": 0.95 }],
         "categories:best-practices": ["error", { "minScore": 0.95 }]
       }
     },
@@ -253,6 +254,7 @@ describe('formatPrice', () => {
 # CI/CD — Pipeline Minima
 
 Una pipeline CI deve eseguire (in ordine, fail-fast):
+
 1. **Install**: `npm ci` (riproducibilità dal lockfile).
 2. **Lint**: `npm run lint`.
 3. **Type-check**: `tsc --noEmit` (se non già coperto da `ng build`).
@@ -280,6 +282,7 @@ GitHub Actions / GitLab CI / Bitbucket Pipelines: scegli uno e mantieni un solo 
 # DOCUMENTAZIONE MINIMA
 
 Ogni repository DEVE avere:
+
 - **README.md** in root con: nome progetto, stack, requisiti (Node, npm), `npm install` + `npm start`, link a docs interne, contatti.
 - **.env.example** completo e aggiornato.
 - **CHANGELOG.md** generato automaticamente da Conventional Commits (release-please / standard-version).
@@ -309,6 +312,7 @@ Per architetture non banali (> 1 service, decisioni di design discutibili): cart
 # CHECKLIST QUALITÀ PRE-RELEASE
 
 Prima di un release in produzione:
+
 - [ ] `npm run lint` pulito
 - [ ] `npm run test` verde (unit + component)
 - [ ] `npm run e2e` verde sui happy path

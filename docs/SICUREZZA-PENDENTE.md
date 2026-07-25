@@ -165,7 +165,7 @@ Dashboard: **Shopify Partners → App → Configuration**
        `ALTER TABLE "nome_tabella" ENABLE ROW LEVEL SECURITY;`
 - [ ] Push → la CI `check:rls` deve restare **verde** (scopre le tabelle dallo schema automaticamente)
 
-Regola scritta in: `.cursor/rules/regole-sicurezza.mdc` (sezione Supabase RLS)
+Regola scritta in: `.claude/rules/regole-sicurezza.md` (sezione Supabase RLS)
 
 ---
 

@@ -1,4 +1,17 @@
+# regole-stile-ui — Stile UI (design system)
+
+_Token di design, pattern di componente, tabelle, form documentali, shell.
+Documento stratificato: l'identità corrente è «Antracite» (v5) con tema chiaro
+di default; ogni sezione successiva vince sulle precedenti._
+
 # VestiFlow — Restyle "Tech Moderno" (dark-first)
+
+> **Nota di lettura**: il documento è cronologico. Il titolo e le prime sezioni
+> descrivono la fase iniziale (dark-first, accento indigo); le sezioni
+> **Polish v2 → Restyle v5** che seguono le hanno progressivamente sostituite.
+> Lo stato attuale da rispettare è: **tema chiaro di default, accento antracite
+> `#1c1c1e`, sidebar antracite, pattern operativi v4**. In caso di conflitto
+> vince sempre la sezione più recente.
 
 Specifica di handoff per implementare il restyle mostrato in `VestiFlow Restyle.dc.html` (dark: 1a Dashboard, 1b Prodotti, 1c Arrivo merce, 1d Token sheet · light: 2a–2c). Vale per **tutta l'app**: le schermate mockup definiscono il sistema, tutte le altre pagine seguono le stesse regole.
 
@@ -346,11 +359,15 @@ resta invariato.
 
 ## Come dirlo a Claude Code
 
-1. Copia questo file nel repo come `docs/RESTYLE-SPEC.md` (o nella root).
-2. Aggiungi in `CLAUDE.md` del repo una riga: `Il restyle UI segue docs/RESTYLE-SPEC.md — ogni modifica visiva deve rispettarlo.`
-3. Prompt suggerito per la prima sessione:
+Questo file vive in `.claude/rules/` ed è importato da `CLAUDE.md`: è caricato a
+ogni sessione, non serve allegarlo o citarlo.
 
-> Leggi docs/RESTYLE-SPEC.md. Implementa il restyle "Tech Moderno" dell'intera app in questo ordine, con un commit per fase:
+Le fasi 1–6 qui sotto sono lo **storico del rollout iniziale**, già completato
+fino alla v5. Per il lavoro corrente vale la regola finale: chiedi una pagina
+alla volta ("adegua la pagina X alle regole di stile") — la sezione più recente
+di questo file è la fonte di verità.
+
+> Implementa il restyle "Tech Moderno" dell'intera app in questo ordine, con un commit per fase:
 >
 > 1. Riscrivi src/styles/\_design-tokens.scss: il blocco :root diventa il tema DARK della spec, il light diventa [data-theme='light']; inverti la logica del theme toggle di conseguenza. Aggiungi JetBrains Mono via fontsource per --font-mono.
 > 2. Aggiorna i componenti condivisi (button, badge, select, pagination, dialog, toast, skeleton) ai pattern della spec.
@@ -359,5 +376,3 @@ resta invariato.
 > 5. Dashboard: KPI card, segmented period, palette chart.js da spec.
 > 6. Verifica i criteri di accettazione della spec (niente colori hardcoded, AA, e2e verdi, print in light).
 >    Non cambiare flussi, rotte o comportamento: è un re-skin sistematico.
-
-4. Fasi successive: chiedi una pagina alla volta ("adegua la pagina X alla spec") se qualcosa resta indietro — la spec è la fonte di verità.
