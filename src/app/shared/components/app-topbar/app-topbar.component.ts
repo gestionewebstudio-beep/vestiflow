@@ -49,6 +49,13 @@ export class AppTopbarComponent {
   /** Messaggio errore connessione/sync (display-safe). */
   readonly shopifyLastError = input<string | null | undefined>(null);
 
+  // ── Azioni del documento aperto (mobile): Annulla · Salva in topbar ──────
+  /** True quando una maschera documento ha registrato le proprie azioni. */
+  readonly showDocumentActions = input<boolean>(false);
+  readonly documentSaveLabel = input<string>('Salva');
+  readonly documentSaving = input<boolean>(false);
+  readonly documentCanSave = input<boolean>(true);
+
   /** Toggle del drawer/sidebar (hamburger, mobile). */
   readonly menuToggle = output<void>();
   /** Click sulla ricerca globale ⌘K (placeholder: nessun handler in prima battuta). */
@@ -61,6 +68,9 @@ export class AppTopbarComponent {
   readonly settingsClick = output<void>();
   /** Richiesta di logout (lo shell parla all'AuthService). */
   readonly logout = output<void>();
+  /** Salva / Annulla del documento aperto (lo shell inoltra alla maschera). */
+  readonly documentSave = output<void>();
+  readonly documentCancel = output<void>();
 
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
     this.locations().map((location) => ({

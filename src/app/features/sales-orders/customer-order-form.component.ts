@@ -55,6 +55,7 @@ import {
 } from '@core/models/vat-code.model';
 import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
 import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
+import { DocumentActionsService } from '@core/services/document-actions.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
@@ -265,6 +266,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // colonne: la ridistribuzione ragiona in pixel veri, non in quote.
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly breadcrumbLabels = inject(BreadcrumbLabelService);
+  private readonly documentActionsService = inject(DocumentActionsService);
   private readonly appConfig = inject(APP_CONFIG);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
@@ -1202,6 +1204,23 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.breadcrumbLabels.clear(this.breadcrumbLabelId);
       }
     });
+
+    // Annulla · Salva in topbar (mobile): la maschera registra le sue azioni,
+    // la shell le mostra. Rilasciate all'uscita, così la topbar torna normale.
+    effect(() => {
+      if (this.formReadOnly() || this.loading() || this.loadError() || this.notEditable()) {
+        this.documentActionsService.clear();
+        return;
+      }
+      this.documentActionsService.set({
+        saveLabel: this.isOrder ? 'Salva ordine' : 'Salva',
+        saving: this.saving(),
+        canSave: !this.saving(),
+        save: () => this.requestSaveDocument(),
+        cancel: () => this.cancel(),
+      });
+    });
+    this.destroyRef.onDestroy(() => this.documentActionsService.clear());
 
     // Etichetta della tappa id nel breadcrumb: registro il numero del documento
     // caricato (e ripulisco la precedente se cambia entità nella stessa istanza).

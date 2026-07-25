@@ -5,7 +5,7 @@
 //
 // Tema principale = LIGHT (`:root`). Il dark e' l'override `[data-theme='dark']`.
 // Un solo accento indigo per CTA/focus/link/nav attiva; verde riservato a
-// Shopify/sync/successo. Bordi > ombre. Vedi docs/RESTYLE-SPEC.md.
+// Shopify/sync/successo. Bordi > ombre. Vedi .claude/rules/regole-stile-ui.md.
 //
 // Architettura a livelli:
 //   1. Primitive  -> scale colore grezze (fallback / chart legacy)
@@ -63,6 +63,13 @@
   --color-brand: #176b43;
   --color-brand-hover: #115634;
   --color-brand-subtle: #eaf7f0;
+
+  // Canale Shopify: identita' del CANALE, non lo stato "successo" generico.
+  // Solo chip sync in topbar e indicatori legati al canale; per esiti positivi
+  // (salvato, valido, giacenza ok) restano i token --status-ok-*.
+  --color-shopify: #0e7446;
+  --color-shopify-subtle: #e6f4ec;
+  --color-shopify-border: #b7dcc7;
 
   --color-danger: #b42318;
   --color-danger-hover: #932015;
@@ -181,6 +188,12 @@
   --color-brand: #3ddc97;
   --color-brand-hover: #63e5ab;
   --color-brand-subtle: rgb(61 220 151 / 0.12);
+
+  // Canale Shopify (vedi tema chiaro): su fondo scuro serve la variante menta
+  // per restare leggibile; #0e7446 non avrebbe contrasto sufficiente.
+  --color-shopify: #3ddc97;
+  --color-shopify-subtle: rgb(61 220 151 / 0.12);
+  --color-shopify-border: rgb(61 220 151 / 0.25);
 
   --color-danger: #ff6b5e;
   --color-danger-hover: #ff887d;

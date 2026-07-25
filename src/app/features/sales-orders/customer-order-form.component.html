@@ -1327,74 +1327,98 @@
                       </p>
                     }
 
-                    <!-- Riga compatta: nome/SKU (tap = espandi), stepper −/+,
-                         totale, X. I dettagli editabili stanno nel corpo aperto. -->
+                    <!-- Riga compatta: nome/SKU (tap = espandi) e X sopra, sotto i
+                         tre metric chip Qtà · Prezzo · Totale. Quantità e prezzo si
+                         modificano senza aprire la card; il resto nel corpo. -->
                     <div class="co-form__card-head">
-                      <button
-                        type="button"
-                        class="co-form__card-expand"
-                        [attr.aria-expanded]="isLineCardOpen(i)"
-                        (click)="toggleLineCard(i)"
-                      >
-                        <i class="pi pi-chevron-down co-form__card-chevron" aria-hidden="true"></i>
-                        <span class="co-form__card-copy">
-                          <span class="co-form__card-name">
-                            {{ line.controls.productName.value || 'Riga senza prodotto' }}
-                          </span>
-                          <span class="co-form__card-sub">
-                            {{
-                              lineArticleCode(i) ? 'Cod. ' + lineArticleCode(i) : 'Nessun codice'
-                            }}
-                            @if (line.controls.sku.value) {
-                              · SKU {{ line.controls.sku.value }}
-                            }
-                          </span>
-                        </span>
-                      </button>
-
-                      <div class="co-form__qty-stepper">
+                      <div class="co-form__card-topline">
                         <button
                           type="button"
-                          class="co-form__qty-btn"
-                          [disabled]="formReadOnly()"
-                          aria-label="Diminuisci quantità"
-                          (click)="decrementLineQty(i)"
+                          class="co-form__card-expand"
+                          [attr.aria-expanded]="isLineCardOpen(i)"
+                          (click)="toggleLineCard(i)"
                         >
-                          <i class="pi pi-minus" aria-hidden="true"></i>
+                          <i
+                            class="pi pi-chevron-down co-form__card-chevron"
+                            aria-hidden="true"
+                          ></i>
+                          <span class="co-form__card-copy">
+                            <span class="co-form__card-name">
+                              {{ line.controls.productName.value || 'Riga senza prodotto' }}
+                            </span>
+                            <span class="co-form__card-sub">
+                              {{
+                                lineArticleCode(i) ? 'Cod. ' + lineArticleCode(i) : 'Nessun codice'
+                              }}
+                              @if (line.controls.sku.value) {
+                                · SKU {{ line.controls.sku.value }}
+                              }
+                            </span>
+                          </span>
                         </button>
-                        <input
-                          class="co-form__qty-input tabular-nums"
-                          type="number"
-                          min="1"
-                          step="1"
-                          inputmode="numeric"
-                          formControlName="quantity"
-                          aria-label="Quantità"
-                        />
+
                         <button
                           type="button"
-                          class="co-form__qty-btn"
+                          class="co-form__card-remove"
                           [disabled]="formReadOnly()"
-                          aria-label="Aumenta quantità"
-                          (click)="incrementLineQty(i)"
+                          aria-label="Rimuovi riga"
+                          (click)="removeLine(i)"
                         >
-                          <i class="pi pi-plus" aria-hidden="true"></i>
+                          <i class="pi pi-times" aria-hidden="true"></i>
                         </button>
                       </div>
 
-                      <span class="co-form__card-total tabular-nums">
-                        {{ formatMoney(lineTotalMoney(i)) }}
-                      </span>
+                      <div class="co-form__metrics">
+                        <div class="co-form__metric co-form__metric--qty">
+                          <small>Qtà</small>
+                          <div class="co-form__qty-stepper">
+                            <button
+                              type="button"
+                              class="co-form__qty-btn"
+                              [disabled]="formReadOnly()"
+                              aria-label="Diminuisci quantità"
+                              (click)="decrementLineQty(i)"
+                            >
+                              <i class="pi pi-minus" aria-hidden="true"></i>
+                            </button>
+                            <input
+                              class="co-form__qty-input tabular-nums"
+                              type="number"
+                              min="1"
+                              step="1"
+                              inputmode="numeric"
+                              formControlName="quantity"
+                              aria-label="Quantità"
+                            />
+                            <button
+                              type="button"
+                              class="co-form__qty-btn"
+                              [disabled]="formReadOnly()"
+                              aria-label="Aumenta quantità"
+                              (click)="incrementLineQty(i)"
+                            >
+                              <i class="pi pi-plus" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </div>
 
-                      <button
-                        type="button"
-                        class="co-form__card-remove"
-                        [disabled]="formReadOnly()"
-                        aria-label="Rimuovi riga"
-                        (click)="removeLine(i)"
-                      >
-                        <i class="pi pi-times" aria-hidden="true"></i>
-                      </button>
+                        <div class="co-form__metric co-form__metric--price">
+                          <small>Prezzo</small>
+                          <input
+                            class="co-form__metric-input tabular-nums"
+                            type="text"
+                            inputmode="decimal"
+                            formControlName="unitPrice"
+                            placeholder="0,00"
+                            aria-label="Prezzo unitario"
+                          />
+                        </div>
+
+                        <div class="co-form__metric co-form__metric--total">
+                          <small>Totale</small>
+                          <strong class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</strong>
+                        </div>
+                      </div>
                     </div>
 
                     @if (isLineCardOpen(i)) {
@@ -1513,21 +1537,21 @@
                             </div>
                           </div>
 
-                          <!-- Quantità: solo nello stepper della riga compatta (F4). -->
+                          <!-- Quantità: solo nello stepper della riga compatta (F4).
+                               Disponibile e «Impegna magazzino» sono sempre a schermo
+                               nella card: non dipendono dal selettore colonne desktop. -->
                           <p class="co-form__card-group">Magazzino</p>
-                          @if (isLineColumnVisible('stockAvailable')) {
-                            <div class="co-form__card-field co-form__card-field--readonly">
-                              <span class="co-form__card-label">Disponibile</span>
-                              <p class="tabular-nums">
-                                {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
-                              </p>
-                            </div>
-                          }
+                          <div class="co-form__card-field co-form__card-field--readonly">
+                            <span class="co-form__card-label">Disponibile</span>
+                            <p class="tabular-nums">
+                              {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
+                            </p>
+                          </div>
                           <div class="co-form__card-field co-form__card-field--readonly">
                             <span class="co-form__card-label">U.m.</span>
                             <p>{{ lineUnitOfMeasure(i) }}</p>
                           </div>
-                          @if (isLineColumnVisible('commitsStock')) {
+                          @if (!isQuote) {
                             <div class="co-form__card-field">
                               <label [attr.for]="'co-m-commits-' + i">{{
                                 commitsColumnLabel
@@ -1557,7 +1581,7 @@
                             </div>
                           }
 
-                          <p class="co-form__card-group">Valori di vendita</p>
+                          <p class="co-form__card-group">Vendita</p>
                           @if (isLineColumnVisible('purchaseCost')) {
                             <div class="co-form__card-field co-form__card-field--readonly">
                               <span class="co-form__card-label">Costo</span>
@@ -2213,28 +2237,8 @@
       <!-- Dock mobile (mockup responsive v3): totale del documento sempre in
            vista e le azioni principali a portata di pollice. La scansione vive
            nella card sotto le righe, non qui. -->
-      <div class="gr-form__dock" role="region" aria-label="Azioni rapide documento">
-        <div class="gr-form__dock-total">
-          <span>Totale documento</span>
-          <strong class="tabular-nums">{{ formatMoney(documentTotals().total) }}</strong>
-        </div>
-        <!-- Footer ridotto (F2): solo «Salva ordine» a piena larghezza. Chiudi
-             è gestito dal pulsante «Indietro» (con conferma se ci sono modifiche);
-             Concludi/Genera vivono nel menu ⋯ dell'header. -->
-        <div class="co-form__dock-actions">
-          @if (!formReadOnly()) {
-            <app-button
-              type="button"
-              class="co-form__dock-save"
-              [loading]="saving()"
-              [disabled]="saving()"
-              (click)="requestSaveDocument()"
-            >
-              {{ isOrder ? 'Salva ordine' : 'Salva documento' }}
-            </app-button>
-          }
-        </div>
-      </div>
+      <!-- Nessuna barra fissa in basso su mobile: il totale documento si legge
+           nel riepilogo a fine pagina, Annulla/Salva stanno nella topbar. -->
     </form>
   }
 </section>

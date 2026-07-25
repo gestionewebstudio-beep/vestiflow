@@ -1,4 +1,4 @@
-<div class="app-topbar">
+<div class="app-topbar" [class.app-topbar--doc]="showDocumentActions()">
   <div class="app-topbar__start">
     <button
       type="button"
@@ -23,7 +23,29 @@
     </button>
   </div>
 
-  <div class="app-topbar__end">
+  <!-- Documento aperto (mobile): Annulla · Salva in cima, al posto di una barra
+       fissa in basso. Su desktop restano le azioni in fondo alla maschera. -->
+  @if (showDocumentActions()) {
+    <div class="app-topbar__doc-actions">
+      <button
+        type="button"
+        class="app-topbar__doc-btn app-topbar__doc-btn--cancel"
+        (click)="documentCancel.emit()"
+      >
+        Annulla
+      </button>
+      <button
+        type="button"
+        class="app-topbar__doc-btn app-topbar__doc-btn--save"
+        [disabled]="documentSaving() || !documentCanSave()"
+        (click)="documentSave.emit()"
+      >
+        {{ documentSaving() ? 'Salvataggio…' : documentSaveLabel() }}
+      </button>
+    </div>
+  }
+
+  <div class="app-topbar__end" [class.app-topbar__end--compact]="showDocumentActions()">
     <!-- Sede fissa o unica: la mostra gia' il blocco profilo a destra;
          il selettore compare solo quando la sede si puo' davvero cambiare. -->
     @if (!showFixedLocationLabel() && locations().length > 0) {

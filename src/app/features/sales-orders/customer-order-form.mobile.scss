@@ -9,7 +9,7 @@
 // VISTA MOBILE / TABLET — mockup «Ordine Cliente v3 responsive», sotto lg
 // La tabella non regge il pollice: sotto 1024px la testata si riassume in una
 // riga apribile, ogni riga documento diventa una card espandibile, scansione
-// e azioni si spostano in una card dedicata e nel dock fisso.
+// e azioni si spostano in una card dedicata e nella topbar.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Le tre viste mobili esistono nel DOM ma restano spente su desktop.
@@ -25,7 +25,7 @@
   border: var(--border-width) solid var(--co-line);
   border-radius: var(--co-radius-card);
   overflow: hidden;
-  box-shadow: 0 2px 10px rgb(20 42 34 / 0.045);
+  box-shadow: var(--co-shadow);
   transition:
     border-color var(--transition-base) var(--ease-standard),
     box-shadow var(--transition-base) var(--ease-standard),
@@ -39,24 +39,37 @@
 
 .co-form__card--open {
   border-color: var(--co-card-open-border);
-  box-shadow: 0 6px 18px rgb(20 42 34 / 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 .co-form__card--incomplete {
   box-shadow: inset var(--space-1) 0 0 0 var(--status-warning-border);
 }
 
-// Testa-card compatta (F4): contenitore flex, non più un unico button.
+// Testa-card compatta: riga titolo sopra, metric chip sotto.
 .co-form__card-head {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--space-2);
   inline-size: 100%;
-  min-block-size: 4rem;
   padding: var(--space-2) var(--space-3);
   background-color: var(--co-surface);
   border: 0;
+}
+
+.co-form__card-topline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+}
+
+// Qtà · Prezzo · Totale: modificabili senza aprire la card.
+.co-form__metrics {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: stretch;
+  gap: var(--space-2);
 }
 
 .co-form__card--open .co-form__card-head {
@@ -96,11 +109,45 @@
 }
 
 .co-form__metric {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
   min-inline-size: 3.375rem;
   padding: var(--space-1) var(--space-2);
   text-align: end;
   background-color: var(--co-metric-bg);
+  border-radius: var(--co-radius-sm);
+}
+
+// Chip Qtà: stepper senza cornice propria (la fa il chip).
+.co-form__metric--qty {
+  text-align: start;
+}
+
+.co-form__metric--qty .co-form__qty-stepper {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+// Chip Prezzo: input nudo dentro il chip, allineato a destra come i valori.
+.co-form__metric--price .co-form__metric-input {
+  inline-size: 100%;
+  min-inline-size: 4rem;
+  min-block-size: 2rem;
+  padding: 0;
+  text-align: end;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--co-text, var(--color-text));
+  background: none;
+  border: 0;
+}
+
+.co-form__metric--price .co-form__metric-input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
   border-radius: var(--co-radius-sm);
 }
 
@@ -127,7 +174,9 @@
   color: inherit;
 }
 
+// Totale riga: il dato più marcato della testa-card.
 .co-form__metric--total strong {
+  font-size: var(--text-sm);
   font-weight: var(--co-weight-strong);
 }
 
@@ -420,32 +469,6 @@
   border-radius: var(--co-radius-sm);
 }
 
-// ── Dock: totale sempre in vista + azioni principali ───────────────────────
-.co-form__dock-actions {
-  display: flex;
-  gap: var(--space-2);
-  --field-height: var(--co-btn-h-dock);
-}
-
-.co-form__dock-actions ::ng-deep .app-button {
-  flex: 1 1 0;
-  inline-size: 100%;
-  font-size: var(--text-sm);
-}
-
-.co-form__dock-actions > .co-form__conclude {
-  flex: 1.15 1 0;
-  min-inline-size: 0;
-}
-
-.co-form__dock-actions > app-button:first-child ::ng-deep .app-button {
-  flex-grow: 0.72;
-}
-
-.co-form .co-form__dock-actions > app-button.co-form__dock-save ::ng-deep .app-button {
-  flex-grow: 1.25;
-}
-
 @include bp.media-down('lg') {
   // Testata del form ancorata in cima durante lo scroll (il breadcrumb di shell
   // resta com'è): «Indietro» e titolo sempre raggiungibili col pollice.
@@ -549,7 +572,7 @@
     grid-column: 1 / -1;
   }
 
-  // Finestra «Colonne»: a tutta larghezza sopra il dock, una colonna sola e
+  // Finestra «Colonne»: a tutta larghezza, una colonna sola e
   // bottoni di riordino grandi abbastanza per il dito (mockup responsive).
   .co-form ::ng-deep .table-column-picker__panel {
     position: fixed;
@@ -586,7 +609,7 @@
     flex-direction: column;
   }
 
-  // Totali a due colonne; il totale documento vive nel dock.
+  // Totali a due colonne; il totale documento chiude il riepilogo.
   .co-form .gr-form__footer-grid {
     gap: var(--space-2);
   }
@@ -645,8 +668,21 @@
     border-inline-end: 0;
   }
 
+  // Totale documento: riga a piena larghezza in fondo al riepilogo, il dato
+  // piu' marcato della sezione (non esiste piu' la barra fissa in basso).
   .co-form .gr-form__totals-row--total {
-    display: none;
+    grid-column: 1 / -1;
+    border-inline-end: 0;
+    border-block-end: 0;
+    background-color: var(--co-metric-total-bg);
+    color: var(--co-metric-total-fg);
+  }
+
+  .co-form .gr-form__totals-row--total dt,
+  .co-form .gr-form__totals-row--total dd {
+    font-size: var(--text-sm);
+    font-weight: var(--co-weight-strong);
+    color: inherit;
   }
 
   .co-form .gr-form__totals dt {
@@ -666,44 +702,9 @@
     max-block-size: var(--space-16);
   }
 
-  // Barra azioni desktop fuori, dock dentro.
+  // Barra azioni desktop fuori: su mobile Annulla/Salva vivono nella topbar.
   .co-form .gr-form__actions {
     display: none;
-  }
-
-  .co-form.gr-form {
-    padding-block-end: calc(var(--space-24) + env(safe-area-inset-bottom));
-  }
-
-  .co-form .gr-form__dock {
-    display: block;
-    position: fixed;
-    inset-inline: 0;
-    inset-block-end: 0;
-    z-index: var(--z-sticky);
-    padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom));
-    background-color: color-mix(in srgb, var(--co-surface) 97%, transparent);
-    backdrop-filter: blur(12px);
-    border-block-start: var(--border-width) solid var(--co-line);
-    box-shadow: 0 -6px 20px rgb(17 39 31 / 0.08);
-  }
-
-  .co-form .gr-form__dock-total {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-block-end: var(--space-2);
-  }
-
-  .co-form .gr-form__dock-total span {
-    font-size: var(--text-2xs);
-    color: var(--co-muted);
-  }
-
-  .co-form .gr-form__dock-total strong {
-    font-size: var(--co-text-dock-total);
-    font-weight: var(--font-weight-bold);
-    color: var(--co-brand);
   }
 }
 
@@ -724,14 +725,6 @@
 
   .co-form__metric {
     min-inline-size: 3.125rem;
-  }
-
-  .co-form__dock-actions {
-    flex-wrap: wrap;
-  }
-
-  .co-form .co-form__dock-actions > app-button.co-form__dock-save ::ng-deep .app-button {
-    flex: 1 0 100%;
   }
 }
 
@@ -990,15 +983,19 @@
   overflow: hidden;
 }
 
+// Touch target pieno (44px) anche dentro il chip: il tocco vale su tutta
+// l'altezza, l'aspetto resta compatto grazie al margine negativo verticale.
 .co-form__qty-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-inline-size: 2.75rem;
+  min-inline-size: 2.5rem;
   min-block-size: 2.75rem;
+  margin-block: calc(var(--space-1) * -1);
   color: var(--co-text, var(--color-text));
   background-color: var(--co-surface);
   border: 0;
+  border-radius: var(--co-radius-sm);
   cursor: pointer;
   transition: background-color 120ms var(--ease-standard);
 }
@@ -1029,14 +1026,6 @@
 .co-form__qty-input::-webkit-inner-spin-button {
   appearance: none;
   margin: 0;
-}
-
-.co-form__card-total {
-  flex-shrink: 0;
-  min-inline-size: 4.5rem;
-  text-align: end;
-  font-weight: var(--font-weight-bold);
-  color: var(--co-text, var(--color-text));
 }
 
 .co-form__card-remove {

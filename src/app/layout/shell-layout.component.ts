@@ -13,6 +13,7 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { catchError, filter, merge, of, switchMap, type Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
+import { DocumentActionsService } from '@core/services/document-actions.service';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import {
@@ -89,6 +90,9 @@ export class ShellLayoutComponent {
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly supportSessions = inject(SupportSessionService);
+  /** Azioni della maschera documento aperta (Annulla/Salva in topbar). */
+  private readonly documentActionsService = inject(DocumentActionsService);
+  protected readonly documentActions = this.documentActionsService.actions;
   private readonly destroyRef = inject(DestroyRef);
 
   readonly currentUser = this.authService.currentUser;
@@ -510,6 +514,15 @@ export class ShellLayoutComponent {
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private logoutSubscription: Subscription | null = null;
   private supportSessionEndSubscription: Subscription | null = null;
+
+  /** Inoltra alla maschera documento aperta (registrata via servizio). */
+  onDocumentSave(): void {
+    this.documentActions()?.save();
+  }
+
+  onDocumentCancel(): void {
+    this.documentActions()?.cancel();
+  }
 
   onLogoutRequest(): void {
     this.logoutDialogOpen.set(true);
