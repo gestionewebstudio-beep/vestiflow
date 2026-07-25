@@ -2234,11 +2234,25 @@
         }
       </div>
 
-      <!-- Dock mobile (mockup responsive v3): totale del documento sempre in
-           vista e le azioni principali a portata di pollice. La scansione vive
-           nella card sotto le righe, non qui. -->
-      <!-- Nessuna barra fissa in basso su mobile: il totale documento si legge
-           nel riepilogo a fine pagina, Annulla/Salva stanno nella topbar. -->
+      <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
+           fondo al documento, dopo il riepilogo totali. Scorrono col contenuto,
+           nessuna barra fissa e nessun pulsante azione in topbar. Su desktop
+           restano nel footer sticky sopra. -->
+      @if (!formReadOnly()) {
+        <div class="co-form__mobile-actions">
+          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
+            Annulla
+          </app-button>
+          <app-button
+            type="button"
+            [loading]="saving()"
+            [disabled]="saving()"
+            (click)="requestSaveDocument()"
+          >
+            {{ isOrder ? 'Salva ordine' : 'Salva documento' }}
+          </app-button>
+        </div>
+      }
     </form>
   }
 </section>

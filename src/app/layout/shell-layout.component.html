@@ -32,18 +32,12 @@
       [shopifyLastSyncAt]="shopifyLastSyncAt()"
       [shopifyAutoSyncEnabled]="shopifyAutoSyncEnabled()"
       [shopifyLastError]="shopifyLastError()"
-      [showDocumentActions]="documentActions() !== null"
-      [documentSaveLabel]="documentActions()?.saveLabel ?? 'Salva'"
-      [documentSaving]="documentActions()?.saving ?? false"
-      [documentCanSave]="documentActions()?.canSave ?? true"
       (menuToggle)="toggleDrawer()"
       (searchClick)="openGlobalSearch()"
       (locationChange)="onLocationChange($event)"
       (syncClick)="onSyncClick()"
       (settingsClick)="onSettingsClick()"
       (logout)="onLogoutRequest()"
-      (documentSave)="onDocumentSave()"
-      (documentCancel)="onDocumentCancel()"
     />
   </header>
 
