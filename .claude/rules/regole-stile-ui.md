@@ -1,378 +1,419 @@
-# regole-stile-ui — Stile UI (design system)
+# regole-stile-ui — VestiFlow Restyle Spec
 
-_Token di design, pattern di componente, tabelle, form documentali, shell.
-Documento stratificato: l'identità corrente è «Antracite» (v5) con tema chiaro
-di default; ogni sezione successiva vince sulle precedenti._
+Fonte di verità visiva per l'intera app. Ogni modifica UI deve rispettare questo documento. In caso di conflitto con altri file o mockup precedenti, vince questo.
 
-# VestiFlow — Restyle "Tech Moderno" (dark-first)
+Ultima revisione: luglio 2026.
 
-> **Nota di lettura**: il documento è cronologico. Il titolo e le prime sezioni
-> descrivono la fase iniziale (dark-first, accento indigo); le sezioni
-> **Polish v2 → Restyle v5** che seguono le hanno progressivamente sostituite.
-> Lo stato attuale da rispettare è: **tema chiaro di default, accento antracite
-> `#1c1c1e`, sidebar antracite, pattern operativi v4**. In caso di conflitto
-> vince sempre la sezione più recente.
+---
 
-Specifica di handoff per implementare il restyle mostrato in `VestiFlow Restyle.dc.html` (dark: 1a Dashboard, 1b Prodotti, 1c Arrivo merce, 1d Token sheet · light: 2a–2c). Vale per **tutta l'app**: le schermate mockup definiscono il sistema, tutte le altre pagine seguono le stesse regole.
+## 1. Principi
 
-## Principi
+- **VestiFlow è un gestionale**, non un sito vetrina. Densità informativa controllata, layout compatti ma leggibili, nessuna proporzione da marketing page.
+- **Tema chiaro**. Le regole di questo documento descrivono il tema chiaro.
+- **Mobile è cittadino di prima classe**. Le regole mobile non sono "adattamenti"; sono parte del sistema. Su schermi stretti le tabelle diventano card, la testata diventa comprimibile, le azioni principali (Annulla, Salva) stanno in fondo al documento — nessuna barra fissa che sottrae spazio al contenuto.
+- **Un solo modo di fare le cose**. Se un pattern esiste per un caso, va riusato negli stessi casi altrove. Card, tabelle, sezioni di form, riepiloghi totali: uno standard, non varianti.
+- **Bordi disegnano la forma, ombre danno profondità sottile**. Uso limitato di ombre marcate; il grosso della gerarchia visiva sta nei bordi e negli sfondi.
 
-- **Dark è il tema principale** (`:root` = dark). Il light attuale diventa l'override `[data-theme='light']` — si inverte la logica attuale in `src/styles/_design-tokens.scss`.
-- **Un solo accento**: `#6C7BFF` (indigo vivace) per CTA primaria, focus ring, link, selezione, nav attiva. Sostituisce sia la CTA charcoal che il blu Polaris (`--color-primary` e `--color-interactive` convergono).
-- **Verde `#3DDC97`** riservato a Shopify/sync/successo (continuità con `--color-brand`).
-- **Densità invariata**: base 13px, righe tabella ~36px, input 34px. Nessun cambio a `--text-*`.
-- Bordi > ombre. Ombre solo per dropdown/overlay.
-- SKU, EAN e numeri: `JetBrains Mono` (già previsto come `--font-mono`) + `tabular-nums`.
-- Contrasto testo minimo 4.5:1; focus visibile con ring accento 3px al 18% alpha.
+---
 
-## Override token (dark, nuovo `:root`)
+## 2. Palette
 
-Mappa 1:1 sulle variabili esistenti di `_design-tokens.scss` — nessun rename necessario:
+Nessun colore va scritto direttamente in un componente: sempre `var(--token)`.
 
-```scss
-:root {
-  color-scheme: dark;
+### Superfici
 
-  // Superfici
-  --color-bg: #0b0c0f;
-  --color-surface: #14161b;
-  --color-surface-raised: #1a1d24;
-  --color-surface-sunken: #0f1116; // usato anche come bg input
-  --color-surface-hover: #171a20;
+| Uso                                    | Valore    | Token                     |
+| -------------------------------------- | --------- | ------------------------- |
+| Sfondo pagina                          | `#eef0f2` | `--color-bg`              |
+| Superficie card / pannelli             | `#ffffff` | `--color-surface`         |
+| Superficie tenue (row alterne, sunken) | `#f6f7f8` | `--color-surface-soft`    |
+| Superficie tabella hover               | `#f8faf9` | `--color-surface-hover`   |
+| Header tabella                         | `#e9edee` | `--color-table-header-bg` |
 
-  --color-border: #262a33;
-  --color-border-strong: #333a47;
+### Bordi e divisori
 
-  // Testo
-  --color-text: #e9ecf2;
-  --color-text-muted: #9ba3b0;
-  --color-text-subtle: #667085;
-  --color-text-inverse: #0b0c0f;
+| Uso                                               | Valore    | Token                         |
+| ------------------------------------------------- | --------- | ----------------------------- |
+| Bordo base                                        | `#d7dddd` | `--color-border`              |
+| Bordo forte (input focus off, separatori sezioni) | `#b6c0c1` | `--color-border-strong`       |
+| Divisori cella tabella                            | `#e4ebe8` | `--color-border-cell`         |
+| Divisori gruppi colonne tabella (2px)             | `#b9c7c0` | `--color-table-group-divider` |
 
-  // CTA + interattivo (unificati sull'accento)
-  --color-primary: #6c7bff;
-  --color-primary-hover: #8591ff;
-  --color-primary-active: #5b6af2;
-  --color-primary-fg: #ffffff;
-  --color-primary-subtle: rgba(108, 123, 255, 0.14);
+### Testo
 
-  --color-interactive: #6c7bff;
-  --color-interactive-hover: #8591ff;
-  --color-interactive-active: #aab3ff;
-  --color-interactive-subtle: rgba(108, 123, 255, 0.14);
+| Uso                                       | Valore    | Token                  |
+| ----------------------------------------- | --------- | ---------------------- |
+| Testo primario                            | `#20282b` | `--color-text`         |
+| Testo muted (label uppercase, hint, meta) | `#657075` | `--color-text-muted`   |
+| Testo subtle (placeholder, disabled)      | `#8a9498` | `--color-text-subtle`  |
+| Testo su superfici scure                  | `#ffffff` | `--color-text-inverse` |
 
-  --color-focus-ring: #6c7bff;
-  --color-link: #8591ff;
-  --color-link-hover: #aab3ff;
+### Brand e interazione
 
-  // Brand Shopify / successo
-  --color-brand: #3ddc97;
-  --color-brand-hover: #63e5ab;
-  --color-brand-subtle: rgba(61, 220, 151, 0.12);
+| Uso                                         | Valore                                                                           | Token                      |
+| ------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------- |
+| Brand primario (CTA, header attivi, avatar) | `#25343b`                                                                        | `--color-primary`          |
+| Brand hover                                 | `#18262d`                                                                        | `--color-primary-hover`    |
+| Brand tinta chiara (subtle)                 | `#edf2f4`                                                                        | `--color-primary-subtle`   |
+| Focus (bordo campo + anello)                | `#4f7e8d`                                                                        | `--color-focus`            |
+| Focus ring alpha                            | `rgba(79,126,141,.12)`                                                           | `--color-focus-ring-alpha` |
+| Link accento                                | usa `--color-primary` o `--color-focus` — non introdurre un colore link separato | —                          |
 
-  --color-danger: #ff5c5c;
-  --color-danger-hover: #ff7a7a;
-  --color-danger-fg: #ffffff;
+### Navigation (shell)
 
-  --color-backdrop: rgba(0, 0, 0, 0.72);
+Colori dedicati **esclusivamente** alla sidebar. Non usare questi token altrove: non è un secondo brand, è la palette della navigazione. Sono tonalmente distinti dal brand (verde-scuro vs grigio-blu) perché stanno in aree separate della schermata e la distinzione visiva è voluta.
 
-  // Nav
-  --color-nav-bg: #0e1014;
-  --color-nav-hover: #14161b;
-  --color-nav-selected-bg: rgba(108, 123, 255, 0.14);
-  --color-nav-selected-text: #e9ecf2;
+| Uso                                 | Valore                                               | Token                     |
+| ----------------------------------- | ---------------------------------------------------- | ------------------------- |
+| Sidebar bg                          | `#15211F`                                            | `--color-nav-bg`          |
+| Voce attiva bg                      | `#1E3933`                                            | `--color-nav-selected-bg` |
+| Testo sidebar (voci normali)        | `#d8e2df`                                            | `--color-nav-fg`          |
+| Testo sidebar muted (sezioni, meta) | `#8f9c96`                                            | `--color-nav-fg-muted`    |
+| Testo/icona voce attiva             | `#ffffff`                                            | `--color-nav-selected-fg` |
+| Indicatore laterale voce attiva     | usa `--color-nav-selected-fg` (2px inset a sinistra) | —                         |
+| Divisori interni sidebar            | `rgba(255,255,255,.08)`                              | `--color-nav-divider`     |
 
-  // Stati (fg / bg / border: tinta al 12% / 25% alpha)
-  --status-ok-fg: #3ddc97;
-  --status-ok-bg: rgba(61, 220, 151, 0.12);
-  --status-ok-border: rgba(61, 220, 151, 0.25);
-  --status-low-fg: #ffb02e;
-  --status-low-bg: rgba(255, 176, 46, 0.12);
-  --status-low-border: rgba(255, 176, 46, 0.25);
-  --status-empty-fg: #ff5c5c;
-  --status-empty-bg: rgba(255, 92, 92, 0.12);
-  --status-empty-border: rgba(255, 92, 92, 0.25);
-  --status-success-*: come ok;
-  --status-warning-*: come low;
-  --status-error-*: come empty;
-  --status-info-fg: #4cc3ff;
-  --status-info-bg: rgba(76, 195, 255, 0.12);
-  --status-info-border: rgba(76, 195, 255, 0.25);
-  --status-neutral-fg: #9ba3b0;
-  --status-neutral-bg: rgba(155, 163, 176, 0.12);
-  --status-neutral-border: rgba(155, 163, 176, 0.25);
-}
-```
+### Stati
 
-Spacing, radius, z-index, typography scale, breakpoints: **invariati**.
-Radius effettivi usati nel mockup: 8px controlli/righe, 10px card, 14px nessuno in-app (solo frame mockup).
+| Uso                               | Valore    | Token                    |
+| --------------------------------- | --------- | ------------------------ |
+| OK / successo / stock disponibile | `#2d7557` | `--color-ok`             |
+| OK tinta chiara                   | `#edf6f1` | `--color-ok-subtle`      |
+| Warning / allerta stock / ambra   | `#9a640c` | `--color-warning`        |
+| Warning tinta chiara              | `#fff6e7` | `--color-warning-subtle` |
+| Danger / errore / eliminazione    | `#b33a32` | `--color-danger`         |
+| Danger tinta chiara               | `#fff0ee` | `--color-danger-subtle`  |
+| Info / neutro attivo              | `#2d6685` | `--color-info`           |
+| Info tinta chiara                 | `#eef6fa` | `--color-info-subtle`    |
 
-## Pattern di componente (dal mockup)
+### Brand Shopify (distinto dall'ok generico)
 
-### Shell
+| Uso                            | Valore                | Token                    |
+| ------------------------------ | --------------------- | ------------------------ |
+| Shopify / sync / canale online | `#0e7446`             | `--color-shopify`        |
+| Shopify tinta chiara           | derivare al 12% alpha | `--color-shopify-subtle` |
 
-- Sidebar 232px, bg `--color-nav-bg`, logo lockup in testa (icon-topbar.png 28px + wordmark 15/700).
-- Voce attiva: bg `--color-nav-selected-bg` + indicatore `inset 2px 0 0 var(--color-primary)` + icona colorata accento.
-- Badge contatore nav (es. "Ordini fornitore 6"): pill 11/600 accento su subtle.
-- Topbar 52px: **ricerca globale ⌘K** al posto del titolo (nuovo pattern), poi chip stato sync Shopify (pill verde con dot), selettore location, toggle tema, avatar 32px.
+Regola: `--color-ok` per stati positivi generici; `--color-shopify` **solo** per elementi legati al canale Shopify (chip sync, badge origine dato, indicatori di canale). Non si sostituiscono.
 
-### Bottoni (34px, dense; 36px nei footer azione)
+---
 
-- Primario: bg accento, testo bianco, 13/600.
-- Secondario: bg `--color-surface`, bordo `--color-border-strong`.
-- Ghost: solo testo accento. Distruttivo: tinta rossa 12% + bordo 35%.
+## 3. Tipografia
 
-### Badge di stato
+### Font
 
-Pill: 11/600, fg pieno + bg 12% + bordo 25% dello stesso colore. Mai testo scuro su tinta.
+- Primario: **Inter** (già in `@fontsource-variable/inter`), token `--font-sans`
+- Monospace: `ui-monospace, SFMono-Regular, Menlo, monospace` (per SKU, EAN, codici), token `--font-mono`
 
-### Tabelle
+### Pesi
 
-- Header: 11/600 uppercase, letterspacing 0.05em, `--color-text-subtle`, bg `#101217`, border-bottom `--color-border`.
-- Righe: 13px, padding-block 9px, divider `#1f232c`, hover `--color-surface-hover`.
-- Selezione riga: bg accento 6% + checkbox accento.
-- Giacenza colorata per soglia: rosso ≤ soglia critica, ambra sotto soglia, default altrimenti.
-- SKU/EAN: mono 12, colore link accento per SKU cliccabile.
+Inter è variable font: i pesi sono puntuali, non a step fissi. I valori specifici richiesti da ogni elemento sono nella tabella sotto. Ordini di grandezza:
 
-### Form (Arrivo merce, 1c)
+- **400** — testo base, contenuto
+- **600** — bottoni, valori numerici, enfasi leggera
+- **650** — nome prodotto cella tabella (enfasi contenuta)
+- **700** — titoli sezione, nome prodotto card, totali
+- **760** — H1 titolo pagina, label uppercase
+- **800** — avatar iniziali (contesto minuscolo, alta leggibilità richiesta)
 
-- Testata come card unica a griglia 4 colonne, label 11/600 uppercase sopra il campo.
-- Campo in focus: bordo accento + ring `0 0 0 3px rgba(108,123,255,0.18)`.
-- Riga di inserimento attiva: bg accento 7% + indicatore laterale accento, input inline 30px.
-- Hint tastiera (Invio/Tab) in una fascia sotto la tabella, kbd in mono.
-- Riquadro totali allineato a destra (min 300px): Righe/pezzi, Imponibile, IVA, Totale 15/700.
-- Footer azioni sticky in basso: Annulla (ghost) / Salva bozza (secondario) / Conferma carico (primario), con nota "Le giacenze si aggiornano alla conferma" e autosave badge in header ("Salvato automaticamente · hh:mm").
+### Scala dimensioni
 
-### Dashboard (1a)
+| Uso                                    | Desktop                                         | Mobile                         |
+| -------------------------------------- | ----------------------------------------------- | ------------------------------ |
+| H1 titolo pagina                       | 20px / weight 760 / letter-spacing -.025em      | 18px / weight 760              |
+| H2 titolo sezione                      | 14px / weight 700                               | 13px / weight 700              |
+| Testo base UI                          | 13px                                            | 13px                           |
+| Testo cella tabella                    | 12.5px                                          | — (le tabelle diventano card)  |
+| Label uppercase (form, tabella)        | 9.5–10px / weight 760 / tracking .045em / muted | 9.5px / weight 760             |
+| Testo card mobile — nome prodotto      | —                                               | 14.5px / weight 700            |
+| Testo card mobile — sub info           | —                                               | 11px / weight 400 / muted      |
+| Testo header summary compresso — small | —                                               | 11px / weight 600 / muted      |
+| Input desktop                          | 12.5px                                          | —                              |
+| Input mobile                           | —                                               | **≥16px** (regola iOS no-zoom) |
+| Numero grand total                     | 22–24px / weight 700 desktop                    | 20px / weight 700              |
+| Metric chip mobile (Qtà/Prezzo/Totale) | —                                               | 9px label / 12.5px valore      |
+| Bottoni                                | 13px / weight 600                               | 13px / weight 600              |
+| kbd (scorciatoie tastiera)             | 10.5px monospace                                | —                              |
 
-- Selettore periodo segmented (Oggi / 7gg / 30gg / Stagione) in alto a destra.
-- KPI card: label 11 uppercase, valore 24/700 tabular, delta verde/rosso con freccia; la card "azionabile" (Vendite da evadere) ha bordo accento.
-- Grafico barre affiancate Negozio (accento) / Shopify (verde) con legenda a quadratini.
-- "Varianti sotto soglia" come lista compatta (nome + SKU·variante mono, badge "n / soglia m").
+Regola universale: **numeri con `font-variant-numeric: tabular-nums`** in ogni cella prezzo/quantità/totale.
 
-## Note implementative
+---
 
-- Font: Inter già presente via `@fontsource-variable/inter`; aggiungere JetBrains Mono (fontsource) per `--font-mono`.
-- Icone: restano PrimeIcons (`pi pi-*`), dimensione 13–14px nelle voci nav e nei bottoni.
-- Il toggle tema esistente resta: invertire solo default e override in `_design-tokens.scss`.
-- Aggiornare `--color-backdrop`, skeleton e chart.js palette (accento + verde) di conseguenza.
-- Accessibilità: mantenere `--btn-min-height: 2.75rem` per i touch target mobile; le altezze 34px valgono solo desktop denso (≥ lg).
+## 4. Layout: spaziatura, radius, ombre
 
-## Override token — LIGHT (`[data-theme='light']`)
+### Scala spaziatura (base 4px)
 
-Schermate 2a–2c del mockup. Stessi componenti, soli token invertiti:
+`0 · 2 · 4 · 6 · 8 · 10 · 12 · 14 · 16 · 20 · 24`
 
-```scss
-[data-theme='light'] {
-  color-scheme: light;
-  --color-bg: #eef0f4;
-  --color-surface: #ffffff;
-  --color-surface-raised: #eef0f4;
-  --color-surface-sunken: #ffffff;
-  --color-surface-hover: #f3f5f9;
-  --color-border: #e2e6ee;
-  --color-border-strong: #cbd2df; // input: #d3d9e3
-  --color-text: #171a21;
-  --color-text-muted: #5b6472;
-  --color-text-subtle: #6b7486;
-  --color-text-inverse: #ffffff;
-  --color-primary: #5560ee; // accento più profondo per contrasto su bianco
-  --color-primary-hover: #6c7bff;
-  --color-primary-fg: #ffffff;
-  --color-interactive: #5560ee;
-  --color-link: #4d58e6;
-  --color-link-hover: #3742c9;
-  --color-nav-bg: #f7f8fa;
-  --color-nav-hover: #ffffff;
-  --color-nav-selected-bg: rgba(108, 123, 255, 0.14);
-  --color-brand: #0e9d68;
-  --color-danger: #d92d2d;
-  --status-ok-fg: #0e9d68;
-  --status-ok-bg: rgba(14, 157, 104, 0.1);
-  --status-ok-border: rgba(14, 157, 104, 0.3);
-  --status-low-fg: #b26a00;
-  --status-low-bg: rgba(178, 106, 0, 0.1);
-  --status-low-border: rgba(178, 106, 0, 0.3);
-  --status-empty-fg: #d92d2d;
-  --status-empty-bg: rgba(217, 45, 45, 0.08);
-  --status-empty-border: rgba(217, 45, 45, 0.28);
-  --status-info-fg: #0b7fc2;
-  --status-info-bg: rgba(11, 127, 194, 0.1);
-  --status-info-border: rgba(11, 127, 194, 0.28);
-  --status-neutral-fg: #5b6472;
-  --status-neutral-bg: rgba(91, 100, 114, 0.1);
-  --status-neutral-border: rgba(91, 100, 114, 0.28);
-  // Table header bg: #f7f8fa · divider righe: #e8ebf1 · selezione riga: rgba(108,123,255,0.06)
-}
-```
+Nomi token: `--space-0` … `--space-24`.
 
-## Copertura: tutto il progetto
+### Radius
 
-Il grosso del restyle è **centralizzato nei token**: l'architettura esistente ("i componenti usano SOLO var(--token)") fa sì che riscrivere `_design-tokens.scss` propaghi il tema ovunque. Oltre ai token, applicare i pattern di questa spec a:
+| Uso                                        | Valore | Token           |
+| ------------------------------------------ | ------ | --------------- |
+| Input, cella editabile, bottone secondario | 5–7px  | `--radius-sm`   |
+| Bottone primario, chip, badge              | 6–8px  | `--radius-md`   |
+| Card, pannello                             | 9–12px | `--radius-lg`   |
+| Pill di stato                              | 999px  | `--radius-pill` |
 
-1. **`src/styles/_design-tokens.scss`** — sostituire i blocchi `:root` (→ dark) e `:root[data-theme='dark']` (→ `[data-theme='light']`) con gli override di questa spec. Aggiornare anche `--vestiflow-lockup-bg`, `--badge-vestiflow-*`, `--shadow-*` (dark: alpha nera più alta; light: rgba(15,23,42,…)).
-2. **`src/styles.scss`** — nessun cambio strutturale; verificare focus-ring e link.
-3. **Shell** (`src/app/layout/` + topbar/sidebar in `src/app/shared/`):
-   - Sidebar: logo lockup in testa, voce attiva con bg subtle + indicatore inset 2px accento + icona accento, badge contatori pill.
-   - Topbar: ricerca globale ⌘K al centro-sinistra (nuovo componente, può essere solo UI in prima battuta), chip sync Shopify a pill con dot, selettore location, toggle tema, avatar tondo accento.
-4. **Componenti condivisi** (`src/app/shared/`): app-button (34px dense, varianti come da spec), app-badge (pill fg pieno + bg 12% + bordo 25%), select-menu, date-input, pagination (pill numerate), table-skeleton, empty/error-state, confirm-dialog (surface raised, bordo, shadow-lg), toast.
-5. **Tutte le liste** (`_list-page.scss` + prodotti, documenti, vendite, clienti, fornitori, ordini, magazzino): header tabella 11/600 uppercase su bg sunken, hover riga, selezione riga accento 6%, SKU/EAN in mono, giacenze colorate per soglia, filtri a chip inline (filtro attivo = tinta accento con ×).
-6. **Tutti i form documentali** (`goods-receipt`, `purchase-invoice`, `sales-document`, `transfer`, `stock-operation`, `movement`, `supplier-order`): testata a card unica griglia 4 col, riga attiva evidenziata, hint tastiera, totali a destra, footer azioni sticky, badge autosave in header.
-7. **Dettagli** (`_detail-page.scss`): breadcrumb come in 1c, panel su surface con bordo.
-8. **Dashboard e report**: KPI card, segmented period, palette chart.js = accento #6C7BFF + verde #3DDC97 (light: #5560EE + #0E9D68), gridlines = --color-border.
-9. **Login/auth**: card centrata su --color-bg, logo, input e CTA come da token; nessun layout nuovo.
-10. **Vendita in negozio (registratore), settings, admin, guida**: solo token + pattern sopra, nessun redesign funzionale.
+### Ombre
 
-**Regola generale**: nessun redesign di flussi o layout oltre a quanto mostrato; è un re-skin sistematico + i nuovi pattern di shell (ricerca ⌘K, chip sync, footer sticky, badge autosave).
+- Card: `0 1px 2px rgba(18,42,33,.04), 0 4px 14px rgba(18,42,33,.035)` — token `--shadow-card`
+- Topbar sticky: `0 2px 8px rgba(15,36,28,.05)` — token `--shadow-topbar`
+- Footer azioni desktop: `0 -5px 18px rgba(15,36,28,.055)` — token `--shadow-footer` (solo desktop, vedi §5)
+- Menu / dropdown: `0 12px 35px rgba(18,40,32,.16)` — token `--shadow-menu`
+- Card mobile aperta / hover: leggero rialzo, ombra `0 6px 18px rgba(20,42,34,.08)`
 
-**Criteri di accettazione**
+Regola: nessuna ombra su bottoni, input, celle. Ombre solo su contenitori (card, pannelli, overlay).
 
-- Nessun valore colore hardcoded fuori da `_design-tokens.scss` (già regola del repo).
-- Dark default al primo avvio; toggle e preferenza utente continuano a funzionare (logica invertita).
-- Contrasto AA (4.5:1) per testo normale in entrambi i temi; focus visibile ovunque.
-- Test e2e esistenti verdi (a11y.spec incluso); Lighthouse a11y ≥ attuale.
-- Etichette/stampa (`@media print` e label print) restano su sfondo bianco: le pagine di stampa forzano `[data-theme='light']`.
+### Touch target minimo
 
-## Polish v2 (approvato — luglio 2026)
+**44px** ovunque sia un elemento tappabile su mobile. Su desktop si può scendere a 32–34px per bottoni densi e a 29–30px per input in griglia densa.
 
-Evoluzione della spec sopra, stessa identità Tech Moderno. Dove questa sezione
-diverge dalle regole precedenti, vince questa sezione.
+---
 
-- **Titoli pagina**: `--text-2xl` (24px) bold + `--tracking-tight`. I titoli di
-  panel/sezione restano `--text-lg`/`--text-xl`.
-- **KPI (stat-card)**: valore `--text-kpi` (28px, nuovo token) bold + tabular-nums.
-- **Ombre sulle card**: panel e card su surface prendono `--shadow-xs` (il
-  principio "bordi > ombre" resta: l'ombra è profondità sottile, il bordo
-  disegna la forma). Le card **cliccabili** (hub documenti e simili) al hover
-  fanno lift: `translate 0 -2px` + `--shadow-md` + icona/freccia accento.
-- **Motion**: ingresso pagina fade+rise 240ms (`--transition-page`, nuovo token,
-  keyframes `shell-content-enter` in `styles.scss`); bottoni con press
-  `translate 0 1px` su :active; primary hover con alone `--color-focus-ring-alpha`.
-  `prefers-reduced-motion` resta gestito globalmente.
-- **Scrollbar a tema**: sottili (`--space-2`), thumb `--color-border-strong`,
-  track trasparente; regole standard + `::-webkit-scrollbar` in `styles.scss`.
-- **Empty state**: icona in medaglione `--space-12` tondo su
-  `--color-surface-muted` con bordo.
-- **Shell**: padding contenuto responsive `--space-3` / `--space-4` (sm) /
-  `--space-5 --space-6` (lg); nav della sidebar scrollabile con brand e logout
-  sempre visibili; il selettore location in topbar si comprime sotto md.
-- **Pagine auth**: brand lockup (logo 32px + wordmark `--text-xl` bold) sopra la
-  card, su bg pagina.
-- **Stampa**: le pagine print restano escluse dal polish (nessuna ombra/motion).
+## 5. Componenti condivisi
 
-## Restyle v3 — "Chiaro professionale" (approvato — luglio 2026)
+Ogni componente vive in `src/app/shared/`. Nessuno stile equivalente va replicato nei componenti feature.
 
-Decisione del proprietario: **il tema principale diventa LIGHT**. Il dark resta
-completo e selezionabile dal toggle (nessun token rimosso). Dove questa sezione
-diverge dalle precedenti, vince questa.
+### Card
 
-- **`:root` = tema chiaro** (i valori dell'ex override `[data-theme='light']`,
-  schermate 2a–2c del mockup); il dark vive nel mixin `theme-dark` applicato da
-  `[data-theme='dark']`.
-- **ThemeService**: `DEFAULT_MODE = 'light'` al primo avvio; preferenza salvata
-  e modalita' system invariate.
-- **Asset che assumevano dark**: logo sidebar/login invertiti solo sotto
-  `[data-theme='dark']`; meta `theme-color` e manifest PWA su `#eef0f4`.
-- **Ritmo verticale**: le pagine list/detail passano a gap `--space-6`.
-- **Larghezza campi per contenuto**: nuovi token `--field-w-xs|sm|md|lg|xl`
-  (80/128/176/224/352px) — un campo e' largo quanto il dato che ospita, mai
-  quanto la pagina.
-- La stampa resta forzata su tema chiaro (`:root[data-theme='dark']` incluso).
-- Tutte le regole del Polish v2 (titoli 24px, KPI 28px, ombre, motion,
-  scrollbar, empty state) valgono su entrambi i temi.
+- Background `--color-surface`
+- Bordo `1px solid --color-border`
+- Radius `--radius-lg`
+- Ombra `--shadow-card`
+- Padding interno: `--space-16` mobile, `--space-12` a `--space-14` desktop denso
 
-## Restyle v4 — "Verde bosco" (approvato — luglio 2026)
+### Bottoni
 
-Fonte di verita' visiva: il mockup del proprietario
-`esempio_vestiflow_arrivo_merce_v6   -  Claude dopo file di GPT.html` (root del
-repo). Dove questa sezione diverge dalle precedenti, vince questa.
+Altezze:
 
-- **Accento**: verde bosco `#1f6f5f` (hover `#18584c`, piu' scuro — non piu'
-  chiaro) al posto dell'indigo; su dark diventa menta `#4eb59c` con testo scuro.
-- **Palette light**: bg `#f4f6f7`, superfici bianche, bordi/grigi verde-tinted
-  (`#dde4e1`/`#c8d2ce`), testo `#18211e`/`#52605b`/`#7f8b87`; stati con tinte
-  "soft" piene (successo `#eaf7f0`, warning `#fff5e5`, danger `#fff1ef`).
-- **Sidebar SCURA (`#13211e`) in entrambi i temi** — pattern del riferimento.
-  Nuovi token dedicati `--color-nav-fg|fg-hover|section|border|badge-bg|accent`;
-  voce attiva: tinta `rgb(78 181 156/.14)` + indicatore inset `#4eb59c`.
-- **Brand mark**: tile con gradiente `--brand-gradient`
-  (`135deg, #55bca3 → #1f6f5f`) e "V" bianca, in sidebar e pagine auth.
-- **Tabelle "da foglio di lavoro"**: separatori verticali di colonna
-  (`--color-table-col-divider`), header 11/700 normal-case (niente uppercase)
-  su banda `#f0f4f2` con bordo forte sotto, righe compatte (padding-block 8px).
-- **Topbar**: superficie traslucida (94% surface) con `backdrop-filter: blur`.
-- **Ombre**: morbide stratificate (`0 1px 2px` + `0 10px 30px`).
-- Dark: variante verde-tinted completa (superfici `#0d1412`–`#1a2521`).
+- Desktop denso: 31–34px
+- Desktop standard: 34–36px
+- Mobile: **44px**
 
-### Pattern di dettaglio pagina (v4)
+Varianti:
 
-- **Back link**: ogni `X__back` e' un chip bordato su surface (regola globale in
-  `styles.scss`, selettore `[class$='__back']`); nelle testate operative
-  compatte diventa quadrato icon-only accanto al titolo (`__head-row`:
-  freccia + h1 20px + badge stato + riferimento sulla stessa riga).
-- **Testata documento a celle unite**: la griglia campi e' un'unica card con
-  bordi interni tra le celle; label 11/600 sottile sopra, input NUDO dentro
-  (niente bordo proprio, i select/date perdono il chrome via token cascata);
-  `:focus-within` = cella tinta `--color-primary-subtle` + linea accento 2px
-  sul bordo inferiore. Ultima colonna della riga senza bordo destro.
-- **Celle tabella editabili "nude"**: bordo trasparente a riposo, bordo
-  `--color-border` + surface al hover, focus = bordo accento + anello 2px.
-  Valori calcolati/readonly in `--color-text-muted`.
-- **Tabelle liste = card** (mixin `data-table-desktop`): `border-collapse:
-separate` + spacing 0, bordo `--color-border`, raggio `--radius-lg` sugli
-  angoli (via prime/ultime celle), surface come sfondo. Colonne numeriche:
-  destra + tabular-nums + nowrap. Celle testuali lunghe: ellipsis oltre
-  `--table-cell-max` (24ch) con `title` per il testo completo; codici in
-  `--font-mono`. **Niente `table-layout: fixed` con colonne dinamiche**
-  (column picker): layout auto + vincoli per cella — fixed solo dove esistono
-  davvero le classi `__col--*` nel template. Sticky header su
-  `--color-table-header-bg` (mai surface). Su mobile la veste card della
-  tabella si azzera: le card sono le righe.
-- **Barra azioni**: sticky flottante staccata dal fondo (`inset-block-end`
-  8px), surface 95% + `backdrop-filter: blur`, bordo + `--radius-lg` +
-  `--shadow-md`.
-- Rimandati (in attesa che l'altra sessione liberi i template dell'arrivo
-  merce): scansione inline nella riga strumenti righe, lista mobile a
-  fisarmonica, dock mobile fisso, selettore azienda in topbar.
+- **Primary**: bg `--color-primary`, testo bianco, weight 600
+- **Secondary**: bg `--color-surface`, bordo `--color-border-strong`, testo `--color-text`
+- **Ghost**: transparent, testo `--color-primary`, hover bg `--color-primary-subtle`
+- **Danger**: hover bg `--color-danger-subtle`, testo `--color-danger`, bordo tinta
 
-## Restyle v5 — "Antracite" dal logo (approvato — luglio 2026)
+Regola: **una sola primary CTA per vista**. Le azioni secondarie sono secondary o ghost.
 
-Il logo VestiFlow e' monocromo (tile `#181818` + monogramma bianco): i colori
-del tema derivano da li'. Sostituisce l'accento "Verde bosco" del v4; il resto
-delle regole v4 (celle unite, tabelle card, larghezze campi, pattern operativi)
-resta invariato.
+### Input
 
-- **Accento = antracite**: light `#1c1c1e` (hover `#333338`) per CTA, focus,
-  link, selezioni; dark = mono invertito, bottoni quasi bianchi `#ececef` con
-  testo scuro.
-- **Superfici light**: neutre pure (bg `#f4f4f5`, bordi `#e4e4e7`), niente
-  tinte verdi.
-- **Dark "grafite morbida"**: bg `#232529`, superfici `#2b2d33`–`#33353c` —
-  scuro riposante, MAI nero pece; ombre con alpha contenute.
-- **Sidebar antracite** (`#16161a` light / `#1e2025` dark) come il tile del
-  logo; voce attiva bianca su tinta `rgb(255 255 255/.1)`.
-- **Colori semantici invariati**: successo/scorte verdi, warning ambra, errori
-  rossi, info blu — sono funzionali, non brand. Il verde `--color-brand` resta
-  riservato a Shopify/sync.
-- Logo reale (`icon-topbar.png`) nel brand di sidebar e pagine auth; invertito
-  dove il fondo e' scuro.
+- Altezza: 27–29px desktop denso; 32–34px desktop standard; **≥44px mobile con font ≥16px**
+- Bordo `1px solid --color-border`, hover `--color-border-strong`, focus `--color-focus` + ring `0 0 0 3px --color-focus-ring-alpha`
+- Radius `--radius-sm`
+- Padding orizzontale: `--space-8`
 
-## Come dirlo a Claude Code
+### Pill di stato
 
-Questo file vive in `.claude/rules/` ed è importato da `CLAUDE.md`: è caricato a
-ogni sessione, non serve allegarlo o citarlo.
+- Formato: `fg pieno + bg 12% alpha + bordo 25% alpha` dello stesso colore
+- Padding `3px 8px`, radius `--radius-pill`, weight 700, size 11px
 
-Le fasi 1–6 qui sotto sono lo **storico del rollout iniziale**, già completato
-fino alla v5. Per il lavoro corrente vale la regola finale: chiedi una pagina
-alla volta ("adegua la pagina X alle regole di stile") — la sezione più recente
-di questo file è la fonte di verità.
+### Azioni documento (per device)
 
-> Implementa il restyle "Tech Moderno" dell'intera app in questo ordine, con un commit per fase:
->
-> 1. Riscrivi src/styles/\_design-tokens.scss: il blocco :root diventa il tema DARK della spec, il light diventa [data-theme='light']; inverti la logica del theme toggle di conseguenza. Aggiungi JetBrains Mono via fontsource per --font-mono.
-> 2. Aggiorna i componenti condivisi (button, badge, select, pagination, dialog, toast, skeleton) ai pattern della spec.
-> 3. Aggiorna la shell: sidebar (voce attiva con indicatore accento, logo in testa, badge contatori), topbar (ricerca ⌘K placeholder, chip sync Shopify, avatar).
-> 4. Applica i pattern tabella a tutte le liste e i pattern form ai form documentali (footer sticky, riga attiva, totali).
-> 5. Dashboard: KPI card, segmented period, palette chart.js da spec.
-> 6. Verifica i criteri di accettazione della spec (niente colori hardcoded, AA, e2e verdi, print in light).
->    Non cambiare flussi, rotte o comportamento: è un re-skin sistematico.
+Il pattern di "salvataggio e uscita da un documento in edit" cambia con la larghezza schermo per ergonomia diversa (mouse su desktop, pollice su mobile).
+
+**Desktop** — Footer sticky in basso alla pagina:
+
+- Altezza 60–62px
+- Background `rgba(255,255,255,.94)` + `backdrop-filter: blur(12px)`
+- Bordo superiore `--color-border`, ombra `--shadow-footer`
+- Contenuto: a sinistra info sintetica di stato (es. "Modifiche non salvate", "Documento salvato"); a destra i pulsanti azione (primary a destra estrema)
+- Sequenza pulsanti (destra a sinistra): **Chiudi** (ghost) · **Salva bozza** o simile (secondary) · **Salva/Concludi** (primary)
+
+**Mobile e tablet (≤ 1024px)** — Azioni in fondo al documento:
+
+- I pulsanti **Annulla** (secondary) e **Salva ordine** (primary) vanno posizionati in fondo al documento, dopo il riepilogo totali, come coppia allineata a destra: Annulla a sinistra di Salva ordine
+- Nessuna barra sticky in basso, nessun pulsante azione in topbar
+- La topbar mobile mantiene la sua configurazione standard (hamburger, ricerca globale, chip sync, avatar)
+- Il totale documento va in coda al documento come sezione finale (vedi §7)
+
+### Stati vuoti / caricamento / errore
+
+- Empty state: icona in medaglione tondo 48×48px su `--color-surface-soft`, titolo H2, descrizione muted, CTA se ha senso
+- Loading: skeleton per liste, tabelle, card. Spinner solo per attese brevi
+- Error: banner inline sopra il contenuto, testo `--color-danger`, bg `--color-danger-subtle`
+
+---
+
+## 6. Tabella (desktop) e card view (mobile)
+
+Le tabelle sono l'elemento centrale del gestionale.
+
+### Tabella desktop
+
+- `table-layout: fixed`, `width: 100%`, colonne in `%`
+- **Header**: h32, padding 4×6, font 9.5px uppercase weight 760, tracking .045em, muted, bg `--color-table-header-bg`, bordo inferiore `--color-border-strong`
+- **Righe**: h30, padding 2×5, font 12.5px, bordo 1px `--color-border-cell`
+- Hover riga: bg `--color-surface-hover`
+- Selezione riga: bg `--color-primary` al 6% + checkbox `--color-primary`
+- Colonne numeriche: allineate a destra, `tabular-nums`, `white-space: nowrap`
+- Testo lungo in cella: ellipsis oltre 24ch con `title` per full text
+- SKU / EAN: `--font-mono`, size 12px, colore `--color-focus` se cliccabile
+- Sticky header sul bg dell'header (non su surface)
+
+### Gruppi di colonne
+
+Su tabelle documentali (righe ordine, arrivi, ecc.) le colonne si raggruppano per famiglia con background differenziato molto tenue:
+
+- Stock / disponibilità
+- Vendita / prezzo
+- IVA / imposte
+- Calcoli / totali
+
+Separatori verticali forti tra gruppi: `border-right: 2px solid var(--color-table-group-divider)`. Dentro un gruppo, i divisori restano leggeri.
+
+### Card view mobile (tabella su schermi ≤1024px)
+
+Su schermi stretti la tabella si trasforma. Ogni riga diventa una card con:
+
+**Head (sempre visibile, `padding: 9px 10px`):**
+
+- Nome prodotto (14.5px weight 700, ellipsis)
+- Sub info sotto (11px muted: codice, SKU, sintesi)
+- Tre **metric chip** a destra: **Qtà · Prezzo · Totale**
+  - Ogni chip: min-width 55px, padding 4×6, bg `--color-surface-soft`, radius `--radius-sm`
+  - Label piccolo uppercase (9px muted) + valore (12.5px)
+  - L'ultimo chip (Totale) più marcato: bg `--color-primary-subtle`, testo `--color-primary`, weight 700
+- Chevron a destra: `--color-text-muted`, ruota 180° quando aperta
+
+**Body (visibile quando espansa, background `--color-surface-soft`):**
+
+- Grid 2 colonne, gap `--space-8`
+- Suddiviso in **gruppi funzionali** con titoli piccoli uppercase separati da divisori:
+  - Articolo (codice, SKU, EAN, nome, cerca prodotto)
+  - Magazzino (disponibile, impegnata, unità di misura, impegna magazzino)
+  - Vendita (costo, prezzo, sconto, prezzo scontato, IVA)
+- Ogni campo: label uppercase 9px + input h35–38 font 12.5px (nel body espanso il font può scendere sotto 16px perché non è la vista primaria, mentre nelle azioni sempre visibili resta ≥16px)
+
+**Regola importante:** i valori primari (nome, codice, quantità, prezzo, totale) restano leggibili sulla card chiusa. Espandere serve solo per informazioni secondarie o edit di campi meno frequenti.
+
+---
+
+## 7. Anatomia form documento (Ordine cliente, Arrivo merce, DDT, ecc.)
+
+I documenti hanno tutti la stessa anatomia. Le differenze sono contenutistiche (nomi campi, colonne righe), non strutturali.
+
+### Testata (desktop)
+
+Card unica con griglia campi bordati. Ogni campo:
+
+- Padding cella `6px 11px`
+- Label uppercase 10px weight 760 sopra il campo, muted
+- Input **senza bordo proprio**, h 27–29, dentro la cella
+- Focus: la cella intera prende bordo `--color-focus` inset + bg `--color-primary-subtle`
+- Divisori: bordo destro `--color-border` tra le celle; l'ultima colonna della riga non ha bordo destro
+
+Griglia esempio Ordine cliente: `Cliente · Location · Data · Stato · Riferimento` prima riga; `Consegna · Pagamento · Note` seconda riga (secondaria, bg `--color-surface-soft`).
+
+### Testata (mobile)
+
+**Comprimibile**. In stato chiuso mostra solo un riepilogo:
+
+- Icona identità documento (30×30, bg `--color-primary-subtle`)
+- Nome contesto principale (es. nome cliente, 13px)
+- Sotto: sintesi seconda riga (11px muted, es. "Magazzino test 3 · 25/07/2026 · Confermato")
+- Link "Modifica" o "Espandi" a destra + chevron
+
+In stato aperto: griglia dei campi come da testata desktop, ma con campi in colonna singola e h ≥44px.
+
+### Righe (desktop = tabella, mobile = card)
+
+Vedi §6.
+
+### Riga "Documento collegato" (preventivo, ordine origine)
+
+- Full-width, occupa tutta la riga tabella (`colspan`)
+- Accento laterale sinistro: `border-left: 3px solid var(--color-info)` desktop
+- Background riga: `var(--color-surface-soft)`
+- Contenuto: icona sorgente + tipo documento (pill) + titolo + data + meta (importo, ecc.)
+
+### Riepilogo totali
+
+**Desktop.** Griglia orizzontale in card compatta, posizionata dopo la tabella righe: Imponibile righe · Sconto extra · Imponibile · IVA · Totale documento. Il **Grand total** è l'ultimo box, con piena tinta brand `--color-primary`, testo bianco, valore 22–24px weight 700. Valori intermedi weight 600, non tutti bold. Caselle dimensionate sul contenuto, non stirate.
+
+**Mobile e tablet.** Sezione finale del documento (dopo le righe e le note), non sticky. Lista verticale con label a sinistra e valore a destra:
+
+- Subtotale
+- Sconto extra (con link "Aggiungi sconto" se non valorizzato)
+- IVA
+- **Totale documento** più marcato, 20px weight 700, valore in colore `--color-primary`
+
+Il totale mobile è visibile solo scrollando fino in fondo; i pulsanti Annulla / Salva ordine seguono subito dopo, come coppia allineata a destra (vedi §5).
+
+### Note documento
+
+- Label 10px uppercase
+- Textarea min-height ~44px, max ~90px, resize verticale
+- Font 12.5px, line-height 1.35
+
+### Azioni documento
+
+Vedi §5 "Azioni documento (per device)": desktop usa footer sticky in basso; mobile e tablet mostrano Annulla/Salva ordine in fondo al documento dopo il riepilogo totali.
+
+---
+
+## 8. Shell applicativa
+
+### Sidebar
+
+- Larghezza 232px su desktop
+- Background `--color-nav-bg` (verde-scuro, dedicata alla shell)
+- Bordo destro sottile `1px solid rgba(255,255,255,.06)`
+- Padding contenuto: `16px 12px`
+- Logo VestiFlow in cima con divisore sotto (`--color-nav-divider`)
+- Voci: icona 15–16px + label, colore `--color-nav-fg`
+- Voce hover: bg leggermente più chiara del bg (senza uscire dalla famiglia)
+- Voce attiva:
+  - background `--color-nav-selected-bg`
+  - testo e icona `--color-nav-selected-fg` (bianco)
+  - indicatore laterale sinistro `inset 2px 0 0 var(--color-nav-selected-fg)`
+- Sezioni interne (headers "Vendite", "Magazzino", ecc.): testo `--color-nav-fg-muted`, uppercase 10px weight 700
+- Badge contatori (es. "Ordini fornitore 6"): pill 11px weight 600, colore chiaro su bg leggermente più scuro del selected
+- Su mobile: collassata in drawer, aperta da hamburger in topbar
+
+### Topbar
+
+- Altezza 52–56px
+- Background `rgba(255,255,255,.96)` + backdrop-blur
+- Bordo inferiore `--color-border`
+- Contenuti da sinistra a destra:
+  - Su mobile: hamburger drawer sidebar
+  - **Ricerca globale** (vedi sotto)
+  - Chip stato sync Shopify (pill `--color-shopify` con dot)
+  - Selettore location / negozio attivo
+  - Toggle tema
+  - Avatar utente 32–34px
+
+### Ricerca globale ⌘K
+
+Barra di ricerca al centro-sinistra della topbar, width ~350px su desktop, restringibile su tablet.
+
+Comportamento:
+
+- Placeholder tipo "Cerca prodotti, ordini, clienti…"
+- Comando tastiera: `⌘K` su Mac, `Ctrl+K` su Windows — indicato con kbd inline
+- Al click / comando apre una palette modale al centro dello schermo:
+  - Input grande, focus automatico
+  - Sotto, risultati raggruppati per categoria (Prodotti, Ordini, Clienti, Documenti, Azioni rapide)
+  - Navigazione tastiera: ↑↓ per selezionare, Invio per aprire, Esc per chiudere
+- Ogni risultato: icona categoria + titolo + meta (SKU, data, ecc.)
+
+Su mobile: la barra diventa un'icona lente; il tap apre la palette full-screen.
+
+---
+
+## 9. Responsive breakpoints
+
+| Nome            | Range       | Comportamento chiave                                                                            |
+| --------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| Phone stretto   | ≤ 400px     | Testata form in 1 colonna, padding ridotti al minimo                                            |
+| Phone           | 401–480px   | Card mobile compatte, metriche essenziali                                                       |
+| Mobile / Tablet | 481–1024px  | Card view sostituisce tabelle, testata comprimibile, azioni Annulla/Salva in fondo al documento |
+| Desktop         | 1025–1799px | Layout standard, tabelle piene, sidebar persistente                                             |
+| Desktop largo   | ≥ 1800px    | `max-width` contenuto a 1720px, no stiramento                                                   |
+
+Token breakpoint: solo variabili CSS, mai valori px in `@media`.
