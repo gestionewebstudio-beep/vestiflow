@@ -1,0 +1,112 @@
+@use 'breakpoints' as bp;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Rifinitura visiva mobile — impostazione «schermata a sezioni» (riferimento:
+// screen Shopify «Crea ordine» mobile). Prende SOLO qualità visive: sezioni
+// come card nette staccate su fondo attenuato, più respiro tra i blocchi,
+// gerarchia dei titoli, valori allineati a destra, totali puliti.
+// Nessun colore/font/icona esterni: solo token --co-* / VestiFlow già in uso.
+// Ultimo foglio dello styleUrls: sovrascrive i precedenti a parità di
+// specificità. Struttura, campi, logiche e testi restano quelli di F1–F6.
+// ═══════════════════════════════════════════════════════════════════════════
+
+@include bp.media-down('lg') {
+  // ── Ritmo verticale: le sezioni respirano e si staccano dal fondo ────────
+  .co-form.gr-form {
+    padding-inline: var(--space-3);
+    background-color: var(--co-bg);
+  }
+
+  .co-form .gr-form__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  // ── Sezioni come card nette (testata, righe, totali, note, allegati) ─────
+  .co-form .gr-form__header,
+  .co-form .gr-form__lines,
+  .co-form .gr-form__totals-bar,
+  .co-form .gr-form__footer-notes,
+  .co-form .gr-form__attachments {
+    padding: var(--space-4);
+    background-color: var(--co-surface);
+    border: var(--border-width) solid var(--co-line);
+    border-radius: var(--co-radius);
+    box-shadow: var(--co-shadow);
+  }
+
+  // La testata gestisce il proprio padding interno (riepilogo + dettagli).
+  .co-form .gr-form__header {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .co-form .co-form__header-summary {
+    min-block-size: 3.75rem;
+    padding: var(--space-3);
+  }
+
+  // I totali sono una card a sé: niente doppia cornice interna.
+  .co-form .gr-form__totals {
+    border: 0;
+    border-radius: 0;
+    background-color: transparent;
+  }
+
+  .co-form .gr-form__totals-row {
+    padding-inline: 0;
+    padding-block: var(--space-2);
+    border-inline-end: 0;
+    border-block-end: var(--border-width) solid var(--co-line);
+  }
+
+  .co-form .gr-form__totals-row:last-child {
+    border-block-end: 0;
+  }
+
+  // ── Gerarchia tipografica: titolo di sezione leggibile, valori a destra ──
+  .co-form .gr-form__subtitle {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-bold);
+    color: var(--co-text, var(--color-text));
+  }
+
+  .co-form .gr-form__totals dt {
+    font-size: var(--text-sm);
+    color: var(--co-text, var(--color-text));
+  }
+
+  .co-form .gr-form__totals dd {
+    font-size: var(--text-sm);
+    text-align: end;
+  }
+
+  // Totale documento: la voce che pesa di più nella lista.
+  .co-form .gr-form__totals-row--total dt,
+  .co-form .gr-form__totals-row--total dd {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-bold);
+  }
+
+  // Sotto-azione della riga totali (es. «+ Aggiungi sconto»): secondaria.
+  .co-form .co-form__add-discount {
+    font-size: var(--text-sm);
+  }
+
+  // ── Elenco righe: le card si staccano una dall'altra ─────────────────────
+  .co-form .co-form__cards {
+    gap: var(--space-3);
+  }
+
+  // La barra Cerca/Scansiona è ancorata dentro la card righe.
+  .co-form .co-form__scan-bar {
+    padding-block: var(--space-3);
+    background-color: var(--co-surface);
+  }
+
+  // ── Dock: stessa aria delle card, pollice comodo ─────────────────────────
+  .co-form .gr-form__dock {
+    padding-inline: var(--space-4);
+  }
+}
