@@ -205,23 +205,31 @@
   }
 
   // Celle della testata: stesso trattamento, divisore solo sotto.
+  // Il campo cede tutta l'aria in coda: cosi' il filo di chiusura della cella
+  // finisce a filo dell'input e ne diventa la sottolineatura, invece di essere
+  // una riga che galleggia piu' sotto. Un filo di respiro resta solo in testa,
+  // perche' la label non tocchi il divisore del campo precedente.
   .co-form .gr-form__header .gr-form__field {
-    // Verticale stretto: a separare i campi basta il filo, non l'aria intorno.
-    padding-block: var(--space-1);
+    padding-block: var(--space-1) var(--space-0);
     padding-inline: var(--space-2);
     border-inline: 0;
     border-block-end: var(--border-width) solid var(--co-line);
+    // Label e valore sono un blocco solo, non due elementi accostati.
+    gap: var(--space-0);
   }
 
   // ── Input della testata piu' comodi da toccare e leggere ─────────────────
-  // Il font resta 16px: sotto quella soglia iOS zooma al focus (spec §3).
+  // La classe reale del trigger e' .select-menu__trigger: il nome col prefisso
+  // app- non esisteva, quindi la select restava l'unico controllo con il
+  // rientro orizzontale suo invece di quello della testata.
   .co-form .gr-form__header .gr-form__input,
   .co-form .gr-form__header .gr-form__textarea,
-  .co-form .gr-form__header ::ng-deep .app-select-menu__trigger,
+  .co-form .gr-form__header ::ng-deep .select-menu__trigger,
   .co-form .gr-form__header ::ng-deep .date-input__field {
     padding-inline: var(--space-3);
   }
 
+  // 44px: il minimo touch delle linee guida. Il ritmo si comprime altrove.
   .co-form .gr-form__header .gr-form__field {
     --field-height: var(--co-field-h-m);
   }
@@ -243,6 +251,19 @@
     border-radius: 0;
   }
 
+  // La seconda fascia della testata nasce con un fondo tenue per staccarsi su
+  // desktop. In colonna singola quel fondo non separa piu' due fasce: tinge
+  // qualche campo si' e qualcuno no, e quelli tinti sembrano testo statico.
+  .co-form .gr-form__header .co-form__header-row--secondary {
+    background-color: transparent;
+  }
+
+  // L'hover della select su touch resta appiccicato dopo il tap: il campo
+  // toccato per ultimo si ritrova un fondo grigio che gli altri non hanno.
+  .co-form .gr-form__header ::ng-deep .select-menu__trigger:hover {
+    background-color: transparent;
+  }
+
   // L'editabilità la dice il filo sotto la cella; al focus si accende.
   .co-form .gr-form__header .gr-form__field:focus-within {
     border-block-end-color: var(--co-focus);
@@ -254,38 +275,50 @@
   }
 
   // ── Gerarchia tipografica della testata ──────────────────────────────────
-  // La label e' il titolo del campo, non un'etichetta di servizio: deve leggersi
-  // sopra il valore. Prima non succedeva — label 12px contro un valore da 13px
-  // (select, date) o addirittura 16px (input di testo) — e la testata risultava
-  // piatta, senza un appiglio per scorrerla con l'occhio.
-  // La scala qui e' 20 / 16 / 15 / 13 / 11: passi larghi, non un gradino solo,
-  // perche' a questi corpi un passo singolo non si vede. I pesi restano quelli.
+  // Il valore del campo e' il contenuto informativo della schermata — nome
+  // cliente, data, stato, pagamento — e va letto col telefono in mano: sale a
+  // 16px, che e' anche la soglia sotto la quale Safari su iOS zooma il viewport
+  // al focus di un campo di testo (il meta viewport dell'app non lo impedisce).
+  // La label sale di conseguenza a 19px per restare percepibilmente sopra, e il
+  // titolo pagina a 22px per non finire schiacciato sulla label.
+  // Scala: 22 / 19 / 16 / 12. I pesi restano quelli.
 
-  // 1. Titolo pagina — resta il testo piu' grande della schermata.
-  .co-form .gr-form__title {
-    font-size: var(--text-xl);
-  }
+  // Titolo pagina: sale via token (--co-text-title-m), 20 -> 22px.
 
-  // 2. Titolo della testata compressa — appena sotto la label: e' l'unica riga
-  // di contenuto quando la card e' chiusa, ma condivide la riga con icona,
-  // pulsante e chevron, e a corpo pieno il testo vuoto verrebbe troncato.
+  // Titolo della testata compressa: resta a 15px. Non e' uno dei livelli in
+  // gioco qui, e quella riga divide lo spazio con icona, pulsante e chevron.
   .co-form__header-summary-copy strong {
     font-size: var(--co-text-summary);
   }
 
-  // 4. Label campo — sopra il valore, non alla pari.
+  // Label campo — visibilmente sopra il valore. Interlinea stretta: a 19px
+  // quella normale aggiungerebbe altezza a ogni campo proprio mentre il ritmo
+  // verticale si comprime.
   .co-form .gr-form__header .gr-form__label {
-    font-size: var(--text-lg);
+    font-size: var(--co-text-field-label);
+    line-height: var(--leading-tight);
     letter-spacing: normal;
     text-transform: none;
   }
 
-  // 5. Valore e placeholder — un solo corpo per tutti i controlli. Prima gli
-  // input di testo stavano a 16px e select e date a 13px: «Es. 30 gg d.f.»
-  // pesava piu' di «Confermato», pur essendo lo stesso livello di contenuto.
+  // Valore e placeholder — un solo corpo per ogni tipo di controllo: il valore
+  // di una select e quello di un input di testo sono lo stesso contenuto.
   .co-form .gr-form__header .gr-form__input,
   .co-form .gr-form__header ::ng-deep .select-menu__trigger,
   .co-form .gr-form__header ::ng-deep .date-input__field {
-    font-size: var(--text-sm);
+    font-size: var(--co-text-touch);
+  }
+
+  // Sottotitoli e link secondari — restano i piu' piccoli, ma a 11px erano
+  // sotto la soglia di lettura comoda.
+  .co-form .gr-form__header .gr-form__inline-toggle,
+  .co-form__header-summary-copy small {
+    font-size: var(--text-xs);
+  }
+
+  // Il campo non ha piu' gap interno: le scorciatoie sotto il cliente si
+  // riprendono da sole il filo di stacco dal controllo.
+  .co-form .gr-form__header .co-form__inline-links {
+    margin-block-start: var(--space-1);
   }
 }
