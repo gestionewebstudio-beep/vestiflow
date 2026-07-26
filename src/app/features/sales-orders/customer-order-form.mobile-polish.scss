@@ -164,7 +164,50 @@
     padding: var(--co-card-pad-m);
   }
 
+  // ── Niente card dentro card: sezioni orizzontali nel contenitore ─────────
+  // Il contenitore esterno tiene i suoi 4 bordi; le sezioni interne perdono
+  // quelli verticali e si separano con un filo orizzontale. Sparisce la doppia
+  // parete che teneva il contenuto a ~24px dal bordo schermo.
+  .co-form .gr-form__lines,
+  .co-form .gr-form__totals-bar {
+    padding-inline: 0;
+  }
+
+  .co-form .gr-form__lines-head,
+  .co-form .co-form__mobile-tools,
+  .co-form .co-form__mobile-add-line,
+  .co-form .gr-form__totals-row {
+    padding-inline: var(--space-2);
+  }
+
   .co-form .co-form__cards {
-    gap: var(--space-2);
+    gap: 0;
+  }
+
+  .co-form .co-form__card,
+  .co-form .co-form__card--open {
+    border-inline: 0;
+    border-block-start: 0;
+    border-block-end: var(--border-width) solid var(--co-line);
+    border-radius: 0;
+  }
+
+  .co-form .co-form__cards > *:last-child .co-form__card,
+  .co-form .co-form__card:last-child {
+    border-block-end: 0;
+  }
+
+  .co-form .co-form__card-head,
+  .co-form .co-form__card-body,
+  .co-form .co-form__header-summary,
+  .co-form .co-form__header-include {
+    padding-inline: var(--space-2);
+  }
+
+  // Celle della testata: stesso trattamento, divisore solo sotto.
+  .co-form .gr-form__header .gr-form__field {
+    padding-inline: var(--space-2);
+    border-inline: 0;
+    border-block-end: var(--border-width) solid var(--co-line);
   }
 }
