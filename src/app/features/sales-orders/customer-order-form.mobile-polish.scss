@@ -210,4 +210,17 @@
     border-inline: 0;
     border-block-end: var(--border-width) solid var(--co-line);
   }
+
+  // ── Input della testata piu' comodi da toccare e leggere ─────────────────
+  // Il font resta 16px: sotto quella soglia iOS zooma al focus (spec §3).
+  .co-form .gr-form__header .gr-form__input,
+  .co-form .gr-form__header .gr-form__textarea,
+  .co-form .gr-form__header ::ng-deep .app-select-menu__trigger,
+  .co-form .gr-form__header ::ng-deep .date-input__field {
+    padding-inline: var(--space-3);
+  }
+
+  .co-form .gr-form__header .gr-form__field {
+    --field-height: var(--co-field-h-m);
+  }
 }
