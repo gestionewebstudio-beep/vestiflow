@@ -124,7 +124,7 @@ Inter è variable font: i pesi sono puntuali, non a step fissi. I valori specifi
 | Testo base UI                          | 13px                                            | 13px                                             |
 | Testo cella tabella                    | 12.5px                                          | — (le tabelle diventano card)                    |
 | Label uppercase (form, tabella)        | 9.5–10px / weight 760 / tracking .045em / muted | 9.5px / weight 760                               |
-| Label campi testata documento          | come sopra (uppercase)                          | 11px / weight 760 / case normale, senza tracking |
+| Label campi testata documento          | come sopra (uppercase)                          | 12px / weight 760 / case normale, senza tracking |
 | Testo card mobile — nome prodotto      | —                                               | 14.5px / weight 700                              |
 | Testo card mobile — sub info           | —                                               | 11px / weight 400 / muted                        |
 | Testo header summary compresso — small | —                                               | 11px / weight 600 / muted                        |
@@ -363,7 +363,9 @@ Griglia esempio Ordine cliente: `Cliente · Location · Data · Stato · Riferim
 - Sotto: sintesi seconda riga (11px muted, es. "Magazzino test 3 · 25/07/2026 · Confermato")
 - Link "Modifica" o "Espandi" a destra + chevron
 
-In stato aperto: griglia dei campi come da testata desktop, ma con campi in colonna singola e h ≥44px.
+In stato aperto: griglia dei campi come da testata desktop, ma con campi in colonna singola e h 44px — il minimo touch, non di più: cinque campi devono stare in una schermata, non in uno scroll.
+
+Spaziature della testata su mobile: padding verticale della cella 4px, orizzontale 8px. I campi restano distinti grazie al filo che li separa, non all'aria intorno.
 
 **Input senza box, con feedback minimo di editabilità.** Dentro un contenitore che ha già il suo bordo, incorniciare anche ogni campo crea una doppia parete e ruba larghezza. Quindi su mobile:
 
