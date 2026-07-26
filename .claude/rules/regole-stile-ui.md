@@ -165,6 +165,24 @@ Nomi token: `--space-0` … `--space-24`.
 
 Regola: nessuna ombra su bottoni, input, celle. Ombre solo su contenitori (card, pannelli, overlay).
 
+### Spaziature mobile
+
+Su phone il contenuto vale più dell'aria ai lati: su uno schermo da 375px i margini generosi costano 30–40px orizzontali di contenuto utile.
+
+**Phone (≤ 768px)**
+
+| Uso                              | Valore                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| Margine laterale contenitore     | 8px                                                                       |
+| Gap verticale tra card e sezioni | 8px                                                                       |
+| Padding interno card             | 14px su tutti i lati                                                      |
+| Ombra card                       | rimossa (`box-shadow: none`)                                              |
+| Bordo card                       | 1px tenue (`--color-border`): la separazione la dà il bianco su bg pagina |
+
+**Tablet (769–1024px)**: valori intermedi (margine ~12px, gap ~10px). La compressione spinta serve solo al phone.
+
+Le card restano contenitori (superficie bianca + radius), ma occupano quasi tutta la larghezza del viewport invece di flottare al centro.
+
 ### Touch target minimo
 
 **44px** ovunque sia un elemento tappabile su mobile. Su desktop si può scendere a 32–34px per bottoni densi e a 29–30px per input in griglia densa.
@@ -230,6 +248,31 @@ Il pattern di "salvataggio e uscita da un documento in edit" cambia con la largh
 - Nessuna barra sticky in basso, nessun pulsante azione in topbar
 - La topbar mobile mantiene la sua configurazione standard (hamburger, ricerca globale, chip sync, avatar)
 - Il totale documento va in coda al documento come sezione finale (vedi §7)
+
+### Barra azioni sticky mobile
+
+Distinta dalle azioni documento: quella barra riguarda **salvare e uscire**, questa riguarda **inserire prodotti** mentre si compila. Convivono senza contraddirsi — Annulla/Salva restano in fondo al documento e scorrono col contenuto.
+
+- Compare **solo su mobile** e **solo durante l'edit** di un documento (Ordine cliente: `/app/sales/new` e `/app/sales/:id`); mai su desktop né su altre schermate
+- Altezza 44px, full-width, `position: sticky` con `bottom: 0`
+- Background `--color-surface`, bordo superiore `--color-border`, ombra `--shadow-card` per staccarsi dal contenuto che scorre sotto
+- Due bottoni affiancati, stessa larghezza (`flex: 1`), gap 8px, padding orizzontale 12px:
+  - **Scansiona** (secondary) a sinistra — icona fotocamera, apre lo scanner
+  - **Aggiungi prodotto** (primary) a destra — apre la modale selezione prodotti
+- Le azioni rare (es. «Nuovo prodotto», che crea un articolo da zero) non stanno qui: vivono come ghost compatto sopra la lista righe
+
+### Modale selezione prodotti
+
+Componente condiviso, usato dal pulsante «Aggiungi prodotto».
+
+- **Mobile**: pannello full-screen che sale dal basso. **Desktop**: dialog centrato, larghezza contenuta. Stesso markup, cambia solo il CSS
+- **Header sticky**: titolo «Seleziona prodotti» a sinistra, X a destra. Nel secondo livello il titolo diventa il nome del prodotto, con freccia indietro
+- **Ricerca**: input «Cerca prodotti…» che filtra per nome, SKU o EAN
+- **Primo livello — prodotti**: miniatura (placeholder se assente) + nome + prezzo indicativo. Tap apre il secondo livello
+- **Secondo livello — varianti**: sostituisce la lista nella stessa modale. Ogni riga ha checkbox + descrizione variante (es. «M · Rosso») + prezzo + disponibilità colorata. Selezione multipla
+- **Footer sticky**: «Aggiungi» primary a piena larghezza, disabilitato finché non c'è almeno una variante selezionata
+- **All'aggiunta**: una riga documento per ogni variante selezionata, quantità 1, modificabile poi sulla card
+- **Prodotto con una sola variante**: il tap sul primo livello lo aggiunge subito, senza secondo livello (non c'è nulla da scegliere)
 
 ### Stati vuoti / caricamento / errore
 
