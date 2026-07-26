@@ -206,6 +206,8 @@
 
   // Celle della testata: stesso trattamento, divisore solo sotto.
   .co-form .gr-form__header .gr-form__field {
+    // Verticale stretto: a separare i campi basta il filo, non l'aria intorno.
+    padding-block: var(--space-1);
     padding-inline: var(--space-2);
     border-inline: 0;
     border-block-end: var(--border-width) solid var(--co-line);
