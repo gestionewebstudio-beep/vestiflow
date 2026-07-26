@@ -5,7 +5,7 @@ _Sicurezza per frontend Angular e backend Node/NestJS. Provider-agnostico
 
 # SCOPE
 
-Queste regole valgono per **qualsiasi progetto Angular** con un backend o accesso a API esterne. I tag `[scope: firebase]`, `[scope: vercel]`, `[scope: aws]` indicano dettagli specifici di un provider; per gli altri sostituisci con l'equivalente del tuo (Secret Manager → Vault, Firestore Rules → DynamoDB IAM Policy, ecc.).
+Queste regole valgono per VestiFlow: SPA Angular + API NestJS, database PostgreSQL su Supabase, deploy su Railway. I tag `[scope: supabase]`, `[scope: firebase]`, `[scope: vercel]`, `[scope: aws]` marcano dettagli specifici di un provider: vale quello in uso, gli altri restano come riferimento se l'infrastruttura cambia.
 
 ---
 
@@ -19,7 +19,7 @@ Queste regole valgono per **qualsiasi progetto Angular** con un backend o access
     - `[scope: firebase]` Firebase App Hosting / Cloud Run → variabili in `apphosting.yaml` con riferimenti a Google Cloud Secret Manager.
     - `[scope: vercel]` Vercel → Environment Variables marcate `Sensitive` o riferimenti a Vercel Secrets.
     - `[scope: aws]` AWS → AWS Secrets Manager o Parameter Store con encryption.
-- **VIETATO** esporre segreti in log, error message, response API, JSON-LD, meta tag.
+- **VIETATO** esporre segreti in log, error message, response API.
 - Verifica che `.gitignore` contenga: `.env`, `.env.local`, `.env.*.local`, `.env.production`, `*.key`, `*.pem`, `*.p12`, `serviceAccountKey.json`, `*.crt`.
 - Rotazione segreti: programma una rotazione periodica (annuale minimo) per chiavi long-lived. Rotazione immediata su ogni sospetto leak.
 
@@ -69,7 +69,7 @@ Queste regole valgono per **qualsiasi progetto Angular** con un backend o access
 # CONTENT SECURITY POLICY (CSP)
 
 - Configura CSP tramite header HTTP nel middleware del server (`server.ts` Express, middleware Vercel, ecc.) o nei header del provider.
-- CSP minima per app Angular SSR (adatta `connect-src` alle API che usi):
+- CSP minima per l'app Angular (adatta `connect-src` alle API che usi):
 
 ```
 default-src 'self';
@@ -84,7 +84,7 @@ form-action 'self';
 upgrade-insecure-requests;
 ```
 
-- Genera un **nonce** crittografico per ogni request SSR e usalo sugli script inline necessari. Non usare `'unsafe-inline'` per gli script.
+- Genera un **nonce** crittografico per ogni request servita dal server e usalo sugli script inline necessari. Non usare `'unsafe-inline'` per gli script.
 - `style-src 'unsafe-inline'` è tollerato per Angular (style inline generati dal framework); valuta `'nonce-...'` se possibile.
 - Testa la CSP con [CSP Evaluator](https://csp-evaluator.withgoogle.com/) prima del deploy.
 - Modalità Report-Only durante il rollout: `Content-Security-Policy-Report-Only` con endpoint `/csp-report` per raccogliere violazioni senza bloccare.
@@ -209,7 +209,7 @@ La anon/publishable key Supabase è **pubblica** (finisce nel bundle JS). Senza 
 
 - Implementa rate limiting sugli endpoint API backend (`express-rate-limit`, middleware Vercel/Cloudflare, Cloud Armor).
 - Soglie tipiche di partenza: 60 req/min per endpoint pubblici, 600 req/min per utenti autenticati, 5 req/min per login/signup.
-- Proteggi i form pubblici (contatti, newsletter, signup) con **reCAPTCHA v3** o **Cloudflare Turnstile**.
+- Proteggi con **reCAPTCHA v3** o **Cloudflare Turnstile** gli endpoint raggiungibili senza autenticazione (login, signup, recupero password).
 - Non esporre informazioni sulla struttura interna dell'app in messaggi di errore API (niente stack trace in produzione).
 - Risposte di errore API: messaggi generici per l'utente, dettagli completi solo in observability/log.
 

@@ -5,7 +5,7 @@ state, HTTP, design system, performance._
 
 # SCOPE E PRINCIPI
 
-Queste regole valgono per **qualsiasi progetto Angular 17+** (vetrina, SaaS, dashboard, libreria di componenti). Le sezioni marcate `[scope: SSR]`, `[scope: SaaS]`, `[scope: lib]` si applicano solo allo scope indicato. Tutto il resto è universale.
+Queste regole valgono per VestiFlow: **SPA Angular 17+**, gestionale multi-tenant, senza SSR né prerendering. Nessuna regola per siti vetrina, marketing o SEO: se un pattern non serve a una dashboard operativa, qui non c'è.
 
 Principio guida: **regole strette per default, escape valves documentate**. Quando una regola dice "VIETATO salvo eccezione documentata", l'eccezione richiede un commento `// REASON: ...` nel codice.
 
@@ -23,10 +23,10 @@ OGNI componente Angular non banale DEVE avere tre file separati:
 
 ```typescript
 @Component({
-  selector: 'app-hero',
+  selector: 'app-stat-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './hero.component.html',
-  styleUrl: './hero.component.scss',
+  templateUrl: './stat-card.component.html',
+  styleUrl: './stat-card.component.scss',
 })
 ```
 
@@ -246,8 +246,8 @@ Cursor/IA che scrivono codice DEVONO eseguire questa ricerca esplicitamente prim
 | ------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Cross-feature, generico, presentazionale                            | `shared/components/`                                                  | `card`, `cta-button`, `section-header`, `tag`, `badge`, `breadcrumb`, `empty-state`, `loader`, `accordion-item`, `modal`, `toast` |
 | Pattern di layout primitivo riusabile ovunque                       | `shared/components/` o `shared/directives/`                           | `container`, `stack`, `cluster`, `grid`, `divider`                                                                                |
-| Specifico di una feature, riusato 2+ volte dentro la stessa feature | `features/<x>/components/`                                            | `pricing-card` in `features/pricing/components/`                                                                                  |
-| Singolo uso e legato a una sola pagina smart                        | inline nello smart, MA solo se < 15 righe e nessun rischio di replica | header inline di una landing one-shot                                                                                             |
+| Specifico di una feature, riusato 2+ volte dentro la stessa feature | `features/<x>/components/`                                            | `variant-row` in `features/products/components/`                                                                                  |
+| Singolo uso e legato a una sola pagina smart                        | inline nello smart, MA solo se < 15 righe e nessun rischio di replica | intestazione di una schermata one-shot                                                                                            |
 
 Se il componente nasce in `features/<x>/components/` e poi viene richiesto da una seconda feature, va **promosso** in `shared/components/` (move + rename + aggiornamento import). **VIETATO** importarlo cross-feature lasciandolo nella feature originale.
 
@@ -255,13 +255,11 @@ Se il componente nasce in `features/<x>/components/` e poi viene richiesto da un
 
 I pattern qui sotto sono **sempre** componenti, già al primo uso. Mai HTML inline ripetuto in più route.
 
-- **Sezioni di pagina marketing** `[scope: SSR]`: `hero-section`, `features-section`, `testimonials-section`, `faq-section`, `cta-section`, `contact-section`, `pricing-table`.
-- **Header di sezione**: titolo + occhiello + paragrafo introduttivo (`section-header` con `input()` per kicker, title, subtitle).
-- **Card**: contenitori con padding/shadow/border-radius coerenti (`card`, `card-icon`, `card-image`, `card-quote`).
-- **CTA**: pulsanti d'azione composti (icona + label + microcopy) come `cta-button` o `cta-link`.
-- **Form di contatto / newsletter**: il form è un componente (`contact-form`, `newsletter-form`), non markup ripetuto in footer e pagina contatti.
-- **Footer e sezioni di footer**: ogni colonna ricorrente è un sotto-componente.
-- **Liste informative**: `info-list`, `feature-list`, `step-list` con `input()` tipizzato per gli item.
+- **Testata di pagina**: titolo + meta + azione primaria (`page-header` con `input()` per title, subtitle, azioni).
+- **Card e pannelli**: contenitori con padding/bordo/radius coerenti (`card`, `panel`, `stat-card`).
+- **Tabelle dati**: intestazione, riga, cella numerica, sticky header e fallback mobile vivono come componenti condivisi, mai rifatti per feature.
+- **Barre filtri e ricerca**: `filter-bar`, `search-input`, chip di filtro attivo.
+- **Form documentali**: testata a celle unite, riga editabile, riepilogo totali, barra azioni — un componente per pattern, riusato da ogni tipo documento.
 - **Stati**: `empty-state`, `error-state`, `loading-skeleton`. **VIETATO** scrivere "Nessun risultato" con HTML inline in più punti.
 - **Microelementi UI**: `tag`, `badge`, `chip`, `avatar`, `divider`, `kbd`. Mai stili custom equivalenti dentro feature.
 
@@ -478,17 +476,12 @@ Tutti i selettori custom seguono BEM: `blocco__elemento--modificatore`.
 
 ---
 
-# SPAZIATURA `[scope: SSR/marketing]`
-
-Sezione orientata a siti vetrina/marketing dove il ritmo verticale è semantico:
+# SPAZIATURA
 
 - `--space-*` per tutti i margin, padding e gap interni ai componenti.
-- `--section-y-*` per `padding-block` delle sezioni di pagina, declinato su mobile/tablet/desktop.
-- `--section-stack` per separare elementi all'interno di una sezione.
 - `--card-pad-*` e `--card-gap` per card e pannelli.
-- `max-width` dei contenitori: solo da token (`--content-narrow`, `--content-default`, `--content-wide`).
-
-Per app SaaS / dashboard: usa `--space-*` e `--card-pad-*`; il concetto di `--section-y-*` non si applica (layout a griglia di pagina, non a "sezioni di marketing").
+- `max-width` dei contenitori e larghezza dei campi: solo da token (`--field-w-*`) — un campo è largo quanto il dato che ospita.
+- Il layout di pagina è a griglia, non a "sezioni": nessun ritmo verticale da pagina di contenuto.
 
 Mobile-first sempre: ogni layout a colonne parte da una colonna singola su mobile.
 
@@ -513,7 +506,7 @@ Mobile-first sempre: ogni layout a colonne parte da una colonna singola su mobil
 
 ---
 
-# ACCESSIBILITÀ (A11y) — Universale
+# ACCESSIBILITÀ (A11y)
 
 - Associa SEMPRE `<label>` agli `<input>` tramite `id`/`for` o `aria-labelledby`.
 - USA attributi ARIA solo dove l'HTML semantico non è sufficiente.
@@ -533,8 +526,8 @@ Mobile-first sempre: ogni layout a colonne parte da una colonna singola su mobil
 ## Routing e bundle
 
 - **Default lazy loading** per le rotte di feature. Eager loading SOLO per:
-  - rotta root (home/landing),
-  - rotte critiche per UX dove un round-trip aggiuntivo è inaccettabile (es. `/login` di un'app frequentissima),
+  - rotta root (dashboard),
+  - rotte critiche per UX dove un round-trip aggiuntivo è inaccettabile (es. `/login`),
   - in entrambi i casi documenta il motivo nel `routes.ts`.
 
 ## Defer
@@ -557,8 +550,8 @@ Mobile-first sempre: ogni layout a colonne parte da una colonna singola su mobil
 ## Bundle budgets
 
 - Configura `budgets` in `angular.json` per `initial` e `anyComponentStyle`. Valori sensati di partenza:
-  - `initial`: warning 500kB, error 1MB (siti vetrina) / warning 800kB, error 1.5MB (SaaS).
-  - `anyComponentStyle`: warning 8kB, error 16kB.
+  - `initial`: warning 800kB, error 1.5MB.
+  - `anyComponentStyle`: warning 12kB, error 26kB.
 
 ## Core Web Vitals (target produzione)
 

@@ -5,7 +5,7 @@ check, dependency hygiene._
 
 # SCOPE
 
-Regole **universali** che si applicano a qualsiasi progetto Angular (vetrina, SaaS, libreria, monorepo). Coprono le aree non architetturali ma indispensabili per qualità nel tempo: test, formatting, CI, observability di build, dipendenze.
+Aree non architetturali ma indispensabili per la qualità nel tempo di VestiFlow: test, formatting, CI, observability di build, dipendenze.
 
 ---
 
@@ -173,14 +173,14 @@ describe('formatPrice', () => {
 ## E2E Test
 
 - USA **Playwright** (raccomandato) o Cypress.
-- Copertura minima: gli **happy path** delle 3-5 user journey più critiche (es. signup, checkout, contact form, login).
+- Copertura minima: gli **happy path** delle 3-5 user journey più critiche (es. login, creazione prodotto con varianti, registrazione carico, emissione documento di vendita).
 - E2E gira in CI su PR critiche e su deploy in staging.
 - Mai test E2E che dipendono da dati esterni reali: usa fixture o ambiente dedicato.
 
 ## Coverage Reporting
 
 - Genera report `lcov` e mostralo nel CI (Codecov, Coveralls, GitHub Actions summary).
-- Soglia minima totale: 70% (siti vetrina) / 80% (SaaS / app critiche).
+- Soglia minima totale: 80%.
 - Nuovo codice DEVE avere coverage ≥ 80% (regola "diff coverage").
 
 ---
@@ -209,14 +209,13 @@ describe('formatPrice', () => {
 {
   "ci": {
     "collect": {
-      "url": ["http://localhost:4200/", "http://localhost:4200/contatti"],
+      "url": ["http://localhost:4200/app/dashboard", "http://localhost:4200/app/products"],
       "numberOfRuns": 3,
       "settings": { "preset": "desktop" }
     },
     "assert": {
       "assertions": {
         "categories:performance": ["error", { "minScore": 0.85 }],
-        "categories:seo": ["error", { "minScore": 0.95 }],
         "categories:accessibility": ["error", { "minScore": 0.95 }],
         "categories:best-practices": ["error", { "minScore": 0.95 }]
       }
@@ -228,7 +227,7 @@ describe('formatPrice', () => {
 
 - Aggiungi `lighthouse-reports/` a `.gitignore`.
 - Esegui in CI su PR (con build di staging) e blocca merge se sotto soglia.
-- Per progetti senza esigenze SEO, mantieni soglie alte su accessibility e best-practices ma puoi rilassare seo (≥ 0.85).
+- La categoria **SEO non si misura**: l'app è dietro login, non è indicizzabile e non ha traffico organico. Contano performance, accessibility e best-practices.
 
 ---
 
@@ -238,15 +237,12 @@ describe('formatPrice', () => {
 
 ```json
 [
-  { "type": "initial", "maximumWarning": "500kB", "maximumError": "1MB" },
-  { "type": "anyComponentStyle", "maximumWarning": "8kB", "maximumError": "16kB" }
+  { "type": "initial", "maximumWarning": "800kB", "maximumError": "1.5MB" },
+  { "type": "anyComponentStyle", "maximumWarning": "12kB", "maximumError": "26kB" }
 ]
 ```
 
-- Adatta i valori al tipo di progetto:
-  - Sito vetrina: `initial` warning 500kB / error 1MB.
-  - SaaS / dashboard: `initial` warning 800kB / error 1.5MB.
-  - App enterprise complessa: `initial` warning 1.2MB / error 2MB (con motivazione).
+- Sono i valori attualmente in `angular.json`: alzarli richiede una motivazione, non è la reazione di default a un budget sforato.
 - Ogni superamento del budget deve generare un'analisi: `npx source-map-explorer dist/.../main-*.js` per capire cosa pesa.
 
 ---
