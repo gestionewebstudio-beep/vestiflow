@@ -114,7 +114,7 @@ import type { VariantSummary } from '@features/products/models/variant-summary.m
 import { ProductFormComponent } from '@features/products/product-form.component';
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
-import { ProductSearchResultsComponent } from '@features/products/components/product-search-results/product-search-results.component';
+import { ProductPickerDialogComponent } from '@features/products/components/product-picker-dialog/product-picker-dialog.component';
 import type { CreateProductDto } from '@features/products/models/product.dto';
 import { OrderScanOverlayComponent } from './components/order-scan-overlay/order-scan-overlay.component';
 import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
@@ -215,7 +215,7 @@ interface AvailabilityIssue {
     BadgeComponent,
     AttachmentsPanelComponent,
     OrderScanOverlayComponent,
-    ProductSearchResultsComponent,
+    ProductPickerDialogComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
@@ -986,44 +986,28 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   protected readonly mobileScanEditing = signal(false);
 
-  // ── F5: barra Cerca sticky con risultati ricchi inline ──────────────────
-  // Riusa le stesse regole di ricerca (debounce, soglia minima) e il servizio
-  // esistente; il pick riusa applyScannedVariant per aggiungere/incrementare la
-  // riga, come lo scan.
-  protected readonly topSearchDraft = signal('');
-  private readonly topSearchResults = toSignal(
-    toObservable(this.topSearchDraft).pipe(
-      debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
-      distinctUntilChanged(),
-      switchMap((search) => {
-        const term = search.trim();
-        if (term.length < VARIANT_SEARCH_MIN_CHARS) {
-          return of([] as readonly VariantSummary[]);
-        }
-        const locationId = this.form.controls.locationId.value || undefined;
-        return this.productService
-          .searchVariantSummaries({ search: term, pageSize: 20, locationId })
-          .pipe(catchError(() => of([] as readonly VariantSummary[])));
-      }),
-    ),
-    { initialValue: [] as readonly VariantSummary[] },
-  );
-  protected readonly topSearchActive = computed(
-    () => this.topSearchDraft().trim().length >= VARIANT_SEARCH_MIN_CHARS,
-  );
+  // ── Modale «Seleziona prodotti» (mobile) ────────────────────────────────
+  // Rimpiazza la ricerca inline sopra le righe: due livelli (prodotto → sue
+  // varianti) con selezione multipla. Ogni variante scelta diventa una riga.
+  protected readonly productPickerOpen = signal(false);
 
-  protected topSearchList(): readonly VariantSummary[] {
-    return this.topSearchResults();
+  protected openProductPicker(): void {
+    if (this.formReadOnly() || this.headerGateActive()) {
+      return;
+    }
+    this.productPickerOpen.set(true);
   }
 
-  protected onTopSearchInput(value: string): void {
-    this.topSearchDraft.set(value);
+  protected closeProductPicker(): void {
+    this.productPickerOpen.set(false);
   }
 
-  protected onTopSearchPick(variantId: string): void {
-    this.applyScannedVariant(variantId, 1);
-    this.topSearchDraft.set('');
-    this.mobileScanEditing.set(false);
+  protected onProductPickerPicked(variantIds: readonly string[]): void {
+    for (const variantId of variantIds) {
+      // Stessa strada dello scan: riga nuova, oppure quantità +1 se già presente.
+      this.applyScannedVariant(variantId, 1);
+    }
+    this.productPickerOpen.set(false);
   }
 
   // ── F6: overlay scanner metà/metà ────────────────────────────────────────

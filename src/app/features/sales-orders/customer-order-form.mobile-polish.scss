@@ -99,14 +99,8 @@
     gap: var(--space-3);
   }
 
-  // La barra Cerca/Scansiona è ancorata dentro la card righe.
-  .co-form .co-form__scan-bar {
-    padding-block: var(--space-3);
-    background-color: var(--co-surface);
-  }
-
-  // ── Dock: stessa aria delle card, pollice comodo ─────────────────────────
-  .co-form .gr-form__dock {
+  // ── Barra azioni sticky: stessa aria delle card ──────────────────────────
+  .co-form .co-form__sticky-bar {
     padding-inline: var(--space-4);
   }
 }

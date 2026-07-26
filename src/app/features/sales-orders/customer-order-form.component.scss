@@ -111,7 +111,11 @@
   --co-field-h-m: 2.625rem; // 42px — campi testata (touch)
   --co-btn-h-m: 2.625rem; // 42px — bottoni strumenti
   --co-btn-h-dock: 2.875rem; // 46px — bottoni del dock
+  --co-btn-h-compact: 2.25rem; // 36px — azioni rare (ghost) su mobile
   --co-card-h: 2.75rem; // 44px — campi dentro la card
+  // Spaziature mobile: la scala globale salta da 12 a 16px, qui serve il valore
+  // intermedio per il padding interno delle card su phone.
+  --co-card-pad-m: 0.875rem; // 14px
   --co-text-touch: 1rem; // 16px — niente zoom automatico su iOS
   --co-text-title-m: 1.125rem; // 18px — titolo pagina
   --co-text-card-name: 0.90625rem; // 14.5px — nome prodotto sulla card

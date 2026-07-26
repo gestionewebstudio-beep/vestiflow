@@ -1082,67 +1082,105 @@
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// F5 — barra Cerca/Scansiona sticky in cima alle righe (solo mobile).
+// Ingresso prodotti su mobile: blocco «Nuovo prodotto», «Aggiungi riga» in
+// fondo alla lista e barra azioni sticky. Nascosti su desktop, dove restano
+// la toolbar righe e la ricerca inline per riga.
 // ═══════════════════════════════════════════════════════════════════════════
-.co-form__scan-bar {
+.co-form__mobile-tools,
+.co-form__mobile-add-line,
+.co-form__sticky-bar {
   display: none;
 }
 
 @include bp.media-down('lg') {
-  .co-form .co-form__scan-bar {
-    display: block;
-    position: sticky;
-    inset-block-start: 0;
-    z-index: var(--z-sticky);
-    padding-block: var(--space-2);
-    margin-block-end: var(--space-2);
-    background-color: var(--co-bg);
+  // Toolbar desktop fuori: i suoi comandi sono ricollocati.
+  .co-form .co-form__lines-tools {
+    display: none;
   }
 
-  .co-form__scan-bar-row {
+  // Azione rara, quindi ghost compatto a destra (non a piena larghezza).
+  .co-form .co-form__mobile-tools {
     display: flex;
+    justify-content: flex-end;
+    margin-block-end: var(--space-2);
+    --field-height: var(--co-btn-h-compact);
+  }
+
+  // Riga manuale: chiude la lista, a piena larghezza.
+  .co-form .co-form__mobile-add-line {
+    display: block;
+    margin-block-start: var(--space-2);
+    --field-height: var(--btn-min-height);
+  }
+
+  .co-form .co-form__mobile-add-line ::ng-deep .app-button {
+    inline-size: 100%;
+    justify-content: center;
+  }
+
+  // Barra azioni sticky: le due azioni di ingresso prodotti sempre a portata.
+  .co-form .co-form__sticky-bar {
+    display: flex;
+    position: sticky;
+    inset-block-end: 0;
+    z-index: var(--z-sticky);
+    gap: var(--space-2);
+    margin-block-start: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    padding-block-end: calc(var(--space-1) + env(safe-area-inset-bottom));
+    background-color: var(--co-surface);
+    border-block-start: var(--border-width) solid var(--co-line);
+    box-shadow: var(--co-shadow);
+    --field-height: var(--btn-min-height);
+  }
+
+  .co-form .co-form__sticky-bar ::ng-deep .app-button {
+    inline-size: 100%;
+    justify-content: center;
+  }
+
+  .co-form .co-form__sticky-bar > app-button {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Spaziature phone (<= md): il contenuto vale piu' dell'aria ai lati. Margini
+// e gap si stringono, le card perdono l'ombra e si affidano al bordo tenue sul
+// bg grigio della pagina. Su tablet restano i valori intermedi di default.
+// ═══════════════════════════════════════════════════════════════════════════
+@include bp.media-down('md') {
+  // Il contenitore di pagina della shell cede meta' del suo margine.
+  :host {
+    margin-inline: calc(var(--space-1) * -1);
+  }
+
+  .co-form.gr-form {
     gap: var(--space-2);
   }
 
-  .co-form__scan-field {
-    position: relative;
-    flex: 1 1 auto;
-    min-inline-size: 0;
+  .co-form .gr-form__header,
+  .co-form .gr-form__lines,
+  .co-form .gr-form__footer-grid,
+  .co-form__card {
+    box-shadow: none;
+    border-color: var(--co-line);
   }
 
-  .co-form__scan-field-icon {
-    position: absolute;
-    inset-block-start: 50%;
-    inset-inline-start: var(--space-2);
-    transform: translateY(-50%);
-    color: var(--co-muted);
-    pointer-events: none;
+  .co-form__cards {
+    gap: var(--space-2);
   }
 
-  .co-form__scan-field .gr-form__input {
-    inline-size: 100%;
-    block-size: var(--co-btn-h-dock);
-    padding-inline-start: var(--space-8);
-    font-size: var(--co-text-touch);
-    border-color: var(--co-line-strong);
-    border-radius: var(--co-radius-sm);
+  .co-form__card-head {
+    padding: var(--co-card-pad-m);
   }
 
-  .co-form__scan-cta {
-    flex-shrink: 0;
-    --field-height: var(--co-btn-h-dock);
+  .co-form__card-body {
+    padding: var(--co-card-pad-m);
   }
 
-  .co-form__scan-results {
-    display: block;
-    margin-block-start: var(--space-2);
-  }
-
-  .co-form__scan-empty {
-    margin: var(--space-2) 0 0;
-    padding: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--co-muted);
-    text-align: center;
+  .co-form .gr-form__footer-notes {
+    padding: var(--co-card-pad-m);
   }
 }

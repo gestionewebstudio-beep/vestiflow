@@ -504,7 +504,12 @@
                      riepilogo in fondo alla tabella, vicino ai totali. -->
                 <h2 id="co-lines-title" class="gr-form__subtitle">Righe documento</h2>
               </div>
-              <div class="gr-form__lines-tools">
+              <!-- Toolbar desktop invariata. Su mobile i suoi comandi si
+                   ricollocano: Includi documento in testata, Nuovo prodotto nel
+                   blocco qui sotto, Aggiungi riga in fondo alla lista, Scansiona
+                   e Aggiungi prodotto nella barra sticky. Il selettore colonne
+                   non serve: le card mostrano già ciò che conta. -->
+              <div class="gr-form__lines-tools co-form__lines-tools">
                 <app-table-column-picker [viewId]="lineColumnsView" />
                 @if (includeSourceKinds.length > 0) {
                   <app-button
@@ -526,6 +531,16 @@
                   Aggiungi riga
                 </app-button>
               </div>
+            </div>
+
+            <!-- Mobile: azione rara (creare un articolo da zero), quindi ghost
+                 compatto a destra. Scansiona e Aggiungi prodotto, che sono le
+                 azioni frequenti, stanno nella barra sticky in basso. -->
+            <div class="co-form__mobile-tools">
+              <app-button type="button" variant="ghost" (click)="openNewProduct()">
+                <i class="pi pi-box" aria-hidden="true"></i>
+                Nuovo prodotto
+              </app-button>
             </div>
 
             @if (isSalesDdt && includedOrders().length > 0) {
@@ -1235,52 +1250,6 @@
               </span>
             </div>
 
-            <!-- F5: barra Cerca/Scansiona sticky in cima alle righe. «Cerca»
-                 apre i risultati ricchi inline (riuso del componente condiviso);
-                 «Scansiona» apre lo scanner. Resta visibile scrollando le righe. -->
-            <div class="co-form__scan-bar">
-              <div class="co-form__scan-bar-row">
-                <div class="co-form__scan-field">
-                  <i class="pi pi-search co-form__scan-field-icon" aria-hidden="true"></i>
-                  <input
-                    #coTopSearch
-                    class="gr-form__input"
-                    type="search"
-                    [value]="topSearchDraft()"
-                    [readonly]="!mobileScanEditing()"
-                    [disabled]="formReadOnly() || headerGateActive()"
-                    autocomplete="off"
-                    placeholder="Cerca articolo (nome, SKU, EAN)…"
-                    aria-label="Cerca articolo"
-                    (pointerdown)="enableMobileScanKeyboard(coTopSearch)"
-                    (input)="onTopSearchInput($any($event.target).value)"
-                  />
-                </div>
-                @if (barcodeScannerEnabled && !formReadOnly()) {
-                  <app-button
-                    type="button"
-                    class="co-form__scan-cta"
-                    [disabled]="headerGateActive()"
-                    (click)="openScanOverlay()"
-                  >
-                    <i class="pi pi-camera" aria-hidden="true"></i>
-                    Scansiona
-                  </app-button>
-                }
-              </div>
-              @if (topSearchActive()) {
-                @if (topSearchList().length > 0) {
-                  <app-product-search-results
-                    class="co-form__scan-results"
-                    [results]="topSearchList()"
-                    (variantSelected)="onTopSearchPick($event)"
-                  />
-                } @else {
-                  <p class="co-form__scan-empty">Nessun articolo trovato.</p>
-                }
-              }
-            </div>
-
             <!-- Vista mobile (mockup responsive v3): sotto lg la tabella lascia
                  il posto a una card per riga, che si apre sui campi. Stesse
                  regole e stessi controlli del form: cambia solo la vista. -->
@@ -1665,6 +1634,20 @@
                 }
               }
             </div>
+
+            <!-- Mobile: equivalente dell'«Aggiungi riga» della toolbar desktop.
+                 Sta in fondo alla lista perché è lì che si arriva dopo aver
+                 compilato: serve per un articolo non a catalogo o un servizio. -->
+            <app-button
+              type="button"
+              variant="ghost"
+              class="co-form__mobile-add-line"
+              [disabled]="formReadOnly()"
+              (click)="addLine()"
+            >
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              Aggiungi riga
+            </app-button>
           </section>
 
           <!-- Totali sticky in fondo + note documento (stessa banda dell'Arrivo merce). -->
@@ -2234,6 +2217,29 @@
         }
       </div>
 
+      <!-- Barra azioni sticky (solo mobile, solo in edit): le due azioni di
+           ingresso prodotti più frequenti restano a portata di pollice mentre si
+           scorre. Non contiene Salva/Annulla, che scorrono col documento. -->
+      @if (!formReadOnly()) {
+        <div class="co-form__sticky-bar" role="toolbar" aria-label="Aggiunta prodotti">
+          @if (barcodeScannerEnabled) {
+            <app-button
+              type="button"
+              variant="secondary"
+              [disabled]="headerGateActive()"
+              (click)="openScanOverlay()"
+            >
+              <i class="pi pi-camera" aria-hidden="true"></i>
+              Scansiona
+            </app-button>
+          }
+          <app-button type="button" [disabled]="headerGateActive()" (click)="openProductPicker()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Aggiungi prodotto
+          </app-button>
+        </div>
+      }
+
       <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
            fondo al documento, dopo il riepilogo totali. Scorrono col contenuto,
            nessuna barra fissa e nessun pulsante azione in topbar. Su desktop
@@ -2256,6 +2262,15 @@
     </form>
   }
 </section>
+
+<!-- Modale «Seleziona prodotti»: prodotto → varianti, selezione multipla. -->
+@if (productPickerOpen()) {
+  <app-product-picker-dialog
+    [locationId]="form.controls.locationId.value || null"
+    (variantsPicked)="onProductPickerPicked($event)"
+    (dismissed)="closeProductPicker()"
+  />
+}
 
 <!-- F6: overlay fotocamera fullscreen metà/metà. -->
 @if (scanOverlayOpen()) {
