@@ -99,8 +99,72 @@
     gap: var(--space-3);
   }
 
-  // ── Barra azioni sticky: stessa aria delle card ──────────────────────────
+  // ── Barra azioni sticky: ancorata al bordo inferiore dello schermo ───────
+  // fixed (non sticky): con sticky la barra si fermava a fine documento e sotto
+  // restava spazio. La safe-area serve solo a non finire sotto la home bar.
   .co-form .co-form__sticky-bar {
-    padding-inline: var(--space-4);
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    margin-block-start: 0;
+    padding-block: var(--space-1);
+    padding-block-end: max(var(--space-1), env(safe-area-inset-bottom));
+    padding-inline: var(--space-3);
+  }
+
+  // Spazio in coda al documento pari all'ingombro della barra, così l'ultima
+  // riga non resta nascosta sotto di essa.
+  .co-form.gr-form {
+    padding-block-end: calc(var(--btn-min-height) + var(--space-4) + env(safe-area-inset-bottom));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phone (<= md): il contenuto vale piu' dell'aria ai lati. Blocco in coda
+// all'ultimo foglio, cosi' vince sulle regole tablet qui sopra.
+// ═══════════════════════════════════════════════════════════════════════════
+@include bp.media-down('md') {
+  // 8px di margine laterale: la pagina cede 12px, l'host ne recupera 4.
+  :host {
+    margin-inline: calc(var(--space-1) * -1);
+  }
+
+  .co-form.gr-form {
+    padding-inline: 0;
+  }
+
+  .co-form .gr-form__form {
+    gap: var(--space-2);
+  }
+
+  // Sezioni e card: padding 14px, nessuna ombra, solo bordo tenue sul grigio.
+  .co-form .gr-form__header,
+  .co-form .gr-form__lines,
+  .co-form .gr-form__totals-bar,
+  .co-form .gr-form__footer-notes,
+  .co-form .gr-form__attachments,
+  .co-form .co-form__card,
+  .co-form .co-form__card--open {
+    padding: var(--co-card-pad-m);
+    box-shadow: none;
+    border-color: var(--co-line);
+  }
+
+  // La testata continua a gestire il padding dei propri blocchi interni.
+  .co-form .gr-form__header,
+  .co-form .co-form__card,
+  .co-form .co-form__card--open {
+    padding: 0;
+  }
+
+  .co-form .co-form__card-head,
+  .co-form .co-form__card-body,
+  .co-form .co-form__header-summary,
+  .co-form .co-form__header-include {
+    padding: var(--co-card-pad-m);
+  }
+
+  .co-form .co-form__cards {
+    gap: var(--space-2);
   }
 }
