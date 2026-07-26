@@ -108,7 +108,7 @@
 
   // ── Vista mobile/tablet (mockup responsive v3) ────────────────────────────
   --co-radius-card: 0.75rem; // 12px — card riga
-  --co-field-h-m: 2.875rem; // 46px — campi testata (touch, spec: h >= 44px)
+  --co-field-h-m: 2.75rem; // 44px — campi testata: il minimo touch, non di piu'
   --co-btn-h-m: 2.625rem; // 42px — bottoni strumenti
   --co-btn-h-dock: 2.875rem; // 46px — bottoni del dock
   --co-btn-h-compact: 2.25rem; // 36px — azioni rare (ghost) su mobile
