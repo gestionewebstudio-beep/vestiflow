@@ -24,6 +24,8 @@ const SEARCH_PAGE_SIZE = 100;
 interface PickerProduct {
   readonly productId: string;
   readonly name: string;
+  /** Codice articolo interno del prodotto padre: aiuta a distinguere omonimi. */
+  readonly articleCode: string;
   readonly imageUrl?: string;
   readonly priceLabel: string;
   readonly variants: readonly VariantSummary[];
@@ -97,6 +99,8 @@ export class ProductPickerDialogComponent {
       return {
         productId,
         name: first.productName || first.title,
+        // Uguale per tutte le varianti: è del prodotto padre.
+        articleCode: first.articleCode ?? '',
         imageUrl: variants.find((variant) => variant.imageUrl)?.imageUrl,
         priceLabel: this.priceRangeLabel(variants),
         variants,

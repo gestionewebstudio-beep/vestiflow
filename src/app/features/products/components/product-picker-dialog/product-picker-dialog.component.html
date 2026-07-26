@@ -65,6 +65,9 @@
               </span>
               <span class="picker__row-copy">
                 <span class="picker__row-title">{{ variantLabel(product, variant) }}</span>
+                @if (variant.sku) {
+                  <span class="picker__row-code">{{ variant.sku }}</span>
+                }
                 @if (stockStatus(variant); as status) {
                   <span
                     class="picker__stock"
@@ -107,6 +110,9 @@
                 </span>
                 <span class="picker__row-copy">
                   <span class="picker__row-title">{{ product.name }}</span>
+                  @if (product.articleCode) {
+                    <span class="picker__row-code">{{ product.articleCode }}</span>
+                  }
                   @if (product.variants.length > 1) {
                     <span class="picker__row-meta">{{ product.variants.length }} varianti</span>
                   }

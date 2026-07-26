@@ -189,6 +189,13 @@
   color: var(--color-text-muted);
 }
 
+// Codice articolo (prodotto) e SKU (variante): riconoscimento rapido fra omonimi.
+.picker__row-code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 .picker__price {
   flex-shrink: 0;
   font-size: var(--text-sm);
