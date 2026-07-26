@@ -223,4 +223,31 @@
   .co-form .gr-form__header .gr-form__field {
     --field-height: var(--co-field-h-m);
   }
+
+  // ── Campi testata senza riquadro proprio (spec §7) ───────────────────────
+  // Il contenitore ha già il suo bordo: incorniciare anche ogni campo crea una
+  // doppia parete e ruba larghezza. Select e date picker seguono lo stesso
+  // token, quindi perdono il box senza doverli forzare uno per uno.
+  .co-form .gr-form__header .gr-form__input,
+  .co-form .gr-form__header .gr-form__field app-select-menu,
+  .co-form .gr-form__header .gr-form__field app-date-input {
+    --color-input-border: transparent;
+    --color-input-bg: transparent;
+  }
+
+  .co-form .gr-form__header .gr-form__input {
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  // L'editabilità la dice il filo sotto la cella; al focus si accende.
+  .co-form .gr-form__header .gr-form__field:focus-within {
+    border-block-end-color: var(--co-focus);
+  }
+
+  .co-form .gr-form__header .gr-form__input:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
 }
