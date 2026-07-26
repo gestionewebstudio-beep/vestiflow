@@ -250,4 +250,14 @@
     outline: none;
     box-shadow: none;
   }
+
+  // ── Label dei campi: leggibili, non maiuscoletto anonimo ─────────────────
+  // Case normale e un solo passo di scala in su (9.5 -> 11px): il divario col
+  // testo dell'input si riduce senza stravolgere il ritmo della testata. Il
+  // peso resta 760, che e' gia' il gradino sotto il massimo della scala.
+  .co-form .gr-form__header .gr-form__label {
+    font-size: var(--text-2xs);
+    letter-spacing: normal;
+    text-transform: none;
+  }
 }
