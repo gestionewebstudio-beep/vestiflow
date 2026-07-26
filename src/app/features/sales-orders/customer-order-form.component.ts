@@ -1472,6 +1472,34 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
+  /**
+   * Mobile: la riga vuota creata all'apertura non si mostra. Una card «Riga
+   * senza prodotto» con Qtà 1 e totale 0 fa credere che ci sia già qualcosa,
+   * per giunta non compilabile finché mancano cliente e location. Le righe
+   * compaiono quando ne arriva una vera (scan, modale prodotti) o quando
+   * l'utente la chiede con «Aggiungi riga». Su desktop nulla cambia: lì la
+   * riga vuota è la cella in cui si digita.
+   */
+  private readonly mobileRowsRevealed = signal(false);
+
+  protected readonly mobileRowsVisible = computed(() => {
+    this.formValue();
+    if (this.mobileRowsRevealed()) {
+      return true;
+    }
+    const rows = this.lines.controls;
+    return rows.length > 1 || (rows.length === 1 && !this.lineIsEmpty(rows[0]!));
+  });
+
+  /** «Aggiungi riga» su mobile: la prima volta svela la riga vuota già presente. */
+  protected addLineMobile(): void {
+    if (!this.mobileRowsVisible()) {
+      this.mobileRowsRevealed.set(true);
+      return;
+    }
+    this.addLine();
+  }
+
   /** Stepper quantità della riga compatta mobile (min 1). */
   protected incrementLineQty(index: number): void {
     if (this.formReadOnly()) {
