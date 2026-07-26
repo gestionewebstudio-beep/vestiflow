@@ -117,22 +117,23 @@ Inter è variable font: i pesi sono puntuali, non a step fissi. I valori specifi
 
 ### Scala dimensioni
 
-| Uso                                    | Desktop                                         | Mobile                         |
-| -------------------------------------- | ----------------------------------------------- | ------------------------------ |
-| H1 titolo pagina                       | 20px / weight 760 / letter-spacing -.025em      | 18px / weight 760              |
-| H2 titolo sezione                      | 14px / weight 700                               | 13px / weight 700              |
-| Testo base UI                          | 13px                                            | 13px                           |
-| Testo cella tabella                    | 12.5px                                          | — (le tabelle diventano card)  |
-| Label uppercase (form, tabella)        | 9.5–10px / weight 760 / tracking .045em / muted | 9.5px / weight 760             |
-| Testo card mobile — nome prodotto      | —                                               | 14.5px / weight 700            |
-| Testo card mobile — sub info           | —                                               | 11px / weight 400 / muted      |
-| Testo header summary compresso — small | —                                               | 11px / weight 600 / muted      |
-| Input desktop                          | 12.5px                                          | —                              |
-| Input mobile                           | —                                               | **≥16px** (regola iOS no-zoom) |
-| Numero grand total                     | 22–24px / weight 700 desktop                    | 20px / weight 700              |
-| Metric chip mobile (Qtà/Prezzo/Totale) | —                                               | 9px label / 12.5px valore      |
-| Bottoni                                | 13px / weight 600                               | 13px / weight 600              |
-| kbd (scorciatoie tastiera)             | 10.5px monospace                                | —                              |
+| Uso                                    | Desktop                                         | Mobile                                           |
+| -------------------------------------- | ----------------------------------------------- | ------------------------------------------------ |
+| H1 titolo pagina                       | 20px / weight 760 / letter-spacing -.025em      | 18px / weight 760                                |
+| H2 titolo sezione                      | 14px / weight 700                               | 13px / weight 700                                |
+| Testo base UI                          | 13px                                            | 13px                                             |
+| Testo cella tabella                    | 12.5px                                          | — (le tabelle diventano card)                    |
+| Label uppercase (form, tabella)        | 9.5–10px / weight 760 / tracking .045em / muted | 9.5px / weight 760                               |
+| Label campi testata documento          | come sopra (uppercase)                          | 11px / weight 760 / case normale, senza tracking |
+| Testo card mobile — nome prodotto      | —                                               | 14.5px / weight 700                              |
+| Testo card mobile — sub info           | —                                               | 11px / weight 400 / muted                        |
+| Testo header summary compresso — small | —                                               | 11px / weight 600 / muted                        |
+| Input desktop                          | 12.5px                                          | —                                                |
+| Input mobile                           | —                                               | **≥16px** (regola iOS no-zoom)                   |
+| Numero grand total                     | 22–24px / weight 700 desktop                    | 20px / weight 700                                |
+| Metric chip mobile (Qtà/Prezzo/Totale) | —                                               | 9px label / 12.5px valore                        |
+| Bottoni                                | 13px / weight 600                               | 13px / weight 600                                |
+| kbd (scorciatoie tastiera)             | 10.5px monospace                                | —                                                |
 
 Regola universale: **numeri con `font-variant-numeric: tabular-nums`** in ogni cella prezzo/quantità/totale.
 
@@ -363,6 +364,14 @@ Griglia esempio Ordine cliente: `Cliente · Location · Data · Stato · Riferim
 - Link "Modifica" o "Espandi" a destra + chevron
 
 In stato aperto: griglia dei campi come da testata desktop, ma con campi in colonna singola e h ≥44px.
+
+**Input senza box, con feedback minimo di editabilità.** Dentro un contenitore che ha già il suo bordo, incorniciare anche ogni campo crea una doppia parete e ruba larghezza. Quindi su mobile:
+
+- Il controllo non ha bordo proprio né sfondo: si appoggia alla superficie della testata (vale anche per select e date picker, che seguono `--color-input-border`)
+- A dire che il campo è editabile basta il filo tenue sotto la cella; al focus quel filo prende `--color-focus`
+- Il chevron dei select resta: è l'indizio che il campo si apre
+- Padding interno generoso: il campo resta comodo da premere anche senza cornice
+- Label del campo in **case normale** (vedi §3), non uppercase: a quella dimensione il maiuscoletto si legge peggio e stona col testo dell'input
 
 ### Righe (desktop = tabella, mobile = card)
 
