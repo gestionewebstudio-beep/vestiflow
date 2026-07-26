@@ -462,6 +462,24 @@
                 <div class="gr-form__field co-form__header-filler" aria-hidden="true"></div>
               </div>
             }
+
+            <!-- Mobile: «Includi documento» chiude la testata. È un'azione sul
+                 documento (importa da preventivo/ordine origine), non sulle
+                 righe, quindi vive qui e non nel blocco azioni righe. Su desktop
+                 resta nella toolbar righe. -->
+            @if (includeSourceKinds.length > 0) {
+              <div class="co-form__header-include">
+                <app-button
+                  type="button"
+                  variant="secondary"
+                  [disabled]="formReadOnly()"
+                  (click)="openIncludePanel()"
+                >
+                  <i class="pi pi-file-import" aria-hidden="true"></i>
+                  Includi documento
+                </app-button>
+              </div>
+            }
           </div>
         </div>
 

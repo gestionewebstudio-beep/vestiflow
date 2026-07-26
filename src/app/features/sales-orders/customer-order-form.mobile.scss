@@ -1088,7 +1088,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 .co-form__mobile-tools,
 .co-form__mobile-add-line,
-.co-form__sticky-bar {
+.co-form__sticky-bar,
+.co-form__header-include {
   display: none;
 }
 
@@ -1116,6 +1117,14 @@
   .co-form .co-form__mobile-add-line ::ng-deep .app-button {
     inline-size: 100%;
     justify-content: center;
+  }
+
+  // «Includi documento» in coda alla testata: agisce sul documento, non sulle righe.
+  .co-form .co-form__header-include {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--space-2);
+    border-block-start: var(--border-width) solid var(--co-line);
   }
 
   // Barra azioni sticky: le due azioni di ingresso prodotti sempre a portata.
@@ -1180,7 +1189,8 @@
     padding: var(--co-card-pad-m);
   }
 
-  .co-form .gr-form__footer-notes {
+  .co-form .gr-form__footer-notes,
+  .co-form .co-form__header-include {
     padding: var(--co-card-pad-m);
   }
 }
