@@ -161,7 +161,7 @@ Nomi token: `--space-0` … `--space-24`.
 - Topbar sticky: `0 2px 8px rgba(15,36,28,.05)` — token `--shadow-topbar`
 - Footer azioni desktop: `0 -5px 18px rgba(15,36,28,.055)` — token `--shadow-footer` (solo desktop, vedi §5)
 - Menu / dropdown: `0 12px 35px rgba(18,40,32,.16)` — token `--shadow-menu`
-- Card mobile aperta / hover: leggero rialzo, ombra `0 6px 18px rgba(20,42,34,.08)`
+- Card aperta / hover: leggero rialzo, ombra `0 6px 18px rgba(20,42,34,.08)` — da tablet in su. Su phone le card non hanno ombra (vedi «Spaziature mobile»): a staccarle basta il bordo tenue sul grigio della pagina
 
 Regola: nessuna ombra su bottoni, input, celle. Ombre solo su contenitori (card, pannelli, overlay).
 
@@ -254,7 +254,8 @@ Il pattern di "salvataggio e uscita da un documento in edit" cambia con la largh
 Distinta dalle azioni documento: quella barra riguarda **salvare e uscire**, questa riguarda **inserire prodotti** mentre si compila. Convivono senza contraddirsi — Annulla/Salva restano in fondo al documento e scorrono col contenuto.
 
 - Compare **solo su mobile** e **solo durante l'edit** di un documento (Ordine cliente: `/app/sales/new` e `/app/sales/:id`); mai su desktop né su altre schermate
-- Altezza 44px, full-width, `position: sticky` con `bottom: 0`
+- Altezza 44px, full-width, `position: fixed` con `bottom: 0`: la barra tocca il bordo inferiore utile dello schermo, senza spazio decorativo sotto. Il documento compensa con un `padding-block-end` pari all'ingombro, così l'ultima riga non finisce nascosta
+- `env(safe-area-inset-bottom)` solo per non finire sotto la home bar di iOS/Android, mai come spaziatura estetica
 - Background `--color-surface`, bordo superiore `--color-border`, ombra `--shadow-card` per staccarsi dal contenuto che scorre sotto
 - Due bottoni affiancati, stessa larghezza (`flex: 1`), gap 8px, padding orizzontale 12px:
   - **Scansiona** (secondary) a sinistra — icona fotocamera, apre lo scanner
