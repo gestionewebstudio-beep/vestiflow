@@ -370,6 +370,7 @@ model Tenant {
   userTableViewPreferences UserTableViewPreference[]
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
+  documentCounters        DocumentCounter[]
   goodsReceiptCausals     GoodsReceiptCausal[]
   externalDocumentTypes   ExternalDocumentType[]
   vatCodes                VatCode[]
@@ -529,6 +530,7 @@ model Location {
   onlineSales       OnlineSale[]
   salesOrders       SalesOrder[]
   shopifyInventorySyncStates ShopifyInventorySyncState[]
+  documentCounters  DocumentCounter[]
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -1723,6 +1725,34 @@ model DocumentSequence {
   @@unique([tenantId, type, series, year])
   @@index([tenantId])
   @@map("document_sequences")
+}
+
+/// Contatore di numerazione configurabile dall'operatore (Impostazioni →
+/// numeratori). Un contatore è la tripla (tipo, serie, location) e NON
+/// memorizza il progressivo: il prossimo numero è sempre max+1 sui documenti
+/// reali (vedi document-numbering.util). La location è opzionale: NULL = valido
+/// per tutte le sedi; valorizzata = numerazione separata per quella sede.
+/// Il prefisso del riferimento NON vive qui ma resta per-tipo su
+/// DocumentTypeSetting: il contatore partiziona solo serie/location.
+model DocumentCounter {
+  id         String       @id @default(uuid()) @db.Uuid
+  tenantId   String       @map("tenant_id") @db.Uuid
+  type       DocumentType
+  series     String
+  /// NULL = contatore globale (tutte le sedi). Valorizzato = solo quella sede.
+  locationId String?      @map("location_id") @db.Uuid
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  // Identità del contatore. Copre il caso location valorizzata; il caso globale
+  // (location NULL) è protetto da un indice parziale nella migration, perché in
+  // Postgres i NULL sono distinti e sfuggirebbero a questo vincolo.
+  @@unique([tenantId, type, series, locationId])
+  @@index([tenantId])
+  @@map("document_counters")
 }
 
 /// Documento gestionale (§2). Testata con controparti, totali e stato; le righe
