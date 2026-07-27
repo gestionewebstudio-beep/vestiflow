@@ -58,6 +58,8 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import type { LinkableGoodsReceipt } from './models/goods-receipt-causal.model';
 import { DocumentService } from './services/document.service';
+import { DocumentCountersService } from './services/document-counters.service';
+import type { DocumentCounterView } from './models/document-counter.model';
 import { DocumentSettingsService } from './services/document-settings.service';
 import type {
   PurchaseInvoiceInstallmentBody,
@@ -160,6 +162,7 @@ function parseRatePercent(value: string): number | null {
 export class PurchaseInvoiceFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
+  private readonly countersService = inject(DocumentCountersService);
   private readonly documentSettingsService = inject(DocumentSettingsService);
   private readonly supplierService = inject(SupplierService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
@@ -170,11 +173,7 @@ export class PurchaseInvoiceFormComponent {
   constructor() {
     // Nuova registrazione: il protocollo proposto è il primo libero della
     // serie predefinita (in modifica resta quello già assegnato).
-    afterNextRender(() => {
-      if (!this.isEditMode()) {
-        this.refreshProtocolProposal();
-      }
-    });
+    afterNextRender(() => this.refreshProtocolProposal());
 
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
@@ -253,12 +252,14 @@ export class PurchaseInvoiceFormComponent {
     this.documentSettings().find((setting) => setting.type === DocumentType.SupplierInvoice),
   );
 
-  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] => {
-    const configured = this.purchaseInvoiceSetting()?.defaultSeries?.trim();
-    const current = this.form.controls.series.value.trim();
-    const values = [...new Set([configured, current].filter((value): value is string => !!value))];
-    return values.map((value) => ({ value, label: value }));
-  });
+  /** Contatori disponibili per la testata: alimentano la tendina serie. */
+  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
+    this._availableCounters().map((counter) => ({
+      value: counter.series ?? '',
+      label: counter.series ?? 'Senza serie',
+    })),
+  );
 
   /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
   protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
@@ -472,34 +473,33 @@ export class PurchaseInvoiceFormComponent {
   protected onSeriesChange(value: string): void {
     this.form.controls.series.setValue(value);
     this.form.controls.series.markAsDirty();
-    this.form.controls.protocolNumber.markAsPristine();
-    this.refreshProtocolProposal();
+    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
+    if (counter) {
+      this.form.controls.protocolNumber.setValue(counter.nextNumber);
+      this.form.controls.protocolNumber.markAsPristine();
+    }
   }
 
   /**
-   * Propone il primo protocollo libero della serie. Non tocca un valore
-   * digitato a mano (control «dirty»): quello è una scelta dell'operatore.
+   * Carica i contatori disponibili e, su documento nuovo, propone il
+   * predefinito (serie + protocollo). Un valore digitato a mano non si tocca.
    */
   private refreshProtocolProposal(): void {
-    if (this.isEditMode() || this.form.controls.protocolNumber.dirty) {
-      return;
-    }
-    const series = this.form.controls.series.value.trim();
-    this.documentService
-      .previewDocumentNumber(DocumentType.SupplierInvoice, series ? { series } : {})
+    this.countersService
+      .available(DocumentType.SupplierInvoice, null)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (preview) => {
-          // L'anteprima è una proposta: valori mancanti non devono azzerare
-          // il campo (resterebbe un protocollo vuoto senza spiegazione).
-          if (!this.form.controls.protocolNumber.dirty && preview.previewNumber != null) {
-            this.form.controls.protocolNumber.setValue(preview.previewNumber);
+        next: ({ counters, proposedCounterId }) => {
+          this._availableCounters.set(counters);
+          if (this.isEditMode() || this.form.controls.protocolNumber.dirty) {
+            return;
           }
-          if (preview.series && !(this.form.controls.series.value ?? '').trim()) {
-            this.form.controls.series.setValue(preview.series);
+          const proposed = counters.find((entry) => entry.id === proposedCounterId);
+          if (proposed) {
+            this.form.controls.series.setValue(proposed.series ?? '');
+            this.form.controls.protocolNumber.setValue(proposed.nextNumber);
           }
         },
-        // Anteprima non disponibile: il server assegnerà comunque il numero.
         error: () => undefined,
       });
   }

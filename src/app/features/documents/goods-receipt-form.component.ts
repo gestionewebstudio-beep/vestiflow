@@ -128,6 +128,8 @@ import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util
 import { renderCausalTemplate } from './models/causal-template.util';
 import type { ExternalDocumentType } from './models/external-document-type.model';
 import { DocumentService } from './services/document.service';
+import { DocumentCountersService } from './services/document-counters.service';
+import type { DocumentCounterView } from './models/document-counter.model';
 import { DocumentSettingsService } from './services/document-settings.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
 import type {
@@ -242,6 +244,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
 export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
+  private readonly countersService = inject(DocumentCountersService);
   private readonly documentSettingsService = inject(DocumentSettingsService);
   private readonly externalTypeService = inject(ExternalDocumentTypeService);
   private readonly supplierService = inject(SupplierService);
@@ -543,18 +546,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly DocumentTypeSetting[] },
   );
 
-  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] => {
-    // Il valore reattivo del form è parziale finché il gruppo non è pronto:
-    // si legge da lì con fallback, mai dai control direttamente.
-    const value = this.formValue();
-    const type = value?.type ?? this.form.controls.type.value;
-    const configured = this.documentSettingsList()
-      .find((setting) => setting.type === type)
-      ?.defaultSeries?.trim();
-    const current = (value?.series ?? '').trim();
-    const values = [...new Set([configured, current].filter((entry): entry is string => !!entry))];
-    return values.map((entry) => ({ value: entry, label: entry }));
-  });
+  /** Contatori disponibili per la testata (tipo + sede): alimentano la tendina. */
+  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
+    this._availableCounters().map((counter) => ({
+      value: counter.series ?? '',
+      label: counter.series ?? 'Senza serie',
+    })),
+  );
 
   /**
    * Etichetta della tappa id nel breadcrumb: il numero dell'arrivo merce
@@ -4776,30 +4775,24 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * un protocollo imposto non sposta il progressivo della serie.
    */
   private refreshNumberPreview(): void {
-    if (this.loadedDocument()?.reference || this.form.controls.protocolNumber.dirty) {
-      return;
-    }
     const type = this.form.controls.type.value;
-    // La data è "YYYY-MM-DD": l'anno si legge dalla stringa per evitare
-    // slittamenti di fuso orario con new Date().
-    const yearRaw = Number(this.form.controls.documentDate.value.slice(0, 4));
-    const year = Number.isFinite(yearRaw) && yearRaw > 0 ? yearRaw : new Date().getFullYear();
-    const series = this.form.controls.series.value.trim();
-    this.documentService
-      .previewDocumentNumber(type, series ? { year, series } : { year })
+    const locationId = this.form.controls.locationId.value || null;
+    this.countersService
+      .available(type, locationId)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (preview) => {
-          // L'anteprima è una proposta: valori mancanti non devono azzerare
-          // il campo (resterebbe un protocollo vuoto senza spiegazione).
-          if (!this.form.controls.protocolNumber.dirty && preview.previewNumber != null) {
-            this.form.controls.protocolNumber.setValue(preview.previewNumber);
+        next: ({ counters, proposedCounterId }) => {
+          this._availableCounters.set(counters);
+          // Documento già numerato o protocollo digitato: non si tocca.
+          if (this.loadedDocument()?.reference || this.form.controls.protocolNumber.dirty) {
+            return;
           }
-          if (preview.series && !(this.form.controls.series.value ?? '').trim()) {
-            this.form.controls.series.setValue(preview.series);
+          const proposed = counters.find((entry) => entry.id === proposedCounterId);
+          if (proposed) {
+            this.form.controls.series.setValue(proposed.series ?? '');
+            this.form.controls.protocolNumber.setValue(proposed.nextNumber);
           }
         },
-        // Anteprima non disponibile: il server assegnerà comunque il numero.
         error: () => undefined,
       });
   }
@@ -4810,12 +4803,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.form.controls.protocolNumber.markAsDirty();
   }
 
-  /** Cambio serie: il protocollo si riallinea al progressivo di quella serie. */
+  /** Serie scelta: il protocollo passa al progressivo di quel contatore. */
   protected onSeriesChange(value: string): void {
     this.form.controls.series.setValue(value);
     this.form.controls.series.markAsDirty();
-    this.form.controls.protocolNumber.markAsPristine();
-    this.refreshNumberPreview();
+    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
+    if (counter) {
+      this.form.controls.protocolNumber.setValue(counter.nextNumber);
+      this.form.controls.protocolNumber.markAsPristine();
+    }
   }
 
   private toAppError(err: unknown): AppError {

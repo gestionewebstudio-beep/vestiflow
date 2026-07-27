@@ -104,18 +104,16 @@ export class DocumentService {
 
   previewDocumentNumber(
     type: DocumentType,
-    options: { series?: string; year?: number } = {},
-  ): Observable<{ reference: string; previewNumber: number; series: string; year: number }> {
+    options: { series?: string | null } = {},
+  ): Observable<{ reference: string; previewNumber: number; series: string | null }> {
     let params = new HttpParams().set('type', type);
     if (options.series) params = params.set('series', options.series);
-    if (options.year != null) params = params.set('year', String(options.year));
 
     return this.http
       .get<{
         reference: string;
         previewNumber: number;
-        series: string;
-        year: number;
+        series: string | null;
       }>(this.url('/documents/preview-number'), { params })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }

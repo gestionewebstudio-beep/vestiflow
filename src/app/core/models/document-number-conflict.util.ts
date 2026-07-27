@@ -14,8 +14,8 @@ export interface DocumentNumberConflict {
   readonly number: number;
   /** Primo numero libero della serie, da proporre all'operatore. */
   readonly nextAvailable: number;
-  readonly series: string;
-  readonly year: number;
+  /** null = senza serie. */
+  readonly series: string | null;
 }
 
 function isConflictPayload(value: unknown): value is DocumentNumberConflict {
@@ -23,11 +23,7 @@ function isConflictPayload(value: unknown): value is DocumentNumberConflict {
     return false;
   }
   const candidate = value as Partial<DocumentNumberConflict>;
-  return (
-    candidate.code === 'document_number_taken' &&
-    typeof candidate.nextAvailable === 'number' &&
-    typeof candidate.series === 'string'
-  );
+  return candidate.code === 'document_number_taken' && typeof candidate.nextAvailable === 'number';
 }
 
 /**
@@ -56,8 +52,9 @@ export function documentNumberConflictOf(error: unknown): DocumentNumberConflict
 
 /** "Il numero 5 della serie A è già stato usato. Vuoi usare il 7?" */
 export function documentNumberConflictMessage(conflict: DocumentNumberConflict): string {
+  const seriePart = conflict.series ? ` della serie ${conflict.series}` : '';
   return (
-    `Il numero ${conflict.number} della serie ${conflict.series} (${conflict.year}) è già stato ` +
-    `assegnato a un altro documento. Il primo numero libero è ${conflict.nextAvailable}.`
+    `Il numero ${conflict.number}${seriePart} è già stato assegnato a un altro documento. ` +
+    `Il primo numero libero è ${conflict.nextAvailable}.`
   );
 }

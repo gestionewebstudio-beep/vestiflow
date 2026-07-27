@@ -1,9 +1,11 @@
+import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { type Observable, timeout } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ApiHttpClient } from '@core/http/api-http.client';
 import type { EntityId } from '@core/models/common.model';
+import type { DocumentType } from '@core/models/document.model';
 
 import type {
   DocumentCounterView,
@@ -20,6 +22,23 @@ export class DocumentCountersService {
   list(): Observable<readonly DocumentCounterView[]> {
     return this.http
       .get<DocumentCounterView[]>(this.url('/document-counters'))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /** Contatori proponibili in testata per (tipo, sede) + quale proporre. */
+  available(
+    type: DocumentType,
+    locationId: EntityId | null,
+  ): Observable<{ counters: readonly DocumentCounterView[]; proposedCounterId: EntityId | null }> {
+    let params = new HttpParams().set('type', type);
+    if (locationId) {
+      params = params.set('locationId', locationId);
+    }
+    return this.http
+      .get<{
+        counters: DocumentCounterView[];
+        proposedCounterId: EntityId | null;
+      }>(this.url('/document-counters/available'), { params })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

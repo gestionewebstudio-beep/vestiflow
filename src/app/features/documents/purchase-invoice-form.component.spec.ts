@@ -9,6 +9,7 @@ import { SupplierService } from '@features/suppliers/services/supplier.service';
 
 import { PurchaseInvoiceFormComponent } from './purchase-invoice-form.component';
 import { DocumentService } from './services/document.service';
+import { DocumentCountersService } from './services/document-counters.service';
 import { DocumentSettingsService } from './services/document-settings.service';
 import type { LinkableGoodsReceipt } from './models/goods-receipt-causal.model';
 
@@ -60,6 +61,10 @@ describe('PurchaseInvoiceFormComponent', () => {
 
     await render(PurchaseInvoiceFormComponent, {
       providers: [
+        {
+          provide: DocumentCountersService,
+          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+        },
         provideRouter([]),
         {
           provide: ActivatedRoute,

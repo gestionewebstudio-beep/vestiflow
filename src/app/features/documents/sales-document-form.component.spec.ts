@@ -16,6 +16,7 @@ import { TenantFeatureSettingsService } from '@features/settings/services/tenant
 
 import { SalesDocumentFormComponent } from './sales-document-form.component';
 import { DocumentService } from './services/document.service';
+import { DocumentCountersService } from './services/document-counters.service';
 
 function operationalLocationsMock() {
   const locations = [{ id: 'loc-1', name: 'Milano' }];
@@ -34,6 +35,10 @@ describe('SalesDocumentFormComponent', () => {
   async function setup() {
     await render(SalesDocumentFormComponent, {
       providers: [
+        {
+          provide: DocumentCountersService,
+          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+        },
         // Nessun permesso costi: il selettore articolo non deve mostrare il costo.
         { provide: AuthService, useValue: { currentUser: () => null } },
         provideRouter([]),

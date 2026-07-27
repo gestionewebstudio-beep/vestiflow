@@ -11,6 +11,7 @@ import { ProductService } from '@features/products/services/product.service';
 
 import { TransferFormComponent } from './transfer-form.component';
 import { DocumentService } from './services/document.service';
+import { DocumentCountersService } from './services/document-counters.service';
 
 const LOCATIONS = [
   { id: 'loc-1', name: 'Milano' },
@@ -37,6 +38,10 @@ describe('TransferFormComponent', () => {
   }) {
     await render(TransferFormComponent, {
       providers: [
+        {
+          provide: DocumentCountersService,
+          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+        },
         // Nessun permesso costi: il selettore articolo non deve mostrare il costo.
         { provide: AuthService, useValue: { currentUser: () => null } },
         provideRouter([]),

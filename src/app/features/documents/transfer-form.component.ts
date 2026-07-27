@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  afterNextRender,
   DestroyRef,
   computed,
   inject,
@@ -63,6 +64,8 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { documentReferenceLabel } from './models/document-labels.util';
 import { isTransferDocumentType } from './models/document-transfer.util';
 import { DocumentService } from './services/document.service';
+import { DocumentCountersService } from './services/document-counters.service';
+import type { DocumentCounterView } from './models/document-counter.model';
 import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
 
 type SubmitState =
@@ -104,6 +107,7 @@ export class TransferFormComponent {
   private readonly authService = inject(AuthService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
+  private readonly countersService = inject(DocumentCountersService);
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
@@ -125,6 +129,9 @@ export class TransferFormComponent {
       id: this.editDocumentId() || null,
       label: this.breadcrumbLabel(),
     }));
+
+    // Carica i contatori disponibili (tendina serie) e propone il predefinito.
+    afterNextRender(() => this.refreshNumberProposal());
   }
 
   protected readonly listPath = '/app/documents';
@@ -186,11 +193,14 @@ export class TransferFormComponent {
     return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
   });
 
-  /** Serie configurate per il tipo: con una sola resta una label statica. */
-  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] => {
-    const current = (this.form.controls.series.value ?? '').trim();
-    return current ? [{ value: current, label: current }] : [];
-  });
+  /** Contatori disponibili per la testata (tipo + sede): alimentano la tendina. */
+  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
+    this._availableCounters().map((counter) => ({
+      value: counter.series ?? '',
+      label: counter.series ?? 'Senza serie',
+    })),
+  );
 
   /** Numero digitato in testata: vuoto = «assegnalo tu». */
   protected onDocumentNumberChange(value: number | null): void {
@@ -198,36 +208,39 @@ export class TransferFormComponent {
     this.form.controls.documentNumber.markAsDirty();
   }
 
-  /** Cambio serie: il numero si riallinea al progressivo di quella serie. */
+  /** Serie scelta dall'operatore: il numero passa al progressivo di quel contatore. */
   protected onSeriesChange(value: string): void {
     this.form.controls.series.setValue(value);
     this.form.controls.series.markAsDirty();
-    this.form.controls.documentNumber.markAsPristine();
-    this.refreshNumberProposal();
+    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
+    if (counter) {
+      this.form.controls.documentNumber.setValue(counter.nextNumber);
+      this.form.controls.documentNumber.markAsPristine();
+    }
   }
 
   /**
-   * Propone il primo numero libero della serie. Non tocca un valore digitato
-   * a mano: un numero imposto non sposta il progressivo.
+   * Carica i contatori disponibili per (tipo, sede) e, su documento nuovo,
+   * propone il predefinito: serie + prossimo numero. Un numero digitato a mano
+   * non viene toccato.
    */
   private refreshNumberProposal(): void {
-    if (this.editDocumentId() || this.form.controls.documentNumber.dirty) {
-      return;
-    }
-    const series = (this.form.controls.series.value ?? '').trim();
-    this.documentService
-      .previewDocumentNumber(DocumentType.Transfer, series ? { series } : {})
+    const locationId = this.form.controls.locationId.value || null;
+    this.countersService
+      .available(DocumentType.Transfer, locationId)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (preview) => {
-          if (!this.form.controls.documentNumber.dirty && preview.previewNumber != null) {
-            this.form.controls.documentNumber.setValue(preview.previewNumber);
+        next: ({ counters, proposedCounterId }) => {
+          this._availableCounters.set(counters);
+          if (this.editDocumentId() || this.form.controls.documentNumber.dirty) {
+            return;
           }
-          if (preview.series && !(this.form.controls.series.value ?? '').trim()) {
-            this.form.controls.series.setValue(preview.series);
+          const proposed = counters.find((entry) => entry.id === proposedCounterId);
+          if (proposed) {
+            this.form.controls.series.setValue(proposed.series ?? '');
+            this.form.controls.documentNumber.setValue(proposed.nextNumber);
           }
         },
-        // Anteprima non disponibile: il server assegnerà comunque il numero.
         error: () => undefined,
       });
   }

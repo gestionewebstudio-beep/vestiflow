@@ -97,6 +97,8 @@ import { documentEditPath } from '@features/documents/models/document-routing.ut
 import { transportDataIncomplete } from '@features/documents/models/document-transport.util';
 import { parseSerialNumbersText } from '@features/documents/utils/serial-numbers-input.util';
 import { DocumentService } from '@features/documents/services/document.service';
+import { DocumentCountersService } from '@features/documents/services/document-counters.service';
+import type { DocumentCounterView } from '@features/documents/models/document-counter.model';
 import type {
   CreateDocumentBody,
   DocumentLineInputBody,
@@ -255,6 +257,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly salesOrderService = inject(SalesOrderService);
   private readonly documentService = inject(DocumentService);
+  private readonly countersService = inject(DocumentCountersService);
   private readonly customerService = inject(CustomerService);
   private readonly productService = inject(ProductService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
@@ -711,10 +714,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
   });
   /** Serie configurate per il tipo: con una sola resta una label statica. */
-  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] => {
-    const current = (this.formValue().series ?? '').trim();
-    return current ? [{ value: current, label: current }] : [];
-  });
+  /** Contatori disponibili per la testata del registro: alimentano la tendina. */
+  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
+    this._availableCounters().map((counter) => ({
+      value: counter.series ?? '',
+      label: counter.series ?? 'Senza serie',
+    })),
+  );
 
   protected readonly internalReferenceLabel = computed(() => {
     const saved = this.isRegistryDocument
@@ -3469,8 +3476,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected onSeriesChange(value: string): void {
     this.form.controls.series.setValue(value);
     this.form.controls.series.markAsDirty();
-    this.form.controls.documentNumber.markAsPristine();
-    this.refreshNumberProposal();
+    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
+    if (counter) {
+      this.form.controls.documentNumber.setValue(counter.nextNumber);
+      this.form.controls.documentNumber.markAsPristine();
+    }
   }
 
   /**
@@ -3478,30 +3488,32 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * l'utente non ha digitato un numero suo.
    */
   private refreshNumberProposal(): void {
-    if (!this.isRegistryDocument || this.editOrderId() || this.form.controls.documentNumber.dirty) {
+    if (!this.isRegistryDocument || this.editOrderId()) {
       return;
     }
-    const series = (this.form.controls.series.value ?? '').trim();
-    this.documentService
-      .previewDocumentNumber(this.registryDocumentType, series ? { series } : {})
+    const locationId = this.form.controls.locationId.value || null;
+    this.countersService
+      .available(this.registryDocumentType, locationId)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (preview) => {
-          // Proposta automatica: non è una modifica dell'utente, quindi non
-          // deve accendere l'avviso «Modifiche non salvate».
+        next: ({ counters, proposedCounterId }) => {
+          this._availableCounters.set(counters);
+          if (this.form.controls.documentNumber.dirty) {
+            return;
+          }
+          const proposed = counters.find((entry) => entry.id === proposedCounterId);
+          if (!proposed) {
+            return;
+          }
+          // Proposta automatica: non deve accendere «Modifiche non salvate».
           this.suppressDirtyMarking = true;
           try {
-            if (!this.form.controls.documentNumber.dirty && preview.previewNumber != null) {
-              this.form.controls.documentNumber.setValue(preview.previewNumber);
-            }
-            if (preview.series && !(this.form.controls.series.value ?? '').trim()) {
-              this.form.controls.series.setValue(preview.series);
-            }
+            this.form.controls.series.setValue(proposed.series ?? '');
+            this.form.controls.documentNumber.setValue(proposed.nextNumber);
           } finally {
             this.suppressDirtyMarking = false;
           }
         },
-        // Anteprima non disponibile: il server assegnerà comunque il numero.
         error: () => undefined,
       });
   }

@@ -17,6 +17,7 @@ import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-
 
 import { GoodsReceiptFormComponent } from './goods-receipt-form.component';
 import { DocumentService } from './services/document.service';
+import { DocumentCountersService } from './services/document-counters.service';
 import { DocumentSettingsService } from './services/document-settings.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
 
@@ -67,6 +68,10 @@ describe('GoodsReceiptFormComponent', () => {
   }) {
     return render(GoodsReceiptFormComponent, {
       providers: [
+        {
+          provide: DocumentCountersService,
+          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+        },
         provideRouter([]),
         {
           provide: ActivatedRoute,
