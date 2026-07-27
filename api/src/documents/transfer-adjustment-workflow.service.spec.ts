@@ -19,6 +19,7 @@ const tenantId = 'tenant-1';
 
 function createPrismaMock() {
   const prisma = {
+    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
     document: {
       findFirst: vi.fn().mockResolvedValue(null),
       findFirstOrThrow: vi.fn(),
@@ -282,7 +283,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
 
     const data = prisma.document.update.mock.calls[0]?.[0].data;
     expect(data.number).toBe(9);
-    expect(data.reference).toBe('TR-2026-0009');
+    expect(data.reference).toBe('TR-A-0009');
   });
 
   it('non tocca il numero quando la testata rimanda quello già assegnato', async () => {

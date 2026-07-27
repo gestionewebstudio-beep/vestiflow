@@ -20,6 +20,7 @@ const tenantId = 'tenant-1';
 
 function createPrismaMock() {
   const prisma = {
+    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
     document: {
       // Numerazione «massimo esistente + 1»: la serie parte vuota.
       aggregate: vi.fn().mockResolvedValue({ _max: { number: null } }),

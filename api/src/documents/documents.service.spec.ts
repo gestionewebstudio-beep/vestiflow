@@ -56,6 +56,10 @@ function createPrismaMock() {
     )) as typeof documentFindFirst.mockResolvedValueOnce;
 
   const prisma = {
+    // Contatore predefinito: assente nel mock → serie di default null (senza serie).
+    documentCounter: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     document: {
       findFirst: documentFindFirst,
       // Numerazione «massimo esistente + 1»: la fonte è il massimo dei numeri
@@ -297,7 +301,7 @@ describe('DocumentsService', () => {
 
       const data = prisma.document.create.mock.calls[0]![0]!.data;
       expect(data.number).toBe(100);
-      expect(data.reference).toBe('DDT-2026-0100');
+      expect(data.reference).toBe('DDT-0100');
     });
 
     it('senza numero imposto lascia numero e riferimento alla conferma', async () => {
@@ -439,7 +443,7 @@ describe('DocumentsService', () => {
       const data = prisma.document.update.mock.calls[0]![0]!.data;
       expect(data.status).toBe(DocumentStatus.confirmed);
       expect(data.number).toBe(7);
-      expect(data.reference).toBe('DDT-2026-0007');
+      expect(data.reference).toBe('DDT-A-0007');
       expect(data.confirmedAt).toBeInstanceOf(Date);
     });
 
@@ -1268,7 +1272,7 @@ describe('DocumentsService', () => {
 
       const data = prisma.document.update.mock.calls[0]![0]!.data;
       expect(data.number).toBe(12);
-      expect(data.reference).toBe('PRE-2026-0012');
+      expect(data.reference).toBe('PRE-A-0012');
     });
 
     it('non tocca il numero quando la testata rimanda quello già salvato', async () => {
@@ -2144,14 +2148,12 @@ describe('DocumentsService', () => {
         tenantId,
         DocumentType.goods_receipt,
         'A',
-        2026,
       );
 
       expect(preview).toEqual({
-        reference: 'CAR-2026-0045',
+        reference: 'CAR-A-0045',
         previewNumber: 45,
         series: 'A',
-        year: 2026,
       });
       // L'anteprima non consuma il numero: nessuna scrittura.
       expect(prisma.document.update).not.toHaveBeenCalled();
@@ -2168,7 +2170,8 @@ describe('DocumentsService', () => {
       const preview = await service.previewNextReference(tenantId, DocumentType.goods_receipt);
 
       expect(preview.previewNumber).toBe(1);
-      expect(preview.reference).toBe(`CAR-${preview.year}-0001`);
+      // Nessun contatore predefinito nel mock → senza serie → PREFISSO-NUMERO.
+      expect(preview.reference).toBe('CAR-0001');
     });
   });
 

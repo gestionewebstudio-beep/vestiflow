@@ -11,7 +11,7 @@ import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { DocumentSettingsService } from '../documents/document-settings.service';
 import { formatDocumentReference } from '../documents/document-totals.util';
-import { nextDocumentNumber } from '../documents/document-numbering.util';
+import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import {
   INVENTORY_VIEW_SCOPE_MODE,
@@ -95,16 +95,15 @@ export class StoreSalesService {
 
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
-      const series = setting.defaultSeries;
+      const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_sale);
       const number = await nextDocumentNumber({
         tx,
         tenantId,
         type: DocumentType.store_sale,
         series,
-        year,
         source: 'document',
       });
-      const reference = formatDocumentReference(setting.numberPrefix, year, number);
+      const reference = formatDocumentReference(setting.numberPrefix, series, number);
 
       // Prezzi in cassa IVA inclusa: scorporo per i totali interni.
       const computedLines = dto.lines.map((line, index) => {
@@ -252,16 +251,15 @@ export class StoreSalesService {
 
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
-      const series = setting.defaultSeries;
+      const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_return);
       const number = await nextDocumentNumber({
         tx,
         tenantId,
         type: DocumentType.store_return,
         series,
-        year,
         source: 'document',
       });
-      const reference = formatDocumentReference(setting.numberPrefix, year, number);
+      const reference = formatDocumentReference(setting.numberPrefix, series, number);
 
       const computedLines = dto.lines.map((line, index) => {
         const variant = variants.get(line.variantId)!;

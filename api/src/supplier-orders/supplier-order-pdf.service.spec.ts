@@ -14,7 +14,9 @@ describe('SupplierOrderPdfService', () => {
   const baseOrder: SupplierOrderWithLines = {
     id: 'po-1',
     tenantId: 'tenant-1',
-    reference: 'OF-2026-0042',
+    reference: 'OF-0042',
+    series: null,
+    number: 42,
     supplierId: 'sup-1',
     supplierName: 'Fornitore Demo Srl',
     destinationLocationId: null,
@@ -73,7 +75,7 @@ describe('SupplierOrderPdfService', () => {
     const { buffer, filename } = await service.exportPdf('tenant-1', baseOrder);
 
     expect(buffer.subarray(0, 4).toString()).toBe('%PDF');
-    expect(filename).toBe('ordine-fornitore-OF-2026-0042.pdf');
+    expect(filename).toBe('ordine-fornitore-OF-0042.pdf');
   });
 
   it('exportPdf gestisce ordine minimale (senza consegna prevista, rif. fornitore e righe)', async () => {

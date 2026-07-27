@@ -77,20 +77,21 @@ export function isDedicatedWorkflowDocumentType(type: DocumentType): boolean {
 
 /**
  * Tipi documento per cui ha senso configurare un contatore di numerazione
- * (Impostazioni → numeratori). Requisiti: il numero vive nella tabella
- * `documents` (così max+1 corrisponde ai documenti reali) ed è VestiFlow-owned.
+ * (Impostazioni → numeratori) ed è VestiFlow-owned. Il progressivo è letto
+ * dalla tabella che possiede il numero: `documents`, oppure `sales_orders`
+ * (Ordine cliente) e `supplier_orders` (Ordine fornitore).
  *
  * Esclusi:
- * - `supplier_order` e `customer_order`: numerati fuori da `documents`
- *   (rispettivamente `supplier_orders` e `sales_orders`) — la preview qui
- *   sarebbe fuorviante e sono fuori ambito.
  * - `invoice_accompanying`: condivide il numeratore con `invoice_draft`
  *   (vedi documentNumberingType), quindi un solo contatore la copre.
  * - i tipi interni (online_sale, corrispettivo): già fuori da DOCUMENT_TYPES.
+ * - gli ordini di canale (Shopify/POS) non hanno contatore: il numero è del
+ *   canale; solo gli ordini cliente MANUALI usano il contatore customer_order.
  */
-export const COUNTER_CONFIGURABLE_DOCUMENT_TYPES: readonly DocumentType[] = DOCUMENT_TYPES.filter(
-  (type) => type !== DocumentType.supplier_order && documentNumberingType(type) === type,
-);
+export const COUNTER_CONFIGURABLE_DOCUMENT_TYPES: readonly DocumentType[] = [
+  ...DOCUMENT_TYPES.filter((type) => documentNumberingType(type) === type),
+  DocumentType.customer_order,
+];
 
 export function isCounterConfigurableDocumentType(type: DocumentType): boolean {
   return (COUNTER_CONFIGURABLE_DOCUMENT_TYPES as readonly string[]).includes(type);

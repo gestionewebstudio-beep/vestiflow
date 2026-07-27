@@ -71,9 +71,11 @@ import {
 } from './document-type.util';
 import {
   buildDocumentNumberConflict,
+  defaultCounterSeries,
   isDocumentNumberConflict,
   nextDocumentNumber,
 } from './document-numbering.util';
+import { formatDocumentReference } from './document-totals.util';
 import {
   reconcileDocumentStockAdjustment,
   reverseDocumentStockAdjustment,
@@ -723,17 +725,19 @@ export class DocumentsService {
   async previewNextReference(
     tenantId: string,
     type: DocumentType,
-    series?: string,
-    year?: number,
-  ): Promise<{ reference: string; previewNumber: number; series: string; year: number }> {
+    series?: string | null,
+  ): Promise<{ reference: string; previewNumber: number; series: string | null }> {
     const setting = await this.settings.getResolved(tenantId, type);
     if (!setting.enabled) {
       throw new UnprocessableEntityException(
         `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
       );
     }
-    const resolvedSeries = (series ?? setting.defaultSeries).trim() || 'A';
-    const resolvedYear = year ?? new Date().getFullYear();
+    // Serie scelta in testata (se passata) o quella del contatore predefinito.
+    const resolvedSeries =
+      series !== undefined
+        ? (series ?? '').trim() || null
+        : await defaultCounterSeries(this.prisma, tenantId, type);
     // Stessa chiave (e stesso prefisso) usati dalla conferma: l'anteprima di
     // una Fattura accompagnatoria legge il progressivo condiviso della Fattura.
     const numberingType = documentNumberingType(type);
@@ -746,15 +750,13 @@ export class DocumentsService {
       tenantId,
       type: numberingType,
       series: resolvedSeries,
-      year: resolvedYear,
       source: 'document',
     });
     const prefix = (numberingSetting.numberPrefix ?? 'DOC').trim() || 'DOC';
     return {
-      reference: this.formatReference(prefix, resolvedYear, previewNumber),
+      reference: this.formatReference(prefix, resolvedSeries, previewNumber),
       previewNumber,
       series: resolvedSeries,
-      year: resolvedYear,
     };
   }
 
@@ -841,7 +843,10 @@ export class DocumentsService {
         // Numero imposto dalla testata: si assegna già in bozza (il vincolo
         // unico lo verifica subito). Senza numero resta null e lo assegna la
         // conferma, prendendo il primo libero della serie.
-        const series = (dto.series ?? setting.defaultSeries).trim() || 'A';
+        const series =
+          dto.series !== undefined
+            ? (dto.series ?? '').trim() || null
+            : await defaultCounterSeries(tx, tenantId, dto.type);
         const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
         const numberingSetting =
           documentNumberingType(dto.type) === dto.type
@@ -856,11 +861,7 @@ export class DocumentsService {
             series,
             number: requestedNumber,
             reference: requestedNumber
-              ? this.formatReference(
-                  numberingSetting.numberPrefix,
-                  documentDate.getFullYear(),
-                  requestedNumber,
-                )
+              ? this.formatReference(numberingSetting.numberPrefix, series, requestedNumber)
               : null,
             year: documentDate.getFullYear(),
             documentDate,
@@ -924,7 +925,7 @@ export class DocumentsService {
       })
       .catch(async (error: unknown) => {
         // Numero imposto già preso: 409 con il primo libero da proporre.
-        await this.throwNumberConflict(error, tenantId, dto.type, dto.series, dto.documentDate);
+        await this.throwNumberConflict(error, tenantId, dto.type, dto.series);
         throw error;
       });
   }
@@ -939,20 +940,22 @@ export class DocumentsService {
     error: unknown,
     tenantId: string,
     type: DocumentType,
-    series: string | undefined,
-    documentDate: string,
+    series: string | null | undefined,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
     }
     const setting = await this.settings.getResolved(tenantId, type);
+    const resolvedSeries =
+      series !== undefined
+        ? (series ?? '').trim() || null
+        : await defaultCounterSeries(this.prisma, tenantId, type);
     throw new ConflictException(
       await buildDocumentNumberConflict({
         tx: this.prisma,
         tenantId,
         type,
-        series: (series ?? setting.defaultSeries).trim() || 'A',
-        year: new Date(documentDate).getFullYear(),
+        series: resolvedSeries,
         source: 'document',
         prefix: setting.numberPrefix,
       }),
@@ -1407,8 +1410,10 @@ export class DocumentsService {
       this.assertStockTransferDocument(mergedLinesForValidation(doc));
     }
 
+    const effectiveSeries =
+      dto.series !== undefined ? (dto.series ?? '').trim() || null : doc.series;
     const data: Prisma.DocumentUncheckedUpdateInput = {
-      series: dto.series !== undefined ? dto.series.trim() || 'A' : doc.series,
+      series: effectiveSeries,
       documentDate,
       year: documentDate.getFullYear(),
       supplierId: dto.supplierId !== undefined ? dto.supplierId : doc.supplierId,
@@ -1503,11 +1508,7 @@ export class DocumentsService {
           ? setting
           : await this.settings.getResolved(tenantId, numberingType);
       data.number = dto.number;
-      data.reference = this.formatReference(
-        numberingSetting.numberPrefix,
-        documentDate.getFullYear(),
-        dto.number,
-      );
+      data.reference = this.formatReference(numberingSetting.numberPrefix, effectiveSeries, dto.number);
     }
 
     if (dto.externalDocNumber !== undefined) {
@@ -2041,13 +2042,7 @@ export class DocumentsService {
 
     const updated = await updateTx.catch(async (error: unknown) => {
       // Numero imposto già preso: 409 con il primo libero da proporre.
-      await this.throwNumberConflict(
-        error,
-        tenantId,
-        doc.type,
-        dto.series ?? doc.series,
-        documentDate.toISOString(),
-      );
+      await this.throwNumberConflict(error, tenantId, doc.type, dto.series ?? doc.series);
       throw error;
     });
 
@@ -2126,8 +2121,8 @@ export class DocumentsService {
           tenantId,
           documentNumberingType(doc.type),
         );
-        number = await this.nextNumber(tx, tenantId, doc.type, doc.series, doc.year);
-        reference = this.formatReference(numberingSetting.numberPrefix, doc.year, number);
+        number = await this.nextNumber(tx, tenantId, doc.type, doc.series);
+        reference = this.formatReference(numberingSetting.numberPrefix, doc.series, number);
       }
 
       // Fase 2 §9: DDT collegato a una Vendita online che ha GIÀ scaricato il
@@ -2940,14 +2935,13 @@ export class DocumentsService {
     tx: Prisma.TransactionClient,
     tenantId: string,
     type: DocumentType,
-    series: string,
-    year: number,
+    series: string | null,
   ): Promise<number> {
-    return nextDocumentNumber({ tx, tenantId, type, series, year, source: 'document' });
+    return nextDocumentNumber({ tx, tenantId, type, series, source: 'document' });
   }
 
-  private formatReference(prefix: string, year: number, number: number): string {
-    return `${prefix}-${year}-${String(number).padStart(4, '0')}`;
+  private formatReference(prefix: string, series: string | null, number: number): string {
+    return formatDocumentReference(prefix, series, number);
   }
 
   /**

@@ -263,6 +263,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
         return Promise.resolve({ lastNumber: next });
       },
     },
+    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
     document: {
       // Numerazione «massimo esistente + 1» (nessun documento nel fake db).
       aggregate: () => Promise.resolve({ _max: { number: null } }),
@@ -432,7 +433,7 @@ describe('StoreSalesService (fase 3 §12)', () => {
       user,
     );
 
-    expect(result.reference).toBe('VN-' + String(new Date().getFullYear()) + '-0001');
+    expect(result.reference).toBe('VN-0001');
     expect(result.totalMinor).toBe(5980);
     expect(result.lines).toHaveLength(1);
     expect(result.lines[0]!.remainingAvailable).toBe(6);
@@ -568,7 +569,7 @@ describe('StoreSalesService (fase 3 §12)', () => {
       user,
     );
 
-    expect(returnResult.reference).toBe('RN-' + String(new Date().getFullYear()) + '-0001');
+    expect(returnResult.reference).toBe('RN-0001');
 
     // Solo il pezzo vendibile rientra in Giacenza/Disponibile.
     const level = levelOf(db, VARIANT_A);

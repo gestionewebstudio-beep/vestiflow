@@ -29,6 +29,20 @@ export async function nextDocumentNumber(
   return sequence.lastNumber;
 }
 
-export function formatDocumentReference(prefix: string, year: number, number: number): string {
-  return `${prefix}-${year}-${String(number).padStart(4, '0')}`;
+/**
+ * Riferimento leggibile: `PREFISSO[-SERIE]-NUMERO`. La serie compare solo se
+ * presente (senza serie → `PREFISSO-NUMERO`). L'anno NON fa parte del
+ * riferimento né della numerazione: il reset annuale si ottiene creando una
+ * serie con il nome dell'anno (es. "2026").
+ */
+export function formatDocumentReference(
+  prefix: string,
+  series: string | null,
+  number: number,
+): string {
+  const paddedNumber = String(number).padStart(4, '0');
+  const trimmedSeries = (series ?? '').trim();
+  return trimmedSeries
+    ? `${prefix}-${trimmedSeries}-${paddedNumber}`
+    : `${prefix}-${paddedNumber}`;
 }

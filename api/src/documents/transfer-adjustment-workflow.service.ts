@@ -120,19 +120,22 @@ export class TransferAdjustmentWorkflowService {
     tx: Prisma.TransactionClient,
     tenantId: string,
     type: DocumentType,
-    setting: { readonly numberPrefix: string; readonly defaultSeries?: string },
+    setting: { readonly numberPrefix: string },
     documentDate: Date,
-    dto: { readonly number?: number; readonly series?: string },
+    dto: { readonly number?: number; readonly series?: string | null },
     existing: {
       readonly number: number | null;
       readonly reference: string | null;
       readonly series?: string | null;
     },
-  ): Promise<{ series: string; year: number; number: number | null; reference: string | null }> {
-    // 'A' è la serie di ripiego del progetto: né il documento né le
-    // impostazioni possono lasciare la serie vuota.
-    const current = (existing.series ?? '').trim() || (setting.defaultSeries ?? '').trim() || 'A';
-    const series = (dto.series ?? current).trim() || current;
+  ): Promise<{
+    series: string | null;
+    year: number;
+    number: number | null;
+    reference: string | null;
+  }> {
+    const current = existing.series ?? null;
+    const series = dto.series !== undefined ? (dto.series ?? '').trim() || null : current;
     const year = documentDate.getFullYear();
     const numberChanged = dto.number != null && dto.number !== existing.number;
     if (!numberChanged && series === current) {
@@ -143,7 +146,6 @@ export class TransferAdjustmentWorkflowService {
       tenantId,
       type,
       series,
-      year,
       source: 'document',
       prefix: setting.numberPrefix,
       requestedNumber: dto.number ?? existing.number,
@@ -156,8 +158,8 @@ export class TransferAdjustmentWorkflowService {
     error: unknown,
     tenantId: string,
     type: DocumentType,
-    series: string,
-    documentDate: Date,
+    series: string | null,
+    _documentDate: Date,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
@@ -168,8 +170,7 @@ export class TransferAdjustmentWorkflowService {
         tx: this.prisma,
         tenantId,
         type,
-        series: series.trim() || setting.defaultSeries,
-        year: documentDate.getFullYear(),
+        series: (series ?? '').trim() || null,
         source: 'document',
         prefix: setting.numberPrefix,
       }),

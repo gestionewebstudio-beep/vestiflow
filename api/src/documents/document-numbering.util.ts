@@ -1,4 +1,5 @@
-import type { DocumentType, Prisma } from '@prisma/client';
+import { DocumentType } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { documentNumberingType } from './document-type.util';
 import { formatDocumentReference } from './document-totals.util';
@@ -18,57 +19,83 @@ import { formatDocumentReference } from './document-totals.util';
  */
 export type DocumentNumberSource = 'document' | 'supplier_order' | 'sales_order';
 
+/** Tabella che possiede il numero del tipo: ordini a parte, il resto documenti. */
+export function numberSourceForType(type: DocumentType): DocumentNumberSource {
+  if (type === DocumentType.customer_order) {
+    return 'sales_order';
+  }
+  if (type === DocumentType.supplier_order) {
+    return 'supplier_order';
+  }
+  return 'document';
+}
+
 export interface NextNumberInput {
   readonly tx: Prisma.TransactionClient;
   readonly tenantId: string;
   /** Tipo documento; internamente si usa quello che possiede il numeratore. */
   readonly type: DocumentType;
-  readonly series: string;
-  readonly year: number;
+  /** null = senza serie. */
+  readonly series: string | null;
   readonly source: DocumentNumberSource;
-  /** Prefisso del riferimento: serve solo alle fonti testuali. */
+  /** Prefisso del riferimento (`PREFISSO[-SERIE]-NUMERO`). */
   readonly prefix?: string;
 }
 
-/** Numero più alto già assegnato nella serie/anno, 0 se la serie è vuota. */
+/**
+ * Numero più alto già assegnato al contatore (tipo + serie), 0 se vuoto. La
+ * partizione è (tenant, tipo, serie): niente anno (il reset annuale si fa con
+ * una serie nuova) né sede (attributo di disponibilità, non del progressivo).
+ * Ordini cliente e fornitore hanno colonne numeriche dedicate: il massimo si
+ * legge dall'aggregato, non più dal parsing del testo.
+ */
 export async function lastAssignedNumber(input: NextNumberInput): Promise<number> {
-  const { tx, tenantId, series, year, source } = input;
-  const type = documentNumberingType(input.type);
+  const { tx, tenantId, series, source } = input;
 
-  if (source === 'document') {
-    const result = await tx.document.aggregate({
+  if (source === 'sales_order') {
+    // Solo gli ordini manuali sono numerati internamente (i canali portano il
+    // proprio numero e restano con `number` NULL).
+    const result = await tx.salesOrder.aggregate({
       _max: { number: true },
-      where: { tenantId, type, series, year },
+      where: { tenantId, source: 'manual', series },
     });
-    return result._max.number ?? 0;
+    return result._max?.number ?? 0;
   }
 
-  // Fonti testuali: si confrontano i riferimenti dell'anno con lo stesso
-  // prefisso e si prende la coda numerica più alta.
-  const prefix = (input.prefix ?? '').trim();
-  if (!prefix) {
-    return 0;
+  if (source === 'supplier_order') {
+    const result = await tx.supplierOrder.aggregate({
+      _max: { number: true },
+      where: { tenantId, series },
+    });
+    return result._max?.number ?? 0;
   }
-  const startsWith = `${prefix}-${year}-`;
-  const references =
-    source === 'supplier_order'
-      ? await tx.supplierOrder.findMany({
-          where: { tenantId, reference: { startsWith } },
-          select: { reference: true },
-        })
-      : await tx.salesOrder.findMany({
-          where: { tenantId, orderNumber: { startsWith } },
-          select: { orderNumber: true },
-        });
 
-  return references.reduce((max, row) => {
-    const reference = 'reference' in row ? row.reference : row.orderNumber;
-    const parsed = Number.parseInt(reference.slice(startsWith.length), 10);
-    return Number.isInteger(parsed) && parsed > max ? parsed : max;
-  }, 0);
+  const result = await tx.document.aggregate({
+    _max: { number: true },
+    where: { tenantId, type: documentNumberingType(input.type), series },
+  });
+  return result._max?.number ?? 0;
 }
 
-/** Prossimo numero libero della serie/anno (massimo esistente + 1). */
+/**
+ * Serie del contatore predefinito del tipo (null = senza serie). È la serie
+ * assegnata quando la testata non ne sceglie una. Nessun contatore predefinito
+ * → senza serie. Usa il tipo che possiede il numeratore (Fattura
+ * accompagnatoria → Fattura).
+ */
+export async function defaultCounterSeries(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  type: DocumentType,
+): Promise<string | null> {
+  const counter = await tx.documentCounter.findFirst({
+    where: { tenantId, type: documentNumberingType(type), isDefault: true },
+    select: { series: true },
+  });
+  return counter?.series ?? null;
+}
+
+/** Prossimo numero libero del contatore (massimo esistente + 1). */
 export async function nextDocumentNumber(input: NextNumberInput): Promise<number> {
   return (await lastAssignedNumber(input)) + 1;
 }
@@ -87,7 +114,11 @@ export async function resolveDocumentNumber(
       : await nextDocumentNumber(input);
   return {
     number,
-    reference: formatDocumentReference((input.prefix ?? 'DOC').trim() || 'DOC', input.year, number),
+    reference: formatDocumentReference(
+      (input.prefix ?? 'DOC').trim() || 'DOC',
+      input.series,
+      number,
+    ),
   };
 }
 
@@ -101,8 +132,8 @@ export interface DocumentNumberConflict {
   readonly code: 'document_number_taken';
   readonly number: number;
   readonly nextAvailable: number;
-  readonly series: string;
-  readonly year: number;
+  /** null = senza serie. */
+  readonly series: string | null;
 }
 
 /**
@@ -120,7 +151,6 @@ export async function buildDocumentNumberConflict(
     number: nextAvailable - 1,
     nextAvailable,
     series: input.series,
-    year: input.year,
   };
 }
 

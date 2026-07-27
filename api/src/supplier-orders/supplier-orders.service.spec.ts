@@ -82,11 +82,13 @@ describe('SupplierOrdersService', () => {
       },
       productVariant: { findMany: vi.fn() },
       vatCode: { findMany: vi.fn().mockResolvedValue([]) },
+      documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
       documentSequence: {
         upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }),
         findUnique: vi.fn().mockResolvedValue(null),
       },
       supplierOrder: {
+        aggregate: vi.fn().mockResolvedValue({ _max: { number: null } }),
         // Numerazione «massimo esistente + 1»: la fonte è il riferimento degli
         // ordini dell'anno, non più il contatore.
         findMany: vi.fn().mockResolvedValue([]),
@@ -141,14 +143,12 @@ describe('SupplierOrdersService', () => {
 
   it('getMeta espone anteprima del numeratore supplier_order', async () => {
     const prisma = createPrismaMock();
-    prisma.supplierOrder.findMany.mockResolvedValue([
-      { reference: `OF-${new Date().getFullYear()}-0041` },
-    ]);
+    // Max esistente 41 (aggregato numerico) → prossimo 42, senza serie.
+    prisma.supplierOrder.aggregate.mockResolvedValue({ _max: { number: 41 } });
     const service = createService(prisma);
 
-    const year = new Date().getFullYear();
     await expect(service.getMeta(tenantId)).resolves.toEqual({
-      nextReferencePreview: `OF-${year}-0042`,
+      nextReferencePreview: 'OF-0042',
     });
   });
 
@@ -179,9 +179,7 @@ describe('SupplierOrdersService', () => {
     prisma.productVariant.findMany.mockResolvedValue([
       { id: 'var-1', sku: 'SKU-1', product: { name: 'T-shirt Basic' } },
     ]);
-    prisma.supplierOrder.findMany.mockResolvedValue([
-      { reference: `OF-${new Date().getFullYear()}-0006` },
-    ]);
+    prisma.supplierOrder.aggregate.mockResolvedValue({ _max: { number: 6 } });
     prisma.supplierOrder.create.mockImplementation(
       (args: { data: { reference: string; status: string } }) =>
         Promise.resolve({
@@ -193,7 +191,6 @@ describe('SupplierOrdersService', () => {
     );
     const service = createService(prisma);
 
-    const year = new Date().getFullYear();
     await expect(
       service.create(tenantId, {
         supplierId: 'sup-1',
@@ -202,7 +199,7 @@ describe('SupplierOrdersService', () => {
       }),
     ).resolves.toMatchObject({
       id: 'po-new',
-      reference: `OF-${year}-0007`,
+      reference: 'OF-0007',
       status: SupplierOrderStatus.confirmed,
     });
 

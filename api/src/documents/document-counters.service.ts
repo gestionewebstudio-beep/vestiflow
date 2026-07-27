@@ -11,6 +11,7 @@ import {
   COUNTER_CONFIGURABLE_DOCUMENT_TYPES,
   isCounterConfigurableDocumentType,
 } from './document-defaults';
+import { nextDocumentNumber, numberSourceForType } from './document-numbering.util';
 import { documentNumberingType } from './document-type.util';
 
 /** Contatore + valori calcolati per la schermata Impostazioni. */
@@ -263,44 +264,40 @@ export class DocumentCountersService {
     };
   }
 
-  /** max+1 sui documenti che condividono (tipo, serie). Sede e anno non contano. */
+  /**
+   * max+1 sul contatore (tipo + serie). Il progressivo è letto dalla tabella
+   * che possiede il numero (documenti, ordini cliente, ordini fornitore); sede
+   * e anno non contano.
+   */
   private async nextNumber(
     tenantId: string,
     type: DocumentType,
     series: string | null,
   ): Promise<number> {
-    const result = await this.prisma.document.aggregate({
-      _max: { number: true },
-      where: this.numberingWhere(tenantId, type, series),
+    return nextDocumentNumber({
+      tx: this.prisma,
+      tenantId,
+      type,
+      series,
+      source: numberSourceForType(type),
     });
-    return (result._max?.number ?? 0) + 1;
   }
 
+  /** Documenti/ordini che condividono la numerazione (avviso eliminazione). */
   private async documentCount(
     tenantId: string,
     type: DocumentType,
     series: string | null,
   ): Promise<number> {
+    const source = numberSourceForType(type);
+    if (source === 'sales_order') {
+      return this.prisma.salesOrder.count({ where: { tenantId, source: 'manual', series } });
+    }
+    if (source === 'supplier_order') {
+      return this.prisma.supplierOrder.count({ where: { tenantId, series } });
+    }
     return this.prisma.document.count({
-      where: this.numberingWhere(tenantId, type, series),
+      where: { tenantId, type: documentNumberingType(type), series },
     });
-  }
-
-  /**
-   * Filtro documenti che condividono la numerazione (tipo + serie). Con serie
-   * `null` (senza serie) il filtro è `series IS NULL`: SQL già valido, 0 match
-   * finché la Fase 3 non rende `documents.series` nullable, poi conta i
-   * documenti senza serie. REASON: evita un caso speciale che divergerebbe.
-   */
-  private numberingWhere(
-    tenantId: string,
-    type: DocumentType,
-    series: string | null,
-  ): Prisma.DocumentWhereInput {
-    return {
-      tenantId,
-      type: documentNumberingType(type),
-      series,
-    } as Prisma.DocumentWhereInput;
   }
 }

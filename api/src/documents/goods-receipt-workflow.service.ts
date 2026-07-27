@@ -40,6 +40,7 @@ import {
 import { applySupplierPriceUpdates } from './document-supplier-price.util';
 import {
   buildDocumentNumberConflict,
+  defaultCounterSeries,
   isDocumentNumberConflict,
   resolveDocumentNumber,
 } from './document-numbering.util';
@@ -158,8 +159,8 @@ export class GoodsReceiptWorkflowService {
     error: unknown,
     tenantId: string,
     type: DocumentType,
-    series: string | undefined,
-    documentDate: string,
+    series: string | null | undefined,
+    _documentDate: string,
   ): Promise<never | void> {
     if (!isDocumentNumberConflict(error)) {
       return;
@@ -170,8 +171,7 @@ export class GoodsReceiptWorkflowService {
         tx: this.prisma,
         tenantId,
         type,
-        series: (series ?? setting.defaultSeries).trim() || 'A',
-        year: new Date(documentDate).getFullYear(),
+        series: series ?? null,
         source: 'document',
         prefix: setting.numberPrefix,
       }),
@@ -388,7 +388,12 @@ export class GoodsReceiptWorkflowService {
       }
 
       const supplierName = await this.snapshotSupplierName(tx, tenantId, dto.supplierId);
-      const series = (dto.series ?? existing?.series ?? setting.defaultSeries).trim() || 'A';
+      const series =
+        dto.series !== undefined
+          ? (dto.series ?? '').trim() || null
+          : existing
+            ? existing.series
+            : await defaultCounterSeries(tx, tenantId, dto.type);
       const year = documentDate.getFullYear();
 
       // Numero interno progressivo assegnato al primo salvataggio (§9.1-9.2).
@@ -404,7 +409,6 @@ export class GoodsReceiptWorkflowService {
           tenantId,
           type: dto.type,
           series,
-          year,
           source: 'document',
           prefix: setting.numberPrefix,
           requestedNumber: dto.number ?? null,
@@ -856,9 +860,14 @@ export class GoodsReceiptWorkflowService {
       }
 
       const supplierName = await this.snapshotSupplierName(tx, tenantId, dto.supplierId);
-      // Serie scelta in testata; in mancanza resta quella del documento o la
-      // predefinita del tipo.
-      const series = (dto.series ?? existing?.series ?? setting.defaultSeries).trim() || 'A';
+      // Serie scelta in testata; in mancanza resta quella del documento o quella
+      // del contatore predefinito.
+      const series =
+        dto.series !== undefined
+          ? (dto.series ?? '').trim() || null
+          : existing
+            ? existing.series
+            : await defaultCounterSeries(tx, tenantId, DocumentType.supplier_invoice);
       const year = documentDate.getFullYear();
 
       let number = existing?.number ?? null;
@@ -873,7 +882,6 @@ export class GoodsReceiptWorkflowService {
           tenantId,
           type: DocumentType.supplier_invoice,
           series,
-          year,
           source: 'document',
           prefix: setting.numberPrefix,
           requestedNumber: dto.number ?? null,

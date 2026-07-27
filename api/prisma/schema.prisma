@@ -965,9 +965,13 @@ model SupplierVariantLink {
 model SupplierOrder {
   id                    String              @id @default(uuid()) @db.Uuid
   tenantId              String              @map("tenant_id") @db.Uuid
-  /// Riferimento leggibile dal numeratore documenti supplier_order
-  /// (es. 'OF-2026-0042'), univoco per tenant.
+  /// Riferimento leggibile derivato `PREFISSO[-SERIE]-NUMERO`, univoco per tenant.
   reference             String
+  /// Numerazione interna: serie del contatore (NULL = senza serie) e progressivo
+  /// max+1 per serie. Univocità sui manuali? No: gli ordini fornitore sono tutti
+  /// interni, il vincolo parziale copre tutte le righe con numero valorizzato.
+  series                String?
+  number                Int?
   supplierId            String              @map("supplier_id") @db.Uuid
   /// Snapshot nome fornitore (display stabile).
   supplierName          String              @map("supplier_name")
@@ -1100,7 +1104,13 @@ model PaymentOption {
 model SalesOrder {
   id                String                      @id @default(uuid()) @db.Uuid
   tenantId          String                      @map("tenant_id") @db.Uuid
+  /// Riferimento leggibile derivato `PREFISSO[-SERIE]-NUMERO` per gli ordini
+  /// manuali; per i canali (Shopify/POS) resta il numero del canale (es. #1001).
   orderNumber       String                      @map("order_number")
+  /// Numerazione interna (solo ordini manuali; canali → NULL, numero del canale).
+  /// Serie del contatore (NULL = senza serie) e progressivo max+1 per serie.
+  series            String?
+  number            Int?
   source            SalesOrderSource            @default(manual)
   financialStatus   SalesOrderFinancialStatus   @default(pending) @map("financial_status")
   fulfillmentStatus SalesOrderFulfillmentStatus @default(unfulfilled) @map("fulfillment_status")
@@ -1770,11 +1780,13 @@ model Document {
   tenantId          String         @map("tenant_id") @db.Uuid
   type              DocumentType
   status            DocumentStatus @default(draft)
-  series            String         @default("A")
-  /// Numero progressivo nella serie/anno; null finché in bozza (assegnato alla conferma).
+  /// Serie del contatore; NULL = senza serie. Fa parte dell'identità del numero.
+  series            String?
+  /// Numero progressivo nella serie (max+1); null finché in bozza.
   number            Int?
+  /// Metadato (filtri/adempimenti). NON fa più parte della numerazione.
   year              Int
-  /// Riferimento leggibile completo (es. 'DDT-2026-0001'); assegnato alla conferma.
+  /// Riferimento leggibile `PREFISSO[-SERIE]-NUMERO`; assegnato alla conferma.
   reference         String?
   /// Data interna di registrazione (solo giorno: niente orario, niente slittamenti TZ).
   documentDate      DateTime       @map("document_date") @db.Date
@@ -1908,8 +1920,11 @@ model Document {
   /// Link DDT vendita → fatture che lo agganciano (questo doc è il DDT).
   invoiceLinks           InvoiceSalesDdtLink[]             @relation("InvoiceLinkDdt")
 
-  // Numero univoco per serie/anno/tipo (NULL distinti in Postgres: le bozze non collidono).
-  @@unique([tenantId, type, series, year, number])
+  // Numero univoco per (tenant, tipo, serie): l'unicità reale è un indice
+  // parziale `WHERE number IS NOT NULL` con NULLS NOT DISTINCT (serie nulla)
+  // nella migration — Prisma non lo esprime, così le bozze (number NULL) non
+  // collidono ma i confermati sì, anche senza serie.
+  @@index([tenantId, type, series])
   @@index([tenantId, type, status])
   @@index([tenantId, status])
   @@index([tenantId, documentDate(sort: Desc)])

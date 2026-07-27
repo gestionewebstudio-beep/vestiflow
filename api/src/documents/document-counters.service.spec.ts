@@ -170,7 +170,7 @@ describe('DocumentCountersService', () => {
 
     it('rifiuta un tipo senza numerazione configurabile', async () => {
       await expect(
-        service.create(tenantId, { type: DocumentType.supplier_order, series: 'A' }),
+        service.create(tenantId, { type: DocumentType.invoice_accompanying, series: 'A' }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
     });
 

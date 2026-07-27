@@ -22,7 +22,7 @@ import { partyDisplayName } from '../common/party/party.util';
 import { DOCUMENT_STOCK_UNLOAD_TYPES } from '../documents/document-stock.constants';
 import { DocumentSettingsService } from '../documents/document-settings.service';
 import { formatDocumentReference } from '../documents/document-totals.util';
-import { nextDocumentNumber } from '../documents/document-numbering.util';
+import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
 import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -82,20 +82,19 @@ export class ManualSalesOrdersService {
   ) {}
 
   async getMeta(tenantId: string): Promise<ManualSalesOrderMeta> {
-    const year = new Date().getFullYear();
     const setting = await this.documentSettings.getResolved(tenantId, DocumentType.customer_order);
+    const series = await defaultCounterSeries(this.prisma, tenantId, DocumentType.customer_order);
     // Stesso criterio dell'assegnazione (massimo esistente + 1).
     const previewNumber = await nextDocumentNumber({
       tx: this.prisma,
       tenantId,
       type: DocumentType.customer_order,
-      series: setting.defaultSeries,
-      year,
+      series,
       source: 'sales_order',
       prefix: setting.numberPrefix,
     });
     return {
-      nextReferencePreview: formatDocumentReference(setting.numberPrefix, year, previewNumber),
+      nextReferencePreview: formatDocumentReference(setting.numberPrefix, series, previewNumber),
       unloadDocumentTypes: DOCUMENT_STOCK_UNLOAD_TYPES,
     };
   }
@@ -251,26 +250,31 @@ export class ManualSalesOrdersService {
         Boolean(existing?.fulfilledAt) ||
         existing?.fulfillmentStatus === SalesOrderFulfillmentStatus.partially_fulfilled;
 
-      // Numero assegnato al primo salvataggio (numeratore dedicato §2.3).
+      // Numero assegnato al primo salvataggio (contatore customer_order). Colonne
+      // numeriche (serie + numero) sorgente della numerazione; orderNumber
+      // derivato come riferimento leggibile.
       let orderNumber = existing?.orderNumber ?? null;
+      let series = existing?.series ?? null;
+      let number = existing?.number ?? null;
       if (!orderNumber) {
-        const year = documentDate.getFullYear();
-        const number = await nextDocumentNumber({
+        series = await defaultCounterSeries(tx, tenantId, DocumentType.customer_order);
+        number = await nextDocumentNumber({
           tx,
           tenantId,
           type: DocumentType.customer_order,
-          series: setting.defaultSeries,
-          year,
+          series,
           source: 'sales_order',
           prefix: setting.numberPrefix,
         });
-        orderNumber = formatDocumentReference(setting.numberPrefix, year, number);
+        orderNumber = formatDocumentReference(setting.numberPrefix, series, number);
       }
 
       const cancelledAt = status === 'cancelled' ? (existing?.cancelledAt ?? new Date()) : null;
 
       const headerData = {
         orderNumber,
+        series,
+        number,
         source: SalesOrderSource.manual,
         customerId: customer.id,
         customerName,

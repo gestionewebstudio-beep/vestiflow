@@ -198,12 +198,7 @@ export class DocumentsController {
     @CurrentTenant() tenantId: string,
     @Query() query: PreviewDocumentNumberQueryDto,
   ) {
-    return this.documents.previewNextReference(
-      tenantId,
-      query.type,
-      query.series,
-      query.year,
-    );
+    return this.documents.previewNextReference(tenantId, query.type, query.series);
   }
 
   @Get(':id/revisions')

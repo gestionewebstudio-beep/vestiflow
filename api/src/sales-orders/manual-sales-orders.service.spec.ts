@@ -44,10 +44,11 @@ function createPrismaMock() {
       upsert: vi.fn().mockResolvedValue({ lastNumber: 12 }),
       findUnique: vi.fn().mockResolvedValue({ lastNumber: 11 }),
     },
+    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
     salesOrder: {
-      // Numerazione «massimo esistente + 1»: si legge dai numeri già assegnati
-      // (qui l'ultimo è OC-2026-0011, quindi il nuovo ordine prende 0012).
-      findMany: vi.fn().mockResolvedValue([{ orderNumber: 'OC-2026-0011' }]),
+      // Numerazione «massimo esistente + 1»: aggregato numerico (ultimo 11 → 12).
+      aggregate: vi.fn().mockResolvedValue({ _max: { number: 11 } }),
+      findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi.fn().mockResolvedValue(null),
       findUniqueOrThrow: vi.fn(),
       create: vi.fn(),
@@ -77,7 +78,7 @@ function createPrismaMock() {
   );
   prisma.salesOrder.findUniqueOrThrow.mockResolvedValue({
     id: 'order-1',
-    orderNumber: 'OC-2026-0012',
+    orderNumber: 'OC-0012',
     lines: [],
   });
   return prisma;
@@ -170,19 +171,19 @@ describe('ManualSalesOrdersService.save', () => {
 
     const result = await service.save(tenantId, baseDto, testOwnerUser());
 
-    // Numeratore customer_order: OC-<anno>-<progressivo>, letto dagli ordini
-    // già numerati dell'anno (massimo + 1).
-    expect(prisma.salesOrder.findMany).toHaveBeenCalledWith(
+    // Numeratore customer_order: max+1 dall'aggregato numerico dei soli ordini
+    // manuali; senza serie (nessun contatore predefinito) → OC-<progressivo>.
+    expect(prisma.salesOrder.aggregate).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          orderNumber: expect.objectContaining({ startsWith: expect.any(String) }),
-        }),
+        where: expect.objectContaining({ source: 'manual' }),
       }),
     );
     const createArgs = prisma.salesOrder.create.mock.calls[0]![0] as {
       data: Record<string, unknown>;
     };
-    expect(createArgs.data['orderNumber']).toBe('OC-2026-0012');
+    expect(createArgs.data['orderNumber']).toBe('OC-0012');
+    expect(createArgs.data['number']).toBe(12);
+    expect(createArgs.data['series']).toBeNull();
     // Sconto a cascata ESATTO: 100,00 € con 4+10% → 86,40 € × 3 = 259,20 €.
     expect(createArgs.data['subtotalMinor']).toBe(3 * 8640);
     expect(createArgs.data['source']).toBe('manual');
@@ -254,7 +255,7 @@ describe('ManualSalesOrdersService.save', () => {
   it('consente la modifica di un ordine Concluso senza toccare gli impegni (prompt DDT)', async () => {
     prisma.salesOrder.findFirst.mockResolvedValue({
       id: 'order-1',
-      orderNumber: 'OC-2026-0012',
+      orderNumber: 'OC-0012',
       source: 'manual',
       fulfilledAt: new Date(),
       fulfillmentStatus: 'fulfilled',
@@ -283,7 +284,7 @@ describe('ManualSalesOrdersService.conclude', () => {
     prisma = createPrismaMock();
     prisma.salesOrder.findFirst.mockResolvedValue({
       id: 'order-1',
-      orderNumber: 'OC-2026-0012',
+      orderNumber: 'OC-0012',
       source: 'manual',
       cancelledAt: null,
       fulfilledAt: null,

@@ -23,7 +23,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { DocumentSettingsService } from '../documents/document-settings.service';
 import { formatDocumentReference } from '../documents/document-totals.util';
-import { nextDocumentNumber } from '../documents/document-numbering.util';
+import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
 import { computeGoodsReceiptTotals } from '../documents/goods-receipt-vat.util';
 import { computeVatLineAmounts } from '../vat/vat-line-calculation.util';
 import { VatCodesService, type VatCodeWithNature } from '../vat/vat-codes.service';
@@ -100,20 +100,19 @@ export class SupplierOrdersService {
   /** Anteprima numerazione (numeratore dedicato supplier_order, come Ordine cliente). */
   async getMeta(tenantId: string): Promise<SupplierOrderMeta> {
     const setting = await this.documentSettings.getResolved(tenantId, DocumentType.supplier_order);
-    const year = new Date().getFullYear();
+    const series = await defaultCounterSeries(this.prisma, tenantId, DocumentType.supplier_order);
     // Stesso criterio dell'assegnazione (massimo esistente + 1): l'anteprima
     // coincide col numero che l'ordine riceverà davvero.
     const previewNumber = await nextDocumentNumber({
       tx: this.prisma,
       tenantId,
       type: DocumentType.supplier_order,
-      series: setting.defaultSeries,
-      year,
+      series,
       source: 'supplier_order',
       prefix: setting.numberPrefix,
     });
     return {
-      nextReferencePreview: formatDocumentReference(setting.numberPrefix, year, previewNumber),
+      nextReferencePreview: formatDocumentReference(setting.numberPrefix, series, previewNumber),
     };
   }
 
@@ -148,22 +147,23 @@ export class SupplierOrdersService {
     const orderDate = dto.orderDate ? new Date(dto.orderDate) : new Date();
 
     return this.prisma.$transaction(async (tx) => {
-      const year = orderDate.getFullYear();
+      const series = await defaultCounterSeries(tx, tenantId, DocumentType.supplier_order);
       const number = await nextDocumentNumber({
         tx,
         tenantId,
         type: DocumentType.supplier_order,
-        series: setting.defaultSeries,
-        year,
+        series,
         source: 'supplier_order',
         prefix: setting.numberPrefix,
       });
-      const reference = formatDocumentReference(setting.numberPrefix, year, number);
+      const reference = formatDocumentReference(setting.numberPrefix, series, number);
 
       const order = await tx.supplierOrder.create({
         data: {
           tenantId,
           reference,
+          series,
+          number,
           supplierId: supplier.id,
           supplierName: partyDisplayName(supplier.party),
           status: SupplierOrderStatus.confirmed,

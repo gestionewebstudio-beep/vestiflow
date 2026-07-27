@@ -52,9 +52,9 @@ export function documentPrintKind(type: DocumentType): DocumentPrintKind {
   return 'generic';
 }
 
-export function documentReferenceLabel(reference: string | null, series: string): string {
+export function documentReferenceLabel(reference: string | null, series: string | null): string {
   if (reference) {
     return reference;
   }
-  return `Bozza · serie ${series}`;
+  return series ? `Bozza · serie ${series}` : 'Bozza · senza serie';
 }
