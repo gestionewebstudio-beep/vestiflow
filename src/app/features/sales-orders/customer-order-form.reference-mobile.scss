@@ -52,10 +52,31 @@
 
 @include bp.media-down('lg') {
   // ── Impaginato di pagina ──────────────────────────────────────────────────
-  // I fogli precedenti stringevano i margini a 8px. La reference ne vuole 12:
-  // la rifinitura degli spazi laterali e' rimandata a un passaggio successivo.
+  // I fogli precedenti stringevano i margini a 8px. La reference ne vuole 12,
+  // e deve essere l'unico rientro: la shell applicativa (.shell__content, in
+  // shell-layout.component.scss) mette gia' il suo, 12px sotto i 480px e 16px
+  // da li' in su, e i due si sommavano lasciando 24-28px complessivi ai lati.
+  // .shell__content e' condivisa da tutte le pagine, quindi non si tocca da
+  // qui: il rientro si annulla localmente, solo per questo form.
+  //
+  // Il solo margine negativo non basta: il host ha gia' `inline-size: 100%`
+  // (goods-receipt-form.component.scss, condiviso con l'Arrivo merce) — una
+  // percentuale, non `auto`. Un margine negativo su un `width: auto` fa
+  // sanguinare il box oltre il contenitore; su un valore fisso non allarga
+  // nulla, sposta solo il bordo sinistro, e il browser scarta in silenzio il
+  // margine destro per bilanciare l'equazione (sovravincolo CSS) — bleed solo
+  // a sinistra, niente a destra. Si somma esplicitamente il bleed alla
+  // larghezza, cosi' l'equazione torna a tornare su entrambi i lati.
   :host {
-    margin-inline: 0;
+    margin-inline: calc(var(--space-3) * -1);
+    inline-size: calc(100% + var(--space-3) * 2);
+  }
+
+  @include bp.media-up('sm') {
+    :host {
+      margin-inline: calc(var(--space-4) * -1);
+      inline-size: calc(100% + var(--space-4) * 2);
+    }
   }
 
   .co-form.gr-form {
