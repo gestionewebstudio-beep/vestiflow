@@ -1,0 +1,122 @@
+<section class="counters" aria-labelledby="counters-title">
+  <header class="counters__header">
+    <div class="counters__heading">
+      <h2 id="counters-title" class="counters__title">Numeratori</h2>
+      <p class="counters__subtitle">
+        Un contatore per serie, tipo documento e sede. Il prossimo numero è calcolato come massimo
+        esistente + 1.
+      </p>
+    </div>
+    @if (!loading() && !editorOpen()) {
+      <app-button variant="secondary" (click)="startCreate()">Nuovo contatore</app-button>
+    }
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="3" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="load()" />
+  } @else {
+    @if (editorOpen()) {
+      <form class="counters__editor" [formGroup]="form" (ngSubmit)="save()">
+        <p class="counters__editor-title">
+          {{ isCreating() ? 'Nuovo contatore' : 'Modifica contatore' }}
+        </p>
+        <div class="counters__editor-fields">
+          <label class="counters__field">
+            <span class="counters__label">Serie</span>
+            <input
+              class="counters__input"
+              type="text"
+              formControlName="series"
+              maxlength="20"
+              autocomplete="off"
+              placeholder="Es. A, 2026, MI"
+            />
+          </label>
+          <div class="counters__field">
+            <span class="counters__label" id="counters-type-label">Tipo documento</span>
+            <app-select-menu
+              [options]="typeOptions"
+              [value]="form.controls.type.value"
+              ariaLabel="Tipo documento"
+              placeholder="Seleziona tipo"
+              [includeEmptyOption]="false"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onTypeSelect($event)"
+            />
+          </div>
+          <div class="counters__field">
+            <span class="counters__label">Sede</span>
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Sede del contatore"
+              placeholder="Tutte le sedi"
+              [includeEmptyOption]="false"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onLocationSelect($event)"
+            />
+          </div>
+        </div>
+        <div class="counters__editor-actions">
+          <app-button variant="ghost" type="button" (click)="cancelEdit()">Annulla</app-button>
+          <app-button type="submit" [disabled]="saving()">
+            {{ saving() ? 'Salvataggio…' : 'Salva' }}
+          </app-button>
+        </div>
+      </form>
+    }
+
+    @if (counters().length === 0 && !isCreating()) {
+      <app-empty-state
+        icon="pi-hashtag"
+        title="Nessun numeratore configurato"
+        description="Finché non ne crei uno, i documenti usano la serie predefinita del tipo. Crea un contatore per separare le numerazioni per serie o sede."
+        ctaLabel="Nuovo contatore"
+        (ctaClick)="startCreate()"
+      />
+    } @else if (counters().length > 0) {
+      <div class="counters__table-wrap">
+        <table class="counters__table">
+          <thead>
+            <tr>
+              <th scope="col">Serie</th>
+              <th scope="col">Tipo documento</th>
+              <th scope="col">Sede</th>
+              <th scope="col" class="counters__cell--num">Prossimo numero</th>
+              <th scope="col"><span class="sr-only">Azioni</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (counter of counters(); track counter.id) {
+              <tr [class.counters__row--editing]="editingId() === counter.id">
+                <td class="counters__cell--series">{{ counter.series }}</td>
+                <td>{{ documentTypeLabel(counter.type) }}</td>
+                <td>{{ counter.locationName ?? 'Tutte le sedi' }}</td>
+                <td class="counters__cell--num tabular-nums">{{ counter.nextNumber }}</td>
+                <td class="counters__cell--actions">
+                  <app-button variant="ghost" (click)="startEdit(counter)">Modifica</app-button>
+                  <app-button variant="danger" (click)="requestDelete(counter)">Elimina</app-button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</section>
+
+<app-confirm-dialog
+  [(open)]="confirmOpen"
+  [title]="confirmTitle()"
+  [message]="confirmMessage()"
+  [confirmLabel]="confirmLabel()"
+  cancelLabel="Annulla"
+  [danger]="confirmDanger()"
+  (confirmed)="onConfirm()"
+  (dismissed)="onDismissConfirm()"
+/>

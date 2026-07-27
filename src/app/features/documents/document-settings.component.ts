@@ -25,6 +25,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import { DocumentCountersComponent } from './components/document-counters/document-counters.component';
 import { documentTypeLabel } from './models/document-labels.util';
 import {
   DocumentSettingsService,
@@ -58,7 +59,13 @@ type PageState = 'loading' | 'ready' | 'error';
 @Component({
   selector: 'app-document-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, ButtonComponent, ErrorStateComponent, TableSkeletonComponent],
+  imports: [
+    ReactiveFormsModule,
+    ButtonComponent,
+    ErrorStateComponent,
+    TableSkeletonComponent,
+    DocumentCountersComponent,
+  ],
   templateUrl: './document-settings.component.html',
   styleUrl: './document-settings.component.scss',
 })

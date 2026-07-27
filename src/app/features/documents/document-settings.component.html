@@ -7,10 +7,14 @@
       </button>
       <h1 class="doc-settings__title">Impostazioni documenti</h1>
       <p class="doc-settings__subtitle">
-        Abilita i tipi di documento, definisci titolo di stampa, serie e numerazione automatica.
+        Numeratori, tipi di documento, titolo di stampa e numerazione automatica.
       </p>
     </div>
   </header>
+
+  <!-- Numeratori configurabili (serie · tipo · sede): gestione indipendente
+       dai campi per-tipo qui sotto. -->
+  <app-document-counters />
 
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
