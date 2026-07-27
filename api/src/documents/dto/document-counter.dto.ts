@@ -1,42 +1,59 @@
-import { IsEnum, IsOptional, IsString, IsUUID, Length, ValidateIf } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 import { DocumentType } from '@prisma/client';
 
 /**
- * Creazione contatore: tipo + serie identificano la numerazione, la location è
- * opzionale (assente/null = contatore globale, valido per tutte le sedi).
+ * Creazione contatore. Identità = tipo + serie (unica per tipo). La serie è
+ * opzionale: assente/null/vuota = «senza serie». La sede è un attributo di
+ * disponibilità. isDefault marca il contatore proposto in testata.
  */
 export class CreateDocumentCounterDto {
   @IsEnum(DocumentType)
   type!: DocumentType;
 
+  /** null / assente / vuota = senza serie. */
+  @IsOptional()
+  @ValidateIf((dto: CreateDocumentCounterDto) => dto.series !== null)
   @IsString()
-  @Length(1, 20)
-  series!: string;
+  @MaxLength(20)
+  series?: string | null;
 
-  /** null/assente = globale. UUID = numerazione separata per quella sede. */
+  /** null/assente = disponibile per tutte le sedi. */
   @IsOptional()
   @ValidateIf((dto: CreateDocumentCounterDto) => dto.locationId !== null)
   @IsUUID()
   locationId?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
 }
 
-/**
- * Modifica contatore: qualunque campo dell'identità (tipo, serie, location) può
- * cambiare — equivale a spostare la numerazione. L'avviso «N documenti la usano»
- * è gestito dal frontend prima di inviare.
- */
+/** Modifica contatore: qualunque campo dell'identità/attributi può cambiare. */
 export class UpdateDocumentCounterDto {
   @IsOptional()
   @IsEnum(DocumentType)
   type?: DocumentType;
 
   @IsOptional()
+  @ValidateIf((dto: UpdateDocumentCounterDto) => dto.series !== null)
   @IsString()
-  @Length(1, 20)
-  series?: string;
+  @MaxLength(20)
+  series?: string | null;
 
   @IsOptional()
   @ValidateIf((dto: UpdateDocumentCounterDto) => dto.locationId !== null)
   @IsUUID()
   locationId?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
 }

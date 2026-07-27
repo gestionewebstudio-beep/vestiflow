@@ -42,8 +42,9 @@ export class DocumentCountersController {
   ): Promise<DocumentCounterView> {
     return this.counters.create(tenantId, {
       type: dto.type,
-      series: dto.series,
+      series: dto.series ?? null,
       locationId: dto.locationId ?? null,
+      isDefault: dto.isDefault,
     });
   }
 
@@ -58,6 +59,7 @@ export class DocumentCountersController {
       ...(dto.type !== undefined ? { type: dto.type } : {}),
       ...(dto.series !== undefined ? { series: dto.series } : {}),
       ...(dto.locationId !== undefined ? { locationId: dto.locationId } : {}),
+      ...(dto.isDefault !== undefined ? { isDefault: dto.isDefault } : {}),
     });
   }
 

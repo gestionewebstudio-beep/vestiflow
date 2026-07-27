@@ -1728,29 +1728,37 @@ model DocumentSequence {
 }
 
 /// Contatore di numerazione configurabile dall'operatore (Impostazioni →
-/// numeratori). Un contatore è la tripla (tipo, serie, location) e NON
-/// memorizza il progressivo: il prossimo numero è sempre max+1 sui documenti
-/// reali (vedi document-numbering.util). La location è opzionale: NULL = valido
-/// per tutte le sedi; valorizzata = numerazione separata per quella sede.
-/// Il prefisso del riferimento NON vive qui ma resta per-tipo su
-/// DocumentTypeSetting: il contatore partiziona solo serie/location.
+/// numeratori). Identità = (tenant, tipo, serie): la serie è unica per tipo.
+/// NON memorizza il progressivo: il prossimo numero è sempre max+1 sui
+/// documenti reali (vedi document-numbering.util).
+/// - serie NULL = «senza serie» (riferimento PREFISSO-NUMERO). Al più un
+///   contatore senza serie per tipo (garantito dall'indice NULLS NOT DISTINCT
+///   nella migration).
+/// - location è solo un ATTRIBUTO di disponibilità (dove il contatore si
+///   propone in testata), non parte dell'identità né della partizione del
+///   numero: la separazione tra sedi si fa con serie di nome diverso.
+/// - isDefault: al più un contatore per tipo è quello proposto in testata.
+/// Il prefisso del riferimento resta per-tipo su DocumentTypeSetting.
 model DocumentCounter {
   id         String       @id @default(uuid()) @db.Uuid
   tenantId   String       @map("tenant_id") @db.Uuid
   type       DocumentType
-  series     String
-  /// NULL = contatore globale (tutte le sedi). Valorizzato = solo quella sede.
+  /// NULL = senza serie. Testo libero altrimenti (es. "2026", "NAP").
+  series     String?
+  /// NULL = disponibile per tutte le sedi. Valorizzato = solo quella sede.
   locationId String?      @map("location_id") @db.Uuid
+  /// Contatore proposto in testata per il tipo (al più uno per tipo).
+  isDefault  Boolean      @default(false) @map("is_default")
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id])
   location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
-  // Identità del contatore. Copre il caso location valorizzata; il caso globale
-  // (location NULL) è protetto da un indice parziale nella migration, perché in
-  // Postgres i NULL sono distinti e sfuggirebbero a questo vincolo.
-  @@unique([tenantId, type, series, locationId])
+  // Identità (tenant, tipo, serie). L'unicità reale è un indice NULLS NOT
+  // DISTINCT nella migration (serie nullable): Prisma non lo esprime, qui il
+  // vincolo documenta l'intento. La sede non entra nell'identità.
+  @@unique([tenantId, type, series])
   @@index([tenantId])
   @@map("document_counters")
 }

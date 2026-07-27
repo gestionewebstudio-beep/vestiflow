@@ -4,58 +4,78 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { DocumentCounter, DocumentType } from '@prisma/client';
+import type { DocumentCounter, DocumentType, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { isCounterConfigurableDocumentType } from './document-defaults';
+import {
+  COUNTER_CONFIGURABLE_DOCUMENT_TYPES,
+  isCounterConfigurableDocumentType,
+} from './document-defaults';
 import { documentNumberingType } from './document-type.util';
 
 /** Contatore + valori calcolati per la schermata Impostazioni. */
 export interface DocumentCounterView {
   readonly id: string;
   readonly type: DocumentType;
-  readonly series: string;
+  /** null = senza serie (riferimento senza il token serie). */
+  readonly series: string | null;
+  /** Attributo di disponibilità in testata; null = tutte le sedi. */
   readonly locationId: string | null;
   readonly locationName: string | null;
-  /** Prossimo numero proposto = max+1 sui documenti reali (anno corrente). */
+  readonly isDefault: boolean;
+  /** Prossimo numero proposto = max+1 sui documenti reali (tipo + serie). */
   readonly nextNumber: number;
-  /** Documenti che condividono questa numerazione (avviso spostamento/eliminazione). */
+  /** Documenti che condividono questa numerazione (avviso eliminazione). */
   readonly documentCount: number;
 }
 
-interface CounterIdentity {
+/** Dati in ingresso per creare/aggiornare un contatore. */
+export interface SaveCounterInput {
   readonly type: DocumentType;
-  readonly series: string;
+  /** null / stringa vuota = senza serie. */
+  readonly series?: string | null;
+  readonly locationId?: string | null;
+  readonly isDefault?: boolean;
+}
+
+interface NormalizedCounter {
+  readonly type: DocumentType;
+  readonly series: string | null;
   readonly locationId: string | null;
 }
 
 /**
- * Contatori di numerazione configurabili (Impostazioni → numeratori). Un
- * contatore è la tripla (tipo, serie, location) e NON memorizza il progressivo:
- * il prossimo numero è sempre max+1 sui documenti reali. Questo giro gestisce
- * solo la configurazione; l'aggancio alla testata dei documenti è un giro
- * successivo, quindi la creazione documenti non dipende dall'esistenza di un
- * contatore.
+ * Contatori di numerazione configurabili (Impostazioni → numeratori). Identità
+ * (tenant, tipo, serie): la serie è unica per tipo, la sede è solo un attributo
+ * di disponibilità in testata. Il contatore NON memorizza il progressivo: il
+ * prossimo numero è sempre max+1 sui documenti reali. Ogni tipo con
+ * numerazione configurabile ha un contatore «senza serie» seminato di default.
  */
 @Injectable()
 export class DocumentCountersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(tenantId: string): Promise<DocumentCounterView[]> {
+    await this.seedDefaults(tenantId);
     const counters = await this.prisma.documentCounter.findMany({
       where: { tenantId },
       include: { location: { select: { name: true } } },
-      orderBy: [{ type: 'asc' }, { series: 'asc' }],
+      orderBy: [{ type: 'asc' }, { series: { sort: 'asc', nulls: 'first' } }],
     });
     return Promise.all(counters.map((counter) => this.toView(tenantId, counter)));
   }
 
-  async create(tenantId: string, input: CounterIdentity): Promise<DocumentCounterView> {
+  async create(tenantId: string, input: SaveCounterInput): Promise<DocumentCounterView> {
     const identity = await this.normalize(tenantId, input);
     await this.assertNoDuplicate(tenantId, identity, null);
-    const created = await this.prisma.documentCounter.create({
-      data: { tenantId, ...identity },
-      include: { location: { select: { name: true } } },
+    const created = await this.prisma.$transaction(async (tx) => {
+      if (input.isDefault) {
+        await this.clearDefault(tx, tenantId, identity.type);
+      }
+      return tx.documentCounter.create({
+        data: { tenantId, ...identity, isDefault: input.isDefault ?? false },
+        include: { location: { select: { name: true } } },
+      });
     });
     return this.toView(tenantId, created);
   }
@@ -63,28 +83,36 @@ export class DocumentCountersService {
   async update(
     tenantId: string,
     id: string,
-    input: Partial<CounterIdentity>,
+    input: Partial<SaveCounterInput>,
   ): Promise<DocumentCounterView> {
     const current = await this.getById(tenantId, id);
     const identity = await this.normalize(tenantId, {
       type: input.type ?? current.type,
-      series: input.series ?? current.series,
-      // location può essere azzerata (globale) passando null esplicito.
+      series: input.series !== undefined ? input.series : current.series,
       locationId: input.locationId !== undefined ? input.locationId : current.locationId,
     });
     await this.assertNoDuplicate(tenantId, identity, id);
-    const updated = await this.prisma.documentCounter.update({
-      where: { id },
-      data: identity,
-      include: { location: { select: { name: true } } },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (input.isDefault === true) {
+        await this.clearDefault(tx, tenantId, identity.type, id);
+      }
+      return tx.documentCounter.update({
+        where: { id },
+        data: {
+          ...identity,
+          ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
+        },
+        include: { location: { select: { name: true } } },
+      });
     });
     return this.toView(tenantId, updated);
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
     await this.getById(tenantId, id);
-    // Eliminare il contatore NON tocca i documenti già numerati: il numero vive
-    // sul documento, non qui. È solo configurazione.
+    // Tutti i contatori sono eliminabili: eliminare non tocca i documenti già
+    // numerati (il numero vive sul documento). Un tipo senza contatori numera
+    // senza serie.
     await this.prisma.documentCounter.delete({ where: { id } });
   }
 
@@ -96,17 +124,22 @@ export class DocumentCountersService {
     return counter;
   }
 
-  /** Valida tipo/serie/location e normalizza (serie trim, location null se assente). */
-  private async normalize(tenantId: string, input: CounterIdentity): Promise<CounterIdentity> {
+  /** Valida tipo/serie/sede e normalizza (serie vuota → null, senza serie). */
+  private async normalize(
+    tenantId: string,
+    input: {
+      readonly type: DocumentType;
+      readonly series?: string | null;
+      readonly locationId?: string | null;
+    },
+  ): Promise<NormalizedCounter> {
     if (!isCounterConfigurableDocumentType(input.type)) {
       throw new UnprocessableEntityException(
         'Questo tipo documento non ha una numerazione configurabile.',
       );
     }
-    const series = input.series.trim();
-    if (!series) {
-      throw new UnprocessableEntityException('La serie è obbligatoria.');
-    }
+    const trimmed = (input.series ?? '').trim();
+    const series = trimmed.length > 0 ? trimmed : null;
     const locationId = input.locationId ?? null;
     if (locationId) {
       const location = await this.prisma.location.findFirst({
@@ -120,9 +153,10 @@ export class DocumentCountersService {
     return { type: input.type, series, locationId };
   }
 
+  /** La serie è unica per (tenant, tipo); «senza serie» (null) è al più uno. */
   private async assertNoDuplicate(
     tenantId: string,
-    identity: CounterIdentity,
+    identity: NormalizedCounter,
     excludeId: string | null,
   ): Promise<void> {
     const duplicate = await this.prisma.documentCounter.findFirst({
@@ -130,16 +164,57 @@ export class DocumentCountersService {
         tenantId,
         type: identity.type,
         series: identity.series,
-        locationId: identity.locationId,
         ...(excludeId ? { id: { not: excludeId } } : {}),
       },
       select: { id: true },
     });
     if (duplicate) {
       throw new ConflictException(
-        'Esiste già un contatore con questa combinazione di tipo, serie e location.',
+        identity.series
+          ? `Esiste già un contatore serie "${identity.series}" per questo tipo.`
+          : 'Esiste già un contatore senza serie per questo tipo.',
       );
     }
+  }
+
+  private async clearDefault(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    type: DocumentType,
+    exceptId?: string,
+  ): Promise<void> {
+    await tx.documentCounter.updateMany({
+      where: { tenantId, type, isDefault: true, ...(exceptId ? { id: { not: exceptId } } : {}) },
+      data: { isDefault: false },
+    });
+  }
+
+  /**
+   * Semina un contatore predefinito «senza serie, senza sede» per ogni tipo con
+   * numerazione configurabile che non ha ancora alcun contatore. Non duplica
+   * quelli già presenti.
+   */
+  private async seedDefaults(tenantId: string): Promise<void> {
+    const existing = await this.prisma.documentCounter.findMany({
+      where: { tenantId },
+      select: { type: true },
+      distinct: ['type'],
+    });
+    const covered = new Set(existing.map((row) => row.type));
+    const missing = COUNTER_CONFIGURABLE_DOCUMENT_TYPES.filter((type) => !covered.has(type));
+    if (missing.length === 0) {
+      return;
+    }
+    await this.prisma.documentCounter.createMany({
+      data: missing.map((type) => ({
+        tenantId,
+        type,
+        series: null,
+        locationId: null,
+        isDefault: true,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   private async toView(
@@ -147,8 +222,8 @@ export class DocumentCountersService {
     counter: DocumentCounter & { location?: { name: string } | null },
   ): Promise<DocumentCounterView> {
     const [nextNumber, documentCount] = await Promise.all([
-      this.nextNumber(tenantId, counter.type, counter.series, counter.locationId),
-      this.documentCount(tenantId, counter.type, counter.series, counter.locationId),
+      this.nextNumber(tenantId, counter.type, counter.series),
+      this.documentCount(tenantId, counter.type, counter.series),
     ]);
     return {
       id: counter.id,
@@ -156,45 +231,50 @@ export class DocumentCountersService {
       series: counter.series,
       locationId: counter.locationId,
       locationName: counter.location?.name ?? null,
+      isDefault: counter.isDefault,
       nextNumber,
       documentCount,
     };
   }
 
-  /** max+1 sui documenti dell'anno corrente che condividono la numerazione. */
+  /** max+1 sui documenti che condividono (tipo, serie). Sede e anno non contano. */
   private async nextNumber(
     tenantId: string,
     type: DocumentType,
-    series: string,
-    locationId: string | null,
+    series: string | null,
   ): Promise<number> {
     const result = await this.prisma.document.aggregate({
       _max: { number: true },
-      where: {
-        tenantId,
-        type: documentNumberingType(type),
-        series,
-        year: new Date().getFullYear(),
-        ...(locationId ? { locationId } : {}),
-      },
+      where: this.numberingWhere(tenantId, type, series),
     });
-    return (result._max.number ?? 0) + 1;
+    return (result._max?.number ?? 0) + 1;
   }
 
-  /** Documenti (tutti gli anni) che usano questa numerazione: avviso spostamento. */
   private async documentCount(
     tenantId: string,
     type: DocumentType,
-    series: string,
-    locationId: string | null,
+    series: string | null,
   ): Promise<number> {
     return this.prisma.document.count({
-      where: {
-        tenantId,
-        type: documentNumberingType(type),
-        series,
-        ...(locationId ? { locationId } : {}),
-      },
+      where: this.numberingWhere(tenantId, type, series),
     });
+  }
+
+  /**
+   * Filtro documenti che condividono la numerazione (tipo + serie). Con serie
+   * `null` (senza serie) il filtro è `series IS NULL`: SQL già valido, 0 match
+   * finché la Fase 3 non rende `documents.series` nullable, poi conta i
+   * documenti senza serie. REASON: evita un caso speciale che divergerebbe.
+   */
+  private numberingWhere(
+    tenantId: string,
+    type: DocumentType,
+    series: string | null,
+  ): Prisma.DocumentWhereInput {
+    return {
+      tenantId,
+      type: documentNumberingType(type),
+      series,
+    } as Prisma.DocumentWhereInput;
   }
 }

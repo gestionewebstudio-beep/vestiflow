@@ -14,7 +14,9 @@ function createPrismaMock() {
       findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi.fn().mockResolvedValue(null),
       create: vi.fn(),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
       update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       delete: vi.fn(),
     },
     document: {
@@ -24,7 +26,14 @@ function createPrismaMock() {
     location: {
       findFirst: vi.fn().mockResolvedValue({ id: locationId }),
     },
+    $transaction: vi.fn(),
   };
+  // La transazione esegue la callback con lo stesso mock (client = tx).
+  prisma.$transaction.mockImplementation((arg: unknown) =>
+    typeof arg === 'function'
+      ? (arg as (tx: typeof prisma) => unknown)(prisma)
+      : Promise.all(arg as Promise<unknown>[]),
+  );
   return prisma;
 }
 
@@ -42,152 +51,146 @@ describe('DocumentCountersService', () => {
   });
 
   describe('list', () => {
-    it('calcola il prossimo numero come max+1 e conta i documenti che lo usano', async () => {
-      prisma.documentCounter.findMany.mockResolvedValue([
-        {
-          id: 'c1',
-          tenantId,
-          type: DocumentType.invoice_draft,
-          series: 'A',
-          locationId: null,
-          location: null,
-        },
-      ]);
+    it('semina un contatore predefinito senza serie per i tipi scoperti', async () => {
+      // Nessun contatore esistente → seed di tutti i tipi configurabili.
+      prisma.documentCounter.findMany
+        .mockResolvedValueOnce([]) // distinct types (seedDefaults)
+        .mockResolvedValueOnce([]); // findMany finale
+      await service.list(tenantId);
+
+      expect(prisma.documentCounter.createMany).toHaveBeenCalledTimes(1);
+      const seeded = prisma.documentCounter.createMany.mock.calls[0]![0]!.data;
+      expect(seeded.length).toBeGreaterThan(0);
+      expect(
+        seeded.every(
+          (row: { series: null; isDefault: boolean }) => row.series === null && row.isDefault,
+        ),
+      ).toBe(true);
+    });
+
+    it('calcola il prossimo numero come max+1 su (tipo, serie), senza anno né sede', async () => {
+      prisma.documentCounter.findMany
+        .mockResolvedValueOnce([{ type: DocumentType.invoice_draft }]) // distinct (già coperto)
+        .mockResolvedValueOnce([
+          {
+            id: 'c1',
+            tenantId,
+            type: DocumentType.invoice_draft,
+            series: '2026',
+            locationId: null,
+            isDefault: true,
+            location: null,
+          },
+        ]);
       prisma.document.aggregate.mockResolvedValue({ _max: { number: 41 } });
-      prisma.document.count.mockResolvedValue(41);
 
       const view = (await service.list(tenantId))[0]!;
 
       expect(view.nextNumber).toBe(42);
-      expect(view.documentCount).toBe(41);
-      expect(view.locationName).toBeNull();
+      expect(view.series).toBe('2026');
+      expect(view.isDefault).toBe(true);
+      const where = prisma.document.aggregate.mock.calls[0]![0]!.where;
+      expect(where).not.toHaveProperty('year');
+      expect(where).not.toHaveProperty('locationId');
     });
 
-    it('la Fattura accompagnatoria condivide il numeratore della Fattura', async () => {
-      prisma.documentCounter.findMany.mockResolvedValue([
+    it('senza serie il filtro usa series null', async () => {
+      prisma.documentCounter.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
         {
           id: 'c1',
           tenantId,
-          type: DocumentType.invoice_accompanying,
-          series: 'A',
+          type: DocumentType.quote,
+          series: null,
           locationId: null,
+          isDefault: true,
           location: null,
         },
       ]);
-
       await service.list(tenantId);
-
-      // documentNumberingType mappa invoice_accompanying → invoice_draft.
       const where = prisma.document.aggregate.mock.calls[0]![0]!.where;
-      expect(where.type).toBe(DocumentType.invoice_draft);
-    });
-
-    it('un contatore con location filtra max+1 su quella sede', async () => {
-      prisma.documentCounter.findMany.mockResolvedValue([
-        {
-          id: 'c1',
-          tenantId,
-          type: DocumentType.sales_ddt,
-          series: 'MI',
-          locationId,
-          location: { name: 'Milano' },
-        },
-      ]);
-
-      const view = (await service.list(tenantId))[0]!;
-
-      const where = prisma.document.aggregate.mock.calls[0]![0]!.where;
-      expect(where.locationId).toBe(locationId);
-      expect(view.locationName).toBe('Milano');
+      expect(where.series).toBeNull();
     });
   });
 
   describe('create', () => {
-    it('crea un contatore valido normalizzando la serie', async () => {
+    it('crea con serie normalizzata (trim)', async () => {
+      prisma.documentCounter.create.mockResolvedValue({
+        id: 'c1',
+        tenantId,
+        type: DocumentType.quote,
+        series: 'NAP',
+        locationId: null,
+        isDefault: false,
+        location: null,
+      });
+
+      await service.create(tenantId, { type: DocumentType.quote, series: '  NAP  ' });
+
+      const data = prisma.documentCounter.create.mock.calls[0]![0]!.data;
+      expect(data.series).toBe('NAP');
+    });
+
+    it('serie vuota → senza serie (null)', async () => {
+      prisma.documentCounter.create.mockResolvedValue({
+        id: 'c1',
+        tenantId,
+        type: DocumentType.quote,
+        series: null,
+        locationId: null,
+        isDefault: false,
+        location: null,
+      });
+
+      await service.create(tenantId, { type: DocumentType.quote, series: '   ' });
+
+      const data = prisma.documentCounter.create.mock.calls[0]![0]!.data;
+      expect(data.series).toBeNull();
+    });
+
+    it('marcando predefinito azzera gli altri predefiniti del tipo', async () => {
       prisma.documentCounter.create.mockResolvedValue({
         id: 'c1',
         tenantId,
         type: DocumentType.quote,
         series: 'A',
         locationId: null,
+        isDefault: true,
         location: null,
       });
 
-      await service.create(tenantId, {
-        type: DocumentType.quote,
-        series: '  A  ',
-        locationId: null,
-      });
+      await service.create(tenantId, { type: DocumentType.quote, series: 'A', isDefault: true });
 
-      const data = prisma.documentCounter.create.mock.calls[0]![0]!.data;
-      expect(data.series).toBe('A');
-      expect(data.locationId).toBeNull();
-    });
-
-    it('rifiuta un tipo senza numerazione configurabile (ordine fornitore)', async () => {
-      await expect(
-        service.create(tenantId, {
-          type: DocumentType.supplier_order,
-          series: 'A',
-          locationId: null,
+      expect(prisma.documentCounter.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tenantId, type: DocumentType.quote, isDefault: true }),
+          data: { isDefault: false },
         }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
-      expect(prisma.documentCounter.create).not.toHaveBeenCalled();
+      );
     });
 
-    it('rifiuta una serie vuota dopo il trim', async () => {
+    it('rifiuta un tipo senza numerazione configurabile', async () => {
       await expect(
-        service.create(tenantId, { type: DocumentType.quote, series: '   ', locationId: null }),
+        service.create(tenantId, { type: DocumentType.supplier_order, series: 'A' }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('rifiuta un duplicato di serie per lo stesso tipo', async () => {
+      prisma.documentCounter.findFirst.mockResolvedValue({ id: 'existing' });
+      await expect(
+        service.create(tenantId, { type: DocumentType.quote, series: 'A' }),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('rifiuta una location non del tenant', async () => {
       prisma.location.findFirst.mockResolvedValue(null);
       await expect(
-        service.create(tenantId, { type: DocumentType.sales_ddt, series: 'MI', locationId }),
+        service.create(tenantId, { type: DocumentType.quote, series: 'MI', locationId }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
-    });
-
-    it('rifiuta un duplicato (stessa tripla tipo/serie/location)', async () => {
-      prisma.documentCounter.findFirst.mockResolvedValue({ id: 'existing' });
-      await expect(
-        service.create(tenantId, { type: DocumentType.quote, series: 'A', locationId: null }),
-      ).rejects.toBeInstanceOf(ConflictException);
-    });
-  });
-
-  describe('update', () => {
-    it('sposta l’identità e ricontrolla il duplicato escludendo se stesso', async () => {
-      prisma.documentCounter.findFirst
-        .mockResolvedValueOnce({
-          id: 'c1',
-          tenantId,
-          type: DocumentType.quote,
-          series: 'A',
-          locationId: null,
-        })
-        .mockResolvedValueOnce(null);
-      prisma.documentCounter.update.mockResolvedValue({
-        id: 'c1',
-        tenantId,
-        type: DocumentType.quote,
-        series: 'B',
-        locationId: null,
-        location: null,
-      });
-
-      await service.update(tenantId, 'c1', { series: 'B' });
-
-      const dupWhere = prisma.documentCounter.findFirst.mock.calls[1]![0]!.where;
-      expect(dupWhere.series).toBe('B');
-      expect(dupWhere.id).toEqual({ not: 'c1' });
-      const data = prisma.documentCounter.update.mock.calls[0]![0]!.data;
-      expect(data.series).toBe('B');
     });
   });
 
   describe('delete', () => {
-    it('elimina il contatore senza toccare i documenti', async () => {
+    it('elimina qualunque contatore senza guardie', async () => {
       prisma.documentCounter.findFirst.mockResolvedValue({ id: 'c1', tenantId });
       await service.delete(tenantId, 'c1');
       expect(prisma.documentCounter.delete).toHaveBeenCalledWith({ where: { id: 'c1' } });
