@@ -1,7 +1,7 @@
 import { DocumentType } from '@prisma/client';
 
 import { DOCUMENT_STOCK_LOAD_TYPES } from './document-stock.constants';
-import { PROFORMA_DEFAULT_NOTES } from './document-type.util';
+import { documentNumberingType, PROFORMA_DEFAULT_NOTES } from './document-type.util';
 
 /** Tutti i tipi documento gestiti, in ordine di presentazione. */
 export const DOCUMENT_TYPES: readonly DocumentType[] = [
@@ -73,6 +73,27 @@ export const DEDICATED_WORKFLOW_DOCUMENT_TYPES: readonly DocumentType[] = DOCUME
 
 export function isDedicatedWorkflowDocumentType(type: DocumentType): boolean {
   return (DEDICATED_WORKFLOW_DOCUMENT_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Tipi documento per cui ha senso configurare un contatore di numerazione
+ * (Impostazioni → numeratori). Requisiti: il numero vive nella tabella
+ * `documents` (così max+1 corrisponde ai documenti reali) ed è VestiFlow-owned.
+ *
+ * Esclusi:
+ * - `supplier_order` e `customer_order`: numerati fuori da `documents`
+ *   (rispettivamente `supplier_orders` e `sales_orders`) — la preview qui
+ *   sarebbe fuorviante e sono fuori ambito.
+ * - `invoice_accompanying`: condivide il numeratore con `invoice_draft`
+ *   (vedi documentNumberingType), quindi un solo contatore la copre.
+ * - i tipi interni (online_sale, corrispettivo): già fuori da DOCUMENT_TYPES.
+ */
+export const COUNTER_CONFIGURABLE_DOCUMENT_TYPES: readonly DocumentType[] = DOCUMENT_TYPES.filter(
+  (type) => type !== DocumentType.supplier_order && documentNumberingType(type) === type,
+);
+
+export function isCounterConfigurableDocumentType(type: DocumentType): boolean {
+  return (COUNTER_CONFIGURABLE_DOCUMENT_TYPES as readonly string[]).includes(type);
 }
 
 /** Prefisso numerazione di default per tipo (§2.3). Sovrascrivibile in impostazioni. */

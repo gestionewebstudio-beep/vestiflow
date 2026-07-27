@@ -4,6 +4,8 @@ import { ChannelsModule } from '../channels/channels.module';
 import { OrderReservationsModule } from '../order-reservations/order-reservations.module';
 import { VatModule } from '../vat/vat.module';
 import { DocumentAttachmentsService } from './document-attachments.service';
+import { DocumentCountersController } from './document-counters.controller';
+import { DocumentCountersService } from './document-counters.service';
 import { DocumentPdfService } from './document-pdf.service';
 import { DocumentXmlService } from './document-xml.service';
 import { DocumentSettingsController } from './document-settings.controller';
@@ -22,12 +24,14 @@ import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflo
   controllers: [
     DocumentsController,
     DocumentSettingsController,
+    DocumentCountersController,
     GoodsReceiptCausalsController,
     ExternalDocumentTypesController,
   ],
   providers: [
     DocumentsService,
     DocumentSettingsService,
+    DocumentCountersService,
     DocumentAttachmentsService,
     DocumentPdfService,
     DocumentXmlService,
