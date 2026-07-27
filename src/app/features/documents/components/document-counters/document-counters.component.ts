@@ -70,7 +70,7 @@ export class DocumentCountersComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly documentTypeLabel = documentTypeLabel;
-  protected readonly skeletonColumns = 5;
+  protected readonly skeletonColumns = 6;
 
   private readonly _state = signal<PageState>('loading');
   protected readonly state = this._state.asReadonly();
@@ -135,7 +135,13 @@ export class DocumentCountersComponent {
     type: this.fb.control<DocumentType>(DocumentType.Quote),
     series: this.fb.control(''),
     locationId: this.fb.control(ALL_LOCATIONS),
+    isDefault: this.fb.control(false),
   });
+
+  /** Serie proposta alla creazione: l'anno corrente (reset annuale se la si tiene). */
+  private currentYearSeries(): string {
+    return String(new Date().getFullYear());
+  }
 
   constructor() {
     this.load();
@@ -162,8 +168,9 @@ export class DocumentCountersComponent {
   protected startCreate(): void {
     this.form.reset({
       type: this.typeOptions[0]?.value as DocumentType,
-      series: '',
+      series: this.currentYearSeries(),
       locationId: ALL_LOCATIONS,
+      isDefault: false,
     });
     this._editingId.set(null);
     this._creating.set(true);
@@ -172,11 +179,31 @@ export class DocumentCountersComponent {
   protected startEdit(counter: DocumentCounterView): void {
     this.form.reset({
       type: counter.type,
-      series: counter.series,
+      series: counter.series ?? '',
       locationId: counter.locationId ?? ALL_LOCATIONS,
+      isDefault: counter.isDefault,
     });
     this._creating.set(false);
     this._editingId.set(counter.id);
+  }
+
+  /** Rende predefinito un contatore direttamente dall'elenco. */
+  protected setDefault(counter: DocumentCounterView): void {
+    this.service
+      .update(counter.id, {
+        type: counter.type,
+        series: counter.series,
+        locationId: counter.locationId,
+        isDefault: true,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.showInfo('Contatore predefinito aggiornato.');
+          this.reload();
+        },
+        error: (err: unknown) => this.toast.showError(this.toAppError(err).message),
+      });
   }
 
   protected cancelEdit(): void {
@@ -199,15 +226,12 @@ export class DocumentCountersComponent {
       return;
     }
     const raw = this.form.getRawValue();
-    const series = raw.series.trim();
-    if (!series) {
-      this.toast.showError('La serie è obbligatoria.');
-      return;
-    }
+    // Serie vuota = «senza serie» (riferimento senza il token serie).
     const body: SaveDocumentCounterBody = {
       type: raw.type,
-      series,
+      series: raw.series.trim() || null,
       locationId: raw.locationId || null,
+      isDefault: raw.isDefault,
     };
 
     const editingId = this._editingId();

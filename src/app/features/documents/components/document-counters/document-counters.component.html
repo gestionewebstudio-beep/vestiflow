@@ -31,8 +31,9 @@
               formControlName="series"
               maxlength="20"
               autocomplete="off"
-              placeholder="Es. A, 2026, MI"
+              placeholder="Es. 2026, NAP, MI"
             />
+            <span class="counters__hint">Vuota = senza serie (riferimento senza serie).</span>
           </label>
           <div class="counters__field">
             <span class="counters__label" id="counters-type-label">Tipo documento</span>
@@ -61,6 +62,11 @@
             />
           </div>
         </div>
+        <label class="counters__check">
+          <input type="checkbox" formControlName="isDefault" />
+          <span>Proponi questo contatore in testata (predefinito del tipo)</span>
+        </label>
+
         <div class="counters__editor-actions">
           <app-button variant="ghost" type="button" (click)="cancelEdit()">Annulla</app-button>
           <app-button type="submit" [disabled]="saving()">
@@ -86,6 +92,7 @@
               <th scope="col">Serie</th>
               <th scope="col">Tipo documento</th>
               <th scope="col">Sede</th>
+              <th scope="col">Predefinito</th>
               <th scope="col" class="counters__cell--num">Prossimo numero</th>
               <th scope="col"><span class="sr-only">Azioni</span></th>
             </tr>
@@ -93,9 +100,20 @@
           <tbody>
             @for (counter of counters(); track counter.id) {
               <tr [class.counters__row--editing]="editingId() === counter.id">
-                <td class="counters__cell--series">{{ counter.series }}</td>
+                <td class="counters__cell--series">
+                  {{ counter.series ?? 'Senza serie' }}
+                </td>
                 <td>{{ documentTypeLabel(counter.type) }}</td>
                 <td>{{ counter.locationName ?? 'Tutte le sedi' }}</td>
+                <td>
+                  @if (counter.isDefault) {
+                    <span class="counters__badge">Predefinito</span>
+                  } @else {
+                    <app-button variant="ghost" (click)="setDefault(counter)"
+                      >Rendi predefinito</app-button
+                    >
+                  }
+                </td>
                 <td class="counters__cell--num tabular-nums">{{ counter.nextNumber }}</td>
                 <td class="counters__cell--actions">
                   <app-button variant="ghost" (click)="startEdit(counter)">Modifica</app-button>

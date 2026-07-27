@@ -37,7 +37,6 @@ interface SettingFormControls {
   readonly printTitle: FormControl<string>;
   readonly autoNumbering: FormControl<boolean>;
   readonly numberPrefix: FormControl<string>;
-  readonly defaultSeries: FormControl<string>;
   readonly blockAfterConfirm: FormControl<boolean>;
   readonly pricesIncludeVat: FormControl<boolean>;
   readonly defaultNotes: FormControl<string>;
@@ -135,7 +134,6 @@ export class DocumentSettingsComponent {
       printTitle: value.printTitle.trim(),
       autoNumbering: value.autoNumbering,
       numberPrefix: value.numberPrefix.trim(),
-      defaultSeries: value.defaultSeries.trim() || 'A',
       blockAfterConfirm: value.blockAfterConfirm,
       pricesIncludeVat: value.pricesIncludeVat,
       defaultNotes: value.defaultNotes.trim(),
@@ -168,7 +166,6 @@ export class DocumentSettingsComponent {
         printTitle: this.fb.control(setting.printTitle),
         autoNumbering: this.fb.control(setting.autoNumbering),
         numberPrefix: this.fb.control(setting.numberPrefix),
-        defaultSeries: this.fb.control(setting.defaultSeries),
         blockAfterConfirm: this.fb.control(setting.blockAfterConfirm),
         pricesIncludeVat: this.fb.control(setting.pricesIncludeVat),
         defaultNotes: this.fb.control(setting.defaultNotes ?? ''),
@@ -181,7 +178,6 @@ export class DocumentSettingsComponent {
     printTitle: string;
     autoNumbering: boolean;
     numberPrefix: string;
-    defaultSeries: string;
     blockAfterConfirm: boolean;
     pricesIncludeVat: boolean;
     defaultNotes: string;
@@ -191,7 +187,6 @@ export class DocumentSettingsComponent {
       printTitle: setting.printTitle,
       autoNumbering: setting.autoNumbering,
       numberPrefix: setting.numberPrefix,
-      defaultSeries: setting.defaultSeries,
       blockAfterConfirm: setting.blockAfterConfirm,
       pricesIncludeVat: setting.pricesIncludeVat,
       defaultNotes: setting.defaultNotes ?? '',

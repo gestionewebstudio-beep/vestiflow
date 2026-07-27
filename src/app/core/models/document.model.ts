@@ -35,6 +35,8 @@ export const DocumentType = {
   StoreReturn: 'store_return',
   /** Preventivo cliente: numerazione PRE dedicata, mai effetti magazzino. */
   Quote: 'quote',
+  /** Ordine cliente manuale (vive in SalesOrder; qui per il contatore/label). */
+  CustomerOrder: 'customer_order',
 } as const;
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
 

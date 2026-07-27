@@ -28,6 +28,7 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.StoreSale]: 'Vendita negozio',
   [DocumentType.StoreReturn]: 'Reso vendita negozio',
   [DocumentType.Quote]: 'Preventivo',
+  [DocumentType.CustomerOrder]: 'Ordine cliente',
 };
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {

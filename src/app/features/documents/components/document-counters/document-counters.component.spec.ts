@@ -47,6 +47,7 @@ describe('DocumentCountersComponent', () => {
         series: 'MI',
         locationId: 'loc-1',
         locationName: 'Milano',
+        isDefault: false,
         nextNumber: 12,
         documentCount: 11,
       },
@@ -62,15 +63,17 @@ describe('DocumentCountersComponent', () => {
       {
         id: 'c1',
         type: 'quote',
-        series: 'A',
+        series: null,
         locationId: null,
         locationName: null,
+        isDefault: true,
         nextNumber: 1,
         documentCount: 0,
       },
     ]);
 
     expect(await screen.findByText('Tutte le sedi')).toBeTruthy();
+    expect(screen.getByText('Senza serie')).toBeTruthy();
   });
 
   it('senza contatori mostra lo stato vuoto con la CTA', async () => {
@@ -83,12 +86,13 @@ describe('DocumentCountersComponent', () => {
     const { service } = await setup([]);
 
     await user.click((await screen.findAllByRole('button', { name: /nuovo contatore/i }))[0]!);
-    await user.type(screen.getByPlaceholderText('Es. A, 2026, MI'), '7');
+    await user.clear(screen.getByPlaceholderText('Es. 2026, NAP, MI'));
+    await user.type(screen.getByPlaceholderText('Es. 2026, NAP, MI'), 'NAP');
     await user.click(screen.getByRole('button', { name: 'Salva' }));
 
     expect(service.create).toHaveBeenCalledTimes(1);
     const body = service.create.mock.calls[0]![0];
-    expect(body).toMatchObject({ series: '7', locationId: null });
+    expect(body).toMatchObject({ series: 'NAP', locationId: null });
     expect(typeof body.type).toBe('string');
   });
 });
