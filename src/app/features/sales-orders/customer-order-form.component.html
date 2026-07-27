@@ -198,38 +198,275 @@
 
       <fieldset class="gr-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata compatta (stessa impostazione dell'Arrivo merce). -->
-        <div class="gr-form__header" [class.co-form__header--open]="mobileHeaderOpen()">
-          <!-- Sotto lg la testata si riassume in una riga apribile (mockup
-               responsive v3): i campi non occupano spazio finché non servono. -->
-          <!-- Banner cliente sempre visibile: stato vuoto (tratteggiato, cliente
-               obbligatorio) o pieno (nome + location · data · stato). Il tap apre
-               i dettagli dove si sceglie/cambia il cliente. -->
-          <button
-            type="button"
-            class="co-form__header-summary"
-            [class.co-form__header-summary--empty]="!isManualUnload && !hasCustomer()"
-            aria-controls="co-header-details"
-            [attr.aria-expanded]="mobileHeaderOpen()"
-            (click)="toggleMobileHeader()"
-          >
-            <span class="co-form__header-summary-icon" aria-hidden="true">
-              <i class="pi pi-user"></i>
-            </span>
-            @if (!isManualUnload && !hasCustomer()) {
-              <span class="co-form__header-summary-copy">
-                <strong>Tocca per selezionare cliente</strong>
-                <small class="co-form__header-summary-required">Cliente obbligatorio</small>
-              </span>
-              <span class="co-form__header-summary-edit">Seleziona</span>
-            } @else {
-              <span class="co-form__header-summary-copy">
-                <strong>{{ mobileHeaderTitle() }}</strong>
-                <small>{{ mobileHeaderMeta() }}</small>
-              </span>
-              <span class="co-form__header-summary-edit">Modifica</span>
-            }
-            <i class="pi pi-chevron-down co-form__header-summary-chevron" aria-hidden="true"></i>
-          </button>
+        <div class="gr-form__header">
+          <!-- Vista mobile: due pannelli apribili, come la reference. Vive nel
+               DOM accanto alla griglia desktop e si accende sotto lg — stesso
+               schema delle card riga, che convivono con la tabella.
+               Il primo pannello tiene i dati che sbloccano le righe, il secondo
+               quelli che hanno già un valore valido: si apre solo per cambiarli.
+               Nessuno dei due si richiude da solo quando i dati si completano. -->
+          <div class="co-panels">
+            <section class="co-panel" [class.co-panel--open]="customerPanelOpen()">
+              <button
+                type="button"
+                class="co-panel__toggle"
+                aria-controls="co-panel-customer"
+                [attr.aria-expanded]="customerPanelOpen()"
+                (click)="toggleCustomerPanel()"
+              >
+                <span class="co-panel__icon" aria-hidden="true">
+                  <i class="pi pi-user"></i>
+                </span>
+                <span class="co-panel__copy">
+                  <strong>{{ customerPanelTitle() }}</strong>
+                  <small>{{ customerPanelSubtitle() }}</small>
+                </span>
+                <i class="pi pi-chevron-down co-panel__chevron" aria-hidden="true"></i>
+              </button>
+
+              <div id="co-panel-customer" class="co-panel__body">
+                <p class="co-panel__section">Dati principali</p>
+
+                <div class="co-panel__fields">
+                  <div class="co-panel__field">
+                    <div class="co-panel__field-head">
+                      <span class="co-panel__label" id="co-m-customer-label">
+                        {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
+                      </span>
+                      <button
+                        type="button"
+                        class="co-panel__field-action"
+                        (click)="toggleCustomerForm()"
+                      >
+                        <i
+                          class="pi"
+                          [class.pi-plus]="!showCustomerForm()"
+                          [class.pi-minus]="showCustomerForm()"
+                          aria-hidden="true"
+                        ></i>
+                        {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
+                      </button>
+                    </div>
+
+                    <app-select-menu
+                      [options]="customerOptions()"
+                      [value]="form.controls.customerId.value"
+                      ariaLabel="Cliente"
+                      [placeholder]="
+                        isManualUnload ? 'Seleziona cliente (facoltativo)…' : 'Seleziona cliente…'
+                      "
+                      [fullWidth]="true"
+                      [searchable]="true"
+                      searchPlaceholder="Cerca cliente…"
+                      searchAriaLabel="Cerca cliente"
+                      [invalid]="!isManualUnload && fieldInvalid('customerId')"
+                      describedBy="co-m-customer-error"
+                      (valueChange)="onCustomerSelect($event)"
+                    />
+
+                    @if (!isManualUnload && fieldInvalid('customerId')) {
+                      <p id="co-m-customer-error" class="gr-form__error">Seleziona un cliente.</p>
+                    }
+                    @if (isManualUnload && !form.controls.customerId.value) {
+                      <!-- Cliente digitato liberamente (prompt Scarico manuale):
+                           compare solo in stampa, NON viene salvato in anagrafica. -->
+                      <input
+                        class="co-panel__control"
+                        type="text"
+                        formControlName="customerFreeText"
+                        placeholder="…oppure digita il nome solo per la stampa"
+                        aria-label="Cliente a testo libero (solo stampa)"
+                        autocomplete="off"
+                      />
+                    }
+                    @if (form.controls.customerId.value) {
+                      <button
+                        type="button"
+                        class="co-panel__field-action"
+                        (click)="openCustomerDetail()"
+                      >
+                        <i class="pi pi-external-link" aria-hidden="true"></i>
+                        Scheda cliente
+                      </button>
+                    }
+                  </div>
+
+                  <div class="co-panel__field">
+                    <span class="co-panel__label">{{
+                      isQuote ? 'Location' : 'Location di origine'
+                    }}</span>
+                    @if (locationOptions().length > 0) {
+                      <app-select-menu
+                        [options]="locationOptions()"
+                        [value]="form.controls.locationId.value"
+                        ariaLabel="Location di origine"
+                        placeholder="Seleziona location…"
+                        [fullWidth]="true"
+                        [searchable]="true"
+                        searchPlaceholder="Cerca location…"
+                        searchAriaLabel="Cerca location"
+                        [invalid]="fieldInvalid('locationId')"
+                        describedBy="co-m-location-error"
+                        (valueChange)="onLocationSelect($event)"
+                      />
+                    } @else {
+                      <p class="gr-form__error" role="alert">
+                        Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
+                        dell'account.
+                      </p>
+                    }
+                    @if (fieldInvalid('locationId')) {
+                      <p id="co-m-location-error" class="gr-form__error">Seleziona la location.</p>
+                    }
+                  </div>
+                </div>
+
+                <p
+                  class="co-panel__status"
+                  [class.co-panel__status--ready]="headerDataReady()"
+                  role="status"
+                >
+                  <span class="co-panel__status-dot" aria-hidden="true"></span>
+                  {{ customerPanelStatus() }}
+                </p>
+              </div>
+            </section>
+
+            <section class="co-panel" [class.co-panel--open]="detailsPanelOpen()">
+              <button
+                type="button"
+                class="co-panel__toggle"
+                aria-controls="co-panel-details"
+                [attr.aria-expanded]="detailsPanelOpen()"
+                (click)="toggleDetailsPanel()"
+              >
+                <span class="co-panel__icon" aria-hidden="true">
+                  <i class="pi pi-calendar"></i>
+                </span>
+                <span class="co-panel__copy">
+                  <strong>Dettagli documento</strong>
+                  <small class="co-panel__summary">
+                    @for (part of detailsPanelSummaryParts(); track $index) {
+                      <span class="co-panel__summary-part">{{ part }}</span>
+                    }
+                  </small>
+                </span>
+                <i class="pi pi-chevron-down co-panel__chevron" aria-hidden="true"></i>
+              </button>
+
+              <div id="co-panel-details" class="co-panel__body">
+                <p class="co-panel__section">Informazioni documento</p>
+
+                <div class="co-panel__fields">
+                  <div class="co-panel__fields co-panel__fields--two">
+                    <div class="co-panel__field">
+                      <label class="co-panel__label" for="co-m-date">Data</label>
+                      <app-date-input
+                        inputId="co-m-date"
+                        formControlName="documentDate"
+                        ariaLabel="Data documento"
+                        [fullWidth]="true"
+                      />
+                    </div>
+
+                    @if (isOrder) {
+                      <div class="co-panel__field">
+                        <span class="co-panel__label">Stato</span>
+                        @if (isSettledOrder()) {
+                          <p class="gr-form__readonly">{{ stateBadgeLabel() }}</p>
+                        } @else {
+                          <app-select-menu
+                            [options]="stateOptions"
+                            [value]="form.controls.status.value"
+                            ariaLabel="Stato documento"
+                            placeholder="Confermato"
+                            [fullWidth]="true"
+                            [includeEmptyOption]="false"
+                            (valueChange)="onStateSelect($event)"
+                          />
+                        }
+                      </div>
+                    }
+
+                    @if (isQuote) {
+                      <div class="co-panel__field">
+                        <label class="co-panel__label" for="co-m-delivery">Consegna prevista</label>
+                        <app-date-input
+                          inputId="co-m-delivery"
+                          formControlName="expectedDeliveryDate"
+                          ariaLabel="Data prevista consegna"
+                          placeholder="Opzionale"
+                          [fullWidth]="true"
+                        />
+                      </div>
+                    }
+                  </div>
+
+                  @if (!isOrder) {
+                    <app-document-number-field
+                      numberInputId="co-m-number"
+                      [number]="form.controls.documentNumber.value"
+                      [series]="form.controls.series.value"
+                      [seriesOptions]="seriesOptions()"
+                      [disabled]="formReadOnly()"
+                      (numberChange)="onDocumentNumberChange($event)"
+                      (seriesChange)="onSeriesChange($event)"
+                    />
+                  }
+
+                  @if (isManualUnload) {
+                    <div class="co-panel__field">
+                      <label class="co-panel__label" for="co-m-external-ref">Rif.</label>
+                      <input
+                        id="co-m-external-ref"
+                        class="co-panel__control"
+                        type="text"
+                        formControlName="externalRef"
+                        placeholder="Es. campionario fiera"
+                        autocomplete="off"
+                      />
+                    </div>
+                  }
+
+                  @if (isSalesDdt) {
+                    <div class="co-panel__field">
+                      <span class="co-panel__label">Pagamento</span>
+                      <app-select-menu
+                        [options]="paymentMethodOptions()"
+                        [value]="form.controls.paymentMethod.value"
+                        ariaLabel="Modalità di pagamento"
+                        placeholder="Seleziona pagamento…"
+                        [fullWidth]="true"
+                        [searchable]="true"
+                        searchPlaceholder="Cerca modalità…"
+                        searchAriaLabel="Cerca modalità di pagamento"
+                        (valueChange)="onPaymentMethodSelect($event)"
+                      />
+                    </div>
+
+                    <label class="gr-form__check gr-form__check--header">
+                      <input type="checkbox" formControlName="followedBySalesDoc" />
+                      <span>Seguirà doc. di vendita</span>
+                    </label>
+                  } @else if (!isManualUnload) {
+                    <div class="co-panel__field">
+                      <label class="co-panel__label" for="co-m-payment">Pagamento</label>
+                      <input
+                        id="co-m-payment"
+                        class="co-panel__control"
+                        type="text"
+                        formControlName="paymentTerms"
+                        placeholder="Es. 30 gg d.f."
+                        autocomplete="off"
+                      />
+                    </div>
+                  }
+                </div>
+
+                <p class="co-panel__helper">I valori predefiniti restano modificabili.</p>
+              </div>
+            </section>
+          </div>
 
           <div id="co-header-details" class="co-form__header-details">
             <div
@@ -462,24 +699,6 @@
                 <div class="gr-form__field co-form__header-filler" aria-hidden="true"></div>
               </div>
             }
-
-            <!-- Mobile: «Includi documento» chiude la testata. È un'azione sul
-                 documento (importa da preventivo/ordine origine), non sulle
-                 righe, quindi vive qui e non nel blocco azioni righe. Su desktop
-                 resta nella toolbar righe. -->
-            @if (includeSourceKinds.length > 0) {
-              <div class="co-form__header-include">
-                <app-button
-                  type="button"
-                  variant="secondary"
-                  [disabled]="formReadOnly()"
-                  (click)="openIncludePanel()"
-                >
-                  <i class="pi pi-file-import" aria-hidden="true"></i>
-                  Includi documento
-                </app-button>
-              </div>
-            }
           </div>
         </div>
 
@@ -522,6 +741,22 @@
                      riepilogo in fondo alla tabella, vicino ai totali. -->
                 <h2 id="co-lines-title" class="gr-form__subtitle">Righe documento</h2>
               </div>
+
+              <!-- Mobile: «Includi documento» accanto al titolo delle righe.
+                   Sta dentro il fieldset del gate, quindi si abilita insieme
+                   alle altre azioni sulle righe. Su desktop resta in toolbar. -->
+              @if (includeSourceKinds.length > 0) {
+                <div class="co-lines__include">
+                  <app-button
+                    type="button"
+                    variant="secondary"
+                    [disabled]="formReadOnly()"
+                    (click)="openIncludePanel()"
+                  >
+                    Includi documento
+                  </app-button>
+                </div>
+              }
               <!-- Toolbar desktop invariata. Su mobile i suoi comandi si
                    ricollocano: Includi documento in testata, Nuovo prodotto nel
                    blocco qui sotto, Aggiungi riga in fondo alla lista, Scansiona
@@ -549,16 +784,6 @@
                   Aggiungi riga
                 </app-button>
               </div>
-            </div>
-
-            <!-- Mobile: azione rara (creare un articolo da zero), quindi ghost
-                 compatto a destra. Scansiona e Aggiungi prodotto, che sono le
-                 azioni frequenti, stanno nella barra sticky in basso. -->
-            <div class="co-form__mobile-tools">
-              <app-button type="button" variant="ghost" (click)="openNewProduct()">
-                <i class="pi pi-box" aria-hidden="true"></i>
-                Nuovo prodotto
-              </app-button>
             </div>
 
             @if (isSalesDdt && includedOrders().length > 0) {
@@ -1663,19 +1888,40 @@
               }
             </div>
 
-            <!-- Mobile: equivalente dell'«Aggiungi riga» della toolbar desktop.
-                 Sta in fondo alla lista perché è lì che si arriva dopo aver
-                 compilato: serve per un articolo non a catalogo o un servizio. -->
-            <app-button
-              type="button"
-              variant="ghost"
-              class="co-form__mobile-add-line"
-              [disabled]="formReadOnly()"
-              (click)="addLineMobile()"
-            >
-              <i class="pi pi-plus" aria-hidden="true"></i>
-              Aggiungi riga
-            </app-button>
+            <!-- Mobile: finché non c'è nessuna riga la lista non è vuota e basta,
+                 dice cosa serve per riempirla. -->
+            @if (!mobileRowsVisible()) {
+              <div class="co-lines__empty">
+                <strong>Nessuna riga inserita</strong>
+                <p>
+                  Dopo aver selezionato cliente e location potrai aggiungere articoli o includere un
+                  altro documento.
+                </p>
+              </div>
+            }
+
+            <!-- Mobile: le due azioni che partono da qui. Le frequenti (cerca e
+                 scansiona) stanno nella barra in basso; queste due sono
+                 l'articolo fuori catalogo e l'anagrafica nuova. -->
+            <div class="co-lines__actions">
+              <button
+                type="button"
+                class="co-lines__action co-lines__action--empty"
+                [disabled]="formReadOnly()"
+                (click)="addLineMobile()"
+              >
+                <i class="pi pi-plus" aria-hidden="true"></i>
+                Inserisci riga vuota
+              </button>
+              <button
+                type="button"
+                class="co-lines__action co-lines__action--product"
+                (click)="openNewProduct()"
+              >
+                <i class="pi pi-box" aria-hidden="true"></i>
+                Crea nuovo prodotto
+              </button>
+            </div>
           </section>
 
           <!-- Totali sticky in fondo + note documento (stessa banda dell'Arrivo merce). -->
@@ -2250,21 +2496,28 @@
            scorre. Non contiene Salva/Annulla, che scorrono col documento. -->
       @if (!formReadOnly()) {
         <div class="co-form__sticky-bar" role="toolbar" aria-label="Aggiunta prodotti">
+          <!-- «Cerca prodotto» sceglie da catalogo, non crea anagrafiche: quello
+               lo fa «Crea nuovo prodotto» sotto le righe. -->
+          <button
+            type="button"
+            class="co-dock__action co-dock__action--product"
+            [disabled]="headerGateActive()"
+            (click)="openProductPicker()"
+          >
+            <span class="co-dock__icon" aria-hidden="true"><i class="pi pi-plus"></i></span>
+            <span>Cerca prodotto</span>
+          </button>
           @if (barcodeScannerEnabled) {
-            <app-button
+            <button
               type="button"
-              variant="secondary"
+              class="co-dock__action co-dock__action--scan"
               [disabled]="headerGateActive()"
               (click)="openScanOverlay()"
             >
-              <i class="pi pi-camera" aria-hidden="true"></i>
-              Scansiona
-            </app-button>
+              <span class="co-dock__icon" aria-hidden="true"><i class="pi pi-qrcode"></i></span>
+              <span>Scansiona</span>
+            </button>
           }
-          <app-button type="button" [disabled]="headerGateActive()" (click)="openProductPicker()">
-            <i class="pi pi-plus" aria-hidden="true"></i>
-            Aggiungi prodotto
-          </app-button>
         </div>
       }
 
@@ -2274,8 +2527,9 @@
            restano nel footer sticky sopra. -->
       @if (!formReadOnly()) {
         <div class="co-form__mobile-actions">
+          <!-- «Chiudi»: stesso handler di uscita di prima, cambia l'etichetta. -->
           <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-            Annulla
+            Chiudi
           </app-button>
           <app-button
             type="button"

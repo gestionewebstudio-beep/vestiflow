@@ -248,6 +248,7 @@ interface AvailabilityIssue {
     './customer-order-form.rows.scss',
     './customer-order-form.mobile.scss',
     './customer-order-form.mobile-polish.scss',
+    './customer-order-form.reference-mobile.scss',
   ],
 })
 export class CustomerOrderFormComponent implements CanComponentDeactivate {
@@ -533,13 +534,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   });
 
   /** Cliente presente (anagrafica o testo libero): stato pieno del banner mobile. */
-  protected readonly hasCustomer = computed(() => {
-    this.formValue();
-    return (
-      !!this.form.controls.customerId.value || !!this.form.controls.customerFreeText.value.trim()
-    );
-  });
-
   // ── Nuovo cliente inline (stesso pattern del Nuovo fornitore in GR) ─────
   protected readonly showCustomerForm = signal(false);
   readonly customerForm = createCustomerFormGroup(this.fb);
@@ -1908,15 +1902,27 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   // ── Vista mobile (mockup responsive v3) ───────────────────────────────────
   // Sotto lg la tabella lascia il posto a una lista di card: la testata si
-  // riassume in una riga apribile e ogni riga documento diventa una card che
+  // divide in due pannelli apribili e ogni riga documento diventa una card che
   // si espande sui campi. Lo stato di apertura vive qui perché è vista, non
   // dato: nessun controllo del form ne dipende.
 
-  /** Testata compressa nel riepilogo cliente · location · data · stato. */
-  protected readonly mobileHeaderOpen = signal(false);
+  // ── Testata mobile a due pannelli (reference Ordine cliente mobile) ───────
+  // Quello che serve per partire sta aperto, il resto ha già dei valori validi
+  // e si apre solo se li si vuole cambiare. Nessuno dei due si richiude da
+  // solo: l'apertura la decide l'utente, anche quando i dati si completano.
 
-  protected toggleMobileHeader(): void {
-    this.mobileHeaderOpen.update((open) => !open);
+  /** «Cliente e magazzino»: aperto all'ingresso, sono i dati che sbloccano tutto. */
+  protected readonly customerPanelOpen = signal(true);
+
+  /** «Dettagli documento»: chiuso all'ingresso, i valori predefiniti bastano. */
+  protected readonly detailsPanelOpen = signal(false);
+
+  protected toggleCustomerPanel(): void {
+    this.customerPanelOpen.update((open) => !open);
+  }
+
+  protected toggleDetailsPanel(): void {
+    this.detailsPanelOpen.update((open) => !open);
   }
 
   /** Card riga aperta: una sola alla volta, come nel mockup. */
@@ -1941,18 +1947,66 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     );
   });
 
-  protected readonly mobileHeaderMeta = computed(() => {
+  /** Dati che sbloccano le righe: stesso criterio del gate, letto al positivo. */
+  protected readonly headerDataReady = computed(() => !this.headerGateActive());
+
+  /**
+   * Riepilogo del pannello «Cliente e magazzino». Finché i dati mancano fa da
+   * intestazione, quando ci sono diventa il riepilogo di ciò che si è scelto.
+   */
+  protected readonly customerPanelTitle = computed(() =>
+    this.headerDataReady() ? this.mobileHeaderTitle() : 'Cliente e magazzino',
+  );
+
+  protected readonly customerPanelSubtitle = computed(() => {
+    if (!this.headerDataReady()) {
+      return 'Seleziona i dati necessari per iniziare';
+    }
     this.formValue();
     const locationId = this.form.controls.locationId.value;
     const location = this.locationOptions().find((option) => option.value === locationId)?.label;
     const documentDate = this.form.controls.documentDate.value;
-    return [
-      location,
-      documentDate ? formatItalianInputDate(documentDate) : null,
-      this.isOrder ? this.stateBadgeLabel() : null,
-    ]
+    return [location, documentDate ? formatItalianInputDate(documentDate) : null]
       .filter((part): part is string => Boolean(part))
       .join(' · ');
+  });
+
+  /**
+   * Riga di stato dentro il pannello: dice cosa manca, non come sbloccare le
+   * righe — quello lo dice il banner sotto la testata, ed è un'altra frase.
+   */
+  protected readonly customerPanelStatus = computed(() => {
+    if (this.headerDataReady()) {
+      return 'Dati principali completi. Puoi aggiungere le righe.';
+    }
+    return this.isManualUnload
+      ? 'La location è obbligatoria.'
+      : 'Cliente e location sono obbligatori.';
+  });
+
+  /**
+   * Riepilogo del pannello «Dettagli documento»: data · stato · pagamento.
+   * Torna le parti separate invece della frase gia' montata: ognuna deve
+   * andare a capo intera, e «Pagamento non indicato» spezzato a meta' non si
+   * legge. Il puntino di separazione lo mette il CSS.
+   */
+  protected readonly detailsPanelSummaryParts = computed<readonly string[]>(() => {
+    this.formValue();
+    const documentDate = this.form.controls.documentDate.value;
+    const parts: string[] = [
+      documentDate ? formatItalianInputDate(documentDate) : 'Data non indicata',
+    ];
+    if (this.isOrder) {
+      parts.push(this.stateBadgeLabel());
+    }
+    if (this.isSalesDdt) {
+      const methodId = this.form.controls.paymentMethod.value;
+      const method = this.paymentMethodOptions().find((option) => option.value === methodId)?.label;
+      parts.push(method || 'Pagamento non indicato');
+    } else if (!this.isManualUnload) {
+      parts.push(this.form.controls.paymentTerms.value.trim() || 'Pagamento non indicato');
+    }
+    return parts;
   });
 
   /** «Impegna magazzino» come Sì/No: sulla card è una scelta, non una spunta. */
