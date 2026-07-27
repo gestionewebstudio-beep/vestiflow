@@ -65,6 +65,32 @@ export class DocumentCountersService {
     return Promise.all(counters.map((counter) => this.toView(tenantId, counter)));
   }
 
+  /**
+   * Contatori disponibili in testata per (tipo, sede): quelli senza sede
+   * (validi ovunque) più quelli della sede indicata. `proposedCounterId` = il
+   * predefinito se c'è; se non c'è ed è disponibile un solo contatore, quello;
+   * altrimenti null (l'operatore sceglie).
+   */
+  async available(
+    tenantId: string,
+    type: DocumentType,
+    locationId: string | null,
+  ): Promise<{ counters: DocumentCounterView[]; proposedCounterId: string | null }> {
+    await this.seedDefaults(tenantId);
+    const counters = await this.prisma.documentCounter.findMany({
+      where: {
+        tenantId,
+        type,
+        OR: [{ locationId: null }, ...(locationId ? [{ locationId }] : [])],
+      },
+      include: { location: { select: { name: true } } },
+      orderBy: [{ isDefault: 'desc' }, { series: { sort: 'asc', nulls: 'first' } }],
+    });
+    const views = await Promise.all(counters.map((counter) => this.toView(tenantId, counter)));
+    const proposed = views.find((view) => view.isDefault) ?? (views.length === 1 ? views[0] : null);
+    return { counters: views, proposedCounterId: proposed?.id ?? null };
+  }
+
   async create(tenantId: string, input: SaveCounterInput): Promise<DocumentCounterView> {
     const identity = await this.normalize(tenantId, input);
     await this.assertNoDuplicate(tenantId, identity, null);

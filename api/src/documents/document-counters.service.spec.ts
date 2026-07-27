@@ -189,6 +189,85 @@ describe('DocumentCountersService', () => {
     });
   });
 
+  describe('available', () => {
+    it('propone il predefinito e include i contatori senza sede + quelli della sede', async () => {
+      prisma.documentCounter.findMany
+        .mockResolvedValueOnce([{ type: DocumentType.sales_ddt }]) // seed distinct (già coperto)
+        .mockResolvedValueOnce([
+          {
+            id: 'def',
+            tenantId,
+            type: DocumentType.sales_ddt,
+            series: null,
+            locationId: null,
+            isDefault: true,
+            location: null,
+          },
+          {
+            id: 'mi',
+            tenantId,
+            type: DocumentType.sales_ddt,
+            series: 'MI',
+            locationId,
+            isDefault: false,
+            location: { name: 'Milano' },
+          },
+        ]);
+
+      const result = await service.available(tenantId, DocumentType.sales_ddt, locationId);
+
+      expect(result.counters.map((c) => c.id)).toEqual(['def', 'mi']);
+      expect(result.proposedCounterId).toBe('def');
+      const where = prisma.documentCounter.findMany.mock.calls[1]![0]!.where;
+      expect(where.OR).toEqual([{ locationId: null }, { locationId }]);
+    });
+
+    it('senza predefinito e con un solo contatore, propone quello', async () => {
+      prisma.documentCounter.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+        {
+          id: 'solo',
+          tenantId,
+          type: DocumentType.quote,
+          series: null,
+          locationId: null,
+          isDefault: false,
+          location: null,
+        },
+      ]);
+
+      const result = await service.available(tenantId, DocumentType.quote, null);
+
+      expect(result.proposedCounterId).toBe('solo');
+    });
+
+    it('senza predefinito e con più contatori, non propone niente', async () => {
+      prisma.documentCounter.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+        {
+          id: 'a',
+          tenantId,
+          type: DocumentType.quote,
+          series: 'A',
+          locationId: null,
+          isDefault: false,
+          location: null,
+        },
+        {
+          id: 'b',
+          tenantId,
+          type: DocumentType.quote,
+          series: 'B',
+          locationId: null,
+          isDefault: false,
+          location: null,
+        },
+      ]);
+
+      const result = await service.available(tenantId, DocumentType.quote, null);
+
+      expect(result.proposedCounterId).toBeNull();
+    });
+  });
+
   describe('delete', () => {
     it('elimina qualunque contatore senza guardie', async () => {
       prisma.documentCounter.findFirst.mockResolvedValue({ id: 'c1', tenantId });

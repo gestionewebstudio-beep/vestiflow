@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -21,6 +22,7 @@ import {
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import { DocumentCountersService, type DocumentCounterView } from './document-counters.service';
+import { AvailableCountersQueryDto } from './dto/available-counters.query.dto';
 import { CreateDocumentCounterDto, UpdateDocumentCounterDto } from './dto/document-counter.dto';
 
 @Controller('document-counters')
@@ -32,6 +34,16 @@ export class DocumentCountersController {
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   list(@CurrentTenant() tenantId: string): Promise<DocumentCounterView[]> {
     return this.counters.list(tenantId);
+  }
+
+  /** Contatori proponibili in testata per (tipo, sede) + quale proporre. */
+  @Get('available')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  available(
+    @CurrentTenant() tenantId: string,
+    @Query() query: AvailableCountersQueryDto,
+  ): Promise<{ counters: DocumentCounterView[]; proposedCounterId: string | null }> {
+    return this.counters.available(tenantId, query.type, query.locationId ?? null);
   }
 
   @Post()
