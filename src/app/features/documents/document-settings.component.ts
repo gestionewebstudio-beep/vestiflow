@@ -37,7 +37,6 @@ import {
 interface SettingFormControls {
   readonly enabled: FormControl<boolean>;
   readonly printTitle: FormControl<string>;
-  readonly autoNumbering: FormControl<boolean>;
   readonly numberPrefix: FormControl<string>;
   readonly blockAfterConfirm: FormControl<boolean>;
   readonly pricesIncludeVat: FormControl<boolean>;
@@ -173,7 +172,6 @@ export class DocumentSettingsComponent {
     const patch: DocumentTypeSettingPatch = {
       enabled: value.enabled,
       printTitle: value.printTitle.trim(),
-      autoNumbering: value.autoNumbering,
       numberPrefix: value.numberPrefix.trim(),
       blockAfterConfirm: value.blockAfterConfirm,
       pricesIncludeVat: value.pricesIncludeVat,
@@ -205,7 +203,6 @@ export class DocumentSettingsComponent {
       form: this.fb.group<SettingFormControls>({
         enabled: this.fb.control(setting.enabled),
         printTitle: this.fb.control(setting.printTitle),
-        autoNumbering: this.fb.control(setting.autoNumbering),
         numberPrefix: this.fb.control(setting.numberPrefix),
         blockAfterConfirm: this.fb.control(setting.blockAfterConfirm),
         pricesIncludeVat: this.fb.control(setting.pricesIncludeVat),
@@ -217,7 +214,6 @@ export class DocumentSettingsComponent {
   private toFormValue(setting: DocumentTypeSetting): {
     enabled: boolean;
     printTitle: string;
-    autoNumbering: boolean;
     numberPrefix: string;
     blockAfterConfirm: boolean;
     pricesIncludeVat: boolean;
@@ -226,7 +222,6 @@ export class DocumentSettingsComponent {
     return {
       enabled: setting.enabled,
       printTitle: setting.printTitle,
-      autoNumbering: setting.autoNumbering,
       numberPrefix: setting.numberPrefix,
       blockAfterConfirm: setting.blockAfterConfirm,
       pricesIncludeVat: setting.pricesIncludeVat,

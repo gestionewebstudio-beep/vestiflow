@@ -1508,7 +1508,11 @@ export class DocumentsService {
           ? setting
           : await this.settings.getResolved(tenantId, numberingType);
       data.number = dto.number;
-      data.reference = this.formatReference(numberingSetting.numberPrefix, effectiveSeries, dto.number);
+      data.reference = this.formatReference(
+        numberingSetting.numberPrefix,
+        effectiveSeries,
+        dto.number,
+      );
     }
 
     if (dto.externalDocNumber !== undefined) {
@@ -2113,7 +2117,9 @@ export class DocumentsService {
 
       let number = doc.number;
       let reference = doc.reference;
-      if (setting.autoNumbering && number == null) {
+      if (number == null) {
+        // Un documento confermato riceve sempre un numero: senza riferimento non
+        // è uno stato utile. Fino alla conferma resta senza numero (bozza).
         // Prefisso preso dal tipo che possiede il numeratore: la Fattura
         // accompagnatoria eredita quello della Fattura, così le due serie
         // condivise producono riferimenti omogenei (FT-2026-0001, 0002…).

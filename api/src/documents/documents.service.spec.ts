@@ -448,7 +448,8 @@ describe('DocumentsService', () => {
     });
 
     it('non ri-numera un documento già confermato in precedenza', async () => {
-      const { service } = createService(prisma, resolvedSetting({ autoNumbering: false }));
+      // Il documento ha già un numero: la conferma non lo tocca (number != null).
+      const { service } = createService(prisma, resolvedSetting({}));
       prisma.document.findFirst.mockResolvedValue({
         id: 'doc-1',
         tenantId,
@@ -2144,11 +2145,7 @@ describe('DocumentsService', () => {
       );
       prisma.document.aggregate.mockResolvedValue({ _max: { number: 44 } });
 
-      const preview = await service.previewNextReference(
-        tenantId,
-        DocumentType.goods_receipt,
-        'A',
-      );
+      const preview = await service.previewNextReference(tenantId, DocumentType.goods_receipt, 'A');
 
       expect(preview).toEqual({
         reference: 'CAR-A-0045',
