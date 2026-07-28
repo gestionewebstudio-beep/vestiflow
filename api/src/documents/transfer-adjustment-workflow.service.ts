@@ -239,11 +239,6 @@ export class TransferAdjustmentWorkflowService {
           'Questo salvataggio si usa solo per modificare un trasferimento già confermato.',
         );
       }
-      if (setting.blockAfterConfirm) {
-        throw new ConflictException(
-          'Modifica bloccata dalle impostazioni per questo tipo di documento.',
-        );
-      }
       if (!existing.locationId || !existing.targetLocationId) {
         // Non deve succedere per un trasferimento confermato, ma per sicurezza
         // evitiamo di stornare seriali su location nulle.
@@ -442,11 +437,6 @@ export class TransferAdjustmentWorkflowService {
       if (!(CONFIRMED_EDITABLE_STATUSES as readonly DocumentStatus[]).includes(existing.status)) {
         throw new ConflictException(
           'Questo salvataggio si usa solo per modificare una rettifica già confermata.',
-        );
-      }
-      if (setting.blockAfterConfirm) {
-        throw new ConflictException(
-          'Modifica bloccata dalle impostazioni per questo tipo di documento.',
         );
       }
       if (!existing.locationId || !existing.adjustmentDirection) {

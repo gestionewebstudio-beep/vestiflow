@@ -79,7 +79,6 @@ describe('DocumentPdfService', () => {
     externallyIssuedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    blockAfterConfirm: false,
     salesOrder: null,
     linkedSalesOrders: [],
     linkedSupplierOrder: null,

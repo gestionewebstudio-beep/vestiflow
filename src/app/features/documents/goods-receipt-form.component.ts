@@ -616,9 +616,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             const draftEditable =
               doc.status === DocumentStatus.Draft && isGoodsReceiptDocumentType(doc.type);
             const confirmedEditable =
-              isConfirmedEditableDocumentStatus(doc.status) &&
-              isGoodsReceiptDocumentType(doc.type) &&
-              doc.blockAfterConfirm !== true;
+              isConfirmedEditableDocumentStatus(doc.status) && isGoodsReceiptDocumentType(doc.type);
             if (!draftEditable && !confirmedEditable) {
               this.loadedDocument.set(null);
               return 'not-found' as const;

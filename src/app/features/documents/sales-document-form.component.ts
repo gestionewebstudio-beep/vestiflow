@@ -330,8 +330,7 @@ export class SalesDocumentFormComponent {
               return 'not-found' as const;
             }
             const editable =
-              doc.status === DocumentStatus.Draft ||
-              (isConfirmedEditableDocumentStatus(doc.status) && doc.blockAfterConfirm !== true);
+              doc.status === DocumentStatus.Draft || isConfirmedEditableDocumentStatus(doc.status);
             if (!editable) {
               return 'not-found' as const;
             }

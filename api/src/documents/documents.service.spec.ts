@@ -30,7 +30,6 @@ function resolvedSetting(
     autoNumbering: true,
     numberPrefix: 'DDT',
     defaultSeries: 'A',
-    blockAfterConfirm: false,
     pricesIncludeVat: false,
     defaultNotes: null,
     ...overrides,
@@ -1266,7 +1265,7 @@ describe('DocumentsService', () => {
       const doc = draftDocumentForNumberUpdate(7);
       prisma.document.findFirst
         .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+        .mockResolvedValueOnce({ ...doc });
       prisma.document.update.mockResolvedValue({ ...doc, lines: [] });
 
       await service.update(tenantId, 'doc-q', { number: 12 });
@@ -1284,7 +1283,7 @@ describe('DocumentsService', () => {
       const doc = draftDocumentForNumberUpdate(7);
       prisma.document.findFirst
         .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+        .mockResolvedValueOnce({ ...doc });
       prisma.document.update.mockResolvedValue({ ...doc, lines: [] });
 
       await service.update(tenantId, 'doc-q', { number: 7 });
@@ -1312,29 +1311,6 @@ describe('DocumentsService', () => {
         notes: null,
         internalComment: null,
         externalDocNumber: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
-      await expect(service.update(tenantId, 'doc-1', { notes: 'x' })).rejects.toBeInstanceOf(
-        ConflictException,
-      );
-    });
-
-    it('rifiuta la modifica confermata se blockAfterConfirm è attivo', async () => {
-      const { service } = createService(prisma, resolvedSetting({ blockAfterConfirm: true }));
-      prisma.document.findFirst.mockResolvedValue({
-        id: 'doc-1',
-        tenantId,
-        type: DocumentType.goods_receipt,
-        status: DocumentStatus.confirmed,
-        lines: [],
-        series: 'A',
-        documentDate: new Date('2026-01-01'),
-        currency: 'EUR',
-        supplierId: 'sup-1',
-        locationId: 'loc-1',
-        reference: 'CAR-2026-0001',
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -1456,7 +1432,7 @@ describe('DocumentsService', () => {
       };
       prisma.document.findFirst
         .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+        .mockResolvedValueOnce({ ...doc });
       prisma.documentRevision.findFirst.mockResolvedValue(null);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -1537,7 +1513,7 @@ describe('DocumentsService', () => {
       };
       prisma.document.findFirst
         .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+        .mockResolvedValueOnce({ ...doc });
       prisma.documentRevision.findFirst.mockResolvedValue(null);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -1613,7 +1589,7 @@ describe('DocumentsService', () => {
       };
       prisma.document.findFirst
         .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+        .mockResolvedValueOnce({ ...doc });
       prisma.documentRevision.findFirst.mockResolvedValue(null);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -1687,7 +1663,7 @@ describe('DocumentsService', () => {
       };
       prisma.document.findFirst
         .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+        .mockResolvedValueOnce({ ...doc });
       prisma.documentRevision.findFirst.mockResolvedValue(null);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -1842,7 +1818,7 @@ describe('DocumentsService', () => {
       };
       prisma.document.findFirst
         .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc, blockAfterConfirm: false });
+        .mockResolvedValueOnce({ ...doc });
       // Il documento ha già movimenti per riga (creati da confirm() o dal
       // salvataggio dedicato): il PATCH generico, pur senza righe, NON deve
       // ri-generare movimenti aggregati.

@@ -379,7 +379,6 @@ export class ShopifyOrderDocumentService {
           autoNumbering: stored.autoNumbering,
           numberPrefix: stored.numberPrefix?.trim() || defaults.numberPrefix,
           defaultSeries: stored.defaultSeries || defaults.defaultSeries,
-          blockAfterConfirm: stored.blockAfterConfirm,
           pricesIncludeVat: stored.pricesIncludeVat,
           defaultNotes: stored.defaultNotes ?? null,
         };

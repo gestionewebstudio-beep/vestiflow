@@ -1674,8 +1674,6 @@ model DocumentTypeSetting {
   numberPrefix      String?      @map("number_prefix")
   /// Serie predefinita per distinguere sedi/sezioni (es. 'A', 'MI').
   defaultSeries     String       @default("A") @map("default_series")
-  /// Se true, blocca la modifica dopo conferma/stampa. Default: avvisa, non bloccare.
-  blockAfterConfirm Boolean      @default(false) @map("block_after_confirm")
   /// Gestione prezzi ivati vs imponibili.
   pricesIncludeVat  Boolean      @default(false) @map("prices_include_vat")
   /// Testo automatico in fondo al documento.

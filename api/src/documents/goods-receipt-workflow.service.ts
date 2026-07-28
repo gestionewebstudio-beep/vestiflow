@@ -346,11 +346,6 @@ export class GoodsReceiptWorkflowService {
             'Il tipo documento non può essere cambiato dopo il salvataggio.',
           );
         }
-        if (setting.blockAfterConfirm && existing.status !== DocumentStatus.draft) {
-          throw new ConflictException(
-            'Modifica bloccata dalle impostazioni per questo tipo di documento.',
-          );
-        }
         if (
           dto.supplierOrderId !== undefined &&
           existing.supplierOrderId &&

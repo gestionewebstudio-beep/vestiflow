@@ -289,9 +289,7 @@ export class StockOperationFormComponent {
             const expectedType = this.documentType();
             const draftEditable = doc.status === DocumentStatus.Draft && doc.type === expectedType;
             const confirmedEditable =
-              isConfirmedEditableDocumentStatus(doc.status) &&
-              doc.type === expectedType &&
-              doc.blockAfterConfirm !== true;
+              isConfirmedEditableDocumentStatus(doc.status) && doc.type === expectedType;
             if (!draftEditable && !confirmedEditable) {
               this.loadedDocument.set(null);
               return 'not-found' as const;

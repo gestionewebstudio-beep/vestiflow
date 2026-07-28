@@ -911,8 +911,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
               const editable =
                 doc.type === this.registryDocumentType &&
                 (doc.status === DocumentStatus.Draft ||
-                  (isConfirmedEditableDocumentStatus(doc.status) &&
-                    doc.blockAfterConfirm !== true));
+                  isConfirmedEditableDocumentStatus(doc.status));
               if (!editable) {
                 this.loadedQuoteDoc.set(null);
                 return 'not-editable' as const;

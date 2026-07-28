@@ -97,7 +97,6 @@ function createService(prisma: ReturnType<typeof createPrismaMock>) {
       autoNumbering: true,
       numberPrefix: 'OC',
       defaultSeries: 'A',
-      blockAfterConfirm: false,
       pricesIncludeVat: false,
       defaultNotes: null,
     }),

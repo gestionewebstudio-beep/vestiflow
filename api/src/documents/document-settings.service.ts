@@ -54,7 +54,6 @@ export class DocumentSettingsService {
     if (dto.autoNumbering !== undefined) data['autoNumbering'] = dto.autoNumbering;
     if (dto.numberPrefix !== undefined) data['numberPrefix'] = dto.numberPrefix.trim() || null;
     if (dto.defaultSeries !== undefined) data['defaultSeries'] = dto.defaultSeries.trim() || 'A';
-    if (dto.blockAfterConfirm !== undefined) data['blockAfterConfirm'] = dto.blockAfterConfirm;
     if (dto.pricesIncludeVat !== undefined) data['pricesIncludeVat'] = dto.pricesIncludeVat;
     if (dto.defaultNotes !== undefined) data['defaultNotes'] = dto.defaultNotes.trim() || null;
     return data;
@@ -72,7 +71,6 @@ export class DocumentSettingsService {
       autoNumbering: stored.autoNumbering,
       numberPrefix: stored.numberPrefix?.trim() || defaults.numberPrefix,
       defaultSeries: stored.defaultSeries || defaults.defaultSeries,
-      blockAfterConfirm: stored.blockAfterConfirm,
       pricesIncludeVat: stored.pricesIncludeVat,
       defaultNotes: stored.defaultNotes ?? null,
     };

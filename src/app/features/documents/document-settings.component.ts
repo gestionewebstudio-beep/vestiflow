@@ -38,7 +38,6 @@ interface SettingFormControls {
   readonly enabled: FormControl<boolean>;
   readonly printTitle: FormControl<string>;
   readonly numberPrefix: FormControl<string>;
-  readonly blockAfterConfirm: FormControl<boolean>;
   readonly pricesIncludeVat: FormControl<boolean>;
   readonly defaultNotes: FormControl<string>;
 }
@@ -53,8 +52,8 @@ type PageState = 'loading' | 'ready' | 'error';
 
 /**
  * Impostazioni per tipo documento (§2.2): abilitazione, titolo di stampa, serie,
- * numerazione automatica e prefisso, blocco post-conferma. Un form per tipo,
- * salvataggio indipendente per riga.
+ * prefisso, prezzi IVA inclusa e note. Un form per tipo, salvataggio
+ * indipendente per riga.
  */
 @Component({
   selector: 'app-document-settings',
@@ -173,7 +172,6 @@ export class DocumentSettingsComponent {
       enabled: value.enabled,
       printTitle: value.printTitle.trim(),
       numberPrefix: value.numberPrefix.trim(),
-      blockAfterConfirm: value.blockAfterConfirm,
       pricesIncludeVat: value.pricesIncludeVat,
       defaultNotes: value.defaultNotes.trim(),
     };
@@ -204,7 +202,6 @@ export class DocumentSettingsComponent {
         enabled: this.fb.control(setting.enabled),
         printTitle: this.fb.control(setting.printTitle),
         numberPrefix: this.fb.control(setting.numberPrefix),
-        blockAfterConfirm: this.fb.control(setting.blockAfterConfirm),
         pricesIncludeVat: this.fb.control(setting.pricesIncludeVat),
         defaultNotes: this.fb.control(setting.defaultNotes ?? ''),
       }),
@@ -215,7 +212,6 @@ export class DocumentSettingsComponent {
     enabled: boolean;
     printTitle: string;
     numberPrefix: string;
-    blockAfterConfirm: boolean;
     pricesIncludeVat: boolean;
     defaultNotes: string;
   } {
@@ -223,7 +219,6 @@ export class DocumentSettingsComponent {
       enabled: setting.enabled,
       printTitle: setting.printTitle,
       numberPrefix: setting.numberPrefix,
-      blockAfterConfirm: setting.blockAfterConfirm,
       pricesIncludeVat: setting.pricesIncludeVat,
       defaultNotes: setting.defaultNotes ?? '',
     };

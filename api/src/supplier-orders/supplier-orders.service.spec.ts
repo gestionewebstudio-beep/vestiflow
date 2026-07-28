@@ -41,7 +41,6 @@ describe('SupplierOrdersService', () => {
         autoNumbering: true,
         numberPrefix: 'OF',
         defaultSeries: 'A',
-        blockAfterConfirm: false,
         pricesIncludeVat: false,
         defaultNotes: null,
       }),

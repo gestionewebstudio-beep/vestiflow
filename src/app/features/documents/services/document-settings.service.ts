@@ -14,7 +14,6 @@ export interface DocumentTypeSettingPatch {
   readonly autoNumbering?: boolean;
   readonly numberPrefix?: string;
   readonly defaultSeries?: string;
-  readonly blockAfterConfirm?: boolean;
   readonly pricesIncludeVat?: boolean;
   readonly defaultNotes?: string;
 }

@@ -162,7 +162,6 @@ export type LinkedSalesOrderInfo = {
 };
 
 export type DocumentDetail = DocumentWithLines & {
-  blockAfterConfirm: boolean;
   salesOrder: { id: string; orderNumber: string } | null;
   /** Ordini cliente agganciati (DDT vendita può includerne più di uno). */
   linkedSalesOrders: readonly LinkedSalesOrderInfo[];
@@ -193,7 +192,7 @@ export type LinkedSupplierOrderLineContext = {
   readonly receivedQuantity: number;
 };
 
-/** Stati in cui il documento può essere modificato (§4), salvo blockAfterConfirm. */
+/** Stati in cui un documento confermato può essere modificato (§4), previo sblocco. */
 const CONFIRMED_EDITABLE_STATUSES: readonly DocumentStatus[] = [
   DocumentStatus.confirmed,
   DocumentStatus.printed,
@@ -664,7 +663,6 @@ export class DocumentsService {
       throw new NotFoundException('Documento non trovato');
     }
     this.assertDocumentLocationReadable(user, doc.locationId);
-    const setting = await this.settings.getResolved(tenantId, doc.type);
     const {
       salesOrders = [],
       supplierOrder,
@@ -684,7 +682,6 @@ export class DocumentsService {
     const firstSalesOrder = salesOrders[0];
     return {
       ...rest,
-      blockAfterConfirm: setting.blockAfterConfirm,
       salesOrder: firstSalesOrder
         ? { id: firstSalesOrder.id, orderNumber: firstSalesOrder.orderNumber }
         : null,
@@ -1317,11 +1314,6 @@ export class DocumentsService {
 
     if (!isDraft && !isConfirmedEdit) {
       throw new ConflictException('Questo documento non può essere modificato.');
-    }
-    if (isConfirmedEdit && doc.blockAfterConfirm) {
-      throw new ConflictException(
-        'Modifica bloccata dalle impostazioni per questo tipo di documento.',
-      );
     }
 
     await this.assertCounterparties(tenantId, {

@@ -186,7 +186,6 @@ describe('ShopifyOrderDocumentService', () => {
       autoNumbering: true,
       numberPrefix: 'DDT',
       defaultSeries: 'A',
-      blockAfterConfirm: false,
       pricesIncludeVat: false,
       defaultNotes: null,
     });

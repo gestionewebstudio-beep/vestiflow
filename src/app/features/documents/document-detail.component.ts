@@ -404,19 +404,19 @@ export class DocumentDetailComponent {
       if (doc.status === DocumentStatus.Draft) {
         return true;
       }
-      return isConfirmedEditableDocumentStatus(doc.status) && doc.blockAfterConfirm !== true;
+      return isConfirmedEditableDocumentStatus(doc.status);
     }
     if (isTransferDocumentType(doc.type)) {
       if (doc.status === DocumentStatus.Draft) {
         return true;
       }
-      return isConfirmedEditableDocumentStatus(doc.status) && doc.blockAfterConfirm !== true;
+      return isConfirmedEditableDocumentStatus(doc.status);
     }
     if (isStockOperationDocumentType(doc.type)) {
       if (doc.status === DocumentStatus.Draft) {
         return true;
       }
-      return isConfirmedEditableDocumentStatus(doc.status) && doc.blockAfterConfirm !== true;
+      return isConfirmedEditableDocumentStatus(doc.status);
     }
     if (isSalesFormDocumentType(doc.type)) {
       if (doc.linkedSalesOrder) {
@@ -425,16 +425,16 @@ export class DocumentDetailComponent {
       if (doc.status === DocumentStatus.Draft) {
         return true;
       }
-      return isConfirmedEditableDocumentStatus(doc.status) && doc.blockAfterConfirm !== true;
+      return isConfirmedEditableDocumentStatus(doc.status);
     }
     // Preventivo e DDT vendita: si modificano dalla maschera dedicata (layout
-    // Ordine cliente) finché non bloccati. Il DDT gestisce nativamente gli
-    // ordini agganciati, quindi il collegamento non impedisce la modifica.
+    // Ordine cliente), da confermati previo sblocco. Il DDT gestisce nativamente
+    // gli ordini agganciati, quindi il collegamento non impedisce la modifica.
     if (isQuoteDocumentType(doc.type) || isSalesDdtDocumentType(doc.type)) {
       if (doc.status === DocumentStatus.Draft) {
         return true;
       }
-      return isConfirmedEditableDocumentStatus(doc.status) && doc.blockAfterConfirm !== true;
+      return isConfirmedEditableDocumentStatus(doc.status);
     }
     return false;
   });

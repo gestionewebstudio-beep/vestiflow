@@ -27,10 +27,6 @@ export class UpdateDocumentTypeSettingDto {
 
   @IsOptional()
   @IsBoolean()
-  blockAfterConfirm?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
   pricesIncludeVat?: boolean;
 
   @IsOptional()

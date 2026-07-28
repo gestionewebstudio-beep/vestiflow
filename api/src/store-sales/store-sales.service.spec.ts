@@ -372,7 +372,6 @@ function createSettings(): DocumentSettingsService {
         autoNumbering: true,
         numberPrefix: type === DocumentType.store_sale ? 'VN' : 'RN',
         defaultSeries: 'A',
-        blockAfterConfirm: true,
         pricesIncludeVat: true,
         defaultNotes: null,
       }),

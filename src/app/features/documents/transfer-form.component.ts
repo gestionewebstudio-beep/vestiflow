@@ -285,9 +285,7 @@ export class TransferFormComponent {
             const draftEditable =
               doc.status === DocumentStatus.Draft && isTransferDocumentType(doc.type);
             const confirmedEditable =
-              isConfirmedEditableDocumentStatus(doc.status) &&
-              isTransferDocumentType(doc.type) &&
-              doc.blockAfterConfirm !== true;
+              isConfirmedEditableDocumentStatus(doc.status) && isTransferDocumentType(doc.type);
             if (!draftEditable && !confirmedEditable) {
               this.loadedDocument.set(null);
               return 'not-found' as const;

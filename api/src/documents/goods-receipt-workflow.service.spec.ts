@@ -131,7 +131,6 @@ function createService(prisma: ReturnType<typeof createPrismaMock>) {
       autoNumbering: true,
       numberPrefix: 'AM',
       defaultSeries: 'A',
-      blockAfterConfirm: false,
       pricesIncludeVat: false,
       defaultNotes: null,
     }),

@@ -301,8 +301,6 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly lines?: readonly DocumentLine[];
   /** Presente in lista: conteggio righe senza payload completo. */
   readonly lineCount?: number;
-  /** Da GET dettaglio: modifica post-conferma bloccata dalle impostazioni tipo. */
-  readonly blockAfterConfirm?: boolean;
   /** Ordine vendita Shopify collegato (documento auto-generato). */
   readonly linkedSalesOrder?: {
     readonly id: EntityId;
@@ -340,7 +338,7 @@ export interface LinkedSupplierOrderLineContext {
   readonly receivedQuantity: number;
 }
 
-/** Stati in cui il documento può essere modificato (§4), salvo blockAfterConfirm. */
+/** Stati in cui un documento confermato può essere modificato (§4), previo sblocco. */
 export const CONFIRMED_EDITABLE_DOCUMENT_STATUSES: readonly DocumentStatus[] = [
   DocumentStatus.Confirmed,
   DocumentStatus.Printed,
@@ -368,7 +366,6 @@ export interface DocumentTypeSetting {
   readonly autoNumbering: boolean;
   readonly numberPrefix: string;
   readonly defaultSeries: string;
-  readonly blockAfterConfirm: boolean;
   readonly pricesIncludeVat: boolean;
   readonly defaultNotes: string | null;
 }

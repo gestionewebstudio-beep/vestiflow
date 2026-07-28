@@ -150,7 +150,6 @@ export interface DocumentApiRow {
   readonly updatedAt: IsoDateString;
   readonly lines?: readonly DocumentLineApiRow[];
   readonly lineCount?: number;
-  readonly blockAfterConfirm?: boolean;
   readonly salesOrder?: { readonly id: EntityId; readonly orderNumber: string } | null;
   readonly linkedSalesOrders?: readonly LinkedSalesOrderApiRow[] | null;
   readonly supplierOrder?: { readonly id: EntityId; readonly reference: string } | null;
@@ -362,7 +361,6 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     updatedAt: row.updatedAt,
     lines: row.lines?.map((line) => mapLine(line, row.currency)),
     lineCount: row.lineCount,
-    blockAfterConfirm: row.blockAfterConfirm,
     linkedSalesOrder: row.salesOrder ?? undefined,
     linkedSalesOrders: row.linkedSalesOrders?.map(mapLinkedSalesOrder),
     linkedSupplierOrder: row.linkedSupplierOrder ?? row.supplierOrder ?? undefined,
