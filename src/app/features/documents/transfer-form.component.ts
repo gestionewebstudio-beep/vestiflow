@@ -55,11 +55,13 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
 
 import { documentReferenceLabel } from './models/document-labels.util';
 import { isTransferDocumentType } from './models/document-transfer.util';
@@ -95,16 +97,19 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
     ConfirmDialogComponent,
     DateInputComponent,
     DocumentNumberFieldComponent,
+    EditLockBannerComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
   ],
+  providers: [DocumentEditLockService],
   templateUrl: './transfer-form.component.html',
   styleUrl: './goods-receipt-form.component.scss',
 })
 export class TransferFormComponent {
   private readonly authService = inject(AuthService);
+  private readonly editLock = inject(DocumentEditLockService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
   private readonly countersService = inject(DocumentCountersService);
@@ -146,6 +151,21 @@ export class TransferFormComponent {
     const doc = this.loadedDocument();
     return doc != null && isConfirmedEditableDocumentStatus(doc.status);
   });
+
+  /** Un confermato si apre bloccato: sola lettura finché l'operatore non sblocca. */
+  protected readonly formReadOnly = computed(
+    () => this.isConfirmedEdit() && !this.editLock.unlocked(),
+  );
+  protected readonly unlockDialogOpen = signal(false);
+
+  protected requestUnlock(): void {
+    this.unlockDialogOpen.set(true);
+  }
+
+  protected confirmUnlock(): void {
+    this.unlockDialogOpen.set(false);
+    this.editLock.unlock(this.editDocumentId());
+  }
 
   protected readonly pageTitle = computed(() => {
     if (!this.isEditMode()) {
@@ -291,6 +311,8 @@ export class TransferFormComponent {
               return 'not-found' as const;
             }
             this.loadedDocument.set(doc);
+            // Confermato → si riapre bloccato (salvo sblocco già dato in sessione).
+            this.editLock.syncOnLoad(doc.id, confirmedEditable);
             this.patchFormFromDocument(doc);
             return 'ready' as const;
           }),
@@ -416,10 +438,16 @@ export class TransferFormComponent {
   }
 
   protected addLine(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
     this.lines.push(this.createLine());
   }
 
   protected removeLine(index: number): void {
+    if (this.formReadOnly()) {
+      return;
+    }
     if (this.lines.length > 1) {
       this.lines.removeAt(index);
     }
@@ -496,7 +524,7 @@ export class TransferFormComponent {
   }
 
   private persist(confirmAfterSave: boolean): void {
-    if (this.saving() || !this.validateForm()) {
+    if (this.formReadOnly() || this.saving() || !this.validateForm()) {
       return;
     }
     const raw = this.form.getRawValue();

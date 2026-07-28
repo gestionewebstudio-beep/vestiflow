@@ -64,12 +64,14 @@ import {
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
 
 import { DocumentIncludePanelComponent } from './components/document-include-panel/document-include-panel.component';
 import {
@@ -119,12 +121,15 @@ type SubmitState =
     ErrorStateComponent,
     SlidePanelComponent,
     TableSkeletonComponent,
+    EditLockBannerComponent,
   ],
+  providers: [DocumentEditLockService],
   templateUrl: './sales-document-form.component.html',
   styleUrl: './goods-receipt-form.component.scss',
 })
 export class SalesDocumentFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly editLock = inject(DocumentEditLockService);
   private readonly authService = inject(AuthService);
   private readonly documentService = inject(DocumentService);
   private readonly countersService = inject(DocumentCountersService);
@@ -218,6 +223,21 @@ export class SalesDocumentFormComponent {
     const doc = this.loadedDocument();
     return doc != null && isConfirmedEditableDocumentStatus(doc.status);
   });
+
+  /** Un confermato si apre bloccato: sola lettura finché l'operatore non sblocca. */
+  protected readonly formReadOnly = computed(
+    () => this.isConfirmedEdit() && !this.editLock.unlocked(),
+  );
+  protected readonly unlockDialogOpen = signal(false);
+
+  protected requestUnlock(): void {
+    this.unlockDialogOpen.set(true);
+  }
+
+  protected confirmUnlock(): void {
+    this.unlockDialogOpen.set(false);
+    this.editLock.unlock(this.editDocumentId());
+  }
 
   protected readonly pageTitle = computed(() => {
     const label = documentTypeLabel(this.documentType());
@@ -335,6 +355,8 @@ export class SalesDocumentFormComponent {
               return 'not-found' as const;
             }
             this.loadedDocument.set(doc);
+            // Confermato → si riapre bloccato (salvo sblocco già dato in sessione).
+            this.editLock.syncOnLoad(doc.id, isConfirmedEditableDocumentStatus(doc.status));
             this.patchFormFromDocument(doc);
             return 'ready' as const;
           }),
@@ -849,6 +871,9 @@ export class SalesDocumentFormComponent {
   }
 
   protected addLine(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
     const line = this.createLine();
     const discount = this.selectedCustomer()?.customerDiscount?.trim();
     if (discount) {
@@ -859,7 +884,7 @@ export class SalesDocumentFormComponent {
   }
 
   protected removeLine(index: number): void {
-    if (this.lines.length <= 1) {
+    if (this.formReadOnly() || this.lines.length <= 1) {
       return;
     }
     this.lines.removeAt(index);
@@ -867,6 +892,9 @@ export class SalesDocumentFormComponent {
 
   // ── Includi documento: inserimento righe dal documento di origine ───────
   protected openIncludePanel(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
     this.includeLaunchSeq.update((seq) => seq + 1);
     this.includePanelOpen.set(true);
   }
@@ -1045,7 +1073,7 @@ export class SalesDocumentFormComponent {
   }
 
   private persist(confirmAfterSave: boolean): void {
-    if (this.saving() || !this.validateForm()) {
+    if (this.formReadOnly() || this.saving() || !this.validateForm()) {
       return;
     }
     const raw = this.form.getRawValue();
