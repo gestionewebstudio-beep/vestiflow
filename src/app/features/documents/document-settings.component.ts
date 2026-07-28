@@ -27,6 +27,8 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { DocumentCountersComponent } from './components/document-counters/document-counters.component';
 import { documentTypeLabel } from './models/document-labels.util';
+import type { DocumentCounterView } from './models/document-counter.model';
+import { DocumentCountersService } from './services/document-counters.service';
 import {
   DocumentSettingsService,
   type DocumentTypeSettingPatch,
@@ -70,12 +72,30 @@ type PageState = 'loading' | 'ready' | 'error';
 })
 export class DocumentSettingsComponent {
   private readonly service = inject(DocumentSettingsService);
+  private readonly countersService = inject(DocumentCountersService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly skeletonColumns = 4;
+
+  /** Contatori (serie) raggruppati per tipo, per le card. */
+  private readonly _countersByType = signal<ReadonlyMap<DocumentType, DocumentCounterView[]>>(
+    new Map(),
+  );
+
+  protected countersFor(type: DocumentType): readonly DocumentCounterView[] {
+    return this._countersByType().get(type) ?? [];
+  }
+
+  /**
+   * La sezione serie compare solo dove il tipo possiede il proprio numeratore.
+   * La Fattura accompagnatoria condivide quello della Fattura: si configura lì.
+   */
+  protected seriesConfigurable(type: DocumentType): boolean {
+    return type !== DocumentType.InvoiceAccompanying;
+  }
 
   private readonly _state = signal<PageState>('loading');
   protected readonly state = this._state.asReadonly();
@@ -109,6 +129,7 @@ export class DocumentSettingsComponent {
   protected load(): void {
     this._state.set('loading');
     this._error.set(null);
+    this.reloadCounters();
     this.loadSubscription = this.service
       .getSettings()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -121,6 +142,26 @@ export class DocumentSettingsComponent {
           this._error.set(this.toAppError(err));
           this._state.set('error');
         },
+      });
+  }
+
+  /** Ricarica i contatori (dopo una mutazione in una card) e li raggruppa. */
+  protected reloadCounters(): void {
+    this.countersService
+      .list()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (counters) => {
+          const grouped = new Map<DocumentType, DocumentCounterView[]>();
+          for (const counter of counters) {
+            const list = grouped.get(counter.type) ?? [];
+            list.push(counter);
+            grouped.set(counter.type, list);
+          }
+          this._countersByType.set(grouped);
+        },
+        // I contatori non sono critici per le card: in errore restano vuoti.
+        error: () => undefined,
       });
   }
 

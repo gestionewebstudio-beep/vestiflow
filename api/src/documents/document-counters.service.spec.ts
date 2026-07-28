@@ -269,10 +269,45 @@ describe('DocumentCountersService', () => {
   });
 
   describe('delete', () => {
-    it('elimina qualunque contatore senza guardie', async () => {
-      prisma.documentCounter.findFirst.mockResolvedValue({ id: 'c1', tenantId });
+    it('elimina una serie aggiunta dall’operatore', async () => {
+      prisma.documentCounter.findFirst.mockResolvedValue({
+        id: 'c1',
+        tenantId,
+        type: DocumentType.quote,
+        series: 'NAP',
+        isDefault: false,
+      });
       await service.delete(tenantId, 'c1');
       expect(prisma.documentCounter.delete).toHaveBeenCalledWith({ where: { id: 'c1' } });
+    });
+
+    it('rifiuta l’eliminazione di «Senza serie» (serie null)', async () => {
+      prisma.documentCounter.findFirst.mockResolvedValue({
+        id: 'c1',
+        tenantId,
+        type: DocumentType.quote,
+        series: null,
+        isDefault: true,
+      });
+      await expect(service.delete(tenantId, 'c1')).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.documentCounter.delete).not.toHaveBeenCalled();
+    });
+
+    it('eliminando la serie predefinita, il default torna a «Senza serie»', async () => {
+      prisma.documentCounter.findFirst.mockResolvedValue({
+        id: 'c1',
+        tenantId,
+        type: DocumentType.quote,
+        series: 'NAP',
+        isDefault: true,
+      });
+      await service.delete(tenantId, 'c1');
+      expect(prisma.documentCounter.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ type: DocumentType.quote, series: null }),
+          data: { isDefault: true },
+        }),
+      );
     });
   });
 });

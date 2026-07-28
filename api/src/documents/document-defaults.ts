@@ -97,6 +97,16 @@ export function isCounterConfigurableDocumentType(type: DocumentType): boolean {
   return (COUNTER_CONFIGURABLE_DOCUMENT_TYPES as readonly string[]).includes(type);
 }
 
+/**
+ * Tipi mostrati come card nelle Impostazioni documenti. Oltre ai DOCUMENT_TYPES
+ * c'è l'Ordine cliente (vive in SalesOrder ma configura prefisso e serie qui).
+ * L'Ordine fornitore è già in DOCUMENT_TYPES.
+ */
+export const SETTINGS_CARD_DOCUMENT_TYPES: readonly DocumentType[] = [
+  ...DOCUMENT_TYPES,
+  DocumentType.customer_order,
+];
+
 /** Prefisso numerazione di default per tipo (§2.3). Sovrascrivibile in impostazioni. */
 export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
   [DocumentType.supplier_order]: 'OF',

@@ -12,87 +12,93 @@ import type {
 } from '../../models/document-counter.model';
 import { DocumentCountersService } from '../../services/document-counters.service';
 
-const LOCATIONS = [
-  { id: 'loc-1', name: 'Milano' },
-  { id: 'loc-2', name: 'Roma' },
-];
+const LOCATIONS = [{ id: 'loc-1', name: 'Milano' }];
 
-function serviceMock(counters: DocumentCounterView[]) {
+function serviceMock() {
   return {
-    list: vi.fn(() => of(counters)),
-    create: vi.fn((_body: SaveDocumentCounterBody) => of(counters[0])),
-    update: vi.fn((_id: string, _body: SaveDocumentCounterBody) => of(counters[0])),
+    create: vi.fn((_body: SaveDocumentCounterBody) => of({} as DocumentCounterView)),
+    update: vi.fn((_id: string, _body: SaveDocumentCounterBody) => of({} as DocumentCounterView)),
     delete: vi.fn((_id: string) => of(undefined)),
   };
 }
 
-async function setup(counters: DocumentCounterView[] = []) {
-  const service = serviceMock(counters);
+function senzaSerie(): DocumentCounterView {
+  return {
+    id: 'base',
+    type: 'quote',
+    series: null,
+    locationId: null,
+    locationName: null,
+    isDefault: true,
+    nextNumber: 1,
+    documentCount: 0,
+  };
+}
+
+function operatorSeries(): DocumentCounterView {
+  return {
+    id: 's1',
+    type: 'quote',
+    series: 'NAP',
+    locationId: 'loc-1',
+    locationName: 'Milano',
+    isDefault: false,
+    nextNumber: 5,
+    documentCount: 4,
+  };
+}
+
+async function setup(counters: DocumentCounterView[]) {
+  const service = serviceMock();
+  const changed = vi.fn();
   await render(DocumentCountersComponent, {
+    inputs: { type: 'quote', counters },
+    on: { changed },
     providers: [
       { provide: DocumentCountersService, useValue: service },
       { provide: OperationalLocationsService, useValue: { locations: () => LOCATIONS } },
       { provide: ToastService, useValue: { showInfo: vi.fn(), showError: vi.fn() } },
     ],
   });
-  return { service };
+  return { service, changed };
 }
 
-describe('DocumentCountersComponent', () => {
-  it('mostra i contatori con il prossimo numero e la sede', async () => {
-    await setup([
-      {
-        id: 'c1',
-        type: 'sales_ddt',
-        series: 'MI',
-        locationId: 'loc-1',
-        locationName: 'Milano',
-        isDefault: false,
-        nextNumber: 12,
-        documentCount: 11,
-      },
-    ]);
-
-    expect(await screen.findByText('MI')).toBeTruthy();
-    expect(screen.getByText('Milano')).toBeTruthy();
-    expect(screen.getByText('12')).toBeTruthy();
+describe('DocumentCountersComponent (serie per tipo)', () => {
+  it('mostra «Senza serie» senza azioni di modifica/eliminazione', async () => {
+    await setup([senzaSerie()]);
+    expect(await screen.findByText('Senza serie')).toBeTruthy();
+    expect(screen.getByText('Predefinita')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Elimina' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Modifica' })).toBeNull();
   });
 
-  it('mostra la sede "Tutte le sedi" per un contatore globale', async () => {
-    await setup([
-      {
-        id: 'c1',
-        type: 'quote',
-        series: null,
-        locationId: null,
-        locationName: null,
-        isDefault: true,
-        nextNumber: 1,
-        documentCount: 0,
-      },
-    ]);
-
-    expect(await screen.findByText('Tutte le sedi')).toBeTruthy();
-    expect(screen.getByText('Senza serie')).toBeTruthy();
+  it('una serie dell’operatore ha modifica ed eliminazione', async () => {
+    await setup([senzaSerie(), operatorSeries()]);
+    expect(await screen.findByText('NAP')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Elimina' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Modifica' })).toBeTruthy();
   });
 
-  it('senza contatori mostra lo stato vuoto con la CTA', async () => {
-    await setup([]);
-    expect(await screen.findByText('Nessun numeratore configurato')).toBeTruthy();
-  });
-
-  it('crea un contatore con la serie digitata e il tipo di default', async () => {
+  it('crea una nuova serie con il nome digitato', async () => {
     const user = userEvent.setup();
-    const { service } = await setup([]);
+    const { service, changed } = await setup([senzaSerie()]);
 
-    await user.click((await screen.findAllByRole('button', { name: /nuovo contatore/i }))[0]!);
-    await user.clear(screen.getByPlaceholderText('Es. 2026, NAP, MI'));
-    await user.type(screen.getByPlaceholderText('Es. 2026, NAP, MI'), 'NAP');
+    await user.click(screen.getByRole('button', { name: 'Aggiungi serie' }));
+    await user.type(screen.getByPlaceholderText('Es. 2026, NAP, MI'), '2026');
     await user.click(screen.getByRole('button', { name: 'Salva' }));
 
     expect(service.create).toHaveBeenCalledTimes(1);
-    const body = service.create.mock.calls[0]![0];
-    expect(body).toMatchObject({ series: 'NAP', locationId: null });
-    expect(typeof body.type).toBe('string');
+    expect(service.create.mock.calls[0]![0]).toMatchObject({ type: 'quote', series: '2026' });
+    expect(changed).toHaveBeenCalled();
+  });
+
+  it('«Rendi predefinita» aggiorna il contatore', async () => {
+    const user = userEvent.setup();
+    const { service } = await setup([senzaSerie(), operatorSeries()]);
+
+    await user.click(screen.getByRole('button', { name: 'Rendi predefinita' }));
+
+    expect(service.update).toHaveBeenCalledTimes(1);
+    expect(service.update.mock.calls[0]![1]).toMatchObject({ isDefault: true });
   });
 });

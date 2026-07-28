@@ -3,7 +3,7 @@ import { DocumentType, type DocumentTypeSetting } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  DOCUMENT_TYPES,
+  SETTINGS_CARD_DOCUMENT_TYPES,
   defaultTypeSetting,
   type ResolvedDocumentTypeSetting,
 } from './document-defaults';
@@ -20,7 +20,7 @@ export class DocumentSettingsService {
   async listResolved(tenantId: string): Promise<ResolvedDocumentTypeSetting[]> {
     const stored = await this.prisma.documentTypeSetting.findMany({ where: { tenantId } });
     const byType = new Map(stored.map((setting) => [setting.type, setting]));
-    return DOCUMENT_TYPES.map((type) => this.resolve(type, byType.get(type)));
+    return SETTINGS_CARD_DOCUMENT_TYPES.map((type) => this.resolve(type, byType.get(type)));
   }
 
   async getResolved(tenantId: string, type: DocumentType): Promise<ResolvedDocumentTypeSetting> {
@@ -60,10 +60,7 @@ export class DocumentSettingsService {
     return data;
   }
 
-  private resolve(
-    type: DocumentType,
-    stored?: DocumentTypeSetting,
-  ): ResolvedDocumentTypeSetting {
+  private resolve(type: DocumentType, stored?: DocumentTypeSetting): ResolvedDocumentTypeSetting {
     const defaults = defaultTypeSetting(type);
     if (!stored) {
       return defaults;

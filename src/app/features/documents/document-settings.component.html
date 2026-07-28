@@ -12,10 +12,6 @@
     </div>
   </header>
 
-  <!-- Numeratori configurabili (serie · tipo · sede): gestione indipendente
-       dai campi per-tipo qui sotto. -->
-  <app-document-counters />
-
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
   } @else if (error(); as appError) {
@@ -23,71 +19,83 @@
   } @else {
     <div class="doc-settings__grid">
       @for (row of rows(); track row.type) {
-        <form class="doc-settings__card" [formGroup]="row.form" (ngSubmit)="save(row)">
-          <div class="doc-settings__card-head">
-            <h2 class="doc-settings__card-title">{{ row.label }}</h2>
-            <label class="doc-settings__switch">
-              <input type="checkbox" formControlName="enabled" />
-              <span>Abilitato</span>
-            </label>
-          </div>
-
-          <div class="doc-settings__fields">
-            <label class="doc-settings__field">
-              <span class="doc-settings__label">Titolo di stampa</span>
-              <input
-                class="doc-settings__input"
-                type="text"
-                formControlName="printTitle"
-                autocomplete="off"
-              />
-            </label>
-
-            <div class="doc-settings__row">
-              <label class="doc-settings__field doc-settings__field--sm">
-                <span class="doc-settings__label">Prefisso numero</span>
-                <input
-                  class="doc-settings__input"
-                  type="text"
-                  formControlName="numberPrefix"
-                  maxlength="8"
-                  autocomplete="off"
-                />
+        <div class="doc-settings__card">
+          <form [formGroup]="row.form" (ngSubmit)="save(row)">
+            <div class="doc-settings__card-head">
+              <h2 class="doc-settings__card-title">{{ row.label }}</h2>
+              <label class="doc-settings__switch">
+                <input type="checkbox" formControlName="enabled" />
+                <span>Abilitato</span>
               </label>
             </div>
 
-            <label class="doc-settings__field">
-              <span class="doc-settings__label">Note predefinite</span>
-              <textarea
-                class="doc-settings__input doc-settings__textarea"
-                formControlName="defaultNotes"
-                rows="2"
-              ></textarea>
-            </label>
+            <div class="doc-settings__fields">
+              <label class="doc-settings__field">
+                <span class="doc-settings__label">Titolo di stampa</span>
+                <input
+                  class="doc-settings__input"
+                  type="text"
+                  formControlName="printTitle"
+                  autocomplete="off"
+                />
+              </label>
 
-            <label class="doc-settings__check">
-              <input type="checkbox" formControlName="autoNumbering" />
-              <span>Numerazione automatica</span>
-            </label>
-            <label class="doc-settings__check">
-              <input type="checkbox" formControlName="blockAfterConfirm" />
-              <span>Blocca modifica dopo conferma</span>
-            </label>
-            <label class="doc-settings__check">
-              <input type="checkbox" formControlName="pricesIncludeVat" />
-              <span>Prezzi IVA inclusa</span>
-            </label>
-          </div>
+              <div class="doc-settings__row">
+                <label class="doc-settings__field doc-settings__field--sm">
+                  <span class="doc-settings__label">Prefisso numero</span>
+                  <input
+                    class="doc-settings__input"
+                    type="text"
+                    formControlName="numberPrefix"
+                    maxlength="8"
+                    autocomplete="off"
+                  />
+                </label>
+              </div>
 
-          <div class="doc-settings__card-actions">
-            <app-button
-              type="submit"
-              [disabled]="row.form.pristine || row.form.invalid || isSaving(row.type)"
-            >
-              {{ isSaving(row.type) ? 'Salvataggio…' : 'Salva' }}
-            </app-button>
-          </div>
-        </form>
+              <label class="doc-settings__field">
+                <span class="doc-settings__label">Note predefinite</span>
+                <textarea
+                  class="doc-settings__input doc-settings__textarea"
+                  formControlName="defaultNotes"
+                  rows="2"
+                ></textarea>
+              </label>
+
+              <label class="doc-settings__check">
+                <input type="checkbox" formControlName="autoNumbering" />
+                <span>Numerazione automatica</span>
+              </label>
+              <label class="doc-settings__check">
+                <input type="checkbox" formControlName="blockAfterConfirm" />
+                <span>Blocca modifica dopo conferma</span>
+              </label>
+              <label class="doc-settings__check">
+                <input type="checkbox" formControlName="pricesIncludeVat" />
+                <span>Prezzi IVA inclusa</span>
+              </label>
+            </div>
+
+            <div class="doc-settings__card-actions">
+              <app-button
+                type="submit"
+                [disabled]="row.form.pristine || row.form.invalid || isSaving(row.type)"
+              >
+                {{ isSaving(row.type) ? 'Salvataggio…' : 'Salva' }}
+              </app-button>
+            </div>
+          </form>
+
+          <!-- Serie del tipo (numerazione). Nascosta dove la numerazione è
+               condivisa con un altro tipo (Fattura accompagnatoria → Fattura). -->
+          @if (seriesConfigurable(row.type)) {
+            <app-document-counters
+              [type]="row.type"
+              [counters]="countersFor(row.type)"
+              (changed)="reloadCounters()"
+            />
+          }
+        </div>
       }
     </div>
   }

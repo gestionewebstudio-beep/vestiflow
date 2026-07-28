@@ -136,11 +136,22 @@ export class DocumentCountersService {
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
-    await this.getById(tenantId, id);
-    // Tutti i contatori sono eliminabili: eliminare non tocca i documenti già
-    // numerati (il numero vive sul documento). Un tipo senza contatori numera
-    // senza serie.
-    await this.prisma.documentCounter.delete({ where: { id } });
+    const counter = await this.getById(tenantId, id);
+    // «Senza serie» (serie null) è la numerazione base del tipo: c'è sempre e
+    // non si elimina. Si eliminano solo le serie aggiunte dall'operatore.
+    if (counter.series === null) {
+      throw new ConflictException('La voce «Senza serie» non è eliminabile.');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.documentCounter.delete({ where: { id } });
+      // Se era la predefinita, il default torna alla «Senza serie» del tipo.
+      if (counter.isDefault) {
+        await tx.documentCounter.updateMany({
+          where: { tenantId, type: counter.type, series: null },
+          data: { isDefault: true },
+        });
+      }
+    });
   }
 
   private async getById(tenantId: string, id: string): Promise<DocumentCounter> {

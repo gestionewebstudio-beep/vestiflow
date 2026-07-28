@@ -4,6 +4,8 @@ import {
   DestroyRef,
   computed,
   inject,
+  input,
+  output,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -12,53 +14,39 @@ import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
-import { DocumentType } from '@core/models/document.model';
+import type { DocumentType } from '@core/models/document.model';
 import { OperationalLocationsService } from '@core/services/operational-locations.service';
 import { ToastService } from '@core/services/toast.service';
-import { documentTypeLabel } from '@features/documents/models/document-labels.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import {
-  COUNTER_CONFIGURABLE_TYPES,
-  type DocumentCounterView,
-  type SaveDocumentCounterBody,
+import type {
+  DocumentCounterView,
+  SaveDocumentCounterBody,
 } from '../../models/document-counter.model';
 import { DocumentCountersService } from '../../services/document-counters.service';
-
-type PageState = 'loading' | 'ready' | 'error';
 
 /** Azione in attesa di conferma (spostamento numerazione o eliminazione). */
 type PendingConfirm =
   | { readonly kind: 'move'; readonly id: EntityId; readonly body: SaveDocumentCounterBody }
   | { readonly kind: 'delete'; readonly counter: DocumentCounterView };
 
-/** Valore "tutte le sedi" nella tendina location (contatore globale). */
+/** Valore "tutte le sedi" nella tendina sede. */
 const ALL_LOCATIONS = '';
 
 /**
- * Numeratori configurabili (Impostazioni → documenti). Elenco dei contatori
- * (serie · tipo · location · prossimo numero) con creazione, modifica ed
- * eliminazione. Il prossimo numero è in sola lettura: lo calcola il backend
- * come max+1 sui documenti reali.
+ * Elenco serie di UN tipo documento, dentro la sua card in Impostazioni. Prima
+ * voce sempre «Senza serie» (serie null, non eliminabile, base del tipo), poi
+ * le serie aggiunte dall'operatore (nome libero, sede opzionale). Il prossimo
+ * numero è in sola lettura (max+1). Una voce è predefinita. Le mutazioni
+ * passano dal servizio; il refresh dei dati lo fa il padre via `changed`.
  */
 @Component({
   selector: 'app-document-counters',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    ReactiveFormsModule,
-    ButtonComponent,
-    ConfirmDialogComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
-    SelectMenuComponent,
-    TableSkeletonComponent,
-  ],
+  imports: [ReactiveFormsModule, ButtonComponent, ConfirmDialogComponent, SelectMenuComponent],
   templateUrl: './document-counters.component.html',
   styleUrl: './document-counters.component.scss',
 })
@@ -69,25 +57,30 @@ export class DocumentCountersComponent {
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly documentTypeLabel = documentTypeLabel;
-  protected readonly skeletonColumns = 6;
+  /** Tipo documento a cui appartengono le serie di questa card. */
+  readonly type = input.required<DocumentType>();
+  /** Serie del tipo (incluse «Senza serie»), già caricate dal padre. */
+  readonly counters = input.required<readonly DocumentCounterView[]>();
+  /** Emesso dopo una mutazione: il padre ricarica i contatori. */
+  readonly changed = output<void>();
 
-  private readonly _state = signal<PageState>('loading');
-  protected readonly state = this._state.asReadonly();
-  protected readonly loading = computed(() => this._state() === 'loading');
+  /** «Senza serie» (serie null) prima, poi le serie in ordine alfabetico. */
+  protected readonly orderedSeries = computed(() =>
+    [...this.counters()].sort((a, b) => {
+      if (a.series === null) {
+        return -1;
+      }
+      if (b.series === null) {
+        return 1;
+      }
+      return a.series.localeCompare(b.series);
+    }),
+  );
 
-  private readonly _error = signal<AppError | null>(null);
-  protected readonly error = this._error.asReadonly();
-
-  private readonly _counters = signal<readonly DocumentCounterView[]>([]);
-  protected readonly counters = this._counters.asReadonly();
-
-  /** Id della riga in modifica (null se non stiamo modificando una esistente). */
   private readonly _editingId = signal<EntityId | null>(null);
   protected readonly editingId = this._editingId.asReadonly();
   private readonly _creating = signal(false);
   protected readonly isCreating = this._creating.asReadonly();
-  /** Editor aperto in creazione o in modifica. */
   protected readonly editorOpen = computed(() => this._creating() || this._editingId() !== null);
 
   private readonly _saving = signal(false);
@@ -97,7 +90,7 @@ export class DocumentCountersComponent {
   private readonly _pending = signal<PendingConfirm | null>(null);
   protected readonly confirmOpen = signal(false);
   protected readonly confirmTitle = computed(() =>
-    this._pending()?.kind === 'delete' ? 'Elimina contatore' : 'Sposta numerazione',
+    this._pending()?.kind === 'delete' ? 'Elimina serie' : 'Sposta numerazione',
   );
   protected readonly confirmMessage = computed(() => {
     const pending = this._pending();
@@ -107,9 +100,9 @@ export class DocumentCountersComponent {
     if (pending.kind === 'delete') {
       const used = pending.counter.documentCount;
       return used > 0
-        ? `Questo contatore è usato da ${used} ${used === 1 ? 'documento' : 'documenti'}. ` +
-            'Eliminarlo non tocca i documenti già numerati, ma rimuove la configurazione. Procedere?'
-        : 'Eliminare questo contatore? I documenti già numerati non vengono toccati.';
+        ? `Questa serie è usata da ${used} ${used === 1 ? 'documento' : 'documenti'}. ` +
+            'Eliminarla non tocca i documenti già numerati, ma rimuove la serie. Procedere?'
+        : 'Eliminare questa serie? I documenti già numerati non vengono toccati.';
     }
     return 'Stai spostando una numerazione già in uso. I documenti esistenti mantengono il loro numero; cambia solo da dove riparte il progressivo. Procedere?';
   });
@@ -118,11 +111,7 @@ export class DocumentCountersComponent {
   );
   protected readonly confirmDanger = computed(() => this._pending()?.kind === 'delete');
 
-  protected readonly typeOptions: readonly SelectMenuOption[] = COUNTER_CONFIGURABLE_TYPES.map(
-    (type) => ({ value: type, label: documentTypeLabel(type) }),
-  );
-
-  /** Opzioni sede + "Tutte le sedi" in testa (contatore globale). */
+  /** Opzioni sede + "Tutte le sedi" in testa. */
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() => [
     { value: ALL_LOCATIONS, label: 'Tutte le sedi' },
     ...this.locationsService.locations().map((location) => ({
@@ -132,53 +121,19 @@ export class DocumentCountersComponent {
   ]);
 
   protected readonly form = this.fb.group({
-    type: this.fb.control<DocumentType>(DocumentType.Quote),
     series: this.fb.control(''),
     locationId: this.fb.control(ALL_LOCATIONS),
     isDefault: this.fb.control(false),
   });
 
-  /** Serie proposta alla creazione: l'anno corrente (reset annuale se la si tiene). */
-  private currentYearSeries(): string {
-    return String(new Date().getFullYear());
-  }
-
-  constructor() {
-    this.load();
-  }
-
-  protected load(): void {
-    this._state.set('loading');
-    this._error.set(null);
-    this.service
-      .list()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (counters) => {
-          this._counters.set(counters);
-          this._state.set('ready');
-        },
-        error: (err: unknown) => {
-          this._error.set(this.toAppError(err));
-          this._state.set('error');
-        },
-      });
-  }
-
   protected startCreate(): void {
-    this.form.reset({
-      type: this.typeOptions[0]?.value as DocumentType,
-      series: this.currentYearSeries(),
-      locationId: ALL_LOCATIONS,
-      isDefault: false,
-    });
+    this.form.reset({ series: '', locationId: ALL_LOCATIONS, isDefault: false });
     this._editingId.set(null);
     this._creating.set(true);
   }
 
   protected startEdit(counter: DocumentCounterView): void {
     this.form.reset({
-      type: counter.type,
       series: counter.series ?? '',
       locationId: counter.locationId ?? ALL_LOCATIONS,
       isDefault: counter.isDefault,
@@ -187,7 +142,16 @@ export class DocumentCountersComponent {
     this._editingId.set(counter.id);
   }
 
-  /** Rende predefinito un contatore direttamente dall'elenco. */
+  protected cancelEdit(): void {
+    this._creating.set(false);
+    this._editingId.set(null);
+  }
+
+  protected onLocationSelect(value: string | null): void {
+    this.form.controls.locationId.setValue(value ?? ALL_LOCATIONS);
+  }
+
+  /** Rende predefinita una voce direttamente dall'elenco. */
   protected setDefault(counter: DocumentCounterView): void {
     this.service
       .update(counter.id, {
@@ -199,26 +163,11 @@ export class DocumentCountersComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.toast.showInfo('Contatore predefinito aggiornato.');
-          this.reload();
+          this.toast.showInfo('Serie predefinita aggiornata.');
+          this.changed.emit();
         },
         error: (err: unknown) => this.toast.showError(this.toAppError(err).message),
       });
-  }
-
-  protected cancelEdit(): void {
-    this._creating.set(false);
-    this._editingId.set(null);
-  }
-
-  protected onTypeSelect(value: string | null): void {
-    if (value) {
-      this.form.controls.type.setValue(value as DocumentType);
-    }
-  }
-
-  protected onLocationSelect(value: string | null): void {
-    this.form.controls.locationId.setValue(value ?? ALL_LOCATIONS);
   }
 
   protected save(): void {
@@ -226,18 +175,22 @@ export class DocumentCountersComponent {
       return;
     }
     const raw = this.form.getRawValue();
-    // Serie vuota = «senza serie» (riferimento senza il token serie).
+    const series = raw.series.trim() || null;
+    // «Senza serie» esiste già come base del tipo: una nuova voce ha un nome.
+    if (series === null) {
+      this.toast.showError('Il nome della serie è obbligatorio.');
+      return;
+    }
     const body: SaveDocumentCounterBody = {
-      type: raw.type,
-      series: raw.series.trim() || null,
+      type: this.type(),
+      series,
       locationId: raw.locationId || null,
       isDefault: raw.isDefault,
     };
 
     const editingId = this._editingId();
     if (editingId) {
-      const current = this._counters().find((counter) => counter.id === editingId);
-      // Spostare una numerazione in uso è un'azione da confermare.
+      const current = this.counters().find((counter) => counter.id === editingId);
       if (current && current.documentCount > 0 && this.identityChanged(current, body)) {
         this._pending.set({ kind: 'move', id: editingId, body });
         this.confirmOpen.set(true);
@@ -279,7 +232,7 @@ export class DocumentCountersComponent {
       .create(body)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.onSaved('Contatore creato.'),
+        next: () => this.onSaved('Serie creata.'),
         error: (err: unknown) => this.onSaveError(err),
       });
   }
@@ -290,7 +243,7 @@ export class DocumentCountersComponent {
       .update(id, body)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.onSaved('Contatore aggiornato.'),
+        next: () => this.onSaved('Serie aggiornata.'),
         error: (err: unknown) => this.onSaveError(err),
       });
   }
@@ -301,8 +254,8 @@ export class DocumentCountersComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.toast.showInfo('Contatore eliminato.');
-          this.reload();
+          this.toast.showInfo('Serie eliminata.');
+          this.changed.emit();
         },
         error: (err: unknown) => this.toast.showError(this.toAppError(err).message),
       });
@@ -313,7 +266,7 @@ export class DocumentCountersComponent {
     this._creating.set(false);
     this._editingId.set(null);
     this.toast.showInfo(message);
-    this.reload();
+    this.changed.emit();
   }
 
   private onSaveError(err: unknown): void {
@@ -321,22 +274,9 @@ export class DocumentCountersComponent {
     this.toast.showError(this.toAppError(err).message);
   }
 
-  /** Ricarica l'elenco preservando lo stato (i prossimi numeri possono cambiare). */
-  private reload(): void {
-    this.service
-      .list()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (counters) => this._counters.set(counters),
-        error: (err: unknown) => this.toast.showError(this.toAppError(err).message),
-      });
-  }
-
   private identityChanged(current: DocumentCounterView, body: SaveDocumentCounterBody): boolean {
     return (
-      current.type !== body.type ||
-      current.series !== body.series ||
-      (current.locationId ?? null) !== (body.locationId ?? null)
+      current.series !== body.series || (current.locationId ?? null) !== (body.locationId ?? null)
     );
   }
 

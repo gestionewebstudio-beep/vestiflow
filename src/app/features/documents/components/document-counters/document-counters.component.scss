@@ -7,45 +7,99 @@
 .counters {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
+  gap: var(--space-2);
+  padding-block-start: var(--space-2);
+  border-block-start: var(--border-width) solid var(--color-border);
 }
 
-.counters__header {
+.counters__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
-.counters__heading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.counters__title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-}
-
-.counters__subtitle {
-  margin: 0;
-  font-size: var(--text-sm);
+.counters__label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
 }
 
-// ── Editor (creazione / modifica) ────────────────────────────────────────────
+.counters__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.counters__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-soft);
+}
+
+@include bp.media-up('md') {
+  .counters__row {
+    grid-template-columns: 1.4fr 1fr auto auto;
+  }
+}
+
+.counters__row--editing {
+  outline: var(--border-width) solid var(--color-interactive);
+}
+
+.counters__name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.counters__sede {
+  color: var(--color-text-muted);
+}
+
+.counters__next {
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.counters__next-label {
+  margin-inline-end: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.counters__badge {
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+  background-color: var(--color-primary-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.counters__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+// ── Editor ───────────────────────────────────────────────────────────────────
 .counters__editor {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3);
   background-color: var(--color-surface-soft);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
@@ -53,7 +107,7 @@
 
 .counters__editor-title {
   margin: 0;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
@@ -61,12 +115,12 @@
 .counters__editor-fields {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 @include bp.media-up('md') {
   .counters__editor-fields {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -76,33 +130,10 @@
   gap: var(--space-1);
 }
 
-.counters__label {
+.counters__field-label {
   font-size: var(--text-xs);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
-}
-
-.counters__hint {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
-.counters__check {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text);
-}
-
-.counters__badge {
-  display: inline-block;
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-primary);
-  background-color: var(--color-primary-subtle);
-  border-radius: var(--radius-sm);
 }
 
 .counters__input {
@@ -121,59 +152,16 @@
   box-shadow: var(--field-focus-ring);
 }
 
+.counters__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
 .counters__editor-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-}
-
-// ── Tabella ──────────────────────────────────────────────────────────────────
-.counters__table-wrap {
-  overflow-x: auto;
-}
-
-.counters__table {
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.counters__table th {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-semibold);
-  text-align: start;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.045em;
-  background-color: var(--color-table-header-bg);
-  border-block-end: var(--border-width) solid var(--color-border-strong);
-  white-space: nowrap;
-}
-
-.counters__table td {
-  padding: var(--space-2) var(--space-3);
-  color: var(--color-text);
-  border-block-end: var(--border-width) solid var(--color-border-cell);
-  vertical-align: middle;
-}
-
-.counters__row--editing td {
-  background-color: var(--color-surface-soft);
-}
-
-.counters__cell--series {
-  font-weight: var(--font-weight-semibold);
-}
-
-.counters__cell--num {
-  text-align: end;
-  white-space: nowrap;
-}
-
-.counters__cell--actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  white-space: nowrap;
 }
