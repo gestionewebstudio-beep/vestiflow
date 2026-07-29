@@ -14,7 +14,6 @@ import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
-import { ShopifyOrderDocumentService } from './shopify-order-document.service';
 import { resolveShopifyOrderLocationId } from './shopify-order-location.util';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 
@@ -26,7 +25,6 @@ export class ShopifySyncService {
     private readonly prisma: PrismaService,
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyProductPull: ShopifyProductPullService,
-    private readonly shopifyOrderDocument: ShopifyOrderDocumentService,
     private readonly onlineOrderLifecycle: OnlineOrderLifecycleService,
     private readonly inventoryReconciliation: ShopifyInventoryReconciliationService,
     private readonly inventoryPush: ShopifyInventoryPushService,
@@ -264,22 +262,9 @@ export class ShopifySyncService {
       });
     }
 
-    if (savedOrderId) {
-      try {
-        await this.shopifyOrderDocument.syncFromShopifyOrder({
-          tenantId,
-          salesOrderId: savedOrderId,
-          shopifyOrderId,
-          orderPayload: order,
-        });
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Sync documento ordine fallito';
-        this.logger.warn(
-          `Documento DDT non creato per ordine Shopify ${shopifyOrderId}: ${message}`,
-        );
-      }
-    }
-
+    // Nessun documento nasce dalla sincronizzazione: DDT/fattura si generano a
+    // mano dalla schermata ordine, quando l'operatore lo decide. La sync muove
+    // solo impegni ed evasione (emitCanonicalOrderEvents sopra).
     return existingBefore ? 'updated' : 'created';
   }
 

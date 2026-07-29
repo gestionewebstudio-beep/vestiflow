@@ -6,7 +6,6 @@ import type { ShopifyConnectionService } from './shopify-connection.service';
 import type { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import type { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
 import type { ShopifyProductPullService } from './shopify-product-pull.service';
-import type { ShopifyOrderDocumentService } from './shopify-order-document.service';
 import { ShopifySyncService } from './shopify-sync.service';
 
 describe('ShopifySyncService', () => {
@@ -55,10 +54,6 @@ describe('ShopifySyncService', () => {
       importProductFromWebhook: vi.fn().mockResolvedValue(undefined),
     };
 
-    const shopifyOrderDocument = {
-      syncFromShopifyOrder: vi.fn().mockResolvedValue(null),
-    };
-
     const onlineOrderLifecycle = {
       handle: vi.fn().mockResolvedValue('applied'),
     };
@@ -75,7 +70,6 @@ describe('ShopifySyncService', () => {
       prisma as unknown as PrismaService,
       shopifyConnection as unknown as ShopifyConnectionService,
       shopifyProductPull as unknown as ShopifyProductPullService,
-      shopifyOrderDocument as unknown as ShopifyOrderDocumentService,
       onlineOrderLifecycle as unknown as OnlineOrderLifecycleService,
       inventoryReconciliation as unknown as ShopifyInventoryReconciliationService,
       inventoryPush as unknown as ShopifyInventoryPushService,
@@ -86,7 +80,6 @@ describe('ShopifySyncService', () => {
       prisma,
       shopifyConnection,
       shopifyProductPull,
-      shopifyOrderDocument,
       onlineOrderLifecycle,
       inventoryReconciliation,
       inventoryPush,

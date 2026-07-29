@@ -19,7 +19,6 @@ import { ShopifyProductEnrichmentService } from './shopify-product-enrichment.se
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 import { ShopifyProductPushService } from './shopify-product-push.service';
 import { ShopifySyncService } from './shopify-sync.service';
-import { ShopifyOrderDocumentService } from './shopify-order-document.service';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
@@ -52,7 +51,6 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
     ShopifyTaxonomyLocalizationService,
     ShopifyCategoryMetafieldsService,
     ShopifySyncService,
-    ShopifyOrderDocumentService,
     ShopifyWebhookService,
     ShopifyShopChangeService,
   ],
