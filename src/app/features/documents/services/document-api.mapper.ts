@@ -3,6 +3,7 @@ import type { PurchaseCostEntryMode, VatSnapshot } from '@core/models/vat-code.m
 import type {
   AdjustmentDirection,
   CausalGenerationMode,
+  ConvertedDocumentRef,
   DocumentAddress,
   DocumentAttachment,
   DocumentLine,
@@ -150,6 +151,8 @@ export interface DocumentApiRow {
   readonly updatedAt: IsoDateString;
   readonly lines?: readonly DocumentLineApiRow[];
   readonly lineCount?: number;
+  readonly sourceDocument?: ConvertedDocumentRef | null;
+  readonly derivedDocuments?: readonly ConvertedDocumentRef[] | null;
   readonly salesOrder?: { readonly id: EntityId; readonly orderNumber: string } | null;
   readonly linkedSalesOrders?: readonly LinkedSalesOrderApiRow[] | null;
   readonly supplierOrder?: { readonly id: EntityId; readonly reference: string } | null;
@@ -361,6 +364,8 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     updatedAt: row.updatedAt,
     lines: row.lines?.map((line) => mapLine(line, row.currency)),
     lineCount: row.lineCount,
+    sourceDocument: row.sourceDocument ?? undefined,
+    derivedDocuments: row.derivedDocuments ?? undefined,
     linkedSalesOrder: row.salesOrder ?? undefined,
     linkedSalesOrders: row.linkedSalesOrders?.map(mapLinkedSalesOrder),
     linkedSupplierOrder: row.linkedSupplierOrder ?? row.supplierOrder ?? undefined,

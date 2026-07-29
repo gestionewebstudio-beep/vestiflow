@@ -80,6 +80,8 @@ describe('DocumentPdfService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     salesOrder: null,
+    sourceDocument: null,
+    derivedDocuments: [],
     linkedSalesOrders: [],
     linkedSupplierOrder: null,
     linkedSupplierOrderLines: [],

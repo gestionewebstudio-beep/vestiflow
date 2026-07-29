@@ -301,6 +301,10 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly lines?: readonly DocumentLine[];
   /** Presente in lista: conteggio righe senza payload completo. */
   readonly lineCount?: number;
+  /** Conversione: documento da cui nasce (proforma/DDT), se generato da una. */
+  readonly sourceDocument?: ConvertedDocumentRef | null;
+  /** Conversione: documenti generati da questo (bozza fattura, fattura, DDT). */
+  readonly derivedDocuments?: readonly ConvertedDocumentRef[];
   /** Ordine vendita Shopify collegato (documento auto-generato). */
   readonly linkedSalesOrder?: {
     readonly id: EntityId;
@@ -327,6 +331,16 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly attachments?: readonly DocumentAttachment[];
   /** DDT vendita agganciati alla fattura («Riferimento DDT»). */
   readonly linkedSalesDdts?: readonly LinkedSalesDdtInfo[];
+}
+
+/** Riferimento a un documento d'origine o generato da una conversione. */
+export interface ConvertedDocumentRef {
+  readonly id: EntityId;
+  readonly type: DocumentType;
+  readonly reference: string | null;
+  readonly series: string | null;
+  readonly number: number | null;
+  readonly status: DocumentStatus;
 }
 
 /** Contesto riga ordine fornitore collegato (arrivo merce). */

@@ -277,6 +277,23 @@ export class DocumentDetailComponent {
         linkLabel: 'Apri ordine',
       });
     }
+    const src = doc.sourceDocument;
+    if (src) {
+      facts.push({
+        label: 'Nato da',
+        value: `${documentTypeLabel(src.type)} · ${documentReferenceLabel(src.type, src.reference ?? undefined, src.series ?? '')}`,
+        href: `/app/documents/${src.id}`,
+        linkLabel: 'Apri documento',
+      });
+    }
+    for (const derived of doc.derivedDocuments ?? []) {
+      facts.push({
+        label: 'Ha generato',
+        value: `${documentTypeLabel(derived.type)} · ${documentReferenceLabel(derived.type, derived.reference ?? undefined, derived.series ?? '')}`,
+        href: `/app/documents/${derived.id}`,
+        linkLabel: 'Apri documento',
+      });
+    }
     facts.push({ label: 'Valuta', value: doc.currency });
     if (doc.externallyIssuedAt) {
       facts.push({

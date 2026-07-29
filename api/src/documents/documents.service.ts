@@ -161,8 +161,21 @@ export type LinkedSalesOrderInfo = {
   readonly fulfillmentStatus: SalesOrderFulfillmentStatus;
 };
 
+/** Documento d'origine o generato da una conversione (nato-da / ha-generato). */
+export type ConvertedDocumentRef = {
+  readonly id: string;
+  readonly type: DocumentType;
+  readonly reference: string | null;
+  readonly series: string | null;
+  readonly number: number | null;
+  readonly status: DocumentStatus;
+};
+
 export type DocumentDetail = DocumentWithLines & {
   salesOrder: { id: string; orderNumber: string } | null;
+  /** Conversione: documento da cui nasce (proforma/DDT) e documenti generati. */
+  sourceDocument: ConvertedDocumentRef | null;
+  derivedDocuments: readonly ConvertedDocumentRef[];
   /** Ordini cliente agganciati (DDT vendita può includerne più di uno). */
   linkedSalesOrders: readonly LinkedSalesOrderInfo[];
   linkedSupplierOrder: { id: string; reference: string } | null;
@@ -579,6 +592,15 @@ export class DocumentsService {
       where: { id, tenantId },
       include: {
         lines: { orderBy: { lineNumber: 'asc' } },
+        // Conversione: documento d'origine (nato-da) e derivati non annullati (ha-generato).
+        sourceDocument: {
+          select: { id: true, type: true, reference: true, series: true, number: true, status: true },
+        },
+        derivedDocuments: {
+          where: { status: { not: DocumentStatus.cancelled } },
+          select: { id: true, type: true, reference: true, series: true, number: true, status: true },
+          orderBy: { createdAt: 'asc' },
+        },
         salesOrders: {
           select: {
             id: true,
