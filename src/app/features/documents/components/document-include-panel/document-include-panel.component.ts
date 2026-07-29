@@ -15,7 +15,7 @@ import { catchError, debounceTime, map, of, switchMap, take } from 'rxjs';
 
 import type { EntityId, IsoDateString, Money } from '@core/models/common.model';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
-import { SalesOrderFulfillmentStatus, SalesOrderSource } from '@core/models/sales-order.model';
+import { SalesOrderSource } from '@core/models/sales-order.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
@@ -158,31 +158,25 @@ export class DocumentIncludePanelComponent {
     return this.salesOrderService
       .getSalesOrders({
         source: SalesOrderSource.Manual,
+        // Includibilità decisa dal server: manuali, non annullati e non ancora
+        // collegati ad alcun documento (è il collegamento a renderli non più
+        // includibili, non lo stato di evasione).
+        includable: true,
         search: search || undefined,
         page: 1,
         pageSize: LIST_PAGE_SIZE,
       })
       .pipe(
         map((response) =>
-          response.data
-            // Includibili solo gli ordini ancora aperti: quelli annullati o già
-            // evasi (anche parzialmente) da un documento di scarico non possono
-            // essere agganciati a un nuovo DDT (prompt DDT §LOGICA MAGAZZINO).
-            .filter(
-              (order) =>
-                !order.cancelledAt &&
-                !order.fulfilledAt &&
-                order.fulfillmentStatus !== SalesOrderFulfillmentStatus.Partial,
-            )
-            .map(
-              (order): IncludableRow => ({
-                id: order.id,
-                reference: order.orderNumber,
-                documentDate: order.placedAt,
-                customerName: order.customerName,
-                total: order.total,
-              }),
-            ),
+          response.data.map(
+            (order): IncludableRow => ({
+              id: order.id,
+              reference: order.orderNumber,
+              documentDate: order.placedAt,
+              customerName: order.customerName,
+              total: order.total,
+            }),
+          ),
         ),
       );
   }

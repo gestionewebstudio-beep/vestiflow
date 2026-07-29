@@ -37,6 +37,11 @@ export interface SalesOrderListQuery {
   /** Data ordine inclusiva (YYYY-MM-DD). */
   readonly placedFrom?: string;
   readonly placedTo?: string;
+  /**
+   * Solo ordini includibili in un documento (manuali, non annullati, non
+   * ancora collegati): filtro server per il pannello «Includi».
+   */
+  readonly includable?: boolean;
 }
 
 /** Filtri export CSV (stessi filtri lista, senza paginazione). */

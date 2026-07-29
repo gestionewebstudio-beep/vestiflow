@@ -2666,6 +2666,15 @@ export class DocumentsService {
         syncTargets.push(...reopenTargets);
       }
 
+      // Simmetria con l'eliminazione: annullare il documento fa cadere il
+      // collegamento con TUTTI gli ordini cliente agganciati (anche non
+      // conclusi), che tornano così disponibili e includibili. Dopo il reopen,
+      // che ha bisogno del documentId per ritrovarli.
+      await tx.salesOrder.updateMany({
+        where: { tenantId, documentId: doc.id },
+        data: { documentId: null },
+      });
+
       if (wasStockLoaded) {
         await reverseInventorySerialsForDocument(
           tx,

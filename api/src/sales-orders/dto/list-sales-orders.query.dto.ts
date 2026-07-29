@@ -1,5 +1,15 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import {
@@ -50,6 +60,15 @@ export class ListSalesOrdersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsIn([...API_STATE_VALUES])
   state?: string;
+
+  /**
+   * Solo ordini includibili in un documento: manuali, non annullati e non
+   * ancora collegati ad alcun documento. Usato dal pannello «Includi».
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === '1' || value === 'true' || value === true)
+  @IsBoolean()
+  includable?: boolean;
 
   @IsOptional()
   @IsUUID()

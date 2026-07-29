@@ -110,6 +110,7 @@ function createPrismaMock() {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     stockReservation: { findMany: vi.fn().mockResolvedValue([]) },
     location: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },

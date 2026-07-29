@@ -2,6 +2,7 @@ import {
   Prisma,
   ReservationStatus,
   SalesOrderFulfillmentStatus as PrismaFulfillment,
+  SalesOrderSource,
 } from '@prisma/client';
 
 import {
@@ -21,6 +22,8 @@ export interface SalesOrderListFilters {
   readonly locationId?: string;
   readonly placedFrom?: string;
   readonly placedTo?: string;
+  /** Solo ordini includibili: manuali, non annullati, non ancora collegati. */
+  readonly includable?: boolean;
 }
 
 /** Filtri Prisma condivisi tra lista ed export vendite. */
@@ -67,6 +70,17 @@ export function buildSalesOrderWhere(
   const stateFilter = buildStateFilter(query.state);
   if (stateFilter) {
     conditions.push(stateFilter);
+  }
+
+  // Includibili in un documento: manuali, non annullati e non ancora collegati
+  // ad alcun documento. È il COLLEGAMENTO (documentId) a rendere un ordine non
+  // più includibile — non lo stato di evasione. Controllo lato server.
+  if (query.includable) {
+    conditions.push({
+      source: SalesOrderSource.manual,
+      cancelledAt: null,
+      documentId: null,
+    });
   }
 
   if (query.search) {

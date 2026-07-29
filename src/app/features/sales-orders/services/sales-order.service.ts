@@ -255,6 +255,9 @@ export class SalesOrderService {
     if (query.placedTo) {
       next = next.set('placedTo', query.placedTo);
     }
+    if (query.includable) {
+      next = next.set('includable', 'true');
+    }
     return next;
   }
 }
