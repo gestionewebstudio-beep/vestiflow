@@ -92,7 +92,6 @@ function createService(prisma: ReturnType<typeof createPrismaMock>) {
   const settings = {
     getResolved: vi.fn().mockResolvedValue({
       type: 'customer_order',
-      enabled: true,
       printTitle: 'Ordine cliente',
       autoNumbering: true,
       numberPrefix: 'OC',

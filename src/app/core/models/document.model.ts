@@ -361,7 +361,6 @@ export interface DocumentRevision {
 /** Configurazione per tipo documento a livello tenant (§2.2). */
 export interface DocumentTypeSetting {
   readonly type: DocumentType;
-  readonly enabled: boolean;
   readonly printTitle: string;
   readonly autoNumbering: boolean;
   readonly numberPrefix: string;

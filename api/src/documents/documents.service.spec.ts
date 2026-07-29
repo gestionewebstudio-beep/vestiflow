@@ -25,7 +25,6 @@ function resolvedSetting(
 ): ResolvedDocumentTypeSetting {
   return {
     type: DocumentType.sales_ddt,
-    enabled: true,
     printTitle: 'Documento di trasporto',
     autoNumbering: true,
     numberPrefix: 'DDT',
@@ -276,15 +275,6 @@ describe('DocumentsService', () => {
   });
 
   describe('create', () => {
-    it('rifiuta i tipi documento non abilitati', async () => {
-      const { service } = createService(prisma, resolvedSetting({ enabled: false }));
-
-      await expect(
-        service.create(tenantId, { type: DocumentType.sales_ddt, documentDate: '2026-01-10' }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
-      expect(prisma.document.create).not.toHaveBeenCalled();
-    });
-
     // Numero imposto dalla testata (categoria A): si assegna già in bozza,
     // con il riferimento coerente. Senza numero resta null e lo assegna la
     // conferma prendendo il primo libero della serie.

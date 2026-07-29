@@ -366,7 +366,6 @@ function createSettings(): DocumentSettingsService {
     getResolved: (_tenantId: string, type: DocumentType) =>
       Promise.resolve({
         type,
-        enabled: true,
         printTitle:
           type === DocumentType.store_sale ? 'Vendita in negozio' : 'Reso vendita negozio',
         autoNumbering: true,

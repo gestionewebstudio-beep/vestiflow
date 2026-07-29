@@ -161,7 +161,6 @@ export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
 
 export interface ResolvedDocumentTypeSetting {
   readonly type: DocumentType;
-  readonly enabled: boolean;
   readonly printTitle: string;
   readonly autoNumbering: boolean;
   readonly numberPrefix: string;
@@ -174,7 +173,6 @@ export interface ResolvedDocumentTypeSetting {
 export function defaultTypeSetting(type: DocumentType): ResolvedDocumentTypeSetting {
   return {
     type,
-    enabled: true,
     printTitle: DEFAULT_PRINT_TITLE[type],
     autoNumbering: true,
     numberPrefix: DEFAULT_NUMBER_PREFIX[type],

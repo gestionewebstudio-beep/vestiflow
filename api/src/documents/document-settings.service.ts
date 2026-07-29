@@ -49,7 +49,6 @@ export class DocumentSettingsService {
 
   private sanitize(dto: UpdateDocumentTypeSettingDto): Record<string, unknown> {
     const data: Record<string, unknown> = {};
-    if (dto.enabled !== undefined) data['enabled'] = dto.enabled;
     if (dto.printTitle !== undefined) data['printTitle'] = dto.printTitle.trim() || null;
     if (dto.autoNumbering !== undefined) data['autoNumbering'] = dto.autoNumbering;
     if (dto.numberPrefix !== undefined) data['numberPrefix'] = dto.numberPrefix.trim() || null;
@@ -66,7 +65,6 @@ export class DocumentSettingsService {
     }
     return {
       type,
-      enabled: stored.enabled,
       printTitle: stored.printTitle?.trim() || defaults.printTitle,
       autoNumbering: stored.autoNumbering,
       numberPrefix: stored.numberPrefix?.trim() || defaults.numberPrefix,

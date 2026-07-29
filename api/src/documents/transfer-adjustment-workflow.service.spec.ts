@@ -79,7 +79,6 @@ function createPrismaMock() {
 function createService(prisma: ReturnType<typeof createPrismaMock>, settingOverrides = {}) {
   const settings = {
     getResolved: vi.fn().mockResolvedValue({
-      enabled: true,
       ...settingOverrides,
     }),
   };

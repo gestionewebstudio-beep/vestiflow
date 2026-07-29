@@ -190,11 +190,6 @@ export class GoodsReceiptWorkflowService {
     }
 
     const setting = await this.settings.getResolved(tenantId, dto.type);
-    if (!setting.enabled) {
-      throw new UnprocessableEntityException(
-        `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
-      );
-    }
 
     if ((SUPPLIER_REQUIRED_TYPES as readonly string[]).includes(dto.type) && !dto.supplierId) {
       throw new UnprocessableEntityException(
@@ -755,11 +750,6 @@ export class GoodsReceiptWorkflowService {
     user?: UserProfileDto,
   ): Promise<PurchaseInvoiceSaveResult> {
     const setting = await this.settings.getResolved(tenantId, DocumentType.supplier_invoice);
-    if (!setting.enabled) {
-      throw new UnprocessableEntityException(
-        `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
-      );
-    }
     await this.assertSupplier(tenantId, dto.supplierId);
 
     const receiptIds = [...new Set(dto.goodsReceiptIds ?? [])];

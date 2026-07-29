@@ -725,11 +725,6 @@ export class DocumentsService {
     series?: string | null,
   ): Promise<{ reference: string; previewNumber: number; series: string | null }> {
     const setting = await this.settings.getResolved(tenantId, type);
-    if (!setting.enabled) {
-      throw new UnprocessableEntityException(
-        `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
-      );
-    }
     // Serie scelta in testata (se passata) o quella del contatore predefinito.
     const resolvedSeries =
       series !== undefined
@@ -808,11 +803,6 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
     const setting = await this.settings.getResolved(tenantId, dto.type);
-    if (!setting.enabled) {
-      throw new UnprocessableEntityException(
-        `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
-      );
-    }
 
     await this.assertCounterparties(tenantId, dto);
     if (dto.supplierOrderId) {
@@ -1159,11 +1149,6 @@ export class DocumentsService {
       );
     }
     const setting = await this.settings.getResolved(tenantId, original.type);
-    if (!setting.enabled) {
-      throw new UnprocessableEntityException(
-        `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
-      );
-    }
 
     // Data odierna come stringa ISO (solo giorno): stesso parsing usato per
     // dto.documentDate altrove, nessuno slittamento di fuso orario.
@@ -2326,13 +2311,6 @@ export class DocumentsService {
     }
     if (source.lines.length === 0) {
       throw new UnprocessableEntityException('Il documento non ha righe da convertire.');
-    }
-
-    const targetSetting = await this.settings.getResolved(tenantId, dto.targetType);
-    if (!targetSetting.enabled) {
-      throw new UnprocessableEntityException(
-        `Il tipo documento "${targetSetting.printTitle}" non è abilitato per questa azienda.`,
-      );
     }
 
     const sourceRef =

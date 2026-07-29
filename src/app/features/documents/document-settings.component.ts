@@ -35,7 +35,6 @@ import {
 } from './services/document-settings.service';
 
 interface SettingFormControls {
-  readonly enabled: FormControl<boolean>;
   readonly printTitle: FormControl<string>;
   readonly numberPrefix: FormControl<string>;
   readonly pricesIncludeVat: FormControl<boolean>;
@@ -169,7 +168,6 @@ export class DocumentSettingsComponent {
     }
     const value = row.form.getRawValue();
     const patch: DocumentTypeSettingPatch = {
-      enabled: value.enabled,
       printTitle: value.printTitle.trim(),
       numberPrefix: value.numberPrefix.trim(),
       pricesIncludeVat: value.pricesIncludeVat,
@@ -199,7 +197,6 @@ export class DocumentSettingsComponent {
       type: setting.type,
       label: documentTypeLabel(setting.type),
       form: this.fb.group<SettingFormControls>({
-        enabled: this.fb.control(setting.enabled),
         printTitle: this.fb.control(setting.printTitle),
         numberPrefix: this.fb.control(setting.numberPrefix),
         pricesIncludeVat: this.fb.control(setting.pricesIncludeVat),
@@ -209,14 +206,12 @@ export class DocumentSettingsComponent {
   }
 
   private toFormValue(setting: DocumentTypeSetting): {
-    enabled: boolean;
     printTitle: string;
     numberPrefix: string;
     pricesIncludeVat: boolean;
     defaultNotes: string;
   } {
     return {
-      enabled: setting.enabled,
       printTitle: setting.printTitle,
       numberPrefix: setting.numberPrefix,
       pricesIncludeVat: setting.pricesIncludeVat,

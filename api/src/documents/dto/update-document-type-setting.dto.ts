@@ -3,10 +3,6 @@ import { IsBoolean, IsOptional, IsString, Length, MaxLength } from 'class-valida
 /** Configurazione di un tipo documento (§2.2). Tutti i campi opzionali (patch). */
 export class UpdateDocumentTypeSettingDto {
   @IsOptional()
-  @IsBoolean()
-  enabled?: boolean;
-
-  @IsOptional()
   @IsString()
   @MaxLength(120)
   printTitle?: string;

@@ -9,7 +9,6 @@ const HTTP_TIMEOUT_MS = 15000;
 
 /** Aggiornamento parziale della configurazione di un tipo documento (§2.2). */
 export interface DocumentTypeSettingPatch {
-  readonly enabled?: boolean;
   readonly printTitle?: string;
   readonly autoNumbering?: boolean;
   readonly numberPrefix?: string;

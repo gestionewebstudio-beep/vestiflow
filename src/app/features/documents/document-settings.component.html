@@ -23,10 +23,6 @@
           <form [formGroup]="row.form" (ngSubmit)="save(row)">
             <div class="doc-settings__card-head">
               <h2 class="doc-settings__card-title">{{ row.label }}</h2>
-              <label class="doc-settings__switch">
-                <input type="checkbox" formControlName="enabled" />
-                <span>Abilitato</span>
-              </label>
             </div>
 
             <div class="doc-settings__fields">

@@ -135,11 +135,6 @@ export class SupplierOrdersService {
     }
 
     const setting = await this.documentSettings.getResolved(tenantId, DocumentType.supplier_order);
-    if (!setting.enabled) {
-      throw new UnprocessableEntityException(
-        `Il tipo documento "${setting.printTitle}" non è abilitato per questa azienda.`,
-      );
-    }
 
     const costEntryMode = dto.costEntryMode ?? 'vat_excluded';
     const computedLines = await this.computeLines(tenantId, dto.lines, costEntryMode);

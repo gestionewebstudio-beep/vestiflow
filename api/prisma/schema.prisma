@@ -1666,7 +1666,6 @@ model DocumentTypeSetting {
   id                String       @id @default(uuid()) @db.Uuid
   tenantId          String       @map("tenant_id") @db.Uuid
   type              DocumentType
-  enabled           Boolean      @default(true)
   /// Titolo personalizzato del PDF/stampa ("Documento di trasporto", "Arrivo merce", ...).
   printTitle        String?      @map("print_title")
   autoNumbering     Boolean      @default(true) @map("auto_numbering")

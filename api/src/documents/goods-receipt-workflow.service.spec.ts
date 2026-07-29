@@ -126,7 +126,6 @@ function createService(prisma: ReturnType<typeof createPrismaMock>) {
   const settings = {
     getResolved: vi.fn().mockResolvedValue({
       type: DocumentType.goods_receipt,
-      enabled: true,
       printTitle: 'Arrivo merce',
       autoNumbering: true,
       numberPrefix: 'AM',

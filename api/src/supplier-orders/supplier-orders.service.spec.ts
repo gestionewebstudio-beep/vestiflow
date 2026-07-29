@@ -36,7 +36,6 @@ describe('SupplierOrdersService', () => {
     return {
       getResolved: vi.fn().mockResolvedValue({
         type: 'supplier_order',
-        enabled: true,
         printTitle: 'Ordine fornitore',
         autoNumbering: true,
         numberPrefix: 'OF',
