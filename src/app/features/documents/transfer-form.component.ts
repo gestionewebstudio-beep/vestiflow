@@ -136,7 +136,48 @@ export class TransferFormComponent {
     }));
 
     // Carica i contatori disponibili (tendina serie) e propone il predefinito.
-    afterNextRender(() => this.refreshNumberProposal());
+    afterNextRender(() => {
+      this.refreshNumberProposal();
+      this.prefillFromDuplicateIfRequested();
+    });
+  }
+
+  /**
+   * «Duplica documento» (Fase 3, no bozze): il param `duplicateFrom` porta il
+   * trasferimento originale, copiato in un documento NUOVO. Nessuna copia nasce
+   * a monte: si crea (confermato) solo al salvataggio.
+   */
+  private prefillFromDuplicateIfRequested(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const duplicateFrom = this.route.snapshot.queryParamMap.get('duplicateFrom');
+    if (!duplicateFrom) {
+      return;
+    }
+    this.documentService
+      .getDocumentById(duplicateFrom)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => this.applyDuplicatePrefill(doc),
+        error: () => undefined,
+      });
+  }
+
+  private applyDuplicatePrefill(doc: DocumentRecord): void {
+    this.patchFormFromDocument(doc);
+    // Documento nuovo indipendente: azzera numero, serie e data dell'originale.
+    this.form.patchValue({
+      documentNumber: null,
+      series: '',
+      documentDate: new Date().toISOString().slice(0, 10),
+    });
+    // Righe copiate come nuove: nessun id riga dell'originale, così il
+    // salvataggio non aggancia i movimenti del documento di partenza.
+    for (const line of this.lines.controls) {
+      line.get('id')?.setValue(null);
+    }
+    this.refreshNumberProposal();
   }
 
   protected readonly listPath = '/app/documents';
@@ -615,7 +656,10 @@ export class TransferFormComponent {
       ? this.documentService.updateDocument(editId, body)
       : this.documentService.createDocument(body);
 
-    return confirmAfterSave
+    // Nascita-confermato (Fase 3): un trasferimento NUOVO nasce già confermato
+    // dal create — non si richiama la conferma. Resta solo per l'edit di una
+    // bozza residua (ponte finché «Duplica apre il form» non toglie le bozze).
+    return confirmAfterSave && editId
       ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
       : save$;
   }

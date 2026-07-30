@@ -28,6 +28,7 @@ import type { Paginated } from '../common/dto/pagination.dto';
 import { attachmentDownloadFilename } from '../common/attachments/attachment-rules.util';
 import { documentAttachmentUploadMulterOptions } from '../common/upload/multer-upload.options';
 import { AttachmentsService } from '../attachments/attachments.service';
+import type { CreateDocumentDto } from '../documents/dto/create-document.dto';
 import { RenameAttachmentDto } from '../common/attachments/dto/rename-attachment.dto';
 import { ConcludeManualSalesOrderDto } from './dto/conclude-manual-sales-order.dto';
 import { DuplicateManualSalesOrderDto } from './dto/duplicate-manual-sales-order.dto';
@@ -127,6 +128,22 @@ export class SalesOrdersController {
     @Body() dto: ConcludeManualSalesOrderDto,
   ): Promise<ConcludeManualOrderResult> {
     return this.manualOrders.conclude(tenantId, id, dto.documentType, user);
+  }
+
+  /**
+   * «Concludi ordine» senza bozza: restituisce il documento di scarico
+   * precompilato (CreateDocumentDto) da cui il frontend apre il form di
+   * destinazione. Nessun documento nasce qui: si crea solo al salvataggio.
+   */
+  @Post('manual/:id/conclude-prefill')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  concludeManualPrefill(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ConcludeManualSalesOrderDto,
+  ): Promise<CreateDocumentDto> {
+    return this.manualOrders.concludePrefill(tenantId, id, dto.documentType, user);
   }
 
   /** Forza a Concluso un ordine Parzialmente concluso (prompt DDT). */

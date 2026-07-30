@@ -67,7 +67,7 @@ import {
   isGoodsReceiptDocumentType,
 } from './models/document-goods-receipt.util';
 import { documentStatusLabel, documentTypeLabel } from './models/document-labels.util';
-import { documentEditPath } from './models/document-routing.util';
+import { documentDuplicateFormRoute, documentEditPath } from './models/document-routing.util';
 import {
   DOCUMENT_LIST_COLUMN_DEFS,
   DOCUMENT_LIST_COLUMN_PRESETS,
@@ -974,6 +974,14 @@ export class DocumentListComponent {
    * controparte è il cliente; gli altri tipi duplicano direttamente.
    */
   protected duplicateDocument(doc: DocumentRecord): void {
+    // Fase 3 (no bozze): i tipi con form migrato aprono il form nuovo
+    // precompilato (`?duplicateFrom`) — la controparte si sceglie nel form,
+    // niente più modale né copia-bozza a monte.
+    const duplicateRoute = documentDuplicateFormRoute(doc.type);
+    if (duplicateRoute) {
+      void this.router.navigate([duplicateRoute], { queryParams: { duplicateFrom: doc.id } });
+      return;
+    }
     if (isGoodsReceiptDocumentType(doc.type)) {
       this.openDuplicateModal(doc, 'supplier', doc.supplierId ?? null);
       return;

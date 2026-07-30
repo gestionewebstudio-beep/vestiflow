@@ -336,6 +336,17 @@ export class DocumentService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
+  /**
+   * Prefill di conversione: dati del documento generato (testata + righe +
+   * `sourceDocumentId`) SENZA crearlo. Il form di destinazione si apre già
+   * precompilato e crea il documento solo al salvataggio.
+   */
+  convertPrefill(id: EntityId, targetType: DocumentType): Observable<CreateDocumentBody> {
+    return this.http
+      .post<CreateDocumentBody>(this.url(`/documents/${id}/convert-prefill`), { targetType })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   deleteDocument(id: EntityId): Observable<void> {
     return this.http.delete<void>(this.url(`/documents/${id}`)).pipe(timeout(HTTP_TIMEOUT_MS));
   }

@@ -9,6 +9,7 @@ import { ApiHttpClient } from '@core/http/api-http.client';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
+import type { CreateDocumentBody } from '@features/documents/services/document-api.mapper';
 
 import type {
   SalesOrderListQuery,
@@ -202,6 +203,19 @@ export class SalesOrderService {
   concludeManualOrder(id: EntityId, documentType: string): Observable<ConcludeManualOrderResult> {
     return this.http
       .post<ConcludeManualOrderResult>(this.url(`/sales-orders/manual/${id}/conclude`), {
+        documentType,
+      })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /**
+   * «Concludi ordine» senza bozza: chiede il documento di scarico precompilato
+   * (testata + righe + aggancio ordine) da cui il form di destinazione si apre.
+   * Nessun documento nasce qui: si crea solo al salvataggio del form.
+   */
+  concludeManualPrefill(id: EntityId, documentType: string): Observable<CreateDocumentBody> {
+    return this.http
+      .post<CreateDocumentBody>(this.url(`/sales-orders/manual/${id}/conclude-prefill`), {
         documentType,
       })
       .pipe(timeout(HTTP_TIMEOUT_MS));

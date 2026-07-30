@@ -43,7 +43,7 @@ import {
 } from './models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { isPrintableDocumentType } from './models/document-print.util';
-import { documentEditPath } from './models/document-routing.util';
+import { documentDuplicateFormRoute, documentEditPath } from './models/document-routing.util';
 import { isTransferDocumentType } from './models/document-transfer.util';
 import {
   isAdjustmentDocumentType,
@@ -674,6 +674,14 @@ export class DocumentDetailComponent {
     if (!doc || this.actionSaving()) {
       return;
     }
+    // Generazione = «apre il form di destinazione precompilato»: non si crea nulla
+    // a monte, si naviga al form nuovo con l'origine da cui precompilare.
+    const targetRoute = this.convertTargetRoute(targetType);
+    if (targetRoute) {
+      void this.router.navigate([targetRoute], { queryParams: { fromDocument: doc.id } });
+      return;
+    }
+    // Target ancora senza form-prefill (es. DDT): percorso legacy con creazione.
     this._actionState.set({ status: 'saving' });
     this.actionSubscription = this.service
       .convertDocument(doc.id, targetType)
@@ -687,6 +695,19 @@ export class DocumentDetailComponent {
           this._actionState.set({ status: 'error', error: this.toAppError(err) });
         },
       });
+  }
+
+  private convertTargetRoute(targetType: DocumentType): string | null {
+    switch (targetType) {
+      case DocumentType.InvoiceDraft:
+        return '/app/documents/fattura/new';
+      case DocumentType.Proforma:
+        return '/app/documents/proforma/new';
+      case DocumentType.SalesDdt:
+        return '/app/documents/sales-ddt/new';
+      default:
+        return null;
+    }
   }
 
   protected requestConfirm(): void {
@@ -737,10 +758,19 @@ export class DocumentDetailComponent {
     this.runAction((id) => this.service.cancelDocument(id));
   }
 
-  /** Duplica documento (§2a): naviga alla copia appena creata, subito modificabile. */
+  /**
+   * Duplica documento (§2a). Fase 3 (no bozze): per i tipi con form migrato si
+   * apre il form nuovo precompilato (`?duplicateFrom`), senza creare nulla; i
+   * tipi non ancora migrati restano sul percorso legacy (copia bozza + modifica).
+   */
   protected duplicateDocument(): void {
     const doc = this.document();
     if (!doc || this.actionSaving()) {
+      return;
+    }
+    const duplicateRoute = documentDuplicateFormRoute(doc.type);
+    if (duplicateRoute) {
+      void this.router.navigate([duplicateRoute], { queryParams: { duplicateFrom: doc.id } });
       return;
     }
     this._actionState.set({ status: 'saving' });

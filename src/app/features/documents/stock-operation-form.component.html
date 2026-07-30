@@ -228,9 +228,6 @@
             >Salva modifiche</app-button
           >
         } @else {
-          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="saveDraft()">
-            Salva bozza
-          </app-button>
           <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
         }
       </div>

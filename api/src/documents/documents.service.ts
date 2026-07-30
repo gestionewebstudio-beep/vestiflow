@@ -861,11 +861,14 @@ export class DocumentsService {
       (await this.snapshotCustomerName(tenantId, dto.customerId)) ??
       (dto.customerName?.trim() || null);
 
-    return this.prisma
+    // Nascita-confermato (Fase 3): il documento si crea e si conferma in
+    // un'unica transazione. `syncTargets` raccoglie i push inventario a valle.
+    const syncTargets: Array<{ variantId: string; locationId: string }> = [];
+    const confirmed = await this.prisma
       .$transaction(async (tx) => {
-        // Numero imposto dalla testata: si assegna già in bozza (il vincolo
-        // unico lo verifica subito). Senza numero resta null e lo assegna la
-        // conferma, prendendo il primo libero della serie.
+        // Numero imposto dalla testata: si assegna subito (il vincolo unico lo
+        // verifica). Senza numero lo assegna la conferma in-transazione,
+        // prendendo il primo libero della serie.
         const series =
           dto.series !== undefined
             ? (dto.series ?? '').trim() || null
@@ -944,13 +947,28 @@ export class DocumentsService {
           await this.syncIncludedSalesOrdersTx(tx, tenantId, created, dto.includedSalesOrderIds);
         }
 
-        return created;
+        // Conferma nella STESSA transazione: numero + effetti magazzino per tipo
+        // + conclusione ordini agganciati + status confermato. L'aggancio ordini
+        // (sopra) precede la conferma, che li porta a Concluso.
+        return this.confirmDocumentTx(tx, tenantId, created.id, user, syncTargets, created);
       })
       .catch(async (error: unknown) => {
         // Numero imposto già preso: 409 con il primo libero da proporre.
         await this.throwNumberConflict(error, tenantId, dto.type, dto.series);
         throw error;
       });
+
+    // Push inventario ai canali (Shopify/TikTok) a valle del commit: la sync
+    // legge la giacenza, quindi va fatta dopo che la transazione è chiusa.
+    for (const entry of syncTargets) {
+      try {
+        await this.channelSync.pushInventoryLevels(tenantId, entry.variantId, [entry.locationId]);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Push inventario canale fallito';
+        this.logger.warn(`Push inventario non riuscito (${tenantId}): ${message}`);
+      }
+    }
+    return confirmed;
   }
 
   /**
@@ -1069,10 +1087,16 @@ export class DocumentsService {
     orderIds: readonly string[],
   ): Promise<Array<{ variantId: string; locationId: string }>> {
     const uniqueIds = [...new Set(orderIds)];
-    if (doc.type !== DocumentType.sales_ddt) {
+    // DDT vendita e Fattura accompagnatoria concludono un ordine cliente
+    // agganciandolo (la fattura accompagnatoria via «Concludi ordine»): alla
+    // conferma l'impegno dell'OC viene rilasciato e il documento scarica al
+    // suo posto. Gli altri tipi non agganciano ordini.
+    const canAttachOrders =
+      doc.type === DocumentType.sales_ddt || doc.type === DocumentType.invoice_accompanying;
+    if (!canAttachOrders) {
       if (uniqueIds.length > 0) {
         throw new UnprocessableEntityException(
-          'Solo il DDT vendita può agganciare ordini cliente.',
+          'Solo DDT vendita e fattura accompagnatoria possono agganciare ordini cliente.',
         );
       }
       return [];
@@ -1101,12 +1125,12 @@ export class DocumentsService {
       }
       if (order.source !== SalesOrderSource.manual) {
         throw new UnprocessableEntityException(
-          `L'ordine ${order.orderNumber} non è un ordine manuale: non può essere agganciato al DDT.`,
+          `L'ordine ${order.orderNumber} non è un ordine manuale: non può essere agganciato al documento.`,
         );
       }
       if (order.cancelledAt) {
         throw new UnprocessableEntityException(
-          `L'ordine ${order.orderNumber} è annullato: non può essere agganciato al DDT.`,
+          `L'ordine ${order.orderNumber} è annullato: non può essere agganciato al documento.`,
         );
       }
       if (order.documentId && order.documentId !== doc.id) {
@@ -2105,13 +2129,18 @@ export class DocumentsService {
     id: string,
     user: UserProfileDto | undefined,
     syncTargets: Array<{ variantId: string; locationId: string }>,
+    // Nascita-confermato: il documento appena creato è passato qui direttamente,
+    // così la conferma non lo rilegge (stessa transazione, stesso record).
+    preloaded?: DocumentWithLines,
   ): Promise<DocumentWithLines> {
     const actorName = user?.displayName ?? 'API';
     const actorId = user?.id ?? null;
-    const doc = await tx.document.findFirst({
-      where: { id, tenantId },
-      include: { lines: { orderBy: { lineNumber: 'asc' } } },
-    });
+    const doc =
+      preloaded ??
+      (await tx.document.findFirst({
+        where: { id, tenantId },
+        include: { lines: { orderBy: { lineNumber: 'asc' } } },
+      }));
     if (!doc) {
       throw new NotFoundException('Documento non trovato');
     }

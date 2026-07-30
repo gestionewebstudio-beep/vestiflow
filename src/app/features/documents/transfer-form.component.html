@@ -213,10 +213,7 @@
             >Salva modifiche</app-button
           >
         } @else {
-          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="saveDraft()">
-            Salva bozza
-          </app-button>
-          <app-button type="submit" [disabled]="saving()">Conferma e trasferisci</app-button>
+          <app-button type="submit" [disabled]="saving()">Salva trasferimento</app-button>
         }
       </div>
     </form>

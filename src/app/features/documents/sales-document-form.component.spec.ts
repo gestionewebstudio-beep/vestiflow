@@ -11,6 +11,7 @@ import { OperationalLocationsService } from '@core/services/operational-location
 import { VatCodeService } from '@core/services/vat-code.service';
 import { CustomerService } from '@features/customers/services/customer.service';
 import { ProductService } from '@features/products/services/product.service';
+import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
 import { TenantCompanyService } from '@features/settings/services/tenant-company.service';
 import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
 
@@ -60,6 +61,8 @@ describe('SalesDocumentFormComponent', () => {
           useValue: { getCustomers: () => of({ data: [], page: 1, pageSize: 100, total: 0 }) },
         },
         { provide: ProductService, useValue: { searchVariantSummaries: () => of([]) } },
+        // Iniettato per la generazione «Concludi ordine → Fattura accompagnatoria».
+        { provide: SalesOrderService, useValue: { concludeManualPrefill: vi.fn() } },
         { provide: VatCodeService, useValue: { list: () => of([]) } },
         { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
         // Dati cedente: alimentano l'IBAN precompilato in fattura.

@@ -21,6 +21,7 @@ import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { partyDisplayName } from '../common/party/party.util';
 import { DOCUMENT_STOCK_UNLOAD_TYPES } from '../documents/document-stock.constants';
 import { DocumentSettingsService } from '../documents/document-settings.service';
+import type { CreateDocumentDto } from '../documents/dto/create-document.dto';
 import { formatDocumentReference } from '../documents/document-totals.util';
 import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
 import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
@@ -548,6 +549,91 @@ export class ManualSalesOrdersService {
       `Concludi ordine ${order.orderNumber}: creato ${type} ${document.id} (${tenantId})`,
     );
     return { documentId: document.id, documentType: document.type };
+  }
+
+  /**
+   * «Concludi ordine» senza bozza: costruisce il documento di scarico
+   * precompilato (testata + righe con prezzi già scontati, IVA, aggancio
+   * ordine) e lo RESTITUISCE come CreateDocumentDto, senza creare nulla. Il
+   * frontend apre il form di destinazione precompilato; il salvataggio crea e
+   * conferma il documento in un'unica transazione, aggancia l'ordine
+   * (includedSalesOrderIds) e — alla conferma — lo porta a Concluso.
+   */
+  async concludePrefill(
+    tenantId: string,
+    orderId: string,
+    documentType: string,
+    user?: UserProfileDto,
+  ): Promise<CreateDocumentDto> {
+    if (!(DOCUMENT_STOCK_UNLOAD_TYPES as readonly string[]).includes(documentType)) {
+      throw new UnprocessableEntityException(
+        'Tipo documento di scarico non disponibile in VestiFlow.',
+      );
+    }
+    const type = documentType as DocumentType;
+
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: orderId, tenantId },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
+    });
+    if (!order) {
+      throw new NotFoundException('Ordine cliente non trovato');
+    }
+    if (order.source !== SalesOrderSource.manual) {
+      throw new ConflictException('Solo gli ordini manuali si concludono da questa maschera.');
+    }
+    if (order.cancelledAt) {
+      throw new ConflictException('Un ordine annullato non può essere concluso.');
+    }
+    if (order.fulfilledAt) {
+      throw new ConflictException('Ordine già concluso.');
+    }
+    if (!order.locationId) {
+      throw new UnprocessableEntityException(
+        "Assegna la location di origine all'ordine prima di concluderlo.",
+      );
+    }
+    if (order.documentId) {
+      const linked = await this.prisma.document.findFirst({
+        where: { id: order.documentId, tenantId },
+        select: { status: true, reference: true },
+      });
+      if (linked && linked.status !== DocumentStatus.cancelled) {
+        throw new ConflictException(
+          `L'ordine ${order.orderNumber} è già collegato a un documento${
+            linked.reference ? ` (${linked.reference})` : ''
+          }.`,
+        );
+      }
+    }
+    if (user) {
+      assertLocationInUserScope(user, order.locationId, 'write');
+    }
+
+    return {
+      type,
+      documentDate: new Date().toISOString(),
+      customerId: order.customerId ?? undefined,
+      locationId: order.locationId,
+      currency: order.currency,
+      notes: order.notes ?? undefined,
+      externalRef: order.externalRef ?? undefined,
+      internalComment: `Generato da Concludi ordine ${order.orderNumber}`,
+      documentDiscountPercent: order.documentDiscountPercent,
+      includedSalesOrderIds: [order.id],
+      lines: order.lines.map((line) => ({
+        variantId: line.variantId ?? undefined,
+        sku: line.sku || undefined,
+        description: line.title,
+        quantity: line.quantity,
+        // Prezzo unitario SCONTATO (cascata già applicata alla riga ordine):
+        // il documento di scarico eredita i prezzi reali, sconto riga a 0.
+        unitPriceMinor: line.quantity > 0 ? Math.round(line.totalMinor / line.quantity) : 0,
+        discountPercent: 0,
+        vatCodeId: line.vatCodeId ?? undefined,
+        loadsStock: line.commitsStock && Boolean(line.variantId),
+      })),
+    };
   }
 
   /**

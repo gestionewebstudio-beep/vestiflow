@@ -92,6 +92,8 @@ import {
   transportDataIncomplete,
 } from './models/document-transport.util';
 import { DocumentService } from './services/document.service';
+import type { CreateDocumentBody } from './services/document-api.mapper';
+import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
 import { DocumentCountersService } from './services/document-counters.service';
 import type { DocumentCounterView } from './models/document-counter.model';
 import { pickVatCodeId, toVatCodeById } from './utils/vat-code-resolution.util';
@@ -132,6 +134,7 @@ export class SalesDocumentFormComponent {
   private readonly editLock = inject(DocumentEditLockService);
   private readonly authService = inject(AuthService);
   private readonly documentService = inject(DocumentService);
+  private readonly salesOrderService = inject(SalesOrderService);
   private readonly countersService = inject(DocumentCountersService);
   private readonly customerService = inject(CustomerService);
   private readonly productService = inject(ProductService);
@@ -157,6 +160,13 @@ export class SalesDocumentFormComponent {
   protected readonly isEditMode = computed(() => Boolean(this.editDocumentId()));
 
   private readonly loadedDocument = signal<DocumentRecord | null>(null);
+  /** Documento d'origine, se il form è aperto precompilato da una conversione. */
+  private readonly _sourceDocumentId = signal<string | null>(null);
+  /**
+   * Ordini cliente agganciati (Concludi ordine → Fattura accompagnatoria):
+   * inviati al salvataggio, si concludono alla conferma del documento.
+   */
+  private readonly _includedSalesOrderIds = signal<readonly string[]>([]);
 
   protected readonly documentType = computed(() => {
     const loaded = this.loadedDocument()?.type;
@@ -201,9 +211,9 @@ export class SalesDocumentFormComponent {
   protected readonly includeLaunchSeq = signal(0);
 
   protected readonly confirmDialogMessage = computed(() => {
-    const base = 'Confermando verrà assegnato il numero progressivo.';
+    const base = 'Salvando verrà assegnato il numero progressivo e il documento sarà definitivo.';
     // L'accompagnatoria senza DDT scarica davvero le giacenze: dirlo prima
-    // della conferma, non dopo.
+    // del salvataggio, non dopo.
     if (this.showLoadsStockColumn()) {
       return `${base} Le righe con «Scarica mag.» attivo scaricheranno le giacenze. Procedere?`;
     }
@@ -213,11 +223,11 @@ export class SalesDocumentFormComponent {
     return `${base} Il documento non muove il magazzino. Procedere?`;
   });
 
-  protected readonly confirmDialogTitle = computed(() => 'Conferma documento');
+  protected readonly confirmDialogTitle = computed(() => 'Salva documento');
 
-  protected readonly confirmButtonLabel = computed(() => 'Conferma');
+  protected readonly confirmButtonLabel = computed(() => 'Salva');
 
-  protected readonly submitConfirmLabel = computed(() => 'Conferma documento');
+  protected readonly submitConfirmLabel = computed(() => 'Salva');
 
   protected readonly isConfirmedEdit = computed(() => {
     const doc = this.loadedDocument();
@@ -621,7 +631,12 @@ export class SalesDocumentFormComponent {
   constructor() {
     // Carica i contatori disponibili (tendina serie); su documento nuovo
     // propone il predefinito, in modifica resta il numero già assegnato.
-    afterNextRender(() => this.refreshNumberProposal());
+    afterNextRender(() => {
+      this.refreshNumberProposal();
+      this.prefillFromConversionIfRequested();
+      this.prefillFromIncludedOrderIfRequested();
+      this.prefillFromDuplicateIfRequested();
+    });
 
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
@@ -1079,6 +1094,13 @@ export class SalesDocumentFormComponent {
     const raw = this.form.getRawValue();
     const body = {
       type: this.documentType(),
+      // Conversione: collega il documento generato all'origine (proforma/DDT).
+      sourceDocumentId: this._sourceDocumentId() ?? undefined,
+      // Concludi ordine → Fattura accompagnatoria: aggancia l'ordine di origine,
+      // che alla conferma del documento passa a Concluso (il resto lo ignora).
+      ...(this._includedSalesOrderIds().length > 0
+        ? { includedSalesOrderIds: this._includedSalesOrderIds() }
+        : {}),
       documentDate: new Date(raw.documentDate).toISOString(),
       customerId: raw.customerId,
       currency: this.currency,
@@ -1102,6 +1124,9 @@ export class SalesDocumentFormComponent {
         : {}),
       ...(this.isInvoiceAccompanying()
         ? {
+            // La Fattura accompagnatoria scarica il magazzino (senza DDT
+            // agganciato): la location di origine è obbligatoria per lo scarico.
+            locationId: raw.locationId || undefined,
             transportCausal: raw.transportCausal.trim() || undefined,
             transportStartAt: raw.transportStartAt
               ? new Date(raw.transportStartAt).toISOString()
@@ -1152,8 +1177,12 @@ export class SalesDocumentFormComponent {
       ? this.documentService.updateDocument(editId, body)
       : this.documentService.createDocument(body);
 
+    // Nascita-confermato (Fase 3): un documento NUOVO nasce già confermato dal
+    // create — non si richiama la conferma (fallirebbe: non è più in bozza). La
+    // conferma post-salvataggio resta solo per l'edit di una bozza residua
+    // (ponte finché «Duplica apre il form» non elimina l'ultima fonte di bozze).
     const request$ =
-      confirmAfterSave && !this.isConfirmedEdit()
+      confirmAfterSave && editId && !this.isConfirmedEdit()
         ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
         : save$;
 
@@ -1240,6 +1269,142 @@ export class SalesDocumentFormComponent {
   protected dismissConflictDialog(): void {
     this.conflictDialogOpen.set(false);
     this.numberConflict.set(null);
+  }
+
+  /**
+   * Apertura precompilata da una conversione (proforma/DDT → fattura/proforma):
+   * il param `fromDocument` chiede al backend il prefill (testata + righe +
+   * `sourceDocumentId`) senza creare nulla. Il documento nasce solo al Salva.
+   */
+  private prefillFromConversionIfRequested(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const fromDocument = this.route.snapshot.queryParamMap.get('fromDocument');
+    if (!fromDocument) {
+      return;
+    }
+    this.documentService
+      .convertPrefill(fromDocument, this.documentType())
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (prefill) => this.prefillFromConversion(prefill),
+        error: () => undefined,
+      });
+  }
+
+  /**
+   * «Concludi ordine» → Fattura accompagnatoria: il param `includeOrder` porta
+   * l'ordine cliente da concludere. Il backend restituisce il documento di
+   * scarico precompilato (righe già scontate, IVA, aggancio ordine); il form si
+   * apre pronto e il salvataggio crea+conferma+conclude in un'unica transazione.
+   */
+  private prefillFromIncludedOrderIfRequested(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const includeOrder = this.route.snapshot.queryParamMap.get('includeOrder');
+    if (!includeOrder) {
+      return;
+    }
+    this.salesOrderService
+      .concludeManualPrefill(includeOrder, this.documentType())
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (prefill) => this.prefillFromConversion(prefill),
+        error: () => undefined,
+      });
+  }
+
+  /**
+   * «Duplica documento» (Fase 3, no bozze): il param `duplicateFrom` porta il
+   * documento originale, di cui si copia il contenuto in un documento NUOVO —
+   * nessuna copia nasce a monte, si crea (confermato) solo al salvataggio.
+   */
+  private prefillFromDuplicateIfRequested(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const duplicateFrom = this.route.snapshot.queryParamMap.get('duplicateFrom');
+    if (!duplicateFrom) {
+      return;
+    }
+    this.documentService
+      .getDocumentById(duplicateFrom)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => this.applyDuplicatePrefill(doc),
+        error: () => undefined,
+      });
+  }
+
+  private applyDuplicatePrefill(doc: DocumentRecord): void {
+    this.patchFormFromDocument(doc);
+    // Documento indipendente: si azzerano identità e collegamenti dell'originale
+    // (numero, serie, riferimenti, DDT agganciati); la data è quella odierna.
+    this.form.patchValue({
+      documentNumber: null,
+      series: '',
+      documentDate: new Date().toISOString().slice(0, 10),
+      relatedDdtRef: '',
+    });
+    this.linkedDdtIds.set([]);
+    this._sourceDocumentId.set(null);
+    this._includedSalesOrderIds.set([]);
+    this.refreshNumberProposal();
+  }
+
+  private prefillFromConversion(prefill: CreateDocumentBody): void {
+    this._sourceDocumentId.set(prefill.sourceDocumentId ?? null);
+    this._includedSalesOrderIds.set([...(prefill.includedSalesOrderIds ?? [])]);
+    this.form.patchValue({
+      customerId: prefill.customerId ?? '',
+      locationId: prefill.locationId ?? '',
+      documentDate: prefill.documentDate.slice(0, 10),
+      billingCause: prefill.billingCause ?? '',
+      relatedDdtRef: prefill.externalRef ?? '',
+      notes: prefill.notes ?? '',
+      internalComment: prefill.internalComment ?? '',
+      paymentTerms: prefill.paymentTerms ?? '',
+      documentDiscountPercent:
+        prefill.documentDiscountPercent && prefill.documentDiscountPercent > 0
+          ? String(prefill.documentDiscountPercent)
+          : '',
+    });
+    if (prefill.customerId) {
+      this.selectedCustomer.set(this.customers().find((c) => c.id === prefill.customerId) ?? null);
+    }
+    this.lines.clear();
+    for (const line of prefill.lines ?? []) {
+      this.lines.push(
+        this.fb.group({
+          variantId: this.fb.control(line.variantId ?? ''),
+          description: this.fb.control(line.description, { validators: [Validators.required] }),
+          quantity: this.fb.control(line.quantity, {
+            validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
+          }),
+          unitPrice: this.fb.control(
+            line.unitPriceMinor && line.unitPriceMinor > 0
+              ? moneyToDecimalString({
+                  amountMinor: line.unitPriceMinor,
+                  currencyCode: this.currency,
+                }).replace('.', ',')
+              : '',
+          ),
+          vatRatePercent: this.fb.control(
+            line.vatRatePercent != null ? String(line.vatRatePercent) : '',
+          ),
+          vatCodeId: this.fb.control(''),
+          discountPercent: this.fb.control(
+            line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
+          ),
+          loadsStock: this.fb.control(line.loadsStock ?? false),
+        }),
+      );
+    }
+    if (this.lines.length === 0) {
+      this.lines.push(this.createLine());
+    }
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {

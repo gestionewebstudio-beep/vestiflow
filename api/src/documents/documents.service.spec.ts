@@ -279,14 +279,25 @@ describe('DocumentsService', () => {
     // Numero imposto dalla testata (categoria A): si assegna già in bozza,
     // con il riferimento coerente. Senza numero resta null e lo assegna la
     // conferma prendendo il primo libero della serie.
+    // Nascita-confermato (Fase 3): create+conferma in un'unica transazione. Il
+    // mock di document.create restituisce la bozza (con riga) che la conferma
+    // in-transazione promuove; il tipo proforma non muove magazzino, così la
+    // conferma esegue solo numero + update. Le asserzioni restano sui dati del
+    // create, invariati dalla nascita-confermato.
     it('salva il numero imposto in testata e ne compone il riferimento', async () => {
       const { service } = createService(prisma, resolvedSetting({ numberPrefix: 'DDT' }));
-      prisma.document.create.mockResolvedValue({ id: 'doc-1', lines: [] });
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
 
       await service.create(tenantId, {
-        type: DocumentType.sales_ddt,
+        type: DocumentType.proforma,
         documentDate: '2026-03-01',
         number: 100,
+        lines: [{ description: 'Capo', quantity: 1, unitPriceMinor: 1000 }],
       });
 
       const data = prisma.document.create.mock.calls[0]![0]!.data;
@@ -296,13 +307,21 @@ describe('DocumentsService', () => {
 
     it('senza numero imposto lascia numero e riferimento alla conferma', async () => {
       const { service } = createService(prisma);
-      prisma.document.create.mockResolvedValue({ id: 'doc-1', lines: [] });
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
 
       await service.create(tenantId, {
-        type: DocumentType.sales_ddt,
+        type: DocumentType.proforma,
         documentDate: '2026-03-01',
+        lines: [{ description: 'Capo', quantity: 1, unitPriceMinor: 1000 }],
       });
 
+      // Al momento del create il numero resta null: lo assegna la conferma
+      // in-transazione (qui verifichiamo che il create parta senza numero).
       const data = prisma.document.create.mock.calls[0]![0]!.data;
       expect(data.number).toBeNull();
       expect(data.reference).toBeNull();
@@ -310,10 +329,15 @@ describe('DocumentsService', () => {
 
     it('calcola totali riga e IVA con prezzi IVA esclusa', async () => {
       const { service } = createService(prisma);
-      prisma.document.create.mockResolvedValue({ id: 'doc-1', lines: [] });
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
 
       await service.create(tenantId, {
-        type: DocumentType.sales_ddt,
+        type: DocumentType.proforma,
         documentDate: '2026-03-01',
         lines: [
           { description: 'Maglia', quantity: 2, unitPriceMinor: 1000, vatRatePercent: 22 },
@@ -335,10 +359,15 @@ describe('DocumentsService', () => {
 
     it('scorpora l’IVA quando i prezzi sono IVA inclusa', async () => {
       const { service } = createService(prisma, resolvedSetting({ pricesIncludeVat: true }));
-      prisma.document.create.mockResolvedValue({ id: 'doc-2', lines: [] });
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-2',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-2', lines: [] });
 
       await service.create(tenantId, {
-        type: DocumentType.sales_ddt,
+        type: DocumentType.proforma,
         documentDate: '2026-03-01',
         lines: [{ description: 'Capo', quantity: 1, unitPriceMinor: 1220, vatRatePercent: 22 }],
       });
@@ -401,11 +430,19 @@ describe('DocumentsService', () => {
       'NON blocca la creazione generica di %s (nessun flusso dedicato di creazione)',
       async (type) => {
         const { service } = createService(prisma, resolvedSetting({ type }));
-        prisma.document.create.mockResolvedValue({ id: 'doc-x', lines: [] });
+        prisma.document.create.mockResolvedValue({
+          id: 'doc-x',
+          status: DocumentStatus.draft,
+          lines: [],
+        });
 
+        // Nascita-confermato: senza righe la conferma in-transazione rifiuta, ma
+        // il fatto che prisma.document.create sia stato invocato prova che il
+        // gate di tipo NON blocca transfer/adjustment (a differenza dei tipi
+        // arrivo merce, rifiutati PRIMA del create).
         await expect(
           service.create(tenantId, { type, documentDate: '2026-01-10' }),
-        ).resolves.toMatchObject({ id: 'doc-x' });
+        ).rejects.toBeInstanceOf(UnprocessableEntityException);
         expect(prisma.document.create).toHaveBeenCalled();
       },
     );

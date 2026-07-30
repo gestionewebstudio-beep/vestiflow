@@ -41,3 +41,33 @@ export function documentEditPath(doc: {
   }
   return `/app/documents/${doc.id}/edit`;
 }
+
+/**
+ * Rotta del form «nuovo» per la duplicazione «apre il form precompilato»
+ * (Fase 3, no bozze): duplicare naviga qui con `?duplicateFrom=<id>` e il form
+ * copia il contenuto dell'originale in un documento nuovo. Ritorna `null` per i
+ * tipi il cui form non supporta ancora il prefill di duplicazione: quelli
+ * restano sul percorso legacy (crea copia e naviga alla modifica).
+ */
+export function documentDuplicateFormRoute(type: DocumentTypeValue): string | null {
+  switch (type) {
+    case DocumentType.Proforma:
+      return '/app/documents/proforma/new';
+    case DocumentType.InvoiceDraft:
+      return '/app/documents/fattura/new';
+    case DocumentType.InvoiceAccompanying:
+      return '/app/documents/fattura-accompagnatoria/new';
+    case DocumentType.SalesDdt:
+      return '/app/documents/sales-ddt/new';
+    case DocumentType.Quote:
+      return '/app/documents/quote/new';
+    case DocumentType.ManualUnload:
+      return '/app/documents/manual-unload/new';
+    case DocumentType.Transfer:
+      return '/app/documents/transfer/new';
+    case DocumentType.Adjustment:
+      return '/app/documents/adjustment/new';
+    default:
+      return null;
+  }
+}

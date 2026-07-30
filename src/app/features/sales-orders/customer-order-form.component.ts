@@ -1124,6 +1124,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Menu «Genera documento» (Bozza fattura / Proforma, §GENERAZIONE). */
   protected readonly generateMenuOpen = signal(false);
   protected readonly generating = signal(false);
+  /**
+   * Conversione proforma→DDT: id del documento di origine da collegare
+   * (sourceDocumentId) quando il DDT viene salvato. Valorizzato dal prefill
+   * `?fromDocument`, resta null per un DDT creato da zero.
+   */
+  private readonly _sourceDocumentId = signal<string | null>(null);
 
   // ── F2: menu azioni ⋯ (mobile) + sconto documento a scomparsa ────────────
   protected readonly headerMenuOpen = signal(false);
@@ -1266,8 +1272,50 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       if (!this.editOrderId()) {
         this.refreshNumberProposal();
         this.prefillFromIncludedOrder();
+        this.prefillFromConversionDocument();
+        this.prefillFromDuplicateDocument();
       }
     });
+  }
+
+  /**
+   * «Duplica documento» (Fase 3, no bozze): il param `duplicateFrom` porta il
+   * documento originale (DDT vendita / scarico manuale), di cui si copia il
+   * contenuto in un documento NUOVO. Nessuna copia nasce a monte: si crea
+   * (confermato) solo al salvataggio.
+   */
+  private prefillFromDuplicateDocument(): void {
+    const duplicateFrom = this.route.snapshot.queryParamMap.get('duplicateFrom');
+    if (!duplicateFrom || !this.isRegistryDocument) {
+      return;
+    }
+    this.documentService
+      .getDocumentById(duplicateFrom)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => this.applyDuplicateFromDocument(doc),
+        error: () => undefined,
+      });
+  }
+
+  private applyDuplicateFromDocument(doc: DocumentRecord): void {
+    this.patchFormFromRegistryDocument(doc);
+    // Documento nuovo indipendente: si azzerano identità e riferimenti
+    // dell'originale (numero, serie, rif. esterno); la data è quella odierna.
+    this.suppressDirtyMarking = true;
+    try {
+      this.form.patchValue({
+        documentNumber: null,
+        series: '',
+        externalRef: '',
+        documentDate: new Date().toISOString().slice(0, 10),
+      });
+    } finally {
+      this.suppressDirtyMarking = false;
+    }
+    this._sourceDocumentId.set(null);
+    this.includedOrders.set([]);
+    this.refreshNumberProposal();
   }
 
   /**
@@ -1288,6 +1336,103 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         next: (order) => this.onDocumentIncluded(includedPayloadFromSalesOrder(order)),
         error: () => undefined,
       });
+  }
+
+  /**
+   * Apertura del DDT «precompilato» dalla conversione proforma→DDT: il param
+   * `fromDocument` porta la proforma di origine, di cui si copiano testata e
+   * righe (variante, prezzo, sconto, codice IVA per riga). Nessun documento
+   * nasce a monte: il DDT si crea solo al salvataggio, che scarica le giacenze
+   * e collega l'origine (sourceDocumentId).
+   */
+  private prefillFromConversionDocument(): void {
+    const fromDocument = this.route.snapshot.queryParamMap.get('fromDocument');
+    if (!fromDocument || !this.isSalesDdt) {
+      return;
+    }
+    this.documentService
+      .getDocumentById(fromDocument)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => this.applyConversionPrefill(doc),
+        error: () => undefined,
+      });
+  }
+
+  private applyConversionPrefill(doc: DocumentRecord): void {
+    this._sourceDocumentId.set(doc.id);
+
+    // Testata riportata dalla proforma (cliente, location, pagamento); la data
+    // resta quella odierna del DDT nuovo, non quella della proforma.
+    if (doc.customerId) {
+      this.form.controls.customerId.setValue(doc.customerId);
+    }
+    if (doc.locationId) {
+      this.form.controls.locationId.setValue(doc.locationId);
+    }
+    if (doc.paymentTerms?.trim()) {
+      this.form.controls.paymentTerms.setValue(doc.paymentTerms.trim());
+    }
+
+    const groups: ReturnType<CustomerOrderFormComponent['createLine']>[] = [];
+
+    const referenceLine = this.createLine();
+    referenceLine.patchValue(
+      {
+        productName: this.conversionReferenceText(doc),
+        quantity: 1,
+        commitsStock: false,
+        isReference: true,
+      },
+      { emitEvent: false },
+    );
+    groups.push(referenceLine);
+
+    for (const line of doc.lines ?? []) {
+      const group = this.createLine();
+      group.patchValue(
+        {
+          variantId: line.variantId ?? '',
+          sku: line.sku ?? '',
+          productName: line.description,
+          quantity: line.quantity,
+          unitPrice:
+            line.unitPrice.amountMinor > 0
+              ? moneyToDecimalString({
+                  amountMinor: line.unitPrice.amountMinor,
+                  currencyCode: this.currency,
+                }).replace('.', ',')
+              : '',
+          discount: line.discountPercent > 0 ? `${line.discountPercent}%` : '',
+          vatCodeId: line.vatCodeId ?? '',
+          commitsStock: Boolean(line.variantId),
+        },
+        { emitEvent: false },
+      );
+      groups.push(group);
+    }
+
+    // Le righe convertite entrano prima delle eventuali righe vuote in coda.
+    let insertAt = this.lines.length;
+    while (insertAt > 0 && this.lineIsEmpty(this.lines.at(insertAt - 1))) {
+      insertAt -= 1;
+    }
+    groups.forEach((group, offset) => {
+      this.lines.insert(insertAt + offset, group, { emitEvent: false });
+    });
+    this.refreshAllLineSummaries();
+    this.markFormDirty();
+  }
+
+  /** «Rif. Proforma PRO-2026-0007 del 30/07/2026» per la riga di riferimento. */
+  private conversionReferenceText(doc: DocumentRecord): string {
+    const date = new Intl.DateTimeFormat('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(new Date(doc.documentDate));
+    const ref = doc.reference?.trim();
+    return ref ? `Rif. Proforma ${ref} del ${date}` : `Rif. Proforma del ${date}`;
   }
 
   /** Alza il flag durante le patch programmatiche dell'intestatario. */
@@ -3423,6 +3568,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         } satisfies UpdateDocumentBody)
       : this.documentService.createDocument({
           type: this.registryDocumentType,
+          // Conversione proforma→DDT: collega l'origine (null sugli altri tipi).
+          sourceDocumentId: this._sourceDocumentId() ?? undefined,
           documentDate: value.documentDate,
           // Numero imposto in testata: non sposta il progressivo della serie.
           number: value.documentNumber ?? undefined,
@@ -3732,17 +3879,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       return;
     }
     this.concludeMenuOpen.set(false);
-    // DDT vendita: nessun documento nasce a monte. Si apre il form DDT già
-    // precompilato con l'ordine incluso (param `includeOrder`); il salvataggio
-    // del DDT crea il documento e conclude l'ordine, nella sua transazione.
-    if (documentType === DocumentType.SalesDdt) {
-      void this.router.navigate(['/app/documents/sales-ddt/new'], {
-        queryParams: { includeOrder: orderId },
-      });
+    // Generazione = «apre il form di destinazione precompilato»: nessun
+    // documento nasce a monte. Si apre il form (DDT o Fattura accompagnatoria)
+    // con l'ordine agganciato (param `includeOrder`); il salvataggio del form
+    // crea+conferma il documento, scarica e conclude l'ordine, nella sua
+    // transazione.
+    const targetRoute = this.concludeTargetRoute(documentType as DocumentType);
+    if (targetRoute) {
+      void this.router.navigate([targetRoute], { queryParams: { includeOrder: orderId } });
       return;
     }
-    // Scarico manuale / Fattura accompagnatoria: percorso attuale (allineamento
-    // alla generazione-apre-form previsto come step successivo).
+    // Target senza form-prefill: percorso legacy (crea bozza).
     this.concluding.set(true);
     this.salesOrderService
       .concludeManualOrder(orderId, documentType)
@@ -3762,6 +3909,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
         },
       });
+  }
+
+  /** Rotta del form di destinazione per «Concludi ordine», o null (legacy). */
+  private concludeTargetRoute(documentType: DocumentType): string | null {
+    switch (documentType) {
+      case DocumentType.SalesDdt:
+        return '/app/documents/sales-ddt/new';
+      case DocumentType.InvoiceAccompanying:
+        return '/app/documents/fattura-accompagnatoria/new';
+      default:
+        return null;
+    }
   }
 
   // ── DDT vendita: Genera documento (Bozza fattura / Proforma, §GENERAZIONE) ──
@@ -3784,20 +3943,24 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       return;
     }
     this.generateMenuOpen.set(false);
-    this.generating.set(true);
-    this.documentService
-      .convertDocument(documentId, targetType as DocumentType)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (doc) => {
-          this.generating.set(false);
-          void this.router.navigateByUrl(documentEditPath(doc));
-        },
-        error: (err: unknown) => {
-          this.generating.set(false);
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
+    // Generazione = «apre il form di destinazione precompilato»: si naviga al
+    // form nuovo (fattura/proforma) con il DDT come origine, senza creare nulla.
+    const targetRoute = this.generateTargetRoute(targetType as DocumentType);
+    if (!targetRoute) {
+      return;
+    }
+    void this.router.navigate([targetRoute], { queryParams: { fromDocument: documentId } });
+  }
+
+  private generateTargetRoute(targetType: DocumentType): string | null {
+    switch (targetType) {
+      case DocumentType.InvoiceDraft:
+        return '/app/documents/fattura/new';
+      case DocumentType.Proforma:
+        return '/app/documents/proforma/new';
+      default:
+        return null;
+    }
   }
 
   // ── Uscita con modifiche non salvate ────────────────────────────────────
