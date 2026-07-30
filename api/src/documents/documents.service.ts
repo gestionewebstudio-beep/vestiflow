@@ -594,11 +594,25 @@ export class DocumentsService {
         lines: { orderBy: { lineNumber: 'asc' } },
         // Conversione: documento d'origine (nato-da) e derivati non annullati (ha-generato).
         sourceDocument: {
-          select: { id: true, type: true, reference: true, series: true, number: true, status: true },
+          select: {
+            id: true,
+            type: true,
+            reference: true,
+            series: true,
+            number: true,
+            status: true,
+          },
         },
         derivedDocuments: {
           where: { status: { not: DocumentStatus.cancelled } },
-          select: { id: true, type: true, reference: true, series: true, number: true, status: true },
+          select: {
+            id: true,
+            type: true,
+            reference: true,
+            series: true,
+            number: true,
+            status: true,
+          },
           orderBy: { createdAt: 'asc' },
         },
         salesOrders: {
@@ -2064,230 +2078,10 @@ export class DocumentsService {
 
   /** Conferma: bozza → confermato, assegna numero e applica gli effetti stock del tipo. */
   async confirm(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentWithLines> {
-    const actorName = user?.displayName ?? 'API';
-    const actorId = user?.id ?? null;
-
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
-
-    const confirmed = await this.prisma.$transaction(async (tx) => {
-      const doc = await tx.document.findFirst({
-        where: { id, tenantId },
-        include: { lines: { orderBy: { lineNumber: 'asc' } } },
-      });
-      if (!doc) {
-        throw new NotFoundException('Documento non trovato');
-      }
-      this.assertDocumentLocationWritable(user, doc);
-      if (isFlowOnlyDocumentType(doc.type)) {
-        // Cassa negozio: creati già confermati con movimenti in transazione.
-        throw new ConflictException(
-          'Le vendite e i resi negozio sono già registrati alla conclusione.',
-        );
-      }
-      // Percorso unico Arrivo merce: la conferma dal registro generico
-      // eseguirebbe un motore di carico parallelo (aggregato) invece del sync
-      // per riga del flusso dedicato — vietato anche per le bozze residue.
-      if (isDedicatedWorkflowDocumentType(doc.type)) {
-        throw new ConflictException(
-          'Gli arrivi merce si confermano con «Salva documento» (Arrivo merce), non dal registro documenti generico.',
-        );
-      }
-      if (doc.status !== DocumentStatus.draft) {
-        throw new ConflictException('Solo i documenti in bozza possono essere confermati.');
-      }
-      if (doc.lines.length === 0) {
-        throw new UnprocessableEntityException('Impossibile confermare un documento senza righe.');
-      }
-
-      if (doc.type === DocumentType.sales_ddt) {
-        this.assertStockUnloadDocument(doc);
-      }
-      if (doc.type === DocumentType.manual_unload) {
-        this.assertStockManualUnloadDocument(doc);
-      }
-      if (documentTypeAdjustsStockOnConfirm(doc.type)) {
-        this.assertStockAdjustmentDocument(doc);
-      }
-      if (documentTypeTransfersStockOnConfirm(doc.type)) {
-        this.assertStockTransferDocument(doc);
-      }
-
-      const setting = await this.settings.getResolved(tenantId, doc.type);
-
-      let number = doc.number;
-      let reference = doc.reference;
-      if (number == null) {
-        // Un documento confermato riceve sempre un numero: senza riferimento non
-        // è uno stato utile. Fino alla conferma resta senza numero (bozza).
-        // Prefisso preso dal tipo che possiede il numeratore: la Fattura
-        // accompagnatoria eredita quello della Fattura, così le due serie
-        // condivise producono riferimenti omogenei (FT-2026-0001, 0002…).
-        const numberingSetting = await this.settings.getResolved(
-          tenantId,
-          documentNumberingType(doc.type),
-        );
-        number = await this.nextNumber(tx, tenantId, doc.type, doc.series);
-        reference = this.formatReference(numberingSetting.numberPrefix, doc.series, number);
-      }
-
-      // Fase 2 §9: DDT collegato a una Vendita online che ha GIÀ scaricato il
-      // magazzino ⇒ nessun movimento, nessun consumo impegni, nessun secondo
-      // scarico. La scelta non è attivabile dall'utente: è forzata dal link.
-      // Scarico alla conferma dei documenti di vendita che movimentano.
-      // La Fattura accompagnatoria rientra qui solo SENZA DDT agganciato:
-      // con un DDT la merce è già uscita e un secondo scarico duplicherebbe
-      // il movimento (giacenze in negativo per la stessa merce).
-      const accompanyingUnloads =
-        doc.type === DocumentType.invoice_accompanying &&
-        invoiceAccompanyingUnloadsStock(
-          await tx.invoiceSalesDdtLink.count({ where: { tenantId, invoiceId: doc.id } }),
-        );
-
-      if (accompanyingUnloads) {
-        this.assertStockUnloadDocument(doc);
-      }
-
-      if ((doc.type === DocumentType.sales_ddt && !doc.onlineSaleId) || accompanyingUnloads) {
-        const label =
-          doc.type === DocumentType.invoice_accompanying
-            ? 'Fattura accompagnatoria'
-            : 'DDT vendita';
-        const reason = reference ? `${label} ${reference}` : `${label} ${doc.type}`;
-        await assertSerialNumbersForUnloadLines(tx, tenantId, doc.locationId!, doc.lines);
-        for (const line of doc.lines) {
-          if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
-            continue;
-          }
-          const variant = await tx.productVariant.findFirst({
-            where: { id: line.variantId, tenantId },
-            select: { id: true, sku: true },
-          });
-          if (!variant) {
-            throw new UnprocessableEntityException(
-              `Variante non trovata per la riga ${line.lineNumber}.`,
-            );
-          }
-          await applyStockSale(tx, {
-            tenantId,
-            variantId: variant.id,
-            sku: line.sku ?? variant.sku ?? '',
-            locationId: doc.locationId!,
-            quantity: line.quantity,
-            reason,
-            externalRef: doc.id,
-            actor: { createdById: actorId, createdByName: actorName },
-          });
-          syncTargets.push({ variantId: variant.id, locationId: doc.locationId! });
-        }
-        await consumeInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
-      }
-
-      if (doc.type === DocumentType.manual_unload) {
-        // Scarico manuale diretto (prompt Scarico manuale): la giacenza viene
-        // sottratta SENZA creare movimenti né consumare seriali — deroga
-        // documentata in document-stock-manual-unload.util. Quantità oltre la
-        // giacenza ammesse: l'avviso non bloccante è responsabilità della UI.
-        await applyDocumentStockManualUnloads(tx, {
-          tenantId,
-          locationId: doc.locationId!,
-          lines: doc.lines,
-        });
-        for (const line of doc.lines) {
-          if (line.variantId && line.loadsStock && line.quantity > 0) {
-            syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
-          }
-        }
-      }
-
-      if (documentTypeAdjustsStockOnConfirm(doc.type)) {
-        if (doc.adjustmentDirection === AdjustmentDirection.decrease) {
-          await assertSerialNumbersForUnloadLines(tx, tenantId, doc.locationId!, doc.lines);
-        } else {
-          await assertSerialNumbersForDocumentLines(tx, tenantId, doc.lines);
-        }
-        // Movimenti per riga (mirror arrivo merce): un movimento per riga con
-        // sourceLineId, mai aggregato per variante.
-        const adjustmentReason = buildAdjustmentMovementReason({
-          reference,
-          reason: doc.internalComment?.trim() || 'Rettifica inventario',
-        });
-        const adjustmentSync = await syncAdjustmentLineMovements(tx, {
-          tenantId,
-          documentId: doc.id,
-          documentType: doc.type,
-          locationId: doc.locationId!,
-          direction: doc.adjustmentDirection!,
-          reason: adjustmentReason,
-          lines: doc.lines,
-          actor: { createdById: actorId, createdByName: actorName },
-        });
-        syncTargets.push(...adjustmentSync.syncTargets);
-        if (doc.adjustmentDirection === AdjustmentDirection.decrease) {
-          await consumeInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
-        } else {
-          await applyInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
-        }
-      }
-
-      // §CONCLUDI ORDINE: la conferma del documento di scarico generato da un
-      // Ordine cliente manuale trasforma gli impegni in scarichi reali —
-      // Impegnata torna a 0, ordine Concluso, nella STESSA transazione.
-      if (documentTypeUnloadsStockOnConfirm(doc.type)) {
-        const concludeTargets = await this.concludeLinkedManualOrderTx(tx, tenantId, doc.id);
-        syncTargets.push(...concludeTargets);
-      }
-
-      if (documentTypeTransfersStockOnConfirm(doc.type)) {
-        await assertSerialNumbersForTransferLines(tx, tenantId, doc.locationId!, doc.lines);
-        for (const line of doc.lines) {
-          if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
-            continue;
-          }
-          const variant = await tx.productVariant.findFirst({
-            where: { id: line.variantId, tenantId },
-            select: { id: true, sku: true },
-          });
-          if (!variant) {
-            throw new UnprocessableEntityException(
-              `Variante non trovata per la riga ${line.lineNumber}.`,
-            );
-          }
-        }
-        // Movimenti per riga (mirror arrivo merce): un movimento per riga con
-        // sourceLineId, mai aggregato per variante.
-        const transferReason = buildTransferMovementReason({ reference });
-        const transferSync = await syncTransferLineMovements(tx, {
-          tenantId,
-          documentId: doc.id,
-          documentType: doc.type,
-          originLocationId: doc.locationId!,
-          targetLocationId: doc.targetLocationId!,
-          reason: transferReason,
-          lines: doc.lines,
-          actor: { createdById: actorId, createdByName: actorName },
-        });
-        syncTargets.push(...transferSync.syncTargets);
-        await transferInventorySerialsFromDocumentLines(
-          tx,
-          tenantId,
-          doc.locationId!,
-          doc.targetLocationId!,
-          doc.lines,
-        );
-      }
-
-      return tx.document.update({
-        where: { id },
-        data: {
-          status: DocumentStatus.confirmed,
-          number,
-          reference,
-          confirmedAt: new Date(),
-        },
-        include: { lines: { orderBy: { lineNumber: 'asc' } } },
-      });
-    });
-
+    const confirmed = await this.prisma.$transaction((tx) =>
+      this.confirmDocumentTx(tx, tenantId, id, user, syncTargets),
+    );
     for (const entry of syncTargets) {
       try {
         await this.channelSync.pushInventoryLevels(tenantId, entry.variantId, [entry.locationId]);
@@ -2296,8 +2090,238 @@ export class DocumentsService {
         this.logger.warn(`Push inventario non riuscito (${tenantId}): ${message}`);
       }
     }
-
     return confirmed;
+  }
+
+  /**
+   * Effetti di conferma (numero + movimenti per tipo + conclusione ordini +
+   * status confermato), eseguiti NELLA transazione del salvataggio: un
+   * documento nasce confermato in un'unica transazione, senza un passaggio
+   * successivo. `syncTargets` raccoglie i push inventario da fare a valle.
+   */
+  private async confirmDocumentTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    id: string,
+    user: UserProfileDto | undefined,
+    syncTargets: Array<{ variantId: string; locationId: string }>,
+  ): Promise<DocumentWithLines> {
+    const actorName = user?.displayName ?? 'API';
+    const actorId = user?.id ?? null;
+    const doc = await tx.document.findFirst({
+      where: { id, tenantId },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
+    });
+    if (!doc) {
+      throw new NotFoundException('Documento non trovato');
+    }
+    this.assertDocumentLocationWritable(user, doc);
+    if (isFlowOnlyDocumentType(doc.type)) {
+      // Cassa negozio: creati già confermati con movimenti in transazione.
+      throw new ConflictException(
+        'Le vendite e i resi negozio sono già registrati alla conclusione.',
+      );
+    }
+    // Percorso unico Arrivo merce: la conferma dal registro generico
+    // eseguirebbe un motore di carico parallelo (aggregato) invece del sync
+    // per riga del flusso dedicato — vietato anche per le bozze residue.
+    if (isDedicatedWorkflowDocumentType(doc.type)) {
+      throw new ConflictException(
+        'Gli arrivi merce si confermano con «Salva documento» (Arrivo merce), non dal registro documenti generico.',
+      );
+    }
+    if (doc.status !== DocumentStatus.draft) {
+      throw new ConflictException('Solo i documenti in bozza possono essere confermati.');
+    }
+    if (doc.lines.length === 0) {
+      throw new UnprocessableEntityException('Impossibile confermare un documento senza righe.');
+    }
+
+    if (doc.type === DocumentType.sales_ddt) {
+      this.assertStockUnloadDocument(doc);
+    }
+    if (doc.type === DocumentType.manual_unload) {
+      this.assertStockManualUnloadDocument(doc);
+    }
+    if (documentTypeAdjustsStockOnConfirm(doc.type)) {
+      this.assertStockAdjustmentDocument(doc);
+    }
+    if (documentTypeTransfersStockOnConfirm(doc.type)) {
+      this.assertStockTransferDocument(doc);
+    }
+
+    const setting = await this.settings.getResolved(tenantId, doc.type);
+
+    let number = doc.number;
+    let reference = doc.reference;
+    if (number == null) {
+      // Un documento confermato riceve sempre un numero: senza riferimento non
+      // è uno stato utile. Fino alla conferma resta senza numero (bozza).
+      // Prefisso preso dal tipo che possiede il numeratore: la Fattura
+      // accompagnatoria eredita quello della Fattura, così le due serie
+      // condivise producono riferimenti omogenei (FT-2026-0001, 0002…).
+      const numberingSetting = await this.settings.getResolved(
+        tenantId,
+        documentNumberingType(doc.type),
+      );
+      number = await this.nextNumber(tx, tenantId, doc.type, doc.series);
+      reference = this.formatReference(numberingSetting.numberPrefix, doc.series, number);
+    }
+
+    // Fase 2 §9: DDT collegato a una Vendita online che ha GIÀ scaricato il
+    // magazzino ⇒ nessun movimento, nessun consumo impegni, nessun secondo
+    // scarico. La scelta non è attivabile dall'utente: è forzata dal link.
+    // Scarico alla conferma dei documenti di vendita che movimentano.
+    // La Fattura accompagnatoria rientra qui solo SENZA DDT agganciato:
+    // con un DDT la merce è già uscita e un secondo scarico duplicherebbe
+    // il movimento (giacenze in negativo per la stessa merce).
+    const accompanyingUnloads =
+      doc.type === DocumentType.invoice_accompanying &&
+      invoiceAccompanyingUnloadsStock(
+        await tx.invoiceSalesDdtLink.count({ where: { tenantId, invoiceId: doc.id } }),
+      );
+
+    if (accompanyingUnloads) {
+      this.assertStockUnloadDocument(doc);
+    }
+
+    if ((doc.type === DocumentType.sales_ddt && !doc.onlineSaleId) || accompanyingUnloads) {
+      const label =
+        doc.type === DocumentType.invoice_accompanying ? 'Fattura accompagnatoria' : 'DDT vendita';
+      const reason = reference ? `${label} ${reference}` : `${label} ${doc.type}`;
+      await assertSerialNumbersForUnloadLines(tx, tenantId, doc.locationId!, doc.lines);
+      for (const line of doc.lines) {
+        if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
+          continue;
+        }
+        const variant = await tx.productVariant.findFirst({
+          where: { id: line.variantId, tenantId },
+          select: { id: true, sku: true },
+        });
+        if (!variant) {
+          throw new UnprocessableEntityException(
+            `Variante non trovata per la riga ${line.lineNumber}.`,
+          );
+        }
+        await applyStockSale(tx, {
+          tenantId,
+          variantId: variant.id,
+          sku: line.sku ?? variant.sku ?? '',
+          locationId: doc.locationId!,
+          quantity: line.quantity,
+          reason,
+          externalRef: doc.id,
+          actor: { createdById: actorId, createdByName: actorName },
+        });
+        syncTargets.push({ variantId: variant.id, locationId: doc.locationId! });
+      }
+      await consumeInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
+    }
+
+    if (doc.type === DocumentType.manual_unload) {
+      // Scarico manuale diretto (prompt Scarico manuale): la giacenza viene
+      // sottratta SENZA creare movimenti né consumare seriali — deroga
+      // documentata in document-stock-manual-unload.util. Quantità oltre la
+      // giacenza ammesse: l'avviso non bloccante è responsabilità della UI.
+      await applyDocumentStockManualUnloads(tx, {
+        tenantId,
+        locationId: doc.locationId!,
+        lines: doc.lines,
+      });
+      for (const line of doc.lines) {
+        if (line.variantId && line.loadsStock && line.quantity > 0) {
+          syncTargets.push({ variantId: line.variantId, locationId: doc.locationId! });
+        }
+      }
+    }
+
+    if (documentTypeAdjustsStockOnConfirm(doc.type)) {
+      if (doc.adjustmentDirection === AdjustmentDirection.decrease) {
+        await assertSerialNumbersForUnloadLines(tx, tenantId, doc.locationId!, doc.lines);
+      } else {
+        await assertSerialNumbersForDocumentLines(tx, tenantId, doc.lines);
+      }
+      // Movimenti per riga (mirror arrivo merce): un movimento per riga con
+      // sourceLineId, mai aggregato per variante.
+      const adjustmentReason = buildAdjustmentMovementReason({
+        reference,
+        reason: doc.internalComment?.trim() || 'Rettifica inventario',
+      });
+      const adjustmentSync = await syncAdjustmentLineMovements(tx, {
+        tenantId,
+        documentId: doc.id,
+        documentType: doc.type,
+        locationId: doc.locationId!,
+        direction: doc.adjustmentDirection!,
+        reason: adjustmentReason,
+        lines: doc.lines,
+        actor: { createdById: actorId, createdByName: actorName },
+      });
+      syncTargets.push(...adjustmentSync.syncTargets);
+      if (doc.adjustmentDirection === AdjustmentDirection.decrease) {
+        await consumeInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
+      } else {
+        await applyInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
+      }
+    }
+
+    // §CONCLUDI ORDINE: la conferma del documento di scarico generato da un
+    // Ordine cliente manuale trasforma gli impegni in scarichi reali —
+    // Impegnata torna a 0, ordine Concluso, nella STESSA transazione.
+    if (documentTypeUnloadsStockOnConfirm(doc.type)) {
+      const concludeTargets = await this.concludeLinkedManualOrderTx(tx, tenantId, doc.id);
+      syncTargets.push(...concludeTargets);
+    }
+
+    if (documentTypeTransfersStockOnConfirm(doc.type)) {
+      await assertSerialNumbersForTransferLines(tx, tenantId, doc.locationId!, doc.lines);
+      for (const line of doc.lines) {
+        if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
+          continue;
+        }
+        const variant = await tx.productVariant.findFirst({
+          where: { id: line.variantId, tenantId },
+          select: { id: true, sku: true },
+        });
+        if (!variant) {
+          throw new UnprocessableEntityException(
+            `Variante non trovata per la riga ${line.lineNumber}.`,
+          );
+        }
+      }
+      // Movimenti per riga (mirror arrivo merce): un movimento per riga con
+      // sourceLineId, mai aggregato per variante.
+      const transferReason = buildTransferMovementReason({ reference });
+      const transferSync = await syncTransferLineMovements(tx, {
+        tenantId,
+        documentId: doc.id,
+        documentType: doc.type,
+        originLocationId: doc.locationId!,
+        targetLocationId: doc.targetLocationId!,
+        reason: transferReason,
+        lines: doc.lines,
+        actor: { createdById: actorId, createdByName: actorName },
+      });
+      syncTargets.push(...transferSync.syncTargets);
+      await transferInventorySerialsFromDocumentLines(
+        tx,
+        tenantId,
+        doc.locationId!,
+        doc.targetLocationId!,
+        doc.lines,
+      );
+    }
+
+    return tx.document.update({
+      where: { id },
+      data: {
+        status: DocumentStatus.confirmed,
+        number,
+        reference,
+        confirmedAt: new Date(),
+      },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
+    });
   }
 
   /**
