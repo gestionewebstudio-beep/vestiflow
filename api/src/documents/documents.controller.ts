@@ -403,6 +403,18 @@ export class DocumentsController {
     return this.documents.convert(tenantId, id, dto, user);
   }
 
+  /** Prefill di conversione (form di destinazione): non crea nulla. */
+  @Post(':id/convert-prefill')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  convertPrefill(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ConvertDocumentDto,
+  ): Promise<CreateDocumentDto> {
+    return this.documents.convertPrefill(tenantId, id, dto, user);
+  }
+
   /** «Inviata al commercialista»: unica azione di ciclo di vita fiscale. */
   @Post(':id/register-external')
   @RequirePermissions(TenantPermission.DocumentsManage)

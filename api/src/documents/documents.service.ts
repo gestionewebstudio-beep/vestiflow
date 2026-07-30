@@ -2329,12 +2329,36 @@ export class DocumentsService {
    * bozza fattura (§9.1); DDT vendita → bozza fattura o proforma (prompt DDT
    * §GENERAZIONE DOCUMENTI — la fattura vera non è prevista in questa fase).
    */
+  /** Conversione con creazione (legacy): costruisce il prefill e lo crea. */
   async convert(
     tenantId: string,
     id: string,
     dto: ConvertDocumentDto,
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
+    return this.create(tenantId, await this.buildConversionDto(tenantId, id, dto, user), user);
+  }
+
+  /**
+   * Prefill di conversione: costruisce i dati del documento generato (testata +
+   * righe + collegamento all'origine) SENZA crearlo. Il form di destinazione si
+   * apre precompilato e crea il documento solo al salvataggio.
+   */
+  async convertPrefill(
+    tenantId: string,
+    id: string,
+    dto: ConvertDocumentDto,
+    user?: UserProfileDto,
+  ): Promise<CreateDocumentDto> {
+    return this.buildConversionDto(tenantId, id, dto, user);
+  }
+
+  private async buildConversionDto(
+    tenantId: string,
+    id: string,
+    dto: ConvertDocumentDto,
+    user?: UserProfileDto,
+  ): Promise<CreateDocumentDto> {
     const source = await this.getById(tenantId, id, user);
     this.assertDocumentLocationWritable(user, source);
     const isProformaSource = source.type === DocumentType.proforma;
@@ -2406,7 +2430,7 @@ export class DocumentsService {
       })),
     };
 
-    return this.create(tenantId, createDto, user);
+    return createDto;
   }
 
   /**
