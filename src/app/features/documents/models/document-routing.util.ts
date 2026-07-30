@@ -73,6 +73,8 @@ export function documentDuplicateFormRoute(type: DocumentTypeValue): string | nu
       return '/app/documents/transfer/new';
     case DocumentType.Adjustment:
       return '/app/documents/adjustment/new';
+    case DocumentType.SupplierInvoice:
+      return '/app/documents/registrazione-fattura/new';
     default:
       return null;
   }

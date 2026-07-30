@@ -173,7 +173,10 @@ export class PurchaseInvoiceFormComponent {
   constructor() {
     // Nuova registrazione: il protocollo proposto è il primo libero della
     // serie predefinita (in modifica resta quello già assegnato).
-    afterNextRender(() => this.refreshProtocolProposal());
+    afterNextRender(() => {
+      this.refreshProtocolProposal();
+      this.prefillFromDuplicateIfRequested();
+    });
 
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
@@ -991,6 +994,43 @@ export class PurchaseInvoiceFormComponent {
         }),
       ),
     );
+  }
+
+  /**
+   * «Duplica documento» (Fase 3, no bozze): il param `duplicateFrom` porta la
+   * registrazione fattura originale, copiata in un documento NUOVO. Nessuna
+   * copia nasce a monte: si crea (confermata) solo al salvataggio.
+   */
+  private prefillFromDuplicateIfRequested(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const duplicateFrom = this.route.snapshot.queryParamMap.get('duplicateFrom');
+    if (!duplicateFrom) {
+      return;
+    }
+    this.documentService
+      .getDocumentById(duplicateFrom)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => this.applyDuplicatePrefill(doc),
+        error: () => undefined,
+      });
+  }
+
+  private applyDuplicatePrefill(doc: DocumentRecord): void {
+    this.patchFormFromDocument(doc);
+    // Copia indipendente, come il duplica legacy: numero e date fresche, niente
+    // rate né ricevute agganciate; resta il rif. fattura fornitore e le righe
+    // manuali. La registrazione fattura non movimenta magazzino.
+    this.form.patchValue({
+      protocolNumber: null,
+      documentDate: todayIsoDate(),
+      registrationDate: todayIsoDate(),
+    });
+    this.installments.clear();
+    this.includedReceipts.set([]);
+    this.refreshProtocolProposal();
   }
 
   private moneyToInputText(money: Money): string {
