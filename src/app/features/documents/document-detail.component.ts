@@ -322,17 +322,6 @@ export class DocumentDetailComponent {
 
   protected readonly canManage = computed(() => canManageDocuments(this.authService.currentUser()));
 
-  // Percorso unico Arrivo merce: la famiglia carico si conferma SOLO con
-  // «Salva documento» nel form dedicato (il backend rifiuta comunque il
-  // confirm generico per questi tipi).
-  protected readonly canConfirm = computed(() => {
-    const doc = this.document();
-    return (
-      this.canManage() &&
-      doc?.status === DocumentStatus.Draft &&
-      !isGoodsReceiptDocumentType(doc.type)
-    );
-  });
   /**
    * «Inviata al commercialista» (registrazione esterna): unica azione di ciclo
    * di vita fiscale esposta, e solo per i tipi in
@@ -536,7 +525,6 @@ export class DocumentDetailComponent {
     return state.status === 'error' ? state.error : null;
   });
 
-  protected readonly confirmDialogOpen = signal(false);
   protected readonly registerDialogOpen = signal(false);
   protected readonly cancelDialogOpen = signal(false);
   protected readonly deleteDialogOpen = signal(false);
@@ -695,9 +683,6 @@ export class DocumentDetailComponent {
     }
   }
 
-  protected requestConfirm(): void {
-    this.confirmDialogOpen.set(true);
-  }
   protected requestRegister(): void {
     this.registerDialogOpen.set(true);
   }
@@ -706,11 +691,6 @@ export class DocumentDetailComponent {
   }
   protected requestDelete(): void {
     this.deleteDialogOpen.set(true);
-  }
-
-  protected confirmDocument(): void {
-    this.confirmDialogOpen.set(false);
-    this.runAction((id) => this.service.confirmDocument(id));
   }
 
   /**

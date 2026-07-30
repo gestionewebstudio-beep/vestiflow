@@ -64,9 +64,6 @@
             Converti in DDT vendita
           </app-button>
         }
-        @if (canConfirm()) {
-          <app-button [disabled]="actionSaving()" (click)="requestConfirm()">Conferma</app-button>
-        }
         @if (canRegisterExternal()) {
           <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestRegister()">
             {{ registerButtonLabel }}
@@ -181,15 +178,6 @@
     }
   }
 </section>
-
-<app-confirm-dialog
-  [(open)]="confirmDialogOpen"
-  title="Conferma documento"
-  message="Confermando il documento verrà assegnato il numero progressivo. Potrai ancora modificarlo dopo la conferma, salvo blocco dalle impostazioni. Procedere?"
-  confirmLabel="Conferma documento"
-  [busy]="actionSaving()"
-  (confirmed)="confirmDocument()"
-/>
 
 <!-- Conferma semplice: numero e data del documento esterno restano quelli
      già acquisiti sul documento. -->

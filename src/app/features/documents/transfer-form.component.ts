@@ -513,7 +513,7 @@ export class TransferFormComponent {
   }
 
   protected saveDraft(): void {
-    void this.persist(false);
+    void this.persist();
   }
 
   protected requestConfirm(): void {
@@ -525,7 +525,7 @@ export class TransferFormComponent {
 
   protected confirmAndSave(): void {
     this.confirmDialogOpen.set(false);
-    void this.persist(true);
+    void this.persist();
   }
 
   protected cancel(): void {
@@ -564,7 +564,7 @@ export class TransferFormComponent {
     );
   }
 
-  private persist(confirmAfterSave: boolean): void {
+  private persist(): void {
     if (this.formReadOnly() || this.saving() || !this.validateForm()) {
       return;
     }
@@ -599,7 +599,7 @@ export class TransferFormComponent {
               serialNumbers: parseSerialNumbersText(line.serialNumbersText),
             })),
         })
-      : this.persistDraftOrConfirm(editId, raw, confirmAfterSave);
+      : this.persistNewOrUpdate(editId, raw);
 
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -622,14 +622,14 @@ export class TransferFormComponent {
   }
 
   /**
-   * Bozza (creazione o modifica pre-conferma): nessun movimento esiste ancora,
-   * quindi la stabilità degli id riga non ha conseguenze — resta sul flusso
-   * generico create/update (+ confirm se richiesto).
+   * Documento nuovo o modifica di una bozza residua: passa dal flusso generico
+   * create/update, che con la nascita-confermato produce già un trasferimento
+   * confermato (il percorso confirmedEdit usa invece POST /documents/transfer/save
+   * per preservare gli id riga e non duplicare i movimenti).
    */
-  private persistDraftOrConfirm(
+  private persistNewOrUpdate(
     editId: string | null,
     raw: ReturnType<TransferFormComponent['form']['getRawValue']>,
-    confirmAfterSave: boolean,
   ) {
     const body = {
       type: DocumentType.Transfer,
@@ -652,16 +652,11 @@ export class TransferFormComponent {
         })),
     };
 
-    const save$ = editId
+    // Nascita-confermato (Fase 3): create e update producono già un
+    // trasferimento confermato in transazione — nessun passaggio di conferma.
+    return editId
       ? this.documentService.updateDocument(editId, body)
       : this.documentService.createDocument(body);
-
-    // Nascita-confermato (Fase 3): un trasferimento NUOVO nasce già confermato
-    // dal create — non si richiama la conferma. Resta solo per l'edit di una
-    // bozza residua (ponte finché «Duplica apre il form» non toglie le bozze).
-    return confirmAfterSave && editId
-      ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
-      : save$;
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {

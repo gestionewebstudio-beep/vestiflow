@@ -2100,7 +2100,13 @@ export class DocumentsService {
     return refreshed;
   }
 
-  /** Conferma: bozza → confermato, assegna numero e applica gli effetti stock del tipo. */
+  /**
+   * Conferma di una bozza (numero + effetti stock del tipo + confermato).
+   * Con la nascita-confermato (Fase 3) nessun documento nasce bozza, quindi non
+   * è più esposta via endpoint: resta come punto d'ingresso testato di
+   * `confirmDocumentTx`, la stessa logica che la creazione born-confirmed esegue
+   * in transazione. Rimuovibile spostando quei test sulla creazione.
+   */
   async confirm(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentWithLines> {
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
     const confirmed = await this.prisma.$transaction((tx) =>

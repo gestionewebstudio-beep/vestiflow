@@ -1019,7 +1019,7 @@ export class SalesDocumentFormComponent {
       this.confirmDialogOpen.set(true);
       return;
     }
-    void this.persist(false);
+    void this.persist();
   }
 
   /** «No»: si resta in maschera per completare i dati. */
@@ -1034,7 +1034,7 @@ export class SalesDocumentFormComponent {
       this.incompleteDataDialogOpen.set(true);
       return;
     }
-    void this.persist(false);
+    void this.persist();
   }
 
   protected requestConfirm(): void {
@@ -1051,7 +1051,7 @@ export class SalesDocumentFormComponent {
 
   protected confirmAndSave(): void {
     this.confirmDialogOpen.set(false);
-    void this.persist(true);
+    void this.persist();
   }
 
   protected cancel(): void {
@@ -1087,7 +1087,7 @@ export class SalesDocumentFormComponent {
     });
   }
 
-  private persist(confirmAfterSave: boolean): void {
+  private persist(): void {
     if (this.formReadOnly() || this.saving() || !this.validateForm()) {
       return;
     }
@@ -1177,14 +1177,9 @@ export class SalesDocumentFormComponent {
       ? this.documentService.updateDocument(editId, body)
       : this.documentService.createDocument(body);
 
-    // Nascita-confermato (Fase 3): un documento NUOVO nasce già confermato dal
-    // create — non si richiama la conferma (fallirebbe: non è più in bozza). La
-    // conferma post-salvataggio resta solo per l'edit di una bozza residua
-    // (ponte finché «Duplica apre il form» non elimina l'ultima fonte di bozze).
-    const request$ =
-      confirmAfterSave && editId && !this.isConfirmedEdit()
-        ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
-        : save$;
+    // Nascita-confermato (Fase 3): create e update producono già un documento
+    // confermato in transazione — non esiste più un passaggio di conferma.
+    const request$ = save$;
 
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -1263,7 +1258,7 @@ export class SalesDocumentFormComponent {
     this.form.controls.documentNumber.setValue(conflict.nextAvailable);
     this.form.controls.documentNumber.markAsDirty();
     this.numberConflict.set(null);
-    void this.persist(false);
+    void this.persist();
   }
 
   protected dismissConflictDialog(): void {

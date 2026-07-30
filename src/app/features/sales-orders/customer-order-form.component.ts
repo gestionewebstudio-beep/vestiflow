@@ -3586,15 +3586,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           lines,
         } satisfies CreateDocumentBody);
 
-    const request$ = save$.pipe(
-      switchMap((doc) =>
-        doc.status === DocumentStatus.Draft
-          ? this.documentService.confirmDocument(doc.id)
-          : of(doc),
-      ),
-    );
-
-    request$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+    // Nascita-confermato (Fase 3): create e update producono già un documento
+    // confermato in transazione — nessun passaggio di conferma successivo.
+    save$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (doc) => {
         this._submitState.set({ status: 'idle' });
         this.loadedQuoteDoc.set(doc);

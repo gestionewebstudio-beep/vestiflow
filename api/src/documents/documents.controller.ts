@@ -382,15 +382,6 @@ export class DocumentsController {
     });
   }
 
-  @Post(':id/confirm')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  confirm(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<DocumentWithLines> {
-    return this.documents.confirm(tenantId, id, user);
-  }
 
   /** Prefill di conversione (form di destinazione): non crea nulla. */
   @Post(':id/convert-prefill')

@@ -239,12 +239,6 @@ export class DocumentService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
-  confirmDocument(id: EntityId): Observable<DocumentRecord> {
-    return this.http
-      .post<DocumentApiRow>(this.url(`/documents/${id}/confirm`), {})
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
-  }
-
   listSupplierPriceDiffs(id: EntityId): Observable<{
     readonly items: readonly {
       variantId: string;

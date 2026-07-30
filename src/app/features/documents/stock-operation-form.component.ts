@@ -507,7 +507,7 @@ export class StockOperationFormComponent {
   }
 
   protected saveDraft(): void {
-    void this.persist(false);
+    void this.persist();
   }
 
   protected requestConfirm(): void {
@@ -519,7 +519,7 @@ export class StockOperationFormComponent {
 
   protected confirmAndSave(): void {
     this.confirmDialogOpen.set(false);
-    void this.persist(true);
+    void this.persist();
   }
 
   protected cancel(): void {
@@ -554,7 +554,7 @@ export class StockOperationFormComponent {
     );
   }
 
-  private persist(confirmAfterSave: boolean): void {
+  private persist(): void {
     if (this.formReadOnly() || this.saving() || !this.validateForm()) {
       return;
     }
@@ -592,7 +592,7 @@ export class StockOperationFormComponent {
                 serialNumbers: parseSerialNumbersText(line.serialNumbersText),
               })),
           })
-        : this.persistDraftOrConfirm(editId, raw, confirmAfterSave, confirmedEdit);
+        : this.persistNewOrUpdate(editId, raw);
 
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -615,15 +615,14 @@ export class StockOperationFormComponent {
   }
 
   /**
-   * Bozza (creazione o modifica pre-conferma) o scarico manuale (fuori da
-   * questa migrazione, sempre sul flusso generico): nessun movimento per
-   * riga da preservare, resta su create/update (+ confirm se richiesto).
+   * Documento nuovo o modifica di una bozza residua: passa dal flusso generico
+   * create/update, che con la nascita-confermato produce già una rettifica/
+   * scarico confermato (il percorso confirmedEdit usa POST /documents/adjustment/save
+   * per preservare gli id riga e non duplicare i movimenti).
    */
-  private persistDraftOrConfirm(
+  private persistNewOrUpdate(
     editId: string | null,
     raw: ReturnType<StockOperationFormComponent['form']['getRawValue']>,
-    confirmAfterSave: boolean,
-    confirmedEdit: boolean,
   ) {
     const docType = this.documentType();
     const body = {
@@ -648,16 +647,11 @@ export class StockOperationFormComponent {
         })),
     };
 
-    const save$ = editId
+    // Nascita-confermato (Fase 3): create e update producono già una rettifica/
+    // scarico confermato in transazione — nessun passaggio di conferma.
+    return editId
       ? this.documentService.updateDocument(editId, body)
       : this.documentService.createDocument(body);
-
-    // Nascita-confermato (Fase 3): una rettifica/scarico NUOVO nasce già
-    // confermato dal create — non si richiama la conferma. Resta solo per l'edit
-    // di una bozza residua (ponte finché «Duplica apre il form» non le toglie).
-    return confirmAfterSave && !confirmedEdit && editId
-      ? save$.pipe(switchMap((doc) => this.documentService.confirmDocument(doc.id)))
-      : save$;
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
