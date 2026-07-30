@@ -37,7 +37,6 @@ import {
 interface SettingFormControls {
   readonly printTitle: FormControl<string>;
   readonly numberPrefix: FormControl<string>;
-  readonly pricesIncludeVat: FormControl<boolean>;
   readonly defaultNotes: FormControl<string>;
 }
 
@@ -51,8 +50,9 @@ type PageState = 'loading' | 'ready' | 'error';
 
 /**
  * Impostazioni per tipo documento (§2.2): abilitazione, titolo di stampa, serie,
- * prefisso, prezzi IVA inclusa e note. Un form per tipo, salvataggio
- * indipendente per riga.
+ * prefisso e note. La modalità prezzo netto/ivato non vive più qui: è un campo
+ * di testata del documento con default dalla preferenza operatore. Un form per
+ * tipo, salvataggio indipendente per riga.
  */
 @Component({
   selector: 'app-document-settings',
@@ -170,7 +170,6 @@ export class DocumentSettingsComponent {
     const patch: DocumentTypeSettingPatch = {
       printTitle: value.printTitle.trim(),
       numberPrefix: value.numberPrefix.trim(),
-      pricesIncludeVat: value.pricesIncludeVat,
       defaultNotes: value.defaultNotes.trim(),
     };
 
@@ -199,7 +198,6 @@ export class DocumentSettingsComponent {
       form: this.fb.group<SettingFormControls>({
         printTitle: this.fb.control(setting.printTitle),
         numberPrefix: this.fb.control(setting.numberPrefix),
-        pricesIncludeVat: this.fb.control(setting.pricesIncludeVat),
         defaultNotes: this.fb.control(setting.defaultNotes ?? ''),
       }),
     };
@@ -208,13 +206,11 @@ export class DocumentSettingsComponent {
   private toFormValue(setting: DocumentTypeSetting): {
     printTitle: string;
     numberPrefix: string;
-    pricesIncludeVat: boolean;
     defaultNotes: string;
   } {
     return {
       printTitle: setting.printTitle,
       numberPrefix: setting.numberPrefix,
-      pricesIncludeVat: setting.pricesIncludeVat,
       defaultNotes: setting.defaultNotes ?? '',
     };
   }

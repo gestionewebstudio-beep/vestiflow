@@ -1,4 +1,4 @@
-import { PurchaseCostEntryMode, SupplierPriceUpdatePolicy } from '@prisma/client';
+import { SupplierPriceUpdatePolicy } from '@prisma/client';
 import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class TenantFeatureSettingsDto {
@@ -15,7 +15,6 @@ export class TenantFeatureSettingsDto {
   blockNegativeInventory!: boolean;
   defaultUnitOfMeasure!: string;
   defaultVatCodeId!: string | null;
-  defaultPurchaseCostEntryMode!: PurchaseCostEntryMode;
 }
 
 export class UpdateTenantFeatureSettingsDto {
@@ -71,8 +70,4 @@ export class UpdateTenantFeatureSettingsDto {
   @IsOptional()
   @IsUUID()
   defaultVatCodeId?: string;
-
-  @IsOptional()
-  @IsEnum(PurchaseCostEntryMode)
-  defaultPurchaseCostEntryMode?: PurchaseCostEntryMode;
 }

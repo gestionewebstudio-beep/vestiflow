@@ -1707,8 +1707,6 @@ model TenantFeatureSettings {
   defaultUnitOfMeasure          String                    @default("pz") @map("default_unit_of_measure")
   /// Codice IVA predefinito aziendale.
   defaultVatCodeId              String?                   @map("default_vat_code_id") @db.Uuid
-  /// Modalità costi predefinita nei nuovi Arrivi merce (§11.1).
-  defaultPurchaseCostEntryMode  PurchaseCostEntryMode     @default(vat_excluded) @map("default_purchase_cost_entry_mode")
   createdAt                   DateTime                  @default(now()) @map("created_at")
   updatedAt                   DateTime                  @updatedAt @map("updated_at")
 

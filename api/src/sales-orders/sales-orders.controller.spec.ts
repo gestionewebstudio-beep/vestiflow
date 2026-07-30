@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TenantPermission } from '../auth/tenant-permission.constants';
 import { TENANT_PERMISSIONS_KEY } from '../common/auth/tenant-permissions.decorator';
+import type { AttachmentsService } from '../attachments/attachments.service';
 import type { ManualSalesOrdersService } from './manual-sales-orders.service';
+import type { SalesOrderPdfService } from './sales-order-pdf.service';
 import type { SalesOrdersExportService } from './sales-orders-export.service';
 import type { SalesOrdersService } from './sales-orders.service';
 import { SalesOrdersController } from './sales-orders.controller';
@@ -22,11 +24,15 @@ describe('SalesOrdersController', () => {
     listActiveReservations: vi.fn(),
     conclude: vi.fn(),
   };
+  const salesOrderPdf = {};
+  const attachments = {};
 
   const controller = new SalesOrdersController(
     salesOrders as unknown as SalesOrdersService,
     salesOrdersExport as unknown as SalesOrdersExportService,
     manualOrders as unknown as ManualSalesOrdersService,
+    salesOrderPdf as unknown as SalesOrderPdfService,
+    attachments as unknown as AttachmentsService,
   );
 
   it('protegge list e getById con permesso reports.view', () => {

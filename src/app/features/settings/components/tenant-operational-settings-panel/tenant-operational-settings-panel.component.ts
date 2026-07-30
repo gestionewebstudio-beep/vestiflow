@@ -11,12 +11,7 @@ import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
 
-import {
-  isPurchaseVatCode,
-  vatCodeOptionLabel,
-  type PurchaseCostEntryMode,
-  type VatCode,
-} from '@core/models/vat-code.model';
+import { isPurchaseVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -32,14 +27,6 @@ const PRICE_POLICY_OPTIONS: readonly {
   { value: 'always', label: 'Sempre aggiorna' },
   { value: 'ask', label: 'Chiedi conferma' },
   { value: 'never', label: 'Non aggiornare' },
-];
-
-const COST_ENTRY_MODE_OPTIONS: readonly {
-  readonly value: PurchaseCostEntryMode;
-  readonly label: string;
-}[] = [
-  { value: 'vat_excluded', label: 'Costi netti' },
-  { value: 'vat_included', label: 'Costi ivati' },
 ];
 
 @Component({
@@ -62,7 +49,6 @@ export class TenantOperationalSettingsPanelComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly pricePolicyOptions = PRICE_POLICY_OPTIONS;
-  protected readonly costEntryModeOptions = COST_ENTRY_MODE_OPTIONS;
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);
   protected readonly saving = signal(false);
@@ -85,7 +71,6 @@ export class TenantOperationalSettingsPanelComponent {
     updateSupplierPriceOnLoad: this.fb.control<SupplierPriceUpdatePolicy>('ask'),
     defaultUnitOfMeasure: this.fb.control('pz'),
     defaultVatCodeId: this.fb.control(''),
-    defaultPurchaseCostEntryMode: this.fb.control<PurchaseCostEntryMode>('vat_excluded'),
     warnNegativeInventory: this.fb.control(true),
     blockNegativeInventory: this.fb.control(false),
   });
@@ -121,7 +106,6 @@ export class TenantOperationalSettingsPanelComponent {
           updateSupplierPriceOnLoad: result.settings.updateSupplierPriceOnLoad,
           defaultUnitOfMeasure: result.settings.defaultUnitOfMeasure,
           defaultVatCodeId: result.settings.defaultVatCodeId ?? '',
-          defaultPurchaseCostEntryMode: result.settings.defaultPurchaseCostEntryMode,
           warnNegativeInventory: result.settings.warnNegativeInventory,
           blockNegativeInventory: result.settings.blockNegativeInventory,
         });
@@ -143,7 +127,6 @@ export class TenantOperationalSettingsPanelComponent {
         updateSupplierPriceOnLoad: raw.updateSupplierPriceOnLoad,
         defaultUnitOfMeasure: raw.defaultUnitOfMeasure,
         defaultVatCodeId: raw.defaultVatCodeId || null,
-        defaultPurchaseCostEntryMode: raw.defaultPurchaseCostEntryMode,
         warnNegativeInventory: raw.warnNegativeInventory,
         blockNegativeInventory: raw.blockNegativeInventory,
       })
