@@ -67,7 +67,7 @@ import {
   isGoodsReceiptDocumentType,
 } from './models/document-goods-receipt.util';
 import { documentStatusLabel, documentTypeLabel } from './models/document-labels.util';
-import { documentDuplicateFormRoute, documentEditPath } from './models/document-routing.util';
+import { documentDuplicateFormRoute } from './models/document-routing.util';
 import {
   DOCUMENT_LIST_COLUMN_DEFS,
   DOCUMENT_LIST_COLUMN_PRESETS,
@@ -514,14 +514,6 @@ export class DocumentListComponent {
   protected readonly deleteWarnOpen = signal(false);
   protected readonly deleteConfirmOpen = signal(false);
   protected readonly deleteBusy = signal(false);
-
-  // ── Duplica con scelta controparte (fornitore per Arrivi merce, cliente per
-  //     i documenti di vendita come i Preventivi) ─────────────────────────────
-  protected readonly duplicateSource = signal<DocumentRecord | null>(null);
-  protected readonly duplicateSubjectKind = signal<'supplier' | 'customer'>('supplier');
-  protected readonly duplicateSubjectId = signal<string | null>(null);
-  protected readonly duplicateModalOpen = signal(false);
-  protected readonly duplicateBusy = signal(false);
 
   // ── Selezione multipla per operazioni massive (Arrivi merce, Preventivi) ───
   protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
@@ -974,101 +966,12 @@ export class DocumentListComponent {
    * controparte è il cliente; gli altri tipi duplicano direttamente.
    */
   protected duplicateDocument(doc: DocumentRecord): void {
-    // Fase 3 (no bozze): i tipi con form migrato aprono il form nuovo
-    // precompilato (`?duplicateFrom`) — la controparte si sceglie nel form,
-    // niente più modale né copia-bozza a monte.
+    // Fase 3 (no bozze): apre il form nuovo precompilato (`?duplicateFrom`) — la
+    // controparte si sceglie nel form, niente copia-bozza a monte né modale.
     const duplicateRoute = documentDuplicateFormRoute(doc.type);
     if (duplicateRoute) {
       void this.router.navigate([duplicateRoute], { queryParams: { duplicateFrom: doc.id } });
-      return;
     }
-    if (isGoodsReceiptDocumentType(doc.type)) {
-      this.openDuplicateModal(doc, 'supplier', doc.supplierId ?? null);
-      return;
-    }
-    if (this.salesRegister()?.duplicateSubject === 'customer') {
-      this.openDuplicateModal(doc, 'customer', doc.customerId ?? null);
-      return;
-    }
-    this.runDuplicate(doc.id);
-  }
-
-  private openDuplicateModal(
-    doc: DocumentRecord,
-    kind: 'supplier' | 'customer',
-    subjectId: string | null,
-  ): void {
-    this.duplicateSource.set(doc);
-    this.duplicateSubjectKind.set(kind);
-    this.duplicateSubjectId.set(subjectId);
-    this.duplicateModalOpen.set(true);
-  }
-
-  /** Etichette del modale «Duplica» in base alla controparte scelta. */
-  protected readonly duplicateModalTitle = computed(() =>
-    this.duplicateSubjectKind() === 'customer' ? 'Duplica preventivo' : 'Duplica arrivo merce',
-  );
-  protected readonly duplicateModalText = computed(() =>
-    this.duplicateSubjectKind() === 'customer'
-      ? 'Scegli il cliente del nuovo preventivo. Le righe vengono copiate; il documento di partenza non viene toccato.'
-      : 'Scegli il fornitore del nuovo arrivo merce. Le righe vengono copiate; il documento di partenza non viene toccato.',
-  );
-  protected readonly duplicateSubjectOptions = computed(() =>
-    this.duplicateSubjectKind() === 'customer' ? this.customerOptions() : this.supplierOptions(),
-  );
-
-  /** Chiude il modale solo se il click è sul backdrop, non sul contenuto. */
-  protected onDuplicateBackdropClick(event: MouseEvent): void {
-    if (event.target === event.currentTarget) {
-      this.cancelDuplicate();
-    }
-  }
-
-  protected cancelDuplicate(): void {
-    if (this.duplicateBusy()) {
-      return;
-    }
-    this.duplicateModalOpen.set(false);
-    this.duplicateSource.set(null);
-  }
-
-  /** Conferma: crea il nuovo documento con la controparte scelta e lo apre. */
-  protected confirmDuplicate(): void {
-    const source = this.duplicateSource();
-    const subjectId = this.duplicateSubjectId();
-    if (!source || !subjectId || this.duplicateBusy()) {
-      return;
-    }
-    this.duplicateBusy.set(true);
-    const subject =
-      this.duplicateSubjectKind() === 'supplier'
-        ? { supplierId: subjectId }
-        : { customerId: subjectId };
-    this.runDuplicate(source.id, subject, () => {
-      this.duplicateBusy.set(false);
-      this.duplicateModalOpen.set(false);
-      this.duplicateSource.set(null);
-    });
-  }
-
-  private runDuplicate(
-    id: string,
-    subject?: { readonly supplierId?: string; readonly customerId?: string },
-    onSettled?: () => void,
-  ): void {
-    this.service
-      .duplicateDocument(id, subject)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (created) => {
-          onSettled?.();
-          void this.router.navigateByUrl(documentEditPath(created));
-        },
-        error: (err: unknown) => {
-          onSettled?.();
-          this.actionError.set(this.toAppError(err));
-        },
-      });
   }
 
   /** Tutti i documenti in coda di eliminazione sono arrivi merce. */

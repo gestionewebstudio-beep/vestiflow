@@ -40,7 +40,6 @@ import { DocumentPdfService } from './document-pdf.service';
 import { DocumentXmlService } from './document-xml.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { ConvertDocumentDto } from './dto/convert-document.dto';
-import { DuplicateDocumentDto } from './dto/duplicate-document.dto';
 import { ListDocumentOperatorsQueryDto } from './dto/list-document-operators.query.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import { RegisterExternalDto } from './dto/register-external.dto';
@@ -365,21 +364,6 @@ export class DocumentsController {
     @Body() dto: UpdateDocumentDto,
   ): Promise<DocumentDetail> {
     return this.documents.update(tenantId, id, dto, user);
-  }
-
-  /** Duplica documento (audit cliente): nuova bozza indipendente, mai movimenti. */
-  @Post(':id/duplicate')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  duplicate(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: DuplicateDocumentDto,
-  ): Promise<DocumentWithLines> {
-    return this.documents.duplicateDocument(tenantId, id, user, {
-      supplierId: body.supplierId,
-      customerId: body.customerId,
-    });
   }
 
 

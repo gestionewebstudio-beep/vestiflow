@@ -339,27 +339,6 @@ export class DocumentService {
     return this.http.delete<void>(this.url(`/documents/${id}`)).pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
-  /**
-   * Duplica documento: nuova bozza indipendente, nessun movimento generato.
-   * `supplierId` (Arrivi merce) o `customerId` (documenti di vendita, es.
-   * Preventivi) riallineano la testata alla controparte scelta nel modale.
-   */
-  duplicateDocument(
-    id: EntityId,
-    subject?: { readonly supplierId?: EntityId; readonly customerId?: EntityId },
-  ): Observable<DocumentRecord> {
-    const body: Record<string, EntityId> = {};
-    if (subject?.supplierId) {
-      body['supplierId'] = subject.supplierId;
-    }
-    if (subject?.customerId) {
-      body['customerId'] = subject.customerId;
-    }
-    return this.http
-      .post<DocumentApiRow>(this.url(`/documents/${id}/duplicate`), body)
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
-  }
-
   private action(id: EntityId, path: string): Observable<DocumentRecord> {
     return this.http
       .post<DocumentApiRow>(this.url(`/documents/${id}/${path}`), {})

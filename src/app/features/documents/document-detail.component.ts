@@ -724,33 +724,19 @@ export class DocumentDetailComponent {
   }
 
   /**
-   * Duplica documento (§2a). Fase 3 (no bozze): per i tipi con form migrato si
-   * apre il form nuovo precompilato (`?duplicateFrom`), senza creare nulla; i
-   * tipi non ancora migrati restano sul percorso legacy (copia bozza + modifica).
+   * Duplica documento (§2a). Fase 3 (no bozze): apre il form nuovo precompilato
+   * (`?duplicateFrom`), senza creare nulla; la copia si crea (confermata) solo
+   * al salvataggio, con la controparte scelta nel form.
    */
   protected duplicateDocument(): void {
     const doc = this.document();
-    if (!doc || this.actionSaving()) {
+    if (!doc) {
       return;
     }
     const duplicateRoute = documentDuplicateFormRoute(doc.type);
     if (duplicateRoute) {
       void this.router.navigate([duplicateRoute], { queryParams: { duplicateFrom: doc.id } });
-      return;
     }
-    this._actionState.set({ status: 'saving' });
-    this.actionSubscription = this.service
-      .duplicateDocument(doc.id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (created) => {
-          this._actionState.set({ status: 'idle' });
-          void this.router.navigateByUrl(documentEditPath(created));
-        },
-        error: (err: unknown) => {
-          this._actionState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
   }
 
   protected deleteDocument(): void {
