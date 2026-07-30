@@ -11,6 +11,7 @@ import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant'
 import { TenantPermission } from '../auth/tenant-permission.constants';
 
 import type { DocumentSettingsService } from './document-settings.service';
+import type { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
 import { DocumentsService } from './documents.service';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -140,13 +141,18 @@ function createService(prisma: ReturnType<typeof createPrismaMock>, setting = re
     releaseOrderReservationsTx: vi.fn().mockResolvedValue(undefined),
     restoreConsumedOrderReservationsTx: vi.fn().mockResolvedValue(undefined),
   };
+  const priceModePreference = {
+    resolvePricesIncludeVat: vi.fn().mockResolvedValue(false),
+    remember: vi.fn().mockResolvedValue(undefined),
+  };
   const service = new DocumentsService(
     prisma as unknown as PrismaService,
     settings as unknown as DocumentSettingsService,
     channelSync as unknown as ChannelSyncFacade,
     stockReservations as unknown as StockReservationService,
+    priceModePreference as unknown as DocumentPriceModePreferenceService,
   );
-  return { service, settings, channelSync, stockReservations };
+  return { service, settings, channelSync, stockReservations, priceModePreference };
 }
 
 /** Bozza minima per i test sul numero imposto in modifica. */

@@ -7,6 +7,7 @@ import { DocumentAttachmentsService } from './document-attachments.service';
 import { DocumentCountersController } from './document-counters.controller';
 import { DocumentCountersService } from './document-counters.service';
 import { DocumentPdfService } from './document-pdf.service';
+import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
 import { DocumentXmlService } from './document-xml.service';
 import { DocumentSettingsController } from './document-settings.controller';
 import { DocumentSettingsService } from './document-settings.service';
@@ -39,12 +40,14 @@ import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflo
     ExternalDocumentTypesService,
     GoodsReceiptWorkflowService,
     TransferAdjustmentWorkflowService,
+    DocumentPriceModePreferenceService,
   ],
   exports: [
     DocumentsService,
     DocumentSettingsService,
     GoodsReceiptWorkflowService,
     TransferAdjustmentWorkflowService,
+    DocumentPriceModePreferenceService,
   ],
 })
 export class DocumentsModule {}

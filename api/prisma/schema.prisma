@@ -368,6 +368,7 @@ model Tenant {
   inventoryLots           InventoryLot[]
   inventorySerials        InventorySerial[]
   userTableViewPreferences UserTableViewPreference[]
+  userDocumentPriceModePreferences UserDocumentPriceModePreference[]
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
   documentCounters        DocumentCounter[]
@@ -417,6 +418,7 @@ model User {
   stores                    UserStore[]
   supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
   tableViewPreferences      UserTableViewPreference[]
+  documentPriceModePreferences UserDocumentPriceModePreference[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -2338,4 +2340,24 @@ model UserTableViewPreference {
   @@unique([tenantId, userId, viewId])
   @@index([tenantId, userId])
   @@map("user_table_view_preferences")
+}
+
+/// Preferenza operatore della modalità prezzo (netto/ivato) per tipo documento.
+/// Ricordata alla creazione di un documento nuovo e riproposta al successivo
+/// dello stesso tipo, per (tenant, utente, tipo). Primo utilizzo: vendita ivato,
+/// acquisto netto. Vendita usa pricesIncludeVat, acquisto mappa costEntryMode.
+model UserDocumentPriceModePreference {
+  id               String       @id @default(uuid()) @db.Uuid
+  tenantId         String       @map("tenant_id") @db.Uuid
+  userId           String       @map("user_id") @db.Uuid
+  documentType     DocumentType @map("document_type")
+  pricesIncludeVat Boolean      @map("prices_include_vat")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, documentType], map: "user_doc_price_mode_pref_tenant_user_type_key")
+  @@index([tenantId, userId], map: "user_doc_price_mode_pref_tenant_user_idx")
+  @@map("user_document_price_mode_preferences")
 }

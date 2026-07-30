@@ -195,6 +195,15 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @Max(100)
   documentDiscountPercent?: number;
 
+  /**
+   * Modalità prezzo del documento (netto/ivato): true = prezzi riga IVA
+   * inclusa, l'IVA si scorpora; false = netti, l'IVA si aggiunge. Inviato dal
+   * form (testata). Assente = si usa la regola per tipo (retrocompatibilità).
+   */
+  @IsOptional()
+  @IsBoolean()
+  pricesIncludeVat?: boolean;
+
   /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
   @IsOptional()
   @IsString()

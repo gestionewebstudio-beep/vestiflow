@@ -12,6 +12,7 @@ import {
   Post,
   Query,
   StreamableFile,
+  UnprocessableEntityException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -61,6 +62,8 @@ import {
   type GoodsReceiptCreatedProduct,
 } from './goods-receipt-workflow.service';
 import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflow.service';
+import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
+import { DocumentType } from '@prisma/client';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -72,6 +75,7 @@ export class DocumentsController {
     private readonly documentXml: DocumentXmlService,
     private readonly goodsReceiptWorkflow: GoodsReceiptWorkflowService,
     private readonly transferAdjustmentWorkflow: TransferAdjustmentWorkflowService,
+    private readonly priceModePreference: DocumentPriceModePreferenceService,
   ) {}
 
   @Get()
@@ -82,6 +86,29 @@ export class DocumentsController {
     @Query() query: ListDocumentsQueryDto,
   ): Promise<Paginated<DocumentListRow>> {
     return this.documents.list(tenantId, query, user);
+  }
+
+  /**
+   * Modalità prezzo (netto/ivato) da proporre alla creazione di un documento
+   * del tipo indicato: preferenza ricordata dell'operatore ?? primo utilizzo
+   * (vendita ivato, acquisto netto).
+   */
+  @Get('price-mode-preference/:type')
+  @RequirePermissions(TenantPermission.DocumentsManage)
+  async getPriceModePreference(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('type') type: string,
+  ): Promise<{ pricesIncludeVat: boolean }> {
+    if (!(Object.values(DocumentType) as string[]).includes(type)) {
+      throw new UnprocessableEntityException('Tipo documento non valido.');
+    }
+    const pricesIncludeVat = await this.priceModePreference.resolvePricesIncludeVat(
+      tenantId,
+      user.id,
+      type as DocumentType,
+    );
+    return { pricesIncludeVat };
   }
 
   /** Operatori che hanno creato documenti dei tipi indicati (filtro elenco). */

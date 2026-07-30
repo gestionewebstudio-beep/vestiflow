@@ -22,6 +22,8 @@ import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { DocumentSettingsService } from '../documents/document-settings.service';
+import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
+import { costEntryModeToPricesIncludeVat } from '../documents/document-price-mode.util';
 import { formatDocumentReference } from '../documents/document-totals.util';
 import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
 import { computeGoodsReceiptTotals } from '../documents/goods-receipt-vat.util';
@@ -87,6 +89,7 @@ export class SupplierOrdersService {
     private readonly suppliers: SuppliersService,
     private readonly documentSettings: DocumentSettingsService,
     private readonly vatCodes: VatCodesService,
+    private readonly priceModePreference: DocumentPriceModePreferenceService,
   ) {}
 
   listSuppliers(tenantId: string): Promise<Supplier[]> {
@@ -124,7 +127,7 @@ export class SupplierOrdersService {
   async create(
     tenantId: string,
     dto: CreateSupplierOrderDto,
-    _user?: UserProfileDto,
+    user?: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const supplier = await this.prisma.supplier.findFirst({
       where: { id: dto.supplierId, tenantId },
@@ -141,7 +144,7 @@ export class SupplierOrdersService {
     const totals = computeGoodsReceiptTotals(computedLines, 0);
     const orderDate = dto.orderDate ? new Date(dto.orderDate) : new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const series = await defaultCounterSeries(tx, tenantId, DocumentType.supplier_order);
       const number = await nextDocumentNumber({
         tx,
@@ -176,6 +179,21 @@ export class SupplierOrdersService {
       });
       return { ...order, linkedDocuments: [] };
     });
+
+    // Ricorda la modalità costo (netto/ivato) scelta per l'ordine fornitore,
+    // solo alla creazione: il successivo la ripropone.
+    if (user?.id && dto.costEntryMode !== undefined) {
+      await this.priceModePreference
+        .remember(
+          tenantId,
+          user.id,
+          DocumentType.supplier_order,
+          costEntryModeToPricesIncludeVat(costEntryMode),
+        )
+        .catch(() => undefined);
+    }
+
+    return result;
   }
 
   /** Aggiorna un ordine Confermato: righe sostituite, totali ricalcolati. */

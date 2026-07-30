@@ -12,6 +12,7 @@ import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import type { DocumentSettingsService } from './document-settings.service';
+import type { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
 import type { ExternalDocumentTypesService } from './external-document-types.service';
 import type { VatCodesService } from '../vat/vat-codes.service';
 import type { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
@@ -140,12 +141,17 @@ function createService(prisma: ReturnType<typeof createPrismaMock>) {
   };
   const externalTypes = { getById: vi.fn() };
   const vatCodes = { buildSnapshot: vi.fn().mockReturnValue({}) };
+  const priceModePreference = {
+    resolvePricesIncludeVat: vi.fn().mockResolvedValue(false),
+    remember: vi.fn().mockResolvedValue(undefined),
+  };
   const service = new GoodsReceiptWorkflowService(
     prisma as unknown as PrismaService,
     settings as unknown as DocumentSettingsService,
     channelSync as unknown as ChannelSyncFacade,
     externalTypes as unknown as ExternalDocumentTypesService,
     vatCodes as unknown as VatCodesService,
+    priceModePreference as unknown as DocumentPriceModePreferenceService,
   );
   return { service, settings, channelSync };
 }

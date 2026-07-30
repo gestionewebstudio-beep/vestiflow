@@ -110,6 +110,11 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   @Max(100)
   documentDiscountPercent?: number;
 
+  /** Modalità prezzo del documento (netto/ivato): true = IVA inclusa. */
+  @IsOptional()
+  @IsBoolean()
+  pricesIncludeVat?: boolean;
+
   @IsOptional()
   @IsUUID()
   supplierOrderId?: string | null;

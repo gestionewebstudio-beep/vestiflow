@@ -50,6 +50,8 @@ import {
   type ComputedGoodsReceiptLine,
 } from './goods-receipt-vat.util';
 import { DocumentSettingsService } from './document-settings.service';
+import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
+import { costEntryModeToPricesIncludeVat } from './document-price-mode.util';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import {
   buildPurchaseInvoiceVatSummary,
@@ -131,6 +133,7 @@ export class GoodsReceiptWorkflowService {
     private readonly channelSync: ChannelSyncFacade,
     private readonly externalTypes: ExternalDocumentTypesService,
     private readonly vatCodes: VatCodesService,
+    private readonly priceModePreference: DocumentPriceModePreferenceService,
   ) {}
 
   // ── Arrivo merce: salvataggio unico ────────────────────────────────────────
@@ -147,7 +150,20 @@ export class GoodsReceiptWorkflowService {
     user?: UserProfileDto,
   ): Promise<GoodsReceiptSaveResult> {
     try {
-      return await this.saveGoodsReceiptInner(tenantId, dto, user);
+      const result = await this.saveGoodsReceiptInner(tenantId, dto, user);
+      // Ricorda la modalità costo (netto/ivato) scelta per questo tipo, solo
+      // alla creazione: la creazione successiva la ripropone.
+      if (!dto.id && user?.id && dto.purchaseCostEntryMode !== undefined) {
+        await this.priceModePreference
+          .remember(
+            tenantId,
+            user.id,
+            dto.type,
+            costEntryModeToPricesIncludeVat(dto.purchaseCostEntryMode),
+          )
+          .catch(() => undefined);
+      }
+      return result;
     } catch (error) {
       await this.throwNumberConflict(error, tenantId, dto.type, dto.series, dto.documentDate);
       throw error;

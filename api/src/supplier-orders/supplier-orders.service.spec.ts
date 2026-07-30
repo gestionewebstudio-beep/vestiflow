@@ -8,6 +8,7 @@ import { SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DocumentSettingsService } from '../documents/document-settings.service';
+import type { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { VatCodesService } from '../vat/vat-codes.service';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
@@ -64,6 +65,10 @@ describe('SupplierOrdersService', () => {
       suppliers,
       createDocumentSettingsMock(),
       createVatCodesMock(),
+      {
+        resolvePricesIncludeVat: vi.fn().mockResolvedValue(false),
+        remember: vi.fn().mockResolvedValue(undefined),
+      } as unknown as DocumentPriceModePreferenceService,
     );
   }
 

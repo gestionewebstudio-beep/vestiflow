@@ -436,6 +436,8 @@ export interface CreateDocumentBody {
   readonly billingCause?: string;
   readonly externalRef?: string;
   readonly documentDiscountPercent?: number;
+  /** Modalità prezzo del documento (netto/ivato): true = prezzi riga IVA inclusa. */
+  readonly pricesIncludeVat?: boolean;
   /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
   readonly paymentTerms?: string;
   /** Modalità di pagamento (DDT vendita: voce normativa MP01–MP23). */

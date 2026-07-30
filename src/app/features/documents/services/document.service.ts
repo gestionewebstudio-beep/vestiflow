@@ -335,6 +335,19 @@ export class DocumentService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /**
+   * Modalità prezzo (netto/ivato) da proporre alla creazione di un documento del
+   * tipo indicato: preferenza ricordata dell'operatore ?? primo utilizzo.
+   */
+  getPriceModePreference(type: DocumentType): Observable<boolean> {
+    return this.http
+      .get<{ pricesIncludeVat: boolean }>(this.url(`/documents/price-mode-preference/${type}`))
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((response) => response.pricesIncludeVat),
+      );
+  }
+
   deleteDocument(id: EntityId): Observable<void> {
     return this.http.delete<void>(this.url(`/documents/${id}`)).pipe(timeout(HTTP_TIMEOUT_MS));
   }

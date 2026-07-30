@@ -97,6 +97,7 @@ import {
 import { reverseSupplierOrderReceipt } from './document-supplier-order.util';
 import { findSupplierPriceDiffs } from './document-supplier-price.util';
 import { DocumentSettingsService } from './document-settings.service';
+import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
 import {
   isDedicatedWorkflowDocumentType,
   isFlowOnlyDocumentType,
@@ -281,6 +282,7 @@ export class DocumentsService {
     private readonly settings: DocumentSettingsService,
     private readonly channelSync: ChannelSyncFacade,
     private readonly stockReservations: StockReservationService,
+    private readonly priceModePreference: DocumentPriceModePreferenceService,
   ) {}
 
   async list(
@@ -845,14 +847,15 @@ export class DocumentsService {
       await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId);
     }
 
+    // Modalità prezzo del documento (netto/ivato): dalla testata del form se
+    // presente, altrimenti dalla regola per tipo (retrocompatibilità). Un unico
+    // valore effettivo guida sia il calcolo totali sia il valore persistito.
+    const pricesIncludeVat = dto.pricesIncludeVat ?? setting.pricesIncludeVat;
+
     const documentDate = new Date(dto.documentDate);
     const vatContext = await this.buildLineVatContext(tenantId, dto.supplierId, dto.lines ?? []);
     const lines = this.computeLines(dto.lines ?? [], dto.type, vatContext);
-    const totals = this.computeTotals(
-      lines,
-      setting.pricesIncludeVat,
-      dto.documentDiscountPercent ?? 0,
-    );
+    const totals = this.computeTotals(lines, pricesIncludeVat, dto.documentDiscountPercent ?? 0);
 
     const supplierName = await this.snapshotSupplierName(tenantId, dto.supplierId);
     // Cliente da anagrafica (snapshot) oppure testo libero solo-stampa
@@ -929,7 +932,7 @@ export class DocumentsService {
             recipientAddress: this.addressToJson(dto.recipientAddress),
             destinationAddress: this.addressToJson(dto.destinationAddress),
             currency: dto.currency ?? 'EUR',
-            pricesIncludeVat: setting.pricesIncludeVat,
+            pricesIncludeVat,
             documentDiscountPercent: dto.documentDiscountPercent ?? 0,
             ...totals,
             createdById: user?.id ?? null,
@@ -968,6 +971,18 @@ export class DocumentsService {
         this.logger.warn(`Push inventario non riuscito (${tenantId}): ${message}`);
       }
     }
+
+    // Ricorda la modalità prezzo scelta dall'operatore per questo tipo (solo se
+    // esplicitata dal form): la creazione successiva la ripropone.
+    if (user?.id && dto.pricesIncludeVat !== undefined) {
+      await this.priceModePreference
+        .remember(tenantId, user.id, dto.type, dto.pricesIncludeVat)
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : 'preferenza non salvata';
+          this.logger.warn(`Modalità prezzo non memorizzata (${tenantId}): ${message}`);
+        });
+    }
+
     return confirmed;
   }
 
@@ -2257,6 +2272,9 @@ export class DocumentsService {
       customerId: source.customerId ?? undefined,
       locationId,
       currency: source.currency,
+      // Il documento generato eredita la modalità prezzo dell'origine: guardati
+      // affiancati devono mostrare gli stessi importi.
+      pricesIncludeVat: source.pricesIncludeVat,
       notes: source.notes ?? undefined,
       internalComment: source.internalComment
         ? `${source.internalComment}\n${conversionNote}`
