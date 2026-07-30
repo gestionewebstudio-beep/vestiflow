@@ -330,12 +330,6 @@ export class DocumentService {
     return this.action(id, 'cancel');
   }
 
-  convertDocument(id: EntityId, targetType: DocumentType): Observable<DocumentRecord> {
-    return this.http
-      .post<DocumentApiRow>(this.url(`/documents/${id}/convert`), { targetType })
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
-  }
-
   /**
    * Prefill di conversione: dati del documento generato (testata + righe +
    * `sourceDocumentId`) SENZA crearlo. Il form di destinazione si apre già

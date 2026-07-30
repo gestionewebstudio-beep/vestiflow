@@ -671,30 +671,15 @@ export class DocumentDetailComponent {
 
   private runConvert(targetType: DocumentType): void {
     const doc = this.document();
-    if (!doc || this.actionSaving()) {
+    if (!doc) {
       return;
     }
-    // Generazione = «apre il form di destinazione precompilato»: non si crea nulla
-    // a monte, si naviga al form nuovo con l'origine da cui precompilare.
+    // Generazione = «apre il form di destinazione precompilato»: non si crea
+    // nulla a monte, si naviga al form nuovo con l'origine da cui precompilare.
     const targetRoute = this.convertTargetRoute(targetType);
     if (targetRoute) {
       void this.router.navigate([targetRoute], { queryParams: { fromDocument: doc.id } });
-      return;
     }
-    // Target ancora senza form-prefill (es. DDT): percorso legacy con creazione.
-    this._actionState.set({ status: 'saving' });
-    this.actionSubscription = this.service
-      .convertDocument(doc.id, targetType)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (created) => {
-          this._actionState.set({ status: 'idle' });
-          void this.router.navigate(['/app/documents', created.id]);
-        },
-        error: (err: unknown) => {
-          this._actionState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
   }
 
   private convertTargetRoute(targetType: DocumentType): string | null {

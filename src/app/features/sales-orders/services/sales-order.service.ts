@@ -79,11 +79,6 @@ export interface ManualOrderMeta {
   readonly unloadDocumentTypes: readonly string[];
 }
 
-export interface ConcludeManualOrderResult {
-  readonly documentId: EntityId;
-  readonly documentType: string;
-}
-
 /**
  * Accesso read-only alle vendite via NestJS. Shopify è owner: nessuna scrittura
  * lato gestionale; snapshot popolati da sync.
@@ -196,15 +191,6 @@ export class SalesOrderService {
   getManualOrderReservations(id: EntityId): Observable<readonly ManualOrderReservation[]> {
     return this.http
       .get<readonly ManualOrderReservation[]>(this.url(`/sales-orders/manual/${id}/reservations`))
-      .pipe(timeout(HTTP_TIMEOUT_MS));
-  }
-
-  /** "Concludi ordine": genera il documento di scarico precompilato (bozza). */
-  concludeManualOrder(id: EntityId, documentType: string): Observable<ConcludeManualOrderResult> {
-    return this.http
-      .post<ConcludeManualOrderResult>(this.url(`/sales-orders/manual/${id}/conclude`), {
-        documentType,
-      })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

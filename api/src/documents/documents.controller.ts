@@ -392,17 +392,6 @@ export class DocumentsController {
     return this.documents.confirm(tenantId, id, user);
   }
 
-  @Post(':id/convert')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  convert(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: ConvertDocumentDto,
-  ): Promise<DocumentWithLines> {
-    return this.documents.convert(tenantId, id, dto, user);
-  }
-
   /** Prefill di conversione (form di destinazione): non crea nulla. */
   @Post(':id/convert-prefill')
   @RequirePermissions(TenantPermission.DocumentsManage)

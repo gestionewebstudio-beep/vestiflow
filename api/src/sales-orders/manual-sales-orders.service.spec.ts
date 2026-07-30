@@ -317,29 +317,22 @@ describe('ManualSalesOrdersService.conclude', () => {
   it('rifiuta tipi di scarico non disponibili in VestiFlow', async () => {
     const { service } = createService(prisma);
     await expect(
-      service.conclude(tenantId, 'order-1', 'goods_receipt', testOwnerUser()),
+      service.concludePrefill(tenantId, 'order-1', 'goods_receipt', testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
-  it("genera la bozza di scarico precompilata e collega l'ordine", async () => {
+  it("restituisce il documento di scarico precompilato e vi aggancia l'ordine", async () => {
     const { service } = createService(prisma);
 
-    const result = await service.conclude(tenantId, 'order-1', 'sales_ddt', testOwnerUser());
+    const dto = await service.concludePrefill(tenantId, 'order-1', 'sales_ddt', testOwnerUser());
 
-    expect(result).toEqual({ documentId: 'doc-1', documentType: 'sales_ddt' });
-    const createArgs = prisma.document.create.mock.calls[0]![0] as {
-      data: Record<string, unknown>;
-    };
-    expect(createArgs.data['type']).toBe('sales_ddt');
-    expect(createArgs.data['status']).toBe('draft');
-    expect(createArgs.data['locationId']).toBe('loc-1');
-    const lines = (createArgs.data['lines'] as { create: readonly Record<string, unknown>[] })
-      .create;
+    expect(dto.type).toBe('sales_ddt');
+    expect(dto.locationId).toBe('loc-1');
+    expect(dto.includedSalesOrderIds).toEqual(['order-1']);
     // Prezzo unitario SCONTATO ereditato dalla riga ordine (25920 / 3 = 8640).
-    expect(lines[0]).toMatchObject({ quantity: 3, unitPriceMinor: 8640, loadsStock: true });
-    expect(prisma.salesOrder.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { documentId: 'doc-1' } }),
-    );
+    expect(dto.lines?.[0]).toMatchObject({ quantity: 3, unitPriceMinor: 8640, loadsStock: true });
+    // Nessun documento nasce a monte: il form lo crea (confermato) al salvataggio.
+    expect(prisma.document.create).not.toHaveBeenCalled();
   });
 
   it('un ordine annullato non può essere concluso', async () => {
@@ -352,7 +345,7 @@ describe('ManualSalesOrdersService.conclude', () => {
     });
     const { service } = createService(prisma);
     await expect(
-      service.conclude(tenantId, 'order-1', 'manual_unload', testOwnerUser()),
+      service.concludePrefill(tenantId, 'order-1', 'manual_unload', testOwnerUser()),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 });

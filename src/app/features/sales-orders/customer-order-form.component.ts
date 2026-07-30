@@ -94,7 +94,6 @@ import {
   documentReferenceLabel,
   documentTypeLabel,
 } from '@features/documents/models/document-labels.util';
-import { documentEditPath } from '@features/documents/models/document-routing.util';
 import { transportDataIncomplete } from '@features/documents/models/document-transport.util';
 import { parseSerialNumbersText } from '@features/documents/utils/serial-numbers-input.util';
 import { DocumentService } from '@features/documents/services/document.service';
@@ -3875,7 +3874,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   protected concludeWith(documentType: string): void {
     const orderId = this.editOrderId();
-    if (!orderId || this.concluding()) {
+    if (!orderId) {
       return;
     }
     this.concludeMenuOpen.set(false);
@@ -3887,28 +3886,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     const targetRoute = this.concludeTargetRoute(documentType as DocumentType);
     if (targetRoute) {
       void this.router.navigate([targetRoute], { queryParams: { includeOrder: orderId } });
-      return;
     }
-    // Target senza form-prefill: percorso legacy (crea bozza).
-    this.concluding.set(true);
-    this.salesOrderService
-      .concludeManualOrder(orderId, documentType)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          this.concluding.set(false);
-          void this.router.navigateByUrl(
-            documentEditPath({
-              id: result.documentId,
-              type: result.documentType as DocumentType,
-            }),
-          );
-        },
-        error: (err: unknown) => {
-          this.concluding.set(false);
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
   }
 
   /** Rotta del form di destinazione per «Concludi ordine», o null (legacy). */

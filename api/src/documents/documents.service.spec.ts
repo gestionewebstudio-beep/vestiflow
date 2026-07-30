@@ -2056,7 +2056,7 @@ describe('DocumentsService', () => {
       expect(prisma.document.delete).not.toHaveBeenCalled();
     });
 
-    it('convert rifiuta con 403 una proforma di una sede non assegnata', async () => {
+    it('convertPrefill rifiuta con 403 una proforma di una sede non assegnata', async () => {
       const { service } = createService(prisma, resolvedSetting({ type: DocumentType.proforma }));
       prisma.document.findFirst.mockResolvedValue(
         docInLocB({
@@ -2066,7 +2066,12 @@ describe('DocumentsService', () => {
       );
 
       await expect(
-        service.convert(tenantId, 'doc-b', { targetType: DocumentType.sales_ddt }, clerkViewAll()),
+        service.convertPrefill(
+          tenantId,
+          'doc-b',
+          { targetType: DocumentType.sales_ddt },
+          clerkViewAll(),
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.document.create).not.toHaveBeenCalled();
     });

@@ -2354,24 +2354,9 @@ export class DocumentsService {
   }
 
   /**
-   * Converte un documento vendita in un altro tipo: proforma → DDT vendita o
-   * bozza fattura (§9.1); DDT vendita → bozza fattura o proforma (prompt DDT
-   * §GENERAZIONE DOCUMENTI — la fattura vera non è prevista in questa fase).
-   */
-  /** Conversione con creazione (legacy): costruisce il prefill e lo crea. */
-  async convert(
-    tenantId: string,
-    id: string,
-    dto: ConvertDocumentDto,
-    user?: UserProfileDto,
-  ): Promise<DocumentWithLines> {
-    return this.create(tenantId, await this.buildConversionDto(tenantId, id, dto, user), user);
-  }
-
-  /**
-   * Prefill di conversione: costruisce i dati del documento generato (testata +
-   * righe + collegamento all'origine) SENZA crearlo. Il form di destinazione si
-   * apre precompilato e crea il documento solo al salvataggio.
+   * Converte un documento vendita in un altro tipo (proforma → DDT/bozza
+   * fattura; DDT → bozza fattura/proforma): il form di destinazione si apre
+   * precompilato da questo prefill e crea il documento solo al salvataggio.
    */
   async convertPrefill(
     tenantId: string,

@@ -59,11 +59,6 @@ export interface ManualSalesOrderMeta {
   readonly unloadDocumentTypes: readonly string[];
 }
 
-export interface ConcludeManualOrderResult {
-  readonly documentId: string;
-  readonly documentType: DocumentType;
-}
-
 /**
  * Ordine cliente manuale (source = manual) nel registro /app/sales.
  * Il salvataggio esegue in UN'UNICA transazione: testata, righe, totali e
@@ -429,126 +424,6 @@ export class ManualSalesOrdersService {
       `Ordine cliente ${saved.orderNumber} salvato (${tenantId}): stato ${status}, ${saved.lines.length} righe`,
     );
     return { order: saved, reservations, warnings };
-  }
-
-  /**
-   * "Concludi ordine": genera il documento di scarico scelto, precompilato con
-   * le righe dell'ordine (prodotti, quantità, prezzi scontati, IVA), in bozza.
-   * L'utente lo verifica e lo salva; alla CONFERMA dello scarico l'ordine passa
-   * a Concluso (hook in DocumentsService.confirm: impegni → scarichi reali).
-   */
-  async conclude(
-    tenantId: string,
-    orderId: string,
-    documentType: string,
-    user?: UserProfileDto,
-  ): Promise<ConcludeManualOrderResult> {
-    if (!(DOCUMENT_STOCK_UNLOAD_TYPES as readonly string[]).includes(documentType)) {
-      throw new UnprocessableEntityException(
-        'Tipo documento di scarico non disponibile in VestiFlow.',
-      );
-    }
-    const type = documentType as DocumentType;
-
-    const order = await this.prisma.salesOrder.findFirst({
-      where: { id: orderId, tenantId },
-      include: { lines: { orderBy: { lineNumber: 'asc' } } },
-    });
-    if (!order) {
-      throw new NotFoundException('Ordine cliente non trovato');
-    }
-    if (order.source !== SalesOrderSource.manual) {
-      throw new ConflictException('Solo gli ordini manuali si concludono da questa maschera.');
-    }
-    if (order.cancelledAt) {
-      throw new ConflictException('Un ordine annullato non può essere concluso.');
-    }
-    if (order.fulfilledAt) {
-      throw new ConflictException('Ordine già concluso.');
-    }
-    if (order.documentId) {
-      const linked = await this.prisma.document.findFirst({
-        where: { id: order.documentId, tenantId },
-        select: { id: true, status: true, type: true },
-      });
-      if (linked && linked.status !== DocumentStatus.cancelled) {
-        // Documento di scarico già generato e ancora attivo: si riusa quello.
-        return { documentId: linked.id, documentType: linked.type };
-      }
-    }
-    if (!order.locationId) {
-      throw new UnprocessableEntityException(
-        "Assegna la location di origine all'ordine prima di concluderlo.",
-      );
-    }
-    if (user) {
-      assertLocationInUserScope(user, order.locationId, 'write');
-    }
-
-    const setting = await this.documentSettings.getResolved(tenantId, type);
-    const actorName = user?.displayName ?? 'API';
-
-    const document = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.document.create({
-        data: {
-          tenantId,
-          type,
-          status: DocumentStatus.draft,
-          series: setting.defaultSeries,
-          year: new Date().getFullYear(),
-          documentDate: new Date(),
-          customerId: order.customerId,
-          customerName: order.customerName,
-          locationId: order.locationId,
-          notes: order.notes,
-          internalComment: `Generato da Concludi ordine ${order.orderNumber}`,
-          externalRef: order.externalRef,
-          currency: order.currency,
-          subtotalMinor: order.subtotalMinor,
-          taxMinor: order.taxMinor,
-          totalMinor: order.totalMinor,
-          // Lo sconto extra documento dell'ordine viaggia con lo scarico:
-          // i totali di testata restano coerenti con le righe precompilate.
-          documentDiscountPercent: order.documentDiscountPercent,
-          createdById: user?.id ?? null,
-          createdByName: actorName,
-          lines: {
-            create: order.lines.map((line, index) => ({
-              tenantId,
-              lineNumber: index + 1,
-              variantId: line.variantId,
-              sku: line.sku || null,
-              description: line.title,
-              quantity: line.quantity,
-              // Prezzo unitario SCONTATO (cascata esatta già applicata alla
-              // riga ordine): il documento di scarico eredita i prezzi reali.
-              unitPriceMinor: line.quantity > 0 ? Math.round(line.totalMinor / line.quantity) : 0,
-              discountPercent: 0,
-              lineTotalMinor: line.totalMinor,
-              vatCodeId: line.vatCodeId,
-              vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-              lineVatTotalMinor: line.lineVatTotalMinor,
-              lineGrossTotalMinor: line.totalMinor + line.lineVatTotalMinor,
-              // Le righe che non impegnano (Servizi/eccezioni) non scaricano.
-              loadsStock: line.commitsStock && Boolean(line.variantId),
-            })),
-          },
-        },
-        select: { id: true, type: true },
-      });
-
-      await tx.salesOrder.update({
-        where: { id: order.id },
-        data: { documentId: created.id },
-      });
-
-      return created;
-    });
-
-    this.logger.log(
-      `Concludi ordine ${order.orderNumber}: creato ${type} ${document.id} (${tenantId})`,
-    );
-    return { documentId: document.id, documentType: document.type };
   }
 
   /**

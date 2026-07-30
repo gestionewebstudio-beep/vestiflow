@@ -69,7 +69,7 @@ describe('SalesOrdersController', () => {
       SalesOrdersController.prototype.getManualMeta,
       SalesOrdersController.prototype.saveManual,
       SalesOrdersController.prototype.listManualReservations,
-      SalesOrdersController.prototype.concludeManual,
+      SalesOrdersController.prototype.concludeManualPrefill,
     ]) {
       const perms = Reflect.getMetadata(TENANT_PERMISSIONS_KEY, handler) as string[];
       expect(perms).toContain(TenantPermission.DocumentsManage);

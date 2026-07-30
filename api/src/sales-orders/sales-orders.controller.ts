@@ -37,7 +37,6 @@ import { ListSalesOrdersQueryDto } from './dto/list-sales-orders.query.dto';
 import { SaveManualSalesOrderDto } from './dto/save-manual-sales-order.dto';
 import {
   ManualSalesOrdersService,
-  type ConcludeManualOrderResult,
   type ManualOrderReservationRow,
   type ManualSalesOrderMeta,
   type ManualSalesOrderSaveResult,
@@ -116,18 +115,6 @@ export class SalesOrdersController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<readonly ManualOrderReservationRow[]> {
     return this.manualOrders.listActiveReservations(tenantId, id);
-  }
-
-  /** "Concludi ordine": genera il documento di scarico precompilato (bozza). */
-  @Post('manual/:id/conclude')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  concludeManual(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: ConcludeManualSalesOrderDto,
-  ): Promise<ConcludeManualOrderResult> {
-    return this.manualOrders.conclude(tenantId, id, dto.documentType, user);
   }
 
   /**
