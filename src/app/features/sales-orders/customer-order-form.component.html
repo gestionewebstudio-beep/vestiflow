@@ -412,6 +412,21 @@
                       (numberChange)="onDocumentNumberChange($event)"
                       (seriesChange)="onSeriesChange($event)"
                     />
+
+                    <!-- Modalità prezzo: netto o ivato. Cambiandola i prezzi si
+                         convertono così i totali non si spostano. -->
+                    <div class="co-panel__field">
+                      <span class="co-panel__label">Modalità prezzo</span>
+                      <app-select-menu
+                        [options]="priceModeOptions"
+                        [value]="pricesIncludeVat() ? 'gross' : 'net'"
+                        ariaLabel="Modalità prezzo netto o ivato"
+                        placeholder="Netto"
+                        [compact]="true"
+                        [fullWidth]="true"
+                        (valueChange)="setPriceMode($event === 'gross')"
+                      />
+                    </div>
                   }
 
                   @if (isManualUnload) {
@@ -1620,7 +1635,7 @@
                           </div>
 
                           <div class="co-form__metric co-form__metric--price">
-                            <small>Prezzo</small>
+                            <small>{{ priceRowLabel() }}</small>
                             <input
                               class="co-form__metric-input tabular-nums"
                               type="text"
@@ -1810,7 +1825,7 @@
                               </div>
                             }
                             <div class="co-form__card-field">
-                              <label [attr.for]="'co-m-price-' + i">Prezzo</label>
+                              <label [attr.for]="'co-m-price-' + i">{{ priceRowLabel() }}</label>
                               <input
                                 [id]="'co-m-price-' + i"
                                 class="gr-form__input"

@@ -89,6 +89,7 @@ describe('GoodsReceiptFormComponent', () => {
             previewDocumentNumber: () =>
               of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
             saveGoodsReceipt: vi.fn(),
+            getPriceModePreference: () => of(false),
           },
         },
         // Serie del protocollo: una sola configurata → label statica.

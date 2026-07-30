@@ -91,6 +91,8 @@ import {
   TRANSPORT_INCOMPLETE_TITLE,
   transportDataIncomplete,
 } from './models/document-transport.util';
+import { priceModeRowLabel } from './models/document-price-mode.util';
+import { grossFromNetMinor, netFromGrossMinor } from './utils/goods-receipt-vat.util';
 import { DocumentService } from './services/document.service';
 import type { CreateDocumentBody } from './services/document-api.mapper';
 import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
@@ -167,6 +169,20 @@ export class SalesDocumentFormComponent {
    * inviati al salvataggio, si concludono alla conferma del documento.
    */
   private readonly _includedSalesOrderIds = signal<readonly string[]>([]);
+
+  /**
+   * Modalità prezzo del documento (netto/ivato). true = i prezzi riga si
+   * inseriscono e mostrano IVA inclusa (l'IVA si scorpora); false = netti.
+   * Sorgente iniziale: preferenza operatore (doc nuovo), documento (modifica),
+   * origine (documento generato/duplicato). Cambiandola i prezzi si convertono
+   * così i totali non si spostano.
+   */
+  protected readonly pricesIncludeVat = signal<boolean>(false);
+  protected readonly priceRowLabel = computed(() => priceModeRowLabel(this.pricesIncludeVat()));
+  protected readonly priceModeOptions: readonly SelectMenuOption[] = [
+    { value: 'net', label: 'Netto' },
+    { value: 'gross', label: 'Ivato' },
+  ];
 
   protected readonly documentType = computed(() => {
     const loaded = this.loadedDocument()?.type;
@@ -550,6 +566,7 @@ export class SalesDocumentFormComponent {
 
   protected readonly lineTotals = computed(() => {
     this.formValue();
+    const includesVat = this.pricesIncludeVat();
     let subtotalMinor = 0;
     let taxMinor = 0;
     for (const line of this.lines.controls) {
@@ -557,11 +574,20 @@ export class SalesDocumentFormComponent {
       const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
       const unitMinor = price?.amountMinor ?? 0;
       const vat = Number(line.controls.vatRatePercent.value) || 0;
-      const gross = Math.round(qty * unitMinor);
-      const discounted = applyDiscountMinor(gross, line.controls.discountPercent.value);
-      subtotalMinor += discounted;
-      if (vat > 0) {
-        taxMinor += Math.round((discounted * vat) / 100);
+      const lineAmount = applyDiscountMinor(
+        Math.round(qty * unitMinor),
+        line.controls.discountPercent.value,
+      );
+      if (includesVat) {
+        // Prezzo ivato: il totale riga è lordo, l'IVA si scorpora (lordo fermo).
+        const net = vat > 0 ? netFromGrossMinor(lineAmount, vat) : lineAmount;
+        subtotalMinor += net;
+        taxMinor += lineAmount - net;
+      } else {
+        subtotalMinor += lineAmount;
+        if (vat > 0) {
+          taxMinor += Math.round((lineAmount * vat) / 100);
+        }
       }
     }
     const docDiscount = parseEffectiveDiscountPercent(
@@ -586,6 +612,7 @@ export class SalesDocumentFormComponent {
    */
   protected readonly vatBreakdown = computed(() => {
     this.formValue();
+    const includesVat = this.pricesIncludeVat();
     const docDiscount = parseEffectiveDiscountPercent(
       this.form.controls.documentDiscountPercent.value,
     );
@@ -595,16 +622,21 @@ export class SalesDocumentFormComponent {
       const qty = Number(line.controls.quantity.value) || 0;
       const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
       const rate = Number(line.controls.vatRatePercent.value) || 0;
-      const gross = Math.round(qty * (price?.amountMinor ?? 0));
-      const net = Math.round(
-        applyDiscountMinor(gross, line.controls.discountPercent.value) * docMultiplier,
+      const lineAmount = Math.round(
+        applyDiscountMinor(
+          Math.round(qty * (price?.amountMinor ?? 0)),
+          line.controls.discountPercent.value,
+        ) * docMultiplier,
       );
-      if (net === 0) {
+      if (lineAmount === 0) {
         continue;
       }
+      // Ivato: lineAmount è lordo → scorporo; netto: lineAmount è imponibile.
+      const net = includesVat && rate > 0 ? netFromGrossMinor(lineAmount, rate) : lineAmount;
+      const vat = includesVat ? lineAmount - net : rate > 0 ? Math.round((net * rate) / 100) : 0;
       const entry = byRate.get(rate) ?? { netMinor: 0, vatMinor: 0 };
       entry.netMinor += net;
-      entry.vatMinor += Math.round((net * rate) / 100);
+      entry.vatMinor += vat;
       byRate.set(rate, entry);
     }
     return [...byRate.entries()]
@@ -636,6 +668,7 @@ export class SalesDocumentFormComponent {
       this.prefillFromConversionIfRequested();
       this.prefillFromIncludedOrderIfRequested();
       this.prefillFromDuplicateIfRequested();
+      this.initPriceModeForNewDocument();
     });
 
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
@@ -1112,6 +1145,7 @@ export class SalesDocumentFormComponent {
       billingCause: raw.billingCause.trim() || undefined,
       externalRef: raw.relatedDdtRef.trim() || undefined,
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
+      pricesIncludeVat: this.pricesIncludeVat(),
       ...(this.isSalesInvoice()
         ? {
             paymentTerms: raw.paymentTerms.trim() || undefined,
@@ -1218,6 +1252,36 @@ export class SalesDocumentFormComponent {
       this.form.controls.documentNumber.setValue(counter.nextNumber);
       this.form.controls.documentNumber.markAsPristine();
     }
+  }
+
+  /**
+   * Cambio modalità prezzo dalla testata: converte i prezzi già inseriti
+   * (netto↔ivato per aliquota di riga) così l'importo effettivo delle righe — e
+   * i totali — non cambiano; muta solo come i valori sono interpretati e mostrati.
+   */
+  protected setPriceMode(pricesIncludeVat: boolean): void {
+    if (pricesIncludeVat === this.pricesIncludeVat() || this.formReadOnly()) {
+      return;
+    }
+    for (const line of this.lines.controls) {
+      const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
+      const rate = Number(line.controls.vatRatePercent.value) || 0;
+      if (!price || price.amountMinor <= 0 || rate <= 0) {
+        continue;
+      }
+      const converted = pricesIncludeVat
+        ? grossFromNetMinor(price.amountMinor, rate)
+        : netFromGrossMinor(price.amountMinor, rate);
+      line.controls.unitPrice.setValue(
+        moneyToDecimalString({ amountMinor: converted, currencyCode: this.currency }).replace(
+          '.',
+          ',',
+        ),
+        { emitEvent: false },
+      );
+    }
+    this.pricesIncludeVat.set(pricesIncludeVat);
+    this.form.markAsDirty();
   }
 
   /**
@@ -1333,6 +1397,28 @@ export class SalesDocumentFormComponent {
       });
   }
 
+  /**
+   * Documento nuovo «da zero»: la modalità prezzo parte dalla preferenza
+   * ricordata dell'operatore (?? primo utilizzo). I documenti generati o
+   * duplicati non passano di qui: ereditano la modalità dell'origine.
+   */
+  private initPriceModeForNewDocument(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const params = this.route.snapshot.queryParamMap;
+    if (params.get('fromDocument') || params.get('includeOrder') || params.get('duplicateFrom')) {
+      return;
+    }
+    this.documentService
+      .getPriceModePreference(this.documentType())
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (pricesIncludeVat) => this.pricesIncludeVat.set(pricesIncludeVat),
+        error: () => undefined,
+      });
+  }
+
   private applyDuplicatePrefill(doc: DocumentRecord): void {
     this.patchFormFromDocument(doc);
     // Documento indipendente: si azzerano identità e collegamenti dell'originale
@@ -1352,6 +1438,10 @@ export class SalesDocumentFormComponent {
   private prefillFromConversion(prefill: CreateDocumentBody): void {
     this._sourceDocumentId.set(prefill.sourceDocumentId ?? null);
     this._includedSalesOrderIds.set([...(prefill.includedSalesOrderIds ?? [])]);
+    // Documento generato: eredita la modalità prezzo dell'origine (dal prefill).
+    if (prefill.pricesIncludeVat !== undefined) {
+      this.pricesIncludeVat.set(prefill.pricesIncludeVat);
+    }
     this.form.patchValue({
       customerId: prefill.customerId ?? '',
       locationId: prefill.locationId ?? '',
@@ -1403,6 +1493,8 @@ export class SalesDocumentFormComponent {
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
+    // Documento esistente: si mostra la modalità con cui è stato creato.
+    this.pricesIncludeVat.set(doc.pricesIncludeVat);
     this.form.patchValue({
       customerId: doc.customerId ?? '',
       locationId: doc.locationId ?? '',

@@ -28,6 +28,7 @@ import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util'
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
+import { DocumentType } from '@core/models/document.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
 import {
@@ -67,6 +68,8 @@ import { ProductFormComponent } from '@features/products/product-form.component'
 import { ProductService } from '@features/products/services/product.service';
 import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
+
+import { DocumentService } from '@features/documents/services/document.service';
 
 import { SupplierOrderService } from './services/supplier-order.service';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
@@ -127,6 +130,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly productService = inject(ProductService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
+  private readonly documentService = inject(DocumentService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -220,6 +224,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   // Switch costi netto/ivato di testata (stesso pattern dell'Arrivo merce).
   protected readonly costEntryMode = signal<PurchaseCostEntryMode>('vat_excluded');
   protected readonly costModeMenuOpen = signal(false);
+  // Marcato appena l'utente sceglie a mano: blocca l'inizializzazione dalla preferenza.
+  private costEntryModeTouched = false;
   protected readonly costModeLabel = computed(() =>
     this.costEntryMode() === 'vat_included' ? 'Costo ivato' : 'Costo netto',
   );
@@ -405,6 +411,32 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.markFormDirty();
     });
+
+    // Nuovo ordine: la modalità costi iniziale viene dalla preferenza operatore
+    // per tipo (non da un default fisso). In modifica la sovrascrive l'ordine.
+    this.initCostModeForNewOrder();
+  }
+
+  /**
+   * Modalità costi iniziale del nuovo ordine fornitore: eredita l'ultima scelta
+   * dell'operatore per questo tipo documento (preferenza ricordata lato backend).
+   * Non tocca la modifica di un ordine esistente né una scelta manuale già fatta.
+   */
+  private initCostModeForNewOrder(): void {
+    if (this.editOrderId() || this.costEntryModeTouched) {
+      return;
+    }
+    this.documentService
+      .getPriceModePreference(DocumentType.SupplierOrder)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (pricesIncludeVat) => {
+          if (!this.costEntryModeTouched) {
+            this.costEntryMode.set(pricesIncludeVat ? 'vat_included' : 'vat_excluded');
+          }
+        },
+        error: () => undefined,
+      });
   }
 
   private markFormDirty(): void {
@@ -476,6 +508,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       // Lo switch netto/ivato non vive nel form: va marcato a mano.
       this.markFormDirty();
     }
+    // Scelta manuale: la preferenza non deve più sovrascrivere.
+    this.costEntryModeTouched = true;
     this.costEntryMode.set(mode);
     this.costModeMenuOpen.set(false);
   }

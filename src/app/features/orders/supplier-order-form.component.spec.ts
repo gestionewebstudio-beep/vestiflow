@@ -13,6 +13,7 @@ import { ProductService } from '@features/products/services/product.service';
 
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
 import { SupplierOrderService } from './services/supplier-order.service';
+import { DocumentService } from '@features/documents/services/document.service';
 import { SupplierService } from '@features/suppliers/services/supplier.service';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { signal } from '@angular/core';
@@ -96,6 +97,11 @@ describe('SupplierOrderFormComponent', () => {
             createOrder,
             getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
           },
+        },
+        // Modalità costi iniziale del nuovo ordine: preferenza operatore per tipo.
+        {
+          provide: DocumentService,
+          useValue: { getPriceModePreference: () => of(false) },
         },
         {
           provide: TableColumnPreferenceService,

@@ -87,6 +87,21 @@
             (seriesChange)="onSeriesChange($event)"
           />
 
+          <!-- Modalità prezzo del documento: netto o ivato. Cambiandola i prezzi
+               si convertono così i totali non si spostano. -->
+          <div class="gr-form__field">
+            <span class="gr-form__label">Modalità prezzo</span>
+            <app-select-menu
+              [options]="priceModeOptions"
+              [value]="pricesIncludeVat() ? 'gross' : 'net'"
+              ariaLabel="Modalità prezzo netto o ivato"
+              placeholder="Netto"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="setPriceMode($event === 'gross')"
+            />
+          </div>
+
           @if (isSalesInvoice()) {
             <div class="gr-form__field">
               <label class="gr-form__label" for="sd-cause">Causale</label>
@@ -230,7 +245,9 @@
                     />
                   </div>
                   <div class="gr-form__line-field">
-                    <label class="gr-form__label" [for]="'sd-price-' + i">Prezzo</label>
+                    <label class="gr-form__label" [for]="'sd-price-' + i">{{
+                      priceRowLabel()
+                    }}</label>
                     <input
                       [id]="'sd-price-' + i"
                       class="gr-form__input"

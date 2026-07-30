@@ -46,7 +46,10 @@ describe('SalesDocumentFormComponent', () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            snapshot: { data: { salesDocumentType: DocumentType.Proforma } },
+            snapshot: {
+              data: { salesDocumentType: DocumentType.Proforma },
+              queryParamMap: convertToParamMap({}),
+            },
             paramMap: of(convertToParamMap({})),
             data: of({ salesDocumentType: DocumentType.Proforma }),
           },
@@ -76,6 +79,7 @@ describe('SalesDocumentFormComponent', () => {
             createDocument: vi.fn(),
             updateDocument: vi.fn(),
             confirmDocument: vi.fn(),
+            getPriceModePreference: () => of(false),
           },
         },
       ],
@@ -91,7 +95,7 @@ describe('SalesDocumentFormComponent', () => {
 
     expect(screen.queryByText(/12,20/)).toBeNull();
 
-    const priceInput = screen.getByLabelText('Prezzo');
+    const priceInput = screen.getByLabelText('Prezzo netto');
     await user.clear(priceInput);
     await user.type(priceInput, '10,00');
 

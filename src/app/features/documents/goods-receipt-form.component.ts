@@ -466,14 +466,28 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.costEntryMode() === 'vat_included' ? 'Costo ivato' : 'Costo netto',
   );
 
-  /** Copia l'impostazione tenant nei nuovi documenti (mai in quelli caricati). */
-  private readonly costModeDefaultEffect = effect(() => {
-    const settings = this.tenantSettings();
-    if (!settings || this.editDocumentId() || this.costEntryModeTouched) {
+  /**
+   * Nuovo documento: la modalità costo (netto/ivato) parte dalla preferenza
+   * ricordata dell'operatore per questo tipo (?? primo utilizzo: netto). Mai sui
+   * documenti caricati (mostrano la modalità con cui sono stati creati) né dopo
+   * una scelta manuale.
+   */
+  private initCostModeForNewDocument(): void {
+    if (this.editDocumentId() || this.costEntryModeTouched) {
       return;
     }
-    this.costEntryMode.set(settings.defaultPurchaseCostEntryMode ?? 'vat_excluded');
-  });
+    this.documentService
+      .getPriceModePreference(this.form.controls.type.value)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (pricesIncludeVat) => {
+          if (!this.costEntryModeTouched) {
+            this.costEntryMode.set(pricesIncludeVat ? 'vat_included' : 'vat_excluded');
+          }
+        },
+        error: () => undefined,
+      });
+  }
 
   protected readonly operationalStatusWarning = computed(() => {
     const status = this.documentStatus();
@@ -3943,6 +3957,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const duplicateFrom = this.route.snapshot.queryParamMap.get('duplicateFrom');
     if (duplicateFrom) {
       this.prefillFromDuplicate(duplicateFrom);
+    } else {
+      // Nuovo da zero: la modalità costo parte dalla preferenza operatore. Il
+      // duplicato eredita invece la modalità dell'originale (patchFormFromDocument).
+      this.initCostModeForNewDocument();
     }
   }
 

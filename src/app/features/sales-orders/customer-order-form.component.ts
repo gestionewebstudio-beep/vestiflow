@@ -90,6 +90,11 @@ import {
   includedPayloadFromSalesOrder,
   type IncludedDocumentPayload,
 } from '@features/documents/models/document-include.util';
+import { priceModeRowLabel } from '@features/documents/models/document-price-mode.util';
+import {
+  grossFromNetMinor,
+  netFromGrossMinor,
+} from '@features/documents/utils/goods-receipt-vat.util';
 import {
   documentReferenceLabel,
   documentTypeLabel,
@@ -1130,6 +1135,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   private readonly _sourceDocumentId = signal<string | null>(null);
 
+  /**
+   * Modalità prezzo del documento (netto/ivato), solo per i documenti del
+   * registro (DDT, preventivo, scarico manuale): true = prezzi riga IVA inclusa.
+   * Sorgente iniziale: preferenza (nuovo), documento (modifica), origine
+   * (generato/duplicato). Cambiandola i prezzi si convertono, totali fermi.
+   */
+  protected readonly pricesIncludeVat = signal<boolean>(false);
+  protected readonly priceRowLabel = computed(() => priceModeRowLabel(this.pricesIncludeVat()));
+  protected readonly priceModeOptions: readonly SelectMenuOption[] = [
+    { value: 'net', label: 'Netto' },
+    { value: 'gross', label: 'Ivato' },
+  ];
+
   // ── F2: menu azioni ⋯ (mobile) + sconto documento a scomparsa ────────────
   protected readonly headerMenuOpen = signal(false);
   /** Il menu ⋯ compare solo se c'è almeno un'azione contestuale da offrire. */
@@ -1273,8 +1291,31 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.prefillFromIncludedOrder();
         this.prefillFromConversionDocument();
         this.prefillFromDuplicateDocument();
+        this.initPriceModeForNewDocument();
       }
     });
+  }
+
+  /**
+   * Documento del registro nuovo «da zero» (o da «Concludi ordine», che non
+   * porta modalità): la modalità prezzo parte dalla preferenza dell'operatore.
+   * Il DDT generato da proforma e il duplicato ereditano invece l'origine.
+   */
+  private initPriceModeForNewDocument(): void {
+    if (!this.isRegistryDocument) {
+      return;
+    }
+    const params = this.route.snapshot.queryParamMap;
+    if (params.get('fromDocument') || params.get('duplicateFrom')) {
+      return;
+    }
+    this.documentService
+      .getPriceModePreference(this.registryDocumentType)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (pricesIncludeVat) => this.pricesIncludeVat.set(pricesIncludeVat),
+        error: () => undefined,
+      });
   }
 
   /**
@@ -1360,6 +1401,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   private applyConversionPrefill(doc: DocumentRecord): void {
     this._sourceDocumentId.set(doc.id);
+    // Il DDT generato eredita la modalità prezzo della proforma d'origine.
+    this.pricesIncludeVat.set(doc.pricesIncludeVat);
 
     // Testata riportata dalla proforma (cliente, location, pagamento); la data
     // resta quella odierna del DDT nuovo, non quella della proforma.
@@ -2004,15 +2047,21 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   protected readonly documentTotals = computed(() => {
     this.formValue();
+    const includesVat = this.pricesIncludeVat();
     let lineSum = 0;
     const taxParts: { readonly netMinor: number; readonly vatRate: number }[] = [];
     this.lines.controls.forEach((line, index) => {
       if (this.lineIsEmpty(line) || this.isReferenceLine(line)) {
         return;
       }
-      const netMinor = this.lineTotalMoney(index).amountMinor;
+      const lineAmount = this.lineTotalMoney(index).amountMinor;
+      const vatRate = this.lineVatRate(index);
+      // Ivato: il totale riga è lordo → si scorpora il netto (imponibile). In
+      // entrambe le modalità il resto lavora sul netto (l'IVA è netto·aliquota).
+      const netMinor =
+        includesVat && vatRate > 0 ? netFromGrossMinor(lineAmount, vatRate) : lineAmount;
       lineSum += netMinor;
-      taxParts.push({ netMinor, vatRate: this.lineVatRate(index) });
+      taxParts.push({ netMinor, vatRate });
     });
 
     const docDiscountPercent = parseEffectiveDiscountPercent(
@@ -2052,6 +2101,39 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       } satisfies Money,
     };
   });
+
+  /**
+   * Cambio modalità prezzo dalla testata: converte i prezzi già inseriti
+   * (netto↔ivato per aliquota di riga) così l'importo effettivo delle righe — e
+   * i totali — non cambiano; muta solo come i valori sono interpretati.
+   */
+  protected setPriceMode(pricesIncludeVat: boolean): void {
+    if (pricesIncludeVat === this.pricesIncludeVat() || this.formReadOnly()) {
+      return;
+    }
+    this.lines.controls.forEach((line, index) => {
+      if (this.isReferenceLine(line)) {
+        return;
+      }
+      const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
+      const rate = this.lineVatRate(index);
+      if (!price || price.amountMinor <= 0 || rate <= 0) {
+        return;
+      }
+      const converted = pricesIncludeVat
+        ? grossFromNetMinor(price.amountMinor, rate)
+        : netFromGrossMinor(price.amountMinor, rate);
+      line.controls.unitPrice.setValue(
+        moneyToDecimalString({ amountMinor: converted, currencyCode: this.currency }).replace(
+          '.',
+          ',',
+        ),
+        { emitEvent: false },
+      );
+    });
+    this.pricesIncludeVat.set(pricesIncludeVat);
+    this.markFormDirty();
+  }
 
   /** Aliquota effettiva della riga (solo modalità standard, 0 altrimenti). */
   private lineVatRate(index: number): number {
@@ -3562,6 +3644,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           expectedDeliveryDate: value.expectedDeliveryDate || null,
           notes: value.notes.trim(),
           documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
+          pricesIncludeVat: this.pricesIncludeVat(),
           ...(ddtCreateFields ?? {}),
           lines,
         } satisfies UpdateDocumentBody)
@@ -3582,6 +3665,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           notes: value.notes.trim() || undefined,
           currency: this.currency,
           documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
+          pricesIncludeVat: this.pricesIncludeVat(),
           ...(ddtCreateFields ? this.stripNullFields(ddtCreateFields) : {}),
           lines,
         } satisfies CreateDocumentBody);
@@ -3708,6 +3792,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /** Carica il documento del registro (quote/sales_ddt) nel form condiviso. */
   private patchFormFromRegistryDocument(doc: DocumentRecord): void {
+    // Documento esistente (o base della duplica): si mostra la sua modalità.
+    this.pricesIncludeVat.set(doc.pricesIncludeVat);
     this.suppressDirtyMarking = true;
     this.suppressRecipientAutofillTracking = true;
     try {
