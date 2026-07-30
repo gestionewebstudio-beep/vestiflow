@@ -87,6 +87,7 @@ import {
   CUSTOMER_ORDER_INCLUDE_SOURCES,
   IncludeSourceKind,
   includeSourceKindsForDocumentType,
+  includedPayloadFromSalesOrder,
   type IncludedDocumentPayload,
 } from '@features/documents/models/document-include.util';
 import {
@@ -1264,8 +1265,29 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     afterNextRender(() => {
       if (!this.editOrderId()) {
         this.refreshNumberProposal();
+        this.prefillFromIncludedOrder();
       }
     });
+  }
+
+  /**
+   * Apertura del DDT «precompilato» dalla generazione lato ordine («Concludi
+   * ordine» → DDT): il param `includeOrder` aggancia subito l'ordine sorgente
+   * riusando la stessa logica del pannello «Includi». Nessun documento nasce a
+   * monte: il DDT si crea solo al salvataggio, che conclude l'ordine.
+   */
+  private prefillFromIncludedOrder(): void {
+    const includeOrderId = this.route.snapshot.queryParamMap.get('includeOrder');
+    if (!includeOrderId || !this.isSalesDdt) {
+      return;
+    }
+    this.salesOrderService
+      .getSalesOrderById(includeOrderId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (order) => this.onDocumentIncluded(includedPayloadFromSalesOrder(order)),
+        error: () => undefined,
+      });
   }
 
   /** Alza il flag durante le patch programmatiche dell'intestatario. */
@@ -3710,6 +3732,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       return;
     }
     this.concludeMenuOpen.set(false);
+    // DDT vendita: nessun documento nasce a monte. Si apre il form DDT già
+    // precompilato con l'ordine incluso (param `includeOrder`); il salvataggio
+    // del DDT crea il documento e conclude l'ordine, nella sua transazione.
+    if (documentType === DocumentType.SalesDdt) {
+      void this.router.navigate(['/app/documents/sales-ddt/new'], {
+        queryParams: { includeOrder: orderId },
+      });
+      return;
+    }
+    // Scarico manuale / Fattura accompagnatoria: percorso attuale (allineamento
+    // alla generazione-apre-form previsto come step successivo).
     this.concluding.set(true);
     this.salesOrderService
       .concludeManualOrder(orderId, documentType)
