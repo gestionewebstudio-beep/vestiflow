@@ -3936,6 +3936,43 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (supplierOrderId) {
       this.includeSupplierOrder(supplierOrderId);
     }
+
+    // «Duplica documento» (Fase 3, no bozze): il param `duplicateFrom` porta
+    // l'arrivo merce originale, copiato in un documento NUOVO. Nessuna copia
+    // nasce a monte: si crea (confermato) solo al salvataggio.
+    const duplicateFrom = this.route.snapshot.queryParamMap.get('duplicateFrom');
+    if (duplicateFrom) {
+      this.prefillFromDuplicate(duplicateFrom);
+    }
+  }
+
+  private prefillFromDuplicate(duplicateFrom: string): void {
+    this.documentService
+      .getDocumentById(duplicateFrom)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => this.applyDuplicatePrefill(doc),
+        error: () => undefined,
+      });
+  }
+
+  private applyDuplicatePrefill(doc: DocumentRecord): void {
+    this.patchFormFromDocument(doc);
+    // Documento indipendente: numero fresco e data odierna.
+    this.form.patchValue({
+      protocolNumber: null,
+      documentDate: new Date().toISOString().slice(0, 10),
+    });
+    // Nessun aggancio all'ordine fornitore dell'originale e righe come nuove
+    // (nessun id riga né link riga-ordine): «Salva documento» crea un carico
+    // nuovo, non aggiorna i movimenti né evade l'ordine del documento di partenza.
+    this.supplierOrderLineMap.set(new Map());
+    this.pendingSupplierOrderId.set(null);
+    for (const line of this.lines.controls) {
+      line.get('id')?.setValue('');
+      line.get('supplierOrderLineId')?.setValue('');
+    }
+    this.refreshNumberPreview();
   }
 
   private resolveSupplierOrderId(): string | null {

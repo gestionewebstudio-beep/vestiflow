@@ -1,6 +1,7 @@
 import { DocumentType } from '@core/models/document.model';
 import type { DocumentType as DocumentTypeValue } from '@core/models/document.model';
 
+import { isGoodsReceiptDocumentType } from './document-goods-receipt.util';
 import {
   isAdjustmentDocumentType,
   isManualUnloadDocumentType,
@@ -50,6 +51,11 @@ export function documentEditPath(doc: {
  * restano sul percorso legacy (crea copia e naviga alla modifica).
  */
 export function documentDuplicateFormRoute(type: DocumentTypeValue): string | null {
+  // Famiglia arrivo merce / carico (goods_receipt, supplier_ddt, ecc.): tutti
+  // gestiti dalla stessa maschera, che imposta il tipo dalla copia.
+  if (isGoodsReceiptDocumentType(type)) {
+    return '/app/documents/goods-receipt/new';
+  }
   switch (type) {
     case DocumentType.Proforma:
       return '/app/documents/proforma/new';
