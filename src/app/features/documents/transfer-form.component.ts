@@ -55,6 +55,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { DocumentSeriesManagerDialogComponent } from './components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -97,6 +98,7 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
     ConfirmDialogComponent,
     DateInputComponent,
     DocumentNumberFieldComponent,
+    DocumentSeriesManagerDialogComponent,
     EditLockBannerComponent,
     SelectMenuComponent,
     EmptyStateComponent,
@@ -262,6 +264,27 @@ export class TransferFormComponent {
       label: counter.series ?? 'Senza serie',
     })),
   );
+
+  /** Tipo documento fisso di questa maschera (per il pannello numerazioni). */
+  protected readonly documentType = DocumentType.Transfer;
+  /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
+  protected readonly seriesDialogOpen = signal(false);
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
+   * serie/numero — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    const locationId = this.form.controls.locationId.value || null;
+    this.countersService
+      .available(DocumentType.Transfer, locationId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this._availableCounters.set(counters),
+        error: () => undefined,
+      });
+  }
 
   /** Numero digitato in testata: vuoto = «assegnalo tu». */
   protected onDocumentNumberChange(value: number | null): void {

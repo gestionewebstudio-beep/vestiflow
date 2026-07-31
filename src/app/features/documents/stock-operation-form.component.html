@@ -95,8 +95,10 @@
             [number]="form.controls.documentNumber.value"
             [series]="form.controls.series.value"
             [seriesOptions]="seriesOptions()"
+            [canManageSeries]="true"
             (numberChange)="onDocumentNumberChange($event)"
             (seriesChange)="onSeriesChange($event)"
+            (manageSeries)="seriesDialogOpen.set(true)"
           />
         </div>
 
@@ -261,4 +263,12 @@
   cancelLabel="Annulla"
   (confirmed)="confirmConflictNumber()"
   (dismissed)="dismissConflictDialog()"
+/>
+
+<!-- Gestione numerazioni del tipo corrente, aperta dall'ingranaggio del campo
+     Serie. Overlay sopra il documento: la maschera resta montata. -->
+<app-document-series-manager-dialog
+  [type]="documentType()"
+  [open]="seriesDialogOpen()"
+  (closed)="onSeriesManagerClosed()"
 />

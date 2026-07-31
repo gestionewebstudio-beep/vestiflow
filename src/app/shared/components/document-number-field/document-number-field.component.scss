@@ -61,3 +61,48 @@
   font-weight: var(--font-weight-medium);
   color: var(--color-text);
 }
+
+// Controllo Serie + ingranaggio sulla stessa riga: il controllo cresce, il
+// pulsante resta della sua dimensione.
+.doc-number__series-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+
+  app-select-menu {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+
+  .doc-number__series-static {
+    flex: 1 1 auto;
+  }
+}
+
+// Ingranaggio «gestisci numerazioni»: quadrato all'altezza del campo, touch 44px.
+.doc-number__series-manage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: var(--field-height);
+  block-size: var(--field-height);
+  min-inline-size: var(--btn-min-height);
+  min-block-size: var(--btn-min-height);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-text);
+    background-color: var(--color-surface-hover);
+  }
+
+  &:focus-visible {
+    border-color: var(--color-interactive);
+    outline: none;
+    box-shadow: var(--field-focus-ring);
+  }
+}

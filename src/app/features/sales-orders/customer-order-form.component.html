@@ -409,8 +409,10 @@
                       [series]="form.controls.series.value"
                       [seriesOptions]="seriesOptions()"
                       [disabled]="formReadOnly()"
+                      [canManageSeries]="true"
                       (numberChange)="onDocumentNumberChange($event)"
                       (seriesChange)="onSeriesChange($event)"
+                      (manageSeries)="seriesDialogOpen.set(true)"
                     />
 
                     <!-- Modalità prezzo: netto o ivato. Su desktop lo stesso
@@ -602,8 +604,10 @@
                   [series]="form.controls.series.value"
                   [seriesOptions]="seriesOptions()"
                   [disabled]="formReadOnly()"
+                  [canManageSeries]="true"
                   (numberChange)="onDocumentNumberChange($event)"
                   (seriesChange)="onSeriesChange($event)"
+                  (manageSeries)="seriesDialogOpen.set(true)"
                 />
               }
 
@@ -2870,3 +2874,13 @@
   (confirmed)="confirmConflictNumber()"
   (dismissed)="dismissConflictDialog()"
 />
+
+<!-- Gestione numerazioni del registro (solo documenti registro, non l'Ordine
+     cliente). Overlay sopra il documento: la maschera resta montata. -->
+@if (!isOrder) {
+  <app-document-series-manager-dialog
+    [type]="registryDocumentType"
+    [open]="seriesDialogOpen()"
+    (closed)="onSeriesManagerClosed()"
+  />
+}

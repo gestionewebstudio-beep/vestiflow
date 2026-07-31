@@ -88,6 +88,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { DocumentSeriesManagerDialogComponent } from './components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -219,6 +220,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
     ConfirmDialogComponent,
     DateInputComponent,
     DocumentNumberFieldComponent,
+    DocumentSeriesManagerDialogComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -573,6 +575,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       label: counter.series ?? 'Senza serie',
     })),
   );
+
+  /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
+  protected readonly seriesDialogOpen = signal(false);
 
   /**
    * Etichetta della tappa id nel breadcrumb: il numero dell'arrivo merce
@@ -4825,6 +4830,23 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       control.clearValidators();
     }
     control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
+   * serie/protocollo — la selezione resta quella che era. Una serie appena
+   * creata diventa scegliibile; cambiando serie il numero si ricalcola come oggi.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    const locationId = this.form.controls.locationId.value || null;
+    this.countersService
+      .available(this.form.controls.type.value, locationId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this._availableCounters.set(counters),
+        error: () => undefined,
+      });
   }
 
   /**

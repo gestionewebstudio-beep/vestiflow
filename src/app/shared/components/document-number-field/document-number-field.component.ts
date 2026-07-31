@@ -29,9 +29,16 @@ export class DocumentNumberFieldComponent {
   readonly series = input<string>('');
   readonly seriesOptions = input<readonly SelectMenuOption[]>([]);
   readonly disabled = input<boolean>(false);
+  /**
+   * Mostra l'ingranaggio «gestisci numerazioni» accanto al campo Serie. Il
+   * contenitore lo abilita (permessi) e gestisce l'apertura via `manageSeries`.
+   */
+  readonly canManageSeries = input<boolean>(false);
 
   readonly numberChange = output<number | null>();
   readonly seriesChange = output<string>();
+  /** Click sull'ingranaggio: il contenitore apre la gestione numerazioni. */
+  readonly manageSeries = output<void>();
 
   /** Con una sola serie configurata il dropdown sparisce: resta la label. */
   protected readonly hasSeriesChoice = computed(() => this.seriesOptions().length > 1);

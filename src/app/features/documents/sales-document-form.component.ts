@@ -63,6 +63,7 @@ import {
 } from '@core/models/document-number-conflict.util';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { DocumentSeriesManagerDialogComponent } from './components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -118,6 +119,7 @@ type SubmitState =
     ButtonComponent,
     ConfirmDialogComponent,
     DocumentNumberFieldComponent,
+    DocumentSeriesManagerDialogComponent,
     DateInputComponent,
     DocumentIncludePanelComponent,
     SelectMenuComponent,
@@ -350,6 +352,9 @@ export class SalesDocumentFormComponent {
       label: counter.series ?? 'Senza serie',
     })),
   );
+
+  /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
+  protected readonly seriesDialogOpen = signal(false);
 
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
   protected readonly saving = computed(() => this._submitState().status === 'saving');
@@ -1308,6 +1313,24 @@ export class SalesDocumentFormComponent {
           }
         },
         // Contatori non disponibili: il server assegnerà comunque il numero.
+        error: () => undefined,
+      });
+  }
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie del documento
+   * (una serie appena creata diventa scegliibile) SENZA riproporre serie/numero
+   * — la selezione corrente resta quella che era. Cambiando serie dalla tendina
+   * il numero si ricalcola come già avviene oggi.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    const locationId = this.form.controls.locationId.value || null;
+    this.countersService
+      .available(this.documentType(), locationId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this._availableCounters.set(counters),
         error: () => undefined,
       });
   }

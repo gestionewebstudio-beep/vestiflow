@@ -51,6 +51,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { DocumentSeriesManagerDialogComponent } from './components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -150,6 +151,7 @@ function parseRatePercent(value: string): number | null {
     ConfirmDialogComponent,
     DateInputComponent,
     DocumentNumberFieldComponent,
+    DocumentSeriesManagerDialogComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     SelectMenuComponent,
@@ -263,6 +265,26 @@ export class PurchaseInvoiceFormComponent {
       label: counter.series ?? 'Senza serie',
     })),
   );
+
+  /** Tipo documento fisso di questa maschera (per il pannello numerazioni). */
+  protected readonly documentType = DocumentType.SupplierInvoice;
+  /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
+  protected readonly seriesDialogOpen = signal(false);
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
+   * serie/protocollo — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    this.countersService
+      .available(DocumentType.SupplierInvoice, null)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this._availableCounters.set(counters),
+        error: () => undefined,
+      });
+  }
 
   /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
   protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);

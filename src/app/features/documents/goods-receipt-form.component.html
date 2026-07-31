@@ -259,8 +259,10 @@
                 [number]="form.controls.protocolNumber.value"
                 [series]="form.controls.series.value"
                 [seriesOptions]="seriesOptions()"
+                [canManageSeries]="true"
                 (numberChange)="onProtocolNumberChange($event)"
                 (seriesChange)="onSeriesChange($event)"
+                (manageSeries)="seriesDialogOpen.set(true)"
               />
 
               <div class="gr-form__field">
@@ -2125,4 +2127,12 @@
   [busy]="saving()"
   (confirmed)="confirmConflictNumber()"
   (dismissed)="dismissConflictDialog()"
+/>
+
+<!-- Gestione numerazioni del tipo corrente, aperta dall'ingranaggio del campo
+     Serie. Overlay sopra il documento: la maschera resta montata. -->
+<app-document-series-manager-dialog
+  [type]="form.controls.type.value"
+  [open]="seriesDialogOpen()"
+  (closed)="onSeriesManagerClosed()"
 />

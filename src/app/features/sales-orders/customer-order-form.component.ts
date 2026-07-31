@@ -133,6 +133,7 @@ import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { DocumentSeriesManagerDialogComponent } from '@features/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -227,6 +228,7 @@ interface AvailabilityIssue {
     ConfirmDialogComponent,
     DateInputComponent,
     DocumentNumberFieldComponent,
+    DocumentSeriesManagerDialogComponent,
     DocumentIncludePanelComponent,
     ProductFormComponent,
     EmptyStateComponent,
@@ -318,7 +320,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Modalità che persistono nel registro documenti (quote / sales_ddt / manual_unload). */
   private readonly isRegistryDocument = !this.isOrder;
   /** Tipo documento del registro per la modalità corrente. */
-  private readonly registryDocumentType = this.isSalesDdt
+  protected readonly registryDocumentType = this.isSalesDdt
     ? DocumentType.SalesDdt
     : this.isManualUnload
       ? DocumentType.ManualUnload
@@ -727,6 +729,28 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       label: counter.series ?? 'Senza serie',
     })),
   );
+
+  /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
+  protected readonly seriesDialogOpen = signal(false);
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie del registro
+   * SENZA riproporre serie/numero — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    if (!this.isRegistryDocument) {
+      return;
+    }
+    const locationId = this.form.controls.locationId.value || null;
+    this.countersService
+      .available(this.registryDocumentType, locationId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this._availableCounters.set(counters),
+        error: () => undefined,
+      });
+  }
 
   protected readonly internalReferenceLabel = computed(() => {
     const saved = this.isRegistryDocument

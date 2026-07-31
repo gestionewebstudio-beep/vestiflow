@@ -722,11 +722,6 @@ export class SalesOrderListComponent {
     void this.router.navigate(['/app/sales/new']);
   }
 
-  /** Documenti e numeratori: stessa destinazione degli elenchi documento. */
-  protected openDocumentSettings(): void {
-    void this.router.navigate(['/app/documents/settings']);
-  }
-
   // ── Azioni di riga + selezione multipla ──────────────────────────────────
 
   protected onTableAction(event: SalesOrderTableActionEvent): void {

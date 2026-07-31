@@ -20,19 +20,34 @@
 
   <div class="doc-number__field doc-number__field--series">
     <span class="doc-number__label">Serie</span>
-    @if (hasSeriesChoice() && !disabled()) {
-      <app-select-menu
-        [options]="seriesOptions()"
-        [value]="series()"
-        ariaLabel="Serie del documento"
-        placeholder="Serie"
-        [compact]="true"
-        [fullWidth]="true"
-        [includeEmptyOption]="false"
-        (valueChange)="onSeriesChange($event)"
-      />
-    } @else {
-      <p class="doc-number__series-static">{{ seriesLabel() || '—' }}</p>
-    }
+    <div class="doc-number__series-row">
+      @if (hasSeriesChoice() && !disabled()) {
+        <app-select-menu
+          [options]="seriesOptions()"
+          [value]="series()"
+          ariaLabel="Serie del documento"
+          placeholder="Serie"
+          [compact]="true"
+          [fullWidth]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onSeriesChange($event)"
+        />
+      } @else {
+        <p class="doc-number__series-static">{{ seriesLabel() || '—' }}</p>
+      }
+      @if (canManageSeries()) {
+        <!-- Sempre presente, anche senza serie configurate (campo Serie a solo
+             testo): è la situazione in cui gestire le numerazioni serve di più. -->
+        <button
+          type="button"
+          class="doc-number__series-manage"
+          aria-label="Gestisci numerazioni"
+          title="Gestisci numerazioni"
+          (click)="manageSeries.emit()"
+        >
+          <i class="pi pi-cog" aria-hidden="true"></i>
+        </button>
+      }
+    </div>
   </div>
 </div>

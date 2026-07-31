@@ -7,16 +7,6 @@
         gestionale.
       </p>
     </div>
-    @if (canManageDocuments()) {
-      <div class="doc-hub__actions">
-        <a routerLink="/app/documents/settings">
-          <app-button variant="ghost">
-            <i class="pi pi-cog" aria-hidden="true"></i>
-            Numeratori
-          </app-button>
-        </a>
-      </div>
-    }
   </header>
 
   @for (group of groups; track group.title) {

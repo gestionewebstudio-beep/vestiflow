@@ -99,13 +99,6 @@
         </button>
 
         <app-table-column-picker [viewId]="columnsView()" />
-
-        @if (canManage()) {
-          <app-button variant="secondary" (click)="openDocumentSettings()">
-            <i class="pi pi-hashtag" aria-hidden="true"></i>
-            <span class="sales-list__settings-label">Numeratori</span>
-          </app-button>
-        }
       </div>
     </div>
 

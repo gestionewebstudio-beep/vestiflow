@@ -1248,10 +1248,6 @@ export class DocumentListComponent {
     void this.router.navigateByUrl('/app/documents');
   }
 
-  protected openSettings(): void {
-    void this.router.navigate(['/app/documents/settings']);
-  }
-
   protected openNewGoodsReceipt(): void {
     void this.router.navigate(['/app/documents/goods-receipt/new']);
   }
