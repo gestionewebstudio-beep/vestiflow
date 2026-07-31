@@ -758,9 +758,15 @@
           <section class="gr-form__lines" aria-labelledby="co-lines-title">
             <div class="gr-form__lines-head">
               <div class="gr-form__lines-heading">
-                <!-- Nessun contatore qui: righe, pezzi e imponibile stanno nel
-                     riepilogo in fondo alla tabella, vicino ai totali. -->
+                <!-- Nessun contatore qui su desktop: righe, pezzi e imponibile
+                     stanno nel riepilogo in fondo alla tabella, vicino ai totali.
+                     Su mobile (Ordine cliente) il conteggio compare sotto il titolo. -->
                 <h2 id="co-lines-title" class="gr-form__subtitle">Righe documento</h2>
+                @if (isOrder && mobileRowsVisible()) {
+                  <span class="co-order-lines__count tabular-nums">
+                    {{ documentLineCount() }} {{ documentLineCount() === 1 ? 'riga' : 'righe' }}
+                  </span>
+                }
               </div>
 
               <!-- Mobile: «Includi documento» accanto al titolo delle righe.
@@ -1633,98 +1639,203 @@
                          tre metric chip Qtà · Prezzo · Totale. Quantità e prezzo si
                          modificano senza aprire la card; il resto nel corpo. -->
                       <div class="co-form__card-head">
-                        <div class="co-form__card-topline">
-                          <button
-                            type="button"
-                            class="co-form__card-expand"
-                            [attr.aria-expanded]="isLineCardOpen(i)"
-                            (click)="toggleLineCard(i)"
-                          >
-                            <i
-                              class="pi pi-chevron-down co-form__card-chevron"
-                              aria-hidden="true"
-                            ></i>
-                            <span class="co-form__card-copy">
-                              <span class="co-form__card-name">
+                        @if (isOrder) {
+                          <!-- Ordine cliente (isOrder): anatomia card v2. RAMO
+                             TEMPORANEO — quando il layout andrà agli altri documenti
+                             il ramo @else va rimosso e la card torna una sola. -->
+                          <div class="co-order-card__topline">
+                            <button
+                              type="button"
+                              class="co-order-card__remove"
+                              [disabled]="formReadOnly()"
+                              aria-label="Elimina riga"
+                              (click)="requestRemoveLine(i)"
+                            >
+                              <i class="pi pi-trash" aria-hidden="true"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="co-order-card__expand"
+                              [attr.aria-expanded]="isLineCardOpen(i)"
+                              (click)="toggleLineCard(i)"
+                            >
+                              <span class="co-order-card__name">
                                 {{ line.controls.productName.value || 'Riga senza prodotto' }}
                               </span>
-                              <span class="co-form__card-sub">
-                                {{
-                                  lineArticleCode(i)
-                                    ? 'Cod. ' + lineArticleCode(i)
-                                    : 'Nessun codice'
-                                }}
-                                @if (line.controls.sku.value) {
-                                  · SKU {{ line.controls.sku.value }}
-                                }
-                              </span>
-                            </span>
-                          </button>
+                              <i
+                                class="pi pi-chevron-down co-order-card__chevron"
+                                aria-hidden="true"
+                              ></i>
+                            </button>
+                          </div>
 
-                          <button
-                            type="button"
-                            class="co-form__card-remove"
-                            [disabled]="formReadOnly()"
-                            aria-label="Rimuovi riga"
-                            (click)="removeLine(i)"
-                          >
-                            <i class="pi pi-times" aria-hidden="true"></i>
-                          </button>
-                        </div>
+                          @if (lineVariantLabel(i); as variant) {
+                            <p class="co-order-card__variant">{{ variant }}</p>
+                          }
 
-                        <div class="co-form__metrics">
-                          <div class="co-form__metric co-form__metric--qty">
-                            <small>Qtà</small>
-                            <div class="co-form__qty-stepper">
-                              <button
-                                type="button"
-                                class="co-form__qty-btn"
-                                [disabled]="formReadOnly()"
-                                aria-label="Diminuisci quantità"
-                                (click)="decrementLineQty(i)"
+                          <p class="co-order-card__meta">
+                            <span class="co-order-card__meta-item">{{
+                              lineArticleCode(i) ? 'Cod. ' + lineArticleCode(i) : 'Nessun codice'
+                            }}</span>
+                            @if (line.controls.sku.value) {
+                              <span class="co-order-card__meta-item"
+                                >SKU {{ line.controls.sku.value }}</span
                               >
-                                <i class="pi pi-minus" aria-hidden="true"></i>
-                              </button>
+                            }
+                            <span
+                              class="co-order-card__meta-item co-order-card__avail"
+                              [class.co-order-card__avail--low]="lineAvailabilityCritical(i)"
+                              >Disp. {{ lineStockAvailable(i) }}</span
+                            >
+                          </p>
+
+                          <div class="co-order-card__controls">
+                            <div class="co-order-card__control">
+                              <span class="co-order-card__label">Quantità</span>
+                              <div class="co-form__qty-stepper">
+                                <button
+                                  type="button"
+                                  class="co-form__qty-btn"
+                                  [disabled]="formReadOnly()"
+                                  aria-label="Diminuisci quantità"
+                                  (click)="decrementLineQty(i)"
+                                >
+                                  <i class="pi pi-minus" aria-hidden="true"></i>
+                                </button>
+                                <input
+                                  class="co-form__qty-input tabular-nums"
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  inputmode="numeric"
+                                  formControlName="quantity"
+                                  aria-label="Quantità"
+                                />
+                                <button
+                                  type="button"
+                                  class="co-form__qty-btn"
+                                  [disabled]="formReadOnly()"
+                                  aria-label="Aumenta quantità"
+                                  (click)="incrementLineQty(i)"
+                                >
+                                  <i class="pi pi-plus" aria-hidden="true"></i>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div class="co-order-card__control">
+                              <span class="co-order-card__label">{{ priceRowLabel() }}</span>
                               <input
-                                class="co-form__qty-input tabular-nums"
-                                type="number"
-                                min="1"
-                                step="1"
-                                inputmode="numeric"
-                                formControlName="quantity"
-                                aria-label="Quantità"
+                                class="co-order-card__price-input tabular-nums"
+                                type="text"
+                                inputmode="decimal"
+                                formControlName="unitPrice"
+                                placeholder="0,00"
+                                aria-label="Prezzo unitario"
                               />
-                              <button
-                                type="button"
-                                class="co-form__qty-btn"
-                                [disabled]="formReadOnly()"
-                                aria-label="Aumenta quantità"
-                                (click)="incrementLineQty(i)"
-                              >
-                                <i class="pi pi-plus" aria-hidden="true"></i>
-                              </button>
+                            </div>
+
+                            <div class="co-order-card__control">
+                              <span class="co-order-card__label">Totale</span>
+                              <span class="co-order-card__total tabular-nums">{{
+                                formatMoney(lineTotalMoney(i))
+                              }}</span>
                             </div>
                           </div>
+                        } @else {
+                          <div class="co-form__card-topline">
+                            <button
+                              type="button"
+                              class="co-form__card-expand"
+                              [attr.aria-expanded]="isLineCardOpen(i)"
+                              (click)="toggleLineCard(i)"
+                            >
+                              <i
+                                class="pi pi-chevron-down co-form__card-chevron"
+                                aria-hidden="true"
+                              ></i>
+                              <span class="co-form__card-copy">
+                                <span class="co-form__card-name">
+                                  {{ line.controls.productName.value || 'Riga senza prodotto' }}
+                                </span>
+                                <span class="co-form__card-sub">
+                                  {{
+                                    lineArticleCode(i)
+                                      ? 'Cod. ' + lineArticleCode(i)
+                                      : 'Nessun codice'
+                                  }}
+                                  @if (line.controls.sku.value) {
+                                    · SKU {{ line.controls.sku.value }}
+                                  }
+                                </span>
+                              </span>
+                            </button>
 
-                          <div class="co-form__metric co-form__metric--price">
-                            <small>{{ priceRowLabel() }}</small>
-                            <input
-                              class="co-form__metric-input tabular-nums"
-                              type="text"
-                              inputmode="decimal"
-                              formControlName="unitPrice"
-                              placeholder="0,00"
-                              aria-label="Prezzo unitario"
-                            />
+                            <button
+                              type="button"
+                              class="co-form__card-remove"
+                              [disabled]="formReadOnly()"
+                              aria-label="Rimuovi riga"
+                              (click)="removeLine(i)"
+                            >
+                              <i class="pi pi-times" aria-hidden="true"></i>
+                            </button>
                           </div>
 
-                          <div class="co-form__metric co-form__metric--total">
-                            <small>Totale</small>
-                            <strong class="tabular-nums">{{
-                              formatMoney(lineTotalMoney(i))
-                            }}</strong>
+                          <div class="co-form__metrics">
+                            <div class="co-form__metric co-form__metric--qty">
+                              <small>Qtà</small>
+                              <div class="co-form__qty-stepper">
+                                <button
+                                  type="button"
+                                  class="co-form__qty-btn"
+                                  [disabled]="formReadOnly()"
+                                  aria-label="Diminuisci quantità"
+                                  (click)="decrementLineQty(i)"
+                                >
+                                  <i class="pi pi-minus" aria-hidden="true"></i>
+                                </button>
+                                <input
+                                  class="co-form__qty-input tabular-nums"
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  inputmode="numeric"
+                                  formControlName="quantity"
+                                  aria-label="Quantità"
+                                />
+                                <button
+                                  type="button"
+                                  class="co-form__qty-btn"
+                                  [disabled]="formReadOnly()"
+                                  aria-label="Aumenta quantità"
+                                  (click)="incrementLineQty(i)"
+                                >
+                                  <i class="pi pi-plus" aria-hidden="true"></i>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div class="co-form__metric co-form__metric--price">
+                              <small>{{ priceRowLabel() }}</small>
+                              <input
+                                class="co-form__metric-input tabular-nums"
+                                type="text"
+                                inputmode="decimal"
+                                formControlName="unitPrice"
+                                placeholder="0,00"
+                                aria-label="Prezzo unitario"
+                              />
+                            </div>
+
+                            <div class="co-form__metric co-form__metric--total">
+                              <small>Totale</small>
+                              <strong class="tabular-nums">{{
+                                formatMoney(lineTotalMoney(i))
+                              }}</strong>
+                            </div>
                           </div>
-                        </div>
+                        }
                       </div>
 
                       @if (isLineCardOpen(i)) {
@@ -2862,6 +2973,19 @@
   [message]="unlockDialogMessage()"
   confirmLabel="Sblocca e modifica"
   (confirmed)="confirmUnlockEdit()"
+/>
+
+<!-- Conferma eliminazione riga (card mobile Ordine cliente): l'elimina è a
+     sinistra, prima cosa che si incontra scorrendo. -->
+<app-confirm-dialog
+  [open]="removeLineDialogOpen()"
+  title="Rimuovere la riga?"
+  message="La riga verrà eliminata dal documento."
+  confirmLabel="Elimina"
+  cancelLabel="Annulla"
+  [danger]="true"
+  (confirmed)="confirmRemoveLine()"
+  (dismissed)="cancelRemoveLine()"
 />
 
 <!-- Numero già assegnato: si può solo prendere il primo libero o annullare. -->

@@ -1707,6 +1707,35 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
+  // ── Conferma eliminazione riga (card mobile Ordine cliente) ────────────────
+  // L'elimina è a sinistra, prima cosa che si incontra scorrendo: chiede conferma.
+  private readonly _pendingRemoveIndex = signal<number | null>(null);
+  protected readonly removeLineDialogOpen = computed(() => this._pendingRemoveIndex() !== null);
+
+  protected requestRemoveLine(index: number): void {
+    this._pendingRemoveIndex.set(index);
+  }
+
+  protected confirmRemoveLine(): void {
+    const index = this._pendingRemoveIndex();
+    this._pendingRemoveIndex.set(null);
+    if (index != null) {
+      this.removeLine(index);
+    }
+  }
+
+  protected cancelRemoveLine(): void {
+    this._pendingRemoveIndex.set(null);
+  }
+
+  /** Conteggio righe reali del documento (escluse riferimento e placeholder). */
+  protected readonly documentLineCount = computed(() => {
+    this.formValue();
+    return this.lines.controls.filter(
+      (line, index) => !this.lineIsReference(index) && !this.lineIsEmpty(line),
+    ).length;
+  });
+
   /**
    * Mobile: la riga vuota creata all'apertura non si mostra. Una card «Riga
    * senza prodotto» con Qtà 1 e totale 0 fa credere che ci sia già qualcosa,
@@ -2019,6 +2048,40 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     }
     const available = this.lineEffectiveAvailable(index) ?? 0;
     return `disponibili solo ${Math.max(0, available)}`;
+  }
+
+  /**
+   * Card mobile Ordine cliente: disponibilità «critica» (arancione) quando la
+   * giacenza disponibile è zero o insufficiente rispetto alla quantità. Senza
+   * variante collegata (nessun dato) non colora.
+   */
+  protected lineAvailabilityCritical(index: number): boolean {
+    const available = this.lineEffectiveAvailable(index);
+    if (available == null) {
+      return false;
+    }
+    return available <= 0 || this.lineExceedsAvailability(index);
+  }
+
+  /**
+   * Descrizione della variante (solo la parte variante, es. «M / Rosso»), per la
+   * riga dedicata della card mobile. Il `title` della variante è «Prodotto —
+   * variante»: si toglie il nome prodotto. Vuoto se il prodotto non ha varianti.
+   */
+  protected lineVariantLabel(index: number): string {
+    const summary = this.lineVariantSummary(index);
+    if (!summary) {
+      return '';
+    }
+    const title = summary.title?.trim() ?? '';
+    const product = summary.productName?.trim() ?? '';
+    if (!title || title === product || !title.startsWith(product)) {
+      return '';
+    }
+    return title
+      .slice(product.length)
+      .replace(/^\s*[—–-]\s*/, '')
+      .trim();
   }
 
   // ── Calcoli riga e totali ────────────────────────────────────────────────

@@ -220,6 +220,196 @@
   border-block-start: 0;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Card riga v2 — SOLO Ordine cliente (isOrder), card chiusa. RAMO TEMPORANEO:
+// quando il layout andrà agli altri documenti, il ramo @else va rimosso e la
+// card torna una sola. Vive dentro .co-form__cards (spenta su desktop), riusa
+// la scala tipografica --co-* della testata OC mobile.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Riga 1 — elimina (sx) · nome · chevron (dx).
+.co-order-card__topline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+}
+
+.co-order-card__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  color: var(--color-danger);
+  background: none;
+  border: 0;
+  border-radius: var(--co-radius-sm);
+  cursor: pointer;
+}
+
+.co-order-card__remove:active:not(:disabled) {
+  background-color: var(--color-danger-subtle);
+}
+
+.co-order-card__remove:disabled {
+  color: var(--co-muted);
+  cursor: not-allowed;
+}
+
+.co-order-card__expand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: 2.75rem;
+  padding: 0;
+  text-align: start;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.co-order-card__name {
+  flex: 1;
+  min-inline-size: 0;
+  font-size: var(--co-text-card-name);
+  font-weight: var(--font-weight-bold);
+  color: var(--co-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-order-card__chevron {
+  flex-shrink: 0;
+  color: var(--co-muted);
+  transition: transform var(--transition-base) var(--ease-standard);
+}
+
+.co-form__card--open .co-order-card__chevron {
+  transform: rotate(180deg);
+}
+
+// Riga 2 — variante su riga propria (leggibile, sotto il nome).
+.co-order-card__variant {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--co-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Riga 3 — codice · SKU · disponibilità (servizio; disp. sempre visibile).
+.co-order-card__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--co-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.co-order-card__meta-item {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-order-card__meta-item:not(:first-child) {
+  position: relative;
+  flex-shrink: 0;
+  padding-inline-start: calc(var(--space-2) + var(--space-2));
+}
+
+.co-order-card__meta-item:not(:first-child)::before {
+  content: '·';
+  position: absolute;
+  inset-inline-start: var(--space-2);
+}
+
+.co-order-card__avail {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+
+.co-order-card__avail--low {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Riga 4 — Qtà (stepper) · Prezzo (input) · Totale (testo). Pari peso dei valori.
+.co-order-card__controls {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-1);
+}
+
+.co-order-card__control {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.co-order-card__control:last-child {
+  text-align: end;
+}
+
+// Etichette controlli: NON maiuscole, NON le più piccole — secondarie per colore.
+.co-order-card__label {
+  font-size: var(--text-2xs);
+  color: var(--co-muted);
+}
+
+.co-order-card__control .co-form__qty-stepper {
+  margin-inline-start: 0;
+}
+
+// Prezzo: campo editabile, col bordo (sembra un input).
+.co-order-card__price-input {
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-2);
+  text-align: end;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--co-text);
+  background-color: var(--co-surface);
+  border: var(--border-width) solid var(--co-line-strong);
+  border-radius: var(--co-radius-sm);
+}
+
+.co-order-card__price-input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+// Totale: valore calcolato, testo semplice senza bordo.
+.co-order-card__total {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-block-size: 2.5rem;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--co-text);
+}
+
+// Conteggio righe sotto «Righe documento»: solo mobile (riacceso nella media
+// query in fondo), solo Ordine cliente (gate @if nel template).
+.co-order-lines__count {
+  display: none;
+}
+
 .co-form__card-field {
   display: flex;
   flex-direction: column;
@@ -475,6 +665,15 @@
 }
 
 @include bp.media-down('lg') {
+  // Conteggio righe sotto «Righe documento» (solo mobile Ordine cliente).
+  .co-order-lines__count {
+    display: inline-flex;
+    align-items: center;
+    margin-block-start: var(--space-1);
+    font-size: var(--text-2xs);
+    color: var(--co-muted);
+  }
+
   // Testata del form ancorata in cima durante lo scroll (il breadcrumb di shell
   // resta com'è): «Indietro» e titolo sempre raggiungibili col pollice.
   .co-form .gr-form__head-row {
