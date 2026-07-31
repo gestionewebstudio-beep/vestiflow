@@ -45,6 +45,8 @@ export class GoodsReceiptLineCardComponent {
   readonly linked = input(false);
   readonly productLabel = input('');
   readonly incomplete = input(false);
+  /** Etichetta del campo costo secondo la modalità documento (netto/ivato). */
+  readonly costLabel = input('Costo');
   readonly totalLabel = input('');
   readonly grossLabel = input<string | null>(null);
   readonly vatOptions = input<readonly SelectMenuOption[]>([]);

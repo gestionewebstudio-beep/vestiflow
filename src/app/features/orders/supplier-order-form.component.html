@@ -145,6 +145,24 @@
           </div>
         </div>
 
+        <!-- Selettore modalità costo su mobile: su desktop vive nell'intestazione
+             di colonna, qui (dove la tabella si impila in card sotto lg) vive
+             sopra le righe. Nascosto da lg in su via CSS. -->
+        <div class="po-form__field po-form__mode-mobile">
+          <span class="po-form__label">Modalità costo</span>
+          <app-select-menu
+            [options]="costModeOptions"
+            [value]="costEntryMode()"
+            ariaLabel="Modalità costo netto o ivato"
+            placeholder="Netto"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="
+              selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
+            "
+          />
+        </div>
+
         <div class="po-form__table-wrap">
           <table class="po-form__table">
             <thead>
@@ -423,7 +441,7 @@
                     </td>
                   }
                   @if (isLineColumnVisible('unitCost')) {
-                    <td class="po-form__cell po-form__num" data-label="Costo">
+                    <td class="po-form__cell po-form__num" [attr.data-label]="costModeLabel()">
                       <input
                         [id]="'po-cost-' + i"
                         class="po-form__input po-form__input--table po-form__input--num"

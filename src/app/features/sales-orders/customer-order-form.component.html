@@ -413,8 +413,10 @@
                       (seriesChange)="onSeriesChange($event)"
                     />
 
-                    <!-- Modalità prezzo: netto o ivato. Cambiandola i prezzi si
-                         convertono così i totali non si spostano. -->
+                    <!-- Modalità prezzo: netto o ivato. Su desktop lo stesso
+                         controllo vive nell'intestazione di colonna. L'Ordine
+                         cliente ne è escluso finché non arriva il supporto
+                         backend dedicato (SalesOrder). -->
                     <div class="co-panel__field">
                       <span class="co-panel__label">Modalità prezzo</span>
                       <app-select-menu
@@ -998,10 +1000,76 @@
                     @if (isLineColumnVisible('unitPrice')) {
                       <th
                         scope="col"
-                        class="gr-form__num co-form__col--sale"
+                        class="gr-form__num co-form__col--sale gr-form__th--menu"
                         [style.width]="lineColumnWidth('unitPrice')"
                       >
-                        Prezzo
+                        <!-- Modalità prezzo netto/ivato integrata nell'header di
+                             colonna (stesso pattern dell'Arrivo merce): l'etichetta
+                             riflette la modalità corrente e il menu la cambia.
+                             L'Ordine cliente (isOrder) resta netto finché non
+                             arriva il supporto backend dedicato (SalesOrder). -->
+                        @if (isOrder) {
+                          Prezzo
+                        } @else {
+                          <span class="gr-form__th-menu-wrap">
+                            <button
+                              type="button"
+                              class="gr-form__th-sort gr-form__th-sort--num"
+                              aria-haspopup="menu"
+                              [attr.aria-expanded]="priceModeMenuOpen()"
+                              aria-label="Modalità prezzo del documento"
+                              (click)="togglePriceModeMenu()"
+                            >
+                              {{ priceRowLabel() }}
+                            </button>
+                            <button
+                              type="button"
+                              class="gr-form__th-menu-trigger"
+                              aria-haspopup="menu"
+                              [attr.aria-expanded]="priceModeMenuOpen()"
+                              aria-label="Modalità prezzo del documento"
+                              (click)="togglePriceModeMenu()"
+                            >
+                              <i class="pi pi-chevron-down" aria-hidden="true"></i>
+                            </button>
+                            @if (priceModeMenuOpen()) {
+                              <div
+                                class="gr-form__th-menu"
+                                role="menu"
+                                aria-label="Modalità prezzo"
+                              >
+                                <button
+                                  type="button"
+                                  class="gr-form__th-menu-item"
+                                  role="menuitemradio"
+                                  [attr.aria-checked]="!pricesIncludeVat()"
+                                  (click)="setPriceMode(false)"
+                                >
+                                  @if (!pricesIncludeVat()) {
+                                    <i class="pi pi-check" aria-hidden="true"></i>
+                                  } @else {
+                                    <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                                  }
+                                  Usa prezzi netti
+                                </button>
+                                <button
+                                  type="button"
+                                  class="gr-form__th-menu-item"
+                                  role="menuitemradio"
+                                  [attr.aria-checked]="pricesIncludeVat()"
+                                  (click)="setPriceMode(true)"
+                                >
+                                  @if (pricesIncludeVat()) {
+                                    <i class="pi pi-check" aria-hidden="true"></i>
+                                  } @else {
+                                    <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                                  }
+                                  Usa prezzi ivati
+                                </button>
+                              </div>
+                            }
+                          </span>
+                        }
                         <span
                           appTableColumnResize
                           [minWidthPx]="lineColumnMinWidth('unitPrice')"
@@ -2586,6 +2654,10 @@
 
 @if (generateMenuOpen()) {
   <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="toggleGenerateMenu()"></div>
+}
+
+@if (priceModeMenuOpen()) {
+  <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="togglePriceModeMenu()"></div>
 }
 
 @if (incompleteDataDialogOpen()) {

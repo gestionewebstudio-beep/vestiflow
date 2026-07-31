@@ -1403,6 +1403,23 @@
 
             <!-- Vista mobile (§10.10): righe come card editabili, tabella nascosta. -->
             <div class="gr-form__cards">
+              <!-- Selettore modalità costo su mobile: su desktop vive
+                   nell'intestazione di colonna, qui (dove la tabella diventa
+                   card) vive sopra le righe. gr-form__cards è già mobile-only. -->
+              <div class="gr-form__field gr-form__field--mode-mobile">
+                <span class="gr-form__label">Modalità costo</span>
+                <app-select-menu
+                  [options]="costModeOptions"
+                  [value]="costEntryMode()"
+                  ariaLabel="Modalità costo netto o ivato"
+                  placeholder="Netto"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="
+                    selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
+                  "
+                />
+              </div>
               @for (line of lines.controls; track line; let i = $index) {
                 <app-goods-receipt-line-card
                   [lineIndex]="i"
@@ -1410,6 +1427,7 @@
                   [linked]="lineHasLinkedProduct(i)"
                   [productLabel]="linkedProductLabel(i)"
                   [incomplete]="!lineRowComplete(i)"
+                  [costLabel]="costModeLabel()"
                   [totalLabel]="formatMoney(lineMoney(i))"
                   [grossLabel]="lineHasDiscount(i) ? formatMoney(lineGrossMoney(i)) : null"
                   [vatOptions]="lineVatOptions(i)"

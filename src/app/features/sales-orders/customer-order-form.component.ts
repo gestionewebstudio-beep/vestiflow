@@ -1147,6 +1147,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     { value: 'net', label: 'Netto' },
     { value: 'gross', label: 'Ivato' },
   ];
+  /** Tendina modalità prezzo nell'intestazione di colonna (desktop). */
+  protected readonly priceModeMenuOpen = signal(false);
 
   // ── F2: menu azioni ⋯ (mobile) + sconto documento a scomparsa ────────────
   protected readonly headerMenuOpen = signal(false);
@@ -2107,7 +2109,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * (netto↔ivato per aliquota di riga) così l'importo effettivo delle righe — e
    * i totali — non cambiano; muta solo come i valori sono interpretati.
    */
+  protected togglePriceModeMenu(): void {
+    this.priceModeMenuOpen.update((open) => !open);
+  }
+
   protected setPriceMode(pricesIncludeVat: boolean): void {
+    this.priceModeMenuOpen.set(false);
     if (pricesIncludeVat === this.pricesIncludeVat() || this.formReadOnly()) {
       return;
     }

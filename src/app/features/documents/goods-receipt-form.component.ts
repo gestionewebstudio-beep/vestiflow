@@ -465,6 +465,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly costModeLabel = computed(() =>
     this.costEntryMode() === 'vat_included' ? 'Costo ivato' : 'Costo netto',
   );
+  /** Opzioni per il selettore modalità costo in testata mobile. */
+  protected readonly costModeOptions: readonly SelectMenuOption[] = [
+    { value: 'vat_excluded', label: 'Netto' },
+    { value: 'vat_included', label: 'Ivato' },
+  ];
 
   /**
    * Nuovo documento: la modalità costo (netto/ivato) parte dalla preferenza

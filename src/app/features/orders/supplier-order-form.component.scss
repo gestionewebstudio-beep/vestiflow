@@ -81,6 +81,19 @@
   color: var(--color-text-muted);
 }
 
+// Selettore modalità costo mobile: solo dove la tabella si impila in card
+// (sotto lg). Su desktop il controllo vive nell'intestazione di colonna.
+.po-form__mode-mobile {
+  display: none;
+}
+
+@include bp.media-down('lg') {
+  .po-form__mode-mobile {
+    display: flex;
+    margin-block-end: var(--space-3);
+  }
+}
+
 .po-form__input {
   block-size: var(--field-height);
   padding-inline: var(--space-3);
