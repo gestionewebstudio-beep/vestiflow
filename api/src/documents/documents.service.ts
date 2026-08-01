@@ -2027,8 +2027,6 @@ export class DocumentsService {
       this.assertStockTransferDocument(doc);
     }
 
-    const setting = await this.settings.getResolved(tenantId, doc.type);
-
     let number = doc.number;
     let reference = doc.reference;
     if (number == null) {
