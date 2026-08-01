@@ -1,4 +1,3 @@
-import { SupplierPriceUpdatePolicy } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -13,6 +12,10 @@ function createTxMock() {
       upsert: vi.fn(),
     },
     productVariant: {
+      updateMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    product: {
       updateMany: vi.fn(),
     },
   };
@@ -78,27 +81,7 @@ describe('document-supplier-price.util', () => {
   });
 
   describe('applySupplierPriceUpdates', () => {
-    it('non aggiorna se applyUpdates è false', async () => {
-      await applySupplierPriceUpdates(
-        tx as never,
-        'tenant-1',
-        'sup-1',
-        [
-          {
-            variantId: 'var-1',
-            unitPriceMinor: 1000,
-            loadsStock: true,
-            quantity: 1,
-          },
-        ],
-        SupplierPriceUpdatePolicy.always,
-        false,
-      );
-
-      expect(tx.supplierVariantLink.upsert).not.toHaveBeenCalled();
-    });
-
-    it('aggiorna link fornitore e purchasePrice variante quando consentito', async () => {
+    it('aggiorna sempre il costo effettivo della variante e il link fornitore', async () => {
       await applySupplierPriceUpdates(
         tx as never,
         'tenant-1',
@@ -111,10 +94,13 @@ describe('document-supplier-price.util', () => {
             quantity: 3,
           },
         ],
-        SupplierPriceUpdatePolicy.always,
-        true,
+        false,
       );
 
+      expect(tx.productVariant.updateMany).toHaveBeenCalledWith({
+        where: { id: 'var-1', tenantId: 'tenant-1' },
+        data: { purchasePriceMinor: 1200 },
+      });
       expect(tx.supplierVariantLink.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
@@ -127,13 +113,37 @@ describe('document-supplier-price.util', () => {
           update: { lastPurchasePriceMinor: 1200 },
         }),
       );
-      expect(tx.productVariant.updateMany).toHaveBeenCalledWith({
-        where: { id: 'var-1', tenantId: 'tenant-1' },
-        data: { purchasePriceMinor: 1200 },
-      });
+      // Spunta off: il costo di riferimento dell'articolo non viene toccato.
+      expect(tx.product.updateMany).not.toHaveBeenCalled();
     });
 
-    it('non aggiorna con policy never anche se applyUpdates è true', async () => {
+    it('senza fornitore aggiorna solo il costo variante, non il link', async () => {
+      await applySupplierPriceUpdates(
+        tx as never,
+        'tenant-1',
+        null,
+        [
+          {
+            variantId: 'var-1',
+            unitPriceMinor: 900,
+            loadsStock: true,
+            quantity: 1,
+          },
+        ],
+        false,
+      );
+
+      expect(tx.productVariant.updateMany).toHaveBeenCalledWith({
+        where: { id: 'var-1', tenantId: 'tenant-1' },
+        data: { purchasePriceMinor: 900 },
+      });
+      expect(tx.supplierVariantLink.upsert).not.toHaveBeenCalled();
+      expect(tx.product.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('propaga il costo di riferimento articolo quando la spunta è on', async () => {
+      tx.productVariant.findFirst.mockResolvedValue({ productId: 'prod-1' });
+
       await applySupplierPriceUpdates(
         tx as never,
         'tenant-1',
@@ -141,16 +151,45 @@ describe('document-supplier-price.util', () => {
         [
           {
             variantId: 'var-1',
-            unitPriceMinor: 1200,
+            unitPriceMinor: 1500,
             loadsStock: true,
-            quantity: 1,
+            quantity: 2,
           },
         ],
-        SupplierPriceUpdatePolicy.never,
         true,
       );
 
+      expect(tx.product.updateMany).toHaveBeenCalledWith({
+        where: { id: 'prod-1', tenantId: 'tenant-1' },
+        data: { purchasePriceMinor: 1500 },
+      });
+    });
+
+    it('ignora righe senza carico magazzino o senza variante', async () => {
+      await applySupplierPriceUpdates(
+        tx as never,
+        'tenant-1',
+        'sup-1',
+        [
+          {
+            variantId: null,
+            unitPriceMinor: 1000,
+            loadsStock: true,
+            quantity: 1,
+          },
+          {
+            variantId: 'var-2',
+            unitPriceMinor: 500,
+            loadsStock: false,
+            quantity: 1,
+          },
+        ],
+        true,
+      );
+
+      expect(tx.productVariant.updateMany).not.toHaveBeenCalled();
       expect(tx.supplierVariantLink.upsert).not.toHaveBeenCalled();
+      expect(tx.product.updateMany).not.toHaveBeenCalled();
     });
   });
 });

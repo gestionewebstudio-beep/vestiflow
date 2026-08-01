@@ -72,11 +72,6 @@ export class CreateVariantDto {
   purchasePrice?: MoneyDto;
 
   @IsOptional()
-  @ValidateNested()
-  @Type(() => MoneyDto)
-  compareAtPrice?: MoneyDto;
-
-  @IsOptional()
   @IsString()
   @MaxLength(100)
   barcode?: string;
@@ -98,6 +93,24 @@ export class CreateProductDto {
   @MinLength(1)
   @MaxLength(200)
   name!: string;
+
+  // ── Prezzi/costo a livello articolo ──
+  /** Prezzo di vendita dell'articolo (dato vero, seed delle nuove varianti). */
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  sellingPrice!: MoneyDto;
+
+  /** Prezzo barrato: solo articolo. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  compareAtPrice?: MoneyDto;
+
+  /** Costo d'acquisto di riferimento: seed delle nuove varianti. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  purchasePrice?: MoneyDto;
 
   @IsOptional()
   @IsString()

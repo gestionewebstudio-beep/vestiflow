@@ -1,5 +1,4 @@
-import { SupplierPriceUpdatePolicy } from '@prisma/client';
-import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class TenantFeatureSettingsDto {
   lotsEnabled!: boolean;
@@ -9,7 +8,6 @@ export class TenantFeatureSettingsDto {
   supplierOrdersEnabled!: boolean;
   goodsReceiptEnabled!: boolean;
   warehouseValuationEnabled!: boolean;
-  updateSupplierPriceOnLoad!: SupplierPriceUpdatePolicy;
   allowNegativeInventory!: boolean;
   warnNegativeInventory!: boolean;
   blockNegativeInventory!: boolean;
@@ -45,10 +43,6 @@ export class UpdateTenantFeatureSettingsDto {
   @IsOptional()
   @IsBoolean()
   warehouseValuationEnabled?: boolean;
-
-  @IsOptional()
-  @IsEnum(SupplierPriceUpdatePolicy)
-  updateSupplierPriceOnLoad?: SupplierPriceUpdatePolicy;
 
   @IsOptional()
   @IsBoolean()

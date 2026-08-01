@@ -166,6 +166,10 @@ function mapGroupToImportProduct(
     issues,
   );
 
+  // Campi articolo dalla prima variante (barrato dalla prima riga con compare-at):
+  // Shopify li mostra come prezzo/barrato/costo del prodotto.
+  const firstVariant = variants[0];
+  const compareRaw = firstNonEmpty(rows.map((row) => row.variantCompareAtPrice));
   const dto: CreateProductDto = {
     ...(articleCode ? { articleCode } : {}),
     name,
@@ -174,6 +178,13 @@ function mapGroupToImportProduct(
     category: firstNonEmpty(rows.map((row) => row.type)) ?? undefined,
     tags: parseShopifyTags(firstNonEmpty(rows.map((row) => row.tags)) ?? parent.tags),
     status: mapPublishedStatus(firstNonEmpty(rows.map((row) => row.published))),
+    sellingPrice: firstVariant?.sellingPrice ?? { amountMinor: 0, currency: DEFAULT_CURRENCY },
+    ...(compareRaw
+      ? {
+          compareAtPrice: { amountMinor: shopifyDecimalToMinor(compareRaw), currency: DEFAULT_CURRENCY },
+        }
+      : {}),
+    ...(firstVariant?.purchasePrice ? { purchasePrice: firstVariant.purchasePrice } : {}),
     options,
     variants,
   };
@@ -309,7 +320,6 @@ function buildVariants(
       });
     }
 
-    const compareRaw = row.variantCompareAtPrice.trim();
     return {
       sku,
       optionValues,
@@ -318,14 +328,6 @@ function buildVariants(
         currency: DEFAULT_CURRENCY,
       },
       barcode: row.variantBarcode.trim() || undefined,
-      ...(compareRaw
-        ? {
-            compareAtPrice: {
-              amountMinor: shopifyDecimalToMinor(compareRaw),
-              currency: DEFAULT_CURRENCY,
-            },
-          }
-        : {}),
     } satisfies CreateVariantDto;
   });
 
@@ -401,6 +403,7 @@ function emptyProductDto(name: string): CreateProductDto {
   return {
     name,
     status: ProductStatus.draft,
+    sellingPrice: { amountMinor: 0, currency: DEFAULT_CURRENCY },
     options: [{ name: 'Title', values: ['Default Title'] }],
     variants: [],
   };

@@ -256,6 +256,9 @@ export class ProductsImportService {
           seoTitle: parsed.seoTitle,
           seoDescription: parsed.seoDescription,
           status: parsed.dto.status,
+          sellingPriceMinor: parsed.dto.sellingPrice.amountMinor,
+          compareAtPriceMinor: parsed.dto.compareAtPrice?.amountMinor ?? null,
+          purchasePriceMinor: parsed.dto.purchasePrice?.amountMinor ?? null,
           options: parsed.dto.options as unknown as Prisma.InputJsonValue,
           variants: {
             create: variantInputs,
@@ -304,7 +307,6 @@ export class ProductsImportService {
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
-      compareAtPriceMinor: variant.compareAtPrice?.amountMinor,
     };
   }
 

@@ -27,7 +27,6 @@ describe('ProductsExportService', () => {
                 barcode: null,
                 optionValues: [{ name: 'Taglia', value: 'M' }],
                 sellingPriceMinor: 2990,
-                compareAtPriceMinor: null,
                 purchasePriceMinor: null,
                 currency: 'EUR',
                 weightGrams: null,

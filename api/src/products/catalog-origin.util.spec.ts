@@ -40,7 +40,6 @@ const existing = {
       barcode: null,
       currency: 'EUR',
       sellingPriceMinor: 5000,
-      compareAtPriceMinor: null,
       purchasePriceMinor: 2000,
     },
   ],

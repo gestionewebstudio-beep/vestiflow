@@ -744,16 +744,12 @@ export class DocumentsService {
   async listSupplierPriceDiffs(tenantId: string, documentId: string, user?: UserProfileDto) {
     const doc = await this.getById(tenantId, documentId, user);
     if (!documentTypeLoadsStockOnConfirm(doc.type)) {
-      return { items: [] as const, policy: 'never' as const };
+      return { items: [] as const };
     }
-    const featureSettings = await this.prisma.tenantFeatureSettings.findUnique({
-      where: { tenantId },
-    });
-    const policy = featureSettings?.updateSupplierPriceOnLoad ?? 'ask';
     const items = await this.prisma.$transaction((tx) =>
       findSupplierPriceDiffs(tx, tenantId, doc.supplierId, doc.lines),
     );
-    return { items, policy };
+    return { items };
   }
 
   /** Anteprima prossimo numero interno (non incrementa il numeratore). */

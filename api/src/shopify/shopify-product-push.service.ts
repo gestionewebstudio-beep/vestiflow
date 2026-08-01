@@ -365,7 +365,11 @@ export class ShopifyProductPushService {
 
   private buildShopifyProductPayload(product: ProductWithVariants): Record<string, unknown> {
     const options = this.normalizeOptions(product.options);
-    const { shopifyOptions, variantRows } = this.buildVariantsPayload(options, product.variants);
+    const { shopifyOptions, variantRows } = this.buildVariantsPayload(
+      options,
+      product.variants,
+      product.compareAtPriceMinor,
+    );
 
     return {
       title: product.name,
@@ -619,6 +623,9 @@ export class ShopifyProductPushService {
   private buildVariantsPayload(
     options: ProductOptionRow[],
     variants: ProductWithVariants['variants'],
+    // Il prezzo barrato è un dato dell'articolo: si replica su ogni variante,
+    // perché l'API di Shopify lo tiene per-variante.
+    compareAtPriceMinor: number | null,
   ): {
     shopifyOptions: { name: string; values: string[] }[];
     variantRows: Record<string, unknown>[];
@@ -646,8 +653,8 @@ export class ShopifyProductPushService {
         inventory_management: 'shopify',
       };
 
-      if (variant.compareAtPriceMinor != null) {
-        row['compare_at_price'] = minorToShopifyDecimal(variant.compareAtPriceMinor);
+      if (compareAtPriceMinor != null) {
+        row['compare_at_price'] = minorToShopifyDecimal(compareAtPriceMinor);
       }
 
       if (variant.shopifyVariantId) {

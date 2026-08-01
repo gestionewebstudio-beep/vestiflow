@@ -1,4 +1,3 @@
-import { SupplierPriceUpdatePolicy } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
@@ -30,7 +29,6 @@ describe('TenantFeatureSettingsService', () => {
       supplierOrdersEnabled: true,
       goodsReceiptEnabled: true,
       warehouseValuationEnabled: true,
-      updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.ask,
       allowNegativeInventory: false,
       warnNegativeInventory: true,
       blockNegativeInventory: false,
@@ -39,7 +37,6 @@ describe('TenantFeatureSettingsService', () => {
 
     await expect(service.getOrCreate(tenantId)).resolves.toMatchObject({
       lotsEnabled: false,
-      updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.ask,
     });
     expect(prisma.tenantFeatureSettings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -60,7 +57,6 @@ describe('TenantFeatureSettingsService', () => {
       supplierOrdersEnabled: true,
       goodsReceiptEnabled: true,
       warehouseValuationEnabled: true,
-      updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.always,
       allowNegativeInventory: false,
       warnNegativeInventory: true,
       blockNegativeInventory: false,
@@ -71,13 +67,11 @@ describe('TenantFeatureSettingsService', () => {
       service.update(tenantId, {
         lotsEnabled: true,
         serialsEnabled: true,
-        updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.always,
         defaultUnitOfMeasure: 'kg',
       }),
     ).resolves.toMatchObject({
       lotsEnabled: true,
       serialsEnabled: true,
-      updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.always,
       defaultUnitOfMeasure: 'kg',
     });
 
@@ -86,7 +80,6 @@ describe('TenantFeatureSettingsService', () => {
       data: {
         lotsEnabled: true,
         serialsEnabled: true,
-        updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy.always,
         defaultUnitOfMeasure: 'kg',
       },
     });

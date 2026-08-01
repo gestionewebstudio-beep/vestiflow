@@ -276,8 +276,12 @@ export class SaveGoodsReceiptDto {
   @Type(() => SaveGoodsReceiptLineDto)
   lines?: SaveGoodsReceiptLineDto[];
 
-  /** Politica prezzi fornitore quando updateSupplierPriceOnLoad = ask. */
+  /**
+   * Spunta di documento: se true, il costo pagato aggiorna ANCHE il costo di
+   * riferimento dell'articolo. Il costo effettivo della variante viene comunque
+   * aggiornato dal carico, a prescindere da questo flag.
+   */
   @IsOptional()
   @IsBoolean()
-  applySupplierPriceUpdates?: boolean;
+  updateArticleReferenceCost?: boolean;
 }

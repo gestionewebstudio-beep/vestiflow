@@ -67,6 +67,7 @@ describe('ProductsService', () => {
             productVariant: {
               ...prisma.productVariant,
               findMany: vi.fn().mockResolvedValue([]),
+              updateMany: vi.fn(),
               delete: vi.fn(),
             },
             inventoryLevel: { deleteMany: vi.fn() },
@@ -287,6 +288,7 @@ describe('ProductsService', () => {
       service.create(tenantId, {
         name: 'Maglietta',
         status: 'active',
+        sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
         options: [],
         variants: [
           {
@@ -318,6 +320,7 @@ describe('ProductsService', () => {
       service.create(tenantId, {
         name: 'Maglietta base',
         status: 'active',
+        sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
         options: [],
         variants: [
           {
@@ -592,6 +595,9 @@ describe('ProductsService', () => {
           defaultVatCodeId: null,
           inventoryTracking: 'standard',
           managesStock: true,
+          sellingPriceMinor: 1990,
+          compareAtPriceMinor: null,
+          purchasePriceMinor: 990,
           options: [],
           shopifyProductId: 'gid://shopify/Product/1',
           variants: [
@@ -603,7 +609,6 @@ describe('ProductsService', () => {
               currency: 'EUR',
               sellingPriceMinor: 1990,
               purchasePriceMinor: 990,
-              compareAtPriceMinor: null,
             },
           ],
           images: [
@@ -666,6 +671,9 @@ describe('ProductsService', () => {
         defaultVatCodeId: null,
         inventoryTracking: 'standard',
         managesStock: true,
+        sellingPriceMinor: 2990,
+        compareAtPriceMinor: null,
+        purchasePriceMinor: null,
         options: [],
         variants: [
           {
@@ -676,7 +684,6 @@ describe('ProductsService', () => {
             currency: 'EUR',
             sellingPriceMinor: 2990,
             purchasePriceMinor: null,
-            compareAtPriceMinor: null,
           },
         ],
         images: [],

@@ -285,8 +285,22 @@ export class ShopifyProductPullService {
         // ancora in VestiFlow); gli update successivi non lo toccano perché
         // non compare nell'allowlist `productData` (stesso pattern di `kind`).
         const articleCode = await nextArticleCodeInTx(tx, tenantId);
+        // Campi articolo popolati dalla prima variante (Shopify li mostra come
+        // prezzo/barrato/costo del prodotto): il barrato è SOLO dell'articolo.
+        const first = remote.variants[0];
         const product = await tx.product.create({
-          data: { tenantId, articleCode, ...productData },
+          data: {
+            tenantId,
+            articleCode,
+            ...productData,
+            sellingPriceMinor: first ? shopifyDecimalToMinor(first.price ?? '0') : 0,
+            compareAtPriceMinor: first?.compare_at_price
+              ? shopifyDecimalToMinor(first.compare_at_price)
+              : null,
+            purchasePriceMinor: first
+              ? (enrichment?.variantPurchasePriceMinor.get(first.id) ?? null)
+              : null,
+          },
         });
 
         for (const variant of remote.variants) {
@@ -305,9 +319,6 @@ export class ShopifyProductPullService {
               currency: 'EUR',
               sellingPriceMinor: shopifyDecimalToMinor(variant.price ?? '0'),
               purchasePriceMinor: enrichment?.variantPurchasePriceMinor.get(variant.id) ?? null,
-              compareAtPriceMinor: variant.compare_at_price
-                ? shopifyDecimalToMinor(variant.compare_at_price)
-                : null,
               shopifyVariantId: String(variant.id),
               shopifyInventoryItemId: String(variant.inventory_item_id),
             },
@@ -324,10 +335,21 @@ export class ShopifyProductPullService {
       existing.variants.filter((v) => v.shopifyVariantId).map((v) => [v.shopifyVariantId!, v]),
     );
 
+    const firstRemote = remote.variants[0];
     await this.prisma.$transaction(async (tx) => {
       await tx.product.update({
         where: { id: existing.id },
-        data: productData,
+        data: {
+          ...productData,
+          // Campi articolo ripopolati dalla prima variante (barrato solo qui).
+          sellingPriceMinor: firstRemote ? shopifyDecimalToMinor(firstRemote.price ?? '0') : 0,
+          compareAtPriceMinor: firstRemote?.compare_at_price
+            ? shopifyDecimalToMinor(firstRemote.compare_at_price)
+            : null,
+          purchasePriceMinor: firstRemote
+            ? (enrichment?.variantPurchasePriceMinor.get(firstRemote.id) ?? null)
+            : null,
+        },
       });
 
       for (const variant of remote.variants) {
@@ -342,9 +364,6 @@ export class ShopifyProductPullService {
           barcode: variant.barcode ?? null,
           sellingPriceMinor: shopifyDecimalToMinor(variant.price ?? '0'),
           purchasePriceMinor,
-          compareAtPriceMinor: variant.compare_at_price
-            ? shopifyDecimalToMinor(variant.compare_at_price)
-            : null,
           shopifyVariantId,
           shopifyInventoryItemId: String(variant.inventory_item_id),
         };

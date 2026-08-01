@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { InventoryTrackingMode, ProductKind, ProductStatus } from '@prisma/client';
 
+import { MoneyDto } from './money.dto';
 import { ProductOptionDto } from './create-product.dto';
 import { ShopifyCategoryMetafieldDto } from './shopify-category-metafield.dto';
 import { UpdateVariantDto } from './update-variant.dto';
@@ -35,6 +36,22 @@ export class UpdateProductDto {
   @MinLength(1)
   @MaxLength(200)
   name?: string;
+
+  // ── Prezzi/costo a livello articolo (undefined = non toccare) ──
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  sellingPrice?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  compareAtPrice?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  purchasePrice?: MoneyDto;
 
   @IsOptional()
   @IsString()

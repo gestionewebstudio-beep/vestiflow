@@ -247,13 +247,6 @@ enum DocumentType {
   quote // Preventivo cliente (numerazione PRE dedicata, mai effetti magazzino)
 }
 
-/// Politica aggiornamento prezzo fornitore da arrivo merce (§13).
-enum SupplierPriceUpdatePolicy {
-  always
-  ask
-  never
-}
-
 /// Ambito di utilizzo di un Codice IVA: acquisti, vendite o entrambi.
 enum VatUsageScope {
   purchase
@@ -604,6 +597,15 @@ model Product {
   unitOfMeasure                   String                  @default("pz") @map("unit_of_measure")
   /// Codice IVA ordinario dell'articolo. Null = usa il predefinito aziendale.
   defaultVatCodeId                String?                 @map("default_vat_code_id") @db.Uuid
+  // ── Prezzi/costo a livello articolo (unità minori, valuta EUR/tenant) ──
+  /// Prezzo di vendita dell'articolo: dato vero, valore di partenza delle nuove
+  /// varianti e prezzo quando la variante è la sola default anonima (rispecchiata).
+  sellingPriceMinor               Int                     @default(0) @map("selling_price_minor")
+  /// Prezzo barrato: dato SOLO dell'articolo (nessuna dimensione per-variante).
+  compareAtPriceMinor             Int?                    @map("compare_at_price_minor")
+  /// Costo d'acquisto di RIFERIMENTO: seeda le nuove varianti. Il costo effettivo
+  /// per taglia vive sulla variante (aggiornato dai carichi).
+  purchasePriceMinor              Int?                    @map("purchase_price_minor")
   /// Tracciamento inventario: standard, lotti, seriali o nessuno.
   inventoryTracking               InventoryTrackingMode   @default(standard) @map("inventory_tracking")
   /// Se false, il prodotto non genera movimenti di magazzino.
@@ -690,8 +692,9 @@ model ProductVariant {
   // Denaro in unità minori intere (mai float).
   currency               String   @default("EUR")
   sellingPriceMinor      Int      @map("selling_price_minor")
+  /// Costo effettivo di questa taglia (aggiornato dai carichi; alimenta
+  /// valorizzazione e margini). Il barrato NON vive sulla variante: è dell'articolo.
   purchasePriceMinor     Int?     @map("purchase_price_minor")
-  compareAtPriceMinor    Int?     @map("compare_at_price_minor")
   // Collegamento Shopify: variante e inventory item.
   shopifyVariantId       String?  @map("shopify_variant_id")
   shopifyInventoryItemId String?  @map("shopify_inventory_item_id")
@@ -1700,7 +1703,6 @@ model TenantFeatureSettings {
   supplierOrdersEnabled       Boolean                   @default(true) @map("supplier_orders_enabled")
   goodsReceiptEnabled         Boolean                   @default(true) @map("goods_receipt_enabled")
   warehouseValuationEnabled   Boolean                   @default(true) @map("warehouse_valuation_enabled")
-  updateSupplierPriceOnLoad   SupplierPriceUpdatePolicy @default(ask) @map("update_supplier_price_on_load")
   allowNegativeInventory      Boolean                   @default(false) @map("allow_negative_inventory")
   warnNegativeInventory       Boolean                   @default(true) @map("warn_negative_inventory")
   blockNegativeInventory      Boolean                   @default(false) @map("block_negative_inventory")

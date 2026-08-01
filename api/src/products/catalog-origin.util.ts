@@ -115,7 +115,6 @@ type ProductVariantSnapshot = Pick<
   | 'barcode'
   | 'currency'
   | 'sellingPriceMinor'
-  | 'compareAtPriceMinor'
   | 'purchasePriceMinor'
 >;
 
@@ -162,8 +161,7 @@ function variantCatalogEqual(
     jsonEqual(current.optionValues, payload.optionValues) &&
     normalizeOptionalString(current.barcode) === normalizeOptionalString(payload.barcode) &&
     current.currency === payload.sellingPrice.currency &&
-    current.sellingPriceMinor === payload.sellingPrice.amountMinor &&
-    (current.compareAtPriceMinor ?? null) === (payload.compareAtPrice?.amountMinor ?? null)
+    current.sellingPriceMinor === payload.sellingPrice.amountMinor
   );
 }
 

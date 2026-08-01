@@ -137,6 +137,10 @@ export async function createQuickProductWithVariant(
         status: ProductStatus.active,
         defaultVatCodeId: input.vatCodeId ?? null,
         managesStock,
+        // Prodotto semplice: i campi articolo e la variante di default coincidono.
+        sellingPriceMinor: input.sellingPriceMinor ?? 0,
+        compareAtPriceMinor: input.compareAtPriceMinor ?? null,
+        purchasePriceMinor: input.purchasePriceMinor ?? null,
         ...(input.unitOfMeasure?.trim() ? { unitOfMeasure: input.unitOfMeasure.trim() } : {}),
         options: [] as unknown as Prisma.InputJsonValue,
         variants: {
@@ -149,7 +153,6 @@ export async function createQuickProductWithVariant(
               currency: input.currency?.trim() || 'EUR',
               sellingPriceMinor: input.sellingPriceMinor ?? 0,
               purchasePriceMinor: input.purchasePriceMinor ?? undefined,
-              compareAtPriceMinor: input.compareAtPriceMinor ?? undefined,
             },
           ],
         },

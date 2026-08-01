@@ -152,7 +152,9 @@ function buildProductRow(
     row['Variant SKU'] = variant.sku ?? '';
     row['Variant Price'] = minorToShopifyDecimal(variant.sellingPriceMinor);
     row['Variant Compare-at Price'] =
-      variant.compareAtPriceMinor != null ? minorToShopifyDecimal(variant.compareAtPriceMinor) : '';
+      product.compareAtPriceMinor != null
+        ? minorToShopifyDecimal(product.compareAtPriceMinor)
+        : '';
     row['Variant Barcode'] = variant.barcode?.trim() ?? '';
   }
 

@@ -329,13 +329,6 @@ export class GoodsReceiptWorkflowService {
       ? await this.externalTypes.getById(tenantId, dto.externalDocumentTypeId)
       : null;
 
-    const featureSettings = await this.prisma.tenantFeatureSettings.findUnique({
-      where: { tenantId },
-    });
-    const pricePolicy = featureSettings?.updateSupplierPriceOnLoad ?? 'ask';
-    const shouldApplySupplierPrices =
-      pricePolicy === 'always' || (pricePolicy === 'ask' && dto.applySupplierPriceUpdates === true);
-
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
     const createdProducts: GoodsReceiptCreatedProduct[] = [];
 
@@ -639,8 +632,7 @@ export class GoodsReceiptWorkflowService {
         tenantId,
         dto.supplierId ?? null,
         savedLines,
-        pricePolicy,
-        shouldApplySupplierPrices,
+        dto.updateArticleReferenceCost === true,
       );
 
       if (existing && sync.deltas.length > 0) {

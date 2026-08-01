@@ -27,6 +27,8 @@ describe('serializeProductsToShopifyCsv', () => {
         category: 'Maglieria',
         tags: ['estate'],
         status: ProductStatus.active,
+        // Prezzo barrato: dato di articolo (replicato su ogni variante in export).
+        compareAtPriceMinor: 3990,
         options: [
           { name: 'Taglia', values: ['S', 'M'] },
           { name: 'Colore', values: ['Rosso'] },
@@ -39,7 +41,6 @@ describe('serializeProductsToShopifyCsv', () => {
               { name: 'Colore', value: 'Rosso' },
             ],
             sellingPriceMinor: 2990,
-            compareAtPriceMinor: 3990,
             barcode: '111',
           },
           {
@@ -109,12 +110,12 @@ function makeRecord(input: {
   season?: string;
   tags?: string[];
   status?: ProductStatus;
+  compareAtPriceMinor?: number;
   options: { name: string; values: string[] }[];
   variants: {
     sku: string;
     optionValues: { name: string; value: string }[];
     sellingPriceMinor: number;
-    compareAtPriceMinor?: number;
     barcode?: string;
   }[];
   images: { url: string; altText?: string; sortOrder: number }[];
@@ -138,6 +139,7 @@ function makeRecord(input: {
       shopifyCollections: [],
       shopifyMetafields: [],
       status: input.status ?? ProductStatus.draft,
+      compareAtPriceMinor: input.compareAtPriceMinor ?? null,
       options: input.options,
       shopifyProductId: null,
       shopifySyncStatus: 'not_connected',
@@ -158,7 +160,6 @@ function makeRecord(input: {
       currency: 'EUR',
       sellingPriceMinor: variant.sellingPriceMinor,
       purchasePriceMinor: null,
-      compareAtPriceMinor: variant.compareAtPriceMinor ?? null,
       shopifyVariantId: null,
       shopifyInventoryItemId: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),

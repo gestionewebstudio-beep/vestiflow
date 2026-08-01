@@ -73,6 +73,9 @@ const PRODUCT_LIST_SELECT = {
   brand: true,
   category: true,
   subcategory: true,
+  sellingPriceMinor: true,
+  compareAtPriceMinor: true,
+  purchasePriceMinor: true,
   shopifyTaxonomyCategoryId: true,
   shopifyTaxonomyCategoryFullName: true,
   shopifyCategoryMetafields: true,
@@ -251,13 +254,13 @@ export class ProductsService {
           currency: true,
           sellingPriceMinor: true,
           purchasePriceMinor: true,
-          compareAtPriceMinor: true,
           product: {
             select: {
               name: true,
               articleCode: true,
               category: true,
               unitOfMeasure: true,
+              compareAtPriceMinor: true,
               defaultVatCodeId: true,
               managesStock: true,
               kind: true,
@@ -336,8 +339,8 @@ export class ProductsService {
         purchasePrice:
           purchaseMinor != null ? { amountMinor: purchaseMinor, currencyCode: row.currency } : null,
         compareAtPrice:
-          row.compareAtPriceMinor != null
-            ? { amountMinor: row.compareAtPriceMinor, currencyCode: row.currency }
+          row.product.compareAtPriceMinor != null
+            ? { amountMinor: row.product.compareAtPriceMinor, currencyCode: row.currency }
             : null,
         supplierSku: supplierLink?.supplierSku ?? null,
         stockOnHand,
@@ -393,7 +396,7 @@ export class ProductsService {
     const created = await this.prisma
       .$transaction(async (tx) => {
         const articleCode = await resolveArticleCodeForCreateInTx(tx, tenantId, dto.articleCode);
-        return tx.product.create({
+        const product = await tx.product.create({
           data: {
             tenantId,
             articleCode,
@@ -416,6 +419,9 @@ export class ProductsService {
           shopifySyncEnabled: dto.shopifySyncEnabled ?? true,
           unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
           defaultVatCodeId: dto.defaultVatCodeId ?? null,
+          sellingPriceMinor: dto.sellingPrice.amountMinor,
+          compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
+          purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
           inventoryTracking: dto.inventoryTracking ?? undefined,
           managesStock: dto.managesStock ?? true,
           kind: dto.kind ?? undefined,
@@ -426,6 +432,8 @@ export class ProductsService {
           },
           include: PRODUCT_INCLUDE,
         });
+        await this.mirrorSimpleProductPrice(tx, tenantId, product.id);
+        return product;
       })
       .catch(async (error: unknown) => {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -469,7 +477,6 @@ export class ProductsService {
         currency: variant.currency,
         sellingPriceMinor: variant.sellingPriceMinor,
         purchasePriceMinor: variant.purchasePriceMinor,
-        compareAtPriceMinor: variant.compareAtPriceMinor,
       });
     }
 
@@ -501,6 +508,9 @@ export class ProductsService {
         status: original.status,
         unitOfMeasure: original.unitOfMeasure,
         defaultVatCodeId: original.defaultVatCodeId,
+        sellingPriceMinor: original.sellingPriceMinor,
+        compareAtPriceMinor: original.compareAtPriceMinor,
+        purchasePriceMinor: original.purchasePriceMinor,
         inventoryTracking: original.inventoryTracking,
         managesStock: original.managesStock,
         kind: original.kind,
@@ -581,7 +591,7 @@ export class ProductsService {
         articleCode = normalized;
       }
 
-      return tx.product.update({
+      await tx.product.update({
         where: { id },
         data: {
           ...(articleCode !== undefined ? { articleCode } : {}),
@@ -591,6 +601,18 @@ export class ProductsService {
           category: dto.category,
           subcategory: dto.subcategory,
           internalNotes: dto.internalNotes,
+          // Prezzi/costo articolo. La presenza di sellingPrice segnala che il
+          // form ha inviato la sezione prezzi dell'articolo: in quel caso barrato
+          // e costo di riferimento assenti valgono "azzera" (null), così
+          // l'operatore può rimuoverli. Un patch parziale senza sellingPrice non
+          // tocca nessuno dei tre.
+          ...(dto.sellingPrice !== undefined
+            ? {
+                sellingPriceMinor: dto.sellingPrice.amountMinor,
+                compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
+                purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
+              }
+            : {}),
           ...(dto.shopifyTaxonomyCategoryId !== undefined
             ? {
                 shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
@@ -630,6 +652,7 @@ export class ProductsService {
         },
         include: PRODUCT_INCLUDE,
       });
+      await this.mirrorSimpleProductPrice(tx, tenantId, id);
     });
 
     await this.pushProductToShopifySafe(tenantId, id);
@@ -884,7 +907,6 @@ export class ProductsService {
         currency: variant.sellingPrice.currency,
         sellingPriceMinor: variant.sellingPrice.amountMinor,
         purchasePriceMinor: variant.purchasePrice?.amountMinor,
-        compareAtPriceMinor: variant.compareAtPrice?.amountMinor,
       },
     });
   }
@@ -930,7 +952,6 @@ export class ProductsService {
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
-      compareAtPriceMinor: variant.compareAtPrice?.amountMinor,
     };
   }
 
@@ -946,8 +967,35 @@ export class ProductsService {
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
-      compareAtPriceMinor: variant.compareAtPrice?.amountMinor,
     };
+  }
+
+  /**
+   * Prodotto SEMPLICE (senza opzioni): la sola variante di default anonima
+   * rispecchia il prezzo di vendita dell'articolo, così l'export manda il valore
+   * giusto. Con opzioni le varianti sono indipendenti → no-op. Il costo NON si
+   * rispecchia: la variante ha il suo costo effettivo (aggiornato dai carichi).
+   */
+  private async mirrorSimpleProductPrice(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    productId: string,
+  ): Promise<void> {
+    const product = await tx.product.findFirst({
+      where: { id: productId, tenantId },
+      select: { options: true, sellingPriceMinor: true },
+    });
+    if (!product) {
+      return;
+    }
+    const options = Array.isArray(product.options) ? product.options : [];
+    if (options.length > 0) {
+      return;
+    }
+    await tx.productVariant.updateMany({
+      where: { productId, tenantId },
+      data: { sellingPriceMinor: product.sellingPriceMinor },
+    });
   }
 
   /** Duplicati nel payload stesso → errore di validazione (422). */

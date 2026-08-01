@@ -118,7 +118,7 @@ function createPrismaMock() {
     supplierOrder: { findFirst: vi.fn() },
     supplierOrderLine: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     tenantFeatureSettings: {
-      findUnique: vi.fn().mockResolvedValue({ updateSupplierPriceOnLoad: 'never' }),
+      findUnique: vi.fn().mockResolvedValue({ defaultVatCodeId: null }),
     },
     supplierVariantLink: { findUnique: vi.fn(), upsert: vi.fn() },
     $transaction: vi.fn(),
