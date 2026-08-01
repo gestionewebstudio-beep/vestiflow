@@ -160,6 +160,7 @@ import {
   type VatComputationInput,
   type VatLineAmounts,
 } from '@domain/documents/utils/document-vat.util';
+import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   lineDraftHasSignificantData,
   lineDraftIsEmpty,
@@ -1993,63 +1994,27 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.formValue();
     this.costEntryMode();
     this.vatCodes();
-    const currency = this.currency;
-    let lineSumMinor = 0;
-    const lineTaxParts: {
-      readonly netMinor: number;
-      readonly vatMinor: number;
-      readonly vatRate: number;
-      readonly affectsSupplierTotal: boolean;
-    }[] = [];
 
-    for (const line of this.lines.controls) {
+    // L'algoritmo dei totali è condiviso da tutti i tipi documento: qui si
+    // riducono le righe a imponibile/imposta secondo la modalità costo
+    // corrente, il resto (sconto documento, ripartizione IVA fra aliquote)
+    // vive in domain/documents/utils/document-totals.util.
+    const lines = this.lines.controls.map((line) => {
       const vat = this.lineVatInput(line);
       const amounts = this.lineVatAmounts(line);
-      lineSumMinor += amounts.lineNetMinor;
-      lineTaxParts.push({
+      return {
         netMinor: amounts.lineNetMinor,
         vatMinor: amounts.lineVatMinor,
         vatRate: vat.ratePercent,
-        affectsSupplierTotal: vat.vatAffectsSupplierTotal,
-      });
-    }
+        countsVatInTotal: vat.vatAffectsSupplierTotal,
+      };
+    });
 
-    const docDiscountPercent = parseEffectiveDiscountPercent(
-      this.form.controls.documentDiscountPercent.value,
+    return computeDocumentTotals(
+      lines,
+      parseEffectiveDiscountPercent(this.form.controls.documentDiscountPercent.value),
+      this.currency,
     );
-    const docDiscountAmount = Math.round((lineSumMinor * docDiscountPercent) / 100);
-    const discountedLineSum = lineSumMinor - docDiscountAmount;
-
-    // L'IVA concorre al totale SOLO per i codici con vatAffectsSupplierTotal
-    // (reverse charge e 0% restano fuori); con sconto documento la quota IVA è
-    // ricalcolata sulla ripartizione proporzionale (stessa logica del backend).
-    let taxMinor: number;
-    if (docDiscountPercent === 0 || lineSumMinor === 0) {
-      taxMinor = lineTaxParts.reduce(
-        (sum, part) => sum + (part.affectsSupplierTotal ? part.vatMinor : 0),
-        0,
-      );
-    } else {
-      taxMinor = lineTaxParts.reduce((sum, part) => {
-        if (!part.affectsSupplierTotal || part.vatRate <= 0) {
-          return sum;
-        }
-        const share = part.netMinor / lineSumMinor;
-        const discountedNet = Math.round(discountedLineSum * share);
-        return sum + Math.round((discountedNet * part.vatRate) / 100);
-      }, 0);
-    }
-
-    return {
-      linesTotal: { amountMinor: lineSumMinor, currencyCode: currency },
-      documentDiscount: { amountMinor: docDiscountAmount, currencyCode: currency },
-      subtotal: { amountMinor: discountedLineSum, currencyCode: currency },
-      tax: { amountMinor: taxMinor, currencyCode: currency },
-      total: {
-        amountMinor: discountedLineSum + taxMinor,
-        currencyCode: currency,
-      },
-    };
   });
 
   /** Riepilogo IVA raggruppato per Codice (§10.2), prima dello sconto documento. */

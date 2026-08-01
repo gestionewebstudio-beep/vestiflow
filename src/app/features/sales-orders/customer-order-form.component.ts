@@ -92,6 +92,7 @@ import {
 } from '@domain/documents/models/document-include.util';
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { grossFromNetMinor, netFromGrossMinor } from '@domain/documents/utils/document-vat.util';
+import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   documentReferenceLabel,
   documentTypeLabel,
@@ -2138,58 +2139,34 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly documentTotals = computed(() => {
     this.formValue();
     const includesVat = this.pricesIncludeVat();
-    let lineSum = 0;
-    const taxParts: { readonly netMinor: number; readonly vatRate: number }[] = [];
-    this.lines.controls.forEach((line, index) => {
+
+    // L'algoritmo dei totali è condiviso da tutti i tipi documento: qui si
+    // riducono le righe a imponibile/imposta (scorporando il netto quando i
+    // prezzi sono ivati), il resto vive in
+    // domain/documents/utils/document-totals.util.
+    const lines = this.lines.controls.flatMap((line, index) => {
       if (this.lineIsEmpty(line) || this.isReferenceLine(line)) {
-        return;
+        return [];
       }
       const lineAmount = this.lineTotalMoney(index).amountMinor;
       const vatRate = this.lineVatRate(index);
-      // Ivato: il totale riga è lordo → si scorpora il netto (imponibile). In
-      // entrambe le modalità il resto lavora sul netto (l'IVA è netto·aliquota).
       const netMinor =
         includesVat && vatRate > 0 ? netFromGrossMinor(lineAmount, vatRate) : lineAmount;
-      lineSum += netMinor;
-      taxParts.push({ netMinor, vatRate });
+      return [
+        {
+          netMinor,
+          vatMinor: Math.round((netMinor * vatRate) / 100),
+          vatRate,
+          countsVatInTotal: vatRate > 0,
+        },
+      ];
     });
 
-    const docDiscountPercent = parseEffectiveDiscountPercent(
-      this.form.controls.documentDiscountPercent.value,
+    return computeDocumentTotals(
+      lines,
+      parseEffectiveDiscountPercent(this.form.controls.documentDiscountPercent.value),
+      this.currency,
     );
-    const docDiscountAmount = Math.round((lineSum * docDiscountPercent) / 100);
-    const discountedLineSum = lineSum - docDiscountAmount;
-
-    let tax: number;
-    if (docDiscountPercent === 0 || lineSum === 0) {
-      tax = taxParts.reduce(
-        (sum, part) => sum + Math.round((part.netMinor * part.vatRate) / 100),
-        0,
-      );
-    } else {
-      tax = taxParts.reduce((sum, part) => {
-        if (part.vatRate <= 0) {
-          return sum;
-        }
-        const share = part.netMinor / lineSum;
-        const discountedNet = Math.round(discountedLineSum * share);
-        return sum + Math.round((discountedNet * part.vatRate) / 100);
-      }, 0);
-    }
-
-    return {
-      linesTotal: { amountMinor: lineSum, currencyCode: this.currency } satisfies Money,
-      documentDiscount: {
-        amountMinor: docDiscountAmount,
-        currencyCode: this.currency,
-      } satisfies Money,
-      subtotal: { amountMinor: discountedLineSum, currencyCode: this.currency } satisfies Money,
-      tax: { amountMinor: tax, currencyCode: this.currency } satisfies Money,
-      total: {
-        amountMinor: discountedLineSum + tax,
-        currencyCode: this.currency,
-      } satisfies Money,
-    };
   });
 
   /**
