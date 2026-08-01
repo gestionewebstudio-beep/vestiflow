@@ -504,15 +504,24 @@ export class InventoryService {
         await this.assertLocationExists(tx, tenantId, dto.targetLocationId);
       }
 
+      // Le varianti di tutte le righe in una query sola: non cambiano durante
+      // il ciclo, quindi leggerle una per riga era solo un round-trip in più.
+      // La GIACENZA invece no: ogni riga la muta, e una seconda riga sulla
+      // stessa variante deve vedere il valore aggiornato dalla prima —
+      // resta letta dentro il ciclo.
+      const variantIds = [...new Set(dto.lines.map((line) => line.variantId))];
+      const variants = await tx.productVariant.findMany({
+        where: { id: { in: variantIds }, tenantId },
+        select: { id: true, sku: true },
+      });
+      const variantById = new Map(variants.map((variant) => [variant.id, variant]));
+      if (variantById.size !== variantIds.length) {
+        throw new NotFoundException('Variante non trovata');
+      }
+
       let count = 0;
       for (const line of dto.lines) {
-        const variant = await tx.productVariant.findFirst({
-          where: { id: line.variantId, tenantId },
-          select: { id: true, sku: true },
-        });
-        if (!variant) {
-          throw new NotFoundException('Variante non trovata');
-        }
+        const variant = variantById.get(line.variantId)!;
 
         let quantity: number;
         let direction: AdjustmentDirection | null = null;

@@ -321,11 +321,18 @@ describe('InventoryService', () => {
     const tx = {
       productVariant: {
         findFirst: vi.fn().mockResolvedValue({ id: 'var-1', sku: 'SKU-1' }),
+        // Le varianti delle righe si leggono in blocco: una entry per id chiesto.
+        findMany: vi
+          .fn()
+          .mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+            where.id.in.map((id) => ({ id, sku: 'SKU-1' })),
+          ),
       },
       location: {
         findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
       },
       inventoryLevel: {
+        findMany: vi.fn().mockResolvedValue([]),
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 5, onHand: 5 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
@@ -368,11 +375,18 @@ describe('InventoryService', () => {
     const tx = {
       productVariant: {
         findFirst: vi.fn().mockResolvedValue({ id: 'var-1', sku: 'SKU-1' }),
+        // Le varianti delle righe si leggono in blocco: una entry per id chiesto.
+        findMany: vi
+          .fn()
+          .mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+            where.id.in.map((id) => ({ id, sku: 'SKU-1' })),
+          ),
       },
       location: {
         findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
       },
       inventoryLevel: {
+        findMany: vi.fn().mockResolvedValue([]),
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 10, onHand: 10 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
@@ -461,11 +475,18 @@ describe('InventoryService', () => {
     const tx = {
       productVariant: {
         findFirst: vi.fn().mockResolvedValue({ id: 'var-1', sku: 'SKU-1' }),
+        // Le varianti delle righe si leggono in blocco: una entry per id chiesto.
+        findMany: vi
+          .fn()
+          .mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+            where.id.in.map((id) => ({ id, sku: 'SKU-1' })),
+          ),
       },
       location: {
         findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
       },
       inventoryLevel: {
+        findMany: vi.fn().mockResolvedValue([]),
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 1, onHand: 1 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
@@ -507,11 +528,18 @@ describe('InventoryService', () => {
     const tx = {
       productVariant: {
         findFirst: vi.fn().mockResolvedValue({ id: 'var-1', sku: 'SKU-1' }),
+        // Le varianti delle righe si leggono in blocco: una entry per id chiesto.
+        findMany: vi
+          .fn()
+          .mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+            where.id.in.map((id) => ({ id, sku: 'SKU-1' })),
+          ),
       },
       location: {
         findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
       },
       inventoryLevel: {
+        findMany: vi.fn().mockResolvedValue([]),
         upsert: vi
           .fn()
           .mockResolvedValueOnce({ id: 'lvl-src', available: 10, onHand: 10 })
@@ -558,11 +586,18 @@ describe('InventoryService', () => {
     const tx = {
       productVariant: {
         findFirst: vi.fn().mockResolvedValue({ id: 'var-1', sku: 'SKU-1' }),
+        // Le varianti delle righe si leggono in blocco: una entry per id chiesto.
+        findMany: vi
+          .fn()
+          .mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+            where.id.in.map((id) => ({ id, sku: 'SKU-1' })),
+          ),
       },
       location: {
         findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
       },
       inventoryLevel: {
+        findMany: vi.fn().mockResolvedValue([]),
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 5, onHand: 5 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
@@ -602,11 +637,18 @@ describe('InventoryService', () => {
     return {
       productVariant: {
         findFirst: vi.fn().mockResolvedValue({ id: 'var-1', sku: 'SKU-1' }),
+        // Le varianti delle righe si leggono in blocco: una entry per id chiesto.
+        findMany: vi
+          .fn()
+          .mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+            where.id.in.map((id) => ({ id, sku: 'SKU-1' })),
+          ),
       },
       location: {
         findFirst: vi.fn().mockResolvedValue({ id: 'loc-1' }),
       },
       inventoryLevel: {
+        findMany: vi.fn().mockResolvedValue([]),
         findFirst: vi.fn().mockResolvedValue({ onHand: currentOnHand }),
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1' }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -668,6 +710,39 @@ describe('InventoryService', () => {
       where: { tenantId, variantId: 'var-1', locationId: 'loc-1' },
       data: { onHand: { increment: -2 }, available: { increment: -2 } },
     });
+  });
+
+  /**
+   * Invariante da NON ottimizzare: la giacenza va riletta a ogni riga, perché
+   * ogni riga la muta. Con due rettifiche sulla stessa variante la seconda
+   * deve partire dal valore lasciato dalla prima; leggendo tutte le giacenze
+   * in blocco prima del ciclo la seconda riga userebbe un valore stale e il
+   * risultato finale cambierebbe. Le VARIANTI invece si leggono in blocco:
+   * quelle non cambiano durante il ciclo.
+   */
+  it('registerMovementBatch rettifica: rilegge la giacenza a ogni riga', async () => {
+    const tx = createBatchTx(6);
+    const { service } = createBatchService(tx);
+
+    await service.registerMovementBatch(
+      tenantId,
+      {
+        type: StockMovementType.adjustment,
+        locationId: 'loc-1',
+        reason: 'Rettifica giacenza',
+        lines: [
+          { variantId: 'var-1', newOnHand: 4 },
+          { variantId: 'var-2', newOnHand: 9 },
+        ],
+      },
+      'Mario Rossi',
+      'user-1',
+      ownerUser,
+    );
+
+    expect(tx.inventoryLevel.findFirst).toHaveBeenCalledTimes(2);
+    // Le varianti, al contrario, si leggono una volta sola per tutte le righe.
+    expect(tx.productVariant.findMany).toHaveBeenCalledTimes(1);
   });
 
   it('registerMovementBatch trasferimento: destinazione uguale all’origine rifiutata', async () => {
