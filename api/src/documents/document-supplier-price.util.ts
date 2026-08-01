@@ -2,6 +2,19 @@ import type { DocumentLine, Prisma } from '@prisma/client';
 
 type ReceiptLine = Pick<DocumentLine, 'variantId' | 'unitPriceMinor' | 'loadsStock' | 'quantity'>;
 
+/** Riga che incide sui costi: carica stock, ha quantità, variante e prezzo. */
+type CostBearingLine = ReceiptLine & { variantId: string; unitPriceMinor: number };
+
+function isCostBearing(line: ReceiptLine): line is CostBearingLine {
+  return (
+    line.loadsStock && line.quantity > 0 && line.variantId != null && line.unitPriceMinor != null
+  );
+}
+
+const uniqueVariantIds = (lines: readonly CostBearingLine[]): string[] => [
+  ...new Set(lines.map((line) => line.variantId)),
+];
+
 export interface SupplierPriceDiff {
   readonly variantId: string;
   readonly previousMinor: number | null;
@@ -18,22 +31,27 @@ export async function findSupplierPriceDiffs(
   if (!supplierId) {
     return [];
   }
+  const eligible = lines.filter(isCostBearing);
+  if (eligible.length === 0) {
+    return [];
+  }
+
+  // Un'unica lettura per tutte le righe: in ciclo era un round-trip per riga.
+  const links = await tx.supplierVariantLink.findMany({
+    where: {
+      tenantId,
+      supplierId,
+      variantId: { in: uniqueVariantIds(eligible) },
+    },
+    select: { variantId: true, lastPurchasePriceMinor: true },
+  });
+  const lastPriceByVariant = new Map(
+    links.map((link) => [link.variantId, link.lastPurchasePriceMinor]),
+  );
+
   const diffs: SupplierPriceDiff[] = [];
-  for (const line of lines) {
-    if (!line.loadsStock || line.quantity <= 0 || !line.variantId || line.unitPriceMinor == null) {
-      continue;
-    }
-    const link = await tx.supplierVariantLink.findUnique({
-      where: {
-        tenantId_supplierId_variantId: {
-          tenantId,
-          supplierId,
-          variantId: line.variantId,
-        },
-      },
-      select: { lastPurchasePriceMinor: true },
-    });
-    const previous = link?.lastPurchasePriceMinor ?? null;
+  for (const line of eligible) {
+    const previous = lastPriceByVariant.get(line.variantId) ?? null;
     if (previous === line.unitPriceMinor) {
       continue;
     }
@@ -65,11 +83,25 @@ export async function applySupplierPriceUpdates(
   lines: readonly ReceiptLine[],
   updateArticleReferenceCost: boolean,
 ): Promise<void> {
-  for (const line of lines) {
-    if (!line.loadsStock || line.quantity <= 0 || !line.variantId || line.unitPriceMinor == null) {
-      continue;
-    }
+  const eligible = lines.filter(isCostBearing);
 
+  // Mappa variante → articolo letta in un colpo solo: serve solo con la spunta
+  // di documento, e in ciclo era un round-trip per riga.
+  const productIdByVariant = new Map<string, string>();
+  if (updateArticleReferenceCost && eligible.length > 0) {
+    const variants = await tx.productVariant.findMany({
+      where: {
+        tenantId,
+        id: { in: uniqueVariantIds(eligible) },
+      },
+      select: { id: true, productId: true },
+    });
+    for (const variant of variants) {
+      productIdByVariant.set(variant.id, variant.productId);
+    }
+  }
+
+  for (const line of eligible) {
     // Costo effettivo della taglia: sempre.
     await tx.productVariant.updateMany({
       where: { id: line.variantId, tenantId },
@@ -93,14 +125,13 @@ export async function applySupplierPriceUpdates(
     }
 
     // Costo di riferimento dell'articolo: solo su spunta di documento.
+    // Con più varianti dello stesso articolo vince l'ultima riga: l'update
+    // resta per riga, è solo la lettura ad essere stata accorpata sopra.
     if (updateArticleReferenceCost) {
-      const variant = await tx.productVariant.findFirst({
-        where: { id: line.variantId, tenantId },
-        select: { productId: true },
-      });
-      if (variant) {
+      const productId = productIdByVariant.get(line.variantId);
+      if (productId) {
         await tx.product.updateMany({
-          where: { id: variant.productId, tenantId },
+          where: { id: productId, tenantId },
           data: { purchasePriceMinor: line.unitPriceMinor },
         });
       }

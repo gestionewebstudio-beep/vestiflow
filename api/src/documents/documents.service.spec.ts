@@ -587,7 +587,9 @@ describe('DocumentsService', () => {
         ],
       });
       prisma.document.aggregate.mockResolvedValue({ _max: { number: 11 } });
-      prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
+      prisma.productVariant.findMany.mockResolvedValue([
+        { id: 'var-1', sku: 'SKU-1', product: { inventoryTracking: 'standard' } },
+      ]);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
       prisma.stockMovement.create.mockResolvedValue({});
@@ -661,7 +663,9 @@ describe('DocumentsService', () => {
         ],
       });
       prisma.document.aggregate.mockResolvedValue({ _max: { number: 1 } });
-      prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
+      prisma.productVariant.findMany.mockResolvedValue([
+        { id: 'var-1', sku: 'SKU-1', product: { inventoryTracking: 'standard' } },
+      ]);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
       prisma.inventoryLevel.findUnique.mockResolvedValue({ onHand: 10, available: 10 });
@@ -817,7 +821,9 @@ describe('DocumentsService', () => {
         ],
       });
       prisma.document.aggregate.mockResolvedValue({ _max: { number: 1 } });
-      prisma.productVariant.findFirst.mockResolvedValue({ id: 'var-1', sku: 'SKU-1' });
+      prisma.productVariant.findMany.mockResolvedValue([
+        { id: 'var-1', sku: 'SKU-1', product: { inventoryTracking: 'standard' } },
+      ]);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
       prisma.stockMovement.create.mockResolvedValue({});

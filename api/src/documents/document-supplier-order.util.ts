@@ -101,8 +101,14 @@ export async function reverseSupplierOrderReceipt(
   excludeDocumentId?: string,
 ): Promise<void> {
   const aggregated = aggregateReceiptByOrderLine(lines);
+  // Una sola lettura per tutte le righe: in ciclo sarebbe un round-trip per riga.
+  const orderLines = await tx.supplierOrderLine.findMany({
+    where: { id: { in: [...aggregated.keys()] } },
+  });
+  const byId = new Map(orderLines.map((line) => [line.id, line]));
+
   for (const [lineId, entry] of aggregated) {
-    const orderLine = await tx.supplierOrderLine.findUnique({ where: { id: lineId } });
+    const orderLine = byId.get(lineId);
     if (!orderLine) {
       continue;
     }
@@ -130,6 +136,14 @@ export async function reconcileSupplierOrderReceipt(
   const newMap = aggregateReceiptByOrderLine(newLines);
   const allLineIds = new Set([...oldMap.keys(), ...newMap.keys()]);
 
+  // Una sola lettura per tutte le righe toccate: in ciclo sarebbe un
+  // round-trip per riga, su ogni salvataggio di arrivo merce.
+  const touchedIds = [...allLineIds].filter(
+    (lineId) => (newMap.get(lineId)?.quantity ?? 0) !== (oldMap.get(lineId)?.quantity ?? 0),
+  );
+  const orderLines = await tx.supplierOrderLine.findMany({ where: { id: { in: touchedIds } } });
+  const byId = new Map(orderLines.map((line) => [line.id, line]));
+
   for (const lineId of allLineIds) {
     const oldQty = oldMap.get(lineId)?.quantity ?? 0;
     const newQty = newMap.get(lineId)?.quantity ?? 0;
@@ -137,7 +151,7 @@ export async function reconcileSupplierOrderReceipt(
     if (delta === 0) {
       continue;
     }
-    const orderLine = await tx.supplierOrderLine.findUnique({ where: { id: lineId } });
+    const orderLine = byId.get(lineId);
     if (!orderLine) {
       continue;
     }

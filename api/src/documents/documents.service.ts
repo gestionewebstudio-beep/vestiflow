@@ -94,6 +94,7 @@ import {
   reverseDocumentStockLoad,
   reverseDocumentStockUnload,
 } from './document-stock-reconcile.util';
+import { loadStockLineVariantsOrThrow } from './document-line-variants.util';
 import { reverseSupplierOrderReceipt } from './document-supplier-order.util';
 import { findSupplierPriceDiffs } from './document-supplier-price.util';
 import { DocumentSettingsService } from './document-settings.service';
@@ -2065,19 +2066,12 @@ export class DocumentsService {
         doc.type === DocumentType.invoice_accompanying ? 'Fattura accompagnatoria' : 'DDT vendita';
       const reason = reference ? `${label} ${reference}` : `${label} ${doc.type}`;
       await assertSerialNumbersForUnloadLines(tx, tenantId, doc.locationId!, doc.lines);
+      const variantsById = await loadStockLineVariantsOrThrow(tx, tenantId, doc.lines);
       for (const line of doc.lines) {
         if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
           continue;
         }
-        const variant = await tx.productVariant.findFirst({
-          where: { id: line.variantId, tenantId },
-          select: { id: true, sku: true },
-        });
-        if (!variant) {
-          throw new UnprocessableEntityException(
-            `Variante non trovata per la riga ${line.lineNumber}.`,
-          );
-        }
+        const variant = variantsById.get(line.variantId)!;
         await applyStockSale(tx, {
           tenantId,
           variantId: variant.id,
@@ -2150,20 +2144,8 @@ export class DocumentsService {
 
     if (documentTypeTransfersStockOnConfirm(doc.type)) {
       await assertSerialNumbersForTransferLines(tx, tenantId, doc.locationId!, doc.lines);
-      for (const line of doc.lines) {
-        if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
-          continue;
-        }
-        const variant = await tx.productVariant.findFirst({
-          where: { id: line.variantId, tenantId },
-          select: { id: true, sku: true },
-        });
-        if (!variant) {
-          throw new UnprocessableEntityException(
-            `Variante non trovata per la riga ${line.lineNumber}.`,
-          );
-        }
-      }
+      // Verifica che ogni riga a stock abbia la sua variante nel tenant.
+      await loadStockLineVariantsOrThrow(tx, tenantId, doc.lines);
       // Movimenti per riga (mirror arrivo merce): un movimento per riga con
       // sourceLineId, mai aggregato per variante.
       const transferReason = buildTransferMovementReason({ reference });

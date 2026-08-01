@@ -8,12 +8,13 @@ import {
 function createTxMock() {
   return {
     supplierVariantLink: {
-      findUnique: vi.fn(),
+      // Le righe vengono lette in blocco (una query per documento, non per riga).
+      findMany: vi.fn().mockResolvedValue([]),
       upsert: vi.fn(),
     },
     productVariant: {
       updateMany: vi.fn(),
-      findFirst: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     product: {
       updateMany: vi.fn(),
@@ -43,7 +44,9 @@ describe('document-supplier-price.util', () => {
     });
 
     it('segnala diff quando il prezzo differisce dal link fornitore', async () => {
-      tx.supplierVariantLink.findUnique.mockResolvedValue({ lastPurchasePriceMinor: 800 });
+      tx.supplierVariantLink.findMany.mockResolvedValue([
+        { variantId: 'var-1', lastPurchasePriceMinor: 800 },
+      ]);
 
       await expect(
         findSupplierPriceDiffs(tx as never, 'tenant-1', 'sup-1', [
@@ -76,7 +79,7 @@ describe('document-supplier-price.util', () => {
           },
         ]),
       ).resolves.toEqual([]);
-      expect(tx.supplierVariantLink.findUnique).not.toHaveBeenCalled();
+      expect(tx.supplierVariantLink.findMany).not.toHaveBeenCalled();
     });
   });
 
@@ -142,7 +145,7 @@ describe('document-supplier-price.util', () => {
     });
 
     it('propaga il costo di riferimento articolo quando la spunta è on', async () => {
-      tx.productVariant.findFirst.mockResolvedValue({ productId: 'prod-1' });
+      tx.productVariant.findMany.mockResolvedValue([{ id: 'var-1', productId: 'prod-1' }]);
 
       await applySupplierPriceUpdates(
         tx as never,

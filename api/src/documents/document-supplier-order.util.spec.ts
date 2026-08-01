@@ -45,10 +45,18 @@ function createTxMock(options?: {
       count: vi.fn(async () => options?.activeLinkedDocuments ?? 0),
     },
     supplierOrderLine: {
-      findMany: vi.fn(async ({ where }: { where: { orderId: string } }) =>
-        [...orderLines.values()].filter((line) => line.orderId === where.orderId),
+      // Due forme d'uso: per ordine (enrich) e per lista di id (riconciliazione,
+      // che legge tutte le righe toccate in un colpo solo invece che in ciclo).
+      findMany: vi.fn(
+        async ({ where }: { where: { orderId?: string; id?: { in: string[] } } }) => {
+          if (where.id?.in) {
+            return where.id.in
+              .map((id) => orderLines.get(id))
+              .filter((line): line is NonNullable<typeof line> => Boolean(line));
+          }
+          return [...orderLines.values()].filter((line) => line.orderId === where.orderId);
+        },
       ),
-      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => orderLines.get(where.id)),
       update: vi.fn(
         async ({ where, data }: { where: { id: string }; data: { receivedQuantity?: number } }) => {
           const line = orderLines.get(where.id);

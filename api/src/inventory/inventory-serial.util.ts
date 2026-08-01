@@ -21,25 +21,49 @@ function parseSerialNumbers(raw: unknown): readonly string[] {
     .filter((entry) => entry.length > 0);
 }
 
-async function isSerialTrackedVariant(
+interface SerialTrackedVariant {
+  readonly sku: string;
+  readonly serial: boolean;
+}
+
+/**
+ * Carica in un'unica query il tracciamento di tutte le varianti citate dalle
+ * righe: interrogarle una per una costava un round-trip per riga documento.
+ */
+async function loadSerialTrackedVariants(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  variantId: string,
-): Promise<{ sku: string; serial: boolean } | null> {
-  const variant = await tx.productVariant.findFirst({
-    where: { id: variantId, tenantId },
+  lines: readonly SerialLine[],
+): Promise<Map<string, SerialTrackedVariant>> {
+  const variantIds = [
+    ...new Set(
+      lines
+        .filter((line) => line.loadsStock && line.quantity > 0 && line.variantId)
+        .map((line) => line.variantId as string),
+    ),
+  ];
+  if (variantIds.length === 0) {
+    return new Map();
+  }
+
+  const variants = await tx.productVariant.findMany({
+    where: { id: { in: variantIds }, tenantId },
     select: {
+      id: true,
       sku: true,
       product: { select: { inventoryTracking: true } },
     },
   });
-  if (!variant) {
-    return null;
-  }
-  return {
-    sku: variant.sku ?? '',
-    serial: variant.product?.inventoryTracking === InventoryTrackingMode.serial,
-  };
+
+  return new Map(
+    variants.map((variant) => [
+      variant.id,
+      {
+        sku: variant.sku ?? '',
+        serial: variant.product?.inventoryTracking === InventoryTrackingMode.serial,
+      },
+    ]),
+  );
 }
 
 function assertSerialCountMatchesQuantity(
@@ -66,12 +90,14 @@ export async function assertSerialNumbersForDocumentLines(
   tenantId: string,
   lines: readonly SerialLine[],
 ): Promise<void> {
+  const variantsById = await loadSerialTrackedVariants(tx, tenantId, lines);
+
   for (const line of lines) {
     if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
       continue;
     }
 
-    const variant = await isSerialTrackedVariant(tx, tenantId, line.variantId);
+    const variant = variantsById.get(line.variantId);
     if (!variant?.serial) {
       continue;
     }
@@ -98,12 +124,14 @@ export async function assertSerialNumbersForUnloadLines(
   locationId: string,
   lines: readonly SerialLine[],
 ): Promise<void> {
+  const variantsById = await loadSerialTrackedVariants(tx, tenantId, lines);
+
   for (const line of lines) {
     if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
       continue;
     }
 
-    const variant = await isSerialTrackedVariant(tx, tenantId, line.variantId);
+    const variant = variantsById.get(line.variantId);
     if (!variant?.serial) {
       continue;
     }
@@ -111,22 +139,25 @@ export async function assertSerialNumbersForUnloadLines(
     const serials = parseSerialNumbers(line.serialNumbers);
     assertSerialCountMatchesQuantity(variant.sku, line.quantity, serials);
 
-    for (const serialNumber of serials) {
-      const record = await tx.inventorySerial.findFirst({
-        where: {
-          tenantId,
-          serialNumber,
-          status: InventorySerialStatus.in_stock,
-          variantId: line.variantId,
-          locationId,
-        },
-        select: { id: true },
-      });
-      if (!record) {
-        throw new UnprocessableEntityException(
-          `Seriale ${serialNumber} non disponibile in stock per SKU ${variant.sku} alla location selezionata.`,
-        );
-      }
+    // Tutti i seriali della riga in una query sola: uno per uno erano N query
+    // per riga. L'errore continua a citare il primo seriale mancante in ordine.
+    const inStock = await tx.inventorySerial.findMany({
+      where: {
+        tenantId,
+        serialNumber: { in: [...serials] },
+        status: InventorySerialStatus.in_stock,
+        variantId: line.variantId,
+        locationId,
+      },
+      select: { serialNumber: true },
+    });
+    const available = new Set(inStock.map((row) => row.serialNumber));
+
+    const missing = serials.find((serialNumber) => !available.has(serialNumber));
+    if (missing !== undefined) {
+      throw new UnprocessableEntityException(
+        `Seriale ${missing} non disponibile in stock per SKU ${variant.sku} alla location selezionata.`,
+      );
     }
   }
 }
@@ -148,12 +179,14 @@ export async function applyInventorySerialsFromDocumentLines(
   locationId: string,
   lines: readonly SerialLine[],
 ): Promise<void> {
+  const variantsById = await loadSerialTrackedVariants(tx, tenantId, lines);
+
   for (const line of lines) {
     if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
       continue;
     }
 
-    const variant = await isSerialTrackedVariant(tx, tenantId, line.variantId);
+    const variant = variantsById.get(line.variantId);
     if (!variant?.serial) {
       continue;
     }
@@ -180,12 +213,14 @@ export async function consumeInventorySerialsFromDocumentLines(
   locationId: string,
   lines: readonly SerialLine[],
 ): Promise<void> {
+  const variantsById = await loadSerialTrackedVariants(tx, tenantId, lines);
+
   for (const line of lines) {
     if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
       continue;
     }
 
-    const variant = await isSerialTrackedVariant(tx, tenantId, line.variantId);
+    const variant = variantsById.get(line.variantId);
     if (!variant?.serial) {
       continue;
     }
@@ -222,12 +257,14 @@ export async function transferInventorySerialsFromDocumentLines(
   targetLocationId: string,
   lines: readonly SerialLine[],
 ): Promise<void> {
+  const variantsById = await loadSerialTrackedVariants(tx, tenantId, lines);
+
   for (const line of lines) {
     if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
       continue;
     }
 
-    const variant = await isSerialTrackedVariant(tx, tenantId, line.variantId);
+    const variant = variantsById.get(line.variantId);
     if (!variant?.serial) {
       continue;
     }

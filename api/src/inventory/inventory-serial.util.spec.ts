@@ -26,22 +26,25 @@ describe('parseSerialNumbers', () => {
 
 describe('assertSerialNumbersForDocumentLines', () => {
   let tx: {
-    productVariant: { findFirst: ReturnType<typeof vi.fn> };
+    productVariant: { findMany: ReturnType<typeof vi.fn> };
     inventorySerial: { findMany: ReturnType<typeof vi.fn> };
   };
 
   beforeEach(() => {
     tx = {
-      productVariant: { findFirst: vi.fn() },
+      productVariant: { findMany: vi.fn().mockResolvedValue([]) },
       inventorySerial: { findMany: vi.fn().mockResolvedValue([]) },
     };
   });
 
   it('ignora prodotti senza tracciamento serial', async () => {
-    tx.productVariant.findFirst.mockResolvedValue({
+    tx.productVariant.findMany.mockResolvedValue([
+      {
+        id: 'var-1',
       sku: 'SKU-1',
       product: { inventoryTracking: InventoryTrackingMode.standard },
-    });
+          },
+    ]);
 
     await assertSerialNumbersForDocumentLines(tx as never, 'tenant-1', [
       {
@@ -57,10 +60,13 @@ describe('assertSerialNumbersForDocumentLines', () => {
   });
 
   it('rifiuta quantità seriali diversa dalla riga', async () => {
-    tx.productVariant.findFirst.mockResolvedValue({
+    tx.productVariant.findMany.mockResolvedValue([
+      {
+        id: 'var-1',
       sku: 'SKU-SER',
       product: { inventoryTracking: InventoryTrackingMode.serial },
-    });
+          },
+    ]);
 
     await expect(
       assertSerialNumbersForDocumentLines(tx as never, 'tenant-1', [
@@ -76,10 +82,13 @@ describe('assertSerialNumbersForDocumentLines', () => {
   });
 
   it('rifiuta seriali già presenti a magazzino', async () => {
-    tx.productVariant.findFirst.mockResolvedValue({
+    tx.productVariant.findMany.mockResolvedValue([
+      {
+        id: 'var-1',
       sku: 'SKU-SER',
       product: { inventoryTracking: InventoryTrackingMode.serial },
-    });
+          },
+    ]);
     tx.inventorySerial.findMany.mockResolvedValue([{ serialNumber: 'SN-1' }]);
 
     await expect(
@@ -100,13 +109,17 @@ describe('assertSerialNumbersForUnloadLines', () => {
   it('rifiuta seriali non in stock alla location', async () => {
     const tx = {
       productVariant: {
-        findFirst: vi.fn().mockResolvedValue({
-          sku: 'SKU-SER',
-          product: { inventoryTracking: InventoryTrackingMode.serial },
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'var-1',
+            sku: 'SKU-SER',
+            product: { inventoryTracking: InventoryTrackingMode.serial },
+          },
+        ]),
       },
       inventorySerial: {
-        findFirst: vi.fn().mockResolvedValue(null),
+        // Nessun seriale in stock: la lettura in blocco torna vuota.
+        findMany: vi.fn().mockResolvedValue([]),
       },
     };
 
@@ -129,10 +142,13 @@ describe('applyInventorySerialsFromDocumentLines', () => {
     const create = vi.fn();
     const tx = {
       productVariant: {
-        findFirst: vi.fn().mockResolvedValue({
-          sku: 'SKU-SER',
-          product: { inventoryTracking: InventoryTrackingMode.serial },
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'var-1',
+            sku: 'SKU-SER',
+            product: { inventoryTracking: InventoryTrackingMode.serial },
+          },
+        ]),
       },
       inventorySerial: { create },
     };
@@ -156,10 +172,13 @@ describe('consumeInventorySerialsFromDocumentLines', () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const tx = {
       productVariant: {
-        findFirst: vi.fn().mockResolvedValue({
-          sku: 'SKU-SER',
-          product: { inventoryTracking: InventoryTrackingMode.serial },
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'var-1',
+            sku: 'SKU-SER',
+            product: { inventoryTracking: InventoryTrackingMode.serial },
+          },
+        ]),
       },
       inventorySerial: { updateMany },
     };
@@ -195,10 +214,13 @@ describe('transferInventorySerialsFromDocumentLines', () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const tx = {
       productVariant: {
-        findFirst: vi.fn().mockResolvedValue({
-          sku: 'SKU-SER',
-          product: { inventoryTracking: InventoryTrackingMode.serial },
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'var-1',
+            sku: 'SKU-SER',
+            product: { inventoryTracking: InventoryTrackingMode.serial },
+          },
+        ]),
       },
       inventorySerial: { updateMany },
     };
