@@ -162,6 +162,10 @@ import {
 } from '@domain/documents/utils/document-vat.util';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
+  vatCodeSelectOption,
+  vatOptionsIncludingSelected,
+} from '@domain/documents/utils/document-vat-options.util';
+import {
   lineDraftHasSignificantData,
   lineDraftIsEmpty,
   lineDraftPersistableForExplicitSave,
@@ -443,7 +447,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   );
 
   protected readonly purchaseVatOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.purchaseVatCodes().map((vatCode) => this.vatOptionFromCode(vatCode)),
+    this.purchaseVatCodes().map((vatCode) => vatCodeSelectOption(vatCode)),
   );
 
   /** Codice IVA predefinito aziendale (impostazioni → flag isDefault attivo). */
@@ -2261,33 +2265,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   // ── Colonna IVA: select riga, tooltip, applica a tutte (§9.2, §10, §13) ────
 
-  private vatOptionFromCode(vatCode: VatCode): SelectMenuOption {
-    // Riga sintetica su UNA riga (dropdown IVA): codice + aliquota + descrizione,
-    // senza ripetere la natura per ogni voce (resta nel tooltip di cella).
-    const rate = formatVatRate(vatCode.ratePercent);
-    const description = vatCode.description.trim();
-    const detail = description.toLowerCase().includes(rate.toLowerCase())
-      ? description
-      : `${rate} · ${description}`;
-    return {
-      value: vatCode.id,
-      label: vatCode.code,
-      detail,
-    };
-  }
-
   /** Opzioni della riga: codici attivi + eventuale codice storico disattivato. */
   protected lineVatOptions(index: number): readonly SelectMenuOption[] {
-    const options = this.purchaseVatOptions();
-    const selectedId = this.lines.at(index)?.controls.vatCodeId.value;
-    if (!selectedId || options.some((option) => option.value === selectedId)) {
-      return options;
-    }
-    const selected = this.vatCodeById().get(selectedId);
-    if (!selected) {
-      return options;
-    }
-    return [...options, this.vatOptionFromCode(selected)];
+    return vatOptionsIncludingSelected(
+      this.purchaseVatOptions(),
+      this.lines.at(index)?.controls.vatCodeId.value,
+      this.vatCodeById(),
+    );
   }
 
   protected lineVatValue(index: number): string {

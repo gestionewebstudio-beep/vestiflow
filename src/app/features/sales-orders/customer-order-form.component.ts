@@ -94,6 +94,10 @@ import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.
 import { grossFromNetMinor, netFromGrossMinor } from '@domain/documents/utils/document-vat.util';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
+  vatCodeSelectOption,
+  vatOptionsIncludingSelected,
+} from '@domain/documents/utils/document-vat-options.util';
+import {
   documentReferenceLabel,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
@@ -672,7 +676,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.vatCodes().filter((vatCode) => vatCode.isActive && isSalesVatCode(vatCode)),
   );
   protected readonly salesVatOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.salesVatCodes().map((vatCode) => this.vatOptionFromCode(vatCode)),
+    this.salesVatCodes().map((vatCode) => vatCodeSelectOption(vatCode)),
   );
   /** Codice IVA predefinito aziendale (default = predefinito globale, §coerenza). */
   private readonly defaultVatCodeId = computed(() => {
@@ -2389,23 +2393,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   // ── Colonna IVA ─────────────────────────────────────────────────────────
-  private vatOptionFromCode(vatCode: VatCode): SelectMenuOption {
-    const rate = formatVatRate(vatCode.ratePercent);
-    const description = vatCode.description.trim();
-    const detail = description.toLowerCase().includes(rate.toLowerCase())
-      ? description
-      : `${rate} · ${description}`;
-    return { value: vatCode.id, label: vatCode.code, detail };
-  }
-
   protected lineVatOptions(index: number): readonly SelectMenuOption[] {
-    const options = this.salesVatOptions();
-    const selectedId = this.lines.at(index)?.controls.vatCodeId.value;
-    if (!selectedId || options.some((option) => option.value === selectedId)) {
-      return options;
-    }
-    const selected = this.vatCodeById().get(selectedId);
-    return selected ? [...options, this.vatOptionFromCode(selected)] : options;
+    return vatOptionsIncludingSelected(
+      this.salesVatOptions(),
+      this.lines.at(index)?.controls.vatCodeId.value,
+      this.vatCodeById(),
+    );
   }
 
   protected lineVatValue(index: number): string {
