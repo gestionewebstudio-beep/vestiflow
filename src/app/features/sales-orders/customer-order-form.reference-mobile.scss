@@ -413,6 +413,15 @@
     font-size: var(--co-text-touch);
   }
 
+  // Il select apre un picker al tap: non gli serve il 16px anti-zoom iOS che il
+  // riquadro sopra da' a tutti i controlli. A 16px superava la sua label (15px)
+  // e si rimpiccioliva aprendo la tendina (opzioni 13px). A 14px la gerarchia
+  // torna coerente (15 · 14 · 13); la label del trigger eredita da qui. Input di
+  // testo e data digitabile restano a 16px.
+  .co-panel__field ::ng-deep .select-menu__trigger {
+    font-size: var(--text-md);
+  }
+
   // ── Riga di stato dei dati principali ─────────────────────────────────────
   // Dice cosa manca dentro il pannello. Il banner sotto la testata dice invece
   // cosa si sblocca: sono due frasi diverse e non si sovrappongono.
