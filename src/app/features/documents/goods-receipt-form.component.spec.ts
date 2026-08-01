@@ -65,6 +65,7 @@ describe('GoodsReceiptFormComponent', () => {
     readonly writeLocations?: readonly { id: string; name: string }[];
     readonly defaultLocation?: { id: string; name: string } | null;
     readonly variantSummaries?: readonly (typeof NON_STOCK_SUMMARY)[];
+    readonly vatCodes?: readonly unknown[];
   }) {
     return render(GoodsReceiptFormComponent, {
       providers: [
@@ -108,7 +109,7 @@ describe('GoodsReceiptFormComponent', () => {
             getSupplierVariantLinks: () => of([]),
           },
         },
-        { provide: VatCodeService, useValue: { list: () => of([]) } },
+        { provide: VatCodeService, useValue: { list: () => of(options?.vatCodes ?? []) } },
         { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
         { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
         {
@@ -240,5 +241,162 @@ describe('GoodsReceiptFormComponent', () => {
     const line = component['lines'].at(0);
     expect(line.controls.loadsStock.value).toBe(false);
     expect(line.controls.loadsStock.disabled).toBe(true);
+  });
+
+  /**
+   * Test di CARATTERIZZAZIONE sui totali documento.
+   *
+   * Fotografano il comportamento attuale in vista dell'estrazione del core
+   * condiviso dei form documento. L'Arrivo merce ha una dimensione in più
+   * rispetto all'Ordine cliente: `vatAffectsSupplierTotal`, che tiene fuori
+   * dal totale l'IVA di reverse charge e aliquota zero.
+   */
+  describe('documentTotals — caratterizzazione', () => {
+    function vatCode(over: Record<string, unknown>) {
+      return {
+        id: 'vat-x',
+        code: 'IVA',
+        natureId: 'nat-1',
+        nature: {},
+        ratePercent: 22,
+        nonDeductiblePercent: 0,
+        description: '',
+        notes: null,
+        usageScope: 'both',
+        calculationMode: 'standard',
+        vatAffectsSupplierTotal: true,
+        ...over,
+      };
+    }
+
+    const IVA_22 = vatCode({ id: 'vat-22', code: '22', ratePercent: 22 });
+    const IVA_10 = vatCode({ id: 'vat-10', code: '10', ratePercent: 10 });
+    const REVERSE = vatCode({
+      id: 'vat-rc',
+      code: 'RC',
+      ratePercent: 22,
+      calculationMode: 'reverse_charge',
+      vatAffectsSupplierTotal: false,
+    });
+
+    interface Totals {
+      linesTotal: { amountMinor: number };
+      documentDiscount: { amountMinor: number };
+      subtotal: { amountMinor: number };
+      tax: { amountMinor: number };
+      total: { amountMinor: number };
+    }
+
+    async function withLines(
+      lines: readonly { qty: number; cost: string; vatCodeId?: string }[],
+      options?: { readonly documentDiscountPercent?: string; readonly costsIncludeVat?: boolean },
+    ) {
+      const { fixture } = await setup({ vatCodes: [IVA_22, IVA_10, REVERSE] });
+      const component = fixture.componentInstance;
+
+      // Gate testata: senza fornitore e magazzino addLine() non fa nulla.
+      component.form.controls.supplierId.setValue('sup-1');
+      component.form.controls.locationId.setValue('loc-1');
+      fixture.detectChanges();
+
+      if (options?.costsIncludeVat) {
+        component['costEntryMode'].set('vat_included');
+      }
+      lines.forEach((line, index) => {
+        let guard = 0;
+        while (component['lines'].length <= index && guard++ < 20) {
+          component['addLine']();
+        }
+        const controls = component['lines'].at(index).controls;
+        controls.productName.setValue(`Articolo ${index + 1}`);
+        controls.quantity.setValue(line.qty);
+        controls.unitCost.setValue(line.cost);
+        controls.vatCodeId.setValue(line.vatCodeId ?? '');
+      });
+      if (options?.documentDiscountPercent) {
+        component.form.controls.documentDiscountPercent.setValue(options.documentDiscountPercent);
+      }
+
+      return component['documentTotals']() as Totals;
+    }
+
+    it('documento vuoto: tutti i totali a zero', async () => {
+      expect(await withLines([])).toMatchObject({
+        linesTotal: { amountMinor: 0 },
+        tax: { amountMinor: 0 },
+        total: { amountMinor: 0 },
+      });
+    });
+
+    it('riga senza codice IVA: nessuna imposta', async () => {
+      expect(await withLines([{ qty: 3, cost: '10,00' }])).toMatchObject({
+        linesTotal: { amountMinor: 3000 },
+        subtotal: { amountMinor: 3000 },
+        tax: { amountMinor: 0 },
+        total: { amountMinor: 3000 },
+      });
+    });
+
+    it('IVA 22% a costo netto: imposta esposta e sommata al totale', async () => {
+      // 2 × 50,00 = 100,00 netti → IVA 22,00 → totale 122,00
+      expect(await withLines([{ qty: 2, cost: '50,00', vatCodeId: IVA_22.id }])).toMatchObject({
+        linesTotal: { amountMinor: 10000 },
+        tax: { amountMinor: 2200 },
+        total: { amountMinor: 12200 },
+      });
+    });
+
+    it('reverse charge: l’imponibile conta, l’IVA resta fuori dal totale', async () => {
+      expect(await withLines([{ qty: 1, cost: '100,00', vatCodeId: REVERSE.id }])).toMatchObject({
+        linesTotal: { amountMinor: 10000 },
+        subtotal: { amountMinor: 10000 },
+        tax: { amountMinor: 0 },
+        total: { amountMinor: 10000 },
+      });
+    });
+
+    it('sconto documento con due aliquote: IVA ripartita in proporzione', async () => {
+      // Imponibile 200,00 − 10% = 180,00, ripartito 50/50 → 90,00 per aliquota.
+      // IVA = 90,00·22% + 90,00·10% = 19,80 + 9,00 = 28,80 → totale 208,80
+      expect(
+        await withLines(
+          [
+            { qty: 1, cost: '100,00', vatCodeId: IVA_22.id },
+            { qty: 1, cost: '100,00', vatCodeId: IVA_10.id },
+          ],
+          { documentDiscountPercent: '10' },
+        ),
+      ).toMatchObject({
+        linesTotal: { amountMinor: 20000 },
+        documentDiscount: { amountMinor: 2000 },
+        subtotal: { amountMinor: 18000 },
+        tax: { amountMinor: 2880 },
+        total: { amountMinor: 20880 },
+      });
+    });
+
+    it('modalità costi ivati: scorpora il netto dal costo digitato', async () => {
+      // 122,00 ivati con IVA 22% → netto 100,00, imposta 22,00
+      expect(
+        await withLines([{ qty: 1, cost: '122,00', vatCodeId: IVA_22.id }], {
+          costsIncludeVat: true,
+        }),
+      ).toMatchObject({
+        linesTotal: { amountMinor: 10000 },
+        tax: { amountMinor: 2200 },
+        total: { amountMinor: 12200 },
+      });
+    });
+
+    it('costi ivati + reverse charge: nessuno scorporo, l’IVA non è nel costo', async () => {
+      expect(
+        await withLines([{ qty: 1, cost: '100,00', vatCodeId: REVERSE.id }], {
+          costsIncludeVat: true,
+        }),
+      ).toMatchObject({
+        linesTotal: { amountMinor: 10000 },
+        total: { amountMinor: 10000 },
+      });
+    });
   });
 });
