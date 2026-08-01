@@ -1,8 +1,10 @@
 import { Controller, Delete, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
-import { UserRole } from '@prisma/client';
+import { TenantChannelProfile, UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ChannelProfileGuard } from '../common/auth/channel-profile.guard';
+import { RequireChannelProfile } from '../common/auth/channel-profile.decorator';
 import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
@@ -15,7 +17,8 @@ import { TikTokConnectionService } from './tiktok-connection.service';
 import { TikTokOAuthService } from './tiktok-oauth.service';
 
 @Controller('tiktok')
-@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard, ChannelProfileGuard)
+@RequireChannelProfile(TenantChannelProfile.tiktok_shop)
 export class TikTokController {
   constructor(
     private readonly tiktokConnection: TikTokConnectionService,

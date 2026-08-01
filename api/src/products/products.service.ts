@@ -22,10 +22,7 @@ import { buildInventoryVariantSearchWhere } from '../inventory/inventory-variant
 import { buildVariantTitle } from '../inventory/import/inventory-csv.util';
 import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
-import {
-  ShopifyProductPushService,
-  type ShopifyProductPushResult,
-} from '../shopify/shopify-product-push.service';
+import type { ShopifyProductPushResult } from '../shopify/shopify-product-push.service';
 import { ShopifyTaxonomyLocalizationService } from '../shopify/shopify-taxonomy-localization.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import {
@@ -118,7 +115,6 @@ export class ProductsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly shopifyProductPush: ShopifyProductPushService,
     private readonly channelSync: ChannelSyncFacade,
     private readonly taxonomyLocalization: ShopifyTaxonomyLocalizationService,
   ) {}
@@ -663,7 +659,7 @@ export class ProductsService {
       this.logger.log(
         `Eliminazione prodotto ${id}: sync Shopify id=${product.shopifyProductId} (${tenantId})`,
       );
-      const shopifyDelete = await this.shopifyProductPush.deleteProduct(
+      const shopifyDelete = await this.channelSync.deleteProduct(
         tenantId,
         product.shopifyProductId,
       );
@@ -1137,7 +1133,7 @@ export class ProductsService {
   async syncToShopify(tenantId: string, id: string): Promise<ShopifyProductPushResult> {
     const product = await this.getById(tenantId, id);
     assertShopifyCatalogManualSyncAllowed(product.catalogOrigin);
-    return this.shopifyProductPush.enqueuePush(tenantId, id);
+    return this.channelSync.pushProductNow(tenantId, id);
   }
 }
 

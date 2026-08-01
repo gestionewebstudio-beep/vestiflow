@@ -7,7 +7,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
-import type { ShopifyProductPushService } from '../shopify/shopify-product-push.service';
 import type { ShopifyTaxonomyLocalizationService } from '../shopify/shopify-taxonomy-localization.service';
 import { ProductsService } from './products.service';
 
@@ -81,20 +80,21 @@ describe('ProductsService', () => {
       prepareProductLocalization: vi.fn().mockResolvedValue(undefined),
       localizeProductForResponseSync: vi.fn((product: unknown) => product),
     };
-    const channelSync = { enqueueProductPush: vi.fn() };
-    const shopifyProductPush = {
+    // Il push verso i canali passa solo dal facade (porta unica): il service
+    // di dominio non conosce più Shopify/TikTok direttamente.
+    const channelSync = {
+      enqueueProductPush: vi.fn(),
+      pushProductNow: vi.fn(),
       deleteProduct: vi.fn(),
-      enqueuePush: vi.fn(),
     };
 
     const service = new ProductsService(
       prisma as unknown as PrismaService,
-      shopifyProductPush as unknown as ShopifyProductPushService,
       channelSync as unknown as ChannelSyncFacade,
       taxonomyLocalization as unknown as ShopifyTaxonomyLocalizationService,
     );
 
-    return { service, prisma, shopifyProductPush, channelSync };
+    return { service, prisma, channelSync };
   }
 
   it('list pagina prodotti con taxonomy preparata', async () => {
@@ -256,7 +256,7 @@ describe('ProductsService', () => {
   });
 
   it('syncToShopify accoda push dopo verifica prodotto', async () => {
-    const { service, prisma, shopifyProductPush } = createService();
+    const { service, prisma, channelSync } = createService();
     prisma.product.findFirst.mockResolvedValue({
       id: 'prod-1',
       name: 'Giacca',
@@ -264,10 +264,10 @@ describe('ProductsService', () => {
       variants: [],
       images: [],
     });
-    shopifyProductPush.enqueuePush.mockResolvedValue({ queued: true });
+    channelSync.pushProductNow.mockResolvedValue({ queued: true });
 
     await expect(service.syncToShopify(tenantId, 'prod-1')).resolves.toEqual({ queued: true });
-    expect(shopifyProductPush.enqueuePush).toHaveBeenCalledWith(tenantId, 'prod-1');
+    expect(channelSync.pushProductNow).toHaveBeenCalledWith(tenantId, 'prod-1');
   });
 
   it('create persiste prodotto con varianti', async () => {
@@ -343,13 +343,13 @@ describe('ProductsService', () => {
   });
 
   it('delete rifiuta se Shopify non connesso su prodotto sincronizzato', async () => {
-    const { service, prisma, shopifyProductPush } = createService();
+    const { service, prisma, channelSync } = createService();
     prisma.product.findFirst.mockResolvedValue({
       id: 'prod-1',
       shopifyProductId: 'gid://shopify/Product/1',
     });
     prisma.stockMovement.count.mockResolvedValue(0);
-    shopifyProductPush.deleteProduct.mockResolvedValue({ reason: 'not_connected' });
+    channelSync.deleteProduct.mockResolvedValue({ reason: 'not_connected' });
 
     await expect(service.delete(tenantId, 'prod-1')).rejects.toBeInstanceOf(
       UnprocessableEntityException,
@@ -358,18 +358,18 @@ describe('ProductsService', () => {
   });
 
   it('delete rimuove prodotto sincronizzato dopo delete su Shopify', async () => {
-    const { service, prisma, shopifyProductPush } = createService();
+    const { service, prisma, channelSync } = createService();
     prisma.product.findFirst.mockResolvedValue({
       id: 'prod-1',
       shopifyProductId: 'gid://shopify/Product/1',
     });
     prisma.stockMovement.count.mockResolvedValue(0);
-    shopifyProductPush.deleteProduct.mockResolvedValue({ deleted: true });
+    channelSync.deleteProduct.mockResolvedValue({ deleted: true });
     prisma.product.delete.mockResolvedValue({});
 
     await service.delete(tenantId, 'prod-1');
 
-    expect(shopifyProductPush.deleteProduct).toHaveBeenCalledWith(
+    expect(channelSync.deleteProduct).toHaveBeenCalledWith(
       tenantId,
       'gid://shopify/Product/1',
     );
@@ -377,13 +377,13 @@ describe('ProductsService', () => {
   });
 
   it('delete rifiuta se Shopify API fallisce su prodotto sincronizzato', async () => {
-    const { service, prisma, shopifyProductPush } = createService();
+    const { service, prisma, channelSync } = createService();
     prisma.product.findFirst.mockResolvedValue({
       id: 'prod-1',
       shopifyProductId: 'gid://shopify/Product/1',
     });
     prisma.stockMovement.count.mockResolvedValue(0);
-    shopifyProductPush.deleteProduct.mockResolvedValue({ reason: 'shopify_error' });
+    channelSync.deleteProduct.mockResolvedValue({ reason: 'shopify_error' });
 
     await expect(service.delete(tenantId, 'prod-1')).rejects.toBeInstanceOf(
       UnprocessableEntityException,

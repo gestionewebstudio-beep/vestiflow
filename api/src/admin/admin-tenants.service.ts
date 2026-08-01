@@ -32,6 +32,7 @@ import {
   TENANT_LICENSED_LOCATION_MIN,
 } from '../common/tenant-location-license.constants';
 import { deleteTenantData } from './tenant-delete.util';
+import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 
 @Injectable()
 export class AdminTenantsService {
@@ -43,6 +44,7 @@ export class AdminTenantsService {
     private readonly platformAdmin: PlatformAdminService,
     private readonly config: ConfigService,
     private readonly locationLicensing: LocationLicensingService,
+    private readonly channelSync: ChannelSyncFacade,
   ) {}
 
   async listTenants(): Promise<TenantSummaryDto[]> {
@@ -248,6 +250,12 @@ export class AdminTenantsService {
         });
       }
     });
+
+    // Il facade canali tiene in cache il profilo: senza invalidazione i push
+    // continuerebbero a seguire il canale precedente fino alla scadenza TTL.
+    if (dto.channelProfile) {
+      this.channelSync.invalidateProfile(tenantId);
+    }
 
     return this.getTenantById(tenantId);
   }

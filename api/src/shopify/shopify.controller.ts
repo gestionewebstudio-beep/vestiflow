@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
-import { UserRole } from '@prisma/client';
+import { TenantChannelProfile, UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
@@ -14,6 +14,8 @@ import {
   RequireAnyPermissions,
   RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
+import { ChannelProfileGuard } from '../common/auth/channel-profile.guard';
+import { RequireChannelProfile } from '../common/auth/channel-profile.decorator';
 import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
@@ -45,7 +47,8 @@ import type {
 } from './shopify-shop-change.service';
 
 @Controller('shopify')
-@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard, ChannelProfileGuard)
+@RequireChannelProfile(TenantChannelProfile.shopify)
 export class ShopifyController {
   constructor(
     private readonly shopifyConnection: ShopifyConnectionService,

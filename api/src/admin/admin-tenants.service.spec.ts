@@ -7,6 +7,7 @@ import type { PlatformAdminService } from '../common/platform-admin/platform-adm
 import type { PrismaService } from '../prisma/prisma.service';
 import type { SupabaseService } from '../auth/supabase.service';
 import type { LocationLicensingService } from '../inventory/location-licensing.service';
+import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { AdminTenantsService } from './admin-tenants.service';
 
 describe('AdminTenantsService', () => {
@@ -63,15 +64,18 @@ describe('AdminTenantsService', () => {
       }),
     };
 
+    const channelSync = { invalidateProfile: vi.fn() };
+
     const service = new AdminTenantsService(
       prisma as unknown as PrismaService,
       supabase as unknown as SupabaseService,
       platformAdmin as unknown as PlatformAdminService,
       config,
       locationLicensing as unknown as LocationLicensingService,
+      channelSync as unknown as ChannelSyncFacade,
     );
 
-    return { service, prisma, platformAdmin, supabase, config, locationLicensing };
+    return { service, prisma, platformAdmin, supabase, config, locationLicensing, channelSync };
   }
 
   it('listTenants esclude tenant con utenti platform admin', async () => {
