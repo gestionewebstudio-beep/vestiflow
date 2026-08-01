@@ -23,8 +23,8 @@ import type {
   ProductImportPreview,
   ProductImportPreviewItem,
   ProductImportResult,
-} from './models/product-import.model';
-import { ProductService } from './services/product.service';
+} from '@domain/products/models/product-import.model';
+import { ProductService } from '@domain/products/services/product.service';
 
 type ImportPhase = 'upload' | 'preview' | 'done';
 

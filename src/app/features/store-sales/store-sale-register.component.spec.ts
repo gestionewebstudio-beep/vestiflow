@@ -8,12 +8,12 @@ import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import type { VatCode } from '@core/models/vat-code.model';
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
-import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
-import { ProductService } from '@features/products/services/product.service';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { ProductService } from '@domain/products/services/product.service';
 
-import type { StoreSaleLookupItem } from './models/store-sale.model';
+import type { StoreSaleLookupItem } from '@domain/store-sales/models/store-sale.model';
 import { StoreSalesService } from './services/store-sales.service';
 import { StoreSaleRegisterComponent } from './store-sale-register.component';
 

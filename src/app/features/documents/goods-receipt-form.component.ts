@@ -47,9 +47,9 @@ import {
   type PurchaseCostEntryMode,
   type VatCode,
 } from '@core/models/vat-code.model';
-import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
+import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -69,26 +69,26 @@ import {
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
 import type { Supplier } from '@core/models/supplier.model';
-import { normalizeSku } from '@features/products/models/product-form.validators';
-import { ProductService } from '@features/products/services/product.service';
-import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
-import { SupplierFormFieldsComponent } from '@features/suppliers/components/supplier-form-fields/supplier-form-fields.component';
+import { normalizeSku } from '@domain/products/models/product-form.validators';
+import { ProductService } from '@domain/products/services/product.service';
+import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
+import { SupplierFormFieldsComponent } from '@domain/suppliers/components/supplier-form-fields/supplier-form-fields.component';
 import {
   createSupplierFormGroup,
   mapSupplierFormToInput,
   resetSupplierFormGroup,
-} from '@features/suppliers/utils/supplier-form.util';
-import { SupplierOrderService } from '@features/orders/services/supplier-order.service';
+} from '@domain/suppliers/utils/supplier-form.util';
+import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 import { SupplierOrderStatus, type SupplierOrder } from '@core/models/supplier-order.model';
-import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
+import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
-import { DocumentSeriesManagerDialogComponent } from './components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -103,16 +103,16 @@ import { TableColumnResizeDirective } from '@shared/directives/table-column-resi
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { toIsoDateLocal } from '@shared/utils/calendar.util';
 
-import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
-import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
-import { ProductFormComponent } from '@features/products/product-form.component';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
+import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
+import { ProductFormComponent } from '@domain/products/product-form.component';
 
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import type { VariantByCodeDto } from '@features/products/models/product.dto';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import type { VariantByCodeDto } from '@domain/products/models/product.dto';
 import { GoodsReceiptLineCardComponent } from './components/goods-receipt-line-card/goods-receipt-line-card.component';
-import { GoodsReceiptLineCodeCellComponent } from './components/goods-receipt-line-code-cell/goods-receipt-line-code-cell.component';
-import { GoodsReceiptLineProductCellComponent } from './components/goods-receipt-line-product-cell/goods-receipt-line-product-cell.component';
-import { GoodsReceiptProductSearchPanelComponent } from './components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
+import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
+import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
   GOODS_RECEIPT_LINE_COLUMNS,
   GOODS_RECEIPT_LINE_PRESETS,
@@ -124,21 +124,21 @@ import {
   documentReferenceLabel,
   documentStatusDisplayLabel,
   documentStatusDisplayTone,
-} from './models/document-labels.util';
+} from '@domain/documents/models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { renderCausalTemplate } from './models/causal-template.util';
 import type { ExternalDocumentType } from './models/external-document-type.model';
-import { DocumentService } from './services/document.service';
-import { DocumentCountersService } from './services/document-counters.service';
-import type { DocumentCounterView } from './models/document-counter.model';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { DocumentSettingsService } from './services/document-settings.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
 import type {
   GoodsReceiptCreatedProductApiRow,
   SaveGoodsReceiptBody,
   SaveGoodsReceiptNewProductBody,
-} from './services/document-api.mapper';
-import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
+} from '@domain/documents/services/document-api.mapper';
+import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import {
   GoodsReceiptCsvParseError,
   parseGoodsReceiptLinesCsv,
@@ -159,7 +159,7 @@ import {
   vatInputFromVatCode,
   type VatComputationInput,
   type VatLineAmounts,
-} from './utils/goods-receipt-vat.util';
+} from '@domain/documents/utils/document-vat.util';
 import {
   lineDraftHasSignificantData,
   lineDraftIsEmpty,
@@ -230,9 +230,9 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
     TableColumnResizeDirective,
     DocumentAttachmentsPanelComponent,
     GoodsReceiptLineCardComponent,
-    GoodsReceiptLineCodeCellComponent,
-    GoodsReceiptLineProductCellComponent,
-    GoodsReceiptProductSearchPanelComponent,
+    DocumentLineCodeCellComponent,
+    DocumentLineProductCellComponent,
+    DocumentProductSearchPanelComponent,
     SlidePanelComponent,
     ProductFormComponent,
     SupplierFormFieldsComponent,

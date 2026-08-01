@@ -18,7 +18,7 @@ import { AdjustmentDirection, DocumentStatus, DocumentType } from '@core/models/
 import type { DocumentRecord, DocumentRevision } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -40,7 +40,7 @@ import {
   documentStatusDisplayTone,
   documentStatusLabelForType,
   documentTypeLabel,
-} from './models/document-labels.util';
+} from '@domain/documents/models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { isPrintableDocumentType } from './models/document-print.util';
 import { documentDuplicateFormRoute, documentEditPath } from './models/document-routing.util';
@@ -50,7 +50,7 @@ import {
   isManualUnloadDocumentType,
   isStockOperationDocumentType,
 } from './models/document-stock-operation.util';
-import { isStoreFlowDocumentType } from './models/document-operational.util';
+import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import {
   isInvoiceDraftDocumentType,
   isProformaDocumentType,
@@ -58,14 +58,14 @@ import {
   isSalesDdtDocumentType,
   isSalesFormDocumentType,
   isSalesInvoiceDocumentType,
-} from './models/document-sales.util';
+} from '@domain/documents/models/document-sales.util';
 import {
   TRANSPORT_INCOMPLETE_MESSAGE,
   TRANSPORT_INCOMPLETE_TITLE,
   transportDataIncomplete,
-} from './models/document-transport.util';
-import { DocumentService } from './services/document.service';
-import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
+} from '@domain/documents/models/document-transport.util';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
 import { take } from 'rxjs';
 
 type ActionState =

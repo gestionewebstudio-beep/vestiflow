@@ -5,7 +5,7 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 import { stockStatusLabel, stockStatusTone } from '../../models/inventory-labels.util';
-import type { InventorySituationRow } from '../../models/inventory-situation.model';
+import type { InventorySituationRow } from '@domain/inventory/models/inventory-situation.model';
 
 /**
  * Tabella Situazione magazzino. Dumb puro: righe aggregate per variante con

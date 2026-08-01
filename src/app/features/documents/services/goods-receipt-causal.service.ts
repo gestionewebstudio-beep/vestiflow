@@ -5,7 +5,7 @@ import { APP_CONFIG } from '@core/config/app-config.token';
 import { ApiHttpClient } from '@core/http/api-http.client';
 import type { EntityId } from '@core/models/common.model';
 
-import type { GoodsReceiptCausal } from '../models/goods-receipt-causal.model';
+import type { GoodsReceiptCausal } from '@domain/documents/models/goods-receipt-causal.model';
 
 const HTTP_TIMEOUT_MS = 15000;
 

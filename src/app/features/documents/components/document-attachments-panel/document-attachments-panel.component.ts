@@ -22,7 +22,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { DocumentService } from '../../services/document.service';
+import { DocumentService } from '@domain/documents/services/document.service';
 
 type AttachmentsState =
   | { readonly status: 'loading' }

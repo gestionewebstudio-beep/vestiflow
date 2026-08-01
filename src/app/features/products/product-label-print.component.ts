@@ -21,9 +21,9 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { ProductLabelComponent } from './components/product-label/product-label.component';
-import type { ProductLabelViewModel } from './models/product-label.model';
-import { toProductLabelViewModels } from './models/product-label.mapper';
-import { ProductService } from './services/product.service';
+import type { ProductLabelViewModel } from '@domain/products/models/product-label.model';
+import { toProductLabelViewModels } from '@domain/products/models/product-label.mapper';
+import { ProductService } from '@domain/products/services/product.service';
 
 const PRODUCTS_LIST_PATH = '/app/products';
 

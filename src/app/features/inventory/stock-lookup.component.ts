@@ -19,7 +19,7 @@ import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PwaInstallService } from '@core/services/pwa-install.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
@@ -28,15 +28,15 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import type { VariantByCodeDto } from '@features/products/models/product.dto';
-import { ProductService } from '@features/products/services/product.service';
+import type { VariantByCodeDto } from '@domain/products/models/product.dto';
+import { ProductService } from '@domain/products/services/product.service';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import {
   reservationChannelLabel,
   type StockReservationRow,
-} from './models/stock-reservation.model';
-import { InventoryService } from './services/inventory.service';
+} from '@domain/inventory/models/stock-reservation.model';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 type LookupState =
   | { readonly status: 'idle' }

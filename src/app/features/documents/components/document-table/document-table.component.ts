@@ -9,7 +9,7 @@ import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.
 import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
-import { storeSalePaymentMethodLabelWithNote } from '@features/store-sales/models/store-sale-payment.util';
+import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
 
 import { isGoodsReceiptDocumentType } from '../../models/document-goods-receipt.util';
 import {
@@ -19,10 +19,10 @@ import {
   documentTypeLabel,
   goodsReceiptLinkStatusLabel,
   goodsReceiptLinkStatusTone,
-} from '../../models/document-labels.util';
-import { isStoreFlowDocumentType } from '../../models/document-operational.util';
+} from '@domain/documents/models/document-labels.util';
+import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { isPrintableDocumentType } from '../../models/document-print.util';
-import { isQuoteDocumentType } from '../../models/document-sales.util';
+import { isQuoteDocumentType } from '@domain/documents/models/document-sales.util';
 import { isManualUnloadDocumentType } from '../../models/document-stock-operation.util';
 import { goodsReceiptExternalDocLabel } from '../../utils/document-list-export.util';
 

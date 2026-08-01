@@ -37,7 +37,7 @@ import {
   supplierOrderStatusLabel,
   supplierOrderStatusTone,
 } from './models/supplier-order-labels.util';
-import { SupplierOrderService } from './services/supplier-order.service';
+import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 
 type ActionState =
   | { readonly status: 'idle' }

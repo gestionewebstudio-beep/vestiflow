@@ -62,23 +62,23 @@ import {
   normalizeSupplierOrderColumnId,
 } from './models/supplier-order-line-columns.config';
 
-import type { ProductEmbeddedCreatePrefill } from '@features/products/models/product-form.mapper';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductFormComponent } from '@features/products/product-form.component';
-import { ProductService } from '@features/products/services/product.service';
-import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
-import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
+import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/product-form.mapper';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { ProductFormComponent } from '@domain/products/product-form.component';
+import { ProductService } from '@domain/products/services/product.service';
+import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
 
-import { DocumentService } from '@features/documents/services/document.service';
+import { DocumentService } from '@domain/documents/services/document.service';
 
-import { SupplierOrderService } from './services/supplier-order.service';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
-import { SupplierFormFieldsComponent } from '@features/suppliers/components/supplier-form-fields/supplier-form-fields.component';
+import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
+import { SupplierFormFieldsComponent } from '@domain/suppliers/components/supplier-form-fields/supplier-form-fields.component';
 import {
   createSupplierFormGroup,
   mapSupplierFormToInput,
   resetSupplierFormGroup,
-} from '@features/suppliers/utils/supplier-form.util';
+} from '@domain/suppliers/utils/supplier-form.util';
 
 type SubmitState =
   | { readonly status: 'idle' }

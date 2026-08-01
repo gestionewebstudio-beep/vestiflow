@@ -45,15 +45,15 @@ import { customerDisplayName, type Customer } from '@core/models/customer.model'
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { VatCodeService } from '@core/services/vat-code.service';
-import { CustomerService } from '@features/customers/services/customer.service';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductService } from '@features/products/services/product.service';
-import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
-import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
-import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
-import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
-import type { TenantCompany } from '@features/settings/models/tenant-company.model';
-import { TenantCompanyService } from '@features/settings/services/tenant-company.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { ProductService } from '@domain/products/services/product.service';
+import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
+import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
+import type { TenantCompany } from '@domain/tenant/models/tenant-company.model';
+import { TenantCompanyService } from '@domain/tenant/services/tenant-company.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import {
@@ -63,7 +63,7 @@ import {
 } from '@core/models/document-number-conflict.util';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
-import { DocumentSeriesManagerDialogComponent } from './components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -74,31 +74,34 @@ import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
 
-import { DocumentIncludePanelComponent } from './components/document-include-panel/document-include-panel.component';
+import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import {
   includeSourceKindsForDocumentType,
   type IncludedDocumentPayload,
-} from './models/document-include.util';
-import { documentReferenceLabel, documentTypeLabel } from './models/document-labels.util';
+} from '@domain/documents/models/document-include.util';
+import {
+  documentReferenceLabel,
+  documentTypeLabel,
+} from '@domain/documents/models/document-labels.util';
 import {
   isInvoiceAccompanyingDocumentType,
   isInvoiceDraftDocumentType,
   isProformaDocumentType,
   isSalesFormDocumentType,
   isSalesInvoiceDocumentType,
-} from './models/document-sales.util';
+} from '@domain/documents/models/document-sales.util';
 import {
   TRANSPORT_INCOMPLETE_MESSAGE,
   TRANSPORT_INCOMPLETE_TITLE,
   transportDataIncomplete,
-} from './models/document-transport.util';
-import { priceModeRowLabel } from './models/document-price-mode.util';
-import { grossFromNetMinor, netFromGrossMinor } from './utils/goods-receipt-vat.util';
-import { DocumentService } from './services/document.service';
-import type { CreateDocumentBody } from './services/document-api.mapper';
-import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
-import { DocumentCountersService } from './services/document-counters.service';
-import type { DocumentCounterView } from './models/document-counter.model';
+} from '@domain/documents/models/document-transport.util';
+import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
+import { grossFromNetMinor, netFromGrossMinor } from '@domain/documents/utils/document-vat.util';
+import { DocumentService } from '@domain/documents/services/document.service';
+import type { CreateDocumentBody } from '@domain/documents/services/document-api.mapper';
+import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { pickVatCodeId, toVatCodeById } from './utils/vat-code-resolution.util';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';

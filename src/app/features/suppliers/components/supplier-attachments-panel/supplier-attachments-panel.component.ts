@@ -18,7 +18,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { SupplierService } from '../../services/supplier.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['application/pdf', 'application/xml', 'text/xml']);

@@ -40,24 +40,24 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
-import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
+import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
 import {
   canSyncShopifyCustomersOrOrders,
   isShopifyConnected,
-} from '@features/integrations/shopify/models/shopify-page-sync.util';
+} from '@domain/channels/shopify/models/shopify-page-sync.util';
 import {
   formatShopifyCustomersSyncFeedback,
   type ShopifySyncFeedback,
-} from '@features/integrations/shopify/models/shopify-sync-feedback.util';
-import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
-import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
+} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 import { CustomerTableComponent } from './components/customer-table/customer-table.component';
 import {
   CUSTOMER_PAGE_SIZE_OPTIONS,
   DEFAULT_CUSTOMER_PAGE_SIZE,
   parseCustomerListQuery,
-} from './models/customer-list-query.model';
-import { CustomerService } from './services/customer.service';
+} from '@domain/customers/models/customer-list-query.model';
+import { CustomerService } from '@domain/customers/services/customer.service';
 import {
   CUSTOMER_LIST_COLUMN_DEFS,
   CUSTOMER_LIST_COLUMN_PRESETS,

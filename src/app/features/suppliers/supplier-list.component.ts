@@ -45,7 +45,7 @@ import {
   SUPPLIER_PAGE_SIZE_OPTIONS,
   supplierListQueryToParams,
 } from './models/supplier-list-query.model';
-import { SupplierService } from './services/supplier.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 const SEARCH_DEBOUNCE_MS = 300;
 

@@ -16,10 +16,13 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
-import { catalogOriginShortLabel, catalogOriginTone } from '../../models/catalog-origin.util';
+import {
+  catalogOriginShortLabel,
+  catalogOriginTone,
+} from '@domain/products/models/catalog-origin.util';
 import { productDisplayCategoryShort } from '../../models/product-display.util';
-import { productStatusLabel, productStatusTone } from '../../models/product-status.util';
-import type { ProductSortField } from '../../models/product-list-query.model';
+import { productStatusLabel, productStatusTone } from '@domain/products/models/product-status.util';
+import type { ProductSortField } from '@domain/products/models/product-list-query.model';
 
 /**
  * Tabella prodotti (dumb puro). Mostra le righe, espone row click e richieste

@@ -7,7 +7,7 @@ import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import type { EntityId } from '@core/models/common.model';
 import type { SupplierVariantLink } from '@core/models/supplier.model';
 import { formatMoney } from '@core/utils/money.util';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 

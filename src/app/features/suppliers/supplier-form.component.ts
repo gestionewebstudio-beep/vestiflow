@@ -18,17 +18,17 @@ import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import type { VatCode } from '@core/models/vat-code.model';
 import { VatCodeService } from '@core/services/vat-code.service';
-import { SupplierFormFieldsComponent } from '@features/suppliers/components/supplier-form-fields/supplier-form-fields.component';
+import { SupplierFormFieldsComponent } from '@domain/suppliers/components/supplier-form-fields/supplier-form-fields.component';
 import {
   createSupplierFormGroup,
   mapSupplierFormToInput,
   patchSupplierFormGroup,
-} from '@features/suppliers/utils/supplier-form.util';
+} from '@domain/suppliers/utils/supplier-form.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { SupplierService } from './services/supplier.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 @Component({
   selector: 'app-supplier-form',

@@ -15,7 +15,7 @@ import {
   financialStatusLabel,
   fulfillmentStatusLabel,
   sourceLabel,
-} from '../models/sales-order-labels.util';
+} from '@domain/sales-orders/models/sales-order-labels.util';
 
 /** Stato derivato (colonna Stato), coerente con la tabella ordini. */
 function orderStateLabel(order: SalesOrder): string {

@@ -41,7 +41,7 @@ import {
   parseMoneyInput,
 } from '@core/utils/money.util';
 import { formatDate } from '@core/utils/date.util';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -51,21 +51,21 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
-import { DocumentSeriesManagerDialogComponent } from './components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import type { LinkableGoodsReceipt } from './models/goods-receipt-causal.model';
-import { DocumentService } from './services/document.service';
-import { DocumentCountersService } from './services/document-counters.service';
-import type { DocumentCounterView } from './models/document-counter.model';
+import type { LinkableGoodsReceipt } from '@domain/documents/models/goods-receipt-causal.model';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { DocumentSettingsService } from './services/document-settings.service';
 import type {
   PurchaseInvoiceInstallmentBody,
   PurchaseInvoiceManualLineBody,
-} from './services/document-api.mapper';
+} from '@domain/documents/services/document-api.mapper';
 
 type SubmitState =
   | { readonly status: 'idle' }

@@ -53,10 +53,10 @@ import {
   vatCodeOptionLabel,
   type VatCode,
 } from '@core/models/vat-code.model';
-import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
+import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { DocumentActionsService } from '@core/services/document-actions.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
   applyCascadeDiscountMinor,
@@ -73,42 +73,39 @@ import {
 } from '@core/utils/money.util';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
-import { CustomerFormFieldsComponent } from '@features/customers/components/customer-form-fields/customer-form-fields.component';
-import { CustomerService } from '@features/customers/services/customer.service';
+import { CustomerFormFieldsComponent } from '@domain/customers/components/customer-form-fields/customer-form-fields.component';
+import { CustomerService } from '@domain/customers/services/customer.service';
 import {
   createCustomerFormGroup,
   mapCustomerFormToInput,
-} from '@features/customers/utils/customer-form.util';
-import { DocumentIncludePanelComponent } from '@features/documents/components/document-include-panel/document-include-panel.component';
-import { GoodsReceiptLineCodeCellComponent } from '@features/documents/components/goods-receipt-line-code-cell/goods-receipt-line-code-cell.component';
-import { GoodsReceiptLineProductCellComponent } from '@features/documents/components/goods-receipt-line-product-cell/goods-receipt-line-product-cell.component';
-import { GoodsReceiptProductSearchPanelComponent } from '@features/documents/components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
+} from '@domain/customers/utils/customer-form.util';
+import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
+import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
+import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
   CUSTOMER_ORDER_INCLUDE_SOURCES,
   IncludeSourceKind,
   includeSourceKindsForDocumentType,
   includedPayloadFromSalesOrder,
   type IncludedDocumentPayload,
-} from '@features/documents/models/document-include.util';
-import { priceModeRowLabel } from '@features/documents/models/document-price-mode.util';
-import {
-  grossFromNetMinor,
-  netFromGrossMinor,
-} from '@features/documents/utils/goods-receipt-vat.util';
+} from '@domain/documents/models/document-include.util';
+import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
+import { grossFromNetMinor, netFromGrossMinor } from '@domain/documents/utils/document-vat.util';
 import {
   documentReferenceLabel,
   documentTypeLabel,
-} from '@features/documents/models/document-labels.util';
-import { transportDataIncomplete } from '@features/documents/models/document-transport.util';
-import { parseSerialNumbersText } from '@features/documents/utils/serial-numbers-input.util';
-import { DocumentService } from '@features/documents/services/document.service';
-import { DocumentCountersService } from '@features/documents/services/document-counters.service';
-import type { DocumentCounterView } from '@features/documents/models/document-counter.model';
+} from '@domain/documents/models/document-labels.util';
+import { transportDataIncomplete } from '@domain/documents/models/document-transport.util';
+import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import type {
   CreateDocumentBody,
   DocumentLineInputBody,
   UpdateDocumentBody,
-} from '@features/documents/services/document-api.mapper';
+} from '@domain/documents/services/document-api.mapper';
 import {
   DocumentStatus,
   DocumentType,
@@ -116,16 +113,16 @@ import {
   isConfirmedEditableDocumentStatus,
 } from '@core/models/document.model';
 import type { DocumentAddress, DocumentRecord } from '@core/models/document.model';
-import type { ProductEmbeddedCreatePrefill } from '@features/products/models/product-form.mapper';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductFormComponent } from '@features/products/product-form.component';
-import { ProductService } from '@features/products/services/product.service';
-import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
-import { ProductPickerDialogComponent } from '@features/products/components/product-picker-dialog/product-picker-dialog.component';
-import type { CreateProductDto } from '@features/products/models/product.dto';
+import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/product-form.mapper';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { ProductFormComponent } from '@domain/products/product-form.component';
+import { ProductService } from '@domain/products/services/product.service';
+import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import { ProductPickerDialogComponent } from '@domain/products/components/product-picker-dialog/product-picker-dialog.component';
+import type { CreateProductDto } from '@domain/products/models/product.dto';
 import { OrderScanOverlayComponent } from './components/order-scan-overlay/order-scan-overlay.component';
-import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
-import type { TenantFeatureSettings } from '@features/settings/models/tenant-feature-settings.model';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
+import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -133,7 +130,7 @@ import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
-import { DocumentSeriesManagerDialogComponent } from '@features/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -162,12 +159,12 @@ import {
   SALES_DDT_LINES_VIEW,
 } from './models/customer-order-line-columns.config';
 import { redistributeColumnWidths } from './models/column-width-distribution.util';
-import { sourceLabel } from './models/sales-order-labels.util';
+import { sourceLabel } from '@domain/sales-orders/models/sales-order-labels.util';
 import {
   SalesOrderService,
   type SaveManualOrderInput,
   type SaveManualOrderLineInput,
-} from './services/sales-order.service';
+} from '@domain/sales-orders/services/sales-order.service';
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
@@ -240,9 +237,9 @@ interface AvailabilityIssue {
     TableSkeletonComponent,
     HoverTooltipComponent,
     CustomerFormFieldsComponent,
-    GoodsReceiptLineCodeCellComponent,
-    GoodsReceiptLineProductCellComponent,
-    GoodsReceiptProductSearchPanelComponent,
+    DocumentLineCodeCellComponent,
+    DocumentLineProductCellComponent,
+    DocumentProductSearchPanelComponent,
   ],
   templateUrl: './customer-order-form.component.html',
   // Stile riusato dall'Arrivo merce (stesse classi gr-form__*), più la banda

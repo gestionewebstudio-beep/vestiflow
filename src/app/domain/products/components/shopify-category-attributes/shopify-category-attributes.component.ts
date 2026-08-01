@@ -1,0 +1,208 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { catchError, distinctUntilChanged, of, switchMap, tap } from 'rxjs';
+
+import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
+import { InlineSpinnerComponent } from '@shared/components/inline-spinner/inline-spinner.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+
+import type { ShopifyTaxonomyCategoryAttribute } from '@domain/channels/shopify/services/shopify-taxonomy.service';
+import { ShopifyTaxonomyService } from '@domain/channels/shopify/services/shopify-taxonomy.service';
+import {
+  isShopifyColorCategoryAttribute,
+  shopifyTaxonomyColorSwatch,
+} from '../../utils/shopify-taxonomy-color.util';
+import { isShopifyCategoryMetafieldMultiValue } from '../../utils/shopify-category-metafield.util';
+
+@Component({
+  selector: 'app-shopify-category-attributes',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SelectMenuComponent, InlineSpinnerComponent],
+  templateUrl: './shopify-category-attributes.component.html',
+  styleUrl: './shopify-category-attributes.component.scss',
+})
+export class ShopifyCategoryAttributesComponent {
+  private readonly taxonomyService = inject(ShopifyTaxonomyService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly categoryId = input('');
+  readonly values = input<readonly ShopifyCategoryMetafieldValue[]>([]);
+
+  readonly valuesChange = output<readonly ShopifyCategoryMetafieldValue[]>();
+
+  protected readonly loading = signal(false);
+  protected readonly loadError = signal<string | null>(null);
+  protected readonly attributes = signal<readonly ShopifyTaxonomyCategoryAttribute[]>([]);
+
+  constructor() {
+    toObservable(this.categoryId)
+      .pipe(
+        distinctUntilChanged(),
+        tap(() => {
+          this.loading.set(true);
+          this.loadError.set(null);
+        }),
+        switchMap((categoryId) => {
+          const trimmed = categoryId.trim();
+          if (!trimmed) {
+            this.attributes.set([]);
+            return of([] as readonly ShopifyTaxonomyCategoryAttribute[]);
+          }
+          return this.taxonomyService.listCategoryAttributes(trimmed).pipe(
+            catchError(() => {
+              this.loadError.set('Impossibile caricare gli attributi categoria Shopify.');
+              return of([] as readonly ShopifyTaxonomyCategoryAttribute[]);
+            }),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((items) => {
+        this.attributes.set(items);
+        this.loading.set(false);
+      });
+
+    effect(() => {
+      const categoryId = this.categoryId().trim();
+      const attrs = this.attributes();
+      if (!categoryId || attrs.length === 0) {
+        return;
+      }
+      this.syncValuesWithAttributes(attrs);
+    });
+  }
+
+  protected attributeOptions(
+    attribute: ShopifyTaxonomyCategoryAttribute,
+  ): readonly SelectMenuOption[] {
+    const withSwatches = isShopifyColorCategoryAttribute(attribute);
+    return attribute.values.map((value) => {
+      const option: SelectMenuOption = { value: value.id, label: value.name };
+      if (!withSwatches) {
+        return option;
+      }
+      const swatchCssColor = shopifyTaxonomyColorSwatch(value.name);
+      return swatchCssColor ? { ...option, swatchCssColor } : option;
+    });
+  }
+
+  protected selectedValueId(attribute: ShopifyTaxonomyCategoryAttribute): string | null {
+    const current = this.values().find((entry) => entry.attributeId === attribute.id);
+    return current?.values[0]?.id ?? null;
+  }
+
+  protected selectedValueIds(attribute: ShopifyTaxonomyCategoryAttribute): readonly string[] {
+    const current = this.values().find((entry) => entry.attributeId === attribute.id);
+    return current?.values.map((entry) => entry.id) ?? [];
+  }
+
+  protected isMultiValueAttribute(attribute: ShopifyTaxonomyCategoryAttribute): boolean {
+    return isShopifyCategoryMetafieldMultiValue(attribute.metafieldType);
+  }
+
+  protected onAttributeSelect(
+    attribute: ShopifyTaxonomyCategoryAttribute,
+    taxonomyValueId: string | null,
+  ): void {
+    const others = this.values().filter((entry) => entry.attributeId !== attribute.id);
+    if (!taxonomyValueId) {
+      this.valuesChange.emit(others);
+      return;
+    }
+
+    const selected = attribute.values.find((value) => value.id === taxonomyValueId);
+    if (!selected) {
+      return;
+    }
+
+    this.valuesChange.emit([
+      ...others,
+      {
+        attributeId: attribute.id,
+        attributeName: attribute.name,
+        namespace: attribute.namespace,
+        key: attribute.key,
+        metafieldType: attribute.metafieldType,
+        values: [{ id: selected.id, name: selected.name }],
+      },
+    ]);
+  }
+
+  protected onAttributeMultiSelect(
+    attribute: ShopifyTaxonomyCategoryAttribute,
+    taxonomyValueIds: readonly string[],
+  ): void {
+    const others = this.values().filter((entry) => entry.attributeId !== attribute.id);
+    if (taxonomyValueIds.length === 0) {
+      this.valuesChange.emit(others);
+      return;
+    }
+
+    const selectedValues = taxonomyValueIds.flatMap((taxonomyValueId) => {
+      const selected = attribute.values.find((value) => value.id === taxonomyValueId);
+      return selected ? [{ id: selected.id, name: selected.name }] : [];
+    });
+
+    if (selectedValues.length === 0) {
+      return;
+    }
+
+    this.valuesChange.emit([
+      ...others,
+      {
+        attributeId: attribute.id,
+        attributeName: attribute.name,
+        namespace: attribute.namespace,
+        key: attribute.key,
+        metafieldType: attribute.metafieldType,
+        values: selectedValues,
+      },
+    ]);
+  }
+
+  private syncValuesWithAttributes(attrs: readonly ShopifyTaxonomyCategoryAttribute[]): void {
+    const attributeById = new Map(attrs.map((entry) => [entry.id, entry]));
+    const synced = this.values().flatMap((entry) => {
+      const attribute = attributeById.get(entry.attributeId);
+      if (!attribute) {
+        return [];
+      }
+      return [
+        {
+          ...entry,
+          attributeName: attribute.name,
+          namespace: attribute.namespace,
+          key: attribute.key,
+          metafieldType: attribute.metafieldType,
+        },
+      ];
+    });
+
+    const current = this.values();
+    const changed =
+      synced.length !== current.length ||
+      synced.some((entry) => {
+        const previous = current.find((item) => item.attributeId === entry.attributeId);
+        return (
+          !previous ||
+          previous.attributeName !== entry.attributeName ||
+          previous.namespace !== entry.namespace ||
+          previous.key !== entry.key
+        );
+      });
+
+    if (changed) {
+      this.valuesChange.emit(synced);
+    }
+  }
+}

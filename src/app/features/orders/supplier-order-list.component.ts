@@ -38,8 +38,8 @@ import {
   DEFAULT_SUPPLIER_ORDER_PAGE_SIZE,
   SUPPLIER_ORDER_PAGE_SIZE_OPTIONS,
   parseSupplierOrderListQuery,
-} from './models/supplier-order-list-query.model';
-import { SupplierOrderService } from './services/supplier-order.service';
+} from '@domain/supplier-orders/models/supplier-order-list-query.model';
+import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 
 const SEARCH_DEBOUNCE_MS = 300;
 

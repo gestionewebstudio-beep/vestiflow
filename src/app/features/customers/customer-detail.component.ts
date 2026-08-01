@@ -21,7 +21,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { CustomerService } from './services/customer.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
 
 type DetailState =
   | { readonly status: 'loading' }

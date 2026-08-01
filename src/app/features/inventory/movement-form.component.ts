@@ -12,7 +12,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, forkJoin, map, of, switchMap } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { LocationContextService } from '@core/services/location-context.service';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import { moneyToMajor, parseMoneyInput } from '@core/utils/money.util';
@@ -26,14 +26,14 @@ import { DateInputComponent } from '@shared/components/date-input/date-input.com
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
-import { CustomerService } from '@features/customers/services/customer.service';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductService } from '@features/products/services/product.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { ProductService } from '@domain/products/services/product.service';
 
-import { InventoryService } from './services/inventory.service';
-import type { RegisterMovementBatchInput } from './services/inventory.service';
-import type { InventoryLevelListItem } from './models/inventory-list.mapper';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
+import type { RegisterMovementBatchInput } from '@domain/inventory/services/inventory.service';
+import type { InventoryLevelListItem } from '@domain/inventory/models/inventory-list.mapper';
 
 /** Tipi registrabili manualmente (vendite/resi arrivano da POS/canali). */
 const MANUAL_TYPES = [

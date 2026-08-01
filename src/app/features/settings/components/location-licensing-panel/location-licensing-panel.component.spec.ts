@@ -7,7 +7,7 @@ import { ShopifySyncStatus } from '@core/models/shopify.model';
 import type { Location } from '@core/models/location.model';
 import { AppErrorKind } from '@core/models/app-error.model';
 
-import { InventoryService } from '@features/inventory/services/inventory.service';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 import { LocationLicensingPanelComponent } from './location-licensing-panel.component';
 
 const shopifyLocation = (id: string, name: string, licensedInVf: boolean): Location => ({

@@ -43,19 +43,19 @@ import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductService } from '@features/products/services/product.service';
-import { mergeVariantSummaries } from '@features/products/utils/variant-summary-search.util';
-import { toVariantSelectMenuOptions } from '@features/products/utils/variant-select-menu.util';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { ProductService } from '@domain/products/services/product.service';
+import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
-import { DocumentSeriesManagerDialogComponent } from './components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -64,12 +64,12 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
 
-import { documentReferenceLabel } from './models/document-labels.util';
+import { documentReferenceLabel } from '@domain/documents/models/document-labels.util';
 import { isTransferDocumentType } from './models/document-transfer.util';
-import { DocumentService } from './services/document.service';
-import { DocumentCountersService } from './services/document-counters.service';
-import type { DocumentCounterView } from './models/document-counter.model';
-import { parseSerialNumbersText } from './utils/serial-numbers-input.util';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
+import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 
 type SubmitState =
   | { readonly status: 'idle' }

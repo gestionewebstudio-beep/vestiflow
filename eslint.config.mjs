@@ -83,6 +83,61 @@ export default tseslint.config(
       'rxjs/no-ignored-subscription': 'warn',
     },
   },
+
+  // ── Confini tra layer (regole-architettura) ────────────────────────────
+  // core → shared → domain → features: ogni layer vede solo quelli sotto.
+  // Le eccezioni si aprono qui, non con un commento nel file.
+  {
+    files: ['src/app/core/**/*.ts', 'src/app/shared/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@domain/*', '@features/*'],
+              message:
+                'core/ e shared/ non conoscono il dominio: sposta il file in domain/ o inverti la dipendenza.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/domain/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@features/*'],
+              message:
+                'domain/ non dipende dalle schermate: il pezzo condiviso va in domain/, non in features/.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/features/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@features/*'],
+              message:
+                'Nessun import tra feature: promuovi il file condiviso in domain/ (vedi regole-architettura).',
+            },
+          ],
+        },
+      ],
+    },
+  },
   {
     files: ['e2e/**/*.ts', 'playwright.config.ts'],
     extends: [

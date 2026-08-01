@@ -25,10 +25,10 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { DocumentCountersComponent } from './components/document-counters/document-counters.component';
-import { documentTypeLabel } from './models/document-labels.util';
-import type { DocumentCounterView } from './models/document-counter.model';
-import { DocumentCountersService } from './services/document-counters.service';
+import { DocumentCountersComponent } from '@domain/documents/components/document-counters/document-counters.component';
+import { documentTypeLabel } from '@domain/documents/models/document-labels.util';
+import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import {
   DocumentSettingsService,
   type DocumentTypeSettingPatch,

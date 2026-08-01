@@ -9,7 +9,7 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ProfileAvatarUploadComponent } from '@shared/components/profile-avatar-upload/profile-avatar-upload.component';
 import type { ThemeMode } from '@shared/models/theme.model';
 
-import { MfaSettingsComponent } from '@features/settings/components/mfa-settings/mfa-settings.component';
+import { MfaSettingsComponent } from '@domain/tenant/components/mfa-settings/mfa-settings.component';
 
 const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: string }[] = [
   { value: 'light', label: 'Chiaro' },

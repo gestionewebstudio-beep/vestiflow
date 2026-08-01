@@ -45,32 +45,32 @@ import type { ThemeMode } from '@shared/models/theme.model';
 import {
   shopifyProductReadScopeWarning,
   shopifyScopeDiagnosticsDetail,
-} from '@features/integrations/shopify/models/shopify-scope-capabilities.util';
+} from '@domain/channels/shopify/models/shopify-scope-capabilities.util';
 import {
   shopifyConnectionStatusLabel,
   shopifyConnectionStatusTone,
-} from '@features/integrations/shopify/models/shopify-connection-labels.util';
+} from '@domain/channels/shopify/models/shopify-connection-labels.util';
 import {
   shopifyScopeAccessLabel,
   groupShopifyScopesForDisplay,
-} from '@features/integrations/shopify/models/shopify-scope-labels.util';
-import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
-import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
-import { ShopifyShopChangeWizardComponent } from '@features/integrations/shopify/components/shopify-shop-change-wizard/shopify-shop-change-wizard.component';
-import { normalizeShopDomainInput } from '@features/integrations/shopify/models/normalize-shop-domain.util';
+} from '@domain/channels/shopify/models/shopify-scope-labels.util';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
+import { ShopifyShopChangeWizardComponent } from '@domain/channels/shopify/components/shopify-shop-change-wizard/shopify-shop-change-wizard.component';
+import { normalizeShopDomainInput } from '@domain/channels/shopify/models/normalize-shop-domain.util';
 import {
   formatShopifyCustomersSyncFeedback,
   formatShopifyInventorySyncFeedback,
   formatShopifyOrdersSyncFeedback,
   formatShopifyProductsSyncFeedback,
-} from '@features/integrations/shopify/models/shopify-sync-feedback.util';
+} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
 import type {
   ShopifyClearErrorsDto,
   ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
   ShopifySyncWebhooksDto,
-} from '@features/integrations/shopify/models/shopify-sync.dto';
-import { InventoryService } from '@features/inventory/services/inventory.service';
+} from '@domain/channels/shopify/models/shopify-sync.dto';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 import {
   showShopifyIntegration,
   showTikTokIntegration,
@@ -80,9 +80,9 @@ import {
 import { LocationTableComponent } from './components/location-table/location-table.component';
 import { LocationLicensingPanelComponent } from './components/location-licensing-panel/location-licensing-panel.component';
 import { TenantClientCardComponent } from './components/tenant-client-card/tenant-client-card.component';
-import { MfaSettingsComponent } from './components/mfa-settings/mfa-settings.component';
-import { TenantCompanyService } from './services/tenant-company.service';
-import type { TenantCompany } from './models/tenant-company.model';
+import { MfaSettingsComponent } from '@domain/tenant/components/mfa-settings/mfa-settings.component';
+import { TenantCompanyService } from '@domain/tenant/services/tenant-company.service';
+import type { TenantCompany } from '@domain/tenant/models/tenant-company.model';
 import { TikTokIntegrationPanelComponent } from './components/tiktok-integration-panel/tiktok-integration-panel.component';
 import { TenantOperationalSettingsPanelComponent } from './components/tenant-operational-settings-panel/tenant-operational-settings-panel.component';
 import { TenantBackupPanelComponent } from './components/tenant-backup-panel/tenant-backup-panel.component';

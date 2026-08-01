@@ -10,7 +10,7 @@ import {
   buildTenantClientExtendedFields,
   tenantClientExtendedDetailsMeta,
   type TenantCompany,
-} from '../../models/tenant-company.model';
+} from '@domain/tenant/models/tenant-company.model';
 
 /** Riga sintetica + dettagli espandibili per l’anagrafica commerciale del tenant. */
 @Component({

@@ -42,7 +42,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import {
   corrispettivoStatusLabel,
   corrispettivoStatusTone,
-} from '@features/sales-orders/models/sales-order-labels.util';
+} from '@domain/sales-orders/models/sales-order-labels.util';
 
 import type {
   CorrispettivoEntryDetail,

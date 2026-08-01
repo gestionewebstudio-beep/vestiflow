@@ -7,17 +7,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { DocumentType } from '@core/models/document.model';
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
-import { CustomerService } from '@features/customers/services/customer.service';
-import { ProductService } from '@features/products/services/product.service';
-import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
-import { TenantCompanyService } from '@features/settings/services/tenant-company.service';
-import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
+import { ProductService } from '@domain/products/services/product.service';
+import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
+import { TenantCompanyService } from '@domain/tenant/services/tenant-company.service';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 
 import { SalesDocumentFormComponent } from './sales-document-form.component';
-import { DocumentService } from './services/document.service';
-import { DocumentCountersService } from './services/document-counters.service';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 
 function operationalLocationsMock() {
   const locations = [{ id: 'loc-1', name: 'Milano' }];

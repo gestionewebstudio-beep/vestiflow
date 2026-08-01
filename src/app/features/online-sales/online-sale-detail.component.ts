@@ -20,7 +20,7 @@ import {
   corrispettivoStatusTone,
   onlineSaleInventoryStatusLabel,
   onlineSaleInventoryStatusTone,
-} from '@features/sales-orders/models/sales-order-labels.util';
+} from '@domain/sales-orders/models/sales-order-labels.util';
 
 import type { OnlineSaleDetail } from './models/online-sale.model';
 import { OnlineSalesService } from './services/online-sales.service';

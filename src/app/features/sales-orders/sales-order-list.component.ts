@@ -38,8 +38,8 @@ import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import { SalesOrderSource, type SalesOrder } from '@core/models/sales-order.model';
 import { customerDisplayName } from '@core/models/customer.model';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
-import { CustomerService } from '@features/customers/services/customer.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -57,28 +57,28 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import {
   MovementPeriodPreset,
   resolveMovementPeriodRange,
-} from '@features/inventory/models/movement-period.util';
+} from '@domain/inventory/models/movement-period.util';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
-import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
+import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
 import {
   canSyncShopifyCustomersOrOrders,
   isShopifyConnected,
-} from '@features/integrations/shopify/models/shopify-page-sync.util';
+} from '@domain/channels/shopify/models/shopify-page-sync.util';
 import {
   formatShopifyOrdersSyncFeedback,
   type ShopifySyncFeedback,
-} from '@features/integrations/shopify/models/shopify-sync-feedback.util';
-import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
-import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
-import { ReportCorrispettiviExportComponent } from '@features/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
+} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
+import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import {
   formatReportPeriodLabel,
   parseSalesCorrispettiviPeriodQuery,
   ReportPeriodPreset,
   resolveReportDateRange,
-} from '@features/reports/models/report-list-query.model';
+} from '@domain/reports/models/report-list-query.model';
 import {
   SalesOrderTableComponent,
   type SalesOrderTableActionEvent,
@@ -91,7 +91,7 @@ import {
   SHOPIFY_ORDER_LIST_COLUMN_DEFS,
   SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
 } from './models/sales-order-list-columns.config';
-import { sourceLabel } from './models/sales-order-labels.util';
+import { sourceLabel } from '@domain/sales-orders/models/sales-order-labels.util';
 import {
   buildSalesOrderListCsv,
   buildSalesOrderListPrintHtml,
@@ -101,8 +101,8 @@ import {
   SALES_PAGE_SIZE_OPTIONS,
   parseSalesOrderListQuery,
   withShopifySourceScope,
-} from './models/sales-order-list-query.model';
-import { SalesOrderService } from './services/sales-order.service';
+} from '@domain/sales-orders/models/sales-order-list-query.model';
+import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;

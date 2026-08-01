@@ -39,7 +39,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { CorrispettiviDeliveriesComponent } from '../../components/corrispettivi-deliveries/corrispettivi-deliveries.component';
 import { CorrispettiviOrdersTableComponent } from '../../components/corrispettivi-orders-table/corrispettivi-orders-table.component';
 import { CorrispettiviSummaryComponent } from '../../components/corrispettivi-summary/corrispettivi-summary.component';
-import { ReportCorrispettiviExportComponent } from '../../components/report-corrispettivi-export/report-corrispettivi-export.component';
+import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import {
   SalesOrderFiscalStatus,
   type CorrispettiviDelivery,
@@ -51,7 +51,7 @@ import {
   parseReportListQuery,
   ReportPeriodPreset,
   resolveReportDateRange,
-} from '../../models/report-list-query.model';
+} from '@domain/reports/models/report-list-query.model';
 import { CorrispettiviService } from '../../services/corrispettivi.service';
 
 interface CorrispettiviPageData {

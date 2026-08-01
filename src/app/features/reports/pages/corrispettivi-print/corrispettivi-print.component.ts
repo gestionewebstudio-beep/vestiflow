@@ -15,7 +15,7 @@ import {
   formatReportPeriodLabel,
   parseReportListQuery,
   resolveReportDateRange,
-} from '../../models/report-list-query.model';
+} from '@domain/reports/models/report-list-query.model';
 import { CorrispettiviService } from '../../services/corrispettivi.service';
 
 interface PrintPageData {

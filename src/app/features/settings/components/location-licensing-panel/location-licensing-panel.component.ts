@@ -18,7 +18,7 @@ import {
 } from '@core/utils/location-selection-lock.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 
-import { InventoryService } from '@features/inventory/services/inventory.service';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 @Component({
   selector: 'app-location-licensing-panel',

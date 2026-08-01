@@ -6,13 +6,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
-import { CustomerService } from '@features/customers/services/customer.service';
-import { ProductService } from '@features/products/services/product.service';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
+import { ProductService } from '@domain/products/services/product.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 import { MovementFormComponent } from './movement-form.component';
-import { InventoryService } from './services/inventory.service';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 const LOCATION = { id: 'loc-1', name: 'Milano' };
 const VARIANT = {

@@ -14,7 +14,7 @@ import { catchError, filter, merge, of, switchMap, type Subscription } from 'rxj
 
 import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import {
   isPlatformOperator,
   hasActiveSupportSession,
@@ -36,10 +36,10 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { PwaUpdateBannerComponent } from '@shared/components/pwa-update-banner/pwa-update-banner.component';
 import type { NavItem, NavSection } from '@shared/models/nav-item.model';
 
-import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
-import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
-import { InventoryService } from '@features/inventory/services/inventory.service';
-import { isShopifySyncUiActive } from '@features/integrations/shopify/models/shopify-connection-state.util';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
+import { isShopifySyncUiActive } from '@domain/channels/shopify/models/shopify-connection-state.util';
 import {
   canAccessCatalogSection,
   canAccessInventorySection,

@@ -1,10 +1,10 @@
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
-import { STORE_SALE_PAYMENT_METHOD_OPTIONS } from '@features/store-sales/models/store-sale-payment.util';
+import { STORE_SALE_PAYMENT_METHOD_OPTIONS } from '@domain/store-sales/models/store-sale-payment.util';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 
-import type { DocumentListProfile } from './document-list-query.model';
-import { SALES_INVOICE_DOCUMENT_TYPES } from './document-sales.util';
+import type { DocumentListProfile } from '@domain/documents/models/document-list-query.model';
+import { SALES_INVOICE_DOCUMENT_TYPES } from '@domain/documents/models/document-sales.util';
 import {
   QUOTE_LIST_EXPORT,
   type DocumentListExportConfig,

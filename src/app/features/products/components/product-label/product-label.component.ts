@@ -4,7 +4,7 @@ import type { Money } from '@core/models/common.model';
 import { formatMoney } from '@core/utils/money.util';
 import { BarcodeSvgComponent } from '@shared/components/barcode-svg/barcode-svg.component';
 
-import { PRODUCT_LABEL_BARCODE } from '../../models/product-label.constants';
+import { PRODUCT_LABEL_BARCODE } from '@domain/products/models/product-label.constants';
 
 /**
  * Etichetta prodotto per stampa (dumb). Una variante = un'etichetta con dati

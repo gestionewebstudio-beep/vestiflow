@@ -6,7 +6,7 @@ import {
   isAdjustmentDocumentType,
   isManualUnloadDocumentType,
 } from './document-stock-operation.util';
-import { isSalesFormDocumentType } from './document-sales.util';
+import { isSalesFormDocumentType } from '@domain/documents/models/document-sales.util';
 import { isTransferDocumentType } from './document-transfer.util';
 
 /**

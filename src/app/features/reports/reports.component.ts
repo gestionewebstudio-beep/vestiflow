@@ -22,14 +22,14 @@ import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { BusinessAnalyticsPanelComponent } from '@features/analytics/components/business-analytics-panel/business-analytics-panel.component';
+import { BusinessAnalyticsPanelComponent } from '@domain/analytics/components/business-analytics-panel/business-analytics-panel.component';
 import {
   InventoryService,
   type LocationInventoryReportRow,
-} from '@features/inventory/services/inventory.service';
-import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
+} from '@domain/inventory/services/inventory.service';
+import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 
-import { ReportCorrispettiviExportComponent } from './components/report-corrispettivi-export/report-corrispettivi-export.component';
+import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import { ReportLocationTableComponent } from './components/report-location-table/report-location-table.component';
 import {
   corrispettiviChannelHint,
@@ -42,7 +42,7 @@ import {
   parseReportListQuery,
   ReportPeriodPreset,
   resolveReportDateRange,
-} from './models/report-list-query.model';
+} from '@domain/reports/models/report-list-query.model';
 import type { LocationReportRow } from './models/report-view.model';
 
 interface ReportData {

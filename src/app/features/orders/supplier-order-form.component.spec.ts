@@ -9,12 +9,12 @@ import { AppErrorKind } from '@core/models/app-error.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
-import { ProductService } from '@features/products/services/product.service';
+import { ProductService } from '@domain/products/services/product.service';
 
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
-import { SupplierOrderService } from './services/supplier-order.service';
-import { DocumentService } from '@features/documents/services/document.service';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { signal } from '@angular/core';
 

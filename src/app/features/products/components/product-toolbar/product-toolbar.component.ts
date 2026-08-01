@@ -5,7 +5,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
-import type { ProductFilters } from '../../models/product-list-query.model';
+import type { ProductFilters } from '@domain/products/models/product-list-query.model';
 
 /** Opzione select per lo stato prodotto (value tecnico + label leggibile). */
 export interface ProductStatusOption {

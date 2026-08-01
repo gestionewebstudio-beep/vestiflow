@@ -20,8 +20,8 @@ import { formatDateTime } from '@core/utils/date.util';
 import {
   tiktokConnectionStatusLabel,
   tiktokConnectionStatusTone,
-} from '@features/integrations/tiktok/models/tiktok-connection-labels.util';
-import { TikTokConnectionService } from '@features/integrations/tiktok/services/tiktok-connection.service';
+} from '@domain/channels/tiktok/models/tiktok-connection-labels.util';
+import { TikTokConnectionService } from '@domain/channels/tiktok/services/tiktok-connection.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';

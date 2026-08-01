@@ -3,7 +3,7 @@ import { ReactiveFormsModule, type FormControl } from '@angular/forms';
 
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 
 /**
  * Controlli della riga Arrivo merce usati dalla card mobile (§10.10).

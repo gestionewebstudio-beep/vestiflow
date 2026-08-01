@@ -10,7 +10,7 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { Router } from '@angular/router';
 import { catchError, of } from 'rxjs';
 
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { LocationContextService } from '@core/services/location-context.service';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -20,7 +20,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
-import { InventoryService } from './services/inventory.service';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 /** Avvio nuova sessione inventario fisico. */
 @Component({

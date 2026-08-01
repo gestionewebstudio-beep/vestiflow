@@ -22,7 +22,7 @@ import {
   fulfillmentStatusTone,
   salesOrderLinesSummary,
   sourceLabel,
-} from '../../models/sales-order-labels.util';
+} from '@domain/sales-orders/models/sales-order-labels.util';
 
 /** Vista lista ordini: registro generale o canale Shopify (fase 3 §2-§3). */
 export type SalesOrderTableProfile = 'customer-orders' | 'shopify-orders';

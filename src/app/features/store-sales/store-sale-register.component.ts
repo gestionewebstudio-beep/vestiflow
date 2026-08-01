@@ -23,9 +23,9 @@ import type { EntityId } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import type { Money } from '@core/models/money.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
-import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
+import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney, moneyToDecimalString, parseMoneyInput } from '@core/utils/money.util';
@@ -35,19 +35,19 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { CustomerService } from '@features/customers/services/customer.service';
-import { GoodsReceiptProductSearchPanelComponent } from '@features/documents/components/goods-receipt-product-search-panel/goods-receipt-product-search-panel.component';
-import type { ProductEmbeddedCreatePrefill } from '@features/products/models/product-form.mapper';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductFormComponent } from '@features/products/product-form.component';
-import { ProductService } from '@features/products/services/product.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
+import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
+import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/product-form.mapper';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { ProductFormComponent } from '@domain/products/product-form.component';
+import { ProductService } from '@domain/products/services/product.service';
 
 import type {
   RecentStoreSale,
   StoreSaleLookupItem,
   StoreSalePaymentMethod,
   StoreSaleResult,
-} from './models/store-sale.model';
+} from '@domain/store-sales/models/store-sale.model';
 import { StoreSalesService } from './services/store-sales.service';
 
 type RegisterMode = 'sale' | 'return';
@@ -119,7 +119,7 @@ function looksLikeBarcode(code: string): boolean {
     SelectMenuComponent,
     SlidePanelComponent,
     ProductFormComponent,
-    GoodsReceiptProductSearchPanelComponent,
+    DocumentProductSearchPanelComponent,
   ],
   templateUrl: './store-sale-register.component.html',
   styleUrl: './store-sale-register.component.scss',

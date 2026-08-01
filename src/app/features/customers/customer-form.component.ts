@@ -16,18 +16,18 @@ import type { AppError } from '@core/models/app-error.model';
 import type { Customer } from '@core/models/customer.model';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
-import { CustomerFormFieldsComponent } from '@features/customers/components/customer-form-fields/customer-form-fields.component';
+import { CustomerFormFieldsComponent } from '@domain/customers/components/customer-form-fields/customer-form-fields.component';
 import {
   createCustomerFormGroup,
   mapCustomerFormToInput,
   patchCustomerFormGroup,
   setCustomerAnagraficaReadOnly,
-} from '@features/customers/utils/customer-form.util';
+} from '@domain/customers/utils/customer-form.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { CustomerService } from './services/customer.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
 
 @Component({
   selector: 'app-customer-form',

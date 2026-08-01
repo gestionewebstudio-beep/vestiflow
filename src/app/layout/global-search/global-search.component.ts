@@ -16,10 +16,10 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, debounceTime, forkJoin, map, of, switchMap } from 'rxjs';
 
 import { formatDate } from '@core/utils/date.util';
-import { CustomerService } from '@features/customers/services/customer.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
 import { DOCUMENT_HUB_GROUPS } from '@features/documents/models/documents-hub.model';
-import { DocumentService } from '@features/documents/services/document.service';
-import { ProductService } from '@features/products/services/product.service';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { ProductService } from '@domain/products/services/product.service';
 import { InlineSpinnerComponent } from '@shared/components/inline-spinner/inline-spinner.component';
 import type { NavSection } from '@shared/models/nav-item.model';
 

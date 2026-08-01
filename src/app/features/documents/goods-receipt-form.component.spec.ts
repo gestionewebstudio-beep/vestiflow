@@ -5,19 +5,19 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
-import { ProductService } from '@features/products/services/product.service';
-import { ProductLabelPrintService } from '@features/products/services/product-label-print.service';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
-import { SupplierOrderService } from '@features/orders/services/supplier-order.service';
-import { TenantFeatureSettingsService } from '@features/settings/services/tenant-feature-settings.service';
+import { ProductService } from '@domain/products/services/product.service';
+import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
+import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-preference-api.service';
 
 import { GoodsReceiptFormComponent } from './goods-receipt-form.component';
-import { DocumentService } from './services/document.service';
-import { DocumentCountersService } from './services/document-counters.service';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentSettingsService } from './services/document-settings.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
 

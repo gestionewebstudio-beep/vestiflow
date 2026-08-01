@@ -21,7 +21,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { InventoryCountTableComponent } from './components/inventory-count-table/inventory-count-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
-import { InventoryService } from './services/inventory.service';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 type CountListState =
   | { readonly status: 'loading' }

@@ -15,10 +15,10 @@ import { take } from 'rxjs';
 
 import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import type { BarcodeDetectorLike } from '@core/services/barcode-detection.service';
-import { BarcodeLookupService } from '@core/services/barcode-lookup.service';
+import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { formatMoney } from '@core/utils/money.util';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductService } from '@features/products/services/product.service';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { ProductService } from '@domain/products/services/product.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 
 /** Riga in verifica nella metà inferiore prima di essere aggiunta all'ordine. */

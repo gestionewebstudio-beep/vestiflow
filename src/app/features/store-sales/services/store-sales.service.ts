@@ -12,7 +12,7 @@ import type {
   RecentStoreSale,
   StoreSaleLookupItem,
   StoreSaleResult,
-} from '../models/store-sale.model';
+} from '@domain/store-sales/models/store-sale.model';
 
 const HTTP_TIMEOUT_MS = 15000;
 

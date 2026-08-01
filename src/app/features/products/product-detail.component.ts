@@ -52,7 +52,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { ProductVariantTableComponent } from './components/product-variant-table/product-variant-table.component';
 import { ProductSupplierLinksComponent } from './components/product-supplier-links/product-supplier-links.component';
-import { productStatusLabel, productStatusTone } from './models/product-status.util';
+import { productStatusLabel, productStatusTone } from '@domain/products/models/product-status.util';
 import { INVENTORY_TRACKING_LABELS } from '@core/models/product-catalog.model';
 import type { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import {
@@ -61,8 +61,8 @@ import {
   isShopifyCatalogProduct,
   SHOPIFY_CATALOG_EDIT_TITLE,
   SHOPIFY_CATALOG_READONLY_BANNER,
-} from './models/catalog-origin.util';
-import { ProductService } from './services/product.service';
+} from '@domain/products/models/catalog-origin.util';
+import { ProductService } from '@domain/products/services/product.service';
 
 const PRODUCTS_LIST_PATH = '/app/products';
 const SHOPIFY_FOLLOW_UP_POLL_MS = 2000;

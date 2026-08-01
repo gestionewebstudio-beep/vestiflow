@@ -5,7 +5,7 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CreateClientComponent } from './create-client.component';
-import { AdminTenantsService } from '@features/admin/services/admin-tenants.service';
+import { AdminTenantsService } from '../../services/admin-tenants.service';
 import { SupportSessionService } from '@core/support/support-session.service';
 
 describe('CreateClientComponent', () => {

@@ -9,7 +9,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { SalesOrderFulfillmentStatus } from '@core/models/sales-order.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
-import { BusinessAnalyticsPanelComponent } from '@features/analytics/components/business-analytics-panel/business-analytics-panel.component';
+import { BusinessAnalyticsPanelComponent } from '@domain/analytics/components/business-analytics-panel/business-analytics-panel.component';
 import {
   showSalesOrderHistory,
   showShopifyIntegration,
@@ -22,13 +22,13 @@ import { StatCardComponent } from '@shared/components/stat-card/stat-card.compon
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 
-import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
+import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 import {
   shopifyConnectionStatusLabel,
   shopifyConnectionStatusTone,
-} from '@features/integrations/shopify/models/shopify-connection-labels.util';
-import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
-import { isShopifySyncUiActive } from '@features/integrations/shopify/models/shopify-connection-state.util';
+} from '@domain/channels/shopify/models/shopify-connection-labels.util';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { isShopifySyncUiActive } from '@domain/channels/shopify/models/shopify-connection-state.util';
 
 import { LowStockTableComponent } from './components/low-stock-table/low-stock-table.component';
 import { RecentSalesTableComponent } from './components/recent-sales-table/recent-sales-table.component';

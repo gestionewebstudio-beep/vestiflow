@@ -5,9 +5,12 @@ import { ProductKind, ProductStatus } from '@core/models/product.model';
 import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 
 import { ProductReviewStepComponent } from './product-review-step.component';
-import type { ProductGeneralDraft, ProductOptionsDraft } from '../../models/product-form.model';
-import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '../../models/product-form.model';
-import { generateVariantDrafts } from '../../models/product-form.mapper';
+import type {
+  ProductGeneralDraft,
+  ProductOptionsDraft,
+} from '@domain/products/models/product-form.model';
+import { OPTION_NAME_COLOR, OPTION_NAME_SIZE } from '@domain/products/models/product-form.model';
+import { generateVariantDrafts } from '@domain/products/models/product-form.mapper';
 
 const GENERAL: ProductGeneralDraft = {
   articleCode: '00042',

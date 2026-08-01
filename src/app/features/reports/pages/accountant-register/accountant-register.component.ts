@@ -15,7 +15,7 @@ import type { AppError } from '@core/models/app-error.model';
 import { formatMoney } from '@core/utils/money.util';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { ReportCorrispettiviExportComponent } from '../../components/report-corrispettivi-export/report-corrispettivi-export.component';
+import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { CorrispettiviSummaryComponent } from '../../components/corrispettivi-summary/corrispettivi-summary.component';
@@ -29,7 +29,7 @@ import {
   parseReportListQuery,
   ReportPeriodPreset,
   resolveReportDateRange,
-} from '../../models/report-list-query.model';
+} from '@domain/reports/models/report-list-query.model';
 import { AccountantRegisterService } from '../../services/accountant-register.service';
 
 type RegisterTab = 'documents' | 'corrispettivi';

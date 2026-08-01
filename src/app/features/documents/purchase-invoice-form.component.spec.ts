@@ -5,13 +5,13 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PaymentOptionsService } from '@core/services/payment-options.service';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 import { PurchaseInvoiceFormComponent } from './purchase-invoice-form.component';
-import { DocumentService } from './services/document.service';
-import { DocumentCountersService } from './services/document-counters.service';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentSettingsService } from './services/document-settings.service';
-import type { LinkableGoodsReceipt } from './models/goods-receipt-causal.model';
+import type { LinkableGoodsReceipt } from '@domain/documents/models/goods-receipt-causal.model';
 
 const SUPPLIERS = [{ id: 'sup-1', name: 'ACME Forniture' }];
 

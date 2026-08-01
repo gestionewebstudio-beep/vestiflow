@@ -14,17 +14,23 @@ import type { DetailFact } from '@shared/components/detail-facts/detail-facts.co
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { storeSalePaymentMethodLabelWithNote } from '@features/store-sales/models/store-sale-payment.util';
+import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
 
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
 import { DocumentDetailComponent } from './document-detail.component';
-import { documentReferenceLabel, documentTypeLabel } from './models/document-labels.util';
-import { isStoreFlowDocumentType } from './models/document-operational.util';
+import {
+  documentReferenceLabel,
+  documentTypeLabel,
+} from '@domain/documents/models/document-labels.util';
+import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { salesDocumentRegisterConfig } from './models/document-sales-register.config';
-import { isInvoiceDraftDocumentType, isSalesDdtDocumentType } from './models/document-sales.util';
+import {
+  isInvoiceDraftDocumentType,
+  isSalesDdtDocumentType,
+} from '@domain/documents/models/document-sales.util';
 import { isManualUnloadDocumentType } from './models/document-stock-operation.util';
-import type { DocumentListProfile } from './models/document-list-query.model';
+import type { DocumentListProfile } from '@domain/documents/models/document-list-query.model';
 
 const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
   [TransportPort.Franco]: 'Franco',

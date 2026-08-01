@@ -18,8 +18,8 @@ import type {
   InventoryImportPreview,
   InventoryImportPreviewItem,
   InventoryImportResult,
-} from './models/inventory-import.model';
-import { InventoryService } from './services/inventory.service';
+} from '@domain/inventory/models/inventory-import.model';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 type ImportPhase = 'upload' | 'preview' | 'done';
 

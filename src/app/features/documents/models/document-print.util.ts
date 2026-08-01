@@ -2,7 +2,7 @@ import { DocumentType } from '@core/models/document.model';
 import type { DocumentType as DocumentTypeValue } from '@core/models/document.model';
 
 import { isGoodsReceiptDocumentType } from './document-goods-receipt.util';
-import { isSalesDocumentType } from './document-sales.util';
+import { isSalesDocumentType } from '@domain/documents/models/document-sales.util';
 import { isTransferDocumentType } from './document-transfer.util';
 
 /** Tipi con anteprima/stampa HTML dedicata (B5). */

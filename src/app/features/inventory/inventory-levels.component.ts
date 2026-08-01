@@ -33,7 +33,7 @@ import {
   canSyncInventoryFromShopify,
 } from '@core/permissions/tenant-permissions.util';
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
@@ -49,16 +49,16 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
-import { ProductService } from '@features/products/services/product.service';
-import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
+import { ProductService } from '@domain/products/services/product.service';
+import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
 import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
 import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.util';
 import {
   formatShopifyInventorySyncFeedback,
   type ShopifySyncFeedback,
-} from '@features/integrations/shopify/models/shopify-sync-feedback.util';
-import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
-import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
+} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -71,8 +71,8 @@ import { InventoryTabsComponent } from './components/inventory-tabs/inventory-ta
 import {
   reservationChannelLabel,
   type StockReservationRow,
-} from './models/stock-reservation.model';
-import type { InventoryLevelListItem } from './models/inventory-list.mapper';
+} from '@domain/inventory/models/stock-reservation.model';
+import type { InventoryLevelListItem } from '@domain/inventory/models/inventory-list.mapper';
 import type { InventoryLevelRow } from './models/inventory-view.model';
 import {
   INVENTORY_LEVEL_COLUMN_DEFS,
@@ -81,9 +81,9 @@ import {
 import {
   DEFAULT_INVENTORY_PAGE_SIZE,
   INVENTORY_PAGE_SIZE_OPTIONS,
-} from './models/inventory-list-query.model';
-import type { InventoryLevelsListQuery } from './models/inventory-list-query.model';
-import { InventoryService } from './services/inventory.service';
+} from '@domain/inventory/models/inventory-list-query.model';
+import type { InventoryLevelsListQuery } from '@domain/inventory/models/inventory-list-query.model';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 interface LevelsData {
   readonly levels: readonly InventoryLevelListItem[];

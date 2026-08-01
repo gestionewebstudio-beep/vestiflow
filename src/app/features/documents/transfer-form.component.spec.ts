@@ -6,12 +6,12 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
-import { ProductService } from '@features/products/services/product.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { ProductService } from '@domain/products/services/product.service';
 
 import { TransferFormComponent } from './transfer-form.component';
-import { DocumentService } from './services/document.service';
-import { DocumentCountersService } from './services/document-counters.service';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 
 const LOCATIONS = [
   { id: 'loc-1', name: 'Milano' },

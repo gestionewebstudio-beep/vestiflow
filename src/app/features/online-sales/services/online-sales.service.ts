@@ -12,7 +12,7 @@ import type { EntityId } from '@core/models/common.model';
 import {
   mapCorrispettivoStatus,
   mapInventoryStatus,
-} from '@features/sales-orders/services/sales-order-api.mapper';
+} from '@domain/sales-orders/services/sales-order-api.mapper';
 
 import type {
   CorrispettivoEntryDetail,

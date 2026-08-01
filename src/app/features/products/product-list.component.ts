@@ -46,27 +46,27 @@ import { TableColumnPreferenceService } from '@shared/table-columns/table-column
 
 import { ProductTableComponent } from './components/product-table/product-table.component';
 import { ProductToolbarComponent } from './components/product-toolbar/product-toolbar.component';
-import { ProductLabelPrintService } from './services/product-label-print.service';
+import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
 import type {
   ProductFilterChange,
   ProductStatusOption,
 } from './components/product-toolbar/product-toolbar.component';
-import { ShopifySyncFeedbackComponent } from '@features/integrations/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
+import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
 import {
   formatShopifyProductsSyncFeedback,
   type ShopifySyncFeedback,
-} from '@features/integrations/shopify/models/shopify-sync-feedback.util';
-import { ShopifyConnectionService } from '@features/integrations/shopify/services/shopify-connection.service';
-import { ShopifySyncWatchService } from '@features/integrations/shopify/services/shopify-sync-watch.service';
+} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 import {
   DEFAULT_PRODUCT_ORDER,
   DEFAULT_PRODUCT_PAGE_SIZE,
   DEFAULT_PRODUCT_SORT,
   PRODUCT_PAGE_SIZE_OPTIONS,
   parseProductListQuery,
-} from './models/product-list-query.model';
-import type { ProductSortField } from './models/product-list-query.model';
-import { ProductService } from './services/product.service';
+} from '@domain/products/models/product-list-query.model';
+import type { ProductSortField } from '@domain/products/models/product-list-query.model';
+import { ProductService } from '@domain/products/services/product.service';
 import {
   PRODUCT_LIST_COLUMN_DEFS,
   PRODUCT_LIST_COLUMN_PRESETS,

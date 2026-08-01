@@ -7,7 +7,7 @@ import type { ProductVariant } from '@core/models/product-variant.model';
 import type { ProductOption } from '@core/models/product.model';
 import { formatMoney } from '@core/utils/money.util';
 
-import { selectedOptionValue } from '../../models/product-variant.util';
+import { selectedOptionValue } from '@domain/products/models/product-variant.util';
 
 /**
  * Tabella varianti (dumb puro). Read-only: SKU, colonne opzione dinamiche

@@ -10,9 +10,12 @@ import type {
   ProductGeneralDraft,
   ProductOptionsDraft,
   VariantDraft,
-} from '../../models/product-form.model';
-import { productStatusLabel, productStatusTone } from '../../models/product-status.util';
-import { selectedOptionValue, variantOptionNames } from '../../models/product-variant.util';
+} from '@domain/products/models/product-form.model';
+import { productStatusLabel, productStatusTone } from '@domain/products/models/product-status.util';
+import {
+  selectedOptionValue,
+  variantOptionNames,
+} from '@domain/products/models/product-variant.util';
 
 /**
  * Step "Riepilogo" del wizard (presentazionale). Mostra in sola lettura i dati

@@ -9,7 +9,7 @@ import type { Money } from '@core/models/money.model';
 import { formatDate } from '@core/utils/date.util';
 import { DEFAULT_CURRENCY, formatMoney, moneyToDecimalString } from '@core/utils/money.util';
 
-import { goodsReceiptLinkStatusLabel } from '../models/document-labels.util';
+import { goodsReceiptLinkStatusLabel } from '@domain/documents/models/document-labels.util';
 
 /** "DDT 145 del 08/05/2026" da snapshot tipo + numero + data documento fornitore. */
 export function goodsReceiptExternalDocLabel(doc: DocumentRecord): string {

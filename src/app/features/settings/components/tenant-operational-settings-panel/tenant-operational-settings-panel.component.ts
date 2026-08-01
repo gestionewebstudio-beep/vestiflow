@@ -17,7 +17,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { TenantFeatureSettingsService } from '../../services/tenant-feature-settings.service';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 
 @Component({
   selector: 'app-tenant-operational-settings-panel',

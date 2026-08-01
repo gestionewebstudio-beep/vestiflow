@@ -20,7 +20,7 @@ import type { InventoryCountLine, InventoryCountSession } from '@core/models/inv
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { formatDateTime } from '@core/utils/date.util';
-import { ProductService } from '@features/products/services/product.service';
+import { ProductService } from '@domain/products/services/product.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -28,12 +28,12 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { inventoryCountLineDelta } from './models/inventory-count.mapper';
+import { inventoryCountLineDelta } from '@domain/inventory/models/inventory-count.mapper';
 import {
   inventoryCountStatusLabel,
   inventoryCountStatusTone,
 } from './models/inventory-count-labels.util';
-import { InventoryService } from './services/inventory.service';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 type DetailState =
   | { readonly status: 'loading' }

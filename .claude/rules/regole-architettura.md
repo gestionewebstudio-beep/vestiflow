@@ -48,14 +48,21 @@ OGNI componente Angular non banale DEVE avere tre file separati:
 ```
 src/
   app/
-    core/          → singleton: interceptor, guard, config, http client, auth, error handler, observability
-    shared/        → componenti UI riutilizzabili, pipe, directive, design tokens, button library
-    features/      → una cartella per feature/area di dominio
+    core/          → singleton tecnici: interceptor, guard, config, http client, auth,
+                     error handler, observability. NON conosce il dominio.
+    shared/        → UI riutilizzabile e agnostica: componenti, pipe, directive, button
+                     library. NON conosce il dominio.
+    domain/        → dominio condiviso: ciò che serve a PIÙ feature ma porta logica di
+                     business (service HTTP di entità, model/DTO, form riusabili, celle
+                     di riga documento, connettori canale)
+      nome-dominio/
+        components/  services/  models/  utils/
+    features/      → le SCHERMATE: una cartella per area, con le proprie rotte
       nome-feature/
         components/        → componenti locali della feature (dumb)
         pages/             → componenti container (smart) di rotte (per feature ad alto numero di rotte)
-        services/          → service di feature (HTTP, business logic locale)
-        models/            → model e DTO di feature
+        services/          → service usati SOLO da questa feature
+        models/            → model e DTO usati SOLO da questa feature
         nome-feature.routes.ts
         nome-feature.component.ts (root smart)
   assets/
@@ -67,6 +74,42 @@ src/
 `pages/` è opzionale: usalo solo per feature con > 3 rotte. Per feature mono-rotta, il componente smart sta nella root della feature.
 
 Naming Angular standard: `kebab-case.tipo.ts`.
+
+## Direzione delle dipendenze — Regola Assoluta
+
+I layer si vedono in una sola direzione: **`core` → `shared` → `domain` → `features`**.
+Ogni layer può importare da quelli sopra di lui in questa lista, mai da quelli sotto.
+
+| Da ↓ / verso → | `core` | `shared` | `domain` | `features` |
+| -------------- | ------ | -------- | -------- | ---------- |
+| `core`         | —      | ✅       | ⛔       | ⛔         |
+| `shared`       | ✅     | —        | ⛔       | ⛔         |
+| `domain`       | ✅     | ✅       | ✅       | ⛔         |
+| `features`     | ✅     | ✅       | ✅       | ⛔ **mai** |
+
+**Nessuna feature importa da un'altra feature.** È il vincolo che tiene in piedi la
+struttura: se due schermate hanno bisogno della stessa cosa, quella cosa non appartiene
+a nessuna delle due — appartiene a `domain/`.
+
+Le regole sono verificate da ESLint (`no-restricted-imports` in `eslint.config.mjs`):
+una violazione fa fallire il lint, non serve ricordarsela.
+
+### Come scegliere il layer
+
+1. Lo usa **una sola schermata**? → resta in `features/<x>/`.
+2. Lo usano **più schermate** e porta **logica di business**? → `domain/<area>/`.
+3. Lo usano più schermate ed è **UI senza dominio** (bottone, card, tabella)? → `shared/`.
+4. È un **singleton tecnico** senza dominio (interceptor, guard, http)? → `core/`.
+
+Il test decisivo per il punto 3: se il componente importa un service di entità, un DTO
+o un model di business, **non** è `shared/` — è `domain/`.
+
+### I nomi dichiarano l'appartenenza
+
+Un componente in `domain/` non porta il nome della feature che l'ha generato per prima.
+`document-line-code-cell` è la cella codice di **una riga documento** — la usano arrivo
+merce, ordine cliente e vendita al banco. Chiamarla `goods-receipt-line-code-cell`
+perché è nata lì costringe chi cerca a conoscerne la storia invece della funzione.
 
 ## Naming Convention — Obbligatoria
 
@@ -95,6 +138,7 @@ In `tsconfig.json` configura sempre alias per evitare import relativi profondi:
     "baseUrl": "./",
     "paths": {
       "@core/*": ["src/app/core/*"],
+      "@domain/*": ["src/app/domain/*"],
       "@shared/*": ["src/app/shared/*"],
       "@features/*": ["src/app/features/*"],
       "@env/*": ["src/environments/*"]

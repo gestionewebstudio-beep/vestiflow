@@ -19,7 +19,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { SupplierAttachmentsPanelComponent } from './components/supplier-attachments-panel/supplier-attachments-panel.component';
-import { SupplierService } from './services/supplier.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 type DetailState =
   | { readonly status: 'loading' }

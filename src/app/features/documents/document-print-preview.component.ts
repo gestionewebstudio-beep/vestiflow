@@ -12,7 +12,7 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { DocumentType } from '@core/models/document.model';
 import type { DocumentAddress } from '@core/models/document.model';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -20,20 +20,23 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
-import { documentReferenceLabel, documentTypeLabel } from './models/document-labels.util';
+import {
+  documentReferenceLabel,
+  documentTypeLabel,
+} from '@domain/documents/models/document-labels.util';
 import {
   isGoodsReceiptPrintType,
   isSalesPrintType,
   isTransferPrintType,
 } from './models/document-print.util';
-import { isProformaDocumentType } from './models/document-sales.util';
+import { isProformaDocumentType } from '@domain/documents/models/document-sales.util';
 import {
   TRANSPORT_INCOMPLETE_MESSAGE,
   TRANSPORT_INCOMPLETE_TITLE,
   documentTravelsWithGoods,
   transportDataIncomplete,
-} from './models/document-transport.util';
-import { DocumentService } from './services/document.service';
+} from '@domain/documents/models/document-transport.util';
+import { DocumentService } from '@domain/documents/services/document.service';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
 

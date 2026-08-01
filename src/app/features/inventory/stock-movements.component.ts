@@ -25,7 +25,7 @@ import type { Subscription } from 'rxjs';
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { canManageInventory } from '@core/permissions/tenant-permissions.util';
 import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -48,8 +48,8 @@ import { TableColumnPickerComponent } from '@shared/components/table-column-pick
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
-import { CustomerService } from '@features/customers/services/customer.service';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { MovementTableComponent } from './components/movement-table/movement-table.component';
@@ -62,10 +62,13 @@ import {
 import {
   DEFAULT_INVENTORY_PAGE_SIZE,
   INVENTORY_PAGE_SIZE_OPTIONS,
-} from './models/inventory-list-query.model';
-import type { StockMovementsListQuery } from './models/inventory-list-query.model';
-import { MovementPeriodPreset, resolveMovementPeriodRange } from './models/movement-period.util';
-import { InventoryService } from './services/inventory.service';
+} from '@domain/inventory/models/inventory-list-query.model';
+import type { StockMovementsListQuery } from '@domain/inventory/models/inventory-list-query.model';
+import {
+  MovementPeriodPreset,
+  resolveMovementPeriodRange,
+} from '@domain/inventory/models/movement-period.util';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 interface MovementsData {
   readonly movements: readonly StockMovement[];

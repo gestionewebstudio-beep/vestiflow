@@ -27,7 +27,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
 import { LocationContextService } from '@core/services/location-context.service';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -41,16 +41,16 @@ import { TableColumnPickerComponent } from '@shared/components/table-column-pick
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
-import { SupplierOrderService } from '@features/orders/services/supplier-order.service';
-import { ProductService } from '@features/products/services/product.service';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
+import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
+import { ProductService } from '@domain/products/services/product.service';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { SituationTableComponent } from './components/situation-table/situation-table.component';
 import {
   DEFAULT_INVENTORY_PAGE_SIZE,
   INVENTORY_PAGE_SIZE_OPTIONS,
-} from './models/inventory-list-query.model';
+} from '@domain/inventory/models/inventory-list-query.model';
 import {
   INVENTORY_SITUATION_COLUMN_DEFS,
   INVENTORY_SITUATION_COLUMN_PRESETS,
@@ -58,8 +58,8 @@ import {
 import type {
   InventorySituationListQuery,
   InventorySituationRow,
-} from './models/inventory-situation.model';
-import { InventoryService } from './services/inventory.service';
+} from '@domain/inventory/models/inventory-situation.model';
+import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 interface SituationData {
   readonly rows: readonly InventorySituationRow[];

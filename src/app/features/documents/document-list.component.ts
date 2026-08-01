@@ -33,15 +33,15 @@ import type { DocumentRecord } from '@core/models/document.model';
 import type { Money } from '@core/models/money.model';
 import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
 import type { PaymentOption } from '@core/models/payment-option.model';
-import { OperationalLocationsService } from '@core/services/operational-locations.service';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
-import { CustomerService } from '@features/customers/services/customer.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
 import {
   MovementPeriodPreset,
   resolveMovementPeriodRange,
-} from '@features/inventory/models/movement-period.util';
-import { SupplierService } from '@features/suppliers/services/supplier.service';
+} from '@domain/inventory/models/movement-period.util';
+import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -66,7 +66,10 @@ import {
   GOODS_RECEIPT_DOCUMENT_TYPES,
   isGoodsReceiptDocumentType,
 } from './models/document-goods-receipt.util';
-import { documentStatusLabel, documentTypeLabel } from './models/document-labels.util';
+import {
+  documentStatusLabel,
+  documentTypeLabel,
+} from '@domain/documents/models/document-labels.util';
 import { documentDuplicateFormRoute } from './models/document-routing.util';
 import {
   DOCUMENT_LIST_COLUMN_DEFS,
@@ -92,8 +95,8 @@ import {
   parseDocumentListQuery,
   type DocumentListProfile,
   type DocumentListQuery,
-} from './models/document-list-query.model';
-import { DocumentService } from './services/document.service';
+} from '@domain/documents/models/document-list-query.model';
+import { DocumentService } from '@domain/documents/services/document.service';
 import { ExternalDocumentTypeService } from './services/external-document-type.service';
 import { isPrintableDocumentType } from './models/document-print.util';
 import {
