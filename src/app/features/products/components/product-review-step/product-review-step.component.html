@@ -118,11 +118,6 @@
                 <td [attr.data-label]="name">{{ optionValue(variant, name) || '—' }}</td>
               }
               <td class="review-step-table__cell--numeric tabular-nums" data-label="Prezzo vendita">
-                @if (variant.compareAtPrice !== null && compareAtVisible(variant)) {
-                  <span class="review-step__compare-at">{{
-                    formatPrice(variant.compareAtPrice)
-                  }}</span>
-                }
                 {{ formatPrice(variant.sellingPrice) }}
               </td>
               <td

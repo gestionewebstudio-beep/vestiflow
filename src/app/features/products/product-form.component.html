@@ -57,6 +57,7 @@
             [shopifyConnected]="shopifyConnected()"
             [catalogReadOnly]="shopifyCatalogLocked()"
             [editMode]="mode() === 'edit'"
+            [canSeeCosts]="canViewPurchaseCosts()"
             [articleCodeTakenBy]="articleCodeTakenBy()"
             (valueChange)="onGeneralChange($event)"
             (categoriesChanged)="reloadCatalogCategories()"
@@ -69,14 +70,13 @@
               [takenSkus]="takenSkus()"
               [takenBarcodes]="takenBarcodes()"
               [disabled]="submitting()"
-              [canSeeCosts]="canViewPurchaseCosts()"
               (variantChange)="onQuickVariantChange($event)"
               (validChange)="onQuickVariantValidChange($event)"
             />
           } @else {
             <p class="product-form__tab-note">
               <i class="pi pi-info-circle" aria-hidden="true"></i>
-              Prodotto con varianti: SKU, EAN e prezzi si gestiscono nel tab Varianti.
+              Prodotto con varianti: SKU, EAN e prezzo per variante si gestiscono nel tab Varianti.
             </p>
           }
           @if (!shopifyCatalogLocked()) {
@@ -100,6 +100,7 @@
             [shopifyConnected]="shopifyConnected()"
             [catalogReadOnly]="shopifyCatalogLocked()"
             [editMode]="mode() === 'edit'"
+            [canSeeCosts]="canViewPurchaseCosts()"
             [articleCodeTakenBy]="articleCodeTakenBy()"
             (valueChange)="onGeneralChange($event)"
             (categoriesChanged)="reloadCatalogCategories()"

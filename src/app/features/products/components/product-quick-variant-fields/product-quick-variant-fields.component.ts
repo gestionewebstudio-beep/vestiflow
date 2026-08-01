@@ -51,24 +51,18 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
   readonly takenSkus = input<readonly string[]>([]);
   readonly takenBarcodes = input<readonly string[]>([]);
   readonly disabled = input(false);
-  /**
-   * Mostra il campo Costo (prezzo di acquisto). Permesso
-   * catalog.view_purchase_costs: senza, il campo resta nascosto e il valore
-   * esistente non viene mai toccato dall'emit.
-   */
-  readonly canSeeCosts = input(false);
 
   readonly variantChange = output<VariantDraft>();
   readonly validChange = output<boolean>();
 
+  // Solo identità della variante: SKU ed EAN. Il prezzo e il costo del prodotto
+  // semplice sono dati dell'ARTICOLO (sezione Prezzi del tab Articolo): la
+  // variante di default li specchia al salvataggio.
   protected readonly form = this.fb.group({
     // Facoltativo (specifica cliente §SKU): nessun Validators.required. Se
     // valorizzato deve comunque rispettare il formato.
     sku: this.fb.control('', { validators: [Validators.pattern(SKU_PATTERN)] }),
     barcode: this.fb.control(''),
-    sellingPrice: this.fb.control(0, { validators: [Validators.required, Validators.min(0)] }),
-    compareAtPrice: this.fb.control<number | null>(null, { validators: [Validators.min(0)] }),
-    purchasePrice: this.fb.control<number | null>(null, { validators: [Validators.min(0)] }),
   });
 
   protected readonly generatingSku = signal(false);
@@ -83,8 +77,6 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
         {
           sku: variant.sku,
           barcode: variant.barcode,
-          sellingPrice: variant.sellingPrice ?? 0,
-          purchasePrice: variant.purchasePrice,
         },
         { emitEvent: false },
       );
@@ -110,9 +102,6 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
       {
         sku: variant.sku,
         barcode: variant.barcode,
-        sellingPrice: variant.sellingPrice ?? 0,
-        compareAtPrice: variant.compareAtPrice,
-        purchasePrice: variant.purchasePrice,
       },
       { emitEvent: false },
     );
@@ -126,11 +115,6 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
 
   protected showSkuError(): boolean {
     const control = this.form.controls.sku;
-    return control.invalid && control.touched;
-  }
-
-  protected showPriceError(): boolean {
-    const control = this.form.controls.sellingPrice;
     return control.invalid && control.touched;
   }
 
@@ -198,14 +182,12 @@ export class ProductQuickVariantFieldsComponent implements OnInit {
 
   private emitState(): void {
     const raw = this.form.getRawValue();
+    // Prezzo e costo restano quelli del draft (dati dell'articolo, gestiti nel
+    // tab Articolo): qui si toccano solo SKU ed EAN.
     this.variantChange.emit({
       ...this.variant(),
       sku: raw.sku,
       barcode: raw.barcode,
-      sellingPrice: raw.sellingPrice,
-      compareAtPrice: raw.compareAtPrice,
-      // Senza permesso costi il campo è nascosto: il valore esistente resta.
-      ...(this.canSeeCosts() ? { purchasePrice: raw.purchasePrice } : {}),
     });
     this.validChange.emit(this.isFormValid());
   }

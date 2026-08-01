@@ -378,10 +378,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly barcodeScanBusy = signal(false);
   protected readonly lineSortColumn = signal<GoodsReceiptLineSortColumn | null>(null);
   protected readonly lineSortDirection = signal<'asc' | 'desc'>('asc');
-  protected readonly supplierPriceDialogOpen = signal(false);
+  /**
+   * Spunta per-documento «Aggiorna anche il costo di riferimento in anagrafica»
+   * (default off, stile Danea). Il costo EFFETTIVO della variante è comunque
+   * sempre aggiornato dal carico; questa spunta decide solo se propagare anche
+   * al costo di riferimento dell'articolo. Sostituisce la vecchia policy tenant.
+   */
+  protected readonly updateArticleReferenceCost = signal(false);
   private readonly pendingSupplierOrderId = signal<string | null>(null);
   private readonly pendingLinkedSupplierOrderRef = signal<string | null>(null);
-  private pendingConfirmAfterPriceAsk: ((applyPrices: boolean) => void) | null = null;
 
   private pendingDeactivate: ((allow: boolean) => void) | null = null;
 
@@ -3164,19 +3169,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this._submitState.set({ status: 'error', error: validationError });
       return;
     }
-    this.maybeAskSupplierPrices((applyPrices) => this.executeExplicitSave(applyPrices));
+    // Nessun dialog: la scelta è la spunta per-documento (default off).
+    this.executeExplicitSave(this.updateArticleReferenceCost());
   }
 
-  protected applySupplierPriceAndConfirm(): void {
-    this.supplierPriceDialogOpen.set(false);
-    this.pendingConfirmAfterPriceAsk?.(true);
-    this.pendingConfirmAfterPriceAsk = null;
-  }
-
-  protected skipSupplierPriceAndConfirm(): void {
-    this.supplierPriceDialogOpen.set(false);
-    this.pendingConfirmAfterPriceAsk?.(false);
-    this.pendingConfirmAfterPriceAsk = null;
+  /** Spunta «Aggiorna anche il costo di riferimento in anagrafica». */
+  protected setUpdateArticleReferenceCost(checked: boolean): void {
+    this.updateArticleReferenceCost.set(checked);
   }
 
   private syncSupplierOrderLineMapFromDocument(doc: DocumentRecord): void {
@@ -4240,40 +4239,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return null;
   }
 
-  private maybeAskSupplierPrices(then: (applyPrices: boolean) => void): void {
-    const settings = this.tenantSettings();
-    if (settings?.updateSupplierPriceOnLoad === 'never') {
-      then(false);
-      return;
-    }
-    if (settings?.updateSupplierPriceOnLoad === 'always') {
-      then(true);
-      return;
-    }
-
-    const id = this.persistedDocumentId();
-    if (!id) {
-      then(false);
-      return;
-    }
-
-    this.documentService
-      .listSupplierPriceDiffs(id)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ items }) => {
-          if (items.length === 0) {
-            then(false);
-            return;
-          }
-          this.pendingConfirmAfterPriceAsk = then;
-          this.supplierPriceDialogOpen.set(true);
-        },
-        error: () => then(false),
-      });
-  }
-
-  private executeExplicitSave(applySupplierPriceUpdates: boolean): void {
+  private executeExplicitSave(updateArticleReferenceCost: boolean): void {
     if (this.saving()) {
       return;
     }
@@ -4288,7 +4254,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = this.linkAllLineCodes$()
       .pipe(
-        switchMap(() => this.saveDocument$({ applySupplierPriceUpdates })),
+        switchMap(() => this.saveDocument$({ updateArticleReferenceCost })),
         take(1),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -4515,11 +4481,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * server vengono riadottati per aggiornare i movimenti ai salvataggi futuri.
    */
   private saveDocument$(options?: {
-    readonly applySupplierPriceUpdates?: boolean;
+    readonly updateArticleReferenceCost?: boolean;
   }): Observable<DocumentRecord> {
     const body = {
       ...this.buildSaveGoodsReceiptBody(),
-      applySupplierPriceUpdates: options?.applySupplierPriceUpdates,
+      updateArticleReferenceCost: options?.updateArticleReferenceCost,
     };
     return this.documentService.saveGoodsReceipt(body).pipe(
       map(({ document, warnings, createdProducts }) => {

@@ -15,9 +15,12 @@ export interface ProductVariant {
   readonly sellingPrice: Money;
   // Opzionali ma raccomandati:
   readonly barcode?: string;
+  /**
+   * Costo EFFETTIVO della variante (per-taglia): aggiornato dai carichi,
+   * alimenta valorizzazione e margini. Il costo di RIFERIMENTO che fa da seed
+   * vive sull'articolo (Product.purchasePrice).
+   */
   readonly purchasePrice?: Money;
-  /** Prezzo "barrato" (precedente), più alto di sellingPrice. Shopify: compareAtPrice. */
-  readonly compareAtPrice?: Money;
   readonly shopifyVariantId?: string;
   readonly shopifyInventoryItemId?: string;
 }

@@ -26,18 +26,6 @@
     </fieldset>
 
     <fieldset class="tenant-ops__group">
-      <legend class="tenant-ops__legend">Prezzo fornitore in carico</legend>
-      <label class="tenant-ops__field" for="tenant-ops-price-policy">
-        Policy aggiornamento
-        <select id="tenant-ops-price-policy" formControlName="updateSupplierPriceOnLoad">
-          @for (opt of pricePolicyOptions; track opt.value) {
-            <option [value]="opt.value">{{ opt.label }}</option>
-          }
-        </select>
-      </label>
-    </fieldset>
-
-    <fieldset class="tenant-ops__group">
       <legend class="tenant-ops__legend">Default articoli</legend>
       <label class="tenant-ops__field" for="tenant-ops-uom">
         Unità di misura predefinita

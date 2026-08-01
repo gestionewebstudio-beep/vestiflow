@@ -27,9 +27,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 
 import type { VariantDraft } from '../../models/product-form.model';
 import { generateDistinctEan13Barcode } from '../../models/barcode.util';
-import type { CompareAtError } from '../../models/product-form.validators';
 import {
-  compareAtPriceError,
   isBarcodeDistinct,
   normalizeBarcode,
   normalizeSku,
@@ -51,7 +49,6 @@ interface VariantRowControls {
   sku: FormControl<string>;
   sellingPrice: FormControl<number>;
   purchasePrice: FormControl<number | null>;
-  compareAtPrice: FormControl<number | null>;
   barcode: FormControl<string>;
 }
 
@@ -95,8 +92,8 @@ export class ProductVariantsStepComponent {
   readonly catalogReadOnly = input(false);
   readonly variantsChange = output<readonly VariantDraft[]>();
   /**
-   * Validità complessiva dello step (formato SKU/prezzi/barcode + regola
-   * compareAtPrice). Il parent la include nel gating del wizard.
+   * Validità complessiva dello step (formato SKU/prezzi/barcode). Il barrato NON
+   * è più della variante (dato di articolo). Il parent la include nel gating.
    */
   readonly stepValidChange = output<boolean>();
 
@@ -191,7 +188,6 @@ export class ProductVariantsStepComponent {
       sku: this.fb.control(variant.sku, [Validators.pattern(SKU_PATTERN)]),
       sellingPrice: this.fb.control(variant.sellingPrice, [Validators.required, Validators.min(0)]),
       purchasePrice: this.fb.control<number | null>(variant.purchasePrice, [Validators.min(0)]),
-      compareAtPrice: this.fb.control<number | null>(variant.compareAtPrice, [Validators.min(0)]),
       barcode: this.fb.control(variant.barcode),
     });
   }
@@ -201,7 +197,6 @@ export class ProductVariantsStepComponent {
       if (readOnly) {
         group.controls.sku.disable({ emitEvent: false });
         group.controls.sellingPrice.disable({ emitEvent: false });
-        group.controls.compareAtPrice.disable({ emitEvent: false });
         group.controls.barcode.disable({ emitEvent: false });
         group.controls.purchasePrice.enable({ emitEvent: false });
       } else {
@@ -335,24 +330,8 @@ export class ProductVariantsStepComponent {
       });
   }
 
-  /** Esito della regola compareAtPrice per la riga (delegata all'helper puro). */
-  protected compareAtError(group: FormGroup<VariantRowControls>): CompareAtError {
-    return compareAtPriceError(
-      group.controls.sellingPrice.value,
-      group.controls.compareAtPrice.value,
-    );
-  }
-
-  /** Mostra l'errore compareAtPrice solo dopo interazione (touched). */
-  protected isCompareAtInvalid(group: FormGroup<VariantRowControls>): boolean {
-    return this.compareAtError(group) !== null && group.controls.compareAtPrice.touched;
-  }
-
   private emitValidity(): void {
-    const valid =
-      this.variantsArray.valid &&
-      this.variantsArray.controls.every((group) => this.compareAtError(group) === null);
-    this.stepValidChange.emit(valid);
+    this.stepValidChange.emit(this.variantsArray.valid);
   }
 
   private collect(): readonly VariantDraft[] {
@@ -371,7 +350,6 @@ export class ProductVariantsStepComponent {
         sku: raw.sku,
         sellingPrice: raw.sellingPrice,
         purchasePrice: raw.purchasePrice,
-        compareAtPrice: raw.compareAtPrice,
         barcode: raw.barcode,
         included: true,
       });

@@ -36,6 +36,9 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   inventoryTracking: InventoryTrackingMode.Standard,
   managesStock: true,
   kind: ProductKind.Article,
+  sellingPrice: 0,
+  compareAtPrice: null,
+  purchasePrice: null,
 };
 
 describe('ProductGeneralStepComponent', () => {

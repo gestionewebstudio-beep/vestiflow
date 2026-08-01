@@ -1071,15 +1071,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     readonly quantity: number;
   }): void {
     const price = parseMoneyInput(event.priceText, this.currency);
+    const sellingPrice = price ?? { amountMinor: 0, currencyCode: this.currency };
+    // Prodotto semplice: il prezzo è dato dell'articolo; la variante di default
+    // lo specchia (Modello X).
     const payload: CreateProductDto = {
       name: event.name,
       status: ProductStatus.Draft,
       shopifySyncEnabled: false,
+      sellingPrice,
       options: [],
       variants: [
         {
           optionValues: [],
-          sellingPrice: price ?? { amountMinor: 0, currencyCode: this.currency },
+          sellingPrice,
           barcode: event.ean || undefined,
         },
       ],

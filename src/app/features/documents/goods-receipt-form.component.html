@@ -1558,6 +1558,19 @@
                   formControlName="internalComment"
                 ></textarea>
               </div>
+
+              <!-- Il costo effettivo della variante è comunque aggiornato dal
+                   carico. Questa spunta (default off) decide solo se propagare
+                   anche al costo di riferimento dell'articolo in anagrafica. -->
+              <label class="gr-form__check">
+                <input
+                  type="checkbox"
+                  [checked]="updateArticleReferenceCost()"
+                  [disabled]="formReadOnly()"
+                  (change)="setUpdateArticleReferenceCost($any($event.target).checked)"
+                />
+                Aggiorna anche il costo di riferimento in anagrafica
+              </label>
             </div>
           </div>
 
@@ -1706,16 +1719,6 @@
     </div>
   </div>
 }
-
-<app-confirm-dialog
-  [(open)]="supplierPriceDialogOpen"
-  title="Aggiornare i prezzi fornitore?"
-  message="Alcuni costi inseriti differiscono dai prezzi di acquisto attuali. Vuoi aggiornare l'anagrafica articoli?"
-  confirmLabel="Aggiorna prezzi"
-  cancelLabel="Non aggiornare"
-  (confirmed)="applySupplierPriceAndConfirm()"
-  (dismissed)="skipSupplierPriceAndConfirm()"
-/>
 
 <app-confirm-dialog
   [(open)]="costModeDialogOpen"

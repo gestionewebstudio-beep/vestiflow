@@ -1,5 +1,3 @@
-export type SupplierPriceUpdatePolicy = 'always' | 'ask' | 'never';
-
 export interface TenantFeatureSettings {
   readonly lotsEnabled: boolean;
   readonly serialsEnabled: boolean;
@@ -8,7 +6,6 @@ export interface TenantFeatureSettings {
   readonly supplierOrdersEnabled: boolean;
   readonly goodsReceiptEnabled: boolean;
   readonly warehouseValuationEnabled: boolean;
-  readonly updateSupplierPriceOnLoad: SupplierPriceUpdatePolicy;
   readonly allowNegativeInventory: boolean;
   readonly warnNegativeInventory: boolean;
   readonly blockNegativeInventory: boolean;

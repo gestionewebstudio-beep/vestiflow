@@ -43,6 +43,9 @@ describe('domain-api.mapper', () => {
         name: 'Pantaloni',
         status: ProductStatus.Active,
         options: [],
+        sellingPriceMinor: 4990,
+        compareAtPriceMinor: 6990,
+        purchasePriceMinor: 2000,
         shopifySyncStatus: ShopifySyncStatus.Synced,
         shopifyProductId: 'gid://shopify/Product/123',
         shopifyLastSyncAt: '2026-06-01T12:00:00.000Z',
@@ -59,6 +62,10 @@ describe('domain-api.mapper', () => {
         lastError: 'Errore precedente',
       });
       expect(product.catalogOrigin).toBe('vestiflow');
+      // Prezzo/costo a livello articolo.
+      expect(product.sellingPrice).toEqual({ amountMinor: 4990, currencyCode: 'EUR' });
+      expect(product.compareAtPrice).toEqual({ amountMinor: 6990, currencyCode: 'EUR' });
+      expect(product.purchasePrice).toEqual({ amountMinor: 2000, currencyCode: 'EUR' });
     });
 
     it('mappa catalogOrigin shopify quando presente', () => {
@@ -120,14 +127,12 @@ describe('domain-api.mapper', () => {
         currency: 'EUR',
         sellingPriceMinor: 2990,
         purchasePriceMinor: 1500,
-        compareAtPriceMinor: 3990,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
       });
 
       expect(variant.sellingPrice).toEqual({ amountMinor: 2990, currencyCode: 'EUR' });
       expect(variant.purchasePrice).toEqual({ amountMinor: 1500, currencyCode: 'EUR' });
-      expect(variant.compareAtPrice).toEqual({ amountMinor: 3990, currencyCode: 'EUR' });
     });
 
     it('omette prezzi opzionali null', () => {
@@ -140,13 +145,11 @@ describe('domain-api.mapper', () => {
         currency: 'EUR',
         sellingPriceMinor: 1000,
         purchasePriceMinor: null,
-        compareAtPriceMinor: null,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
       });
 
       expect(variant.purchasePrice).toBeUndefined();
-      expect(variant.compareAtPrice).toBeUndefined();
     });
 
     it('SKU NULL a DB (facoltativo) diventa stringa vuota nel dominio', () => {

@@ -11,8 +11,9 @@ import { selectedOptionValue } from '../../models/product-variant.util';
 
 /**
  * Tabella varianti (dumb puro). Read-only: SKU, colonne opzione dinamiche
- * (da `options`), prezzo (con compareAtPrice barrato se presente), barcode. Lo
- * stock per negozio NON vive qui: e' responsabilita' della feature Magazzino.
+ * (da `options`), prezzo, costo effettivo per variante (con permesso), barcode.
+ * Il prezzo barrato NON è più della variante: è un dato dell'articolo. Lo stock
+ * per negozio NON vive qui: e' responsabilita' della feature Magazzino.
  * Responsive: tabella su desktop, card impilate su mobile.
  */
 @Component({
@@ -28,6 +29,8 @@ export class ProductVariantTableComponent {
   readonly options = input<readonly ProductOption[]>([]);
   /** Se valorizzato, mostra il link stampa etichetta per ogni variante. */
   readonly productId = input<EntityId | null>(null);
+  /** Mostra la colonna Costo (costo effettivo per variante). Permesso costi. */
+  readonly canSeeCosts = input(false);
 
   protected readonly optionNames = computed(() => this.options().map((option) => option.name));
 

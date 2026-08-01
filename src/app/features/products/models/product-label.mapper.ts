@@ -16,9 +16,11 @@ export function toProductLabelViewModels(
       : variants;
 
   return filtered.map((variant) => {
+    // Il prezzo barrato è un dato dell'ARTICOLO (unico): lo si mostra su ogni
+    // etichetta se valido rispetto al prezzo di vendita della variante.
     const compareAtPrice =
-      variant.compareAtPrice && isValidCompareAt(variant.sellingPrice, variant.compareAtPrice)
-        ? variant.compareAtPrice
+      product.compareAtPrice && isValidCompareAt(variant.sellingPrice, product.compareAtPrice)
+        ? product.compareAtPrice
         : undefined;
 
     return {

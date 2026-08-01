@@ -17,17 +17,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import type { SupplierPriceUpdatePolicy } from '../../models/tenant-feature-settings.model';
 import { TenantFeatureSettingsService } from '../../services/tenant-feature-settings.service';
-
-const PRICE_POLICY_OPTIONS: readonly {
-  readonly value: SupplierPriceUpdatePolicy;
-  readonly label: string;
-}[] = [
-  { value: 'always', label: 'Sempre aggiorna' },
-  { value: 'ask', label: 'Chiedi conferma' },
-  { value: 'never', label: 'Non aggiornare' },
-];
 
 @Component({
   selector: 'app-tenant-operational-settings-panel',
@@ -48,7 +38,6 @@ export class TenantOperationalSettingsPanelComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly pricePolicyOptions = PRICE_POLICY_OPTIONS;
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);
   protected readonly saving = signal(false);
@@ -68,7 +57,6 @@ export class TenantOperationalSettingsPanelComponent {
   protected readonly form = this.fb.group({
     lotsEnabled: this.fb.control(false),
     serialsEnabled: this.fb.control(false),
-    updateSupplierPriceOnLoad: this.fb.control<SupplierPriceUpdatePolicy>('ask'),
     defaultUnitOfMeasure: this.fb.control('pz'),
     defaultVatCodeId: this.fb.control(''),
     warnNegativeInventory: this.fb.control(true),
@@ -103,7 +91,6 @@ export class TenantOperationalSettingsPanelComponent {
         this.form.patchValue({
           lotsEnabled: result.settings.lotsEnabled,
           serialsEnabled: result.settings.serialsEnabled,
-          updateSupplierPriceOnLoad: result.settings.updateSupplierPriceOnLoad,
           defaultUnitOfMeasure: result.settings.defaultUnitOfMeasure,
           defaultVatCodeId: result.settings.defaultVatCodeId ?? '',
           warnNegativeInventory: result.settings.warnNegativeInventory,
@@ -124,7 +111,6 @@ export class TenantOperationalSettingsPanelComponent {
       .updateSettings({
         lotsEnabled: raw.lotsEnabled,
         serialsEnabled: raw.serialsEnabled,
-        updateSupplierPriceOnLoad: raw.updateSupplierPriceOnLoad,
         defaultUnitOfMeasure: raw.defaultUnitOfMeasure,
         defaultVatCodeId: raw.defaultVatCodeId || null,
         warnNegativeInventory: raw.warnNegativeInventory,

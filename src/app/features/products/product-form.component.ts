@@ -370,7 +370,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly VatCode[] },
   );
 
-  // Validità del formato compareAtPrice (testo libero) riportata dallo step
+  // Validità dei campi per-variante (SKU/prezzi/barcode) riportata dallo step.
   private readonly variantsStepValid = signal(true);
 
   // SKU non vuoti delle varianti correnti, per la verifica di disponibilita'.
@@ -495,6 +495,18 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (this.shopifyCatalogLocked()) {
       return true;
     }
+    // Prezzo/costo a livello articolo: prezzo di vendita obbligatorio e non
+    // negativo, barrato e costo di riferimento (se valorizzati) non negativi.
+    const { sellingPrice, compareAtPrice, purchasePrice } = this.draft().general;
+    if (sellingPrice == null || sellingPrice < 0) {
+      return false;
+    }
+    if (compareAtPrice != null && compareAtPrice < 0) {
+      return false;
+    }
+    if (purchasePrice != null && purchasePrice < 0) {
+      return false;
+    }
     return this.draft().general.name.trim() !== '';
   });
 
@@ -549,8 +561,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (this.takenBarcodes().length > 0) {
       return false;
     }
-    // Il prezzo barrato (testo) è validato dallo step: il formato non valido non
-    // è rappresentabile nel draft numerico, quindi entra qui via signal dedicato.
+    // Validità dei campi per-variante riportata dallo step (SKU/prezzi/barcode).
     if (!this.variantsStepValid()) {
       return false;
     }
@@ -606,7 +617,12 @@ export class ProductFormComponent implements CanComponentDeactivate {
     this.draft.update((draft) => ({
       ...draft,
       options,
-      variants: generateVariantDrafts(options, draft.general.name, draft.variants),
+      // Le nuove combinazioni nascono col prezzo/costo dell'articolo (seed);
+      // le esistenti conservano i propri valori.
+      variants: generateVariantDrafts(options, draft.general.name, draft.variants, {
+        sellingPrice: draft.general.sellingPrice,
+        purchasePrice: draft.general.purchasePrice,
+      }),
     }));
   }
 

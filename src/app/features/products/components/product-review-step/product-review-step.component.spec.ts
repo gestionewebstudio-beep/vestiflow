@@ -30,6 +30,9 @@ const GENERAL: ProductGeneralDraft = {
   inventoryTracking: InventoryTrackingMode.Standard,
   managesStock: true,
   kind: ProductKind.Article,
+  sellingPrice: 129.9,
+  compareAtPrice: null,
+  purchasePrice: null,
 };
 
 const OPTIONS: ProductOptionsDraft = {

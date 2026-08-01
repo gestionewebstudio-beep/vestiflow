@@ -29,9 +29,8 @@ export interface CreateProductVariantDto {
   /** Valori opzione (1-3 assi), es. [{Taglia,M},{Colore,Rosso}]. */
   readonly optionValues: readonly SelectedOptionDto[];
   readonly sellingPrice: Money;
+  /** Costo EFFETTIVO della variante (per-taglia): il barrato NON è più qui. */
   readonly purchasePrice?: Money;
-  /** Prezzo "barrato" (precedente). Stessa valuta di sellingPrice, valore maggiore. */
-  readonly compareAtPrice?: Money;
   readonly barcode?: string;
   // Mapping Shopify opzionale: solo ID pubblici, nessun token nel frontend.
   readonly shopifyVariantId?: string;
@@ -50,6 +49,12 @@ export interface CreateProductDto {
    */
   readonly articleCode?: string;
   readonly name: string;
+  /** Prezzo di vendita dell'articolo (dato reale, seed delle varianti). */
+  readonly sellingPrice: Money;
+  /** Prezzo "barrato" dell'articolo (unico per articolo). */
+  readonly compareAtPrice?: Money;
+  /** Costo di riferimento dell'articolo (seed del costo variante). */
+  readonly purchasePrice?: Money;
   readonly description?: string;
   readonly brand?: string;
   readonly category?: string;
@@ -83,6 +88,12 @@ export interface UpdateProductDto {
   /** Codice articolo: undefined = non toccare; mai stringa vuota (campo obbligatorio). */
   readonly articleCode?: string;
   readonly name?: string;
+  /** Prezzo di vendita dell'articolo. undefined = non toccare. */
+  readonly sellingPrice?: Money;
+  /** Prezzo "barrato" dell'articolo (unico per articolo). */
+  readonly compareAtPrice?: Money;
+  /** Costo di riferimento dell'articolo (seed del costo variante). */
+  readonly purchasePrice?: Money;
   readonly description?: string;
   readonly brand?: string;
   readonly category?: string;

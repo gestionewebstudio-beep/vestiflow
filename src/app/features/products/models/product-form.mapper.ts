@@ -40,12 +40,21 @@ function defaultOptionAxes(): OptionAxisDraft[] {
  * automatico: solo inserimento manuale o pulsante "Genera SKU", specifica
  * cliente §SKU); quelle non piu' presenti vengono scartate.
  */
+/** Valori articolo che fanno da seed a una NUOVA variante (prezzo e costo). */
+export interface VariantSeed {
+  readonly sellingPrice: number;
+  readonly purchasePrice: number | null;
+}
+
 export function generateVariantDrafts(
   options: ProductOptionsDraft,
   // Mantenuto per compatibilita' con i chiamanti esistenti; non piu' usato
   // per suggerire uno SKU (rimosso: mai generato in automatico).
   _productName: string,
   existing: readonly VariantDraft[] = [],
+  // Seed articolo: prezzo/costo dell'articolo con cui nasce ogni NUOVA
+  // combinazione. Le varianti già esistenti conservano i propri valori.
+  seed?: VariantSeed,
 ): VariantDraft[] {
   const activeNames = options.axes
     .filter((axis) => axis.values.length > 0)
@@ -76,9 +85,10 @@ export function generateVariantDrafts(
       // Mai generato in automatico: l'utente lo inserisce a mano o con
       // "Genera SKU" (specifica cliente §SKU).
       sku: '',
-      sellingPrice: 0,
-      purchasePrice: null,
-      compareAtPrice: null,
+      // Seed dal prezzo/costo di articolo (se fornito): la nuova combinazione
+      // nasce coi valori dell'articolo, poi è modificabile in modo indipendente.
+      sellingPrice: seed?.sellingPrice ?? 0,
+      purchasePrice: seed?.purchasePrice ?? null,
       barcode: '',
       included: true,
     };
@@ -105,7 +115,6 @@ export function createSingleVariantDraft(
     sku,
     sellingPrice: existing?.sellingPrice ?? 0,
     purchasePrice: existing?.purchasePrice ?? null,
-    compareAtPrice: existing?.compareAtPrice ?? null,
     barcode: existing?.barcode ?? '',
     included: true,
   };
@@ -142,6 +151,14 @@ export function productFormDraftFromEmbeddedPrefill(
   const base = ensureQuickModeDraft(emptyProductFormDraft());
   const name = prefill.name?.trim() || base.general.name;
   const variant = base.variants[0]!;
+  // Prodotto semplice: prezzo/barrato/costo sono dati dell'ARTICOLO; la variante
+  // di default li rispecchia (prezzo/costo), il barrato resta solo sull'articolo.
+  const sellingPrice =
+    prefill.sellingPriceMajor != null ? prefill.sellingPriceMajor : base.general.sellingPrice;
+  const purchasePrice =
+    prefill.purchasePriceMajor != null ? prefill.purchasePriceMajor : base.general.purchasePrice;
+  const compareAtPrice =
+    prefill.compareAtPriceMajor != null ? prefill.compareAtPriceMajor : base.general.compareAtPrice;
   return ensureQuickModeDraft(
     {
       ...base,
@@ -150,20 +167,18 @@ export function productFormDraftFromEmbeddedPrefill(
         name,
         description: prefill.description?.trim() || base.general.description,
         defaultVatCodeId: prefill.defaultVatCodeId ?? base.general.defaultVatCodeId,
+        sellingPrice,
+        purchasePrice,
+        compareAtPrice,
       },
       variants: [
         {
           ...variant,
           sku: prefill.sku?.trim() || variant.sku,
           barcode: prefill.barcode?.trim() || variant.barcode,
-          purchasePrice:
-            prefill.purchasePriceMajor != null ? prefill.purchasePriceMajor : variant.purchasePrice,
-          sellingPrice:
-            prefill.sellingPriceMajor != null ? prefill.sellingPriceMajor : variant.sellingPrice,
-          compareAtPrice:
-            prefill.compareAtPriceMajor != null
-              ? prefill.compareAtPriceMajor
-              : variant.compareAtPrice,
+          // Specchio dell'articolo: coerente col mirror applicato al build DTO.
+          purchasePrice,
+          sellingPrice,
         },
       ],
     },
@@ -195,6 +210,9 @@ export function emptyProductFormDraft(): ProductFormDraft {
       inventoryTracking: InventoryTrackingMode.Standard,
       managesStock: true,
       kind: ProductKind.Article,
+      sellingPrice: 0,
+      compareAtPrice: null,
+      purchasePrice: null,
     },
     options: { axes: defaultOptionAxes() },
     variants: [],
@@ -228,10 +246,6 @@ function toVariantBase(variant: VariantDraft): CreateProductVariantDto {
       variant.purchasePrice != null
         ? moneyFromMajor(variant.purchasePrice, DEFAULT_CURRENCY)
         : undefined,
-    compareAtPrice:
-      variant.compareAtPrice != null
-        ? moneyFromMajor(variant.compareAtPrice, DEFAULT_CURRENCY)
-        : undefined,
     barcode: trimmedOrUndefined(variant.barcode),
   };
 }
@@ -264,6 +278,18 @@ function generalToDto(
     // obbligatorio). Normalizzato in maiuscolo per coerenza visiva.
     articleCode: general.articleCode.trim().toUpperCase() || undefined,
     name: general.name.trim(),
+    // Prezzo/costo a livello articolo (ponte unità maggiori -> Money). Il prezzo
+    // di vendita è sempre inviato; barrato e costo di riferimento solo se
+    // valorizzati (null nel draft = assente).
+    sellingPrice: moneyFromMajor(general.sellingPrice, DEFAULT_CURRENCY),
+    compareAtPrice:
+      general.compareAtPrice != null
+        ? moneyFromMajor(general.compareAtPrice, DEFAULT_CURRENCY)
+        : undefined,
+    purchasePrice:
+      general.purchasePrice != null
+        ? moneyFromMajor(general.purchasePrice, DEFAULT_CURRENCY)
+        : undefined,
     description: trimmedOrUndefined(general.description),
     brand: trimmedOrUndefined(general.brand),
     category: trimmedOrUndefined(general.category),
@@ -289,21 +315,68 @@ function generalToDto(
   };
 }
 
+/**
+ * Prodotto semplice: nessun asse opzione valorizzato e al più una variante
+ * (la variante di default anonima del Modello X).
+ */
+function isSimpleProductDraft(draft: ProductFormDraft): boolean {
+  const noOptions = draft.options.axes.every((axis) => axis.values.length === 0);
+  return noOptions && includedVariants(draft.variants).length <= 1;
+}
+
+/** Prezzo di vendita dell'articolo come Money (sempre presente nel form). */
+function articleSellingMoney(
+  general: ProductGeneralDraft,
+): CreateProductVariantDto['sellingPrice'] {
+  return moneyFromMajor(general.sellingPrice, DEFAULT_CURRENCY);
+}
+
+/** Costo di riferimento dell'articolo come Money (null nel draft = assente). */
+function articlePurchaseMoney(
+  general: ProductGeneralDraft,
+): CreateProductVariantDto['purchasePrice'] {
+  return general.purchasePrice != null
+    ? moneyFromMajor(general.purchasePrice, DEFAULT_CURRENCY)
+    : undefined;
+}
+
 /** Draft -> payload di creazione (solo varianti incluse). */
 export function toCreateProductDto(draft: ProductFormDraft): CreateProductDto {
+  const simple = isSimpleProductDraft(draft);
+  const variants = includedVariants(draft.variants).map((variant) => {
+    const base = toVariantBase(variant);
+    // Prodotto semplice: la variante di default nasce col prezzo E col costo
+    // dell'articolo (seed). Il backend ribadisce poi il mirror del prezzo.
+    return simple
+      ? {
+          ...base,
+          sellingPrice: articleSellingMoney(draft.general),
+          purchasePrice: articlePurchaseMoney(draft.general),
+        }
+      : base;
+  });
   return {
     ...generalToDto(draft.general),
     options: buildOptionDtos(draft.options),
-    variants: includedVariants(draft.variants).map(toVariantBase),
+    variants,
   };
 }
 
 /** Draft -> payload di modifica (le varianti esistenti conservano l'`id`). */
 export function toUpdateProductDto(draft: ProductFormDraft): UpdateProductDto {
-  const variants: UpdateProductVariantDto[] = includedVariants(draft.variants).map((variant) => ({
-    ...toVariantBase(variant),
-    id: variant.id,
-  }));
+  const simple = isSimpleProductDraft(draft);
+  const variants: UpdateProductVariantDto[] = includedVariants(draft.variants).map((variant) => {
+    const base = toVariantBase(variant);
+    // Prodotto semplice in modifica: la variante di default specchia il PREZZO
+    // dell'articolo (coerente col mirror backend). Il COSTO effettivo NON viene
+    // toccato: è aggiornato dai carichi e sovrascriverlo con il costo di
+    // riferimento perderebbe il dato di valorizzazione.
+    return {
+      ...base,
+      ...(simple ? { sellingPrice: articleSellingMoney(draft.general) } : {}),
+      id: variant.id,
+    };
+  });
   return {
     ...generalToDto(draft.general),
     options: buildOptionDtos(draft.options),
@@ -365,6 +438,12 @@ export function productToFormDraft(
     inventoryTracking: product.inventoryTracking ?? InventoryTrackingMode.Standard,
     managesStock: product.managesStock ?? true,
     kind: product.kind ?? ProductKind.Article,
+    // Prezzo/costo a livello articolo (Money -> unità maggiori). Il prezzo di
+    // vendita ha sempre un valore (default 0); barrato e costo di riferimento
+    // sono opzionali (null = assente).
+    sellingPrice: product.sellingPrice != null ? moneyToMajor(product.sellingPrice) : 0,
+    compareAtPrice: product.compareAtPrice != null ? moneyToMajor(product.compareAtPrice) : null,
+    purchasePrice: product.purchasePrice != null ? moneyToMajor(product.purchasePrice) : null,
   };
   const variantDrafts: VariantDraft[] = variants.map((variant) => ({
     key: variant.id,
@@ -377,7 +456,6 @@ export function productToFormDraft(
     // Ponte dominio->form: Money (unità minori) torna a number in unità maggiori.
     sellingPrice: moneyToMajor(variant.sellingPrice),
     purchasePrice: variant.purchasePrice != null ? moneyToMajor(variant.purchasePrice) : null,
-    compareAtPrice: variant.compareAtPrice != null ? moneyToMajor(variant.compareAtPrice) : null,
     barcode: variant.barcode ?? '',
     included: true,
   }));

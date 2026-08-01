@@ -34,6 +34,10 @@ export interface ProductApiRow {
   readonly catalogOrigin: CatalogOrigin;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
+  /** Prezzo/costo a livello articolo (unità minori). Il barrato è solo qui. */
+  readonly sellingPriceMinor?: number;
+  readonly compareAtPriceMinor?: number | null;
+  readonly purchasePriceMinor?: number | null;
   readonly inventoryTracking?: string;
   readonly managesStock?: boolean;
   readonly kind?: 'article' | 'service';
@@ -66,7 +70,6 @@ export interface ProductVariantApiRow {
   readonly currency: string;
   readonly sellingPriceMinor: number;
   readonly purchasePriceMinor?: number | null;
-  readonly compareAtPriceMinor?: number | null;
   readonly shopifyVariantId?: string | null;
   readonly shopifyInventoryItemId?: string | null;
   readonly createdAt: string;
@@ -216,6 +219,9 @@ function isShopifyCategoryMetafieldValue(item: unknown): item is {
 }
 
 export function mapProductApiRow(row: ProductApiRow): Product {
+  // Valuta a livello articolo: il Product non porta un campo currency proprio,
+  // si eredita dalla prima variante (o EUR di default).
+  const currency = row.variants?.[0]?.currency ?? 'EUR';
   return {
     id: row.id,
     tenantId: row.tenantId,
@@ -243,6 +249,20 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     catalogOrigin: row.catalogOrigin ?? CatalogOrigin.VestiFlow,
     unitOfMeasure: row.unitOfMeasure ?? 'pz',
     defaultVatCodeId: row.defaultVatCodeId ?? null,
+    // Prezzo/costo articolo: sellingPrice sempre presente (default 0 lato DB);
+    // barrato e costo di riferimento sono opzionali.
+    sellingPrice:
+      row.sellingPriceMinor != null
+        ? { amountMinor: row.sellingPriceMinor, currencyCode: currency }
+        : undefined,
+    compareAtPrice:
+      row.compareAtPriceMinor != null
+        ? { amountMinor: row.compareAtPriceMinor, currencyCode: currency }
+        : undefined,
+    purchasePrice:
+      row.purchasePriceMinor != null
+        ? { amountMinor: row.purchasePriceMinor, currencyCode: currency }
+        : undefined,
     inventoryTracking: (row.inventoryTracking as Product['inventoryTracking']) ?? undefined,
     managesStock: row.managesStock ?? true,
     kind: row.kind ?? 'article',
@@ -276,10 +296,6 @@ export function mapProductVariantApiRow(row: ProductVariantApiRow): ProductVaria
     purchasePrice:
       row.purchasePriceMinor != null
         ? { amountMinor: row.purchasePriceMinor, currencyCode: row.currency }
-        : undefined,
-    compareAtPrice:
-      row.compareAtPriceMinor != null
-        ? { amountMinor: row.compareAtPriceMinor, currencyCode: row.currency }
         : undefined,
     shopifyVariantId: row.shopifyVariantId ?? undefined,
     shopifyInventoryItemId: row.shopifyInventoryItemId ?? undefined,

@@ -31,9 +31,11 @@ import {
   canDeleteProducts,
   canManageCatalog,
   canSyncProductToShopify,
+  canViewPurchaseCosts,
 } from '@core/permissions/tenant-permissions.util';
 import { showShopifyIntegration as isShopifyTenantProfile } from '@core/models/tenant-channel-profile.model';
-import type { IsoDateString } from '@core/models/common.model';
+import type { IsoDateString, Money } from '@core/models/common.model';
+import { formatMoney } from '@core/utils/money.util';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import type { Product, ProductStatus } from '@core/models/product.model';
 import type { ShopifyMetafieldRef } from '@core/models/shopify-product-metadata.model';
@@ -166,6 +168,10 @@ export class ProductDetailComponent {
   });
   protected readonly showShopifyIntegration = computed(() =>
     isShopifyTenantProfile(this.authService.currentUser()?.tenantChannelProfile),
+  );
+  /** Costo di riferimento e costo variante visibili solo con catalog.view_purchase_costs. */
+  protected readonly canViewPurchaseCosts = computed(() =>
+    canViewPurchaseCosts(this.authService.currentUser()),
   );
   protected readonly canSyncProductToShopify = computed(() => {
     if (!this.showShopifyIntegration()) {
@@ -321,6 +327,11 @@ export class ProductDetailComponent {
 
   protected formatDate(value: IsoDateString): string {
     return DATE_FORMAT.format(new Date(value));
+  }
+
+  /** Formattazione denaro centralizzata (Intl) per i prezzi a livello articolo. */
+  protected formatMoney(value: Money): string {
+    return formatMoney(value);
   }
 
   protected reload(): void {

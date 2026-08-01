@@ -168,6 +168,26 @@
           </dd>
         </div>
         <div class="product-detail__fact">
+          <dt class="product-detail__term">Prezzo di vendita</dt>
+          <dd class="product-detail__value tabular-nums">
+            {{ p.sellingPrice ? formatMoney(p.sellingPrice) : '—' }}
+          </dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Prezzo barrato</dt>
+          <dd class="product-detail__value tabular-nums">
+            {{ p.compareAtPrice ? formatMoney(p.compareAtPrice) : '—' }}
+          </dd>
+        </div>
+        @if (canViewPurchaseCosts()) {
+          <div class="product-detail__fact">
+            <dt class="product-detail__term">Costo di riferimento</dt>
+            <dd class="product-detail__value tabular-nums">
+              {{ p.purchasePrice ? formatMoney(p.purchasePrice) : '—' }}
+            </dd>
+          </div>
+        }
+        <div class="product-detail__fact">
           <dt class="product-detail__term">Tracciamento</dt>
           <dd class="product-detail__value">{{ trackingLabel(p.inventoryTracking) }}</dd>
         </div>
@@ -316,6 +336,7 @@
           [variants]="variants()"
           [options]="p.options"
           [productId]="p.id"
+          [canSeeCosts]="canViewPurchaseCosts()"
         />
       }
 

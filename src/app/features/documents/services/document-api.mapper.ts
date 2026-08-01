@@ -559,7 +559,11 @@ export interface SaveGoodsReceiptBody {
   /** Modalità costi del documento: netti o ivati (§11.1). */
   readonly purchaseCostEntryMode?: PurchaseCostEntryMode;
   readonly lines?: readonly SaveGoodsReceiptLineBody[];
-  readonly applySupplierPriceUpdates?: boolean;
+  /**
+   * Spunta per-documento: propaga il costo pagato anche al costo di riferimento
+   * dell'articolo. Il costo effettivo della variante è aggiornato comunque.
+   */
+  readonly updateArticleReferenceCost?: boolean;
 }
 
 /**

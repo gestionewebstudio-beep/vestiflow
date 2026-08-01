@@ -13,7 +13,6 @@ const emptyVariant: VariantDraft = {
   sku: '',
   sellingPrice: 0,
   purchasePrice: null,
-  compareAtPrice: null,
   barcode: '',
   included: true,
 };

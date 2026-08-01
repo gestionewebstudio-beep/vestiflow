@@ -1,4 +1,4 @@
-import type { EntityId, TenantScoped, Timestamped } from './common.model';
+import type { EntityId, Money, TenantScoped, Timestamped } from './common.model';
 import type { CatalogOrigin } from './catalog-origin.model';
 import type { InventoryTrackingMode } from './product-catalog.model';
 import type { ProductImage } from './product-image.model';
@@ -83,6 +83,22 @@ export interface Product extends TenantScoped, Timestamped {
   readonly catalogOrigin: CatalogOrigin;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
+  /**
+   * Prezzo di vendita dell'articolo (dato reale, non specchio): fa da seed alle
+   * varianti alla creazione. Prodotto semplice (senza opzioni): è autoritativo e
+   * la variante di default lo specchia.
+   */
+  readonly sellingPrice?: Money;
+  /**
+   * Prezzo "barrato" (compareAt): UNO per articolo. Non esiste più a livello di
+   * variante. In export Shopify viene replicato su ogni variante.
+   */
+  readonly compareAtPrice?: Money;
+  /**
+   * Costo di RIFERIMENTO dell'articolo: fa da seed al costo delle nuove varianti.
+   * Il costo effettivo (valorizzazione) resta sulla variante.
+   */
+  readonly purchasePrice?: Money;
   readonly inventoryTracking?: InventoryTrackingMode;
   readonly managesStock?: boolean;
   /**

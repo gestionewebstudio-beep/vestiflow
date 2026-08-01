@@ -25,7 +25,6 @@ function toApiVariant(variant: CreateProductVariantDto): Record<string, unknown>
     optionValues: variant.optionValues,
     sellingPrice: toApiMoney(variant.sellingPrice),
     purchasePrice: variant.purchasePrice ? toApiMoney(variant.purchasePrice) : undefined,
-    compareAtPrice: variant.compareAtPrice ? toApiMoney(variant.compareAtPrice) : undefined,
     barcode: variant.barcode,
   };
 }
@@ -37,6 +36,11 @@ export function toCreateProductBody(dto: CreateProductDto): Record<string, unkno
     // progressivo (§Codice articolo). Mai mappato su campi Shopify.
     articleCode: dto.articleCode?.trim() || undefined,
     name: dto.name,
+    // Prezzo/costo a livello articolo: sellingPrice obbligatorio, barrato e costo
+    // di riferimento opzionali.
+    sellingPrice: toApiMoney(dto.sellingPrice),
+    compareAtPrice: dto.compareAtPrice ? toApiMoney(dto.compareAtPrice) : undefined,
+    purchasePrice: dto.purchasePrice ? toApiMoney(dto.purchasePrice) : undefined,
     description: dto.description,
     brand: dto.brand,
     category: dto.category,
@@ -75,6 +79,11 @@ export function toUpdateProductBody(dto: UpdateProductDto): Record<string, unkno
     // l'operatore lo svuota (campo obbligatorio, §Codice articolo).
     articleCode: dto.articleCode?.trim() || undefined,
     name: dto.name,
+    // Prezzo/costo a livello articolo. undefined = non toccare; il barrato
+    // assente resta undefined (non azzerato qui, il form lo governa).
+    sellingPrice: dto.sellingPrice ? toApiMoney(dto.sellingPrice) : undefined,
+    compareAtPrice: dto.compareAtPrice ? toApiMoney(dto.compareAtPrice) : undefined,
+    purchasePrice: dto.purchasePrice ? toApiMoney(dto.purchasePrice) : undefined,
     description: dto.description,
     brand: dto.brand,
     category: dto.category,

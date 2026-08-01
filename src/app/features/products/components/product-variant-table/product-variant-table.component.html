@@ -6,6 +6,9 @@
         <th scope="col">{{ name }}</th>
       }
       <th scope="col" class="variant-table__cell--numeric">Prezzo</th>
+      @if (canSeeCosts()) {
+        <th scope="col" class="variant-table__cell--numeric">Costo</th>
+      }
       <th scope="col">Barcode</th>
       @if (productId(); as id) {
         <th scope="col" class="variant-table__cell--actions">Etichetta</th>
@@ -21,11 +24,13 @@
           <td [attr.data-label]="name">{{ optionValue(variant, name) }}</td>
         }
         <td class="variant-table__cell--numeric tabular-nums" data-label="Prezzo">
-          @if (variant.compareAtPrice) {
-            <span class="variant-table__compare-at">{{ formatPrice(variant.compareAtPrice) }}</span>
-          }
           {{ formatPrice(variant.sellingPrice) }}
         </td>
+        @if (canSeeCosts()) {
+          <td class="variant-table__cell--numeric tabular-nums" data-label="Costo">
+            {{ variant.purchasePrice ? formatPrice(variant.purchasePrice) : '—' }}
+          </td>
+        }
         <td class="tabular-nums" data-label="Barcode">{{ variant.barcode ?? '—' }}</td>
         @if (productId(); as id) {
           <td class="variant-table__cell--actions" data-label="Etichetta">

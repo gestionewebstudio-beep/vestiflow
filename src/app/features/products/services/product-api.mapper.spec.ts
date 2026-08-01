@@ -11,6 +11,10 @@ const baseDto: CreateProductDto = {
   description: 'Cotone',
   tags: ['estate'],
   status: ProductStatus.Active,
+  // Prezzo/costo a livello articolo. Il barrato è solo qui (non più sulla variante).
+  sellingPrice: { amountMinor: 2990, currencyCode: DEFAULT_CURRENCY },
+  compareAtPrice: { amountMinor: 3990, currencyCode: DEFAULT_CURRENCY },
+  purchasePrice: { amountMinor: 1200, currencyCode: DEFAULT_CURRENCY },
   options: [{ name: 'Taglia', values: ['M'] }],
   variants: [
     {
@@ -18,7 +22,6 @@ const baseDto: CreateProductDto = {
       optionValues: [{ name: 'Taglia', value: 'M' }],
       sellingPrice: { amountMinor: 2990, currencyCode: DEFAULT_CURRENCY },
       purchasePrice: { amountMinor: 1200, currencyCode: DEFAULT_CURRENCY },
-      compareAtPrice: { amountMinor: 3990, currencyCode: DEFAULT_CURRENCY },
     },
   ],
 };
@@ -37,13 +40,15 @@ describe('product-api.mapper', () => {
       const body = toCreateProductBody(baseDto);
 
       expect(body['name']).toBe('Maglietta');
+      // Prezzo/costo/barrato a livello articolo.
+      expect(body['sellingPrice']).toEqual({ amountMinor: 2990, currency: DEFAULT_CURRENCY });
+      expect(body['compareAtPrice']).toEqual({ amountMinor: 3990, currency: DEFAULT_CURRENCY });
+      expect(body['purchasePrice']).toEqual({ amountMinor: 1200, currency: DEFAULT_CURRENCY });
       const variant = (body['variants'] as Record<string, unknown>[])[0];
       expect(variant?.['sellingPrice']).toEqual({ amountMinor: 2990, currency: DEFAULT_CURRENCY });
       expect(variant?.['purchasePrice']).toEqual({ amountMinor: 1200, currency: DEFAULT_CURRENCY });
-      expect(variant?.['compareAtPrice']).toEqual({
-        amountMinor: 3990,
-        currency: DEFAULT_CURRENCY,
-      });
+      // La variante non porta più il prezzo barrato.
+      expect(variant?.['compareAtPrice']).toBeUndefined();
     });
   });
 

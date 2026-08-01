@@ -46,6 +46,16 @@ export interface ProductGeneralDraft {
   readonly managesStock: boolean;
   /** Tipo prodotto (Articolo/Servizio) — solo VestiFlow, mai su Shopify. */
   readonly kind: ProductKind;
+  /**
+   * Prezzo di vendita dell'articolo (unità maggiori, ponte form). Dato reale che
+   * fa da seed alle varianti; nel prodotto semplice la variante di default lo
+   * specchia. Il mapper lo converte in Money.
+   */
+  readonly sellingPrice: number;
+  /** Prezzo "barrato" dell'articolo (unità maggiori). null = assente. Unico per articolo. */
+  readonly compareAtPrice: number | null;
+  /** Costo di riferimento dell'articolo (unità maggiori), seed del costo variante. null = assente. */
+  readonly purchasePrice: number | null;
 }
 
 /**
@@ -76,9 +86,8 @@ export interface VariantDraft {
   readonly sku: string;
   /** Prezzi in unità maggiori (ponte form); il mapper li converte in Money. */
   readonly sellingPrice: number;
+  /** Costo effettivo della variante (unità maggiori). Il barrato NON è più qui. */
   readonly purchasePrice: number | null;
-  /** Prezzo "barrato" opzionale (unità maggiori). null = assente. */
-  readonly compareAtPrice: number | null;
   readonly barcode: string;
   /** L'utente puo' escludere singole combinazioni dalla generazione. */
   readonly included: boolean;

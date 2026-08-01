@@ -98,6 +98,12 @@ export class ProductGeneralStepComponent implements OnInit {
   readonly shopifyConnected = input(false);
   readonly catalogReadOnly = input(false);
   /**
+   * Mostra il campo Costo di riferimento (prezzo d'acquisto dell'articolo).
+   * Permesso catalog.view_purchase_costs: senza, il campo resta nascosto e il
+   * valore esistente non viene mai toccato.
+   */
+  readonly canSeeCosts = input(false);
+  /**
    * Sezione da mostrare: 'article' = tab Articolo (identificativi, categorie,
    * stato, U.M., IVA, tipo, fornitore); 'catalog' = tab Catalogo (Shopify,
    * stagione, tracciamento, tag, descrizione, note interne). Il form resta
@@ -262,6 +268,11 @@ export class ProductGeneralStepComponent implements OnInit {
     inventoryTracking: this.fb.control<InventoryTrackingMode>(InventoryTrackingMode.Standard),
     managesStock: this.fb.control(true),
     kind: this.fb.control<ProductKind>(ProductKind.Article),
+    // Prezzo/costo a livello articolo (unità maggiori). Il prezzo di vendita è il
+    // dato reale dell'articolo; barrato e costo di riferimento sono opzionali.
+    sellingPrice: this.fb.control(0, [Validators.required, Validators.min(0)]),
+    compareAtPrice: this.fb.control<number | null>(null, [Validators.min(0)]),
+    purchasePrice: this.fb.control<number | null>(null, [Validators.min(0)]),
     description: this.fb.control(''),
   });
 
@@ -336,6 +347,12 @@ export class ProductGeneralStepComponent implements OnInit {
 
   protected showError(field: RequiredField): boolean {
     const control = this.form.controls[field];
+    return control.invalid && control.touched;
+  }
+
+  /** Errore prezzo di vendita articolo (obbligatorio, non negativo). */
+  protected showSellingPriceError(): boolean {
+    const control = this.form.controls.sellingPrice;
     return control.invalid && control.touched;
   }
 
